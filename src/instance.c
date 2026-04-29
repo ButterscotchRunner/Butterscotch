@@ -37,6 +37,7 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
     inst->imageAlpha = 1.0f;
     inst->imageBlend = 0xFFFFFF;
     inst->depth = 0;
+    inst->layer = -1;
     inst->speed = 0.0f;
     inst->direction = 0.0f;
     inst->hspeed = 0.0f;
@@ -103,6 +104,7 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->imageAlpha = source->imageAlpha;
     destination->imageBlend = source->imageBlend;
     destination->depth = source->depth;
+    destination->layer = source->layer;
     destination->speed = source->speed;
     destination->direction = source->direction;
     destination->hspeed = source->hspeed;

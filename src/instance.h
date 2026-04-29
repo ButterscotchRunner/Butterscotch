@@ -40,6 +40,7 @@ typedef struct Instance {
     float imageXscale, imageYscale, imageAngle, imageAlpha;
     uint32_t imageBlend;
     int32_t depth;
+    int32_t layer;
 
     // Motion properties
     float speed, direction;

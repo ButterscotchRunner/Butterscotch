@@ -58,6 +58,9 @@ static void logSemiStubbedFunction(VMContext* ctx, const char* funcName) {
 #define logSemiStubbedFunction(ctx, funcName) ((void) 0)
 #endif
 
+// Forward declarations
+static int32_t resolveLayerIdArg(Runner* runner, RValue arg);
+
 // ===[ DS_MAP SYSTEM ]===
 
 static int32_t dsMapCreate(Runner* runner) {
@@ -218,6 +221,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
+    { "layer", BUILTIN_VAR_LAYER },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
     { "object_index", BUILTIN_VAR_OBJECT_INDEX },
     { "os_3ds", BUILTIN_VAR_OS_3DS },
@@ -498,6 +502,9 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
         case BUILTIN_VAR_DEPTH:
             if (inst == nullptr) break;
             return RValue_makeReal((GMLReal) inst->depth);
+        case BUILTIN_VAR_LAYER:
+            if (inst == nullptr) break;
+            return RValue_makeReal((GMLReal) inst->layer);
         case BUILTIN_VAR_X:
             if (inst == nullptr) break;
             return RValue_makeReal(inst->x);
@@ -929,6 +936,19 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             if (newDepth != inst->depth) {
                 inst->depth = newDepth;
                 ((Runner*) ctx->runner)->drawableListSortDirty = true;
+            }
+            return;
+        }
+        case BUILTIN_VAR_LAYER: {
+            if (inst == nullptr) break;
+            int32_t layerId = resolveLayerIdArg(runner, val);
+            RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, layerId);
+            if (rl != nullptr) {
+                inst->layer = layerId;
+                if (inst->depth != rl->depth) {
+                    inst->depth = rl->depth;
+                    runner->drawableListSortDirty = true;
+                }
             }
             return;
         }
@@ -4230,6 +4250,25 @@ static RValue builtinInstanceCopy(VMContext* ctx, RValue* args, int32_t argCount
     bool performEvent = argCount > 0 ? RValue_toBool(args[0]) : false;
     Instance* inst = Runner_copyInstance(runner, source, performEvent);
     if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
+    return RValue_makeReal((GMLReal) inst->instanceId);
+}
+
+static RValue builtinInstanceCreateLayer(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (4 > argCount) return RValue_makeReal(INSTANCE_NOONE);
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal x = RValue_toReal(args[0]);
+    GMLReal y = RValue_toReal(args[1]);
+    int32_t layerId = resolveLayerIdArg(runner, args[2]);
+    int32_t objectIndex = RValue_toInt32(args[3]);
+
+    Instance* inst = Runner_createInstanceWithLayer(runner, x, y, objectIndex, layerId);
+    if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
+
+    Instance* callerInst = (Instance*) ctx->currentInstance;
+    if (callerInst != nullptr && ctx->creatorVarID >= 0) {
+        Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
+    }
+
     return RValue_makeReal((GMLReal) inst->instanceId);
 }
 
@@ -8273,6 +8312,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     }
     else {
         VM_registerBuiltin(ctx, "instance_create_depth", builtinInstanceCreateDepth);
+        VM_registerBuiltin(ctx, "instance_create_layer", builtinInstanceCreateLayer);
     }
     VM_registerBuiltin(ctx, "instance_copy", builtinInstanceCopy);
     VM_registerBuiltin(ctx, "instance_change", builtinInstanceChange);

@@ -1123,6 +1123,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 Instance* inst = hmget(runner->instancesById, layerData->instanceIds[ii]);
                 if (inst != nullptr) {
                     inst->depth = layer->depth;
+                    inst->layer = (int32_t) layer->id;
                 }
             }
         }
@@ -1416,6 +1417,20 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
     inst->depth = depth;
+    dispatchInstanceCreationEvents(runner, inst);
+    return inst;
+}
+
+Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId) {
+    if (isObjectDisabled(runner, objectIndex)) return nullptr;
+    RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, layerId);
+    if (rl == nullptr) {
+        fprintf(stderr, "Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
+        return nullptr;
+    }
+    Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
+    inst->layer = layerId;
+    inst->depth = rl->depth;
     dispatchInstanceCreationEvents(runner, inst);
     return inst;
 }
