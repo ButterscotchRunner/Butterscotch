@@ -284,7 +284,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
 
         // Calculate space needed for all key=value pairs
         repeat(section->count, j) {
-            needed += strlen(section->keys[j]) + 1 + strlen(section->values[j]) + 1;
+            needed += strlen(section->keys[j]) + 2 + strlen(section->values[j]) + 2;
         }
 
         // Grow buffer if needed
