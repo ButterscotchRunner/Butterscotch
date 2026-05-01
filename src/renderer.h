@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-
+#include "matrix_math.h"
 #include "data_win.h"
 #include "instance.h"
 
@@ -54,14 +54,17 @@ typedef struct {
     void (*drawSprite)(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
     void (*drawSpritePart)(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha);
     void (*drawSpritePos)(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha);
+    void (*drawCircle)(Renderer* renderer, float x, float y, float radius, bool outline);
+    void (*drawCircleColor)(Renderer* renderer, float x, float y, float radius, uint32_t color1, uint32_t color2, bool outline);
     void (*drawRectangle)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline);
+    void (*drawRectangleColor)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline);
     void (*drawLine)(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha);
     void (*drawTriangle)(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline);
     void (*drawLineColor)(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha);
     void (*drawText)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg);
     void (*drawTextColor)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha);
     void (*flush)(Renderer* renderer);
-    int32_t (*createSpriteFromSurface)(Renderer* renderer, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig);
+    int32_t (*createSpriteFromSurface)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig);
     void (*deleteSprite)(Renderer* renderer, int32_t spriteIndex);
     void (*gpuSetBlendMode)(Renderer* renderer, int32_t mode);
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor);
@@ -69,10 +72,25 @@ typedef struct {
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
+    bool (*gpuGetBlendenabled)(Renderer* renderer); 
     // Optional: platform-specific tile rendering (nullptr = use default drawSpritePart path)
     void (*drawTile)(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY);
     // Optional: platform-specific tiled draw (nullptr = use default per-tile drawSprite loop).
     void (*drawTiled)(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha);
+    void (*drawClear)(Renderer* renderer, uint32_t color, float alpha);
+
+    // Surface Functions
+    int32_t (*createSurface)(Renderer* renderer, int32_t width, int32_t height);
+    bool (*surfaceExists)(Renderer* renderer, int32_t surfaceID);
+    bool (*setSurfaceTarget)(Renderer* renderer, int32_t surfaceID);
+    bool (*resetSurfaceTarget)(Renderer* renderer);
+    float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
+    float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
+    void (*drawSurface)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
+    void (*drawSurfacePart)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t left, int32_t top, int32_t width, int32_t height);
+    void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
+    void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
+
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).
     void (*drawTiledPart)(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha);
@@ -85,9 +103,12 @@ struct Renderer {
     DataWin* dataWin;
     uint32_t drawColor;  // BGR format, default 0xFFFFFF (white)
     float drawAlpha;     // default 1.0
+    float alphaCutRef;   // I Will Asssume Default of 0.0
+    int32_t circlePrecision; // default is 24 I think
     int32_t drawFont;    // default -1 (no font)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
+    Matrix4f PreviousViewMatrix;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
@@ -162,6 +183,34 @@ static void Renderer_drawSpritePos(Renderer* renderer, int32_t spriteIndex, int3
     if (0 > tpagIndex) return;
 
     renderer->vtable->drawSpritePos(renderer, tpagIndex, x1, y1, x2, y2, x3, y3, x4, y4, alpha);
+}
+
+static int32_t Renderer_createSurface(Renderer* renderer, int32_t width, int32_t height) {
+    //if (0 > width)  (0 > height) return;
+    return renderer->vtable->createSurface(renderer, width, height);
+}
+
+static bool Renderer_surfaceExists(Renderer* renderer, int32_t surfaceIndex) {
+    return renderer->vtable->surfaceExists(renderer, surfaceIndex);
+}
+
+static float Renderer_getSurfaceWidth(Renderer* renderer, int32_t surfaceIndex) {
+    return renderer->vtable->getSurfaceWidth(renderer, surfaceIndex);
+}
+
+static float Renderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceIndex) {
+    return renderer->vtable->getSurfaceHeight(renderer, surfaceIndex);
+}
+
+
+static bool Renderer_surfaceSetTarget(Renderer* renderer, int32_t surfaceIndex) {
+    renderer->vtable->flush(renderer);
+    return renderer->vtable->setSurfaceTarget(renderer, surfaceIndex);
+}
+
+static bool Renderer_surfaceResetTarget(Renderer* renderer) {
+    renderer->vtable->flush(renderer);
+    return renderer->vtable->resetSurfaceTarget(renderer);
 }
 
 // Draws part of a sprite with extended parameters (scale, rotation, color, alpha)

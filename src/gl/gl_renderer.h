@@ -17,6 +17,8 @@ typedef struct {
     bool alphaTestEnable;
     float alphaTestRef;
 
+    //Matrix4f previousViewMatix;
+
     GLuint vao, vbo, ebo;
     float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats
 
@@ -45,6 +47,19 @@ typedef struct {
     uint32_t originalTexturePageCount;
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
+    uint32_t surfaceCount;
+
+
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t ssurfaceCount;
+
+    int32_t surfaceStack[16];
+    //YoYoSurface surfaces[16];
+
+
 } GLRenderer;
 
 Renderer* GLRenderer_create(void);
