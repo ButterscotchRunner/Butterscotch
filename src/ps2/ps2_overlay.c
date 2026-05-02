@@ -20,46 +20,29 @@ static PS2Overlay gOverlay = { 0 };
 // Most of this function's implementation was taken directly from gsKit.
 // Unfortunately, `gsKit_font_print_scaled()` is quite lacking in terms of
 // support and features vs. `fontm`, so we need to write our own.
-//
-// Note that this generally assumes the font is monospaced, and weird things
-// might happen if a non-monospaced font is used.
 static void printScaled(PS2Overlay* overlay, float X, float Y, int Z, float scale, unsigned long color, const char *String) {
     GSGLOBAL* gsGlobal = overlay->gsGlobal;
     GSFONT* gsFont = overlay->gsFont;
 
-	u64 oldalpha;
-	u8 oldpabe;
-
-	int length;
-	int pos;
-
 	u32 linechars[GSKIT_FONTM_MAXLINES];
-
 	float posx[GSKIT_FONTM_MAXLINES];
-	float posy;
+	float posy = Y;
 
-	char cur;
-
-	u8 numlines;
-	u8 curline;
-	int tabscale;
-
-	oldalpha = gsGlobal->PrimAlpha;
-	oldpabe = gsGlobal->PABE;
+	u64 oldalpha = gsGlobal->PrimAlpha;
+	u8 oldpabe = gsGlobal->PABE;
 
 	gsKit_set_primalpha(gsGlobal, GS_SETREG_ALPHA(0,1,0,1,0), 0);
-	posy = Y;
-	length = strlen(String);
+	int length = strlen(String);
 
-	numlines = 0;
-	curline = 0;
+	u8 numlines = 0;
+	u8 curline = 0;
 	linechars[0] = 0;
 
-	tabscale = (gsFont->CharWidth * 4.0f * scale);
+	int tabscale = (gsFont->CharWidth * 4.0f * scale);
 
-	for(pos = 0; pos < length; pos++)
+	for(int pos = 0; pos < length; pos++)
 	{
-		cur = String[pos];
+		char cur = String[pos];
 		if(cur != '\n' && cur != '\t')
 		{
 			linechars[numlines]++;
@@ -88,9 +71,9 @@ static void printScaled(PS2Overlay* overlay, float X, float Y, int Z, float scal
 	}
 	curline = 0;
 
-	for(pos = 0; pos < length; pos++)
+	for(int pos = 0; pos < length; pos++)
 	{
-		cur = String[pos];
+		char cur = String[pos];
 
 		if(cur == '\n')
 		{
@@ -140,7 +123,7 @@ static void drawChunkStats(PS2Overlay* overlay) {
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
     overlay->fontAlignment = GSKIT_FALIGN_LEFT;
     float statsY = 10.0f;
-    float statsScale = 0.35f;
+    float statsScale = 0.7f;
     float statsLineHeight = 14.0f;
     char statLine[32];
 
@@ -161,16 +144,16 @@ static void beginStatusScreen(PS2Overlay* overlay, const char* gameName) {
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
 
     overlay->fontAlignment = GSKIT_FALIGN_CENTER;
-    printScaled(overlay, 320.0f, 180.0f, 1, 0.8f, title, "Butterscotch");
+    printScaled(overlay, 320.0f, 180.0f, 1, 1.3f, title, "Butterscotch");
     if (gameName) {
-        printScaled(overlay, 320.0f, 210.0f, 1, 0.5f, gray, gameName);
+        printScaled(overlay, 320.0f, 210.0f, 1, 0.8f, gray, gameName);
     }
 }
 
 // Draws the bottom-left credits text (shared between status screen and loading screen)
 static void drawCreditsText(PS2Overlay* overlay) {
     u64 darkGray = GS_SETREG_RGBAQ(0x70, 0x70, 0x70, 0x80, 0x00);
-    float creditsScale = 0.4f;
+    float creditsScale = 0.65f;
     float lineHeight = 26.0f * creditsScale;
     float creditsY = 448.0f - 10.0f - lineHeight * 2.0f;
 
@@ -207,10 +190,8 @@ void PS2Overlay_init(GSGLOBAL* gsGlobal, int memorySize, int heapCeiling) {
     gOverlay.gsFont->Type = GSKIT_FTYPE_FNT;
     gOverlay.gsFont->Additional = (short*)safeMalloc(sizeof(short)*256);
 
-    int res = gsKit_font_upload_raw(gOverlay.gsGlobal, gOverlay.gsFont);
-    fprintf(stderr, "`gsKit_font_upload_raw() returned %d\n", res);
-
-    gOverlay.fontSpacing = 0.95f;
+    gsKit_font_upload_raw(gOverlay.gsGlobal, gOverlay.gsFont);
+    gOverlay.fontSpacing = 0.7f;
     gOverlay.fontAlignment = GSKIT_FALIGN_LEFT;
 
     gPS2OverlayInitialized = true;
@@ -297,12 +278,12 @@ void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int 
     // Percentage text centered on the bar
     char percentText[8];
     snprintf(percentText, sizeof(percentText), "%d%%", (int) (progress * 100));
-    printScaled(data, 320.0f, barY + 4.5f, 1, 0.4f, white, percentText);
+    printScaled(data, 320.0f, barY + 4.5f, 1, 1.0f, white, percentText);
 
     // Chunk name text below the bar
     char statusText[32];
     snprintf(statusText, sizeof(statusText), "Loading %.4s... (%d/%d)", chunkName, chunkIndex + 1, totalChunks);
-    printScaled(data, 320.0f, barY + barH + 10.0f, 1, 0.5f, white, statusText);
+    printScaled(data, 320.0f, barY + barH + 10.0f, 1, 0.8f, white, statusText);
 
     // Memory usage below the status text
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
@@ -310,7 +291,7 @@ void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int 
     int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
     char memText[48];
     snprintf(memText, sizeof(memText), "Memory: %.1f/%.1f MB", (double) (usedBytes / (1024.0f * 1024.0f)), (double) (gOverlay.memorySize / (1024.0f * 1024.0f)));
-    printScaled(data, 320.0f, barY + barH + 30.0f, 1, 0.4f, gray, memText);
+    printScaled(data, 320.0f, barY + barH + 30.0f, 1, 0.65f, gray, memText);
 
     // Record item counts for already-parsed chunks (callback fires before parsing, so we scan all counts each time and add any newly non-zero ones in the order they appear)
     typedef struct { uint32_t* countPtr; const char* label; } CountSource;
@@ -361,7 +342,7 @@ void PS2Overlay_drawStatusScreen(const char* gameName, const char* statusText, b
 
     beginStatusScreen(&gOverlay, gameName);
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
-    printScaled(&gOverlay, 320.0f, 300.0f, 1, 0.5f, gray, statusText);
+    printScaled(&gOverlay, 320.0f, 300.0f, 1, 0.8f, gray, statusText);
     if (includeChunkStats) {
         drawChunkStats(&gOverlay);
     }
@@ -397,7 +378,7 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
     }
 
     snprintf(debugText, sizeof(debugText), "Room: %s\nTick: %.2fms\nStep: %.2fms\nDraw: %.2fms\nAudio: %.2fms\nFree: %d bytes\nVRAM Free: %lu bytes\nRoom Speed: %u%s\nAtlas: (%u, %u, %u) [%u/%u]%s\nInstances: %d\nStructs: %d", roomName, (double) tick, (double) step, (double) draw, (double) audio, freeBytes, (unsigned long) vramFreeBytes, runner->currentRoom->speed, speedCapRemoved ? " [UNCAPPED]" : "", vramAtlasCount, eeramAtlasCount, gsRenderer->atlasCount, gsRenderer->chunksNeededThisFrame, gsRenderer->chunkCount, thrashIndicator, (int) arrlen(runner->instances), (int) arrlen(runner->structInstances));
-    printScaled(&gOverlay, 10.0f, 10.0f, 10, 0.6f, debugColor, debugText);
+    printScaled(&gOverlay, 10.0f, 10.0f, 10, 1.0f, debugColor, debugText);
 
     if (gOverlay.state == STATS_ENABLED_WITH_PROFILER) {
         float profilerY = 10.0f + (15.6f * 10.0f) + 6.0f;
@@ -414,9 +395,9 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
             gOverlay.profilerFramesInWindow = 0;
         }
         const char* profilerDisplay = gOverlay.profilerOverlayText[0] != '\0' ? gOverlay.profilerOverlayText : "GML Profiler (collecting...)";
-        printScaled(&gOverlay, 10.0f, profilerY, 10, 0.35f, debugColor, profilerDisplay);
+        printScaled(&gOverlay, 10.0f, profilerY, 10, 0.55f, debugColor, profilerDisplay);
 #else
-        printScaled(&gOverlay, 10.0f, profilerY, 10, 0.35f, debugColor, "Butterscotch GML Profiler is disabled on this build :(");
+        printScaled(&gOverlay, 10.0f, profilerY, 10, 0.55f, debugColor, "Butterscotch GML Profiler is disabled on this build :(");
 #endif
     }
 }
