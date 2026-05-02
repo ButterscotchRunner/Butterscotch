@@ -8115,6 +8115,17 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
     return RValue_makeReal((GMLReal) newFontIndex);
 }
 
+static RValue builtinFontGetName(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        fprintf(stderr, "[font_get_name] Expected 1 argument, got 0");
+        return RValue_makeUndefined();
+    }
+
+    int32_t fontIndex = RValue_toInt32(args[0]);
+    if (0 > fontIndex || (uint32_t) fontIndex >= ctx->dataWin->font.count) return RValue_makeUndefined();
+    return RValue_makeString(ctx->dataWin->font.fonts[fontIndex].name);
+}
+
 // font_add_sprite_ext(sprite, string_map, prop, sep)
 static RValue builtinFontAddSpriteExt(VMContext* ctx, RValue* args, int32_t argCount) {
     if (4 > argCount) {
@@ -8823,6 +8834,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "json_decode", builtinJsonDecode);
     VM_registerBuiltin(ctx, "font_add_sprite", builtinFontAddSprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtinFontAddSpriteExt);
+    VM_registerBuiltin(ctx, "font_get_name", builtinFontGetName);
     VM_registerBuiltin(ctx, "object_get_sprite", builtinObjectGetSprite);
     VM_registerBuiltin(ctx, "asset_get_index", builtinAssetGetIndex);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtinGpuSetBlendMode);
