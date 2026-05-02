@@ -535,7 +535,7 @@ int main(int argc, char* argv[]) {
 
     // ===[ Main Loop ]===
     bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getObject(configRoot, "debugOverlayEnabled"));
-    PS2Overlay_setState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
+    PS2Overlay_setDebugOverlayState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
     uint16_t prevOverlayPadButtons = 0xFFFF;
 
     while (!runner->shouldExit) {
@@ -598,7 +598,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F12)) {
-            PS2Overlay_incrementState(runner);
+            PS2Overlay_toggleDebugOverlay(runner);
         }
 
         // Reset global interact state because I HATE when I get stuck while moving through rooms
@@ -661,7 +661,7 @@ int main(int argc, char* argv[]) {
         float audioTime = (float) audioDuration / (float) (kBUSCLK / 1000);
 
         // ===[ Debug Overlay ]===
-        PS2Overlay_drawStats(renderer, runner, tickTime, stepTime, drawTime, audioTime, speedCapRemoved);
+        PS2Overlay_drawDebugOverlay(renderer, runner, tickTime, stepTime, drawTime, audioTime, speedCapRemoved);
 
         // Execute draw queue and flip buffers
         gsKit_queue_exec(gsGlobal);

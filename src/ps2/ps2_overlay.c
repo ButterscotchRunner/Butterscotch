@@ -93,28 +93,28 @@ void PS2Overlay_deinit() {
     gPS2OverlayInitialized = false;
 }
 
-StatsOverlayState PS2Overlay_getState() {
+DebugOverlayState PS2Overlay_getDebugOverlayState() {
     if (!gPS2OverlayInitialized) return STATS_DISABLED;
     return gOverlay.state;
 }
 
-void PS2Overlay_setState(StatsOverlayState state, Runner* runner) {
+void PS2Overlay_setDebugOverlayState(DebugOverlayState state, Runner* runner) {
     if (!gPS2OverlayInitialized) return;
     gOverlay.state = state;
 
 #ifdef ENABLE_VM_GML_PROFILER
-    Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getState() == STATS_ENABLED_WITH_PROFILER);
+    Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getDebugOverlayState() == STATS_ENABLED_WITH_PROFILER);
     gOverlay.profilerFramesInWindow = 0;
     gOverlay.profilerOverlayText[0] = '\0';
 #endif
 }
 
-void PS2Overlay_incrementState(Runner* runner) {
+void PS2Overlay_toggleDebugOverlay(Runner* runner) {
     if (!gPS2OverlayInitialized) return;
     gOverlay.state = (gOverlay.state + 1) % STATS_MAX;
 
 #ifdef ENABLE_VM_GML_PROFILER
-    Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getState() == STATS_ENABLED_WITH_PROFILER);
+    Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getDebugOverlayState() == STATS_ENABLED_WITH_PROFILER);
     gOverlay.profilerFramesInWindow = 0;
     gOverlay.profilerOverlayText[0] = '\0';
 #endif
@@ -233,7 +233,7 @@ void PS2Overlay_drawStatusScreen(const char* gameName, const char* statusText, b
     endStatusScreen(gOverlay.gsGlobal, gOverlay.gsFontm);
 }
 
-void PS2Overlay_drawStats(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved) {
+void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved) {
     if (!gPS2OverlayInitialized) return;
     if (gOverlay.state == STATS_DISABLED) return;
 

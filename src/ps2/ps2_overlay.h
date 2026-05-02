@@ -25,10 +25,10 @@ typedef enum {
     STATS_ENABLED_WITH_PROFILER = 1,
     STATS_DISABLED = 2,
     STATS_MAX
-} StatsOverlayState;
+} DebugOverlayState;
 
 typedef struct {
-    StatsOverlayState state;
+    DebugOverlayState state;
     GSGLOBAL* gsGlobal;
     GSFONTM* gsFontm;
     int memorySize;
@@ -44,12 +44,12 @@ typedef struct {
 void PS2Overlay_init(GSGLOBAL* gsGlobal, int memorySize, int heapCeiling);
 void PS2Overlay_deinit();
 
-StatsOverlayState PS2Overlay_getState();
-void PS2Overlay_setState(StatsOverlayState state, Runner* runner);
-void PS2Overlay_incrementState(Runner* runner);
+DebugOverlayState PS2Overlay_getDebugOverlayState();
+void PS2Overlay_setDebugOverlayState(DebugOverlayState state, Runner* runner);
+void PS2Overlay_toggleDebugOverlay(Runner* runner);
 
 PS2Overlay* PS2Overlay_getCallbackData();
 void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int totalChunks, DataWin* dataWin, void* userData);
 
 void PS2Overlay_drawStatusScreen(const char* gameName, const char* statusText, bool includeChunkStats);
-void PS2Overlay_drawStats(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved);
+void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved);
