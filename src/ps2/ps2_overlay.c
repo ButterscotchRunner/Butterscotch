@@ -13,20 +13,20 @@ static bool gPS2OverlayInitialized = false;
 static PS2Overlay gOverlay = { 0 };
 
 // Draws chunk item counts in the top-left corner (if any stats have been recorded)
-static void drawChunkStats(GSGLOBAL* gs, GSFONTM* fontm, LoadingScreenState* loadingState) {
-    if (!loadingState || loadingState->statCount == 0)
+static void drawChunkStats(PS2Overlay* overlay) {
+    if (!overlay || overlay->loadingState.statCount == 0)
         return;
 
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
-    fontm->Align = GSKIT_FALIGN_LEFT;
+    overlay->gsFontm->Align = GSKIT_FALIGN_LEFT;
     float statsY = 10.0f;
     float statsScale = 0.35f;
     float statsLineHeight = 14.0f;
     char statLine[32];
 
-    repeat(loadingState->statCount, i) {
-        snprintf(statLine, sizeof(statLine), "%d %s", loadingState->stats[i].count, loadingState->stats[i].label);
-        gsKit_fontm_print_scaled(gs, fontm, 10.0f, statsY, 1, statsScale, gray, statLine);
+    repeat(overlay->loadingState.statCount, i) {
+        snprintf(statLine, sizeof(statLine), "%d %s", overlay->loadingState.stats[i].count, overlay->loadingState.stats[i].label);
+        gsKit_fontm_print_scaled(overlay->gsGlobal, overlay->gsFontm, 10.0f, statsY, 1, statsScale, gray, statLine);
         statsY += statsLineHeight;
     }
 }
@@ -34,16 +34,16 @@ static void drawChunkStats(GSGLOBAL* gs, GSFONTM* fontm, LoadingScreenState* loa
 // Draws a simple status screen with "Butterscotch" title, optional game name, and a status message (no progress bar)
 // gameName can be nullptr if the game name is not yet known
 // Begins a status screen: clears, draws title + optional game name, leaves center align active
-static void beginStatusScreen(GSGLOBAL* gs, GSFONTM* fontm, const char* gameName) {
-    gsKit_clear(gs, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
+static void beginStatusScreen(PS2Overlay* overlay, const char* gameName) {
+    gsKit_clear(overlay->gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
 
     u64 title = GS_SETREG_RGBAQ(0x5E, 0x54, 0x92, 0x80, 0x00);
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
 
-    fontm->Align = GSKIT_FALIGN_CENTER;
-    gsKit_fontm_print_scaled(gs, fontm, 320.0f, 180.0f, 1, 0.8f, title, "Butterscotch");
+    overlay->gsFontm->Align = GSKIT_FALIGN_CENTER;
+    gsKit_fontm_print_scaled(overlay->gsGlobal, overlay->gsFontm, 320.0f, 180.0f, 1, 0.8f, title, "Butterscotch");
     if (gameName) {
-        gsKit_fontm_print_scaled(gs, fontm, 320.0f, 210.0f, 1, 0.5f, gray, gameName);
+        gsKit_fontm_print_scaled(overlay->gsGlobal, overlay->gsFontm, 320.0f, 210.0f, 1, 0.5f, gray, gameName);
     }
 }
 
@@ -61,11 +61,11 @@ static void drawCreditsText(GSGLOBAL* gs, GSFONTM* fontm) {
 }
 
 // Ends a status screen: draws credits, resets align, flips
-static void endStatusScreen(GSGLOBAL* gs, GSFONTM* fontm) {
-    fontm->Align = GSKIT_FALIGN_LEFT;
-    drawCreditsText(gs, fontm);
-    gsKit_queue_exec(gs);
-    gsKit_sync_flip(gs);
+static void endStatusScreen(PS2Overlay* overlay) {
+    overlay->gsFontm->Align = GSKIT_FALIGN_LEFT;
+    drawCreditsText(overlay->gsGlobal, overlay->gsFontm);
+    gsKit_queue_exec(overlay->gsGlobal);
+    gsKit_sync_flip(overlay->gsGlobal);
 }
 
 void PS2Overlay_init(GSGLOBAL* gsGlobal, int memorySize, int heapCeiling) {
@@ -133,7 +133,7 @@ void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int 
     GSFONTM* fontm = data->gsFontm;
 
     const char* gameName = dataWin->gen8.displayName ? dataWin->gen8.displayName : "Unknown Game";
-    beginStatusScreen(gs, fontm, gameName);
+    beginStatusScreen(data, gameName);
 
     // Loading bar
     u64 white = GS_SETREG_RGBAQ(0xFF, 0xFF, 0xFF, 0x80, 0x00);
@@ -214,23 +214,23 @@ void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int 
         }
     }
 
-    drawChunkStats(gs, fontm, state);
+    drawChunkStats(&gOverlay);
 
     gs->PrimAlphaEnable = GS_SETTING_OFF;
 
-    endStatusScreen(gs, fontm);
+    endStatusScreen(&gOverlay);
 }
 
 void PS2Overlay_drawStatusScreen(const char* gameName, const char* statusText, bool includeChunkStats) {
     if (!gPS2OverlayInitialized) return;
 
-    beginStatusScreen(gOverlay.gsGlobal, gOverlay.gsFontm, gameName);
+    beginStatusScreen(&gOverlay, gameName);
     u64 gray = GS_SETREG_RGBAQ(0xAA, 0xAA, 0xAA, 0x80, 0x00);
     gsKit_fontm_print_scaled(gOverlay.gsGlobal, gOverlay.gsFontm, 320.0f, 300.0f, 1, 0.5f, gray, statusText);
     if (includeChunkStats) {
-        drawChunkStats(gOverlay.gsGlobal, gOverlay.gsFontm, &gOverlay.loadingState);
+        drawChunkStats(&gOverlay);
     }
-    endStatusScreen(gOverlay.gsGlobal, gOverlay.gsFontm);
+    endStatusScreen(&gOverlay);
 }
 
 void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved) {
