@@ -272,7 +272,7 @@ elseif(PLATFORM STREQUAL "ps2")
         # Compiling on the Docker container
         target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
         target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m)
+        target_link_libraries(butterscotch gskit_toolkit gskit dmakit audsrv pad mc kbd patches kernel c m)
 
         # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
         # This avoids loading from rom0: which has compatibility issues between fat/slim PS2
@@ -332,7 +332,15 @@ elseif(PLATFORM STREQUAL "ps2")
             )
         endif()
 
-        target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesio2_irx.c ${IRX_GEN_DIR}/mcman_irx.c ${IRX_GEN_DIR}/mcserv_irx.c ${IRX_GEN_DIR}/freepad_irx.c ${IRX_GEN_DIR}/usbd_irx.c ${IRX_GEN_DIR}/ps2kbd_irx.c)
+        set(OVERLAY_FONT ${CMAKE_SOURCE_DIR}/vendor/arial.fnt)
+        add_custom_command(
+            OUTPUT ${IRX_GEN_DIR}/overlay_font.c
+            COMMAND $ENV{PS2SDK}/bin/bin2c ${OVERLAY_FONT} ${IRX_GEN_DIR}/overlay_font.c overlay_font
+            DEPENDS ${OVERLAY_FONT}
+            COMMENT "Embedding overlay font"
+        )
+
+        target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesio2_irx.c ${IRX_GEN_DIR}/mcman_irx.c ${IRX_GEN_DIR}/mcserv_irx.c ${IRX_GEN_DIR}/freepad_irx.c ${IRX_GEN_DIR}/usbd_irx.c ${IRX_GEN_DIR}/ps2kbd_irx.c ${IRX_GEN_DIR}/overlay_font.c)
         if(ENABLE_PS2_AUDIO)
             target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesd_irx.c ${IRX_GEN_DIR}/audsrv_irx.c)
         endif()

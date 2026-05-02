@@ -30,7 +30,10 @@ typedef enum {
 typedef struct {
     DebugOverlayState state;
     GSGLOBAL* gsGlobal;
-    GSFONTM* gsFontm;
+    GSFONT* gsFont;
+    float fontSpacing;
+    int fontAlignment;
+
     int memorySize;
     int heapCeiling;
     int profilerFramesInWindow;
