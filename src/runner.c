@@ -485,7 +485,7 @@ static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawabl
 #define GMS2_TILE_FLIP_MASK   0x20000000 // bit 29 (vertical flip)
 #define GMS2_TILE_ROTATE_MASK 0x40000000 // bit 30 (90 CW)
 
-static void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerOffsetX, float layerOffsetY) {
+void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerOffsetX, float layerOffsetY) {
     if (data == nullptr || data->tileData == nullptr) return;
     if (0 > data->backgroundIndex) return;
 
