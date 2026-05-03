@@ -87,9 +87,11 @@ typedef struct {
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
     void (*drawSurface)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
-    void (*drawSurfacePart)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t left, int32_t top, int32_t width, int32_t height);
+    void (*drawSurfacePart)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t left, int32_t top, int32_t width, int32_t height, float xscale, float yscale, uint32_t color, float alpha);
+    void (*drawSurfaceStretched)(Renderer* renderer, int32_t surfaceID, float x, float y, float width, float height);
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
     void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
+    void (*surfaceCopy)(Renderer* renderer, int32_t DestSurfaceID, int32_t DestX, int32_t DestY, int32_t SrcSurfaceID, int32_t SrcX, int32_t SrcY, int32_t SrcW, int32_t SrcH, bool part);
 
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).
@@ -108,7 +110,12 @@ struct Renderer {
     int32_t drawFont;    // default -1 (no font)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
+    //int32_t ViewSurfaceID[8]; 
     Matrix4f PreviousViewMatrix;
+    int32_t CPortX;
+    int32_t CPortY;
+    int32_t CPortW;
+    int32_t CPortH;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
