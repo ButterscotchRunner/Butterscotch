@@ -3253,7 +3253,7 @@ static RValue builtin_audioExists(VMContext* ctx, RValue* args, MAYBE_UNUSED int
     int32_t soundIndex = RValue_toInt32(args[0]);
     if (soundIndex < 0) return RValue_makeBool(false);
 
-    DataWin* dw = (audio->audioGroups != nullptr) ? audio->audioGroups[0] : nullptr;
+    DataWin* dw = audio->audioGroups[0];
     if (dw == nullptr) return RValue_makeBool(false);
     return RValue_makeBool((uint32_t) soundIndex < dw->sond.count);
 }
