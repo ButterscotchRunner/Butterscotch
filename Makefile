@@ -4,7 +4,7 @@
 CC := cc
 
 CFLAGS := -O2 -DNDEBUG
-LIBS := -lm -lbz2 -lglfw
+LIBS := -lm -lbz2
 
 DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
@@ -22,12 +22,19 @@ HEADERS := $(wildcard src/*.h) \
 SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
 		vendor/glad/src/glad.c
 
-PLATFORM := glfw
+PLATFORM := glfw2
 ifeq ($(PLATFORM),glfw)
+LIBS += -lglfw
 SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)
 else
+ifeq ($(PLATFORM),glfw2)
+LIBS += -lglfw -lXrandr -lX11 -lGL
+SRCS += $(wildcard src/glfw2/*.c)
+HEADERS += $(wildcard src/glfw2/*.h)
+else
 $(error invalid platform)
+endif
 endif
 
 OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
