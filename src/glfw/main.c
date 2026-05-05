@@ -920,9 +920,15 @@ int main(int argc, char* argv[]) {
     sigemptyset(&sa.sa_mask);
     struct sigaction prev;
     sigaction(SIGABRT, &sa, &prev);
-    hmput(previousSignalActions, SIGABRT, prev);
+    PreviousSignalActionEntry p;
+    p.key = SIGABRT;
+    p.value = prev;
+    hmputs(previousSignalActions, p);
     sigaction(SIGSEGV, &sa, &prev);
-    hmput(previousSignalActions, SIGSEGV, prev);
+    PreviousSignalActionEntry p2;
+    p.key = SIGSEGV;
+    p.value = prev;
+    hmputs(previousSignalActions, p2);
 #endif
 
     // Initialize the first room and fire Game Start / Room Start events
