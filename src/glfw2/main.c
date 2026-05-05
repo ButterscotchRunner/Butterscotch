@@ -23,7 +23,6 @@
 #endif
 
 #include "runner_keyboard.h"
-#include "glfw_gamepad.h"
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
@@ -877,7 +876,6 @@ int main(int argc, char* argv[]) {
         RunnerKeyboard_beginFrame(runner->keyboard);
         RunnerGamepad_beginFrame(runner->gamepads);
         glfwPollEvents();
-        GlfwGamepad_poll(runner->gamepads);
 
         // Process input recording/playback (must happen after glfwPollEvents, before Runner_step)
         InputRecording_processFrame(globalInputRecording, runner->keyboard, runner->frameCount);
