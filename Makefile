@@ -4,7 +4,7 @@
 CC := cc
 
 CFLAGS := -O2 -DNDEBUG
-LIBS := -lm -lbz2
+LIBS := -lm -lrt -lbz2
 
 DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \

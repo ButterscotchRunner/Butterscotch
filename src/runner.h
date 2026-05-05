@@ -290,7 +290,7 @@ typedef struct {
     RuntimeView views[MAX_VIEWS];
 } SavedRoomState;
 
-typedef struct Runner {
+struct Runner {
     DataWin* dataWin;
     VMContext* vmContext;
     Renderer* renderer;
@@ -406,7 +406,7 @@ typedef struct Runner {
 
     // GMS legacy (pre 2022.1) collision behavior: AABB overlap treats touching edges as overlap.
     bool collisionCompatibilityMode;
-} Runner;
+};
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);

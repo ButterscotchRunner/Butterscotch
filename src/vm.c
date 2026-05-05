@@ -664,10 +664,20 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) varDef->name);
         if (bidx >= 0) {
             BuiltinFunc bf = ctx->builtinMap[bidx].value;
-            return (RValue){ .method = GMLMethod_createBuiltin(bf, -1), .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+            RValue rv;
+            rv.method = GMLMethod_createBuiltin(bf, -1);
+            rv.type = RVALUE_METHOD;
+            rv.ownsReference = true;
+            rv.gmlStackType = GML_TYPE_VARIABLE;
+            return rv;
         }
         // Unresolved: return a method stub so CallV can log a single "unknown function" and return undefined instead of bailing out with a scary "unresolvable function reference" error.
-        return (RValue){ .method = GMLMethod_createUnresolved(varDef->name, -1), .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+        RValue rv;
+        rv.method = GMLMethod_createUnresolved(varDef->name, -1);
+        rv.type = RVALUE_METHOD;
+        rv.ownsReference = true;
+        rv.gmlStackType = GML_TYPE_VARIABLE;
+        return rv;
     }
 #endif
 
@@ -1214,7 +1224,12 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     RValue_free(topSlot);
                     GMLArray* sub = GMLArray_create(0);
                     sub->owner = top->owner;
-                    *topSlot = (RValue){ .array = sub, .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+                    RValue rv;
+                    rv.array = sub;
+                    rv.type = RVALUE_ARRAY;
+                    rv.ownsReference = true;
+                    _RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE);
+                    *topSlot = rv;
                 }
                 // Push a weak ref to the sub-array — short-lived, consumed by the next BREAK op.
                 stackPush(ctx, RValue_makeArrayWeak(topSlot->array));
@@ -2609,7 +2624,12 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
         RValue_free(parentSlot);
         GMLArray* sub = GMLArray_create(0);
         sub->owner = parent->owner;
-        *parentSlot = (RValue){ .array = sub, .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+        RValue rv;
+        rv.array = sub;
+        rv.type = RVALUE_ARRAY;
+        rv.ownsReference = true;
+        _RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE);
+        *parentSlot = rv;
     }
     stackPush(ctx, RValue_makeArrayWeak(parentSlot->array));
     RValue_free(&arrayRef);

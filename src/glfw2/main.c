@@ -232,7 +232,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
-    args->renderer = "gl";
+    args->renderer = "legacy-gl";
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
 

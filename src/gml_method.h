@@ -2,9 +2,17 @@
 #include <stdint.h>
 
 // Forward declarations
+#ifndef VM_CONTEXT_DEFINED
+#define VM_CONTEXT_DEFINED
 typedef struct VMContext VMContext;
+#endif
+
 typedef struct RValue RValue;
+
+#ifndef BUILTINFUNC_DEFINED
+#define BUILTINFUNC_DEFINED
 typedef RValue (*BuiltinFunc)(VMContext* ctx, RValue* args, int32_t argCount);
+#endif
 
 // ===[ GMLMethod - Refcounted method binding ]===
 typedef struct GMLMethod {
