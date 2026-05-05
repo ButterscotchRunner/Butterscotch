@@ -1,0 +1,45 @@
+# Makefile build
+# meant to be extremely portable to weird unix-like systems
+
+CC := cc
+
+CFLAGS := -O2 -DNDEBUG
+LIBS := -lm -lbz2 -lglfw
+
+DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
+		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
+		   -DENABLE_BC16 \
+		   -DENABLE_BC17 \
+		   -DENABLE_VM_GML_PROFILER \
+		   -DENABLE_VM_OPCODE_PROFILER \
+		   -DENABLE_VM_STUB_LOGS \
+		   -DENABLE_VM_TRACING
+INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/gl -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/miniaudio -Ivendor/glad/include
+
+HEADERS := $(wildcard src/*.h) \
+		   $(wildcard src/gl/*.h) \
+           $(shell find vendor -name '*.h')
+SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
+		vendor/glad/src/glad.c
+
+PLATFORM := glfw
+ifeq ($(PLATFORM),glfw)
+SRCS += $(wildcard src/glfw/*.c)
+HEADERS += $(wildcard src/glfw/*.h)
+else
+$(error invalid platform)
+endif
+
+OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
+
+all: build/butterscotch
+
+build/butterscotch: $(OBJS)
+	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+
+build/%.c.o: %.c $(HEADERS)
+	@mkdir -p $(dir $@)
+	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf build
