@@ -15,6 +15,11 @@
 #endif
 #ifdef __GLIBC__
 #include <malloc.h>
+#ifdef __GLIBC_PREREQ
+#if __GLIBC_PREREQ(2, 33)
+#define HAVE_MALLINFO2
+#endif
+#endif
 #endif
 
 #include "runner_keyboard.h"
@@ -653,7 +658,7 @@ int main(int argc, char* argv[]) {
     Gen8* gen8 = &dataWin->gen8;
     printf("Loaded \"%s\" (%d) successfully! [Bytecode Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->bytecodeVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
-    #ifdef __GLIBC__
+    #ifdef HAVE_MALLINFO2
     {
         struct mallinfo2 mi = mallinfo2();
         printf("Memory after data.win parsing: used=%zu bytes (%.1f KB)\n", mi.uordblks, mi.uordblks / 1024.0f);
