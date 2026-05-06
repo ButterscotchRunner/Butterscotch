@@ -12,7 +12,10 @@
 // Binary reads/writes from a raw byte buffer.
 // When IS_BIG_ENDIAN is defined, reads are byte-swapped to interpret serialized little-endian data.
 
-#if defined(__clang__) || defined(__GNUC__)
+// Online info all seems to agree 4.3 added the __builtin_bswap functions, but the GCC 4.3 changelog
+// references them as being better optimized in 4.3, not added, and GCC 3.2 from Red Hat Linux 9.0 has them,
+// as well as GCC 4.1 from Debian 4.0. GCC 4.0 from Xcode doesn't though, so just be safe.
+#if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3)))
 static inline uint16_t BinaryUtils_bswap16(uint16_t value) {
     return __builtin_bswap16(value);
 }
