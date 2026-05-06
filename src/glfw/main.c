@@ -605,7 +605,9 @@ static void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 }
 
 static void setGlfwWindowTitle(void* window, const char* title) {
-    glfwSetWindowTitle((GLFWwindow*) window, title);
+    char windowTitle[256];
+    snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
+    glfwSetWindowTitle((GLFWwindow*) window, windowTitle);
 }
 
 static bool getGlfwWindowFocus(void* window) {

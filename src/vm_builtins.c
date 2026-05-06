@@ -4220,12 +4220,10 @@ static RValue builtinWindowGetHeight(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 
 static RValue builtinWindowSetCaption(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     char* val = RValue_toString(args[0]);
-    char windowTitle[256];
-    snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", val);
 
     Runner* runner = (Runner*) ctx->runner;
-    if (runner->setWindowTitle && runner->nativeWindow) {
-        runner->setWindowTitle(runner->nativeWindow, windowTitle);
+    if (runner->setWindowTitle) {
+        runner->setWindowTitle(runner->nativeWindow, val);
         printf("GL: Window title set to: %s\n", val);
     }
 
@@ -4235,12 +4233,7 @@ static RValue builtinWindowSetCaption(VMContext* ctx, MAYBE_UNUSED RValue* args,
 
 static RValue builtinWindowHasFocus(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
-    // Always return true when not on GLFW
-    if (runner == nullptr || runner->nativeWindow == nullptr) {
-        return RValue_makeBool(true);
-    }
-
-    if (runner->windowHasFocus) {
+    if (runner != nullptr && runner->windowHasFocus) {
         return RValue_makeBool(runner->windowHasFocus(runner->nativeWindow));
     }
 
