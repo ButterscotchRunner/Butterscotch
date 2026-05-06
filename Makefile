@@ -45,9 +45,15 @@ else
 ifeq ($(OS),Darwin)
 $(error TODO)
 else
-# Assume unix-like, should work on Linux and BSDs
+ifneq ($(filter Linux Haiku %BSD Unix,$(OS)),) # OS is 'Linux', 'Haiku', '*BSD', or 'Unix'
+ifneq ($(OS),Haiku)
 INCLUDES += -I/usr/X11R6/include
-LIBS += -L/usr/X11R6/lib -lm -lrt -lXrandr -lX11 -lGL
+LIBS += -L/usr/X11R6/lib -lXrandr -lX11 -ldl -lrt
+endif
+LIBS += -lm -pthread -lGL
+else
+$(error unknown OS '$(OS)', please manually set the OS variable)
+endif
 endif
 endif
 
