@@ -284,6 +284,7 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
         case EVENT_KEYPRESS:   return "KeyPress";
         case EVENT_KEYRELEASE: return "KeyRelease";
         case EVENT_PRECREATE:  return "PreCreate";
+        case EVENT_CLEAN_UP: return "Clean Up";
         default: return "Unknown";
     }
 }
@@ -1574,6 +1575,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
 
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst) {
     Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
+    Runner_executeEvent(runner, inst, EVENT_CLEAN_UP, 0);
     // A destroyed instance must ALWAYS be not active
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
@@ -2193,10 +2195,15 @@ void Runner_step(Runner* runner) {
         if (!inst->active) continue;
         if (0 > inst->spriteIndex) continue;
 
-        inst->imageIndex += inst->imageSpeed;
+
 
         // Wrap image_index (matches HTML5 runner: manual subtract/add instead of using fmod)
         Sprite* sprite = &runner->dataWin->sprt.sprites[inst->spriteIndex];
+        if (sprite->gms2PlaybackSpeedType == true) {
+            inst->imageIndex += inst->imageSpeed;
+        } else {
+            inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
+        }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
         if (inst->imageIndex >= frameCount) {

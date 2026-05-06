@@ -4448,6 +4448,7 @@ static RValue builtinInstanceChange(VMContext* ctx, RValue* args, int32_t argCou
     // Fire destroy event on old object if requested
     if (performEvents) {
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
+        Runner_executeEvent(runner, inst, EVENT_CLEAN_UP, 0);
     }
 
     // Move the instance between per-object lists before mutating objectIndex so the remove walks the old parent chain and the add walks the new one.
@@ -6164,11 +6165,7 @@ static RValue builtin_draw_surface_stretched(VMContext* ctx, RValue* args, MAYBE
 
 
 
-static RValue builtin_gpu_get_blendenabled(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) { 
-    Runner* runner = (Runner*) ctx->runner;
-    if (runner->renderer == nullptr) return RValue_makeUndefined();
-    return RValue_makeBool(runner->renderer->vtable->gpuGetBlendenabled(runner->renderer));
-}
+
 
 
 // application_surface is surface ID -1 (sentinel); for it, return the window dimensions
@@ -9301,6 +9298,5 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtinGpuSetAlphaTestEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtinGpuSetAlphaTestRef);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtinGpuSetColorWriteEnable);
-    VM_registerBuiltin(ctx, "gpu_get_blendenable", builtin_gpu_get_blendenabled);
 }
 

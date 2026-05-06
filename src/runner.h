@@ -24,6 +24,7 @@
 #define EVENT_DRAW       8
 #define EVENT_KEYPRESS   9
 #define EVENT_KEYRELEASE 10
+#define EVENT_CLEAN_UP   12 //You Forgot this one?
 #define EVENT_PRECREATE  14
 
 // ===[ Step Sub-event Constants ]===
