@@ -1,6 +1,8 @@
 #ifndef _CLOCK_GETTIME_MACOS_
 #define _CLOCK_GETTIME_MACOS_
 
+/* Apple didn't add clock_gettime to macOS until 10.13, here's an emulation I had laying around */
+
 #ifdef __APPLE__
 
 #if !(((defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) ||             \
