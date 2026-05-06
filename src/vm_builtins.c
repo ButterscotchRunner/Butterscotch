@@ -3245,6 +3245,18 @@ static AudioSystem* getAudioSystem(VMContext* ctx) {
     return runner->audioSystem;
 }
 
+static RValue builtin_audioExists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr || audio->vtable == nullptr || argCount < 1) return RValue_makeBool(false);
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeBool(false);
+
+    int32_t soundIndex = RValue_toInt32(args[0]);
+    if (soundIndex < 0) return RValue_makeBool(false);
+
+    DataWin* dw = audio->audioGroups[0];
+    if (dw == nullptr) return RValue_makeBool(false);
+    return RValue_makeBool((uint32_t) soundIndex < dw->sond.count);
+}
 
 static RValue builtin_audioChannelNum(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
@@ -8539,6 +8551,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "steam_get_persona_name", builtin_steam_get_persona_name);
 
     // Audio
+    VM_registerBuiltin(ctx, "audio_exists", builtin_audioExists);
+    VM_registerBuiltin(ctx, "sound_exists", builtin_audioExists); // Replaced with audio_exists in GMS2
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audioChannelNum);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audioPlaySound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audioStopSound);
