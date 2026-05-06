@@ -24,19 +24,17 @@ HEADERS := $(wildcard src/*.h) \
 SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
 		vendor/glad/src/glad.c
 
-PLATFORM := glfw2
+PLATFORM := glfw
 ifeq ($(PLATFORM),glfw)
 LIBS += -lglfw
 SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)
-else
-ifeq ($(PLATFORM),glfw2)
-LIBS += -lglfw
-SRCS += $(wildcard src/glfw2/*.c)
-HEADERS += $(wildcard src/glfw2/*.h)
+ifdef USE_GLFW2
+DEFINES += -DUSE_GLFW2
+SRCS := $(filter-out src/glfw/glfw_gamepad.c,$(SRCS))
+endif
 else
 $(error invalid platform)
-endif
 endif
 
 ifeq ($(OS),Windows)
