@@ -8,6 +8,8 @@
 #include "stb_ds.h"
 #include "string_builder.h"
 
+#include "clock_gettime_macos.h"
+
 #if defined(PLATFORM_PS2)
 #include <timer.h>
 #elif defined(_WIN32)

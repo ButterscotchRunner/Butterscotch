@@ -24,6 +24,8 @@
 #include "audio_system.h"
 #include "file_system.h"
 
+#include "clock_gettime_macos.h"
+
 #define MAX_BACKGROUNDS 8
 
 // ===[ STUB LOGGING ]===

@@ -43,7 +43,7 @@ ifeq ($(OS),Windows)
 LIBS += -lopengl32 -static
 else
 ifeq ($(OS),Darwin)
-$(error TODO)
+LIBS += -lobjc -framework OpenGL -framework Cocoa -framework IOKit
 else
 ifneq ($(filter Linux Haiku %BSD Unix,$(OS)),) # OS is 'Linux', 'Haiku', '*BSD', or 'Unix'
 ifneq ($(OS),Haiku)
