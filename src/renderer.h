@@ -69,12 +69,10 @@ typedef struct {
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
-    bool (*gpuGetBlendenabled)(Renderer* renderer); 
     // Optional: platform-specific tile rendering (nullptr = use default drawSpritePart path)
     void (*drawTile)(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY);
     // Optional: platform-specific tiled draw (nullptr = use default per-tile drawSprite loop).
     void (*drawTiled)(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha);
-    void (*drawClear)(Renderer* renderer, uint32_t color, float alpha);
 
     // Surface Functions
     int32_t (*createSurface)(Renderer* renderer, int32_t width, int32_t height);
@@ -102,8 +100,6 @@ struct Renderer {
     DataWin* dataWin;
     uint32_t drawColor;  // BGR format, default 0xFFFFFF (white)
     float drawAlpha;     // default 1.0
-    float alphaCutRef;   // I Will Asssume Default of 0.0
-    int32_t circlePrecision; // default is 24 I think
     int32_t drawFont;    // default -1 (no font)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom

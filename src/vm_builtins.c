@@ -4448,7 +4448,6 @@ static RValue builtinInstanceChange(VMContext* ctx, RValue* args, int32_t argCou
     // Fire destroy event on old object if requested
     if (performEvents) {
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
-        Runner_executeEvent(runner, inst, EVENT_CLEAN_UP, 0);
     }
 
     // Move the instance between per-object lists before mutating objectIndex so the remove walks the old parent chain and the add walks the new one.

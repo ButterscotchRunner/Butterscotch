@@ -1776,23 +1776,6 @@ static void glDrawSurfaceStretched(Renderer* renderer, int32_t surfaceID, float 
 
 }
 
-
-static void glDrawClear(Renderer* renderer, uint32_t color, float alpha) {
-    // Convert BGR color to RGB floats
-    GLRenderer* gl = (GLRenderer*) renderer; 
-    flushBatch(gl);
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
-
-    glClearColor(r, g, b, alpha);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
-
-static bool glGetBlendEnabled(Renderer* renderer) {    
-    return glIsEnabled(GL_BLEND);
-}
-
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
@@ -2090,10 +2073,10 @@ static RendererVtable glVtable = {
     .drawSurface = glDrawSurface,
     .drawSurfacePart = glDrawSurfacePart,
     .drawSurfaceStretched = glDrawSurfaceStretched,
-    .drawClear = glDrawClear,
+
     .surfaceResize = glSurfaceResize,
     .surfaceFree = glSurfaceFree,
-    .gpuGetBlendenabled = glGetBlendEnabled,
+
 };
 
 // ===[ Public API ]===
@@ -2103,11 +2086,9 @@ Renderer* GLRenderer_create(void) {
     gl->base.vtable = &glVtable;
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
-    gl->base.circlePrecision = 24;
     gl->base.drawFont = -1;
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
-    gl->base.alphaCutRef = 0.0;
     memset(gl->surfaceStack, -1, 16 * sizeof(int32_t));
     return (Renderer*) gl;
 }
