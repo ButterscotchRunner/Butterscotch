@@ -636,68 +636,6 @@ static void glDrawRectangle(Renderer* renderer, float x1, float y1, float x2, fl
     }
 }
 
-
-static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    float r1 = (float) BGR_R(color1) / 255.0f;
-    float g1 = (float) BGR_G(color1) / 255.0f;
-    float b1 = (float) BGR_B(color1) / 255.0f;
-
-    float r2 = (float) BGR_R(color2) / 255.0f;
-    float g2 = (float) BGR_G(color2) / 255.0f;
-    float b2 = (float) BGR_B(color2) / 255.0f;
-
-    float r3 = (float) BGR_R(color3) / 255.0f;
-    float g3 = (float) BGR_G(color3) / 255.0f;
-    float b3 = (float) BGR_B(color3) / 255.0f;
-
-    float r4 = (float) BGR_R(color4) / 255.0f;
-    float g4 = (float) BGR_G(color4) / 255.0f;
-    float b4 = (float) BGR_B(color4) / 255.0f;
-   
-
-    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) {
-        flushBatch(gl);
-    }
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
-    }
-    gl->currentTextureId = gl->whiteTexture;
-
-    if (outline) {
-        // Draw 4 one-pixel-wide edges: top, bottom, left, right
-
-    } else {
-        // Filled rectangle: GML adds +1 to width/height for filled rects
-
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
-
-    // All UVs point to (0.5, 0.5) center of the 1x1 white texture
-    // Vertex 0: top-left
-    verts[0] = x1; verts[1] = y1; verts[2] = 0.5f; verts[3] = 0.5f;
-    verts[4] = r1;  verts[5] = g1;  verts[6] = b1;    verts[7] = alpha;
-
-    // Vertex 1: top-right
-    verts[8]  = x2; verts[9]  = y1; verts[10] = 0.5f; verts[11] = 0.5f;
-    verts[12] = r2;  verts[13] = g2;  verts[14] = b2;    verts[15] = alpha;
-
-    // Vertex 2: bottom-right
-    verts[16] = x2; verts[17] = y2; verts[18] = 0.5f; verts[19] = 0.5f;
-    verts[20] = r3;  verts[21] = g3;  verts[22] = b3;    verts[23] = alpha;
-
-    // Vertex 3: bottom-left
-    verts[24] = x1; verts[25] = y2; verts[26] = 0.5f; verts[27] = 0.5f;
-    verts[28] = r4;  verts[29] = g4;  verts[30] = b4;    verts[31] = alpha;
-
-    gl->quadCount++;
-
-    }
-}
-
-
-
-
 // ===[ Line Drawing ]===
 
 static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha) {
@@ -827,103 +765,6 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         glDrawArrays(GL_TRIANGLES, 0, 3);
     }
 }
-
-static void glDrawTriangleColor(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, bool outline, float alpha)
-{
-    GLRenderer* gl = (GLRenderer*) renderer;
-    if(outline)
-    { 
-        glDrawLine(renderer, x1, y1, x2, y2, 1, color1, alpha);
-        glDrawLine(renderer, x2, y2, x3, y3, 1, color1, alpha);
-        glDrawLine(renderer, x3, y3, x1, y1, 1, color1, alpha);
-    } else {
-        float r1 = (float) BGR_R(color1) / 255.0f;
-        float g1 = (float) BGR_G(color1) / 255.0f;
-        float b1 = (float) BGR_B(color1) / 255.0f;
-        float r2 = (float) BGR_R(color2) / 255.0f;
-        float g2 = (float) BGR_G(color2) / 255.0f;
-        float b2 = (float) BGR_B(color2) / 255.0f;
-        float r3 = (float) BGR_R(color3) / 255.0f;
-        float g3 = (float) BGR_G(color3) / 255.0f;
-        float b3 = (float) BGR_B(color3) / 255.0f;
-
-
-        flushBatch(gl);
-        
-        int i = 0;
-        float verts[24] = {
-            x1, y1, 0.0f, 0.0f, r1, g1, b1, alpha,
-            x2, y2, 0.0f, 0.0f, r2, g2, b2, alpha,
-            x3, y3, 0.0f, 0.0f, r3, g3, b3, alpha,
-        };
-
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * FLOATS_PER_VERTEX * sizeof(float), verts);
-
-        glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-    }
-}
-
-
-
-static void glDrawCircle(Renderer *renderer, float x, float y, float radius, bool outline)
-{
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    float phase = 0.0;
-    if(outline) {
-        for (int i = 0; i < renderer->circlePrecision; i++) {
-            float x1 = x+sin(phase)*radius;
-            float x2 = x+sin(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            float y1 = y+cos(phase)*radius;
-            float y2 = y+cos(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            phase += ((M_PI*2.0)/(float) renderer->circlePrecision);
-            glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        }
-    } else {
-        flushBatch(gl);
-
-        for (int i = 0; i < renderer->circlePrecision; i++) {
-            float x1 = x+sin(phase)*radius;
-            float x2 = x+sin(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            float y1 = y+cos(phase)*radius;
-            float y2 = y+cos(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            phase += ((M_PI*2.0)/(float) renderer->circlePrecision);
-            glDrawTriangle(renderer,x1,y1,x2,y2,x,y,false);
-        }
-    }
-}
-
-static void glDrawCircleColor(Renderer *renderer, float x, float y, float radius, uint32_t color1, uint32_t color2, bool outline) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    float phase = 0.0;
-    if(outline) {
-        for (int i = 0; i < renderer->circlePrecision; i++) {
-            float x1 = x+sin(phase)*radius;
-            float x2 = x+sin(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            float y1 = y+cos(phase)*radius;
-            float y2 = y+cos(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            phase += ((M_PI*2.0)/(float) renderer->circlePrecision);
-            glDrawLine(renderer, x1, y1, x2, y2, 1, color2, 1.0);
-        }
-    } else {
-        flushBatch(gl);
-        for (int i = 0; i < renderer->circlePrecision; i++) {
-            float x1 = x+sin(phase)*radius;
-            float x2 = x+sin(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            float y1 = y+cos(phase)*radius;
-            float y2 = y+cos(phase+((M_PI*2.0)/(float) renderer->circlePrecision))*radius;
-            phase += ((M_PI*2.0)/(float) renderer->circlePrecision);
-            //glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-            //glDrawTriangle(renderer,x1,y1,x2,y2,x,y,false);
-            glDrawTriangleColor(renderer,x1,y1,x2,y2,x,y,color2, color2, color1, outline, renderer->drawAlpha);
-        }
-    }
-}
-
-
 
 // ===[ Text Drawing ]===
 
@@ -2224,12 +2065,9 @@ static RendererVtable glVtable = {
     .drawSpritePos = glDrawSpritePos,
     .drawSpritePart = glDrawSpritePart,
     .drawRectangle = glDrawRectangle,
-    .drawRectangleColor = glDrawRectangleColor,
     .drawLine = glDrawLine,
     .drawLineColor = glDrawLineColor,
     .drawTriangle = glDrawTriangle,
-    .drawCircle = glDrawCircle,
-    .drawCircleColor = glDrawCircleColor,
     .drawText = glDrawText,
     .drawTextColor = glDrawTextColor,
     .flush = glRendererFlush,

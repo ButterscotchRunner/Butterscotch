@@ -9112,12 +9112,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtinMergeColor);
     VM_registerBuiltin(ctx, "merge_colour", builtinMergeColor);
-    VM_registerBuiltin(ctx, "color_get_red", builtinColorGetRed);
-    VM_registerBuiltin(ctx, "colour_get_red", builtinColorGetRed);
-    VM_registerBuiltin(ctx, "color_get_green", builtinColorGetGreen);
-    VM_registerBuiltin(ctx, "colour_get_green", builtinColorGetGreen);
-    VM_registerBuiltin(ctx, "color_get_blue", builtinColorGetBlue);
-    VM_registerBuiltin(ctx, "colour_get_blue", builtinColorGetBlue);
 
     // Surface
     VM_registerBuiltin(ctx, "surface_create", builtin_surface_create);
@@ -9130,10 +9124,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "surface_resize", builtin_surface_resize);
     VM_registerBuiltin(ctx, "surface_copy", builtin_surface_copy);
     VM_registerBuiltin(ctx, "surface_copy_part", builtin_surface_copy_part);
-
-
-    
-
 
     // Sprite info
     VM_registerBuiltin(ctx, "sprite_add", builtin_spriteAdd);
