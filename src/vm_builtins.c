@@ -5373,6 +5373,7 @@ static RValue builtin_drawRectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
 static RValue builtin_drawRectangleColor(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
+
     float x1 = (float) RValue_toReal(args[0]);
     float y1 = (float) RValue_toReal(args[1]);
     float x2 = (float) RValue_toReal(args[2]);
@@ -5382,6 +5383,7 @@ static RValue builtin_drawRectangleColor(VMContext* ctx, RValue* args, MAYBE_UNU
     bool outline = RValue_toBool(args[8]);
 
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, color, runner->renderer->drawAlpha, outline);
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_drawHealthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -5937,8 +5939,6 @@ static RValue builtin_surface_free(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     return RValue_makeUndefined();
 }
 
-//STUB_RETURN_UNDEFINED(draw_surface)
-
 static RValue builtin_draw_surface(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
@@ -5969,9 +5969,6 @@ static RValue builtin_draw_surface_ext(VMContext* ctx, RValue* args, MAYBE_UNUSE
     }
     return RValue_makeUndefined();
 }
-
-
-
 
 static RValue builtin_draw_surface_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
 
@@ -6029,12 +6026,6 @@ static RValue builtin_draw_surface_stretched(VMContext* ctx, RValue* args, MAYBE
     }
     return RValue_makeUndefined();
 }
-
-
-
-
-
-
 
 // application_surface is surface ID -1 (sentinel); for it, return the window dimensions
 static RValue builtinSurfaceGetWidth(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -6231,10 +6222,6 @@ static RValue builtinMakeColorHsv(MAYBE_UNUSED VMContext* ctx, RValue* args, int
     GMLReal h = RValue_toReal(args[0]) / 255.0 * 360.0;
     GMLReal s = RValue_toReal(args[1]) / 255.0;
     GMLReal v = RValue_toReal(args[2]) / 255.0;
-
-    if (s > 1.0) {
-        s = 1.0;
-    }
 
     GMLReal c = v * s;
     GMLReal x = c * (1.0 - GMLReal_fabs(GMLReal_fmod(h / 60.0, 2.0) - 1.0));
@@ -8931,6 +8918,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_set_color", builtin_drawSetColor);
     VM_registerBuiltin(ctx, "draw_set_alpha", builtin_drawSetAlpha);
     VM_registerBuiltin(ctx, "draw_set_font", builtin_drawSetFont);
+    VM_registerBuiltin(ctx, "draw_set_halign", builtin_drawSetHalign);
+    VM_registerBuiltin(ctx, "draw_set_valign", builtin_drawSetValign);
     VM_registerBuiltin(ctx, "draw_text", builtin_drawText);
     VM_registerBuiltin(ctx, "draw_text_transformed", builtin_drawTextTransformed);
     VM_registerBuiltin(ctx, "draw_text_ext", builtin_drawTextExt);

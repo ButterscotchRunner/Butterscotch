@@ -102,7 +102,7 @@ struct Renderer {
     int32_t drawFont;    // default -1 (no font)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
-    //int32_t ViewSurfaceID[8]; 
+    //It's The Simplest Way I Found To Restore Previous Thingies For Rendering SORRY
     Matrix4f PreviousViewMatrix;
     int32_t CPortX;
     int32_t CPortY;
