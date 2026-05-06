@@ -595,7 +595,8 @@ static void setGlfwWindowTitle(void *window, const char* title) {
     glfwSetWindowTitle(windowTitle);
 }
 
-static bool getGlfwWindowFocus() {
+static bool getGlfwWindowFocus(void *window) {
+    (void)window;
     return glfwGetWindowParam(GLFW_ACTIVE);
 }
 
