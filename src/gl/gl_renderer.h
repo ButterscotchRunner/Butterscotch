@@ -53,8 +53,6 @@ typedef struct {
     int32_t* surfaceHeight;
     uint32_t ssurfaceCount;
     int32_t surfaceStack[16];
-
-
 } GLRenderer;
 
 Renderer* GLRenderer_create(void);

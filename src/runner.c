@@ -284,7 +284,6 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
         case EVENT_KEYPRESS:   return "KeyPress";
         case EVENT_KEYRELEASE: return "KeyRelease";
         case EVENT_PRECREATE:  return "PreCreate";
-
         default: return "Unknown";
     }
 }
@@ -2198,7 +2197,6 @@ void Runner_step(Runner* runner) {
 
         // Wrap image_index (matches HTML5 runner: manual subtract/add instead of using fmod)
         Sprite* sprite = &runner->dataWin->sprt.sprites[inst->spriteIndex];
-
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
         if (inst->imageIndex >= frameCount) {

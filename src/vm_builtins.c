@@ -5365,7 +5365,6 @@ static RValue builtin_drawRectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     bool outline = RValue_toBool(args[4]);
-
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, runner->renderer->drawColor, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
@@ -5619,8 +5618,6 @@ static RValue builtin_drawTextColorExtTransformed(VMContext* ctx, RValue* args, 
     free(str);
     return RValue_makeUndefined();
 }
-
-
 
 static RValue builtin_drawBackground(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;

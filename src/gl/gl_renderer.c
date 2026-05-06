@@ -2073,7 +2073,6 @@ static RendererVtable glVtable = {
     .drawSurface = glDrawSurface,
     .drawSurfacePart = glDrawSurfacePart,
     .drawSurfaceStretched = glDrawSurfaceStretched,
-
     .surfaceResize = glSurfaceResize,
     .surfaceFree = glSurfaceFree,
 
