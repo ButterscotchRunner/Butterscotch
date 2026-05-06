@@ -4,7 +4,7 @@
 CC := cc
 
 CFLAGS := -O2 -DNDEBUG
-LIBS := -lm -lrt -lbz2
+LIBS := -lbz2
 
 DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
@@ -29,7 +29,7 @@ SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)
 else
 ifeq ($(PLATFORM),glfw2)
-LIBS += -lglfw -lXrandr -lX11 -lGL
+LIBS += -lglfw
 SRCS += $(wildcard src/glfw2/*.c)
 HEADERS += $(wildcard src/glfw2/*.h)
 else
@@ -42,7 +42,7 @@ OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
 all: build/butterscotch
 
 build/butterscotch: $(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
 build/%.c.o: %.c $(HEADERS)
 	@mkdir -p $(dir $@)
