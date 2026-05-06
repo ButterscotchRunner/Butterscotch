@@ -24,12 +24,19 @@ HEADERS := $(wildcard src/*.h) \
 SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
 		vendor/glad/src/glad.c
 
+ifdef ENABLE_GLES
+DEFINES += -DENABLE_GLES
+endif
+
 PLATFORM := glfw
 ifeq ($(PLATFORM),glfw)
 LIBS += -lglfw
 SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)
 ifdef USE_GLFW2
+ifdef ENABLE_GLES
+$(error can't enable both GLES and GLFW2 at the same time!)
+endif
 DEFINES += -DUSE_GLFW2
 SRCS := $(filter-out src/glfw/glfw_gamepad.c,$(SRCS))
 endif
