@@ -27,7 +27,7 @@
 #include "input_recording.h"
 #include "debug_overlay.h"
 #include "gl_renderer.h"
-#include "glfw_file_system.h"
+#include "overlay_file_system.h"
 #include "ma_audio_system.h"
 #include "noop_audio_system.h"
 #include "stb_ds.h"
@@ -96,6 +96,7 @@ typedef struct {
 
 typedef struct {
     const char* dataWinPath;
+    const char* saveFolder; // null = default to the directory containing dataWinPath
     const char* screenshotPattern;
     FrameSetEntry* screenshotFrames;
     FrameSetEntry* dumpFrames;
@@ -220,6 +221,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"eager-room", required_argument, nullptr, 'G'},
         {"os-type", required_argument, nullptr, 'O'},
         {"profile-gml-scripts", required_argument, nullptr, 'q'},
+        {"save-folder", required_argument, nullptr, 'B'},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -402,6 +404,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 args->profilerFramesBetween = (int) framesBetween;
                 break;
             }
+            case 'B':
+                args->saveFolder = optarg;
+                break;
 #ifdef ENABLE_VM_OPCODE_PROFILER
             case 'Q':
                 args->opcodeProfiler = true;
@@ -756,7 +761,24 @@ int main(int argc, char* argv[]) {
     }
 
     // Initialize the file system
-    GlfwFileSystem* glfwFileSystem = GlfwFileSystem_create(args.dataWinPath);
+    char* dataWinDir = nullptr;
+    {
+        const char* lastSlash = strrchr(args.dataWinPath, '/');
+        const char* lastBackslash = strrchr(args.dataWinPath, '\\');
+        if (lastBackslash != nullptr && (lastSlash == nullptr || lastBackslash > lastSlash))
+            lastSlash = lastBackslash;
+        if (lastSlash != nullptr) {
+            size_t len = (size_t) (lastSlash - args.dataWinPath + 1);
+            dataWinDir = safeMalloc(len + 1);
+            memcpy(dataWinDir, args.dataWinPath, len);
+            dataWinDir[len] = '\0';
+        } else {
+            dataWinDir = safeStrdup("./");
+        }
+    }
+    const char* savePath = args.saveFolder != nullptr ? args.saveFolder : dataWinDir;
+    OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
+    free(dataWinDir);
 
     // Init GLFW
     if (!glfwInit()) {
@@ -819,7 +841,7 @@ int main(int argc, char* argv[]) {
     // }
 
     // Initialize the runner
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) glfwFileSystem, audioSystem);
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = args.debug;
     runner->osType = args.osType;
     runner->nativeWindow = (void *)0xDEADBEEF;
@@ -1132,7 +1154,7 @@ int main(int argc, char* argv[]) {
     glfwTerminate();
 
     Runner_free(runner);
-    GlfwFileSystem_destroy(glfwFileSystem);
+    OverlayFileSystem_destroy(overlayFs);
 #ifdef ENABLE_VM_OPCODE_PROFILER
     VM_printOpcodeProfilerReport(vm);
 #endif
