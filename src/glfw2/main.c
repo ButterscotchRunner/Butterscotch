@@ -623,6 +623,22 @@ static void onCrashSignal(int sig) {
 }
 #endif
 
+#ifdef _WIN32
+// glfw2's glfwGetProcAddress is broken on Windows.
+// This just implements it in a way that's fixed
+// so it can be passed to GLAD.
+#define glfwGetProcAddress fixed_glfwGetProcAddress
+static void *fixed_glfwGetProcAddress(const char *name) {
+    void *ret = (void *)wglGetProcAddress(name);
+    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
+        HMODULE handle = GetModuleHandle("opengl32.dll");
+        if (handle)
+            ret = (void *)GetProcAddress(handle, name);
+    }
+    return ret;
+}
+#endif
+
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
     CommandLineArgs args;
