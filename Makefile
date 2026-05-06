@@ -6,6 +6,8 @@ CC := cc
 CFLAGS := -O2 -DNDEBUG
 LIBS := -lbz2
 
+OS := $(shell uname -s)
+
 DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
 		   -DENABLE_BC16 \
@@ -34,6 +36,18 @@ SRCS += $(wildcard src/glfw2/*.c)
 HEADERS += $(wildcard src/glfw2/*.h)
 else
 $(error invalid platform)
+endif
+endif
+
+ifeq ($(OS),Windows)
+LIBS += -lopengl32 -static
+else
+ifeq ($(OS),Darwin)
+$(error TODO)
+else
+# Assume unix-like, should work on Linux and BSDs
+INCLUDES += -I/usr/X11R6/include
+LIBS += -L/usr/X11R6/lib -lm -lrt -lXrandr -lX11 -lGL
 endif
 endif
 
