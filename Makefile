@@ -10,8 +10,6 @@ OS := $(shell uname -s)
 
 DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
-		   -DENABLE_BC16 \
-		   -DENABLE_BC17 \
 		   -DENABLE_VM_GML_PROFILER \
 		   -DENABLE_VM_OPCODE_PROFILER \
 		   -DENABLE_VM_STUB_LOGS \
@@ -23,6 +21,20 @@ HEADERS := $(wildcard src/*.h) \
            $(shell find vendor -name '*.h')
 SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
 		vendor/glad/src/glad.c
+
+ifndef DISABLE_BC16
+DEFINES += -DENABLE_BC16
+endif
+
+ifndef DISABLE_BC17
+DEFINES += -DENABLE_BC17
+endif
+
+ifdef DISABLE_BC16
+ifdef DISABLE_BC17
+$(error must enable at least 1 bytecode version)
+endif
+endif
 
 ifdef ENABLE_GLES
 DEFINES += -DENABLE_GLES
