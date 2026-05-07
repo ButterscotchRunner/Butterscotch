@@ -165,6 +165,7 @@ typedef struct {
     uint32_t id;
     RuntimeLayerElementType type;
     bool visible;
+    float alpha;
     RuntimeBackgroundElement* backgroundElement; // owned; nullptr if type != Background
     RuntimeSpriteElement* spriteElement; // owned; nullptr if type != Sprite
     RoomTile* tileElement; // borrowed, points into RoomLayerAssetsData->legacyTiles; nullptr if type != Tile

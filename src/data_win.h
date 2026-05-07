@@ -552,6 +552,7 @@ typedef struct {
     float scaleX;
     float scaleY;
     uint32_t color;
+    float alpha;
 } RoomTile;
 
 enum RoomLayerType : uint32_t

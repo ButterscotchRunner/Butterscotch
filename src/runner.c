@@ -774,7 +774,9 @@ void Runner_draw(Runner* runner) {
                         }
 #endif
 
-                        Renderer_drawTile(runner->renderer, tile, offsetX, offsetY);
+                        RoomTile runtimeTile = *tile;
+                        if (tileEl != nullptr) runtimeTile.alpha = tileEl->alpha;
+                        Renderer_drawTile(runner->renderer, &runtimeTile, offsetX, offsetY);
                     }
                 }
 
@@ -1167,6 +1169,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 .id = Runner_getNextLayerId(runner),
                 .type = RuntimeLayerElementType_Sprite,
                 .visible = true,
+                .alpha = 1.0f,
                 .backgroundElement = nullptr,
                 .spriteElement = spriteElement,
                 .tileElement = nullptr,
@@ -1180,6 +1183,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 .id = Runner_getNextLayerId(runner),
                 .type = RuntimeLayerElementType_Tile,
                 .visible = true,
+                .alpha = tile->alpha,
                 .backgroundElement = nullptr,
                 .spriteElement = nullptr,
                 .tileElement = tile,

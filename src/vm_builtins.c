@@ -7204,6 +7204,7 @@ static RValue builtinLayerBackgroundCreate(VMContext* ctx, RValue* args, MAYBE_U
         .id = Runner_getNextLayerId(runner),
         .type = RuntimeLayerElementType_Background,
         .visible = true,
+        .alpha = 1.0f,
         .backgroundElement = bg,
         .spriteElement = nullptr,
         .tileElement = nullptr,
@@ -7298,6 +7299,15 @@ static RValue builtinLayerBackgroundAlpha(VMContext* ctx, RValue* args, MAYBE_UN
     RuntimeBackgroundElement* bg = findBackgroundElement(runner, RValue_toInt32(args[0]));
     if (bg != nullptr)
         bg->alpha = (float) RValue_toReal(args[1]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtinLayerTileAlpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
+    if (el == nullptr || el->type != RuntimeLayerElementType_Tile || el->tileElement == nullptr)
+        return RValue_makeUndefined();
+    el->alpha = (float) RValue_toReal(args[1]);
     return RValue_makeUndefined();
 }
 
@@ -8899,6 +8909,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_stretch", builtinLayerBackgroundStretch);
     VM_registerBuiltin(ctx, "layer_background_blend", builtinLayerBackgroundBlend);
     VM_registerBuiltin(ctx, "layer_background_alpha", builtinLayerBackgroundAlpha);
+    VM_registerBuiltin(ctx, "layer_tile_alpha", builtinLayerTileAlpha);
 
     // GMS2 internal
     VM_registerBuiltin(ctx, "@@NewGMLArray@@", builtinNewGMLArray);
