@@ -39,6 +39,7 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
     renderer->drawFont = -1;
     renderer->drawHalign = 0;
     renderer->drawValign = 0;
+    renderer->circlePrecision = 24;
 
     // Enable alpha blending on all primitives (sets ABE bit in GS PRIM register)
     gs->gsGlobal->PrimAlphaEnable = GS_SETTING_ON;
@@ -301,6 +302,14 @@ static void gsFlush(MAYBE_UNUSED Renderer* renderer) {
     // No-op: gsKit queues commands, executed in main loop via gsKit_queue_exec
 }
 
+static void gsClearScreen(Renderer* renderer, uint32_t color) {
+    GsRendererFlat* gs = (GsRendererFlat*) renderer;
+    uint8_t r = BGR_R(color) >> 1;
+    uint8_t g = BGR_G(color) >> 1;
+    uint8_t b = BGR_B(color) >> 1;
+    gsKit_clear(gs->gsGlobal, GS_SETREG_RGBAQ(r, g, b, 0x80, 0x00));
+}
+
 static int32_t gsCreateSpriteFromSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y, MAYBE_UNUSED int32_t w, MAYBE_UNUSED int32_t h, MAYBE_UNUSED bool removeback, MAYBE_UNUSED bool smooth, MAYBE_UNUSED int32_t xorig, MAYBE_UNUSED int32_t yorig) {
     fprintf(stderr, "GsRendererFlat: createSpriteFromSurface not supported on PS2\n");
     return -1;
@@ -328,6 +337,7 @@ static RendererVtable gsVtable = {
     .drawLineColor = gsDrawLineColor,
     .drawText = gsDrawText,
     .flush = gsFlush,
+    .clearScreen = gsClearScreen,
     .createSpriteFromSurface = gsCreateSpriteFromSurface,
     .deleteSprite = gsDeleteSprite,
 };

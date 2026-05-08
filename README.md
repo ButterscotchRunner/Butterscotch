@@ -16,6 +16,8 @@ Ever since I created Droidtale 10+ years ago, I had that lingering thought in my
 
 And that's where Butterscotch comes in! Butterscotch is an open source re-implementation of GameMaker: Studio's runner.
 
+**Butterscotch Web (WASM):** https://butterscotch.mrpowergamerbr.com/web/
+
 **Butterscotch PlayStation 2 ISO Generator:** https://butterscotch.mrpowergamerbr.com/
 
 ## Game Compatibility

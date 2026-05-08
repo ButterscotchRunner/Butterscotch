@@ -5453,6 +5453,15 @@ static RValue builtin_drawSetColor(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     return RValue_makeUndefined();
 }
 
+static RValue builtin_drawClear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        uint32_t color = (uint32_t) RValue_toInt32(args[0]);
+        runner->renderer->vtable->clearScreen(runner->renderer, color);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_drawSetAlpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer != nullptr) {
@@ -5809,6 +5818,37 @@ static RValue builtin_draw_triangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         runner->renderer->vtable->drawTriangle(runner->renderer, x1, y1, x2, y2, x3, y3, outline);
     }
     return RValue_makeUndefined();
+}
+
+// draw_circle(x, y, r, outline)
+static RValue builtin_drawCircle(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        float x = (float) RValue_toReal(args[0]);
+        float y = (float) RValue_toReal(args[1]);
+        float r = (float) RValue_toReal(args[2]);
+        bool outline = RValue_toBool(args[3]);
+        Renderer_drawCircle(runner->renderer, x, y, r, outline);
+    }
+    return RValue_makeUndefined();
+}
+
+// draw_set_circle_precision(precision)
+static RValue builtin_drawSetCirclePrecision(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->circlePrecision = Renderer_normalizeCirclePrecision(RValue_toInt32(args[0]));
+    }
+    return RValue_makeUndefined();
+}
+
+// draw_get_circle_precision()
+static RValue builtin_drawGetCirclePrecision(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeReal((GMLReal) runner->renderer->circlePrecision);
+    }
+    return RValue_makeReal(24.0);
 }
 
 static RValue builtin_draw_set_colour(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -8966,6 +9006,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_healthbar", builtin_drawHealthbar);
     VM_registerBuiltin(ctx, "draw_set_color", builtin_drawSetColor);
     VM_registerBuiltin(ctx, "draw_set_alpha", builtin_drawSetAlpha);
+    VM_registerBuiltin(ctx, "draw_clear", builtin_drawClear);
     VM_registerBuiltin(ctx, "draw_set_font", builtin_drawSetFont);
     VM_registerBuiltin(ctx, "draw_set_halign", builtin_drawSetHalign);
     VM_registerBuiltin(ctx, "draw_set_valign", builtin_drawSetValign);
@@ -9000,6 +9041,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_line_width_colour", builtin_draw_line_width_colour);
     VM_registerBuiltin(ctx, "draw_line_width_color", builtin_draw_line_width_colour);
     VM_registerBuiltin(ctx, "draw_triangle", builtin_draw_triangle);
+    VM_registerBuiltin(ctx, "draw_circle", builtin_drawCircle);
+    VM_registerBuiltin(ctx, "draw_set_circle_precision", builtin_drawSetCirclePrecision);
+    VM_registerBuiltin(ctx, "draw_get_circle_precision", builtin_drawGetCirclePrecision);
     VM_registerBuiltin(ctx, "draw_set_colour", builtin_draw_set_colour);
     VM_registerBuiltin(ctx, "draw_get_colour", builtin_draw_get_colour);
     VM_registerBuiltin(ctx, "draw_get_color", builtin_draw_get_color);

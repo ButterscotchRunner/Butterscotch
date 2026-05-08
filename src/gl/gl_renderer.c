@@ -408,6 +408,22 @@ static void glRendererFlush(Renderer* renderer) {
     flushBatch((GLRenderer*) renderer);
 }
 
+static void glClearScreen(Renderer* renderer, uint32_t color) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    float r = (float) BGR_R(color) / 255.0f;
+    float g = (float) BGR_G(color) / 255.0f;
+    float b = (float) BGR_B(color) / 255.0f;
+
+    // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
+    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+    glClearColor(r, g, b, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+}
+
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
 static bool ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
@@ -762,6 +778,7 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
             x3, y3, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
         };
 
+        glBindVertexArray(gl->vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * FLOATS_PER_VERTEX * sizeof(float), verts);
 
@@ -1233,8 +1250,6 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    //glClear(GL_COLOR_BUFFER_BIT);
     fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->fbo);
@@ -1531,36 +1546,25 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, float x, float 
 
     GLRenderer* gl = (GLRenderer*) renderer;
 
+    GLuint texId;
     int32_t texW = 0;
     int32_t texH = 0;
 
-
-
     if (surfaceID != -1) {
-    
         if (0 > surfaceID || gl->ssurfaceCount <= (uint32_t) surfaceID) return;
-        gl->currentTextureId = gl->surfaceTexture[surfaceID];  
-    
+        texId = gl->surfaceTexture[surfaceID];
         texW = gl->surfaceWidth[surfaceID];
-        texH = gl->surfaceHeight[surfaceID];    
+        texH = gl->surfaceHeight[surfaceID];
     } else {
-            gl->currentTextureId = gl->fboTexture;
-            texW = gl->fboWidth;
-            texH = gl->fboHeight;
-        }
-    //GLuint texId = gl->surfaceTexture[surfaceID];
-
-
-    // Flush if texture changed or batch full
-
-    flushBatch(gl);
-
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
+        texId = gl->fboTexture;
+        texW = gl->fboWidth;
+        texH = gl->fboHeight;
     }
 
-    //what a mess I think!
-
+    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
+    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
+    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
+    gl->currentTextureId = texId;
 
     float u0 = (float) 0.0;
     float v0 = (float) 1.0;
@@ -1622,36 +1626,25 @@ static void glDrawSurfacePart(Renderer* renderer, int32_t surfaceID, int32_t x, 
 
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    if (0 > surfaceID || gl->ssurfaceCount <= (uint32_t) surfaceID) return;
-
-    //GLuint texId = gl->surfaceTexture[surfaceID];
+    GLuint texId;
     int32_t texW = 0;
     int32_t texH = 0;
 
-
-
     if (surfaceID != -1) {
-    
         if (0 > surfaceID || gl->ssurfaceCount <= (uint32_t) surfaceID) return;
-        gl->currentTextureId = gl->surfaceTexture[surfaceID];  
-    
+        texId = gl->surfaceTexture[surfaceID];
         texW = gl->surfaceWidth[surfaceID];
-        texH = gl->surfaceHeight[surfaceID];    
+        texH = gl->surfaceHeight[surfaceID];
     } else {
-            gl->currentTextureId = gl->fboTexture;
-            texW = gl->fboWidth;
-            texH = gl->fboHeight;
-        }
-
-    // Flush if texture changed or batch full
-
-    flushBatch(gl);
-
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
+        texId = gl->fboTexture;
+        texW = gl->fboWidth;
+        texH = gl->fboHeight;
     }
 
-
+    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
+    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
+    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
+    gl->currentTextureId = texId;
 
     float u0 = (float) left / (float) texW;
     float v0 = (float) (float) texH - (top / (float) texH);
@@ -1712,31 +1705,19 @@ static void glDrawSurfaceStretched(Renderer* renderer, int32_t surfaceID, float 
 
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    if (0 > surfaceID || gl->ssurfaceCount <= (uint32_t) surfaceID) return;
-
-    //GLuint texId = gl->surfaceTexture[surfaceID];
-
-    flushBatch(gl);
-
+    GLuint texId;
 
     if (surfaceID != -1) {
-    
         if (0 > surfaceID || gl->ssurfaceCount <= (uint32_t) surfaceID) return;
-        gl->currentTextureId = gl->surfaceTexture[surfaceID];  
+        texId = gl->surfaceTexture[surfaceID];
     } else {
-            gl->currentTextureId = gl->fboTexture;
-
-        }
-
-    // Flush if texture changed or batch full
-
-    flushBatch(gl);
-
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
+        texId = gl->fboTexture;
     }
 
-
+    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
+    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
+    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
+    gl->currentTextureId = texId;
 
     float u0 = (float) 0.0;
     float v0 = (float) 1.0;
@@ -2058,6 +2039,7 @@ static RendererVtable glVtable = {
     .drawText = glDrawText,
     .drawTextColor = glDrawTextColor,
     .flush = glRendererFlush,
+    .clearScreen = glClearScreen,
     .createSpriteFromSurface = glCreateSpriteFromSurface,
     .deleteSprite = glDeleteSprite,
     .gpuSetBlendMode = glGpuSetBlendMode,
@@ -2092,6 +2074,7 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawFont = -1;
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
+    gl->base.circlePrecision = 24;
     memset(gl->surfaceStack, -1, 16 * sizeof(int32_t));
     return (Renderer*) gl;
 }

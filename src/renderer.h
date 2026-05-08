@@ -61,6 +61,7 @@ typedef struct {
     void (*drawText)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg);
     void (*drawTextColor)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha);
     void (*flush)(Renderer* renderer);
+    void (*clearScreen)(Renderer* renderer, uint32_t color);
     int32_t (*createSpriteFromSurface)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig);
     void (*deleteSprite)(Renderer* renderer, int32_t spriteIndex);
     void (*gpuSetBlendMode)(Renderer* renderer, int32_t mode);
@@ -101,6 +102,7 @@ struct Renderer {
     int32_t drawFont;    // default -1 (no font)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
+    int32_t circlePrecision; // segments used by draw_circle/draw_ellipse, clamped to [4, 64] and rounded down to multiple of 4. Default 24.
     //It's The Simplest Way I Found To Restore Previous Thingies For Rendering SORRY
     Matrix4f PreviousViewMatrix;
     int32_t CPortX;
@@ -612,6 +614,39 @@ static void Renderer_drawTile(Renderer* renderer, RoomTile* tile, float offsetX,
     uint32_t bgr = tile->color & 0x00FFFFFF;
 
     renderer->vtable->drawSpritePart(renderer, tpagIndex, atlasOffX, atlasOffY, srcW, srcH, drawX, drawY, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f, bgr, tile->alpha);
+}
+
+// Native runner clamps to [4, 64] and rounds down to the nearest multiple of 4.
+static int32_t Renderer_normalizeCirclePrecision(int32_t precision) {
+    if (4 > precision) precision = 4;
+    if (precision > 64) precision = 64;
+    return precision & 0x7C;
+}
+
+// draw_circle helper: approximates a circle as a polygon with "circlePrecision" segments.
+// Filled: triangle fan from center. Outline: line strip around the perimeter.
+static void Renderer_drawCircle(Renderer* renderer, float cx, float cy, float radius, bool outline) {
+    int32_t segments = Renderer_normalizeCirclePrecision(renderer->circlePrecision);
+    if (4 > segments) segments = 4;
+
+    float step = 6.2831853f / (float) segments;
+    float prevX = cx + radius;
+    float prevY = cy;
+
+    for (int32_t i = 1; segments >= i; i++) {
+        float angle = step * (float) i;
+        float curX = cx + radius * cosf(angle);
+        float curY = cy + radius * sinf(angle);
+
+        if (outline) {
+            renderer->vtable->drawLine(renderer, prevX, prevY, curX, curY, 1.0f, renderer->drawColor, renderer->drawAlpha);
+        } else {
+            renderer->vtable->drawTriangle(renderer, cx, cy, prevX, prevY, curX, curY, false);
+        }
+
+        prevX = curX;
+        prevY = curY;
+    }
 }
 
 // Mixes 2 colors with a blend factor
