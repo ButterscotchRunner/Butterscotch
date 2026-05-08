@@ -2,7 +2,11 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 
+#ifdef __EMSCRIPTEN__
+#include <GLES3/gl3.h>
+#else
 #include <glad/glad.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -366,7 +370,7 @@ static void glEndFrame(Renderer* renderer) {
     int effectiveEndX, effectiveEndY;
     int effectiveStartX, effectiveStartY;
 
-    // Try and match the "intended" aspect ratio as closely 
+    // Try and match the "intended" aspect ratio as closely
     // as possible while still fitting on the screen
     if ((gl->gameW * gl->windowH) / gl->gameH < gl->windowW) {
         effectiveEndX = (gl->gameW * gl->windowH) / gl->gameH;
@@ -579,7 +583,7 @@ static void emitColoredQuad(GLRenderer* gl, float x0, float y0, float x1, float 
     // Flush if texture changed or batch full
     if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) flushBatch(gl);
     if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-    
+
     gl->currentTextureId = gl->whiteTexture;
 
     float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
@@ -737,7 +741,7 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         float b = (float) BGR_B(renderer->drawColor) / 255.0f;
 
         flushBatch(gl);
-        
+
         int i = 0;
         float verts[24] = {
             x1, y1, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
@@ -1298,7 +1302,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
 }
 
 static GLenum gmsBlendModeToGL(int mode) {
-    switch(mode) {    
+    switch(mode) {
         case bm_zero: return GL_ZERO;
         case bm_one: return GL_ONE;
         case bm_src_color: return GL_SRC_COLOR;
@@ -1377,7 +1381,7 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
         gmsBlendModeToGLEquation(mode)
     );
     glBlendFunc(
-        gmsBlendModeToGLSFactor(mode), 
+        gmsBlendModeToGLSFactor(mode),
         gmsBlendModeToGLDFactor(mode)
     );
 }
@@ -1385,7 +1389,7 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor) {
     flushBatch((GLRenderer*)renderer);
     glBlendFunc(
-        gmsBlendModeToGLSFactor(sfactor), 
+        gmsBlendModeToGLSFactor(sfactor),
         gmsBlendModeToGLDFactor(dfactor)
     );
 }

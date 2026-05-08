@@ -7205,8 +7205,11 @@ static RValue builtinLayerBackgroundCreate(VMContext* ctx, RValue* args, MAYBE_U
     RuntimeLayerElement el = {
         .id = Runner_getNextLayerId(runner),
         .type = RuntimeLayerElementType_Background,
+        .visible = true,
+        .alpha = 1.0f,
         .backgroundElement = bg,
         .spriteElement = nullptr,
+        .tileElement = nullptr,
     };
     arrput(runtimeLayer->elements, el);
     return RValue_makeReal((GMLReal) el.id);
@@ -7301,6 +7304,15 @@ static RValue builtinLayerBackgroundAlpha(VMContext* ctx, RValue* args, MAYBE_UN
     return RValue_makeUndefined();
 }
 
+static RValue builtinLayerTileAlpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
+    if (el == nullptr || el->type != RuntimeLayerElementType_Tile || el->tileElement == nullptr)
+        return RValue_makeUndefined();
+    el->alpha = (float) RValue_toReal(args[1]);
+    return RValue_makeUndefined();
+}
+
 #if IS_BC17_OR_HIGHER_ENABLED
 static RValue builtinLayerGetAllElements(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
@@ -7330,6 +7342,16 @@ static RValue builtinLayerGetElementType(VMContext* ctx, RValue* args, MAYBE_UNU
         return RValue_makeReal(0.0);
 
     return RValue_makeReal((GMLReal) el->type);
+}
+
+static RValue builtinLayerTileVisible(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    bool visible = RValue_toBool(args[1]);
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (el == nullptr || el->type != RuntimeLayerElementType_Tile) return RValue_makeUndefined();
+    el->visible = visible;
+    return RValue_makeUndefined();
 }
 
 static RValue builtinLayerSpriteGetSprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -8871,6 +8893,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_get_index", builtinLayerSpriteGetIndex);
     VM_registerBuiltin(ctx, "layer_sprite_get_angle", builtinLayerSpriteGetAngle);
     VM_registerBuiltin(ctx, "layer_sprite_destroy", builtinLayerSpriteDestroy);
+    VM_registerBuiltin(ctx, "layer_tile_visible", builtinLayerTileVisible);
 #if IS_BC17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "layer_get_id_at_depth", builtinLayerGetIdAtDepth);
     VM_registerBuiltin(ctx, "layer_tilemap_get_id", builtinLayerTilemapGetId);
@@ -8888,6 +8911,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_stretch", builtinLayerBackgroundStretch);
     VM_registerBuiltin(ctx, "layer_background_blend", builtinLayerBackgroundBlend);
     VM_registerBuiltin(ctx, "layer_background_alpha", builtinLayerBackgroundAlpha);
+    VM_registerBuiltin(ctx, "layer_tile_alpha", builtinLayerTileAlpha);
 
     // GMS2 internal
     VM_registerBuiltin(ctx, "@@NewGMLArray@@", builtinNewGMLArray);

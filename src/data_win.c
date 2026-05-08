@@ -1141,6 +1141,12 @@ static void readRoomGameObjects(BinaryReader* reader, DataWin* dw, Room* room) {
     free(objPtrs);
 }
 
+static float tileAlphaFromColor(uint32_t color) {
+    // Extract alpha from high byte, default to 1.0 if alpha byte is 0
+    uint8_t alphaByte = (uint8_t) ((color >> 24) & 0xFF);
+    return alphaByte == 0 ? 1.0f : (float) alphaByte / 255.0f;
+}
+
 static void readRoomTiles(BinaryReader* reader, DataWin* dw, Room* room) {
     uint32_t tileCount;
     uint32_t* tilePtrs = readPointerTable(reader, &tileCount);
@@ -1163,6 +1169,7 @@ static void readRoomTiles(BinaryReader* reader, DataWin* dw, Room* room) {
             tile->scaleX = BinaryReader_readFloat32(reader);
             tile->scaleY = BinaryReader_readFloat32(reader);
             tile->color = BinaryReader_readUint32(reader);
+            tile->alpha = tileAlphaFromColor(tile->color);
         }
     } else {
         room->tiles = nullptr;
@@ -1244,6 +1251,7 @@ static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room) {
                         tile->scaleX = BinaryReader_readFloat32(reader);
                         tile->scaleY = BinaryReader_readFloat32(reader);
                         tile->color = BinaryReader_readUint32(reader);
+                        tile->alpha = tileAlphaFromColor(tile->color);
                     }
                 } else {
                     assets->legacyTiles = nullptr;

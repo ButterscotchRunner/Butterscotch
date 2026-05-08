@@ -728,9 +728,20 @@ void Runner_draw(Runner* runner) {
             if (parsedLayer == nullptr) continue;
             if (parsedLayer->type == RoomLayerType_Assets) {
                 RoomLayerAssetsData* data = parsedLayer->assetsData;
+                size_t tileElementCount = arrlenu(runtimeLayer->elements);
                 repeat(data->legacyTileCount, j) {
                     if (runner->renderer != nullptr) {
                         RoomTile* tile = &data->legacyTiles[j];
+                        // Find the matching RuntimeLayerElement so we can honor per-element visibility
+                        RuntimeLayerElement* tileEl = nullptr;
+                        repeat(tileElementCount, k) {
+                            RuntimeLayerElement* candidate = &runtimeLayer->elements[k];
+                            if (candidate->type == RuntimeLayerElementType_Tile && candidate->tileElement == tile) {
+                                tileEl = candidate;
+                                break;
+                            }
+                        }
+                        if (tileEl != nullptr && !tileEl->visible) continue;
                         // Check if this tile's layer is hidden via tile_layer_hide()
                         ptrdiff_t layerIdx = hmgeti(runner->tileLayerMap, tile->tileDepth);
                         if (layerIdx >= 0 && !runner->tileLayerMap[layerIdx].value.visible) continue;
@@ -766,7 +777,9 @@ void Runner_draw(Runner* runner) {
                         }
 #endif
 
-                        Renderer_drawTile(runner->renderer, tile, offsetX, offsetY);
+                        RoomTile runtimeTile = *tile;
+                        if (tileEl != nullptr) runtimeTile.alpha = tileEl->alpha;
+                        Renderer_drawTile(runner->renderer, &runtimeTile, offsetX, offsetY);
                     }
                 }
 
@@ -837,7 +850,7 @@ void Runner_drawGUI(Runner* runner) {
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY) {
     *outScaleX = 1.0f;
     *outScaleY = 1.0f;
-    
+
     Room* activeRoom = runner->currentRoom;
     bool viewsEnabled = (activeRoom->flags & 1) != 0;
     if (viewsEnabled) {
@@ -1158,8 +1171,25 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             RuntimeLayerElement el = {
                 .id = Runner_getNextLayerId(runner),
                 .type = RuntimeLayerElementType_Sprite,
+                .visible = true,
+                .alpha = 1.0f,
                 .backgroundElement = nullptr,
                 .spriteElement = spriteElement,
+                .tileElement = nullptr,
+            };
+            arrput(runtimeLayer->elements, el);
+        }
+        // Expose legacy tiles as RuntimeLayerElements so GML scripts can find them via layer_get_all_elements and toggle them via layer_tile_visible
+        repeat(assets->legacyTileCount, j) {
+            RoomTile* tile = &assets->legacyTiles[j];
+            RuntimeLayerElement el = {
+                .id = Runner_getNextLayerId(runner),
+                .type = RuntimeLayerElementType_Tile,
+                .visible = true,
+                .alpha = tile->alpha,
+                .backgroundElement = nullptr,
+                .spriteElement = nullptr,
+                .tileElement = tile,
             };
             arrput(runtimeLayer->elements, el);
         }
@@ -1424,6 +1454,52 @@ void Runner_reset(Runner* runner) {
     runner->drawableListSortDirty = false;
 }
 
+// Flattens collision-event inheritance into one list per object: Child-defined collision events override the parent's events
+//
+// (The YoYo Runner calls it "ExpandCollisionEvents")
+static void flattenCollisionEvents(Runner* runner) {
+    DataWin* dataWin = runner->dataWin;
+    int32_t count = (int32_t) dataWin->objt.count;
+    runner->flattenedCollisionEvents = safeCalloc((size_t) (count > 0 ? count : 1), sizeof(ObjectEventList));
+    if (0 >= count) return;
+
+    repeat(count, i) {
+        GameObject* child = &dataWin->objt.objects[i];
+        ObjectEventList* src = &child->eventLists[EVENT_COLLISION];
+        ObjectEventList* dst = &runner->flattenedCollisionEvents[i];
+
+        if (src->eventCount > 0) {
+            dst->events = safeMalloc(src->eventCount * sizeof(ObjectEvent));
+            memcpy(dst->events, src->events, src->eventCount * sizeof(ObjectEvent));
+            dst->eventCount = src->eventCount;
+        }
+
+        int32_t ancestor = child->parentId;
+        int32_t depth = 0;
+        while (ancestor >= 0 && dataWin->objt.count > (uint32_t) ancestor && 32 > depth) {
+            GameObject* anc = &dataWin->objt.objects[ancestor];
+            ObjectEventList* ancList = &anc->eventLists[EVENT_COLLISION];
+            repeat(ancList->eventCount, e) {
+                ObjectEvent* ancEvt = &ancList->events[e];
+                uint32_t target = ancEvt->eventSubtype;
+
+                bool present = false;
+                repeat(dst->eventCount, c) {
+                    if (dst->events[c].eventSubtype == target) { present = true; break; }
+                }
+                if (present) continue;
+
+                uint32_t newCount = dst->eventCount + 1;
+                dst->events = safeRealloc(dst->events, newCount * sizeof(ObjectEvent));
+                dst->events[newCount - 1] = *ancEvt; // alias actions pointer; dataWin owns it
+                dst->eventCount = newCount;
+            }
+            ancestor = anc->parentId;
+            depth++;
+        }
+    }
+}
+
 // Populates objectsWithAnyEventOfType[eventType] from the resolved event table: for each event type, the deduplicated list of concrete object indices that respond to ANY subtype of that event. Walks the inverted bySlot index per slot and dedups via a scratch byte set.
 // Used by collision dispatch to skip non-collision objects in the outer loop, mirroring how the native obj_has_event table partitions instance iteration by event class.
 static void populateObjectsWithAnyEventOfType(Runner* runner) {
@@ -1481,6 +1557,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     // Build the event dispatch acceleration tables.
     EventSlotMap_build(&runner->eventSlotMap, dataWin);
     ResolvedEventTable_build(&runner->eventTable, dataWin, &runner->eventSlotMap);
+    flattenCollisionEvents(runner);
 
     // Create assets map
     shdefault(runner->assetsByName, -1);
@@ -1884,17 +1961,11 @@ static void dispatchCollisionEvents(Runner* runner) {
             Instance* self = runner->instanceSnapshots[selfSnapBase + si];
             if (!self->active) continue;
 
-        InstanceBBox bboxSelf;
-        Sprite* sprSelf;
-        bool selfDirty = true;
+            InstanceBBox bboxSelf;
+            Sprite* sprSelf;
+            bool selfDirty = true;
 
-        // Walk the parent chain to find all collision event handlers for this object
-        int32_t currentObj = self->objectIndex;
-        int depth = 0;
-        while (currentObj >= 0 && dataWin->objt.count > (uint32_t) currentObj && 32 > depth) {
-            GameObject* obj = &dataWin->objt.objects[currentObj];
-
-            ObjectEventList* eventList = &obj->eventLists[EVENT_COLLISION];
+            ObjectEventList* eventList = &runner->flattenedCollisionEvents[self->objectIndex];
             repeat(eventList->eventCount, evtIdx) {
                 ObjectEvent* evt = &eventList->events[evtIdx];
                 int32_t targetObjIndex = (int32_t) evt->eventSubtype;
@@ -1970,10 +2041,6 @@ static void dispatchCollisionEvents(Runner* runner) {
                 }
                 Runner_popInstanceSnapshot(runner, snapBase);
             }
-
-            currentObj = obj->parentId;
-            depth++;
-        }
         }
 
         arrsetlen(runner->instanceSnapshots, selfSnapBase);
@@ -2155,14 +2222,14 @@ void Runner_step(Runner* runner) {
             DsMapEntry* map = nullptr;
             arrput(runner->dsMapPool, map);
             int32_t mapId = arrlen(runner->dsMapPool) - 1;
-            
+
             DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
             shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup(slot->connected ? "gamepad discovered" : "gamepad lost")));
             shput(*mapPtr, safeStrdup("pad_index"), RValue_makeReal((GMLReal) i));
-            
+
             runner->asyncLoadMapId = mapId;
             Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ASYNC_SYSTEM);
-            
+
             // Clean up ds_map
             mapPtr = &runner->dsMapPool[mapId];
             if (*mapPtr != nullptr) {
@@ -2766,7 +2833,7 @@ void Runner_free(Runner* runner) {
 
     cleanupState(runner);
 
-    if (runner->instancesByObject != nullptr) {
+    {
         uint32_t objectCount = runner->dataWin->objt.count;
         repeat(objectCount, i) {
             arrfree(runner->instancesByObject[i]);
@@ -2774,7 +2841,8 @@ void Runner_free(Runner* runner) {
         free(runner->instancesByObject);
         runner->instancesByObject = nullptr;
     }
-    if (runner->instancesByExactObject != nullptr) {
+
+    {
         uint32_t objectCount = runner->dataWin->objt.count;
         repeat(objectCount, i) {
             arrfree(runner->instancesByExactObject[i]);
@@ -2782,13 +2850,23 @@ void Runner_free(Runner* runner) {
         free(runner->instancesByExactObject);
         runner->instancesByExactObject = nullptr;
     }
-    if (runner->objectsWithAnyEventOfType != nullptr) {
+
+    {
         repeat(OBJT_EVENT_TYPE_COUNT, t) {
             arrfree(runner->objectsWithAnyEventOfType[t]);
         }
         free(runner->objectsWithAnyEventOfType);
         runner->objectsWithAnyEventOfType = nullptr;
     }
+
+    {
+        repeat(runner->dataWin->objt.count, i) {
+            free(runner->flattenedCollisionEvents[i].events);
+        }
+        free(runner->flattenedCollisionEvents);
+        runner->flattenedCollisionEvents = nullptr;
+    }
+    
     arrfree(runner->cachedDrawables);
     runner->cachedDrawables = nullptr;
     arrfree(runner->instanceSnapshots);
