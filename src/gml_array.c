@@ -24,8 +24,10 @@ static void growRow(GMLArrayRow* row, int32_t minLength) {
         row->data = safeRealloc(row->data, (uint32_t) newCap * sizeof(RValue));
         row->capacity = newCap;
     }
+    // GameMaker fills uninitialized array slots with 0 (real).
+    // Example: If you do "a[10] = 1", all values between 0..9 in the array MUST be read back as 0.
     for (int32_t i = row->length; minLength > i; i++) {
-        row->data[i] = (RValue){ .type = RVALUE_UNDEFINED };
+        row->data[i] = RValue_makeReal(0);
     }
     row->length = minLength;
 }

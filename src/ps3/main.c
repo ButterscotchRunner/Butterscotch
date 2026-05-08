@@ -52,6 +52,24 @@ const PadMapping PAD_MAPPINGS[] = {
 static const int PAD_MAPPING_COUNT = sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]);
 static bool prevState[sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0])] = {0};
 
+#define STICK_CENTER 0x80 // The center of the stick (range 0x00-0xFF)
+#define STICK_THRESHOLD 0x40 // The threshold for treating stick movement as a d-pad press
+
+typedef struct {
+    uint8_t axis;
+    int8_t  sign;
+    int32_t gmlKey;
+} StickMapping;
+
+const StickMapping STICK_MAPPINGS[] = {
+    { PAD_BUTTON_OFFSET_ANALOG_LEFT_X, -1, VK_LEFT  },
+    { PAD_BUTTON_OFFSET_ANALOG_LEFT_X, +1, VK_RIGHT },
+    { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, -1, VK_UP    },
+    { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, +1, VK_DOWN  },
+};
+static const int STICK_MAPPING_COUNT = sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]);
+static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
+
 #define DATAWIN_PATH "/dev_hdd0/BUTTERSCOTCH/data.win"
 static const char* dataWinPath = DATAWIN_PATH;
 
@@ -62,8 +80,7 @@ bool shouldExit = false;
 
 // ===[ MAIN ]===
 
-static void sys_callback(uint64_t status, uint64_t param, void* userdata)
-{
+static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
     switch (status) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
@@ -157,7 +174,6 @@ int main(int argc, char* argv[]) {
     // Initialize the renderer
     Renderer* renderer = GLLegacyRenderer_create();
 
-
     // Initialize the audio system
     AudioSystem* audioSystem = (AudioSystem*) AlAudioSystem_create();
 
@@ -195,31 +211,49 @@ int main(int argc, char* argv[]) {
             padData paddata;
             ioPadGetData(0, &paddata);
 
-            for (int i = 0; i < PAD_MAPPING_COUNT; i++)
-            {
-                uint8_t byte = (uint8_t)paddata.button[PAD_MAPPINGS[i].digital];
-                uint8_t mask = PAD_MAPPINGS[i].mask;
-                int32_t gmlKey = PAD_MAPPINGS[i].gmlKey;
+            // "The padData structure is only filled if there is a change in input since the last call.
+            // If there is no change, the structure is zero-filled. If the len member is zero, there was no new input."
+            // So we'll check if there WAS a change before trying to process the keys, to avoid releasing the keys on every frame.
+            // -ioPadGetData
+            if (paddata.len > 0) {
+                repeat(PAD_MAPPING_COUNT, i) {
+                    uint8_t byte = (uint8_t) paddata.button[PAD_MAPPINGS[i].digital];
+                    uint8_t mask = PAD_MAPPINGS[i].mask;
+                    int32_t gmlKey = PAD_MAPPINGS[i].gmlKey;
 
-                bool isPressed = (byte & mask) != 0;
-                bool wasPressed = prevState[i];
+                    bool isPressed = (byte & mask) != 0;
+                    bool wasPressed = prevState[i];
 
-                if (isPressed && !wasPressed)
-                {
-                    RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
+                    if (isPressed && !wasPressed) {
+                        RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
+                    } else if (!isPressed && wasPressed) {
+                        RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+                    }
+
+                    prevState[i] = isPressed;
                 }
-                else if (!isPressed && wasPressed)
-                {
-                    RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
-                }
 
-                prevState[i] = isPressed;
+                repeat(STICK_MAPPING_COUNT, i) {
+                    int axisValue = (int) paddata.button[STICK_MAPPINGS[i].axis];
+                    int signedDelta = STICK_MAPPINGS[i].sign * (axisValue - STICK_CENTER);
+
+                    bool isPressed = signedDelta > STICK_THRESHOLD;
+                    bool wasPressed = prevStickState[i];
+                    int32_t gmlKey = STICK_MAPPINGS[i].gmlKey;
+
+                    if (isPressed && !wasPressed) {
+                        RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
+                    } else if (!isPressed && wasPressed) {
+                        RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+                    }
+
+                    prevStickState[i] = isPressed;
+                }
             }
         }
 
         double frameStartTime = PS3_GET_TIME;
         if (shouldStep) {
-
             // Run one game step (Begin Step, Keyboard, Alarms, Step, End Step, room transitions)
             Runner_step(runner);
 
@@ -229,8 +263,6 @@ int main(int argc, char* argv[]) {
             if (dt > 0.1f) dt = 0.1f; // cap delta to avoid huge fades on lag spikes
             runner->audioSystem->vtable->update(runner->audioSystem, dt);
         }
-
-        Room* activeRoom = runner->currentRoom;
 
         // Query actual framebuffer size (differs from window size on Wayland with fractional scaling)
         int fbWidth = display_width, fbHeight = display_height;
@@ -285,8 +317,7 @@ int main(int argc, char* argv[]) {
         glDisable(GL_TEXTURE_2D);
         glColor3f(1.0f, 1.0f, 1.0f);
         glBegin(GL_QUADS);
-        for (int i = 0; i < num_quads * 4; i++)
-        {
+        for (int i = 0; i < num_quads * 4; i++) {
             glVertex2f(
                 *(float *)(buffer + i * 16),
                 *(float *)(buffer + i * 16 + 4)

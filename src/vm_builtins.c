@@ -2,6 +2,7 @@
 #include "binary_utils.h"
 #include "instance.h"
 #include "json_reader.h"
+#include "real_type.h"
 #include "runner.h"
 #include "runner_gamepad.h"
 #include "utils.h"
@@ -5462,7 +5463,17 @@ static RValue builtin_drawClear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer != nullptr) {
         uint32_t color = (uint32_t) RValue_toInt32(args[0]);
-        runner->renderer->vtable->clearScreen(runner->renderer, color);
+        runner->renderer->vtable->clearScreen(runner->renderer, color, 1.0f);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_drawClearAlpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        uint32_t color = (uint32_t) RValue_toInt32(args[0]);
+        float alpha = RValue_toReal(args[1]);
+        runner->renderer->vtable->clearScreen(runner->renderer, color, alpha);
     }
     return RValue_makeUndefined();
 }
@@ -9012,6 +9023,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_set_color", builtin_drawSetColor);
     VM_registerBuiltin(ctx, "draw_set_alpha", builtin_drawSetAlpha);
     VM_registerBuiltin(ctx, "draw_clear", builtin_drawClear);
+    VM_registerBuiltin(ctx, "draw_clear_alpha", builtin_drawClearAlpha);
     VM_registerBuiltin(ctx, "draw_set_font", builtin_drawSetFont);
     VM_registerBuiltin(ctx, "draw_set_halign", builtin_drawSetHalign);
     VM_registerBuiltin(ctx, "draw_set_valign", builtin_drawSetValign);

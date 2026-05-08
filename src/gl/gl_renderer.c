@@ -408,7 +408,7 @@ static void glRendererFlush(Renderer* renderer) {
     flushBatch((GLRenderer*) renderer);
 }
 
-static void glClearScreen(Renderer* renderer, uint32_t color) {
+static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
 
@@ -419,7 +419,7 @@ static void glClearScreen(Renderer* renderer, uint32_t color) {
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
     GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
     if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
-    glClearColor(r, g, b, 1.0f);
+    glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
     if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
