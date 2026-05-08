@@ -81,6 +81,7 @@ struct RValue {
 
 static RValue RValue_makeReal(GMLReal val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.real = val;
     rv.type = RVALUE_REAL;
     _RVALUE_INIT_GMLTYPE(GML_TYPE_DOUBLE);
@@ -89,6 +90,7 @@ static RValue RValue_makeReal(GMLReal val) {
 
 static RValue RValue_makeInt32(int32_t val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.int32 = val;
     rv.type = RVALUE_INT32;
     _RVALUE_INIT_GMLTYPE(GML_TYPE_INT32);
@@ -97,6 +99,7 @@ static RValue RValue_makeInt32(int32_t val) {
 
 static RValue RValue_makeInt64(int64_t val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
 #ifdef NO_RVALUE_INT64
     // Values that don't fit in int32 get promoted to real instead of clamped, because clamping to INT32_MIN causes arithmetic overflow bugs
     // (example: Undertale's mercymod = -99999999999999 in the Asriel fight)
@@ -119,6 +122,7 @@ static RValue RValue_makeInt64(int64_t val) {
 
 static RValue RValue_makeBool(bool val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.int32 = val ? 1 : 0;
     rv.type = RVALUE_BOOL;
     _RVALUE_INIT_GMLTYPE(GML_TYPE_BOOL);
@@ -127,6 +131,7 @@ static RValue RValue_makeBool(bool val) {
 
 static RValue RValue_makeString(const char* val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.string = val;
     rv.type = RVALUE_STRING;
     rv.ownsReference = false;
@@ -136,6 +141,7 @@ static RValue RValue_makeString(const char* val) {
 
 static RValue RValue_makeOwnedString(char* val) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.string = val;
     rv.type = RVALUE_STRING;
     rv.ownsReference = true;
@@ -145,6 +151,7 @@ static RValue RValue_makeOwnedString(char* val) {
 
 static RValue RValue_makeUndefined(void) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.type = RVALUE_UNDEFINED;
     _RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE);
     return rv;
@@ -154,6 +161,7 @@ static RValue RValue_makeUndefined(void) {
 // Use this when you have a freshly-allocated array (GMLArray_alloc) or after a GMLArray_incRef.
 static RValue RValue_makeArray(GMLArray* arr) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.array = arr;
     rv.type = RVALUE_ARRAY;
     rv.ownsReference = true;
@@ -164,6 +172,7 @@ static RValue RValue_makeArray(GMLArray* arr) {
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeArrayWeak(GMLArray* arr) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.array = arr;
     rv.type = RVALUE_ARRAY;
     rv.ownsReference = false;
@@ -175,6 +184,7 @@ static RValue RValue_makeArrayWeak(GMLArray* arr) {
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 static RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.method = GMLMethod_create(codeIndex, boundInstanceId);
     rv.type = RVALUE_METHOD;
     rv.ownsReference = true;
@@ -185,6 +195,7 @@ static RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeMethodWeak(GMLMethod* m) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.method = m;
     rv.type = RVALUE_METHOD;
     rv.ownsReference = false;
@@ -197,6 +208,7 @@ static RValue RValue_makeMethodWeak(GMLMethod* m) {
 // Use this for the freshly-allocated struct returned by @@NewGMLObject@@, after the caller has already accounted for both the registry's implicit ref and the returned-RValue ref.
 static RValue RValue_makeStruct(Instance* inst) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.structInst = inst;
     rv.type = RVALUE_STRUCT;
     rv.ownsReference = true;
@@ -207,6 +219,7 @@ static RValue RValue_makeStruct(Instance* inst) {
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeStructWeak(Instance* inst) {
     RValue rv;
+    memset(&rv, 0, sizeof(rv));
     rv.structInst = inst;
     rv.type = RVALUE_STRUCT;
     rv.ownsReference = false;
