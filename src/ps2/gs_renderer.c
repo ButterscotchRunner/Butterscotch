@@ -1780,64 +1780,9 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
     float cursorY = valignOffset - (float) font->ascenderOffset;
     int32_t lineStart = 0;
 
-    // get delta's  (16.16 format)
-	int32_t left_r_dx = ((_c2 & 0xff0000) - (_c1 & 0xff0000)) / textLen;
-	int32_t left_g_dx = ((((_c2 & 0xff00) << 8) - ((_c1 & 0xff00) << 8))) / textLen;
-	int32_t left_b_dx = ((((_c2 & 0xff) << 16) - ((_c1 & 0xff) << 16))) / textLen;
-
-	int32_t right_r_dx = ((_c3 & 0xff0000) - (_c4 & 0xff0000)) / textLen;
-	int32_t right_g_dx = ((((_c3 & 0xff00) << 8) - ((_c4 & 0xff00) << 8))) / textLen;
-	int32_t right_b_dx = ((((_c3 & 0xff) << 16) - ((_c4 & 0xff) << 16))) / textLen;
-
-    int32_t left_delta_r = left_r_dx;
-	int32_t left_delta_g = left_g_dx;
-	int32_t left_delta_b = left_b_dx;
-	int32_t right_delta_r = right_r_dx;
-	int32_t right_delta_g = right_g_dx;
-	int32_t right_delta_b = right_b_dx;
-
-    int32_t c1 = _c1;
-    int32_t c4 = _c4;
+    uint8_t ga = alphaToGS(alpha);
 
     while (textLen >= lineStart) {
-        // do 16.16 maths
-        int32_t c2 = ((c1 & 0xff0000) + (left_delta_r & 0xff0000)) & 0xff0000;
-            c2 |= ((c1 & 0xff00) + (left_delta_g >> 8) & 0xff00) & 0xff00;
-            c2 |= ((c1 & 0xff) + (left_delta_b >> 16)) & 0xff;
-        int32_t c3 = ((c4 & 0xff0000) + (right_delta_r & 0xff0000)) & 0xff0000;
-            c3 |= ((c4 & 0xff00) + (right_delta_g >> 8) & 0xff00) & 0xff00;
-            c3 |= ((c4 & 0xff) + (right_delta_b >> 16)) & 0xff;
-
-        // GS modulate mode: Output = Texture * Vertex / 128
-        // Scale vertex RGB from 0-255 to 0-128 so white (255) becomes 1.0x multiplier
-        uint8_t ga = alphaToGS(alpha);
-        uint8_t r1 = BGR_R(c1) >> 1;
-        uint8_t g1 = BGR_G(c1) >> 1;
-        uint8_t b1 = BGR_B(c1) >> 1;
-        u64 textColor1 = GS_SETREG_RGBAQ(r1, g1, b1, ga, 0x00);
-
-        uint8_t r2 = BGR_R(c2) >> 1;
-        uint8_t g2 = BGR_G(c2) >> 1;
-        uint8_t b2 = BGR_B(c2) >> 1;
-        u64 textColor2 = GS_SETREG_RGBAQ(r2, g2, b2, ga, 0x00);
-
-        uint8_t r3 = BGR_R(c3) >> 1;
-        uint8_t g3 = BGR_G(c3) >> 1;
-        uint8_t b3 = BGR_B(c3) >> 1;
-        u64 textColor3 = GS_SETREG_RGBAQ(r3, g3, b3, ga, 0x00);
-
-        uint8_t r4 = BGR_R(c4) >> 1;
-        uint8_t g4 = BGR_G(c4) >> 1;
-        uint8_t b4 = BGR_B(c4) >> 1;
-        u64 textColor4 = GS_SETREG_RGBAQ(r4, g4, b4, ga, 0x00);
-
-        left_delta_r += left_r_dx;
-        left_delta_g += left_g_dx;
-        left_delta_b += left_b_dx;
-        right_delta_r += right_r_dx;
-        right_delta_g += right_g_dx;
-        right_delta_b += right_b_dx;
-
         // Find end of current line
         int32_t lineEnd = lineStart;
         while (textLen > lineEnd && !TextUtils_isNewlineChar(text[lineEnd])) {
@@ -1854,6 +1799,8 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
         else if (renderer->drawHalign == 2) halignOffset = -lineWidth;
 
         float cursorX = halignOffset;
+        // Pixel-position cursor for the gradient
+        float gradientX = 0.0f;
 
         // Draw each glyph - decode each codepoint once and carry it forward as next iteration's ch (also used for kerning)
         int32_t pos = 0;
@@ -1872,6 +1819,21 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
             if (hasNext) nextCh = TextUtils_decodeUtf8(line, lineLen, &pos);
 
             if (glyph != nullptr) {
+                float advance = (float) glyph->shift;
+                float leftFrac  = (lineWidth > 0.0f) ? (gradientX / lineWidth) : 0.0f;
+                float rightFrac = (lineWidth > 0.0f) ? ((gradientX + advance) / lineWidth) : 1.0f;
+                int32_t c1 = Color_lerp(_c1, _c2, leftFrac);
+                int32_t c2 = Color_lerp(_c1, _c2, rightFrac);
+                int32_t c3 = Color_lerp(_c4, _c3, rightFrac);
+                int32_t c4 = Color_lerp(_c4, _c3, leftFrac);
+
+                // GS modulate mode: Output = Texture * Vertex / 128
+                // Scale vertex RGB from 0-255 to 0-128 so white (255) becomes 1.0x multiplier
+                u64 textColor1 = GS_SETREG_RGBAQ(BGR_R(c1) >> 1, BGR_G(c1) >> 1, BGR_B(c1) >> 1, ga, 0x00);
+                u64 textColor2 = GS_SETREG_RGBAQ(BGR_R(c2) >> 1, BGR_G(c2) >> 1, BGR_B(c2) >> 1, ga, 0x00);
+                u64 textColor3 = GS_SETREG_RGBAQ(BGR_R(c3) >> 1, BGR_G(c3) >> 1, BGR_B(c3) >> 1, ga, 0x00);
+                u64 textColor4 = GS_SETREG_RGBAQ(BGR_R(c4) >> 1, BGR_G(c4) >> 1, BGR_B(c4) >> 1, ga, 0x00);
+
                 bool resolveOk = true;
                 if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
                     GSTEXTURE glyphTex;
@@ -1900,8 +1862,11 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
                 }
 
                 cursorX += (float) glyph->shift;
+                gradientX   += (float) glyph->shift;
                 if (resolveOk && hasNext) {
-                    cursorX += TextUtils_getKerningOffset(glyph, nextCh);
+                    float kern = TextUtils_getKerningOffset(glyph, nextCh);
+                    cursorX += kern;
+                    gradientX   += kern;
                 }
             }
 
@@ -1916,8 +1881,6 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
         } else {
             break;
         }
-        c4 = c3;    // set left edge to be what the last right edge was....
-		c1 = c2;    //
     }
 }
 

@@ -5438,7 +5438,7 @@ static RValue builtin_drawHealthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     uint32_t backCol = (uint32_t) RValue_toInt32(args[5]);
     uint32_t minCol = (uint32_t) RValue_toInt32(args[6]);
     uint32_t maxCol = (uint32_t) RValue_toInt32(args[7]);
-    uint32_t intermediateColor = Renderer_mixColors(minCol,maxCol,amount);
+    uint32_t intermediateColor = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, amount);
 
     int32_t direction = RValue_toInt32(args[8]);
 
@@ -5903,22 +5903,8 @@ static RValue builtin_draw_get_alpha(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 static RValue builtinMergeColor(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t col1 = RValue_toInt32(args[0]);
     int32_t col2 = RValue_toInt32(args[1]);
-    GMLReal amount = RValue_toReal(args[2]);
-
-    int32_t b1 = (col1 >> 16) & 0xFF;
-    int32_t g1 = (col1 >> 8) & 0xFF;
-    int32_t r1 = col1 & 0xFF;
-
-    int32_t b2 = (col2 >> 16) & 0xFF;
-    int32_t g2 = (col2 >> 8) & 0xFF;
-    int32_t r2 = col2 & 0xFF;
-
-    GMLReal inv = 1.0 - amount;
-    int32_t r = (int32_t) (r1 * inv + r2 * amount);
-    int32_t g = (int32_t) (g1 * inv + g2 * amount);
-    int32_t b = (int32_t) (b1 * inv + b2 * amount);
-
-    return RValue_makeReal((GMLReal) (((b << 16) & 0xFF0000) | ((g << 8) & 0xFF00) | (r & 0xFF)));
+    float amount = (float) RValue_toReal(args[2]);
+    return RValue_makeReal((GMLReal) Color_lerp(col1, col2, amount));
 }
 
 static RValue builtin_surface_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -6299,30 +6285,58 @@ static RValue builtinMakeColour(VMContext* ctx, RValue* args, int32_t argCount) 
     return builtinMakeColor(ctx, args, argCount);
 }
 
-static RValue builtinMakeColorHsv(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+static RValue builtinMakeColorHsv(VMContext* ctx, RValue* args, int32_t argCount) {
     if (3 > argCount) return RValue_makeReal(0.0);
-    // GML uses 0-255 range for H, S, V
-    GMLReal h = RValue_toReal(args[0]) / 255.0 * 360.0;
-    GMLReal s = RValue_toReal(args[1]) / 255.0;
-    GMLReal v = RValue_toReal(args[2]) / 255.0;
 
-    GMLReal c = v * s;
-    GMLReal x = c * (1.0 - GMLReal_fabs(GMLReal_fmod(h / 60.0, 2.0) - 1.0));
-    GMLReal m = v - c;
+    // GameMaker: Studio 1.x: Values are wrapped around 256 (example: -1 -> 255, 257 -> 1)
+    // GameMaker: Studio 2.x+: Clamps values around [0, 255]
+    // Hue, Saturation, Value
+    GMLReal hRaw, sRaw, vRaw;
+    if (DataWin_isVersionAtLeast(ctx->dataWin, 2, 0, 0, 0)) {
+        hRaw = RValue_toReal(args[0]);
+        sRaw = RValue_toReal(args[1]);
+        vRaw = RValue_toReal(args[2]);
+        if (0.0 > hRaw) hRaw = 0.0; else if (hRaw > 255.0) hRaw = 255.0;
+        if (0.0 > sRaw) sRaw = 0.0; else if (sRaw > 255.0) sRaw = 255.0;
+        if (0.0 > vRaw) vRaw = 0.0; else if (vRaw > 255.0) vRaw = 255.0;
+    } else {
+        hRaw = (GMLReal) (RValue_toInt32(args[0]) & 0xFF);
+        sRaw = (GMLReal) (RValue_toInt32(args[1]) & 0xFF);
+        vRaw = (GMLReal) (RValue_toInt32(args[2]) & 0xFF);
+    }
 
-    GMLReal r1, g1, b1;
-    if (360.0 > h && h >= 300.0)      { r1 = c; g1 = 0; b1 = x; }
-    else if (300.0 > h && h >= 240.0) { r1 = x; g1 = 0; b1 = c; }
-    else if (240.0 > h && h >= 180.0) { r1 = 0; g1 = x; b1 = c; }
-    else if (180.0 > h && h >= 120.0) { r1 = 0; g1 = c; b1 = x; }
-    else if (120.0 > h && h >= 60.0)  { r1 = x; g1 = c; b1 = 0; }
-    else                               { r1 = c; g1 = x; b1 = 0; }
+    GMLReal s = sRaw / 255.0;
+    GMLReal v = vRaw / 255.0;
 
-    int32_t r = (int32_t) GMLReal_round((r1 + m) * 255.0);
-    int32_t g = (int32_t) GMLReal_round((g1 + m) * 255.0);
-    int32_t b = (int32_t) GMLReal_round((b1 + m) * 255.0);
+    GMLReal r = v, g = v, b = v;
+    if (s != 0.0) {
+        // https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB_alternative
+        GMLReal h = (hRaw * 360.0) / 255.0;
+        GMLReal hSector = h / 60.0;
+        if (h == 360.0) hSector = 0.0;
+        int32_t i = (int32_t) hSector;
+        GMLReal f = hSector - (GMLReal) i;
+        GMLReal p = v * (1.0 - s);
+        GMLReal q = v * (1.0 - s * f);
+        GMLReal t = v * (1.0 - s * (1.0 - f));
+        switch (i) {
+            case 0:  r = v; g = t; b = p; break;
+            case 1:  r = q; g = v; b = p; break;
+            case 2:  r = p; g = v; b = t; break;
+            case 3:  r = p; g = q; b = v; break;
+            case 4:  r = t; g = p; b = v; break;
+            default: r = v; g = p; b = q; break;
+        }
+    }
 
-    return RValue_makeReal((GMLReal) (r | (g << 8) | (b << 16)));
+    int32_t rOut = (int32_t) (r * 255.0 + 0.5);
+    int32_t gOut = (int32_t) (g * 255.0 + 0.5);
+    int32_t bOut = (int32_t) (b * 255.0 + 0.5);
+    if (0 > rOut) rOut = 0; else if (rOut > 255) rOut = 255;
+    if (0 > gOut) gOut = 0; else if (gOut > 255) gOut = 255;
+    if (0 > bOut) bOut = 0; else if (bOut > 255) bOut = 255;
+
+    return RValue_makeReal((GMLReal) (rOut | (gOut << 8) | (bOut << 16)));
 }
 
 static RValue builtinMakeColourHsv(VMContext* ctx, RValue* args, int32_t argCount) {

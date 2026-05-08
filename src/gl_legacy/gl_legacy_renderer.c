@@ -846,25 +846,6 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
     float cursorY = valignOffset - (float) font->ascenderOffset;
     int32_t lineStart = 0;
 
-    // get delta's  (16.16 format)
-	int32_t left_r_dx = ((_c2 & 0xff0000) - (_c1 & 0xff0000)) / textLen;
-	int32_t left_g_dx = ((((_c2 & 0xff00) << 8) - ((_c1 & 0xff00) << 8))) / textLen;
-	int32_t left_b_dx = ((((_c2 & 0xff) << 16) - ((_c1 & 0xff) << 16))) / textLen;
-
-	int32_t right_r_dx = ((_c3 & 0xff0000) - (_c4 & 0xff0000)) / textLen;
-	int32_t right_g_dx = ((((_c3 & 0xff00) << 8) - ((_c4 & 0xff00) << 8))) / textLen;
-	int32_t right_b_dx = ((((_c3 & 0xff) << 16) - ((_c4 & 0xff) << 16))) / textLen;
-
-    int32_t left_delta_r = left_r_dx;
-	int32_t left_delta_g = left_g_dx;
-	int32_t left_delta_b = left_b_dx;
-	int32_t right_delta_r = right_r_dx;
-	int32_t right_delta_g = right_g_dx;
-	int32_t right_delta_b = right_b_dx;
-
-    int32_t c1 = _c1;
-    int32_t c4 = _c4;
-
     for (int32_t lineIdx = 0; lineCount > lineIdx; lineIdx++) {
         // Find end of current line
         int32_t lineEnd = lineStart;
@@ -880,6 +861,8 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
         else if (renderer->drawHalign == 2) halignOffset = -lineWidth;
 
         float cursorX = halignOffset;
+        // Pixel-position cursor for the gradient
+        float gradientX = 0.0f;
 
         // Render each glyph in the line - decode each codepoint once and carry it forward as next iteration's ch (also used for kerning)
         int32_t pos = 0;
@@ -891,21 +874,6 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
         }
 
         while (hasCh) {
-            // do 16.16 maths
-            int32_t c2 = ((c1 & 0xff0000) + (left_delta_r & 0xff0000)) & 0xff0000;
-                c2 |= ((c1 & 0xff00) + (left_delta_g >> 8) & 0xff00) & 0xff00;
-                c2 |= ((c1 & 0xff) + (left_delta_b >> 16)) & 0xff;
-            int32_t c3 = ((c4 & 0xff0000) + (right_delta_r & 0xff0000)) & 0xff0000;
-                c3 |= ((c4 & 0xff00) + (right_delta_g >> 8) & 0xff00) & 0xff00;
-                c3 |= ((c4 & 0xff) + (right_delta_b >> 16)) & 0xff;
-
-            left_delta_r += left_r_dx;
-            left_delta_g += left_g_dx;
-            left_delta_b += left_b_dx;
-            right_delta_r += right_r_dx;
-            right_delta_g += right_g_dx;
-            right_delta_b += right_b_dx;
-
             FontGlyph* glyph = TextUtils_findGlyph(font, ch);
 
             uint16_t nextCh = 0;
@@ -913,6 +881,14 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
             if (hasNext) nextCh = TextUtils_decodeUtf8(text + lineStart, lineLen, &pos);
 
             if (glyph != nullptr) {
+                float advance = (float) glyph->shift;
+                float leftFrac  = (lineWidth > 0.0f) ? (gradientX           / lineWidth) : 0.0f;
+                float rightFrac = (lineWidth > 0.0f) ? ((gradientX + advance) / lineWidth) : 1.0f;
+                int32_t c1 = Color_lerp(_c1, _c2, leftFrac);
+                int32_t c2 = Color_lerp(_c1, _c2, rightFrac);
+                int32_t c3 = Color_lerp(_c4, _c3, rightFrac);
+                int32_t c4 = Color_lerp(_c4, _c3, leftFrac);
+
                 bool drewSuccessfully = false;
                 if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
@@ -955,10 +931,11 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                 }
 
                 cursorX += glyph->shift;
-                if (drewSuccessfully) {
-                    if (hasNext) cursorX += TextUtils_getKerningOffset(glyph, nextCh);
-                    c4 = c3;    // set left edge to be what the last right edge was....
-                    c1 = c2;
+                gradientX   += glyph->shift;
+                if (drewSuccessfully && hasNext) {
+                    float kern = TextUtils_getKerningOffset(glyph, nextCh);
+                    cursorX += kern;
+                    gradientX   += kern;
                 }
             }
 
