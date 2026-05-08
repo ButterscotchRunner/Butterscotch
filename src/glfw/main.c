@@ -897,10 +897,7 @@ int main(int argc, char* argv[]) {
 
     bool modernGL = strcmp(args.renderer, "legacy-gl") != 0;
     if (!modernGL) {
-#ifdef USE_GLFW2
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-#else
+#ifndef USE_GLFW2
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 #endif
@@ -909,13 +906,7 @@ int main(int argc, char* argv[]) {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#elif defined(USE_GLFW2)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#else
+#elif !defined(USE_GLFW2)
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
