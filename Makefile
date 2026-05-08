@@ -42,7 +42,6 @@ endif
 
 PLATFORM := glfw
 ifeq ($(PLATFORM),glfw)
-LIBS += -lglfw
 SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)
 ifdef USE_GLFW2
@@ -51,23 +50,31 @@ $(error can't enable both GLES and GLFW2 at the same time!)
 endif
 DEFINES += -DUSE_GLFW2
 SRCS := $(filter-out src/glfw/glfw_gamepad.c,$(SRCS))
+ifndef GLFW_LIBS
+GLFW_LIBS := $(shell pkg-config --libs libglfw)
 endif
+else
+ifndef GLFW_LIBS
+GLFW_LIBS := $(shell pkg-config --libs glfw3)
+endif
+endif
+LIBS += $(GLFW_LIBS)
 else
 $(error invalid platform)
 endif
 
 ifeq ($(OS),Windows)
-LIBS += -lopengl32 -static
+LIBS += -static
 else
 ifeq ($(OS),Darwin)
-LIBS += -lobjc -framework OpenGL -framework Cocoa -framework IOKit
+LIBS += -lobjc
 else
 ifneq ($(filter Linux Haiku %BSD Unix,$(OS)),) # OS is 'Linux', 'Haiku', '*BSD', or 'Unix'
 ifneq ($(OS),Haiku)
 INCLUDES += -I/usr/X11R6/include
-LIBS += -L/usr/X11R6/lib -lXrandr -lX11 -ldl -lrt
+LIBS += -L/usr/X11R6/lib -ldl -lrt
 endif
-LIBS += -lm -pthread -lGL
+LIBS += -lm
 else
 $(error unknown OS '$(OS)', please manually set the OS variable)
 endif
