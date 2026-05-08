@@ -294,6 +294,18 @@ typedef struct {
     RuntimeView views[MAX_VIEWS];
 } SavedRoomState;
 
+// One flattened collision event entry. Mirrors ObjectEvent but adds the resolved codeId and ownerObjectIndex (the ancestor that actually defines the event) so dispatch needs no event-table lookup.
+typedef struct {
+    uint32_t targetObjectIndex; // partner-side object index this handler matches against (eventSubtype in the GML object file)
+    int32_t codeId; // resolved bytecode id for this handler
+    int32_t ownerObjectIndex; // object that actually defines the handler (i for own events, ancestor index for inherited)
+} FlattenedCollisionEvent;
+
+typedef struct {
+    uint32_t eventCount;
+    FlattenedCollisionEvent* events;
+} FlattenedCollisionEventList;
+
 struct Runner {
     DataWin* dataWin;
     VMContext* vmContext;
@@ -320,12 +332,13 @@ struct Runner {
     // For each event type, the deduplicated list of object indices that respond to ANY subtype of that event (including via inheritance). Derived from the event table; used by collision dispatch to skip non-collision objects in the outer loop.
     // Length = OBJT_EVENT_TYPE_COUNT.
     int32_t** objectsWithAnyEventOfType;
-    // Per-object flattened collision event list (one ObjectEventList per objectIndex, length = dataWin->objt.count).
+    // Per-object flattened collision event list (one FlattenedCollisionEventList per objectIndex, length = dataWin->objt.count).
     // Flattens parent-chain collision inheritance: each child's list contains its own collision events plus
-    // every ancestor target the child does not override, deduplicated. Lets collision dispatch iterate one flat
-    // list per object with no parent-chain walk and no per-target dedup. Owned by the Runner; dataWin->objt is
-    // left untouched so the parsed file remains the source of truth.
-    ObjectEventList* flattenedCollisionEvents;
+    // every ancestor target the child does not override, deduplicated. Each entry stores the resolved codeId
+    // and the ownerObjectIndex (the ancestor that actually defines the event), so collision dispatch needs
+    // no parent-chain walk and no resolved-event-table lookup. Owned by the Runner; dataWin->objt is left
+    // untouched so the parsed file remains the source of truth.
+    FlattenedCollisionEventList* flattenedCollisionEvents;
     // Reusable scratch array for Runner_executeEventForAll. Pre-grown to avoid stb_ds arrput overhead and repeated allocations on the per-frame dispatch path. Owned via stb_ds; truncated at the start of each call.
     Instance** eventDispatchInstances;
     // LIFO arena used to snapshot per-object instance lists before iteration.

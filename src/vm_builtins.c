@@ -2220,6 +2220,13 @@ static RValue builtinCameraSetViewBorder(VMContext* ctx, RValue* args, int32_t a
 
 // ===[ VARIABLE FUNCTIONS ]===
 
+#ifdef ENABLE_VM_TRACING
+static const char* variableTraceObjectName(VMContext* ctx, Instance* inst) {
+    if (0 > inst->objectIndex) return "<global_scope>";
+    return ctx->dataWin->objt.objects[inst->objectIndex].name;
+}
+#endif
+
 static RValue builtinVariableGlobalExists(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount || args[0].type != RVALUE_STRING) return RValue_makeReal(0.0);
     const char* name = args[0].string;
@@ -2240,6 +2247,9 @@ static RValue builtinVariableGlobalGet(VMContext* ctx, RValue* args, int32_t arg
     int32_t varID = ctx->globalVarNameMap[idx].value;
     if (ctx->globalVarCount > (uint32_t) varID) {
         RValue val = ctx->globalVars[varID];
+#ifdef ENABLE_VM_TRACING
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, name, val, false, -1, -1, " (variable_global_get)");
+#endif
         // Duplicate owned strings
         if (val.type == RVALUE_STRING && val.ownsReference && val.string != nullptr) {
             return RValue_makeOwnedString(safeStrdup(val.string));
@@ -2258,6 +2268,9 @@ static RValue builtinVariableGlobalSet(VMContext* ctx, RValue* args, int32_t arg
     if (0 > idx) return RValue_makeUndefined();
     int32_t varID = ctx->globalVarNameMap[idx].value;
     if (ctx->globalVarCount > (uint32_t) varID) {
+#ifdef ENABLE_VM_TRACING
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, name, args[1], true, -1, -1, " (variable_global_set)");
+#endif
         RValue_free(&ctx->globalVars[varID]);
         ctx->globalVars[varID] = RValue_makeIndependent(args[1]);
     }
@@ -2266,7 +2279,12 @@ static RValue builtinVariableGlobalSet(VMContext* ctx, RValue* args, int32_t arg
 
 // ===[ VARIABLE_INSTANCE ]===
 
-static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* name, RValue val) {
+static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* name, RValue val, MAYBE_UNUSED const char* originBuiltin) {
+#ifdef ENABLE_VM_TRACING
+    char additional[48];
+    snprintf(additional, sizeof(additional), " (%s)", originBuiltin);
+    VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, true, -1, target->instanceId, additional);
+#endif
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         Instance* saved = (Instance*) ctx->currentInstance;
@@ -2284,13 +2302,18 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
     Instance_setSelfVar(target, ctx->selfVarNameMap[slot].value, val);
 }
 
-static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char* name) {
+static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char* name, MAYBE_UNUSED const char* originBuiltin) {
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         Instance* saved = (Instance*) ctx->currentInstance;
         ctx->currentInstance = target;
         RValue val = VMBuiltins_getVariable(ctx, builtinId, name, -1);
         ctx->currentInstance = saved;
+#ifdef ENABLE_VM_TRACING
+        char additional[48];
+        snprintf(additional, sizeof(additional), " (%s, builtin)", originBuiltin);
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, false, -1, target->instanceId, additional);
+#endif
         // Duplicate string so caller-owned args cleanup does not affect it
         if (val.type == RVALUE_STRING && val.string != nullptr && !val.ownsReference) {
             return RValue_makeOwnedString(safeStrdup(val.string));
@@ -2300,6 +2323,11 @@ static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char
     ptrdiff_t slot = shgeti(ctx->selfVarNameMap, (char*) name);
     if (0 > slot) return RValue_makeUndefined();
     RValue val = Instance_getSelfVar(target, ctx->selfVarNameMap[slot].value);
+#ifdef ENABLE_VM_TRACING
+    char additional[48];
+    snprintf(additional, sizeof(additional), " (%s)", originBuiltin);
+    VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, false, -1, target->instanceId, additional);
+#endif
     if (val.type == RVALUE_STRING && val.string != nullptr) {
         return RValue_makeOwnedString(safeStrdup(val.string));
     }
@@ -2317,12 +2345,12 @@ static bool variableInstanceExistsOn(VMContext* ctx, Instance* target, const cha
     return IntRValueHashMap_contains(&target->selfVars, ctx->selfVarNameMap[slot].value);
 }
 
-static RValue variableScopedGet(VMContext* ctx, int32_t id, const char* name, bool structOnly) {
+static RValue variableScopedGet(VMContext* ctx, int32_t id, const char* name, bool structOnly, const char* originBuiltin) {
     Runner* runner = (Runner*) ctx->runner;
 
     if (id >= 100000) {
         Instance* inst = hmget(runner->instancesById, id);
-        if (inst != nullptr && variableScopedMatches(inst, structOnly)) return variableInstanceGetOn(ctx, inst, name);
+        if (inst != nullptr && variableScopedMatches(inst, structOnly)) return variableInstanceGetOn(ctx, inst, name, originBuiltin);
         return RValue_makeUndefined();
     }
 
@@ -2333,7 +2361,7 @@ static RValue variableScopedGet(VMContext* ctx, int32_t id, const char* name, bo
     for (int32_t i = snapBase; snapEnd > i; i++) {
         Instance* inst = runner->instanceSnapshots[i];
         if (variableScopedMatches(inst, structOnly)) {
-            result = variableInstanceGetOn(ctx, inst, name);
+            result = variableInstanceGetOn(ctx, inst, name, originBuiltin);
             break;
         }
     }
@@ -2341,12 +2369,12 @@ static RValue variableScopedGet(VMContext* ctx, int32_t id, const char* name, bo
     return result;
 }
 
-static void variableScopedSet(VMContext* ctx, int32_t id, const char* name, RValue val, bool structOnly) {
+static void variableScopedSet(VMContext* ctx, int32_t id, const char* name, RValue val, bool structOnly, const char* originBuiltin) {
     Runner* runner = (Runner*) ctx->runner;
 
     if (id >= 100000) {
         Instance* inst = hmget(runner->instancesById, id);
-        if (inst != nullptr && variableScopedMatches(inst, structOnly)) variableInstanceSetOn(ctx, inst, name, val);
+        if (inst != nullptr && variableScopedMatches(inst, structOnly)) variableInstanceSetOn(ctx, inst, name, val, originBuiltin);
         return;
     }
 
@@ -2355,7 +2383,7 @@ static void variableScopedSet(VMContext* ctx, int32_t id, const char* name, RVal
     int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
     for (int32_t i = snapBase; snapEnd > i; i++) {
         Instance* inst = runner->instanceSnapshots[i];
-        if (variableScopedMatches(inst, structOnly)) variableInstanceSetOn(ctx, inst, name, val);
+        if (variableScopedMatches(inst, structOnly)) variableInstanceSetOn(ctx, inst, name, val, originBuiltin);
     }
     Runner_popInstanceSnapshot(runner, snapBase);
 }
@@ -2385,12 +2413,12 @@ static bool variableScopedExists(VMContext* ctx, int32_t id, const char* name, b
 
 static RValue builtinVariableInstanceGet(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false);
+    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
 }
 
 static RValue builtinVariableInstanceSet(VMContext* ctx, RValue* args, int32_t argCount) {
     if (3 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    variableScopedSet(ctx, RValue_toInt32(args[0]), args[1].string, args[2], false);
+    variableScopedSet(ctx, RValue_toInt32(args[0]), args[1].string, args[2], false, "variable_instance_set");
     return RValue_makeUndefined();
 }
 
@@ -2401,12 +2429,12 @@ static RValue builtinVariableInstanceExists(VMContext* ctx, RValue* args, int32_
 
 static RValue builtinVariableStructGet(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, true);
+    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, true, "variable_struct_get");
 }
 
 static RValue builtinVariableStructSet(VMContext* ctx, RValue* args, int32_t argCount) {
     if (3 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    variableScopedSet(ctx, RValue_toInt32(args[0]), args[1].string, args[2], true);
+    variableScopedSet(ctx, RValue_toInt32(args[0]), args[1].string, args[2], true, "variable_struct_set");
     return RValue_makeUndefined();
 }
 

@@ -1460,17 +1460,21 @@ void Runner_reset(Runner* runner) {
 static void flattenCollisionEvents(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     int32_t count = (int32_t) dataWin->objt.count;
-    runner->flattenedCollisionEvents = safeCalloc((size_t) (count > 0 ? count : 1), sizeof(ObjectEventList));
+    runner->flattenedCollisionEvents = safeCalloc((size_t) (count > 0 ? count : 1), sizeof(FlattenedCollisionEventList));
     if (0 >= count) return;
 
     repeat(count, i) {
         GameObject* child = &dataWin->objt.objects[i];
         ObjectEventList* src = &child->eventLists[EVENT_COLLISION];
-        ObjectEventList* dst = &runner->flattenedCollisionEvents[i];
+        FlattenedCollisionEventList* dst = &runner->flattenedCollisionEvents[i];
 
         if (src->eventCount > 0) {
-            dst->events = safeMalloc(src->eventCount * sizeof(ObjectEvent));
-            memcpy(dst->events, src->events, src->eventCount * sizeof(ObjectEvent));
+            dst->events = safeMalloc(src->eventCount * sizeof(FlattenedCollisionEvent));
+            repeat(src->eventCount, e) {
+                ObjectEvent* srcEvt = &src->events[e];
+                int32_t srcCodeId = (srcEvt->actionCount > 0) ? srcEvt->actions[0].codeId : -1;
+                dst->events[e] = (FlattenedCollisionEvent) { .targetObjectIndex = srcEvt->eventSubtype, .codeId = srcCodeId, .ownerObjectIndex = i };
+            }
             dst->eventCount = src->eventCount;
         }
 
@@ -1485,13 +1489,14 @@ static void flattenCollisionEvents(Runner* runner) {
 
                 bool present = false;
                 repeat(dst->eventCount, c) {
-                    if (dst->events[c].eventSubtype == target) { present = true; break; }
+                    if (dst->events[c].targetObjectIndex == target) { present = true; break; }
                 }
                 if (present) continue;
 
+                int32_t ancCodeId = (ancEvt->actionCount > 0) ? ancEvt->actions[0].codeId : -1;
                 uint32_t newCount = dst->eventCount + 1;
-                dst->events = safeRealloc(dst->events, newCount * sizeof(ObjectEvent));
-                dst->events[newCount - 1] = *ancEvt; // alias actions pointer; dataWin owns it
+                dst->events = safeRealloc(dst->events, newCount * sizeof(FlattenedCollisionEvent));
+                dst->events[newCount - 1] = (FlattenedCollisionEvent) { .targetObjectIndex = target, .codeId = ancCodeId, .ownerObjectIndex = ancestor };
                 dst->eventCount = newCount;
             }
             ancestor = anc->parentId;
@@ -1783,7 +1788,47 @@ void Runner_initFirstRoom(Runner* runner) {
 
 // ===[ Collision Event Dispatch ]===
 
-static void executeCollisionEvent(Runner* runner, Instance* self, Instance* other, int32_t targetObjectIndex) {
+#ifdef ENABLE_VM_TRACING
+// Returns true if this collision pair should be logged under --trace-collisions. Matches "*" or either side's object name.
+static bool shouldTraceCollisionPair(VMContext* vm, DataWin* dataWin, Instance* a, Instance* b) {
+    if (shlen(vm->collisionsToBeTraced) == -1) return false;
+    if (shgeti(vm->collisionsToBeTraced, "*") != -1) return true;
+    const char* aName = dataWin->objt.objects[a->objectIndex].name;
+    const char* bName = dataWin->objt.objects[b->objectIndex].name;
+    if (aName && shgeti(vm->collisionsToBeTraced, aName) != -1) return true;
+    if (bName && shgeti(vm->collisionsToBeTraced, bName) != -1) return true;
+    return false;
+}
+#endif
+
+// Finds if the "instance" has a collision event handler for "collisionMatch"
+// Returns nullptr if no match (instance has no collision handler that applies to collisionMatch).
+static FlattenedCollisionEvent* findSymmetricCollisionEvent(Runner* runner, Instance* instance, Instance* collisionMatch) {
+    DataWin* dataWin = runner->dataWin;
+    FlattenedCollisionEventList* list = &runner->flattenedCollisionEvents[instance->objectIndex];
+    if (list->eventCount == 0)
+        return nullptr;
+
+    int32_t partnerObj = collisionMatch->objectIndex;
+    int32_t depth = 0;
+    while (partnerObj >= 0 && dataWin->objt.count > (uint32_t) partnerObj && 32 > depth) {
+        repeat(list->eventCount, e) {
+            FlattenedCollisionEvent* evt = &list->events[e];
+            if ((int32_t) evt->targetObjectIndex == partnerObj) {
+                if (0 > evt->codeId)
+                    return nullptr;
+
+                return evt;
+            }
+        }
+        partnerObj = dataWin->objt.objects[partnerObj].parentId;
+        depth++;
+    }
+
+    return nullptr;
+}
+
+static void executeCollisionEvent(Runner* runner, Instance* self, Instance* other, int32_t targetObjectIndex, int32_t codeId, int32_t ownerObjectIndex) {
     VMContext* vm = runner->vmContext;
 
     // Save event context
@@ -1796,10 +1841,6 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
     vm->currentEventType = EVENT_COLLISION;
     vm->currentEventSubtype = targetObjectIndex;
     vm->otherInstance = other;
-
-    int32_t ownerObjectIndex = -1;
-    int32_t codeId = findEventCodeIdAndOwner(runner, self->objectIndex, EVENT_COLLISION, targetObjectIndex, &ownerObjectIndex);
-
     vm->currentEventObjectIndex = ownerObjectIndex;
 
 #ifdef ENABLE_VM_TRACING
@@ -1965,12 +2006,13 @@ static void dispatchCollisionEvents(Runner* runner) {
             Sprite* sprSelf;
             bool selfDirty = true;
 
-            ObjectEventList* eventList = &runner->flattenedCollisionEvents[self->objectIndex];
+            FlattenedCollisionEventList* eventList = &runner->flattenedCollisionEvents[self->objectIndex];
             repeat(eventList->eventCount, evtIdx) {
-                ObjectEvent* evt = &eventList->events[evtIdx];
-                int32_t targetObjIndex = (int32_t) evt->eventSubtype;
+                FlattenedCollisionEvent* evt = &eventList->events[evtIdx];
+                int32_t targetObjIndex = (int32_t) evt->targetObjectIndex;
 
-                if (evt->actionCount == 0 || 0 > evt->actions[0].codeId) continue;
+                if (0 > evt->codeId)
+                    continue;
 
                 // Iterate only the descendant-inclusive list for the target object via a snapshot, so nested user code (collision handlers calling instance_exists, with (...), etc.) can push/pop their own snapshots above ours without corrupting this iteration.
                 int32_t snapBase = Runner_pushInstancesOfObject(runner, targetObjIndex);
@@ -1987,23 +2029,50 @@ static void dispatchCollisionEvents(Runner* runner) {
                         selfDirty = false;
                     }
                     InstanceBBox bboxOther = Collision_computeBBox(dataWin, other);
+
+#ifdef ENABLE_VM_TRACING
+                    bool traceThisPair = shouldTraceCollisionPair(runner->vmContext, dataWin, self, other);
+                    if (traceThisPair && (!bboxSelf.valid || !bboxOther.valid)) {
+                        fprintf(stderr, "Collision: [%s id=%d] vs [%s id=%d] bbox-invalid (selfValid=%d otherValid=%d)\n",
+                            dataWin->objt.objects[self->objectIndex].name, self->instanceId,
+                            dataWin->objt.objects[other->objectIndex].name, other->instanceId,
+                            bboxSelf.valid, bboxOther.valid);
+                    }
+#endif
                     if (!bboxSelf.valid || !bboxOther.valid) continue;
 
                     // AABB overlap test
-                    if (bboxSelf.left >= bboxOther.right || bboxOther.left >= bboxSelf.right || bboxSelf.top >= bboxOther.bottom || bboxOther.top >= bboxSelf.bottom)
-                        continue;
+                    bool aabbMiss = bboxSelf.left >= bboxOther.right || bboxOther.left >= bboxSelf.right || bboxSelf.top >= bboxOther.bottom || bboxOther.top >= bboxSelf.bottom;
+#ifdef ENABLE_VM_TRACING
+                    if (traceThisPair) {
+                        fprintf(stderr, "Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g) otherBB=(%g,%g,%g,%g) AABB=%s\n",
+                            dataWin->objt.objects[self->objectIndex].name, self->instanceId, self->x, self->y,
+                            dataWin->objt.objects[other->objectIndex].name, other->instanceId, other->x, other->y,
+                            bboxSelf.left, bboxSelf.top, bboxSelf.right, bboxSelf.bottom,
+                            bboxOther.left, bboxOther.top, bboxOther.right, bboxOther.bottom,
+                            aabbMiss ? "miss" : "overlap");
+                    }
+#endif
+                    if (aabbMiss) continue;
 
                     // Precise collision check if either sprite needs it (per-pixel for sepMasks==1, OBB SAT for rotated sepMasks==2).
                     Sprite* sprOther = Collision_getSprite(dataWin, other);
                     bool needsPrecise = (sprSelf != nullptr && sprSelf->sepMasks == 1) || (sprOther != nullptr && sprOther->sepMasks == 1) || Collision_obbNeedsSAT(sprSelf, self) || Collision_obbNeedsSAT(sprOther, other);
 
                     if (needsPrecise) {
-                        if (!Collision_instancesOverlapPrecise(dataWin, runner->collisionCompatibilityMode, self, other, bboxSelf, bboxOther)) continue;
+                        bool preciseHit = Collision_instancesOverlapPrecise(dataWin, runner->collisionCompatibilityMode, self, other, bboxSelf, bboxOther);
+#ifdef ENABLE_VM_TRACING
+                        if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? sprSelf->sepMasks : -1, sprOther ? sprOther->sepMasks : -1);
+#endif
+                        if (!preciseHit) continue;
                     }
 
                     // Collision detected! If either instance is solid, restore both to xprevious/yprevious.
                     bool hadSolid = self->solid || other->solid;
                     if (hadSolid) {
+#ifdef ENABLE_VM_TRACING
+                        if (traceThisPair) fprintf(stderr, "  solid-restore: self.solid=%d other.solid=%d self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->solid, other->solid, self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+#endif
                         self->x = self->xprevious;
                         self->y = self->yprevious;
                         if (self->pathIndex >= 0) self->pathPosition = self->pathPositionPrevious;
@@ -2017,7 +2086,26 @@ static void dispatchCollisionEvents(Runner* runner) {
                     // We don't need to call "SpatialGrid_markInstanceAsDirty" here because *technically* just because a collision happened, doesn't mean that the instances have moved
                     // And if it DOES move via GML, the variable write handlers will set it to dirty
 
-                    executeCollisionEvent(runner, self, other, targetObjIndex);
+#ifdef ENABLE_VM_TRACING
+                    if (traceThisPair) fprintf(stderr, "  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId);
+#endif
+                    executeCollisionEvent(runner, self, other, targetObjIndex, evt->codeId, evt->ownerObjectIndex);
+
+                    // When both objects are colliding, we'll execute the SELF collision (which we already did) and THEN execute the OTHER collision too
+                    // Because if we don't, the OTHER collision may never happen again because
+                    // * GML code may have pushed it away
+                    // * Solid collision resolution may have also pushed it away
+                    if (other->active && self->active) {
+                        FlattenedCollisionEvent* reverseEvt = findSymmetricCollisionEvent(runner, other, self);
+#ifdef ENABLE_VM_TRACING
+                        if (traceThisPair) {
+                            if (reverseEvt != nullptr) fprintf(stderr, "  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId);
+                            else fprintf(stderr, "  fire other->self: none (no matching handler)  [symmetric]\n");
+                        }
+#endif
+                        if (reverseEvt != nullptr)
+                            executeCollisionEvent(runner, other, self, (int32_t) reverseEvt->targetObjectIndex, reverseEvt->codeId, reverseEvt->ownerObjectIndex);
+                    }
 
                     // Native parity for solids: collision event can alter path state, so run one
                     // post-event path adaptation and apply its hspeed/vspeed step.

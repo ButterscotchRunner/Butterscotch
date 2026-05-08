@@ -69,6 +69,8 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
 * `--debug`: Enables debugging hotkeys
+* * `--speed`: Speed multiplier
+* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle)
 * `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
 * `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
 * `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
@@ -82,6 +84,7 @@ The GLFW target has a lot of nifty CLI parameters that you can use to trace and 
 * `--trace-events`: Traces events
 * `--trace-event-inherited`: Traces event inherited calls
 * `--trace-tiles`: Traces drawn tiles
+* `--trace-collisions`: Traces collisions between instances
 * `--trace-opcodes`: Traces opcodes
 * `--trace-stack`: Traces stack
 * `--trace-frames`: Logs when a frame starts and when a frame ends, including how much time it took to process each frame.
@@ -89,7 +92,6 @@ The GLFW target has a lot of nifty CLI parameters that you can use to trace and 
 * `--always-log-stubbed-functions`: When enabled, Butterscotch will always log stubbed functions instead of logging them once per script.
 * `--trace-bytecode-after-frame`: When set, controls when `--trace-opcodes` and `--trace-stack` will start logging. Useful when debugging interpreter-heavy scripts.
 * `--exit-at-frame=Frame`: Automatically exit the runner after X frames.
-* `--speed`: Speed multiplier
 * `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
 * `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
 * `--print-declared-functions`: Prints all declared GML scripts by the game

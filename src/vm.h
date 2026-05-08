@@ -9,6 +9,7 @@
 #include "utils.h"
 #include "profiler.h"
 #include "int_int_hashmap.h"
+#include "string_builder.h"
 
 // ===[ Instance Types (signed 16-bit) ]===
 #define INSTANCE_SELF      (-1)
@@ -239,6 +240,7 @@ struct VMContext {
     StringBooleanEntry* alarmsToBeTraced;
     StringBooleanEntry* instanceLifecyclesToBeTraced;
     StringBooleanEntry* eventsToBeTraced;
+    StringBooleanEntry* collisionsToBeTraced;
     StringBooleanEntry* opcodesToBeTraced;
     StringBooleanEntry* stackToBeTraced;
     StringBooleanEntry* tilesToBeTraced;
@@ -293,3 +295,53 @@ static char* VM_createDedupKey(const char* callerName, const char* funcName) {
     snprintf(dedupKey, keyLen, "%s\t%s", callerName, funcName);
     return dedupKey;
 }
+
+// ===[ Trace Helpers ]===
+
+#ifdef ENABLE_VM_TRACING
+/**
+ * @brief Checks if a variable access should be traced.
+ *
+ * Matches the trace map entries in order: wildcard "*", bare scope name (e.g. "obj_player" or "global"),
+ * alternate scope name (e.g. "self" for any instance), or qualified "scope.var" format
+ * (e.g. "obj_player.x", "global.hp", "self.x"). Short-circuits before formatting
+ * the qualified name when possible.
+ *
+ * @param traceMap The string-boolean hash map of trace filters (from --trace-variable-reads/writes).
+ * @param scopeName The scope of the variable: an object name (e.g. "obj_player") or "global".
+ * @param altScopeName An alternate scope name to also match (e.g. "self" for instance variables), or nullptr.
+ * @param varName The variable name being accessed (e.g. "x").
+ * @return true if the access matches a trace filter and should be logged.
+ */
+static bool VM_shouldTraceVariable(StringBooleanEntry* traceMap, const char* scopeName, const char* altScopeName, const char* varName) {
+    if (shlen(traceMap) == 0) return false;
+    if (shgeti(traceMap, "*") != -1) return true;
+    if (shgeti(traceMap, scopeName) != -1) return true;
+    if (altScopeName != nullptr && shgeti(traceMap, altScopeName) != -1) return true;
+    char formatted[strlen(scopeName) + 1 + strlen(varName) + 1];
+    snprintf(formatted, sizeof(formatted), "%s.%s", scopeName, varName);
+    if (shgeti(traceMap, formatted) != -1) return true;
+    if (altScopeName != nullptr) {
+        char altFormatted[strlen(altScopeName) + 1 + strlen(varName) + 1];
+        snprintf(altFormatted, sizeof(altFormatted), "%s.%s", altScopeName, varName);
+        if (shgeti(traceMap, altFormatted) != -1) return true;
+    }
+    return false;
+}
+
+static void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const char* scopeName, const char* altScopeName, const char* name, RValue value, bool isWrite, int32_t arrayIndex, int32_t instanceId, const char* additional) {
+    StringBooleanEntry* varModificationsToBeTraced = isWrite ? ctx->varWritesToBeTraced : ctx->varReadsToBeTraced;
+    if (!VM_shouldTraceVariable(varModificationsToBeTraced, scopeName, altScopeName, name))
+        return;
+
+    char* rvalueAsString = RValue_toStringTyped(value);
+    const char* verb = isWrite ? "WRITE" : "READ";
+    const char* arrow = isWrite ? "=" : "->";
+    char indexBuf[16] = "";
+    if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
+    char instanceIdBuf[24] = "";
+    if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
+    fprintf(stderr, "VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    free(rvalueAsString);
+}
+#endif

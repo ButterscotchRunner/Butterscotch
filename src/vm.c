@@ -357,40 +357,6 @@ void VM_arraySet(MAYBE_UNUSED VMContext* ctx, RValue* arrayRef, int32_t index, R
     storeIntoArraySlot(GMLArray_slot(arr, index), val);
 }
 
-// ===[ Trace Helpers ]===
-
-#ifdef ENABLE_VM_TRACING
-/**
- * @brief Checks if a variable access should be traced.
- *
- * Matches the trace map entries in order: wildcard "*", bare scope name (e.g. "obj_player" or "global"),
- * alternate scope name (e.g. "self" for any instance), or qualified "scope.var" format
- * (e.g. "obj_player.x", "global.hp", "self.x"). Short-circuits before formatting
- * the qualified name when possible.
- *
- * @param traceMap The string-boolean hash map of trace filters (from --trace-variable-reads/writes).
- * @param scopeName The scope of the variable: an object name (e.g. "obj_player") or "global".
- * @param altScopeName An alternate scope name to also match (e.g. "self" for instance variables), or nullptr.
- * @param varName The variable name being accessed (e.g. "x").
- * @return true if the access matches a trace filter and should be logged.
- */
-static bool shouldTraceVariable(StringBooleanEntry* traceMap, const char* scopeName, const char* altScopeName, const char* varName) {
-    if (shlen(traceMap) == 0) return false;
-    if (shgeti(traceMap, "*") != -1) return true;
-    if (shgeti(traceMap, scopeName) != -1) return true;
-    if (altScopeName != nullptr && shgeti(traceMap, altScopeName) != -1) return true;
-    char formatted[strlen(scopeName) + 1 + strlen(varName) + 1];
-    snprintf(formatted, sizeof(formatted), "%s.%s", scopeName, varName);
-    if (shgeti(traceMap, formatted) != -1) return true;
-    if (altScopeName != nullptr) {
-        char altFormatted[strlen(altScopeName) + 1 + strlen(varName) + 1];
-        snprintf(altFormatted, sizeof(altFormatted), "%s.%s", altScopeName, varName);
-        if (shgeti(traceMap, altFormatted) != -1) return true;
-    }
-    return false;
-}
-#endif
-
 // ===[ Array Access Helpers ]===
 
 typedef struct {
@@ -597,11 +563,11 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         }
     } else if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
-        int16_t bid = varDef->builtinVarId;
+        int16_t builtinVarId = varDef->builtinVarId;
         RValue result;
-        if (bid == BUILTIN_VAR_ARGUMENT_COUNT) {
+        if (builtinVarId == BUILTIN_VAR_ARGUMENT_COUNT) {
             result = RValue_makeReal((GMLReal) ctx->scriptArgCount);
-        } else if (bid == BUILTIN_VAR_ARGUMENT) {
+        } else if (builtinVarId == BUILTIN_VAR_ARGUMENT) {
             // argument[N] array-style access
             int32_t idx = access.arrayIndex;
             if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > idx && idx >= 0) {
@@ -610,8 +576,8 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             } else {
                 result = RValue_makeUndefined();
             }
-        } else if (bid >= BUILTIN_VAR_ARGUMENT0 && BUILTIN_VAR_ARGUMENT15 >= bid) {
-            int32_t argIndex = bid - BUILTIN_VAR_ARGUMENT0;
+        } else if (builtinVarId >= BUILTIN_VAR_ARGUMENT0 && BUILTIN_VAR_ARGUMENT15 >= builtinVarId) {
+            int32_t argIndex = builtinVarId - BUILTIN_VAR_ARGUMENT0;
             if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > argIndex) {
                 result = ctx->scriptArgs[argIndex];
                 result.ownsReference = false;
@@ -628,7 +594,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
                 result = RValue_makeUndefined();
             }
         } else {
-            fprintf(stderr, "VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, bid);
+            fprintf(stderr, "VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, builtinVarId);
             result = RValue_makeUndefined();
         }
         return result;
@@ -691,28 +657,10 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         if (needsInstanceSwap) ctx->currentInstance = savedInstance;
 
 #ifdef ENABLE_VM_TRACING
-        // Trace built-in variable reads
         if (instanceType == INSTANCE_GLOBAL) {
-            if (shouldTraceVariable(ctx->varReadsToBeTraced, "global", nullptr, varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(result);
-                if (access.arrayIndex != -1) {
-                    fprintf(stderr, "VM: [%s] READ global.%s[%d] -> %s (builtin)\n", ctx->currentCodeName, varDef->name, access.arrayIndex, rvalueAsString);
-                } else {
-                    fprintf(stderr, "VM: [%s] READ global.%s -> %s (builtin)\n", ctx->currentCodeName, varDef->name, rvalueAsString);
-                }
-                free(rvalueAsString);
-            }
-        } else if (targetInstance != nullptr && targetInstance->objectIndex >= 0 && ctx->dataWin->objt.count > (uint32_t) targetInstance->objectIndex) {
-            const char* objName = ctx->dataWin->objt.objects[targetInstance->objectIndex].name;
-            if (shouldTraceVariable(ctx->varReadsToBeTraced, objName, "self", varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(result);
-                if (access.arrayIndex != -1) {
-                    fprintf(stderr, "VM: [%s] READ %s.%s[%d] -> %s (instanceId=%d) (builtin)\n", ctx->currentCodeName, objName, varDef->name, access.arrayIndex, rvalueAsString, targetInstance->instanceId);
-                } else {
-                    fprintf(stderr, "VM: [%s] READ %s.%s -> %s (instanceId=%d) (builtin)\n", ctx->currentCodeName, objName, varDef->name, rvalueAsString, targetInstance->instanceId);
-                }
-                free(rvalueAsString);
-            }
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, result, false, access.arrayIndex, -1, " (builtin)");
+        } else if (targetInstance != nullptr && targetInstance->objectIndex >= 0) {
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, targetInstance), "self", varDef->name, result, false, access.arrayIndex, targetInstance->instanceId, " (builtin)");
         }
 #endif
 
@@ -760,11 +708,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             instanceType == INSTANCE_GLOBAL ? "global" :
             (targetInstance != nullptr ? instanceObjectName(ctx, targetInstance) : "self");
         const char* altName = (instanceType == INSTANCE_SELF || instanceType >= 0 || instanceType == INSTANCE_OTHER) ? "self" : nullptr;
-        if (shouldTraceVariable(ctx->varReadsToBeTraced, scopeName, altName, varDef->name)) {
-            char* rvalueAsString = RValue_toStringTyped(result);
-            fprintf(stderr, "VM: [%s] READ %s.%s[%d] -> %s\n", ctx->currentCodeName, scopeName, varDef->name, access.arrayIndex, rvalueAsString);
-            free(rvalueAsString);
-        }
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, scopeName, altName, varDef->name, result, false, access.arrayIndex, -1, "");
 #endif
         return result;
     }
@@ -774,19 +718,12 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
     result.ownsReference = false;
 
 #ifdef ENABLE_VM_TRACING
-    // Read tracing for scalar variables
     if (instanceType == INSTANCE_GLOBAL) {
-        if (shouldTraceVariable(ctx->varReadsToBeTraced, "global", nullptr, varDef->name)) {
-            char* rvalueAsString = RValue_toStringTyped(result);
-            fprintf(stderr, "VM: [%s] READ global.%s -> %s\n", ctx->currentCodeName, varDef->name, rvalueAsString);
-            free(rvalueAsString);
-        }
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, result, false, -1, -1, "");
     } else if (instanceType == INSTANCE_SELF || instanceType >= 0) {
         Instance* inst = targetInstance;
-        if (inst != nullptr && shouldTraceVariable(ctx->varReadsToBeTraced, instanceObjectName(ctx, inst), "self", varDef->name)) {
-            char* rvalueAsString = RValue_toStringTyped(result);
-            fprintf(stderr, "VM: [%s] READ %s.%s -> %s (instanceId=%d)\n", ctx->currentCodeName, instanceObjectName(ctx, inst), varDef->name, rvalueAsString, inst->instanceId);
-            free(rvalueAsString);
+        if (inst != nullptr) {
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, result, false, -1, inst->instanceId, "");
         }
     }
 #endif
@@ -858,17 +795,29 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
                 uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
                 require(ctx->localVarCount > localSlot);
                 writeIntoSlot(&ctx->localVars[localSlot], val);
+#ifdef ENABLE_VM_TRACING
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, ctx->localVars[localSlot], true, -1, -1, "");
+#endif
                 return;
             }
             case INSTANCE_GLOBAL: {
                 require(ctx->globalVarCount > (uint32_t) varDef->varID);
                 writeIntoSlot(&ctx->globalVars[varDef->varID], val);
+#ifdef ENABLE_VM_TRACING
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, ctx->globalVars[varDef->varID], true, -1, -1, "");
+#endif
                 return;
             }
             case INSTANCE_SELF: {
                 Instance* inst = (Instance*) ctx->currentInstance;
                 if (inst != nullptr) {
                     Instance_setSelfVar(inst, varDef->varID, val);
+#ifdef ENABLE_VM_TRACING
+                    {
+                        RValue written = Instance_getSelfVar(inst, varDef->varID);
+                        VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, written, true, -1, inst->instanceId, "");
+                    }
+#endif
                     RValue_free(&val);
                     return;
                 }
@@ -878,6 +827,12 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
                 Instance* inst = (Instance*) ctx->otherInstance;
                 if (inst != nullptr) {
                     Instance_setSelfVar(inst, varDef->varID, val);
+#ifdef ENABLE_VM_TRACING
+                    {
+                        RValue written = Instance_getSelfVar(inst, varDef->varID);
+                        VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, written, true, -1, inst->instanceId, "");
+                    }
+#endif
                     RValue_free(&val);
                     return;
                 }
@@ -915,11 +870,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             found = true;
             writeSingleInstanceVariable(ctx, inst, varDef, &access, val);
 #ifdef ENABLE_VM_TRACING
-            if (shouldTraceVariable(ctx->varWritesToBeTraced, instanceObjectName(ctx, inst), "self", varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(val);
-                fprintf(stderr, "VM: [%s] WRITE %s.%s = %s (instanceId=%d, all-instances object write)\n", ctx->currentCodeName, instanceObjectName(ctx, inst), varDef->name, rvalueAsString, inst->instanceId);
-                free(rvalueAsString);
-            }
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, true, -1, inst->instanceId, " (all-instances object write)");
 #endif
         }
         Runner_popInstanceSnapshot(runner, snapBase);
@@ -988,28 +939,10 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         if (needsInstanceSwap) ctx->currentInstance = savedInstance;
 
 #ifdef ENABLE_VM_TRACING
-        // Trace built-in variable writes
         if (instanceType == INSTANCE_GLOBAL) {
-            if (shouldTraceVariable(ctx->varWritesToBeTraced, "global", nullptr, varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(val);
-                if (access.arrayIndex != -1) {
-                    fprintf(stderr, "VM: [%s] WRITE global.%s[%d] = %s (builtin)\n", ctx->currentCodeName, varDef->name, access.arrayIndex, rvalueAsString);
-                } else {
-                    fprintf(stderr, "VM: [%s] WRITE global.%s = %s (builtin)\n", ctx->currentCodeName, varDef->name, rvalueAsString);
-                }
-                free(rvalueAsString);
-            }
-        } else if (targetInstance != nullptr && targetInstance->objectIndex >= 0 && ctx->dataWin->objt.count > (uint32_t) targetInstance->objectIndex) {
-            const char* objName = ctx->dataWin->objt.objects[targetInstance->objectIndex].name;
-            if (shouldTraceVariable(ctx->varWritesToBeTraced, objName, "self", varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(val);
-                if (access.arrayIndex != -1) {
-                    fprintf(stderr, "VM: [%s] WRITE %s.%s[%d] = %s (instanceId=%d) (builtin)\n", ctx->currentCodeName, objName, varDef->name, access.arrayIndex, rvalueAsString, targetInstance->instanceId);
-                } else {
-                    fprintf(stderr, "VM: [%s] WRITE %s.%s = %s (instanceId=%d) (builtin)\n", ctx->currentCodeName, objName, varDef->name, rvalueAsString, targetInstance->instanceId);
-                }
-                free(rvalueAsString);
-            }
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, true, access.arrayIndex, -1, " (builtin)");
+        } else if (targetInstance != nullptr && targetInstance->objectIndex >= 0) {
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, targetInstance), "self", varDef->name, val, true, access.arrayIndex, targetInstance->instanceId, " (builtin)");
         }
 #endif
 
@@ -1056,20 +989,11 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             instanceType == INSTANCE_GLOBAL ? "global" :
             (targetInstance != nullptr ? instanceObjectName(ctx, targetInstance) : "self");
         const char* altName = (instanceType == INSTANCE_SELF || instanceType >= 0 || instanceType == INSTANCE_OTHER) ? "self" : nullptr;
-        if (shouldTraceVariable(ctx->varWritesToBeTraced, scopeName, altName, varDef->name)) {
-            char* rvalueAsString = RValue_toStringTyped(val);
-            fprintf(stderr, "VM: [%s] WRITE %s.%s[%d] = %s\n", ctx->currentCodeName, scopeName, varDef->name, access.arrayIndex, rvalueAsString);
-            free(rvalueAsString);
-        }
+        VM_checkIfVariableShouldBeTracedAndLog(ctx, scopeName, altName, varDef->name, val, true, access.arrayIndex, -1, "");
 #endif
         RValue_free(&val);
         return;
     }
-
-#ifdef ENABLE_VM_TRACING
-    bool shouldLogGlobal = false;
-    bool shouldLogInstance = false;
-#endif
 
     switch (instanceType) {
         case INSTANCE_LOCAL: {
@@ -1083,11 +1007,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             RValue* dest = &ctx->globalVars[varDef->varID];
             writeIntoSlot(dest, val);
 #ifdef ENABLE_VM_TRACING
-            if (shouldTraceVariable(ctx->varWritesToBeTraced, "global", nullptr, varDef->name)) {
-                char* rvalueAsString = RValue_toStringTyped(*dest);
-                fprintf(stderr, "VM: [%s] WRITE global.%s = %s\n", ctx->currentCodeName, varDef->name, rvalueAsString);
-                free(rvalueAsString);
-            }
+            VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, *dest, true, -1, -1, "");
 #endif
             return;
         }
@@ -1097,11 +1017,9 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             Instance* inst = targetInstance;
             Instance_setSelfVar(inst, varDef->varID, val);
 #ifdef ENABLE_VM_TRACING
-            if (shouldTraceVariable(ctx->varWritesToBeTraced, instanceObjectName(ctx, inst), "self", varDef->name)) {
+            {
                 RValue written = Instance_getSelfVar(inst, varDef->varID);
-                char* rvalueAsString = RValue_toStringTyped(written);
-                fprintf(stderr, "VM: [%s] WRITE %s.%s = %s (instanceId=%d)\n", ctx->currentCodeName, instanceObjectName(ctx, inst), varDef->name, rvalueAsString, inst->instanceId);
-                free(rvalueAsString);
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, written, true, -1, inst->instanceId, "");
             }
 #endif
             // Instance_setSelfVar always copies strings, so free the original
@@ -1407,6 +1325,9 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
                     if (!inst->active) continue;
                     ctx->currentInstance = inst;
                     VMBuiltins_setVariable(ctx, varDef->builtinVarId, varDef->name, val, arrayIndex);
+#ifdef ENABLE_VM_TRACING
+                    VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, true, arrayIndex, inst->instanceId, " (builtin, all-instances object write)");
+#endif
                 }
                 Runner_popInstanceSnapshot(runner, snapBase);
                 ctx->currentInstance = savedInstance;
@@ -1418,15 +1339,30 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
                     ctx->currentInstance = target;
                     VMBuiltins_setVariable(ctx, varDef->builtinVarId, varDef->name, val, arrayIndex);
                     ctx->currentInstance = savedInstance;
+#ifdef ENABLE_VM_TRACING
+                    VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, target), "self", varDef->name, val, true, arrayIndex, target->instanceId, " (builtin)");
+#endif
                 }
             } else if (instanceType == INSTANCE_OTHER && ctx->otherInstance != nullptr) {
                 Instance* savedInstance = (Instance*) ctx->currentInstance;
-                ctx->currentInstance = (Instance*) ctx->otherInstance;
+                Instance* otherInst = (Instance*) ctx->otherInstance;
+                ctx->currentInstance = otherInst;
                 VMBuiltins_setVariable(ctx, varDef->builtinVarId, varDef->name, val, arrayIndex);
                 ctx->currentInstance = savedInstance;
+#ifdef ENABLE_VM_TRACING
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, otherInst), "self", varDef->name, val, true, arrayIndex, otherInst->instanceId, " (builtin)");
+#endif
             } else {
                 // INSTANCE_SELF or other special types: use current instance
                 VMBuiltins_setVariable(ctx, varDef->builtinVarId, varDef->name, val, arrayIndex);
+#ifdef ENABLE_VM_TRACING
+                Instance* inst = (Instance*) ctx->currentInstance;
+                if (instanceType == INSTANCE_GLOBAL) {
+                    VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, true, arrayIndex, -1, " (builtin)");
+                } else if (inst != nullptr) {
+                    VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, true, arrayIndex, inst->instanceId, " (builtin)");
+                }
+#endif
             }
         } else {
             // Resolve slot for this scope: VM_arrayWriteAt handles CoW + materialisation + grow.
@@ -1475,11 +1411,7 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
 #ifdef ENABLE_VM_TRACING
                 bool isSelfScope = (instanceType != INSTANCE_LOCAL && instanceType != INSTANCE_GLOBAL);
                 const char* scopeName = instanceType == INSTANCE_LOCAL ? "local" : instanceType == INSTANCE_GLOBAL ? "global" : "self";
-                if (shouldTraceVariable(ctx->varWritesToBeTraced, scopeName, isSelfScope ? nullptr : "self", varDef->name)) {
-                    char* rvalueAsString = RValue_toString(val);
-                    fprintf(stderr, "VM: [%s] WRITE %s.%s[%d] = %s\n", ctx->currentCodeName, scopeName, varDef->name, arrayIndex, rvalueAsString);
-                    free(rvalueAsString);
-                }
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, scopeName, isSelfScope ? nullptr : "self", varDef->name, val, true, arrayIndex, -1, "");
 #endif
             }
             RValue_free(&val);
@@ -2793,6 +2725,26 @@ static RValue executeLoop(VMContext* ctx) {
                             RValue val;
                             if (tryFastVarRead(ctx, instanceType, varDef, &val)) {
                                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+#ifdef ENABLE_VM_TRACING
+                                switch (instanceType) {
+                                    case INSTANCE_SELF: {
+                                        Instance* inst = (Instance*) ctx->currentInstance;
+                                        VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
+                                        break;
+                                    }
+                                    case INSTANCE_LOCAL:
+                                        VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, val, false, -1, -1, "");
+                                        break;
+                                    case INSTANCE_GLOBAL:
+                                        VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
+                                        break;
+                                    case INSTANCE_OTHER: {
+                                        Instance* inst = (Instance*) ctx->otherInstance;
+                                        VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
+                                        break;
+                                    }
+                                }
+#endif
                                 break;
                             }
                         }
@@ -2820,6 +2772,9 @@ static RValue executeLoop(VMContext* ctx) {
                 RValue val = ctx->localVars[localSlot];
                 val.ownsReference = false;
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+#ifdef ENABLE_VM_TRACING
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, val, false, -1, -1, "");
+#endif
                 break;
             }
             case OP_PUSHGLB: {
@@ -2838,6 +2793,9 @@ static RValue executeLoop(VMContext* ctx) {
                 RValue val = ctx->globalVars[varDef->varID];
                 val.ownsReference = false;
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+#ifdef ENABLE_VM_TRACING
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
+#endif
                 break;
             }
             case OP_PUSHBLTN:
@@ -4191,6 +4149,7 @@ void VM_free(VMContext* ctx) {
     shfree(ctx->alarmsToBeTraced);
     shfree(ctx->instanceLifecyclesToBeTraced);
     shfree(ctx->eventsToBeTraced);
+    shfree(ctx->collisionsToBeTraced);
     shfree(ctx->opcodesToBeTraced);
     shfree(ctx->stackToBeTraced);
 #endif

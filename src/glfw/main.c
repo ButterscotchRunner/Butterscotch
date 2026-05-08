@@ -123,6 +123,7 @@ typedef struct {
     StringBooleanEntry* alarmsToBeTraced;
     StringBooleanEntry* instanceLifecyclesToBeTraced;
     StringBooleanEntry* eventsToBeTraced;
+    StringBooleanEntry* collisionsToBeTraced;
     StringBooleanEntry* opcodesToBeTraced;
     StringBooleanEntry* stackToBeTraced;
     StringBooleanEntry* disassemble;
@@ -218,6 +219,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"trace-alarms", required_argument,         nullptr, 'a'},
         {"trace-instance-lifecycles", required_argument,         nullptr, 'l'},
         {"trace-events", required_argument,         nullptr, 'e'},
+        {"trace-collisions", required_argument,     nullptr, 'C'},
         {"trace-event-inherited", no_argument, nullptr, 'E'},
         {"trace-tiles", required_argument, nullptr, 'T'},
         {"trace-opcodes", required_argument,       nullptr, 'o'},
@@ -307,6 +309,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'e':
                 shput(args->eventsToBeTraced, optarg, true);
+                break;
+            case 'C':
+                shput(args->collisionsToBeTraced, optarg, true);
                 break;
             case 'o':
                 shput(args->opcodesToBeTraced, optarg, true);
@@ -495,6 +500,7 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
     shfree(args->alarmsToBeTraced);
     shfree(args->instanceLifecyclesToBeTraced);
     shfree(args->eventsToBeTraced);
+    shfree(args->collisionsToBeTraced);
     shfree(args->opcodesToBeTraced);
     shfree(args->stackToBeTraced);
     shfree(args->disassemble);
@@ -1040,6 +1046,7 @@ int main(int argc, char* argv[]) {
     shcopyFromTo(args.alarmsToBeTraced, runner->vmContext->alarmsToBeTraced);
     shcopyFromTo(args.instanceLifecyclesToBeTraced, runner->vmContext->instanceLifecyclesToBeTraced);
     shcopyFromTo(args.eventsToBeTraced, runner->vmContext->eventsToBeTraced);
+    shcopyFromTo(args.collisionsToBeTraced, runner->vmContext->collisionsToBeTraced);
     shcopyFromTo(args.opcodesToBeTraced, runner->vmContext->opcodesToBeTraced);
     shcopyFromTo(args.stackToBeTraced, runner->vmContext->stackToBeTraced);
     shcopyFromTo(args.tilesToBeTraced, runner->vmContext->tilesToBeTraced);
