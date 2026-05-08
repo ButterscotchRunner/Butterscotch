@@ -25,6 +25,8 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "web")
     elseif(PLATFORM STREQUAL "ps3")
         set(AUDIO_BACKEND "openal")
+    elseif(PLATFORM STREQUAL "ps2")
+        set(AUDIO_BACKEND "ps2")
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -37,6 +39,8 @@ elseif(AUDIO_BACKEND STREQUAL "miniaudio")
 elseif(AUDIO_BACKEND STREQUAL "web")
     file(GLOB AUDIO_SOURCES src/audio/web/*.c)
     file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+elseif(AUDIO_BACKEND STREQUAL "ps2")
+    file(GLOB AUDIO_SOURCES src/audio/ps2/*.c)
 elseif(NOT AUDIO_BACKEND STREQUAL "none")
     message(FATAL_ERROR "Invalid AUDIO_BACKEND!")
 endif()
@@ -94,6 +98,9 @@ elseif(AUDIO_BACKEND STREQUAL "web")
     target_include_directories(butterscotch PUBLIC src/audio/web)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_WEB_AUDIO)
+elseif(AUDIO_BACKEND STREQUAL "ps2")
+    target_include_directories(butterscotch PUBLIC src/audio/ps2)
+    add_compile_definitions(USE_PS2_AUDIO)
 endif()
 
 # stb_ds
@@ -294,14 +301,6 @@ elseif(PLATFORM STREQUAL "ps2")
         add_compile_definitions(ENABLE_PS2_RENDERER_LOGS)
     endif()
 
-    # PS2 audio system
-    option(ENABLE_PS2_AUDIO "Enable the PS2 audio system" ON)
-    if(ENABLE_PS2_AUDIO)
-        add_compile_definitions(ENABLE_PS2_AUDIO)
-    else()
-        list(REMOVE_ITEM PLATFORM_SOURCES ${CMAKE_SOURCE_DIR}/src/ps2/ps2_audio_system.c)
-    endif()
-
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
     # -fomit-frame-pointer: frees a register on a target with tight register pressure
@@ -357,7 +356,7 @@ elseif(PLATFORM STREQUAL "ps2")
             DEPENDS ${IRX_DIR}/ps2kbd.irx
             COMMENT "Embedding ps2kbd.irx"
         )
-        if(ENABLE_PS2_AUDIO)
+        if(AUDIO_BACKEND STREQUAL "ps2")
             add_custom_command(
                 OUTPUT ${IRX_GEN_DIR}/freesd_irx.c
                 COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/freesd.irx ${IRX_GEN_DIR}/freesd_irx.c freesd_irx
@@ -373,7 +372,7 @@ elseif(PLATFORM STREQUAL "ps2")
         endif()
 
         target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesio2_irx.c ${IRX_GEN_DIR}/mcman_irx.c ${IRX_GEN_DIR}/mcserv_irx.c ${IRX_GEN_DIR}/freepad_irx.c ${IRX_GEN_DIR}/usbd_irx.c ${IRX_GEN_DIR}/ps2kbd_irx.c)
-        if(ENABLE_PS2_AUDIO)
+        if(AUDIO_BACKEND STREQUAL "ps2")
             target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesd_irx.c ${IRX_GEN_DIR}/audsrv_irx.c)
         endif()
         target_include_directories(butterscotch PRIVATE ${IRX_GEN_DIR})

@@ -15,7 +15,9 @@
 #include "debug_overlay.h"
 #include "gl_legacy_renderer.h"
 #include "overlay_file_system.h"
+#ifdef USE_OPENAL
 #include "al_audio_system.h"
+#endif
 #include "stb_ds.h"
 #include "stb_image_write.h"
 
@@ -175,7 +177,11 @@ int main(int argc, char* argv[]) {
     Renderer* renderer = GLLegacyRenderer_create();
 
     // Initialize the audio system
+#ifdef USE_OPENAL
     AudioSystem* audioSystem = (AudioSystem*) AlAudioSystem_create();
+#else
+    AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
+#endif
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
