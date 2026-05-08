@@ -288,8 +288,28 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     }
 }
 
+// Some events check if there's a pending room and, if there is, the events are NOT dispatched.
+// Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
+// This mirrors what the official YoYo runner does.
+static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int32_t eventType) {
+    if (0 > runner->pendingRoom)
+        return false;
+
+    bool persistent = (instance != nullptr && instance->persistent) || (runner->currentRoom != nullptr && runner->currentRoom->persistent);
+    if (!persistent)
+        return true;
+
+    if (eventType == EVENT_CREATE || eventType == EVENT_DESTROY || eventType == EVENT_ALARM || eventType == EVENT_OTHER || eventType == EVENT_PRECREATE)
+        return false;
+
+    return true;
+}
+
 // Executes an already-resolved event handler (see findEventCodeIdAndOwner) and verified codeId >= 0.
 static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
+    if (isEventBlockedByPendingRoom(runner, instance, eventType))
+        return;
+
     VMContext* vm = runner->vmContext;
     int32_t savedEventType = vm->currentEventType;
     int32_t savedEventSubtype = vm->currentEventSubtype;
@@ -337,9 +357,8 @@ void Runner_executeEvent(Runner* runner, Instance* instance, int32_t eventType, 
     Runner_executeEventFromObject(runner, instance, instance->objectIndex, eventType, eventSubtype);
 }
 
-// Events that GMS 2.3+ routes through the per-object obj_has_event table instead of Perform_Event_All.
-// Anything else (BC16 ALWAYS; BC17 non-perObject) goes through Runner_executeEventForAll
-static bool eventUsesBC17PerObjectDispatch(int32_t eventType) {
+// Events that GameMaker routes through the per-object obj_has_event table instead of Perform_Event_All.
+static bool eventUsesPerObjectDispatch(int32_t eventType) {
     return eventType == EVENT_STEP || eventType == EVENT_ALARM || eventType == EVENT_KEYBOARD || eventType == EVENT_KEYPRESS || eventType == EVENT_KEYRELEASE;
 }
 
@@ -351,8 +370,7 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
     Instance** scratch = runner->eventDispatchInstances;
     arrsetlen(scratch, 0);
 
-    // On GMS 2.x, the native runner dispatches events in the eventUsesPerObjectDispatch set per-object. Route those through executeEventPerObject to match.
-    if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0) && eventUsesBC17PerObjectDispatch(eventType)) {
+    if (eventUsesPerObjectDispatch(eventType)) {
         ResolvedEventTable* table = &runner->eventTable;
         uint32_t entryCount;
         SlotResponderEntry* entries = ResolvedEventTable_slotEntries(table, slot, &entryCount);
@@ -1829,6 +1847,9 @@ static FlattenedCollisionEvent* findSymmetricCollisionEvent(Runner* runner, Inst
 }
 
 static void executeCollisionEvent(Runner* runner, Instance* self, Instance* other, int32_t targetObjectIndex, int32_t codeId, int32_t ownerObjectIndex) {
+    if (isEventBlockedByPendingRoom(runner, self, EVENT_COLLISION))
+        return;
+
     VMContext* vm = runner->vmContext;
 
     // Save event context
@@ -2534,11 +2555,12 @@ void Runner_step(Runner* runner) {
         Room* oldRoom = runner->currentRoom;
         const char* oldRoomName = oldRoom->name;
 
-        // Fire Room End for all instances
-        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_END);
-
+        // Clear pendingRoom BEFORE firing Room End so the dispatch gate lets the events through.
         int32_t newRoomIndex = runner->pendingRoom;
         runner->pendingRoom = -1;
+
+        // Fire Room End for all instances
+        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_END);
         require(runner->dataWin->room.count > (uint32_t) newRoomIndex);
         const char* newRoomName = runner->dataWin->room.rooms[newRoomIndex].name;
 

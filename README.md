@@ -69,7 +69,7 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
 * `--debug`: Enables debugging hotkeys
-* * `--speed`: Speed multiplier
+* `--speed`: Speed multiplier
 * `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle)
 * `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
 * `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
