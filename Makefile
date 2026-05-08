@@ -19,7 +19,7 @@ INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/gl -Isrc/gl_legacy -Isrc/image -Iven
 HEADERS := $(wildcard src/*.h) \
 		   $(wildcard src/gl/*.h) \
            $(shell find vendor -name '*.h')
-SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) $(wildcard src/gl_legacy/*.c) $(wildcard src/image/*.c) vendor/glad/src/glad.c
+SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) $(wildcard src/image/*.c) vendor/glad/src/glad.c
 
 ifndef DISABLE_BC16
 DEFINES += -DENABLE_BC16
@@ -37,6 +37,8 @@ endif
 
 ifdef ENABLE_GLES
 DEFINES += -DENABLE_GLES
+else
+SRCS += $(wildcard src/gl_legacy/*.c)
 endif
 
 PLATFORM := glfw
