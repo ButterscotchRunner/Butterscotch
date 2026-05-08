@@ -14,13 +14,12 @@ DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DENABLE_VM_OPCODE_PROFILER \
 		   -DENABLE_VM_STUB_LOGS \
 		   -DENABLE_VM_TRACING
-INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/gl -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/miniaudio -Ivendor/glad/include
+INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/gl -Isrc/gl_legacy -Isrc/image -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/miniaudio -Ivendor/glad/include
 
 HEADERS := $(wildcard src/*.h) \
 		   $(wildcard src/gl/*.h) \
            $(shell find vendor -name '*.h')
-SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) \
-		vendor/glad/src/glad.c
+SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) $(wildcard src/gl_legacy/*.c) $(wildcard src/image/*.c) vendor/glad/src/glad.c
 
 ifndef DISABLE_BC16
 DEFINES += -DENABLE_BC16
