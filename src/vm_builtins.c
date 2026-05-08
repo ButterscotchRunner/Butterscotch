@@ -5395,7 +5395,6 @@ static RValue builtin_drawRectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     bool outline = RValue_toBool(args[4]);
-
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, runner->renderer->drawColor, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
@@ -5409,6 +5408,7 @@ static RValue builtin_drawRectangleColor(VMContext* ctx, RValue* args, MAYBE_UNU
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     uint32_t color = (uint32_t) RValue_toInt32(args[4]);
+
     bool outline = RValue_toBool(args[8]);
 
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, color, runner->renderer->drawAlpha, outline);
@@ -5649,8 +5649,6 @@ static RValue builtin_drawTextColorExtTransformed(VMContext* ctx, RValue* args, 
     return RValue_makeUndefined();
 }
 
-STUB_RETURN_UNDEFINED(draw_surface)
-STUB_RETURN_UNDEFINED(draw_surface_ext)
 static RValue builtin_drawBackground(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer == nullptr || 3 > argCount) return RValue_makeUndefined();
@@ -5867,28 +5865,217 @@ static RValue builtinMergeColor(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE
     return RValue_makeReal((GMLReal) (((b << 16) & 0xFF0000) | ((g << 8) & 0xFF00) | (r & 0xFF)));
 }
 
-// Surface stubs
-STUB_RETURN_ZERO(surface_create)
-STUB_RETURN_UNDEFINED(surface_free)
-STUB_RETURN_UNDEFINED(surface_set_target)
-STUB_RETURN_UNDEFINED(surface_reset_target)
-STUB_RETURN_ZERO(surface_exists)
+static RValue builtin_surface_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t width = (int32_t) RValue_toReal(args[0]);
+    int32_t height = (int32_t) RValue_toReal(args[1]);    
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        int32_t surfaceId = Renderer_createSurface(runner->renderer, width,height);
+        return RValue_makeReal(surfaceId);
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_surface_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        bool exists = Renderer_surfaceExists(runner->renderer, surfaceId);
+        if (exists == true) {
+            return RValue_makeReal(1.0);
+        }
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_surface_set_target(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+
+        bool exists = Renderer_surfaceSetTarget(runner->renderer, surfaceId);
+
+        if (exists == true) {
+        //fprintf(stderr, "Set Surface Target Yes\n");
+        return RValue_makeReal(1.0);
+        }
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_surface_reset_target(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        bool exists = Renderer_surfaceResetTarget(runner->renderer);
+        if (exists == true) {
+            return RValue_makeReal(1.0);
+        }
+    }
+    return RValue_makeReal(0.0);
+}
+
+static RValue builtin_surface_resize(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float w = (float) RValue_toReal(args[1]);
+    float h = (float) RValue_toReal(args[2]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->surfaceResize(runner->renderer, surfaceId, w, h);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_surface_copy_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t sourceID = (int32_t) RValue_toReal(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    int32_t destinationID = (int32_t) RValue_toReal(args[3]);
+    float xs = (float) RValue_toReal(args[4]);
+    float ys = (float) RValue_toReal(args[5]);
+    float ws = (float) RValue_toReal(args[6]);
+    float hs = (float) RValue_toReal(args[7]);
+    //fprintf(stderr, "Set Surface Target Yes\n");
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->surfaceCopy(runner->renderer, sourceID, x, y, destinationID, xs, ys, ws, hs, true);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_surface_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t sourceID = (int32_t) RValue_toReal(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    int32_t destinationID = (int32_t) RValue_toReal(args[3]);
+    //fprintf(stderr, "Set Surface Target Yes\n");
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->surfaceCopy(runner->renderer, sourceID, x, y, destinationID, 0.0, 0.0, 0.0, 0.0, false);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_surface_free(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->surfaceFree(runner->renderer, surfaceId);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_surface(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, x, y, 1.0, 1.0, 0.0, 0xFFFFFFFF, 1.0);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_surface_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    float xscale = (float) RValue_toReal(args[3]);
+    float yscale = (float) RValue_toReal(args[4]);
+    float rot = (float) RValue_toReal(args[5]);
+    uint32_t color = (uint32_t) RValue_toInt32(args[6]);
+    float alpha = (float) RValue_toReal(args[7]);
+
+
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, x, y, xscale, yscale, rot, color, alpha);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_surface_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float w = (float) RValue_toReal(args[3]);
+    float h = (float) RValue_toReal(args[4]);
+
+    float x = (float) RValue_toReal(args[5]);
+    float y = (float) RValue_toReal(args[6]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+
+        runner->renderer->vtable->drawSurfacePart(runner->renderer, surfaceId, x, y, left, top, w, h, 1.0, 1.0, 0xFFFFFFFF, 1.0);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_surface_part_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float w = (float) RValue_toReal(args[3]);
+    float h = (float) RValue_toReal(args[4]);
+
+    float x = (float) RValue_toReal(args[5]);
+    float y = (float) RValue_toReal(args[6]);
+
+    float xscale = (float) RValue_toReal(args[7]);
+    float yscale = (float) RValue_toReal(args[8]);
+    uint32_t color = (uint32_t) RValue_toInt32(args[9]);
+    float alpha = (float) RValue_toReal(args[10]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+
+        runner->renderer->vtable->drawSurfacePart(runner->renderer, surfaceId, x, y, left, top, w, h, xscale, yscale, color, alpha);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_surface_stretched(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    float width = (float) RValue_toReal(args[3]);
+    float height = (float) RValue_toReal(args[4]);
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->drawSurfaceStretched(runner->renderer, surfaceId, x, y, width, height);
+    }
+    return RValue_makeUndefined();
+}
+
 // application_surface is surface ID -1 (sentinel); for it, return the window dimensions
 static RValue builtinSurfaceGetWidth(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    Runner* runner = (Runner*) ctx->runner;
     if (surfaceId == -1) {
         return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowWidth);
+    } else {
+        return RValue_makeReal(Renderer_getSurfaceWidth(runner->renderer, surfaceId));
     }
-    logStubbedFunction(ctx, "surface_get_width");
+
     return RValue_makeReal(0.0);
 }
 
 static RValue builtinSurfaceGetHeight(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    Runner* runner = (Runner*) ctx->runner;
     if (surfaceId == -1) {
         return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
+    } else {
+        return RValue_makeReal(Renderer_getSurfaceHeight(runner->renderer, surfaceId));
     }
-    logStubbedFunction(ctx, "surface_get_height");
+
     return RValue_makeReal(0.0);
 }
 
@@ -5957,7 +6144,7 @@ static RValue builtin_spriteCreateFromSurface(VMContext* ctx, RValue* args, MAYB
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer == nullptr || runner->renderer->vtable->createSpriteFromSurface == nullptr) return RValue_makeReal(-1);
 
-    // surface_id (arg0) is ignored - we always capture from the application surface (FBO)
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
     int32_t x = RValue_toInt32(args[1]);
     int32_t y = RValue_toInt32(args[2]);
     int32_t w = RValue_toInt32(args[3]);
@@ -5967,7 +6154,7 @@ static RValue builtin_spriteCreateFromSurface(VMContext* ctx, RValue* args, MAYB
     int32_t xorig = RValue_toInt32(args[7]);
     int32_t yorig = RValue_toInt32(args[8]);
 
-    int32_t result = runner->renderer->vtable->createSpriteFromSurface(runner->renderer, x, y, w, h, removeback, smooth, xorig, yorig);
+    int32_t result = runner->renderer->vtable->createSpriteFromSurface(runner->renderer, surfaceId, x, y, w, h, removeback, smooth, xorig, yorig);
     return RValue_makeReal((GMLReal) result);
 }
 
@@ -8796,6 +8983,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_text_colour_ext_transformed", builtin_drawTextColorExtTransformed);
     VM_registerBuiltin(ctx, "draw_surface", builtin_draw_surface);
     VM_registerBuiltin(ctx, "draw_surface_ext", builtin_draw_surface_ext);
+    VM_registerBuiltin(ctx, "draw_surface_part", builtin_draw_surface_part);
+    VM_registerBuiltin(ctx, "draw_surface_part_ext", builtin_draw_surface_part_ext);
+    VM_registerBuiltin(ctx, "draw_surface_stretched", builtin_draw_surface_stretched);
     if(!isGMS2) {
         VM_registerBuiltin(ctx, "draw_background", builtin_drawBackground);
         VM_registerBuiltin(ctx, "draw_background_ext", builtin_drawBackgroundExt);
@@ -8827,6 +9017,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "surface_exists", builtin_surface_exists);
     VM_registerBuiltin(ctx, "surface_get_width", builtinSurfaceGetWidth);
     VM_registerBuiltin(ctx, "surface_get_height", builtinSurfaceGetHeight);
+    VM_registerBuiltin(ctx, "surface_resize", builtin_surface_resize);
+    VM_registerBuiltin(ctx, "surface_copy", builtin_surface_copy);
+    VM_registerBuiltin(ctx, "surface_copy_part", builtin_surface_copy_part);
 
     // Sprite info
     VM_registerBuiltin(ctx, "sprite_add", builtin_spriteAdd);

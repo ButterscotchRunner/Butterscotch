@@ -49,6 +49,14 @@ typedef struct {
     uint32_t originalTexturePageCount;
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
+    //I am VERY Sorry This Code May Be Messy And Hacky
+    uint32_t surfaceCount;
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t ssurfaceCount;
+    int32_t surfaceStack[16];
 } GLRenderer;
 
 Renderer* GLRenderer_create(void);
