@@ -20,6 +20,7 @@ if(PLATFORM STREQUAL "")
     message(FATAL_ERROR "PLATFORM is not set! Use -DPLATFORM=glfw (or another supported platform).")
 endif()
 
+# Audio backend defaults
 if(AUDIO_BACKEND STREQUAL "")
     if(PLATFORM STREQUAL "web")
         set(AUDIO_BACKEND "web")
