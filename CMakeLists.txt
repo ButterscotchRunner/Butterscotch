@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra)
 
 set(PLATFORM "" CACHE STRING "Platform backend")
+set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
 # Build metadata
 set(BUTTERSCOTCH_COMMIT_HASH "unknown" CACHE STRING "Git commit hash")
@@ -17,6 +18,27 @@ add_compile_definitions(
 
 if(PLATFORM STREQUAL "")
     message(FATAL_ERROR "PLATFORM is not set! Use -DPLATFORM=glfw (or another supported platform).")
+endif()
+
+if(AUDIO_BACKEND STREQUAL "")
+    if(PLATFORM STREQUAL "web")
+        set(AUDIO_BACKEND "web")
+    elseif(PLATFORM STREQUAL "ps3")
+        set(AUDIO_BACKEND "openal")
+    else()
+        set(AUDIO_BACKEND "miniaudio")
+    endif()
+endif()
+
+if(AUDIO_BACKEND STREQUAL "openal")
+    file(GLOB AUDIO_SOURCES src/audio/openal/*.c)
+elseif(AUDIO_BACKEND STREQUAL "miniaudio")
+    file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+elseif(AUDIO_BACKEND STREQUAL "web")
+    file(GLOB AUDIO_SOURCES src/audio/web/*.c)
+    file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+elseif(NOT AUDIO_BACKEND STREQUAL "none")
+    message(FATAL_ERROR "Invalid AUDIO_BACKEND!")
 endif()
 
 # To avoid unused code in production builds that are only used for a single game (example: PlayStation 2 target), we can enable/disable specific bytecode versions
@@ -50,8 +72,29 @@ file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 # OpenGL ES 3.0 / WebGL2 compatibility
 option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
 
-add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES})
+add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+if(AUDIO_BACKEND STREQUAL "openal")
+    target_include_directories(butterscotch PUBLIC src/audio/openal)
+    add_compile_definitions(USE_OPENAL)
+    if(APPLE)
+        set(AUDIO_LIBRARIES "-framework OpenAL")
+    elseif(NOT PLATFORM STREQUAL "ps3")
+        find_package(OpenAL REQUIRED)
+        target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
+        set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
+    endif()
+elseif(AUDIO_BACKEND STREQUAL "miniaudio")
+    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
+    add_compile_definitions(USE_MINIAUDIO)
+elseif(AUDIO_BACKEND STREQUAL "web")
+    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch PUBLIC src/audio/web)
+    target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
+    add_compile_definitions(USE_WEB_AUDIO)
+endif()
 
 # stb_ds
 target_include_directories(butterscotch PUBLIC vendor/stb/ds)
@@ -113,9 +156,6 @@ if(PLATFORM STREQUAL "glfw")
     # stb_vorbis
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
 
-    # miniaudio
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
-
     if(MINGW)
         find_package(glfw3 REQUIRED)
         set(GLFW3_LIBRARIES glfw3)
@@ -123,20 +163,20 @@ if(PLATFORM STREQUAL "glfw")
         # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
         # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
         target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} glad m opengl32 gdi32 winmm bz2)
+        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m opengl32 gdi32 winmm bz2)
         target_link_options(butterscotch PRIVATE -static)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(GLFW3 REQUIRED glfw3)
         target_include_directories(butterscotch PRIVATE ${GLFW3_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} glad m pthread bz2)
+        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m pthread bz2)
     else()
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(GLFW3 REQUIRED glfw3)
         target_include_directories(butterscotch PRIVATE ${GLFW3_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} glad m pthread dl bz2)
+        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m pthread dl bz2)
     endif()
 
     # Enable AddressSanitizer by default in Debug builds
@@ -167,9 +207,6 @@ elseif(PLATFORM STREQUAL "web")
 
     # stb_vorbis (for miniaudio's OGG decoding)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
-    # miniaudio (used in noDevice mode; see src/web/web_audio_system.c)
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
 
     set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
 
@@ -275,7 +312,7 @@ elseif(PLATFORM STREQUAL "ps2")
         # Compiling on the Docker container
         target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
         target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m)
+        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m)
 
         # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
         # This avoids loading from rom0: which has compatibility issues between fat/slim PS2

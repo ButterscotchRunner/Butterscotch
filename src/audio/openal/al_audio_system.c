@@ -4,8 +4,6 @@
 #include <windows.h>
 #endif
 
-#include "AL/al.h"
-#include "AL/alc.h"
 #include "stb_vorbis.c"
 #include "al_audio_system.h"
 #include "data_win.h"

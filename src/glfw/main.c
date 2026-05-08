@@ -24,7 +24,11 @@
 #include "gl_renderer.h"
 #include "gl_legacy_renderer.h"
 #include "overlay_file_system.h"
+#if defined(USE_OPENAL)
+#include "al_audio_system.h"
+#elif defined(USE_MINIAUDIO)
 #include "ma_audio_system.h"
+#endif
 #include "noop_audio_system.h"
 #include "stb_ds.h"
 #include "stb_image_write.h"
@@ -898,11 +902,19 @@ int main(int argc, char* argv[]) {
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
-    if (!args.headless) {
-        audioSystem = (AudioSystem*) MaAudioSystem_create();
-    } else {
+#if defined(USE_OPENAL)
+    if (!args.headless)
+        audioSystem = (AudioSystem*) AlAudioSystem_create();
+    else
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
-    }
+#elif defined(USE_MINIAUDIO)
+    if (!args.headless)
+        audioSystem = (AudioSystem*) MaAudioSystem_create();
+    else
+        audioSystem = (AudioSystem*) NoopAudioSystem_create();
+#else
+    audioSystem = (AudioSystem*) NoopAudioSystem_create();
+#endif
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);

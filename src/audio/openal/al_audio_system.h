@@ -2,8 +2,13 @@
 
 #include "common.h"
 #include "audio_system.h"
-#include "AL/al.h"
-#include "AL/alc.h"
+#ifdef __APPLE__
+#include <OpenAL/al.h>
+#include <AL/alc.h>
+#else
+#include <AL/al.h>
+#include <AL/alc.h>
+#endif
 
 #define MAX_SOUND_INSTANCES 128
 #define SOUND_INSTANCE_ID_BASE 100000
