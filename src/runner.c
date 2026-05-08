@@ -284,6 +284,7 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
         case EVENT_KEYPRESS:   return "KeyPress";
         case EVENT_KEYRELEASE: return "KeyRelease";
         case EVENT_PRECREATE:  return "PreCreate";
+        case EVENT_CLEANUP: return "Clean Up";
         default: return "Unknown";
     }
 }
@@ -1019,6 +1020,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 #endif
 
             hmdel(runner->instancesById, inst->instanceId);
+            Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Instance_free(inst);
         }
     }
@@ -1674,6 +1676,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
 
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst) {
     Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
+    Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
     // A destroyed instance must ALWAYS be not active
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
