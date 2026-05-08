@@ -1,5 +1,4 @@
 #include "data_win.h"
-#include "glfw/gl_legacy_renderer.h"
 #include "vm.h"
 
 #include <glad/glad.h>
@@ -34,6 +33,7 @@
 #include "input_recording.h"
 #include "debug_overlay.h"
 #include "gl_renderer.h"
+#include "gl_legacy_renderer.h"
 #include "overlay_file_system.h"
 #include "ma_audio_system.h"
 #include "noop_audio_system.h"

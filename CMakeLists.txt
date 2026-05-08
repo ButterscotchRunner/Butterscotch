@@ -60,9 +60,11 @@ target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(butterscotch PUBLIC vendor/stb/ds)
 
 if(PLATFORM STREQUAL "glfw")
-    file(GLOB GL_SOURCES src/gl/*.c)
+    file(GLOB GL_SOURCES src/gl/*.c src/image/*.c src/gl_legacy/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
 
     # Butterscotch VM/interpreter profiler
     option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
@@ -155,7 +157,7 @@ if(PLATFORM STREQUAL "glfw")
             $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
     )
 elseif(PLATFORM STREQUAL "web")
-    file(GLOB GL_SOURCES src/gl/*.c)
+    file(GLOB GL_SOURCES src/gl/*.c src/image/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     add_compile_definitions(ENABLE_GLES)
 
@@ -395,6 +397,61 @@ elseif(PLATFORM STREQUAL "ps2")
                 ${CMAKE_SOURCE_DIR}/ps2dev-headers/gcc-include
         )
     endif()
+elseif(PLATFORM STREQUAL "ps3")
+    file(GLOB GL_SOURCES src/gl_legacy/*.c src/image/*.c vendor/ps3gl/*.c)
+    file(GLOB AL_SOURCES vendor/mojoal/mojoal.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${AL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/vendor/ps3gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/vendor/mojoal)
+
+    # Butterscotch VM/interpreter profiler
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
+    if(ENABLE_VM_GML_PROFILER)
+        add_compile_definitions(ENABLE_VM_GML_PROFILER)
+    endif()
+
+    # Butterscotch VM/interpreter tracing
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
+    if(ENABLE_VM_TRACING)
+        add_compile_definitions(ENABLE_VM_TRACING)
+    endif()
+
+    # Butterscotch VM opcode count profiler
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
+    if(ENABLE_VM_OPCODE_PROFILER)
+        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
+    endif()
+
+    # Spatial grid logs
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    if(ENABLE_SPATIAL_GRID_LOGS)
+        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+    endif()
+
+    # VM unknown/stubbed function logs
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
+    if(ENABLE_VM_STUB_LOGS)
+        add_compile_definitions(ENABLE_VM_STUB_LOGS)
+    endif()
+    
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
+    # stb_vorbis
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+
+    # Platform identifier for PS3-specific code paths
+    add_compile_definitions(PLATFORM_PS3)
+    add_compile_definitions(IS_BIG_ENDIAN)
+    add_compile_definitions(AL_LIBTYPE_STATIC)
+
+    set(CMAKE_EXE_LINKER_FLAGS "-mhard-float -fmodulo-sched -Wl,--gc-sections -L$ENV{PS3DEV}/ppu/lib -L$ENV{PS3DEV}/portlibs/ppu/lib")
+
+    find_package(SDL2 REQUIRED)
+    target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bz2)
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()

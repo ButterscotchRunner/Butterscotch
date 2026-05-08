@@ -53,15 +53,15 @@ static Matrix4f* Matrix4f_multiply(Matrix4f* dest, const Matrix4f* a, const Matr
 // ===[ Orthographic Projection ]===
 
 // Post-multiply orthographic projection onto dest: dest = dest * ortho(l, r, b, t, n, f)
-static Matrix4f* Matrix4f_ortho(Matrix4f* dest, float left, float right, float bottom, float top, float near, float far) {
+static Matrix4f* Matrix4f_ortho(Matrix4f* dest, float left, float right, float bottom, float top, float zNear, float zFar) {
     Matrix4f ortho;
     memset(ortho.m, 0, sizeof(ortho.m));
     ortho.m[0] = 2.0f / (right - left);
     ortho.m[5] = 2.0f / (top - bottom);
-    ortho.m[10] = -2.0f / (far - near);
+    ortho.m[10] = -2.0f / (zFar - zNear);
     ortho.m[12] = -(right + left) / (right - left);
     ortho.m[13] = -(top + bottom) / (top - bottom);
-    ortho.m[14] = -(far + near) / (far - near);
+    ortho.m[14] = -(zFar + zNear) / (zFar - zNear);
     ortho.m[15] = 1.0f;
     return Matrix4f_multiply(dest, dest, &ortho);
 }

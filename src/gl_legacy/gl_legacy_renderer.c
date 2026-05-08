@@ -2,7 +2,14 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 
+
+#ifdef PLATFORM_PS3
+#include "ps3gl.h"
+#include "rsxutil.h"
+GLAPI void GLAPIENTRY glActiveTexture( GLenum texture ) {};
+#else
 #include <glad/glad.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1016,7 +1023,11 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     // OpenGL Y is bottom-up, GML Y is top-down, so flip the Y coordinate
     int32_t glY = gl->gameH - y - h;
+#ifdef PLATFORM_PS3
+    memcpy(pixels, color_buffer[curr_fb ^ 1], display_height*color_pitch);
+#else
     glReadPixels(x, glY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 
     // Flip vertically (OpenGL reads bottom-to-top)
     size_t rowBytes = (size_t) w * 4;

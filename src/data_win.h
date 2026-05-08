@@ -555,7 +555,7 @@ typedef struct {
     float alpha;
 } RoomTile;
 
-enum RoomLayerType
+typedef enum 
 {
     RoomLayerType_Path = 0,
     RoomLayerType_Background = 1,
@@ -564,7 +564,7 @@ enum RoomLayerType
     RoomLayerType_Tiles = 4,
     RoomLayerType_Effect = 6,
     RoomLayerType_Path2 = 7
-};
+} RoomLayerType;
 
 typedef struct {
     const char* name;

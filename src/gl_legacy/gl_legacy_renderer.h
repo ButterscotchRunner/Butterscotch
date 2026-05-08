@@ -2,7 +2,12 @@
 
 #include "common.h"
 #include "renderer.h"
+#ifdef PLATFORM_PS3
+#include "ps3gl.h"
+#include "rsxutil.h"
+#else
 #include <glad/glad.h>
+#endif
 
 // ===[ GLLegacyRenderer Struct ]===
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.

@@ -298,3 +298,33 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: build/butterscotch.elf
+
+  build-ps3:
+    name: Build (PS3)
+    runs-on: ubuntu-latest
+    container: scummvm/dockerized-toolchains:ps3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build bzip2 for PS3
+        run: |
+          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
+          tar -xf /tmp/bzip2.tar.gz -C /tmp
+          make -C /tmp/bzip2-1.0.8 libbz2.a CFLAGS="-mcpu=cell -mtune=cell -maltivec -mhard-float -fmodulo-sched -ffunction-sections -fdata-sections -fomit-frame-pointer -fstrict-aliasing -funroll-loops -ftree-vectorize -Wall -Winline -O2 -g -D_FILE_OFFSET_BITS=64" CC=powerpc64-ps3-elf-gcc AR=powerpc64-ps3-elf-ar RANLIB=powerpc64-ps3-elf-ranlib -j$(nproc)
+          cp /tmp/bzip2-1.0.8/libbz2.a /usr/local/ps3dev/portlibs/ppu/lib/
+          cp /tmp/bzip2-1.0.8/bzlib.h /usr/local/ps3dev/portlibs/ppu/include/
+
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+          sprxlinker build/butterscotch.elf
+          make_self build/butterscotch.elf build/butterscotch.self
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-ps3
+          path: build/butterscotch.self
