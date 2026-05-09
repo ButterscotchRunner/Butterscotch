@@ -956,17 +956,16 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    if (!modernGL) {
 #ifndef USE_GLFW2
+    if (!modernGL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-#endif
     } else {
 #ifdef ENABLE_GLES
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#elif !defined(USE_GLFW2)
+#else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -974,6 +973,7 @@ int main(int argc, char* argv[]) {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
     }
+#endif
 
 #ifndef USE_GLFW2
     // Load SDL gamecontroller mappings
