@@ -867,6 +867,20 @@ int main(int argc, char* argv[]) {
 
     bool modernGL = strcmp(args.renderer, "legacy-gl") != 0;
 
+#ifndef ENABLE_LEGACY_GL
+    if (!modernGL) {
+        fprintf(stderr, "The legacy gl renderer is unavailable!\n");
+        return 0;
+    }
+#endif
+
+#ifndef ENABLE_MODERN_GL
+    if (modernGL) {
+        fprintf(stderr, "The modern gl renderer is unavailable!\n");
+        return 0;
+    }
+#endif
+
     if (!modernGL && hmlen(args.screenshotSurfacesFrames)) {
         fprintf(stderr, "You can't use --screenshot-surfaces with --renderer legacy-gl!\n");
         return 0;
