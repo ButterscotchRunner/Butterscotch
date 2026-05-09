@@ -1059,14 +1059,10 @@ int main(int argc, char* argv[]) {
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
-#ifdef USE_GLFW2
-    audioSystem = (AudioSystem*) MaAudioSystem_create();
-#else
     if (!args.headless)
         audioSystem = (AudioSystem*) MaAudioSystem_create();
     else
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
-#endif
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
