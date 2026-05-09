@@ -56,10 +56,12 @@ static const char* fragmentShaderSource =
     "in vec4 vColor;\n"
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n" // negative = disabled
+    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
     "    if (uAlphaTestRef >= c.a) discard;\n"
+    "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
     "    fragColor = c;\n"
     "}\n";
 
@@ -136,10 +138,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->uProjection = glGetUniformLocation(gl->shaderProgram, "uProjection");
     gl->uTexture = glGetUniformLocation(gl->shaderProgram, "uTexture");
     gl->uAlphaTestRef = glGetUniformLocation(gl->shaderProgram, "uAlphaTestRef");
+    gl->uFogColor = glGetUniformLocation(gl->shaderProgram, "uFogColor");
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
+    gl->fogEnable = false;
+    gl->fogColor = 0;
     glUseProgram(gl->shaderProgram);
     glUniform1f(gl->uAlphaTestRef, -1.0f);
+    glUniform4f(gl->uFogColor, 0.0f, 0.0f, 0.0f, 0.0f);
 
     // Create VAO/VBO/EBO
     glGenVertexArrays(1, &gl->vao);
@@ -1319,6 +1325,40 @@ static bool glSurfaceExists(Renderer* renderer, int32_t surfaceId) {
     return false;
 }
 
+static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* outRGBA) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (0 > surfaceId || surfaceId >= (int32_t) gl->ssurfaceCount) return false;
+    if (gl->surfaces[surfaceId] == 0) return false;
+
+    flushBatch(gl);
+
+    int32_t w = gl->surfaceWidth[surfaceId];
+    int32_t h = gl->surfaceHeight[surfaceId];
+    if (0 >= w || 0 >= h) return false;
+
+    GLint prevFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+    GLint prevPackAlign = 4;
+    glGetIntegerv(GL_PACK_ALIGNMENT, &prevPackAlign);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+    // Read into a flipped temp, then flip to top-down RGBA matching native (y=0 at top)
+    uint8_t* tmp = safeMalloc((size_t) w * (size_t) h * 4);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+
+    int32_t rowBytes = w * 4;
+    repeat(h, y) {
+        memcpy(outRGBA + (size_t) y * (size_t) rowBytes, tmp + (size_t) (h - 1 - y) * (size_t) rowBytes, (size_t) rowBytes);
+    }
+    free(tmp);
+
+    glPixelStorei(GL_PACK_ALIGNMENT, prevPackAlign);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevFbo);
+    return true;
+}
+
 static int32_t findSurfaceStackSlot(GLRenderer* gl) {
     for (int32_t i = 0; 16 > i; i++) {
         if (gl->surfaceStack[i] == -1) return i;
@@ -1956,11 +1996,28 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     );
 }
 
+static GLenum gmsBlendFactorToGL(int factor) {
+    switch (factor) {
+        case bm_zero:           return GL_ZERO;
+        case bm_one:            return GL_ONE;
+        case bm_src_color:      return GL_SRC_COLOR;
+        case bm_inv_src_color:  return GL_ONE_MINUS_SRC_COLOR;
+        case bm_src_alpha:      return GL_SRC_ALPHA;
+        case bm_inv_src_alpha:  return GL_ONE_MINUS_SRC_ALPHA;
+        case bm_dest_alpha:     return GL_DST_ALPHA;
+        case bm_inv_dest_alpha: return GL_ONE_MINUS_DST_ALPHA;
+        case bm_dest_color:     return GL_DST_COLOR;
+        case bm_inv_dest_color: return GL_ONE_MINUS_DST_COLOR;
+        case bm_src_alpha_sat:  return GL_SRC_ALPHA_SATURATE;
+        default:                return GL_ONE;
+    }
+}
+
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor) {
     flushBatch((GLRenderer*)renderer);
     glBlendFunc(
-        gmsBlendModeToGLSFactor(sfactor),
-        gmsBlendModeToGLDFactor(dfactor)
+        gmsBlendFactorToGL(sfactor),
+        gmsBlendFactorToGL(dfactor)
     );
 }
 
@@ -1995,6 +2052,19 @@ static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, b
     glColorMask(red, green, blue, alpha);
 }
 
+static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->fogEnable == enable && gl->fogColor == color) return;
+    flushBatch(gl);
+    gl->fogEnable = enable;
+    gl->fogColor = color;
+    float r = (float) BGR_R(color) / 255.0f;
+    float g = (float) BGR_G(color) / 255.0f;
+    float b = (float) BGR_B(color) / 255.0f;
+    glUseProgram(gl->shaderProgram);
+    glUniform4f(gl->uFogColor, r, g, b, enable ? 1.0f : 0.0f);
+}
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable = {
@@ -2025,12 +2095,14 @@ static RendererVtable glVtable = {
     .gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable,
     .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
+    .gpuSetFog = glGpuSetFog,
     .drawTile = nullptr,
     .createSurface = glCreateSurface,
     .surfaceExists = glSurfaceExists,
     .setSurfaceTarget = glSetSurfaceTarget,
     .resetSurfaceTarget = glResetSurfaceTarget,
     .surfaceCopy = glSurfaceCopy,
+    .surfaceGetPixels = glSurfaceGetPixels,
     .getSurfaceWidth = glGetSurfaceWidth,
     .getSurfaceHeight = glGetSurfaceHeight,
     .drawSurface = glDrawSurface,

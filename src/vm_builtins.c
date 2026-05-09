@@ -24,6 +24,7 @@
 #include "ini.h"
 #include "audio_system.h"
 #include "file_system.h"
+#include "md5.h"
 
 #include "clock_gettime_macos.h"
 
@@ -300,6 +301,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "true", BUILTIN_VAR_TRUE },
     { "undefined", BUILTIN_VAR_UNDEFINED },
     { "view_angle", BUILTIN_VAR_VIEW_ANGLE },
+    { "view_camera", BUILTIN_VAR_CAMERA_VIEW },
     { "view_current", BUILTIN_VAR_VIEW_CURRENT },
     { "view_hborder", BUILTIN_VAR_VIEW_HBORDER },
     { "view_hport", BUILTIN_VAR_VIEW_HPORT },
@@ -634,6 +636,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
 
         // View properties
         case BUILTIN_VAR_VIEW_CURRENT:
+        case BUILTIN_VAR_CAMERA_VIEW:
             return RValue_makeReal((GMLReal) runner->viewCurrent);
         case BUILTIN_VAR_VIEW_XVIEW:
             if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) return RValue_makeReal((GMLReal) runner->views[arrayIndex].viewX);
@@ -1290,6 +1293,26 @@ static RValue builtinStringLength(MAYBE_UNUSED VMContext* ctx, RValue* args, int
     int32_t len = TextUtils_utf8CodepointCount(str, byteLen);
     free(str);
     return RValue_makeInt32(len);
+}
+
+// https://docs.vultr.com/clang/examples/remove-all-characters-in-a-string-except-alphabets
+void filterAlphabets(char *str) {
+    char result[strlen(str) + 1];
+    int j = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        if ((str[i] >= 'a' && str[i] <= 'z') || (str[i] >= 'A' && str[i] <= 'Z')) {
+            result[j++] = str[i];
+        }
+    }
+    result[j] = '\0';  // Null-terminate the result string
+    strcpy(str, result);  // Optionally copy back to original string
+}
+
+static RValue builtinStringLetters(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeInt32(0);
+    char* str = RValue_toString(args[0]);
+    filterAlphabets(str);
+    return RValue_makeString(str);
 }
 
 static RValue builtinStringByteLength(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -4484,6 +4507,7 @@ static RValue builtinInstanceChange(VMContext* ctx, RValue* args, int32_t argCou
     // Fire destroy event on old object if requested
     if (performEvents) {
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
+        Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
     }
 
     // Move the instance between per-object lists before mutating objectIndex so the remove walks the old parent chain and the add walks the new one.
@@ -5160,6 +5184,60 @@ static RValue builtin_bufferSave(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYB
 }
 
 STUB_RETURN_ZERO(buffer_base64_encode)
+
+// buffer_md5(buffer, offset, size) -> hex string (32 chars, lowercase). Uses the RFC 1321 reference impl in vendor/md5.
+static RValue builtin_bufferMd5(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t offset = RValue_toInt32(args[1]);
+    int32_t size = RValue_toInt32(args[2]);
+    GmlBuffer* buf = gmlBufferGet(runner, id);
+    if (buf == nullptr || 0 > offset || 0 > size) return RValue_makeOwnedString(safeStrdup(""));
+    if (offset + size > buf->size) {
+        if (buf->size > offset) size = buf->size - offset; else size = 0;
+    }
+
+    MD5_CTX mctx;
+    MD5Init(&mctx);
+    if (size > 0) MD5Update(&mctx, buf->data + offset, (unsigned int) size);
+    unsigned char digest[16];
+    MD5Final(digest, &mctx);
+
+    char* hex = safeMalloc(33);
+    static const char HEX[] = "0123456789abcdef";
+    for (int32_t i = 0; 16 > i; i++) {
+        hex[i * 2]     = HEX[(digest[i] >> 4) & 0xF];
+        hex[i * 2 + 1] = HEX[digest[i] & 0xF];
+    }
+    hex[32] = '\0';
+    return RValue_makeOwnedString(hex);
+}
+
+// buffer_get_surface(buffer, surface, offset) -> bool
+// Reads RGBA8 pixels from the surface into the buffer at the given offset.
+static RValue builtin_bufferGetSurface(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t bufId = RValue_toInt32(args[0]);
+    int32_t surfaceId = RValue_toInt32(args[1]);
+    int32_t offset = RValue_toInt32(args[2]);
+    GmlBuffer* buf = gmlBufferGet(runner, bufId);
+    if (buf == nullptr || runner->renderer == nullptr) return RValue_makeBool(false);
+    if (runner->renderer->vtable->surfaceGetPixels == nullptr) return RValue_makeBool(false);
+    if (!Renderer_surfaceExists(runner->renderer, surfaceId)) return RValue_makeBool(false);
+
+    int32_t w = (int32_t) Renderer_getSurfaceWidth(runner->renderer, surfaceId);
+    int32_t h = (int32_t) Renderer_getSurfaceHeight(runner->renderer, surfaceId);
+    if (0 >= w || 0 >= h) return RValue_makeBool(false);
+    int32_t bytes = w * h * 4;
+
+    if (0 > offset) return RValue_makeBool(false);
+    gmlBufferEnsureSize(buf, offset + bytes);
+    if (offset + bytes > buf->size) return RValue_makeBool(false);
+
+    bool ok = runner->renderer->vtable->surfaceGetPixels(runner->renderer, surfaceId, buf->data + offset);
+    if (ok && buf->type == GML_BUFFER_GROW && offset + bytes > buf->usedSize) buf->usedSize = offset + bytes;
+    return RValue_makeBool(ok);
+}
 
 // PSN stubs
 STUB_RETURN_UNDEFINED(psn_init)
@@ -7770,6 +7848,61 @@ static RValue builtinDrawTilemap(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
     return RValue_makeUndefined();
 }
 
+// tilemap_x / tilemap_y set the runtime layer's draw offset for the tile layer identified by the tilemap element id.
+static RValue builtinTilemapX(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t tilemapElementId = RValue_toInt32(args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+
+    RoomLayer* foundLayer = Runner_findRoomLayerById(runner, tilemapElementId);
+    if (foundLayer == nullptr || foundLayer->type != RoomLayerType_Tiles) return RValue_makeUndefined();
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, tilemapElementId);
+    if (runtimeLayer != nullptr) runtimeLayer->xOffset = (float) x;
+    return RValue_makeUndefined();
+}
+
+static RValue builtinTilemapY(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t tilemapElementId = RValue_toInt32(args[0]);
+    GMLReal y = RValue_toReal(args[1]);
+
+    RoomLayer* foundLayer = Runner_findRoomLayerById(runner, tilemapElementId);
+    if (foundLayer == nullptr || foundLayer->type != RoomLayerType_Tiles) return RValue_makeUndefined();
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, tilemapElementId);
+    if (runtimeLayer != nullptr) runtimeLayer->yOffset = (float) y;
+    return RValue_makeUndefined();
+}
+
+static RValue builtinTilemapGetX(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t tilemapElementId = RValue_toInt32(args[0]);
+
+    RoomLayer* foundLayer = Runner_findRoomLayerById(runner, tilemapElementId);
+    if (foundLayer == nullptr || foundLayer->type != RoomLayerType_Tiles) return RValue_makeReal(-1.0);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, tilemapElementId);
+    if (runtimeLayer == nullptr) return RValue_makeReal(-1.0);
+    return RValue_makeReal((GMLReal) runtimeLayer->xOffset);
+}
+
+static RValue builtinTilemapGetY(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t tilemapElementId = RValue_toInt32(args[0]);
+
+    RoomLayer* foundLayer = Runner_findRoomLayerById(runner, tilemapElementId);
+    if (foundLayer == nullptr || foundLayer->type != RoomLayerType_Tiles) return RValue_makeReal(-1.0);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, tilemapElementId);
+    if (runtimeLayer == nullptr) return RValue_makeReal(-1.0);
+    return RValue_makeReal((GMLReal) runtimeLayer->yOffset);
+}
+
 static RValue builtinLayerGetAll(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
     RValue arr = VM_createArray(ctx);
@@ -8670,6 +8803,25 @@ static RValue builtinGpuSetAlphaTestRef(VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeUndefined();
 }
 
+static RValue builtinGpuSetFog(VMContext* ctx, RValue* args, int32_t argCount) {
+    bool enable;
+    int32_t color;
+    if (argCount == 1 && args[0].type == RVALUE_ARRAY && args[0].array != nullptr && GMLArray_length1D(args[0].array) >= 2) {
+        GMLArray* arr = args[0].array;
+        enable = RValue_toBool(*GMLArray_slot(arr, 0));
+        color = RValue_toInt32(*GMLArray_slot(arr, 1));
+    } else if (argCount >= 2) {
+        enable = RValue_toBool(args[0]);
+        color = RValue_toInt32(args[1]);
+    } else {
+        return RValue_makeUndefined();
+    }
+    if (ctx->runner->renderer->vtable->gpuSetFog != nullptr) {
+        ctx->runner->renderer->vtable->gpuSetFog(ctx->runner->renderer, enable, (uint32_t) color);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtinGpuSetColorWriteEnable(VMContext* ctx, RValue* args, int32_t argCount) {
     bool r, g, b, a;
     if (argCount == 1 && args[0].type == RVALUE_ARRAY && args[0].array != nullptr && GMLArray_length1D(args[0].array) >= 4) {
@@ -8703,6 +8855,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtinStringLength);
+    VM_registerBuiltin(ctx, "string_letters", builtinStringLetters);
     VM_registerBuiltin(ctx, "string_byte_length", builtinStringByteLength);
     VM_registerBuiltin(ctx, "string", builtinString);
     VM_registerBuiltin(ctx, "string_upper", builtinStringUpper);
@@ -8767,6 +8920,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "irandom_range", builtinIrandomRange);
     VM_registerBuiltin(ctx, "choose", builtinChoose);
     VM_registerBuiltin(ctx, "randomize", builtinRandomize);
+    VM_registerBuiltin(ctx, "randomise", builtinRandomize);
 
     // Room
     VM_registerBuiltin(ctx, "game_get_speed", builtinGameGetSpeed);
@@ -9013,6 +9167,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "buffer_load", builtin_bufferLoad);
     VM_registerBuiltin(ctx, "buffer_save", builtin_bufferSave);
     VM_registerBuiltin(ctx, "buffer_base64_encode", builtin_buffer_base64_encode);
+    VM_registerBuiltin(ctx, "buffer_md5", builtin_bufferMd5);
+    VM_registerBuiltin(ctx, "buffer_get_surface", builtin_bufferGetSurface);
 
     // PSN
     VM_registerBuiltin(ctx, "psn_init", builtin_psn_init);
@@ -9194,6 +9350,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_get_id_at_depth", builtinLayerGetIdAtDepth);
     VM_registerBuiltin(ctx, "layer_tilemap_get_id", builtinLayerTilemapGetId);
     VM_registerBuiltin(ctx, "draw_tilemap", builtinDrawTilemap);
+    VM_registerBuiltin(ctx, "tilemap_x", builtinTilemapX);
+    VM_registerBuiltin(ctx, "tilemap_y", builtinTilemapY);
+    VM_registerBuiltin(ctx, "tilemap_get_x", builtinTilemapGetX);
+    VM_registerBuiltin(ctx, "tilemap_get_y", builtinTilemapGetY);
 #endif
     VM_registerBuiltin(ctx, "layer_create", builtinLayerCreate);
     VM_registerBuiltin(ctx, "layer_destroy", builtinLayerDestroy);
@@ -9261,5 +9421,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtinGpuSetAlphaTestEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtinGpuSetAlphaTestRef);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtinGpuSetColorWriteEnable);
+    VM_registerBuiltin(ctx,"gpu_set_fog", builtinGpuSetFog);
+    VM_registerBuiltin(ctx,"d3d_set_fog", builtinGpuSetFog);
 }
 

@@ -597,10 +597,42 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
             }
         }
     }
-    if (match == nullptr) return 0.0f;
+    if (match != nullptr) {
+        float seconds = 0.0f;
+        alGetSourceLengthSec(match->alBuffer, &seconds);
+        return seconds;
+    }
 
-    float seconds = 0.0f;
-    alGetSourceLengthSec(match->alBuffer, &seconds);
+    // No active instance: GMS audio_sound_length(soundIndex) must still return the asset's duration.
+    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE || soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+        return 0.0f;
+
+    DataWin* dw = ma->base.audioGroups[0];
+    if (dw == nullptr || 0 > soundOrInstance || (uint32_t) soundOrInstance >= dw->sond.count)
+        return 0.0f;
+
+    Sound* sound = &dw->sond.sounds[soundOrInstance];
+
+    bool isEmbedded = (sound->flags & 0x01) != 0;
+    bool isCompressed = (sound->flags & 0x02) != 0;
+    if (isEmbedded || isCompressed) {
+        if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
+        AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+        WAVFile wav = WAV_ParseFileData(entry->data);
+        float seconds = 0.0f;
+        if (wav.header.byte_rate > 0) seconds = (float) wav.header.data_size / (float) wav.header.byte_rate;
+        if (wav.data != nullptr) free(wav.data);
+        return seconds;
+    }
+
+    char* path = resolveExternalPath(ma, sound);
+    if (path == nullptr) return 0.0f;
+    int err = 0;
+    stb_vorbis* v = stb_vorbis_open_filename(path, &err, nullptr);
+    free(path);
+    if (v == nullptr) return 0.0f;
+    float seconds = stb_vorbis_stream_length_in_seconds(v);
+    stb_vorbis_close(v);
     return seconds;
 }
 

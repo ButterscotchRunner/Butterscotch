@@ -76,6 +76,8 @@ The GLFW target has a lot of nifty CLI parameters that you can use to trace and 
 * `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle)
 * `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
 * `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
+* `--screenshot-surfaces=file_%d.%d.png`: Screenshots all surfaces (framebuffers), requires `--screenshot-surfaces-at-frame`.
+* `--screenshot-surfaces-at-frame=Frame`: Screenshots all surfaces (framebuffers) at a specific frame. Can be used multiple times.
 * `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
 * `--print-rooms`: Prints all the rooms in the `data.win` file and exits.
 * `--print-declared-functions`: Prints all the declared functions (scripts, object events, etc) in the `data.win` file and exists.

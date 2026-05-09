@@ -56,6 +56,10 @@ target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # stb_ds
 target_include_directories(butterscotch PUBLIC vendor/stb/ds)
 
+# RFC 1321 reference MD5 implementation
+target_sources(butterscotch PRIVATE vendor/md5/md5.c)
+target_include_directories(butterscotch PUBLIC vendor/md5)
+
 if(PLATFORM STREQUAL "glfw")
     if(ENABLE_GLES)
         file(GLOB GL_SOURCES src/gl/*.c src/image/*.c)
@@ -160,6 +164,8 @@ if(PLATFORM STREQUAL "glfw")
 elseif(PLATFORM STREQUAL "web")
     file(GLOB GL_SOURCES src/gl/*.c src/image/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     add_compile_definitions(ENABLE_GLES)
 
     # stb_image

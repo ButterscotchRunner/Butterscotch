@@ -1499,12 +1499,12 @@ static void handleDiv(VMContext* ctx, uint32_t instr) {
 static void handleRem(VMContext* ctx, uint32_t instr) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
-    int32_t ib = RValue_toInt32(b);
-    requireMessageFormatted(ib != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
-    int32_t result = RValue_toInt32(a) % ib;
+    int64_t divisor = RValue_toInt64(b);
+    requireMessageFormatted(divisor != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
+    int64_t result = RValue_toInt64(a) / divisor;
     RValue_free(&a);
     RValue_free(&b);
-    stackPushTyped(ctx, RValue_makeInt32(result), instrType2(instr));
+    stackPushTyped(ctx, RValue_makeInt64(result), instrType2(instr));
 }
 
 static void handleMod(VMContext* ctx, uint32_t instr) {
@@ -2191,10 +2191,33 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
         if (ctx->dataWin->objt.count > (uint32_t) target) {
             Instance** source = runner->instancesByObject[target];
             int32_t sourceCount = (int32_t) arrlen(source);
-            for (int32_t i = 0; sourceCount > i; i++) {
-                Instance* inst = source[i];
-                if (inst->active) arrput(frame->instanceList, inst);
+
+            Instance** activeInstances = nullptr;
+            repeat(sourceCount, i) {
+                if (source[i]->active) {
+                    arrput(activeInstances, source[i]);
+                }
             }
+
+            int32_t activeSourceCount = arrlen(activeInstances);
+
+            // You may be thinking "wow this looks extremely dumb", well, THAT'S HOW GAMEMAKER HANDLES IT FOR SOME REASON
+            // GameMaker is *quirky* like that
+            if (activeSourceCount == 1) {
+                arrput(frame->instanceList, activeInstances[0]);
+            } else if (activeSourceCount == 2) {
+                // Iterate in forward order
+                arrput(frame->instanceList, activeInstances[0]);
+                arrput(frame->instanceList, activeInstances[1]);
+            } else {
+                // Iterate in reverse order
+                for (int32_t i = activeSourceCount - 1; i >= 0; i--) {
+                    Instance* inst = activeInstances[i];
+                    arrput(frame->instanceList, inst);
+                }
+            }
+
+            arrfree(activeInstances);
         }
 
         if (arrlen(frame->instanceList) == 0) {
@@ -3840,7 +3863,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
             int32_t argCount = instr & 0xFFFF;
             uint32_t funcIdx = resolveFuncOperand(extraData);
             const char* funcName = (dw->func.functionCount > funcIdx) ? dw->func.functions[funcIdx].name : "???";
-            snprintf(operandStr, operandSize, "%s(%d)", funcName, argCount);
+            snprintf(operandStr, operandSize, "%s(argCount=%d)", funcName, argCount);
             if (argCount > 0) {
                 char argList[128] = "";
                 int32_t pos = 0;
@@ -3860,7 +3883,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         case OP_CALLV: {
             int32_t argCount = instr & 0xFFFF;
             snprintf(opcodeStr, opcodeSize, "CallV.v");
-            snprintf(operandStr, operandSize, "%d", argCount);
+            snprintf(operandStr, operandSize, "argCount=%d", argCount);
             snprintf(commentStr, commentSize, "// pops: [func, instance, %d args] -> pushes: [result]", argCount);
             break;
         }
