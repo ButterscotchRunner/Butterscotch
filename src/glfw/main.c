@@ -247,7 +247,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
+#ifdef ENABLE_MODERN_GL
     args->renderer = "gl";
+#else
+    args->renderer = "legacy-gl";
+#endif
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
 
