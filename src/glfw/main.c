@@ -1059,10 +1059,11 @@ int main(int argc, char* argv[]) {
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
-    if (!args.headless)
+    if (!args.headless) {
         audioSystem = (AudioSystem*) MaAudioSystem_create();
-    else
+    } else {
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
+    }
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
