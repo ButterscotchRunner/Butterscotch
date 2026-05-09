@@ -132,9 +132,7 @@ typedef struct {
     StringBooleanEntry* tilesToBeTraced;
     bool alwaysLogUnknownFunctions;
     bool alwaysLogStubbedFunctions;
-#ifndef USE_GLFW2
     bool headless;
-#endif
     bool traceFrames;
     bool printRooms;
     bool printDeclaredFunctions;
@@ -212,9 +210,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"screenshot-at-frame", required_argument, nullptr, 'f'},
         {"screenshot-surfaces", required_argument, nullptr, 'U'},
         {"screenshot-surfaces-at-frame", required_argument, nullptr, 'V'},
-#ifndef USE_GLFW2
         {"headless",            no_argument,       nullptr, 'h'},
-#endif
         {"print-rooms", no_argument,               nullptr, 'r'},
         {"print-declared-functions", no_argument,  nullptr, 'p'},
         {"trace-variable-reads", required_argument,  nullptr, 'R'},
@@ -298,11 +294,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 hmput(args->screenshotSurfacesFrames, (int) frame, true);
                 break;
             }
-#ifndef USE_GLFW2
             case 'h':
                 args->headless = true;
                 break;
-#endif
             case 'r':
                 args->printRooms = true;
                 break;
@@ -503,7 +497,12 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         exit(1);
     }
 
-#ifndef USE_GLFW2
+#ifdef USE_GLFW2
+    if (args->headless) {
+        fprintf(stderr, "Headless mode is not supported with GLFW2\n");
+        exit(1);
+    }
+#else
     if (args->headless && args->speedMultiplier != 1.0) {
         fprintf(stderr, "You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
         exit(1);
@@ -1375,11 +1374,7 @@ int main(int argc, char* argv[]) {
 #endif
 
         // Limit frame rate to room speed (skip in headless mode for max speed!!)
-        if (
-#ifndef USE_GLFW2
-                !args.headless &&
-#endif
-                runner->currentRoom->speed > 0) {
+        if (!args.headless && runner->currentRoom->speed > 0) {
             static bool fastForwardActive = false;
             static bool fastForwardTabPrev = false;
             bool fastForwardTabNow = glfwGetKey(
