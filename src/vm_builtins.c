@@ -9417,7 +9417,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtinGpuSetBlendMode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtinGpuSetBlendModeExt);
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtinGpuSetBlendEnable);
-    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtinGpuSetBlendEnable);
+    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtinGpuGetBlendEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtinGpuSetAlphaTestEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtinGpuSetAlphaTestRef);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtinGpuSetColorWriteEnable);
