@@ -830,9 +830,11 @@ void glTexImage2D( GLenum target, GLint level,
 		}
 		case GL_RGBA:
 		{
-			currentTexture->data = (uint8_t*)rsxMemalign(128, width*height*4);
+			if(width <= 0 || height <= 0 || (size_t)width > (SIZE_MAX / 4) / (size_t)height) return;
+			const size_t textureSize = (size_t)width * (size_t)height * 4;
+			currentTexture->data = (uint8_t*)rsxMemalign(128, textureSize);
 			if(pixels)
-				memcpy((void*)currentTexture->data, pixels, width*height*4);
+				memcpy((void*)currentTexture->data, pixels, textureSize);
 			rsxAddressToOffset(currentTexture->data, &currentTexture->gcmTexture.offset);
 			currentTexture->gcmTexture.format = GCM_TEXTURE_FORMAT_A8R8G8B8|GCM_TEXTURE_FORMAT_LIN;
 			currentTexture->gcmTexture.remap  = (
@@ -874,10 +876,11 @@ void glTexSubImage2D(
 		case GL_RGBA8:
 		case 4:
 		{
-			const int textureSize = width*height*4;
+			if(width <= 0 || height <= 0 || (size_t)width > (SIZE_MAX / 4) / (size_t)height) break;
+			const size_t textureSize = (size_t)width * (size_t)height * 4;
 			transferBuffer = (uint8_t*)rsxMemalign(128, textureSize);
 			u32 transferBufferOffset;
-			memcpy((void*)transferBuffer, pixels, width*height*4);
+			memcpy((void*)transferBuffer, pixels, textureSize);
 			rsxAddressToOffset(transferBuffer, &transferBufferOffset);
 			rsxSetTransferImage(
 				context, // context
