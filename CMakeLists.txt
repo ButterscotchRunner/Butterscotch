@@ -133,9 +133,9 @@ if(PLATFORM STREQUAL "glfw")
     endif()
     if(ENABLE_MODERN_GL)
         file(GLOB GL_SOURCES ${GL_SOURCES} src/gl/*.c)
-        target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     endif()
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
 
     # Butterscotch VM/interpreter profiler
