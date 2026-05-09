@@ -14,7 +14,8 @@
 
 // The __builtin_bswap* functions seem to have been added in GCC 4.8, but before that they were available as library
 // functions or something. GCC versions as new as 4.6 give an implicit function declaration warning, so I'll just be safe.
-#if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)))
+#if (defined(__clang__) && defined(__clang_major__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 1))) \
+    || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)))
 static inline uint16_t BinaryUtils_bswap16(uint16_t value) {
     return __builtin_bswap16(value);
 }
