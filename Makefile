@@ -39,6 +39,7 @@ ifdef ENABLE_GLES
 DEFINES += -DENABLE_GLES
 else
 SRCS += $(wildcard src/gl_legacy/*.c)
+HEADERS += $(wildcard src/gl_legacy/*.h)
 endif
 
 PLATFORM := glfw
