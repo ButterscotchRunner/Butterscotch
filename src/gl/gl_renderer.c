@@ -762,6 +762,67 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
     gl->quadCount++;
 }
 
+static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    float r1 = (float) BGR_R(color1) / 255.0f;
+    float g1 = (float) BGR_G(color1) / 255.0f;
+    float b1 = (float) BGR_B(color1) / 255.0f;
+
+    float r2 = (float) BGR_R(color2) / 255.0f;
+    float g2 = (float) BGR_G(color2) / 255.0f;
+    float b2 = (float) BGR_B(color2) / 255.0f;
+
+    float r3 = (float) BGR_R(color3) / 255.0f;
+    float g3 = (float) BGR_G(color3) / 255.0f;
+    float b3 = (float) BGR_B(color3) / 255.0f;
+
+    float r4 = (float) BGR_R(color4) / 255.0f;
+    float g4 = (float) BGR_G(color4) / 255.0f;
+    float b4 = (float) BGR_B(color4) / 255.0f;
+   
+
+    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) {
+        flushBatch(gl);
+    }
+    if (gl->quadCount >= MAX_QUADS) {
+        flushBatch(gl);
+    }
+    gl->currentTextureId = gl->whiteTexture;
+
+    if (outline) {
+        // Draw 4 one-pixel-wide edges: top, bottom, left, right
+        glDrawLineColor(renderer, x1, y1, x2, y1, 1.0, color1, color2, alpha);
+        glDrawLineColor(renderer, x2, y1, x2, y2, 1.0, color2, color3, alpha);
+        glDrawLineColor(renderer, x2, y2, x1, y2, 1.0, color3, color4, alpha);
+        glDrawLineColor(renderer, x1, y2, x1, y1, 1.0, color4, color1, alpha);
+    } else {
+        // Filled rectangle: GML adds +1 to width/height for filled rects
+
+    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+
+    // All UVs point to (0.5, 0.5) center of the 1x1 white texture
+    // Vertex 0: top-left
+    verts[0] = x1; verts[1] = y1; verts[2] = 0.5f; verts[3] = 0.5f;
+    verts[4] = r1;  verts[5] = g1;  verts[6] = b1;    verts[7] = alpha;
+
+    // Vertex 1: top-right
+    verts[8]  = x2+1; verts[9]  = y1; verts[10] = 0.5f; verts[11] = 0.5f;
+    verts[12] = r2;  verts[13] = g2;  verts[14] = b2;    verts[15] = alpha;
+
+    // Vertex 2: bottom-right
+    verts[16] = x2+1; verts[17] = y2+1; verts[18] = 0.5f; verts[19] = 0.5f;
+    verts[20] = r3;  verts[21] = g3;  verts[22] = b3;    verts[23] = alpha;
+
+    // Vertex 3: bottom-left
+    verts[24] = x1; verts[25] = y2+1; verts[26] = 0.5f; verts[27] = 0.5f;
+    verts[28] = r4;  verts[29] = g4;  verts[30] = b4;    verts[31] = alpha;
+
+    gl->quadCount++;
+
+    }
+}
+
 static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
 {
     GLRenderer* gl = (GLRenderer*) renderer;
@@ -2080,6 +2141,7 @@ static RendererVtable glVtable = {
     .drawSpritePos = glDrawSpritePos,
     .drawSpritePart = glDrawSpritePart,
     .drawRectangle = glDrawRectangle,
+    .drawRectangleColor = glDrawRectangleColor,
     .drawLine = glDrawLine,
     .drawLineColor = glDrawLineColor,
     .drawTriangle = glDrawTriangle,
