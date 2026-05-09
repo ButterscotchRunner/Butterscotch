@@ -8787,7 +8787,7 @@ static RValue builtinGpuSetBlendEnable(VMContext* ctx, RValue* args, int32_t arg
 }
 
 static RValue builtinGpuGetBlendEnable(VMContext* ctx, RValue* args, int32_t argCount) {
-    return RValue_makeBool(isBlendEnable);
+    return RValue_makeBool(ctx->runner->renderer->vtable->gpuGetBlendEnable(ctx->runner->renderer));
 }
 
 static RValue builtinGpuSetAlphaTestEnable(VMContext* ctx, RValue* args, int32_t argCount) {
