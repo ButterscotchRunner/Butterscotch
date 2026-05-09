@@ -512,10 +512,47 @@ static float webGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
             }
         }
     }
-    if (match == nullptr) return 0.0f;
+    if (match != nullptr) {
+        float seconds = 0.0f;
+        if (ma_sound_get_length_in_seconds(&match->maSound, &seconds) != MA_SUCCESS) return 0.0f;
+        return seconds;
+    }
 
+    // No active instance: GMS audio_sound_length(soundIndex) must still return the asset's duration.
+    if (soundOrInstance >= WEB_SOUND_INSTANCE_ID_BASE || soundOrInstance >= WEB_AUDIO_STREAM_INDEX_BASE)
+        return 0.0f;
+
+    DataWin* dw = ma->base.audioGroups[0];
+    if (dw == nullptr || 0 > soundOrInstance || (uint32_t) soundOrInstance >= dw->sond.count)
+        return 0.0f;
+
+    Sound* sound = &dw->sond.sounds[soundOrInstance];
+
+    bool isEmbedded = (sound->flags & 0x01) != 0;
+    bool isCompressed = (sound->flags & 0x02) != 0;
+    ma_decoder decoder;
+    ma_result decResult;
+    if (isEmbedded || isCompressed) {
+        if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
+        AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+        ma_decoder_config decoderConfig = ma_decoder_config_init_default();
+        decResult = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &decoder);
+    } else {
+        char* path = resolveExternalPath(ma, sound);
+        if (path == nullptr) return 0.0f;
+        ma_decoder_config decoderConfig = ma_decoder_config_init_default();
+        decResult = ma_decoder_init_file(path, &decoderConfig, &decoder);
+        free(path);
+    }
+    if (decResult != MA_SUCCESS) return 0.0f;
+
+    ma_uint64 frames = 0;
     float seconds = 0.0f;
-    if (ma_sound_get_length_in_seconds(&match->maSound, &seconds) != MA_SUCCESS) return 0.0f;
+    if (ma_decoder_get_length_in_pcm_frames(&decoder, &frames) == MA_SUCCESS) {
+        ma_uint32 sampleRate = decoder.outputSampleRate;
+        if (sampleRate > 0) seconds = (float) frames / (float) sampleRate;
+    }
+    ma_decoder_uninit(&decoder);
     return seconds;
 }
 

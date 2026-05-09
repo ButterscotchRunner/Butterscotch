@@ -105,6 +105,8 @@ typedef struct {
     const char* saveFolder; // null = default to the directory containing dataWinPath
     const char* screenshotPattern;
     FrameSetEntry* screenshotFrames;
+    const char* screenshotSurfacesPattern;
+    FrameSetEntry* screenshotSurfacesFrames;
     FrameSetEntry* dumpFrames;
     FrameSetEntry* dumpJsonFrames;
     const char* dumpJsonFilePattern;
@@ -197,6 +199,8 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     static struct option longOptions[] = {
         {"screenshot",          required_argument, nullptr, 's'},
         {"screenshot-at-frame", required_argument, nullptr, 'f'},
+        {"screenshot-surfaces", required_argument, nullptr, 'U'},
+        {"screenshot-surfaces-at-frame", required_argument, nullptr, 'V'},
         {"headless",            no_argument,       nullptr, 'h'},
         {"print-rooms", no_argument,               nullptr, 'r'},
         {"print-declared-functions", no_argument,  nullptr, 'p'},
@@ -262,6 +266,19 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
 
                 hmput(args->screenshotFrames, (int) frame, true);
+                break;
+            }
+            case 'U':
+                args->screenshotSurfacesPattern = optarg;
+                break;
+            case 'V': {
+                char* endPtr;
+                long frame = strtol(optarg, &endPtr, 10);
+                if (*endPtr != '\0' || 0 > frame) {
+                    fprintf(stderr, "Error: Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
+                    exit(1);
+                }
+                hmput(args->screenshotSurfacesFrames, (int) frame, true);
                 break;
             }
             case 'h':
@@ -454,6 +471,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         exit(1);
     }
 
+    if (hmlen(args->screenshotSurfacesFrames) > 0 && args->screenshotSurfacesPattern == nullptr) {
+        fprintf(stderr, "Error: --screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
+        exit(1);
+    }
+
     if (args->headless && args->speedMultiplier != 1.0) {
         fprintf(stderr, "You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
         exit(1);
@@ -463,6 +485,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 
 static void freeCommandLineArgs(CommandLineArgs* args) {
     hmfree(args->screenshotFrames);
+    hmfree(args->screenshotSurfacesFrames);
     hmfree(args->dumpFrames);
     hmfree(args->dumpJsonFrames);
     shfree(args->varReadsToBeTraced);
@@ -479,18 +502,24 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 }
 
 // ===[ SCREENSHOT ]===
-static void captureScreenshot(const char* filenamePattern, int frameNumber, int width, int height) {
-    char filename[512];
-    snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
+// Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
+// If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
+static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
     unsigned char* pixels = safeMalloc(stride * height);
     if (pixels == nullptr) {
-        fprintf(stderr, "Error: Failed to allocate memory for screenshot (%dx%d)\n", width, height);
+        fprintf(stderr, "Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
     }
 
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    if (forceOpaque) {
+        int totalPixels = width * height;
+        repeat(totalPixels, i) pixels[i * 4 + 3] = 255;
+    }
 
     // OpenGL reads bottom-to-top, but PNG is top-to-bottom.
     // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
@@ -498,7 +527,32 @@ static void captureScreenshot(const char* filenamePattern, int frameNumber, int 
     stbi_write_png(filename, width, height, 4, lastRow, -stride);
 
     free(pixels);
-    printf("Screenshot saved: %s\n", filename);
+    printf("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
+}
+
+static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height) {
+    char filename[512];
+    snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
+    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true);
+}
+
+// Dumps every live surface in the GL renderer as a PNG.
+// Filename pattern takes two %d slots: frame number, then surface ID.
+static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int frameNumber) {
+    repeat(gl->ssurfaceCount, surfaceId) {
+        if (gl->surfaces[surfaceId] == 0)
+            continue;
+
+        int width = gl->surfaceWidth[surfaceId];
+        int height = gl->surfaceHeight[surfaceId];
+        if (0 >= width || 0 >= height) continue;
+
+        char filename[512];
+        snprintf(filename, sizeof(filename), filenamePattern, frameNumber, (int) surfaceId);
+        writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false);
+    }
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->fbo);
 }
 
 // ===[ KEYBOARD INPUT ]===
@@ -812,6 +866,12 @@ int main(int argc, char* argv[]) {
     }
 
     bool modernGL = strcmp(args.renderer, "legacy-gl") != 0;
+
+    if (!modernGL && hmlen(args.screenshotSurfacesFrames)) {
+        fprintf(stderr, "You can't use --screenshot-surfaces with --renderer legacy-gl!\n");
+        return 0;
+    }
+
     if (!modernGL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -1159,13 +1219,18 @@ int main(int argc, char* argv[]) {
         bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
         if (shouldScreenshot) {
-            // Bind FBO so glReadPixels reads from the game's native-resolution texture
+            GLuint readFbo = (strcmp(args.renderer, "legacy-gl") == 0) ? 0 : ((GLRenderer*) renderer)->fbo;
+            captureScreenshot(readFbo, args.screenshotPattern, runner->frameCount, gameW, gameH);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        }
+
+        // Dump all surfaces if this frame matches a requested frame
+        bool shouldDumpSurfaces = hmget(args.screenshotSurfacesFrames, runner->frameCount);
+
+        if (shouldDumpSurfaces) {
             GLRenderer* gl = (GLRenderer*) renderer;
-            if (!(strcmp(args.renderer, "legacy-gl") == 0))
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->fbo);
-            captureScreenshot(args.screenshotPattern, runner->frameCount, gameW, gameH);
-            if (!(strcmp(args.renderer, "legacy-gl") == 0))
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         }
 
         if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {

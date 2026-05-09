@@ -842,8 +842,9 @@ typedef struct DataWin {
     // Used by DataWin_loadRoomPayload to satisfy on-demand room payload reads.
     // nullptr when lazy loading is disabled. Closed by DataWin_free.
     FILE* lazyLoadFile;
-    char* lazyLoadFilePath;     // owned strdup of the original file path, for diagnostics
-    bool lazyLoadRooms;          // mirrors the parser option so Runner can branch without re-reading options
+    char* lazyLoadFilePath; // owned strdup of the original file path, for diagnostics
+    size_t fileSize; // cached size of the DataWin, captured at parse time. Used for platforms where fseek(SEEK_END)+ftell is unreliable due to buffering (like the PlayStation 2).
+    bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
 } DataWin;
 
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options);

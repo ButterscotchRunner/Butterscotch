@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 
 #include "real_type.h"
 
@@ -116,6 +117,17 @@ static inline GMLReal clampFloat(GMLReal f) {
 #define BGR_B(c) (((c) >> 16) & 0xFF)
 #define BGR_G(c) (((c) >>  8) & 0xFF)
 #define BGR_R(c) (((c) >>  0) & 0xFF)
+
+// Mixes 2 colors with a blend factor
+static inline int32_t Color_lerp(int32_t color1, int32_t color2, float blending) {
+    int32_t r1 = BGR_R(color1), g1 = BGR_G(color1), b1 = BGR_B(color1);
+    int32_t r2 = BGR_R(color2), g2 = BGR_G(color2), b2 = BGR_B(color2);
+    float inv = 1.0f - blending;
+    int32_t r = lrintf((float) r2 * blending + (float) r1 * inv) & 0xFF;
+    int32_t g = lrintf((float) g2 * blending + (float) g1 * inv) & 0xFF;
+    int32_t b = lrintf((float) b2 * blending + (float) b1 * inv) & 0xFF;
+    return r | (g << 8) | (b << 16);
+}
 
 #define shcopyFromTo(src, dst)                        \
 do {                                        \

@@ -70,6 +70,8 @@ typedef struct {
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
+    // Optional: when enabled, replaces output RGB with the fog color (preserving alpha)
+    void (*gpuSetFog)(Renderer* renderer, bool enable, uint32_t color);
     // Optional: platform-specific tile rendering (nullptr = use default drawSpritePart path)
     void (*drawTile)(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY);
     // Optional: platform-specific tiled draw (nullptr = use default per-tile drawSprite loop).
@@ -87,6 +89,7 @@ typedef struct {
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
     void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
     void (*surfaceCopy)(Renderer* renderer, int32_t DestSurfaceID, int32_t DestX, int32_t DestY, int32_t SrcSurfaceID, int32_t SrcX, int32_t SrcY, int32_t SrcW, int32_t SrcH, bool part);
+    bool (*surfaceGetPixels)(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA);
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).
     void (*drawTiledPart)(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha);
@@ -647,19 +650,4 @@ static void Renderer_drawCircle(Renderer* renderer, float cx, float cy, float ra
         prevX = curX;
         prevY = curY;
     }
-}
-
-// Mixes 2 colors with a blend factor
-static uint32_t Renderer_mixColors(uint32_t color1, uint32_t color2, float blending) {
-    // Extracts the color values out of each color
-    uint8_t r1 = BGR_R(color1), g1 = BGR_G(color1), b1 = BGR_B(color1);
-    uint8_t r2 = BGR_R(color2), g2 = BGR_G(color2), b2 = BGR_B(color2);
-
-    // mixes each color together using linear interpolation
-    uint8_t mixr = (uint8_t)(r1 * (1 - blending) + r2 * blending);
-    uint8_t mixg = (uint8_t)(g1 * (1 - blending) + g2 * blending);
-    uint8_t mixb = (uint8_t)(b1 * (1 - blending) + b2 * blending);
-
-    uint32_t resultColor = ((mixr << 0) | (mixg << 8) | (mixb << 16)) & 0x00FFFFFF;
-    return resultColor;
 }

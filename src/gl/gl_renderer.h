@@ -17,9 +17,12 @@ typedef struct {
     GLint uProjection;
     GLint uTexture;
     GLint uAlphaTestRef;
+    GLint uFogColor;
 
     bool alphaTestEnable;
     float alphaTestRef;
+    bool fogEnable;
+    uint32_t fogColor; // BGR
 
     GLuint vao, vbo, ebo;
     float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats

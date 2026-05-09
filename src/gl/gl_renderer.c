@@ -56,10 +56,12 @@ static const char* fragmentShaderSource =
     "in vec4 vColor;\n"
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n" // negative = disabled
+    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
     "    if (uAlphaTestRef >= c.a) discard;\n"
+    "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
     "    fragColor = c;\n"
     "}\n";
 
@@ -136,10 +138,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->uProjection = glGetUniformLocation(gl->shaderProgram, "uProjection");
     gl->uTexture = glGetUniformLocation(gl->shaderProgram, "uTexture");
     gl->uAlphaTestRef = glGetUniformLocation(gl->shaderProgram, "uAlphaTestRef");
+    gl->uFogColor = glGetUniformLocation(gl->shaderProgram, "uFogColor");
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
+    gl->fogEnable = false;
+    gl->fogColor = 0;
     glUseProgram(gl->shaderProgram);
     glUniform1f(gl->uAlphaTestRef, -1.0f);
+    glUniform4f(gl->uFogColor, 0.0f, 0.0f, 0.0f, 0.0f);
 
     // Create VAO/VBO/EBO
     glGenVertexArrays(1, &gl->vao);
@@ -1040,25 +1046,6 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
     float cursorY = valignOffset - (float) font->ascenderOffset;
     int32_t lineStart = 0;
 
-    // get delta's  (16.16 format)
-	int32_t left_r_dx = ((_c2 & 0xff0000) - (_c1 & 0xff0000)) / textLen;
-	int32_t left_g_dx = ((((_c2 & 0xff00) << 8) - ((_c1 & 0xff00) << 8))) / textLen;
-	int32_t left_b_dx = ((((_c2 & 0xff) << 16) - ((_c1 & 0xff) << 16))) / textLen;
-
-	int32_t right_r_dx = ((_c3 & 0xff0000) - (_c4 & 0xff0000)) / textLen;
-	int32_t right_g_dx = ((((_c3 & 0xff00) << 8) - ((_c4 & 0xff00) << 8))) / textLen;
-	int32_t right_b_dx = ((((_c3 & 0xff) << 16) - ((_c4 & 0xff) << 16))) / textLen;
-
-    int32_t left_delta_r = left_r_dx;
-	int32_t left_delta_g = left_g_dx;
-	int32_t left_delta_b = left_b_dx;
-	int32_t right_delta_r = right_r_dx;
-	int32_t right_delta_g = right_g_dx;
-	int32_t right_delta_b = right_b_dx;
-
-    int32_t c1 = _c1;
-    int32_t c4 = _c4;
-
     for (int32_t lineIdx = 0; lineCount > lineIdx; lineIdx++) {
         // Find end of current line
         int32_t lineEnd = lineStart;
@@ -1074,6 +1061,8 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
         else if (renderer->drawHalign == 2) halignOffset = -lineWidth;
 
         float cursorX = halignOffset;
+        // Pixel-position cursor for the gradient
+        float gradientX = 0.0f;
 
         // Render each glyph in the line - decode each codepoint once and carry it forward as next iteration's ch (also used for kerning)
         int32_t pos = 0;
@@ -1085,21 +1074,6 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
         }
 
         while (hasCh) {
-            // do 16.16 maths
-            int32_t c2 = ((c1 & 0xff0000) + (left_delta_r & 0xff0000)) & 0xff0000;
-                c2 |= ((c1 & 0xff00) + (left_delta_g >> 8) & 0xff00) & 0xff00;
-                c2 |= ((c1 & 0xff) + (left_delta_b >> 16)) & 0xff;
-            int32_t c3 = ((c4 & 0xff0000) + (right_delta_r & 0xff0000)) & 0xff0000;
-                c3 |= ((c4 & 0xff00) + (right_delta_g >> 8) & 0xff00) & 0xff00;
-                c3 |= ((c4 & 0xff) + (right_delta_b >> 16)) & 0xff;
-
-            left_delta_r += left_r_dx;
-            left_delta_g += left_g_dx;
-            left_delta_b += left_b_dx;
-            right_delta_r += right_r_dx;
-            right_delta_g += right_g_dx;
-            right_delta_b += right_b_dx;
-
             FontGlyph* glyph = TextUtils_findGlyph(font, ch);
 
             uint16_t nextCh = 0;
@@ -1107,6 +1081,14 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
             if (hasNext) nextCh = TextUtils_decodeUtf8(text + lineStart, lineLen, &pos);
 
             if (glyph != nullptr) {
+                float advance = (float) glyph->shift;
+                float leftFrac  = (lineWidth > 0.0f) ? (gradientX / lineWidth) : 0.0f;
+                float rightFrac = (lineWidth > 0.0f) ? ((gradientX + advance) / lineWidth) : 1.0f;
+                int32_t c1 = Color_lerp(_c1, _c2, leftFrac);
+                int32_t c2 = Color_lerp(_c1, _c2, rightFrac);
+                int32_t c3 = Color_lerp(_c4, _c3, rightFrac);
+                int32_t c4 = Color_lerp(_c4, _c3, leftFrac);
+
                 bool drewSuccessfully = false;
                 if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
@@ -1154,10 +1136,11 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                 }
 
                 cursorX += glyph->shift;
-                if (drewSuccessfully) {
-                    if (hasNext) cursorX += TextUtils_getKerningOffset(glyph, nextCh);
-                    c4 = c3;    // set left edge to be what the last right edge was....
-                    c1 = c2;
+                gradientX   += glyph->shift;
+                if (drewSuccessfully && hasNext) {
+                    float kern = TextUtils_getKerningOffset(glyph, nextCh);
+                    cursorX += kern;
+                    gradientX   += kern;
                 }
             }
 
@@ -1340,6 +1323,40 @@ static bool glSurfaceExists(Renderer* renderer, int32_t surfaceId) {
     }
 
     return false;
+}
+
+static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* outRGBA) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (0 > surfaceId || surfaceId >= (int32_t) gl->ssurfaceCount) return false;
+    if (gl->surfaces[surfaceId] == 0) return false;
+
+    flushBatch(gl);
+
+    int32_t w = gl->surfaceWidth[surfaceId];
+    int32_t h = gl->surfaceHeight[surfaceId];
+    if (0 >= w || 0 >= h) return false;
+
+    GLint prevFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+    GLint prevPackAlign = 4;
+    glGetIntegerv(GL_PACK_ALIGNMENT, &prevPackAlign);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+    // Read into a flipped temp, then flip to top-down RGBA matching native (y=0 at top)
+    uint8_t* tmp = safeMalloc((size_t) w * (size_t) h * 4);
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+
+    int32_t rowBytes = w * 4;
+    repeat(h, y) {
+        memcpy(outRGBA + (size_t) y * (size_t) rowBytes, tmp + (size_t) (h - 1 - y) * (size_t) rowBytes, (size_t) rowBytes);
+    }
+    free(tmp);
+
+    glPixelStorei(GL_PACK_ALIGNMENT, prevPackAlign);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevFbo);
+    return true;
 }
 
 static int32_t findSurfaceStackSlot(GLRenderer* gl) {
@@ -1979,11 +1996,28 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     );
 }
 
+static GLenum gmsBlendFactorToGL(int factor) {
+    switch (factor) {
+        case bm_zero:           return GL_ZERO;
+        case bm_one:            return GL_ONE;
+        case bm_src_color:      return GL_SRC_COLOR;
+        case bm_inv_src_color:  return GL_ONE_MINUS_SRC_COLOR;
+        case bm_src_alpha:      return GL_SRC_ALPHA;
+        case bm_inv_src_alpha:  return GL_ONE_MINUS_SRC_ALPHA;
+        case bm_dest_alpha:     return GL_DST_ALPHA;
+        case bm_inv_dest_alpha: return GL_ONE_MINUS_DST_ALPHA;
+        case bm_dest_color:     return GL_DST_COLOR;
+        case bm_inv_dest_color: return GL_ONE_MINUS_DST_COLOR;
+        case bm_src_alpha_sat:  return GL_SRC_ALPHA_SATURATE;
+        default:                return GL_ONE;
+    }
+}
+
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor) {
     flushBatch((GLRenderer*)renderer);
     glBlendFunc(
-        gmsBlendModeToGLSFactor(sfactor),
-        gmsBlendModeToGLDFactor(dfactor)
+        gmsBlendFactorToGL(sfactor),
+        gmsBlendFactorToGL(dfactor)
     );
 }
 
@@ -2018,6 +2052,19 @@ static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, b
     glColorMask(red, green, blue, alpha);
 }
 
+static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->fogEnable == enable && gl->fogColor == color) return;
+    flushBatch(gl);
+    gl->fogEnable = enable;
+    gl->fogColor = color;
+    float r = (float) BGR_R(color) / 255.0f;
+    float g = (float) BGR_G(color) / 255.0f;
+    float b = (float) BGR_B(color) / 255.0f;
+    glUseProgram(gl->shaderProgram);
+    glUniform4f(gl->uFogColor, r, g, b, enable ? 1.0f : 0.0f);
+}
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable = {
@@ -2048,12 +2095,14 @@ static RendererVtable glVtable = {
     .gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable,
     .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
+    .gpuSetFog = glGpuSetFog,
     .drawTile = nullptr,
     .createSurface = glCreateSurface,
     .surfaceExists = glSurfaceExists,
     .setSurfaceTarget = glSetSurfaceTarget,
     .resetSurfaceTarget = glResetSurfaceTarget,
     .surfaceCopy = glSurfaceCopy,
+    .surfaceGetPixels = glSurfaceGetPixels,
     .getSurfaceWidth = glGetSurfaceWidth,
     .getSurfaceHeight = glGetSurfaceHeight,
     .drawSurface = glDrawSurface,

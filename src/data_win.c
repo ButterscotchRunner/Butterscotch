@@ -2081,9 +2081,11 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     if (options.lazyLoadRooms) {
         dw->lazyLoadFile = file;
         dw->lazyLoadFilePath = safeStrdup(filePath);
+        dw->fileSize = (size_t) fileSize;
     } else {
         dw->lazyLoadFile = nullptr;
         dw->lazyLoadFilePath = nullptr;
+        dw->fileSize = 0;
         fclose(file);
     }
 
@@ -2335,13 +2337,7 @@ void DataWin_loadRoomPayload(DataWin* dw, int32_t roomIndex) {
     requireMessage(dw->lazyLoadFile != nullptr, "DataWin_loadRoomPayload called without an open lazy-load FILE*");
 
     FILE* f = dw->lazyLoadFile;
-    // Find file size at lazy-load time (only needed for BinaryReader bounds checking).
-    long savedPos = ftell(f);
-    fseek(f, 0, SEEK_END);
-    size_t fileSize = (size_t) ftell(f);
-    fseek(f, savedPos, SEEK_SET);
-
-    BinaryReader lazyReader = BinaryReader_create(f, fileSize);
+    BinaryReader lazyReader = BinaryReader_create(f, dw->fileSize);
     readRoomPayload(&lazyReader, dw, room);
 }
 
