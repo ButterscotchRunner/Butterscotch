@@ -21,8 +21,12 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
+#ifdef ENABLE_MODERN_GL
 #include "gl_renderer.h"
+#endif
+#ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
+#endif
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
 #include "al_audio_system.h"
