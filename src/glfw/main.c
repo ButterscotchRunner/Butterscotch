@@ -976,10 +976,15 @@ int main(int argc, char* argv[]) {
     }
     renderer = GLRenderer_create();
 #else
-    if(strcmp(args.renderer, "legacy-gl") == 0)
+    if(strcmp(args.renderer, "legacy-gl") == 0) {
+#ifdef ENABLE_LEGACY_GL
         renderer = GLLegacyRenderer_create();
-    else
+#endif
+    } else {
+#ifdef ENABLE_MODERN_GL
         renderer = GLRenderer_create();
+#endif
+    }
 #endif
 
     // Initialize the audio system
