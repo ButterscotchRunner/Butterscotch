@@ -154,6 +154,8 @@ Having a transpiler also have other disadvantages:
 
 Here's a video :3 https://youtu.be/PuzBxe0VGtY
 
+Here's also another video, this time showing off the Asriel Dreemurr final battle https://youtu.be/vkQMqXr0MQE
+
 ### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [Bytecode Version 16]
 
 Here's a video :3 https://youtu.be/TLJtV2WnrmQ
@@ -162,11 +164,19 @@ Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d0df9858-ad2b-4642-9f32-a542d1d942e0" />
 
+### DELTARUNE Chapter 2 (PlayStation 2) [Bytecode Version 17]
+
+Here's a video :3 https://youtu.be/uuN72Hv50d4
+
 ### DELTARUNE Chapter 3 (GLFW) [Bytecode Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/7b49d434-e66f-4ee3-bfe8-c0b4f45ceeb7" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/afbe62ad-4706-4882-a9c9-6c239ed57c69" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d83c9f8c-e9b9-410e-8d3d-3663ede23fab" />
+
+### DELTARUNE Chapter 3 (PlayStation 2) [Bytecode Version 17]
+
+Here's a video :3 https://youtu.be/c9r79sQABYg
 
 ### DELTARUNE Chapter Selector (GLFW) [Bytecode Version 17]
 
