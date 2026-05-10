@@ -21,6 +21,7 @@ typedef float GMLReal;
 #define GMLReal_pow powf
 #define GMLReal_fmax fmaxf
 #define GMLReal_fmin fminf
+#define GMLReal_nextafter nextafterf
 #define GMLReal_strtod(str, endptr) strtof(str, endptr)
 
 #else
@@ -40,6 +41,7 @@ typedef double GMLReal;
 #define GMLReal_pow pow
 #define GMLReal_fmax fmax
 #define GMLReal_fmin fmin
+#define GMLReal_nextafter nextafter
 #define GMLReal_strtod(str, endptr) strtod(str, endptr)
 
 #endif
