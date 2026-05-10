@@ -1555,12 +1555,61 @@ static void populateObjectsWithAnyEventOfType(Runner* runner) {
     free(seen);
 }
 
+// Validates if all required renderer functions are not null
+static void validateRendererVtable(Renderer* renderer) {
+    RendererVtable* v = requireNotNull(renderer->vtable);
+
+    #define requireNotNullFunction(fn) requireMessage(v->fn != nullptr, "Renderer " #fn " does not have a implementation!")
+    requireNotNullFunction(init);
+    requireNotNullFunction(destroy);
+    requireNotNullFunction(beginFrame);
+    requireNotNullFunction(endFrame);
+    requireNotNullFunction(beginView);
+    requireNotNullFunction(endView);
+    requireNotNullFunction(beginGUI);
+    requireNotNullFunction(endGUI);
+    requireNotNullFunction(drawSprite);
+    requireNotNullFunction(drawSpritePart);
+    requireNotNullFunction(drawSpritePos);
+    requireNotNullFunction(drawRectangle);
+    requireNotNullFunction(drawLine);
+    requireNotNullFunction(drawTriangle);
+    requireNotNullFunction(drawLineColor);
+    requireNotNullFunction(drawText);
+    requireNotNullFunction(drawTextColor);
+    requireNotNullFunction(flush);
+    requireNotNullFunction(clearScreen);
+    requireNotNullFunction(createSpriteFromSurface);
+    requireNotNullFunction(deleteSprite);
+    requireNotNullFunction(gpuSetBlendMode);
+    requireNotNullFunction(gpuSetBlendModeExt);
+    requireNotNullFunction(gpuSetBlendEnable);
+    requireNotNullFunction(gpuSetAlphaTestEnable);
+    requireNotNullFunction(gpuSetAlphaTestRef);
+    requireNotNullFunction(gpuSetColorWriteEnable);
+    requireNotNullFunction(createSurface);
+    requireNotNullFunction(surfaceExists);
+    requireNotNullFunction(setSurfaceTarget);
+    requireNotNullFunction(resetSurfaceTarget);
+    requireNotNullFunction(getSurfaceWidth);
+    requireNotNullFunction(getSurfaceHeight);
+    requireNotNullFunction(drawSurface);
+    requireNotNullFunction(drawSurfacePart);
+    requireNotNullFunction(drawSurfaceStretched);
+    requireNotNullFunction(surfaceResize);
+    requireNotNullFunction(surfaceFree);
+    requireNotNullFunction(surfaceCopy);
+    requireNotNullFunction(surfaceGetPixels);
+    #undef requireNotNullFunction
+}
+
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem) {
     requireNotNull(dataWin);
     requireNotNull(vm);
     requireNotNull(renderer);
     requireNotNull(fileSystem);
     requireNotNull(audioSystem);
+    validateRendererVtable(renderer);
 
     Runner* runner = safeCalloc(1, sizeof(Runner));
     runner->dataWin = dataWin;

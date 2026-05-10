@@ -1353,14 +1353,17 @@ static RValue builtinCeil(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
 
 static RValue builtinRound(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
-    // GameMaker's round() uses banker's rounding (round half to even), matching llrint() under the default IEEE 754 rounding mode.
-    // C's round()/roundf() rounds half away from zero, which produces different results for x.5 values (e.g. round(2.5) is 2 in GML but 3 with round()).
+    // GameMaker's round() uses banker's rounding (round half to even).
+    // While the original runner uses "llrint(double)", we use our own banker's rounding implementation to avoid quirks in specific platforms (like the PlayStation 2) having different llrint rounding implementations.
     GMLReal v = RValue_toReal(args[0]);
-#ifdef USE_FLOAT_REALS
-    return RValue_makeReal(rintf(v));
-#else
-    return RValue_makeReal(rint(v));
-#endif
+    if (isnan(v) || isinf(v)) return RValue_makeReal(v);
+    GMLReal f = GMLReal_floor(v);
+    GMLReal frac = v - f;
+    if (0.5 > frac) return RValue_makeReal(f);
+    if (frac > 0.5) return RValue_makeReal(f + 1.0);
+    // Exactly halfway: round to the even neighbor.
+    int64_t fi = (int64_t) f;
+    return RValue_makeReal((fi & 1) == 0 ? f : f + 1.0);
 }
 
 static RValue builtinAbs(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -1818,7 +1821,13 @@ static RValue builtinLerp(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
     GMLReal a = RValue_toReal(args[0]);
     GMLReal b = RValue_toReal(args[1]);
     GMLReal t = RValue_toReal(args[2]);
-    return RValue_makeReal(a + (b - a) * t);
+    GMLReal result = a + (b - a) * t;
+#ifdef USE_FLOAT_REALS
+    // When using floats, floating point inaccuracies can cause games to softlock, so if the lerp did not do any meaningful movement, we'll *nudge* it a bit forward.
+    // This COULD have unforeseen consequences, but it also fixes some games (example: DELTARUNE Chapter 2's pre-giga queen cutscene)
+    if (result == a && a != b) result = GMLReal_nextafter(a, b);
+#endif
+    return RValue_makeReal(result);
 }
 
 static RValue builtinPointDistance(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -1969,18 +1978,24 @@ static RValue builtinMoveSnap(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t
     return RValue_makeReal(0.0);
 }
 
+// For lengthdir: Anything that's 1e-4 > abs(result) should be coerced to 0 to avoid precision drift.
+// If not, precision drift can cause a LOT of issues, especially on platforms that use floats instead of doubles.
 static RValue builtinLengthdir_x(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal len = RValue_toReal(args[0]);
     GMLReal dir = RValue_toReal(args[1]) * (M_PI / 180.0);
-    return RValue_makeReal(len * GMLReal_cos(dir));
+    GMLReal result = len * GMLReal_cos(dir);
+    if ((GMLReal) 1e-4 > GMLReal_fabs(result)) result = 0.0;
+    return RValue_makeReal(result);
 }
 
 static RValue builtinLengthdir_y(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal len = RValue_toReal(args[0]);
     GMLReal dir = RValue_toReal(args[1]) * (M_PI / 180.0);
-    return RValue_makeReal(-len * GMLReal_sin(dir));
+    GMLReal result = -len * GMLReal_sin(dir);
+    if ((GMLReal) 1e-4 > GMLReal_fabs(result)) result = 0.0;
+    return RValue_makeReal(result);
 }
 
 // ===[ RANDOM FUNCTIONS ]===
@@ -3304,15 +3319,24 @@ static AudioSystem* getAudioSystem(VMContext* ctx) {
 
 static RValue builtin_audioExists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
-    if (audio == nullptr || audio->vtable == nullptr || argCount < 1) return RValue_makeBool(false);
+    if (audio == nullptr || audio->vtable == nullptr || 1 > argCount) return RValue_makeBool(false);
     if (args[0].type == RVALUE_UNDEFINED) return RValue_makeBool(false);
 
+    // Invalid sound index!
     int32_t soundIndex = RValue_toInt32(args[0]);
-    if (soundIndex < 0) return RValue_makeBool(false);
+    if (0 > soundIndex) return RValue_makeBool(false);
 
+    // Check if it is a valid soundIndex
     DataWin* dw = audio->audioGroups[0];
-    if (dw == nullptr) return RValue_makeBool(false);
-    return RValue_makeBool((uint32_t) soundIndex < dw->sond.count);
+    if (dw->sond.count > (uint32_t) soundIndex)
+        return RValue_makeBool(true);
+
+    // If it isn't a valid soundIndex, then this is a sound instance handle
+    // So let's check if the audio system is playing it!
+    if (audio->vtable != nullptr && audio->vtable->isPlaying != nullptr && audio->vtable->isPlaying(audio, soundIndex))
+        return RValue_makeBool(true);
+
+    return RValue_makeBool(false);
 }
 
 static RValue builtin_audioChannelNum(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -9415,7 +9439,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtinGpuSetBlendMode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtinGpuSetBlendModeExt);
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtinGpuSetBlendEnable);
-    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtinGpuSetBlendEnable);
+    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtinGpuGetBlendEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtinGpuSetAlphaTestEnable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtinGpuSetAlphaTestRef);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtinGpuSetColorWriteEnable);

@@ -2099,6 +2099,22 @@ static void gsDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float 
     gsKit_prim_sprite_texture(gs->gsGlobal, &tex, sx1, sy1, u1, v1, sx2, sy2, u2, v2, 0, gsColor);
 }
 
+// ===[ Surfaces ]===
+
+static int32_t gsCreateSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) { return -1; }
+static bool gsSurfaceExists(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
+static bool gsSetSurfaceTarget(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
+static bool gsResetSurfaceTarget(MAYBE_UNUSED Renderer* renderer) { return false; }
+static float gsGetSurfaceWidth(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
+static float gsGetSurfaceHeight(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
+static void gsDrawSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void gsDrawSurfacePart(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y, MAYBE_UNUSED int32_t left, MAYBE_UNUSED int32_t top, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void gsDrawSurfaceStretched(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float width, MAYBE_UNUSED float height) {}
+static void gsSurfaceResize(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) {}
+static void gsSurfaceFree(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) {}
+static void gsSurfaceCopy(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t DestSurfaceID, MAYBE_UNUSED int32_t DestX, MAYBE_UNUSED int32_t DestY, MAYBE_UNUSED int32_t SrcSurfaceID, MAYBE_UNUSED int32_t SrcX, MAYBE_UNUSED int32_t SrcY, MAYBE_UNUSED int32_t SrcW, MAYBE_UNUSED int32_t SrcH, MAYBE_UNUSED bool part) {}
+static bool gsSurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t* outRGBA) { return false; }
+
 // ===[ Vtable ]===
 
 static RendererVtable gsVtable = {
@@ -2132,6 +2148,19 @@ static RendererVtable gsVtable = {
     .drawTile = gsDrawTile,
     .drawTiled = gsDrawTiled,
     .drawTiledPart = gsDrawTiledPart,
+    .createSurface = gsCreateSurface,
+    .surfaceExists = gsSurfaceExists,
+    .setSurfaceTarget = gsSetSurfaceTarget,
+    .resetSurfaceTarget = gsResetSurfaceTarget,
+    .getSurfaceWidth = gsGetSurfaceWidth,
+    .getSurfaceHeight = gsGetSurfaceHeight,
+    .drawSurface = gsDrawSurface,
+    .drawSurfacePart = gsDrawSurfacePart,
+    .drawSurfaceStretched = gsDrawSurfaceStretched,
+    .surfaceResize = gsSurfaceResize,
+    .surfaceFree = gsSurfaceFree,
+    .surfaceCopy = gsSurfaceCopy,
+    .surfaceGetPixels = gsSurfaceGetPixels,
 };
 
 // ===[ Public API ]===

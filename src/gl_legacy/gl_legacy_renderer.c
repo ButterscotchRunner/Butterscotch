@@ -1215,6 +1215,23 @@ static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, b
     glColorMask(red, green, blue, alpha);
 }
 
+// ===[ Surfaces ]===
+
+static int32_t glLegacyCreateSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) { return -1; }
+static bool glLegacySurfaceExists(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
+static bool glLegacySetSurfaceTarget(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
+static bool glLegacyResetSurfaceTarget(MAYBE_UNUSED Renderer* renderer) { return false; }
+static float glLegacyGetSurfaceWidth(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
+static float glLegacyGetSurfaceHeight(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
+static void glLegacyDrawSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void glLegacyDrawSurfacePart(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y, MAYBE_UNUSED int32_t left, MAYBE_UNUSED int32_t top, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void glLegacyDrawSurfaceStretched(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float width, MAYBE_UNUSED float height) {}
+static void glLegacySurfaceResize(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) {}
+static void glLegacySurfaceFree(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) {}
+static void glLegacySurfaceCopy(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t DestSurfaceID, MAYBE_UNUSED int32_t DestX, MAYBE_UNUSED int32_t DestY, MAYBE_UNUSED int32_t SrcSurfaceID, MAYBE_UNUSED int32_t SrcX, MAYBE_UNUSED int32_t SrcY, MAYBE_UNUSED int32_t SrcW, MAYBE_UNUSED int32_t SrcH, MAYBE_UNUSED bool part) {}
+static bool glLegacySurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t* outRGBA) { return false; }
+
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable = {
@@ -1246,6 +1263,19 @@ static RendererVtable glVtable = {
     .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
     .drawTile = nullptr,
+    .createSurface = glLegacyCreateSurface,
+    .surfaceExists = glLegacySurfaceExists,
+    .setSurfaceTarget = glLegacySetSurfaceTarget,
+    .resetSurfaceTarget = glLegacyResetSurfaceTarget,
+    .getSurfaceWidth = glLegacyGetSurfaceWidth,
+    .getSurfaceHeight = glLegacyGetSurfaceHeight,
+    .drawSurface = glLegacyDrawSurface,
+    .drawSurfacePart = glLegacyDrawSurfacePart,
+    .drawSurfaceStretched = glLegacyDrawSurfaceStretched,
+    .surfaceResize = glLegacySurfaceResize,
+    .surfaceFree = glLegacySurfaceFree,
+    .surfaceCopy = glLegacySurfaceCopy,
+    .surfaceGetPixels = glLegacySurfaceGetPixels,
 };
 
 // ===[ Public API ]===
