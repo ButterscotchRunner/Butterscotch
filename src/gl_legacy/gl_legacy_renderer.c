@@ -472,6 +472,11 @@ static void glDrawRectangle(Renderer* renderer, float x1, float y1, float x2, fl
     }
 }
 
+static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha, bool outline) {
+    // Stub! Please implement me later. :3
+    glDrawRectangle(renderer, x1, y1, x2, y2, color1, alpha, outline);
+}
+
 // ===[ Line Drawing ]===
 
 static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha) {
@@ -1247,6 +1252,7 @@ static RendererVtable glVtable = {
     .drawSpritePos = glDrawSpritePos,
     .drawSpritePart = glDrawSpritePart,
     .drawRectangle = glDrawRectangle,
+    .drawRectangleColor = glDrawRectangleColor,
     .drawLine = glDrawLine,
     .drawLineColor = glDrawLineColor,
     .drawTriangle = glDrawTriangle,
