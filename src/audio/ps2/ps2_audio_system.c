@@ -1,5 +1,5 @@
 #include "ps2_audio_system.h"
-#include "ps2_utils.h"
+#include "ps2/ps2_utils.h"
 #include "utils.h"
 
 #include <stdio.h>
