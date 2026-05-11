@@ -8,6 +8,8 @@
 #include "stb_ds.h"
 #include "string_builder.h"
 
+#include "clock_gettime_macos.h"
+
 #if defined(PLATFORM_PS2)
 #include <timer.h>
 #elif defined(PLATFORM_PS3)
@@ -43,10 +45,14 @@ static uint64_t nowNanos(void) {
     uint64_t sec = t / f;
     uint64_t rem = t % f;
     return sec * 1000000000ull + (rem * 1000000000ull) / f;
-#else
+#elif defined(CLOCK_MONOTONIC)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t) tv.tv_sec * 1000000000ull + (uint64_t) tv.tv_usec * 1000;
 #endif
 }
 

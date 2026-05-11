@@ -148,10 +148,16 @@ typedef struct {
 
 // Forward declarations
 struct Runner;
+#ifndef VM_CONTEXT_DEFINED
+#define VM_CONTEXT_DEFINED
 typedef struct VMContext VMContext;
+#endif
 
 // ===[ Builtin Functions Manager ]===
+#ifndef BUILTINFUNC_DEFINED
+#define BUILTINFUNC_DEFINED
 typedef RValue (*BuiltinFunc)(VMContext* ctx, RValue* args, int32_t argCount);
+#endif
 
 typedef struct {
     char* key;
@@ -161,7 +167,7 @@ typedef struct {
 // ===[ VMContext - Holds all VM state ]===
 // Fields are ordered by access frequency so that the hottest data sits in the first bytes of the struct
 // This way data can be kept "hot" in the CPU cache or, depending on the platform, in scratchpad RAM
-typedef struct VMContext {
+struct VMContext {
     // Hot: touched every instruction in the dispatch loop
     uint8_t* bytecodeBase;
     uint32_t ip;
@@ -258,7 +264,7 @@ typedef struct VMContext {
 
     // Stack at the end because it is a big chunky boi (we don't want it pushing fields around)
     VMStack stack;
-} VMContext;
+};
 
 // ===[ Public API ]===
 VMContext* VM_create(DataWin* dataWin);

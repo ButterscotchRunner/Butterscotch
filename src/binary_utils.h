@@ -5,10 +5,17 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(__BYTE__ORDER__) && (__BYTE__ORDER__ == __ORDER_BIG_ENDIAN__)
+#define IS_BIG_ENDIAN
+#endif
+
 // Binary reads/writes from a raw byte buffer.
 // When IS_BIG_ENDIAN is defined, reads are byte-swapped to interpret serialized little-endian data.
 
-#if defined(__clang__) || defined(__GNUC__)
+// The __builtin_bswap* functions seem to have been added in GCC 4.8, but before that they were available as library
+// functions or something. GCC versions as new as 4.6 give an implicit function declaration warning, so I'll just be safe.
+#if (defined(__clang__) && defined(__clang_major__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 1))) \
+    || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)))
 static inline uint16_t BinaryUtils_bswap16(uint16_t value) {
     return __builtin_bswap16(value);
 }
@@ -165,9 +172,18 @@ static inline void BinaryUtils_writeInt64(uint8_t* data, int64_t val) {
 // These trust the caller to supply a pointer with matching natural alignment.
 // Used on the VM dispatch hot path (bytecode instruction / operand fetch) where the bytecode buffer is guaranteed 4-byte aligned.
 
+#ifndef __has_builtin
+#  define __has_builtin(x) 0
+#endif
+#if __has_builtin(__builtin_assume_aligned) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)))
+#  define ASSUME_ALIGNED(p, a) __builtin_assume_aligned((p), (a))
+#else
+#  define ASSUME_ALIGNED(p, a) (p)
+#endif
+
 static inline uint32_t BinaryUtils_readUint32Aligned(const uint8_t* data) {
     uint32_t val;
-    memcpy(&val, __builtin_assume_aligned(data, 4), 4);
+    memcpy(&val, ASSUME_ALIGNED(data, 4), 4);
     return BinaryUtils_toLittle32(val);
 }
 
@@ -178,13 +194,13 @@ static inline int32_t BinaryUtils_readInt32Aligned(const uint8_t* data) {
 static inline int64_t BinaryUtils_readInt64Aligned(const uint8_t* data) {
     // Note: GML bytecode places 8-byte extra-data at instruction + 4, so it is only 4-aligned.
     uint64_t val;
-    memcpy(&val, __builtin_assume_aligned(data, 4), 8);
+    memcpy(&val, ASSUME_ALIGNED(data, 4), 8);
     return (int64_t) BinaryUtils_toLittle64(val);
 }
 
 static inline float BinaryUtils_readFloat32Aligned(const uint8_t* data) {
     uint32_t bits;
-    memcpy(&bits, __builtin_assume_aligned(data, 4), 4);
+    memcpy(&bits, ASSUME_ALIGNED(data, 4), 4);
     bits = BinaryUtils_toLittle32(bits);
     float val;
     memcpy(&val, &bits, 4);
@@ -194,7 +210,7 @@ static inline float BinaryUtils_readFloat32Aligned(const uint8_t* data) {
 static inline double BinaryUtils_readFloat64Aligned(const uint8_t* data) {
     // Note: GML bytecode places 8-byte extra-data at instruction + 4, so it is only 4-aligned.
     uint64_t bits;
-    memcpy(&bits, __builtin_assume_aligned(data, 4), 8);
+    memcpy(&bits, ASSUME_ALIGNED(data, 4), 8);
     bits = BinaryUtils_toLittle64(bits);
     double val;
     memcpy(&val, &bits, 8);

@@ -5,9 +5,6 @@
 #include "runner.h"
 #include "utils.h"
 
-// Forward declarations
-typedef struct Runner Runner;
-
 SpatialGrid* SpatialGrid_create(uint32_t roomWidth, uint32_t roomHeight) {
     SpatialGrid* grid = safeCalloc(1, sizeof(SpatialGrid));
 

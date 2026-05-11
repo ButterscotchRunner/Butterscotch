@@ -23,13 +23,13 @@ typedef struct GMLArrayRow {
     RValue* data;
 } GMLArrayRow;
 
-typedef struct GMLArray {
+struct GMLArray {
     int32_t refCount;
     int32_t rowCount; // Highest touched row index + 1.
     int32_t rowCapacity; // Allocated slots in rows[].
     void* owner;
     GMLArrayRow* rows;
-} GMLArray;
+};
 
 GMLArray* GMLArray_create(int32_t initialLength);
 void GMLArray_incRef(GMLArray* arr);

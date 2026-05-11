@@ -11,7 +11,7 @@
 // Forward decl for Instance_structDecRef
 struct Runner;
 
-typedef struct Instance {
+struct Instance {
     uint32_t instanceId;
     int32_t objectIndex;
     // Reference count for GML structs (objectIndex == -1 mode). Unused for game-object instances.
@@ -60,7 +60,7 @@ typedef struct Instance {
     float pathYStart;
 
     int32_t alarm[GML_ALARM_COUNT];
-} Instance;
+};
 
 Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y);
 void Instance_free(Instance* instance);

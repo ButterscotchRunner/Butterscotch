@@ -13322,7 +13322,7 @@ This can be reviewed as compatibility issues arise. The preference is to use _wf
 fallback, so if you notice your compiler not detecting this properly I'm happy to look at adding support.
 */
 #if defined(_WIN32) && !defined(MA_XBOX_NXDK)
-    #if defined(_MSC_VER) || defined(__MINGW64__) || (!defined(__STRICT_ANSI__) && !defined(_NO_EXT_KEYS))
+    #if defined(_MSC_VER) || defined(__MINGW64__) || (!defined(__STRICT_ANSI__) && !defined(_NO_EXT_KEYS)) && !defined(__CRTDLL__)
         #define MA_HAS_WFOPEN
     #endif
 #endif

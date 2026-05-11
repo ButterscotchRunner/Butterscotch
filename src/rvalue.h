@@ -47,7 +47,7 @@ typedef enum {
     RVALUE_STRUCT = 8,
 } RValueType;
 
-typedef struct RValue {
+struct RValue {
     union {
         GMLReal real;
         int32_t int32;
@@ -70,7 +70,7 @@ typedef struct RValue {
 #if IS_BC17_OR_HIGHER_ENABLED
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
 #endif
-} __attribute__((aligned(8))) RValue;
+} __attribute__((aligned(8)));
 
 // Helper to initialize .gmlStackType only on BC17+ builds
 #if IS_BC17_OR_HIGHER_ENABLED
@@ -80,37 +80,52 @@ typedef struct RValue {
 #endif
 
 static RValue RValue_makeReal(GMLReal val) {
-    return (RValue){ .real = val, .type = RVALUE_REAL, RVALUE_INIT_GMLTYPE(GML_TYPE_DOUBLE) };
+    RValue rv = { .type = RVALUE_REAL, RVALUE_INIT_GMLTYPE(GML_TYPE_DOUBLE) };
+    rv.real = val;
+    return rv;
 }
 
 static RValue RValue_makeInt32(int32_t val) {
-    return (RValue){ .int32 = val, .type = RVALUE_INT32, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+    RValue rv = { .type = RVALUE_INT32, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+    rv.int32 = val;
+    return rv;
 }
 
 static RValue RValue_makeInt64(int64_t val) {
+    RValue rv;
 #ifdef NO_RVALUE_INT64
     // Values that don't fit in int32 get promoted to real instead of clamped, because clamping to INT32_MIN causes arithmetic overflow bugs
     // (example: Undertale's mercymod = -99999999999999 in the Asriel fight)
     if (val > INT32_MAX || INT32_MIN > val) {
-        return (RValue){ .real = (GMLReal) val, .type = RVALUE_REAL, RVALUE_INIT_GMLTYPE(GML_TYPE_DOUBLE) };
+        rv = (RValue){ .type = RVALUE_REAL, RVALUE_INIT_GMLTYPE(GML_TYPE_DOUBLE) };
+        rv.real = val;
     } else {
-        return (RValue){ .int32 = (int32_t) val, .type = RVALUE_INT32, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+        rv = (RValue){ .type = RVALUE_INT32, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+        rv.int32 = val;
     }
 #else
-    return (RValue){ .int64 = val, .type = RVALUE_INT64, RVALUE_INIT_GMLTYPE(GML_TYPE_INT64) };
+    rv = (RValue){ .type = RVALUE_INT64, RVALUE_INIT_GMLTYPE(GML_TYPE_INT64) };
+    rv.int64 = val;
 #endif
+    return rv;
 }
 
 static RValue RValue_makeBool(bool val) {
-    return (RValue){ .int32 = val ? 1 : 0, .type = RVALUE_BOOL, RVALUE_INIT_GMLTYPE(GML_TYPE_BOOL) };
+    RValue rv = { .type = RVALUE_BOOL, RVALUE_INIT_GMLTYPE(GML_TYPE_BOOL) };
+    rv.int32 = val ? 1 : 0;
+    return rv;
 }
 
 static RValue RValue_makeString(const char* val) {
-    return (RValue){ .string = val, .type = RVALUE_STRING, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_STRING) };
+    RValue rv = { .type = RVALUE_STRING, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_STRING) };
+    rv.string = val;
+    return rv;
 }
 
 static RValue RValue_makeOwnedString(char* val) {
-    return (RValue){ .string = val, .type = RVALUE_STRING, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_STRING) };
+    RValue rv = { .type = RVALUE_STRING, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_STRING) };
+    rv.string = val;
+    return rv;
 }
 
 static RValue RValue_makeUndefined(void) {
@@ -120,35 +135,47 @@ static RValue RValue_makeUndefined(void) {
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 // Use this when you have a freshly-allocated array (GMLArray_alloc) or after a GMLArray_incRef.
 static RValue RValue_makeArray(GMLArray* arr) {
-    return (RValue){ .array = arr, .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    rv.array = arr;
+    return rv;
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeArrayWeak(GMLArray* arr) {
-    return (RValue){ .array = arr, .type = RVALUE_ARRAY, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    rv.array = arr;
+    return rv;
 }
 
 #if IS_BC17_OR_HIGHER_ENABLED
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 static RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
-    return (RValue){ .method = GMLMethod_create(codeIndex, boundInstanceId), .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    rv.method = GMLMethod_create(codeIndex, boundInstanceId);
+    return rv;
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeMethodWeak(GMLMethod* m) {
-    return (RValue){ .method = m, .type = RVALUE_METHOD, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = { .type = RVALUE_METHOD, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
+    rv.method = m;
+    return rv;
 }
 #endif
 
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 // Use this for the freshly-allocated struct returned by @@NewGMLObject@@, after the caller has already accounted for both the registry's implicit ref and the returned-RValue ref.
 static RValue RValue_makeStruct(Instance* inst) {
-    return (RValue){ .structInst = inst, .type = RVALUE_STRUCT, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    rv.structInst = inst;
+    return rv;
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static RValue RValue_makeStructWeak(Instance* inst) {
-    return (RValue){ .structInst = inst, .type = RVALUE_STRUCT, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = false, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+    rv.structInst = inst;
+    return rv;
 }
 
 // Makes "val" independent, that is...

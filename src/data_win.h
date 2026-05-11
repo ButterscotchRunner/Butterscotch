@@ -802,7 +802,7 @@ typedef struct {
 } DetectedFormat;
 
 // ===[ Top-level DataWin container ]===
-typedef struct DataWin {
+struct DataWin {
     uint8_t* strgBuffer;        // owned copy of STRG chunk raw data
     // Absolute file offset of strgBuffer[0], we need this because data.win stores absolute offsets (from the beginning of the data.win file) instead of relative offsets
     size_t strgBufferBase;
@@ -845,7 +845,7 @@ typedef struct DataWin {
     char* lazyLoadFilePath; // owned strdup of the original file path, for diagnostics
     size_t fileSize; // cached size of the DataWin, captured at parse time. Used for platforms where fseek(SEEK_END)+ftell is unreliable due to buffering (like the PlayStation 2).
     bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
-} DataWin;
+};
 
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options);
 void DataWin_free(DataWin* dataWin);
