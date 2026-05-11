@@ -733,10 +733,14 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             GMLReal ms = (GMLReal) counter.QuadPart / (GMLReal) freq.QuadPart * 1000.0;
             #elif defined(PLATFORM_PS3)
             GMLReal ms = (GMLReal) (__builtin_ppc_get_timebase() / sysGetTimebaseFrequency()) / 1000000.0;
-            #else
+            #elif defined(CLOCK_MONOTONIC)
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             GMLReal ms = (GMLReal) ts.tv_sec * 1000.0 + (GMLReal) ts.tv_nsec / 1000000.0;
+            #else
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            GMLReal ms = (GMLReal) tv.tv_sec * 1000.0 + (GMLReal) tv.tv_usec / 1000.0;
             #endif
             return RValue_makeReal(ms);
         }
