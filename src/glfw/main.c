@@ -1268,7 +1268,11 @@ int main(int argc, char* argv[]) {
             fprintf(stderr, "Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
         }
 
-        glfwSwapBuffers(window);
+        // Only swap when there isn't a room change to match the original runner.
+        if (runner->pendingRoom == -1) {
+            glfwSwapBuffers(window);
+        }
+        Runner_handlePendingRoomChange(runner);
 
         // Limit frame rate to room speed (skip in headless mode for max speed!!)
         if (!args.headless && runner->currentRoom->speed > 0) {

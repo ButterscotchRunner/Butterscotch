@@ -5,6 +5,7 @@
 #include "real_type.h"
 #include "runner.h"
 #include "runner_gamepad.h"
+#include "matrix_math.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -1764,6 +1765,19 @@ static RValue builtinStringReplaceAll(MAYBE_UNUSED VMContext* ctx, RValue* args,
 
 // ===[ MATH FUNCTIONS ]===
 
+
+static RValue builtinArctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal y = RValue_toReal(args[0]);
+    return RValue_makeReal(GMLReal_atan(y));
+}
+
+static RValue builtinDarctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal y = RValue_toReal(args[0]);
+    return RValue_makeReal(GMLReal_atan(y) * (180.0 / M_PI));
+}
+
 static RValue builtinDarctan2(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal y = RValue_toReal(args[0]);
@@ -1998,7 +2012,230 @@ static RValue builtinLengthdir_y(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     return RValue_makeReal(result);
 }
 
+// ===[ MATRIX FUNCTIONS ]===
+
+static bool rvalueIsMatrix(RValue rv) {
+    if (rv.type != RVALUE_ARRAY) return false;
+    if (GMLArray_length1D(rv.array) != 16) return false;
+    repeat (16, i) {
+        RValueType type = GMLArray_slot(rv.array, i)->type;
+        if (type != RVALUE_REAL && type != RVALUE_INT32 && type != RVALUE_INT64)
+            return false;
+    }
+    return true;
+}
+static bool matrixFromGml(Matrix4f *mat, GMLArray *arr) {
+    if (GMLArray_length1D(arr) != 16) return false;
+    repeat (16, i) {
+        mat->m[i] = RValue_toReal(*GMLArray_slot(arr, i));
+    }
+    return true;
+}
+static GMLArray *matrixToGml(const Matrix4f *mat) {
+    GMLArray *out = GMLArray_create(4 * 4);
+    repeat (16, i) {
+        *GMLArray_slot(out, i) = RValue_makeReal(mat->m[i]);
+    }
+    return out;
+}
+static RValue builtinMatrixBuildIdentity(MAYBE_UNUSED VMContext *ctx, MAYBE_UNUSED RValue *args, MAYBE_UNUSED int32_t argCount) {
+    Matrix4f id;
+    return RValue_makeArray(matrixToGml(Matrix4f_identity(&id)));
+}
+static RValue builtinMatrixInverse(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    if (argCount < 1 || argCount > 2) return RValue_makeUndefined();
+    if (!rvalueIsMatrix(args[0])) return RValue_makeUndefined();
+
+    bool toPrevMatrix = argCount == 2;
+    GMLArray *destArray = toPrevMatrix ? args[1].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
+    
+    Matrix4f source, inverse;
+    matrixFromGml(&source, args[0].array);
+    if (!Matrix4f_inverse(&inverse, &source)) {
+        return RValue_makeUndefined();
+    } else if (!toPrevMatrix) {
+        return RValue_makeArray(matrixToGml(&inverse));
+    } else {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(inverse.m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    }
+}
+
+static RValue builtinMatrixMultiply(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    if (argCount < 2 || argCount > 3) return RValue_makeUndefined();
+    if (!rvalueIsMatrix(args[0]) || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
+
+    bool toPrevMatrix = argCount == 3;
+    GMLArray *destArray = toPrevMatrix ? args[2].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[2])) return RValue_makeUndefined();
+
+    Matrix4f a, b, r;
+    matrixFromGml(&a, args[0].array);
+    matrixFromGml(&b, args[1].array);
+    Matrix4f_multiply(&r, &a, &b);
+    
+    if (!toPrevMatrix) {
+        return RValue_makeArray(matrixToGml(&r));
+    } else {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(r.m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    }
+}
+
+static RValue builtinMatrixBuildProjectionOrtho(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    if (argCount < 4 || argCount > 5) return RValue_makeUndefined();
+    GMLReal width = RValue_toReal(args[0]);
+    GMLReal height = RValue_toReal(args[1]);
+    GMLReal znear = RValue_toReal(args[2]);
+    GMLReal zfar = RValue_toReal(args[3]);
+
+    bool toPrevMatrix = argCount == 5;
+    GMLArray *destArray = toPrevMatrix ? args[4].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[4])) return RValue_makeUndefined();
+
+    Matrix4f mat;
+
+    memset(mat.m, 0, sizeof(mat.m));
+    mat.m[Matrix_getIndex(0,0)] = 2.0f / width;
+    mat.m[Matrix_getIndex(1,1)] = 2.0f / height;
+    mat.m[Matrix_getIndex(2,2)] = 1.0f / (zfar - znear);
+    mat.m[Matrix_getIndex(3,3)] = 1.0f;
+
+    mat.m[Matrix_getIndex(2,3)] = znear / (znear - zfar);
+
+    if (!toPrevMatrix) {
+        return RValue_makeArray(matrixToGml(&mat));
+    } else {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(mat.m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    }
+}
+
+static RValue builtinMatrixBuildProjectionPerspectiveFOV(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    if (argCount < 4 || argCount > 5) return RValue_makeUndefined();
+    GMLReal fov = RValue_toReal(args[0]) * (M_PI / 180.0);
+    GMLReal aspect = RValue_toReal(args[1]);
+    GMLReal znear = RValue_toReal(args[2]);
+    GMLReal zfar = RValue_toReal(args[3]);
+
+    bool toPrevMatrix = argCount == 5;
+    GMLArray *destArray = toPrevMatrix ? args[4].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[4])) return RValue_makeUndefined();
+
+    GMLReal scaleY = 1. / GMLReal_tan(fov / 2.);
+    GMLReal scaleX = scaleY / aspect;
+
+    Matrix4f mat;
+    memset(mat.m, 0, sizeof(mat.m));
+
+    mat.m[Matrix_getIndex(0, 0)] = scaleX;
+    mat.m[Matrix_getIndex(1, 1)] = scaleY;
+    mat.m[Matrix_getIndex(2, 2)] = zfar / (zfar - znear);
+    mat.m[Matrix_getIndex(2, 3)] = -(zfar * znear) / (zfar - znear);
+    mat.m[Matrix_getIndex(3, 2)] = 1.;
+
+    if (!toPrevMatrix) {
+        return RValue_makeArray(matrixToGml(&mat));
+    } else {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(mat.m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    }
+}
+
+static RValue builtinMatrixBuildLookat(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    if (argCount < 9 || argCount > 10) return RValue_makeUndefined();
+    
+    GMLReal xFrom = RValue_toReal(args[0]);
+    GMLReal yFrom = RValue_toReal(args[1]);
+    GMLReal zFrom = RValue_toReal(args[2]);
+
+    GMLReal xTo = RValue_toReal(args[3]);
+    GMLReal yTo = RValue_toReal(args[4]);
+    GMLReal zTo = RValue_toReal(args[5]);
+
+    GMLReal xUp = RValue_toReal(args[6]);
+    GMLReal yUp = RValue_toReal(args[7]);
+    GMLReal zUp = RValue_toReal(args[8]);
+    GMLReal magUp = GMLReal_sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    GMLReal xLook = xTo - xFrom;
+    GMLReal yLook = yTo - yFrom;
+    GMLReal zLook = zTo - zFrom;
+    GMLReal magLook = GMLReal_sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
+    xLook /= magLook;
+    yLook /= magLook;
+    zLook /= magLook;
+
+    // normalised cross product between Up and Look
+    GMLReal xRight = yUp * zLook - zUp * yLook;
+    GMLReal yRight = zUp * xLook - xUp * zLook;
+    GMLReal zRight = xUp * yLook - yUp * xLook;
+    GMLReal magRight = GMLReal_sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
+    xRight /= magRight;
+    yRight /= magRight;
+    zRight /= magRight;
+
+    // normalised cross product between Look and Right
+    xUp = yLook * zRight - zLook * yRight;
+    yUp = zLook * xRight - xLook * zRight;
+    zUp = xLook * yRight - yLook * xRight;
+    magUp = GMLReal_sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    GMLReal x, y, z;
+    x = xFrom * xRight + yFrom * yRight + zFrom * zRight;
+    y = xFrom * xUp + yFrom * yUp + zFrom * zUp;
+    z = xFrom * xLook + yFrom * yLook + zFrom * zLook;
+
+    Matrix4f matrix;
+    Matrix4f_identity(&matrix);
+
+    matrix.m[Matrix_getIndex(0, 0)] = xRight;
+    matrix.m[Matrix_getIndex(0, 1)] = xUp;
+    matrix.m[Matrix_getIndex(0, 2)] = xLook;
+
+    matrix.m[Matrix_getIndex(1, 0)] = yRight;
+    matrix.m[Matrix_getIndex(1, 1)] = yUp;
+    matrix.m[Matrix_getIndex(1, 2)] = yLook;
+
+    matrix.m[Matrix_getIndex(2, 0)] = zRight;
+    matrix.m[Matrix_getIndex(2, 1)] = zUp;
+    matrix.m[Matrix_getIndex(2, 2)] = zLook;
+
+    matrix.m[Matrix_getIndex(3, 0)] = -x;
+    matrix.m[Matrix_getIndex(3, 1)] = -y;
+    matrix.m[Matrix_getIndex(3, 2)] = -z;
+
+    bool toPrevMatrix = argCount == 10;
+    GMLArray *destArray = toPrevMatrix ? args[9].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[9])) return RValue_makeUndefined();
+    
+    if (toPrevMatrix) {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(matrix.m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    } else {
+        return RValue_makeArray(matrixToGml(&matrix));
+    }
+}
+
 // ===[ RANDOM FUNCTIONS ]===
+
 
 static RValue builtinRandom(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
@@ -5513,11 +5750,13 @@ static RValue builtin_drawRectangleColor(VMContext* ctx, RValue* args, MAYBE_UNU
     float y1 = (float) RValue_toReal(args[1]);
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[4]);
-
+    uint32_t color1 = (uint32_t) RValue_toInt32(args[4]);
+    uint32_t color2 = (uint32_t) RValue_toInt32(args[5]);
+    uint32_t color3 = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color4 = (uint32_t) RValue_toInt32(args[7]);
     bool outline = RValue_toBool(args[8]);
 
-    runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, color, runner->renderer->drawAlpha, outline);
+    runner->renderer->vtable->drawRectangleColor(runner->renderer, x1, y1, x2, y2, color1, color2, color3, color4, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
 
@@ -8811,7 +9050,7 @@ static RValue builtinGpuSetBlendEnable(VMContext* ctx, RValue* args, int32_t arg
 }
 
 static RValue builtinGpuGetBlendEnable(VMContext* ctx, RValue* args, int32_t argCount) {
-    return RValue_makeBool(isBlendEnable);
+    return RValue_makeBool(ctx->runner->renderer->vtable->gpuGetBlendEnable(ctx->runner->renderer));
 }
 
 static RValue builtinGpuSetAlphaTestEnable(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -8915,9 +9154,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sqr", builtinSqr);
     VM_registerBuiltin(ctx, "sin", builtinSin);
     VM_registerBuiltin(ctx, "arcsin", builtinArcsin);
+    VM_registerBuiltin(ctx, "arctan", builtinArctan);
     VM_registerBuiltin(ctx, "cos", builtinCos);
     VM_registerBuiltin(ctx, "dsin", builtinDsin);
     VM_registerBuiltin(ctx, "dcos", builtinDcos);
+    VM_registerBuiltin(ctx, "darctan", builtinDarctan);
     VM_registerBuiltin(ctx, "darctan2", builtinDarctan2);
     VM_registerBuiltin(ctx, "degtorad", builtinDegtorad);
     VM_registerBuiltin(ctx, "radtodeg", builtinRadtodeg);
@@ -8934,6 +9175,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "move_snap", builtinMoveSnap);
     VM_registerBuiltin(ctx, "lengthdir_x", builtinLengthdir_x);
     VM_registerBuiltin(ctx, "lengthdir_y", builtinLengthdir_y);
+
+    // Matrix/linear algebra
+    VM_registerBuiltin(ctx, "matrix_build_identity", builtinMatrixBuildIdentity);
+    VM_registerBuiltin(ctx, "matrix_inverse", builtinMatrixInverse);
+    VM_registerBuiltin(ctx, "matrix_multiply", builtinMatrixMultiply);
+    VM_registerBuiltin(ctx, "matrix_build_lookat", builtinMatrixBuildLookat);
+    VM_registerBuiltin(ctx, "matrix_build_projection_ortho", builtinMatrixBuildProjectionOrtho);
+    VM_registerBuiltin(ctx, "matrix_build_projection_perspective_fov", builtinMatrixBuildProjectionPerspectiveFOV);
 
     // Random
     VM_registerBuiltin(ctx, "random", builtinRandom);
