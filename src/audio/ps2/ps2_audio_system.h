@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "../audio_system.h"
+#include "audio_system.h"
 
 #include <stdint.h>
 #include <stdbool.h>
