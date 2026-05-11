@@ -94,7 +94,7 @@ if command -v gcc >/dev/null; then
 else
     cc=cc
 fi
-printf 'int nothing;\n' | "$cc" -xc - -c -o /dev/null -Wno-discarded-qualifiers &&
+printf 'int nothing;\n' | "$cc" -xc - -c -o /dev/null -Werror -Wno-discarded-qualifiers 2>/dev/null &&
     warn='-Wno-discarded-qualifiers'
 
 cd "binutils-$binutils_version"
