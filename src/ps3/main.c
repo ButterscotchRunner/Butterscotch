@@ -363,7 +363,11 @@ int main(int argc, char* argv[]) {
         renderer->vtable->endFrame(renderer);
 
         sysUtilCheckCallback();
-        ps3glSwapBuffers();
+        // Only swap when there isn't a room change to match the original runner.
+        if (runner->pendingRoom == -1) {
+            ps3glSwapBuffers();
+        }
+        Runner_handlePendingRoomChange(runner);
 
         double now = PS3_GET_TIME;
 
