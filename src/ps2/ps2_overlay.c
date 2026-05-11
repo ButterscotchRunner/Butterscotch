@@ -241,13 +241,62 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
     char debugText[512];
     uint32_t vramFreeBytes = GS_VRAM_SIZE - gOverlay.gsGlobal->CurrentPointer;
 
-    // Count atlases loaded in VRAM and EE RAM cache
+    // Count atlases loaded in VRAM and EE RAM cache + bucket by size.
     const GsRenderer* gsRenderer = (GsRenderer*) renderer;
     uint32_t vramAtlasCount = 0;
     uint32_t eeramAtlasCount = 0;
+
+    // Bucket distinct (width, height) pairs.
+    typedef struct { uint16_t width; uint16_t height; uint16_t total; uint16_t resident; } AtlasSizeBucket;
+    AtlasSizeBucket sizeBuckets[8] = { 0 };
+    uint32_t sizeBucketCount = 0;
+
     repeat(gsRenderer->atlasCount, ai) {
-        if (gsRenderer->atlasToChunk[ai] >= 0) vramAtlasCount++;
+        bool resident = gsRenderer->atlasToChunk[ai] >= 0;
+        if (resident) vramAtlasCount++;
         if (gsRenderer->eeCacheEntries[ai].atlasId >= 0) eeramAtlasCount++;
+
+        uint16_t aw = gsRenderer->atlasWidth[ai];
+        uint16_t ah = gsRenderer->atlasHeight[ai];
+        bool found = false;
+        repeat(sizeBucketCount, bi) {
+            if (sizeBuckets[bi].width == aw && sizeBuckets[bi].height == ah) {
+                sizeBuckets[bi].total++;
+                if (resident) sizeBuckets[bi].resident++;
+                found = true;
+                break;
+            }
+        }
+        if (!found && sizeof(sizeBuckets) / sizeof(sizeBuckets[0]) > sizeBucketCount) {
+            sizeBuckets[sizeBucketCount].width = aw;
+            sizeBuckets[sizeBucketCount].height = ah;
+            sizeBuckets[sizeBucketCount].total = 1;
+            sizeBuckets[sizeBucketCount].resident = resident ? 1 : 0;
+            sizeBucketCount++;
+        }
+    }
+
+    // Sort buckets by (width, height) ascending so output is stable across frames
+    repeat(sizeBucketCount, bi) {
+        repeat(sizeBucketCount - bi - 1, bj) {
+            uint32_t a = ((uint32_t) sizeBuckets[bj].width << 16) | sizeBuckets[bj].height;
+            uint32_t b = ((uint32_t) sizeBuckets[bj + 1].width << 16) | sizeBuckets[bj + 1].height;
+            if (b < a) {
+                AtlasSizeBucket tmp = sizeBuckets[bj];
+                sizeBuckets[bj] = sizeBuckets[bj + 1];
+                sizeBuckets[bj + 1] = tmp;
+            }
+        }
+    }
+
+    char atlasSizeText[160];
+    atlasSizeText[0] = '\0';
+    int atlasSizeOffset = 0;
+    repeat(sizeBucketCount, bi) {
+        int written = snprintf(atlasSizeText + atlasSizeOffset, sizeof(atlasSizeText) - atlasSizeOffset, "\n  %ux%u: %u/%u", sizeBuckets[bi].width, sizeBuckets[bi].height, sizeBuckets[bi].resident, sizeBuckets[bi].total);
+        if (written <= 0 || sizeof(atlasSizeText) - atlasSizeOffset <= (size_t) written)
+            break;
+        atlasSizeOffset += written;
     }
 
     int freeBytes = gOverlay.heapCeiling - mallinfo().uordblks;
@@ -261,11 +310,11 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
         thrashIndicator = " [DISK LOAD]";
     }
 
-    snprintf(debugText, sizeof(debugText), "Room: %s\nTick: %.2fms\nStep: %.2fms\nDraw: %.2fms\nAudio: %.2fms\nFree: %d bytes\nVRAM Free: %lu bytes\nRoom Speed: %u%s\nAtlas: (%u, %u, %u) [%u/%u]%s\nInstances: %d\nStructs: %d", roomName, (double) tick, (double) step, (double) draw, (double) audio, freeBytes, (unsigned long) vramFreeBytes, runner->currentRoom->speed, speedCapRemoved ? " [UNCAPPED]" : "", vramAtlasCount, eeramAtlasCount, gsRenderer->atlasCount, gsRenderer->chunksNeededThisFrame, gsRenderer->chunkCount, thrashIndicator, (int) arrlen(runner->instances), (int) arrlen(runner->structInstances));
+    snprintf(debugText, sizeof(debugText), "Room: %s\nTick: %.2fms\nStep: %.2fms\nDraw: %.2fms\nAudio: %.2fms\nFree: %d bytes\nVRAM Free: %lu bytes\nRoom Speed: %u%s\nAtlas: (%u, %u, %u) [%u/%u]%s%s\nInstances: %d\nStructs: %d", roomName, (double) tick, (double) step, (double) draw, (double) audio, freeBytes, (unsigned long) vramFreeBytes, runner->currentRoom->speed, speedCapRemoved ? " [UNCAPPED]" : "", vramAtlasCount, eeramAtlasCount, gsRenderer->atlasCount, gsRenderer->chunksNeededThisFrame, gsRenderer->chunkCount, thrashIndicator, atlasSizeText, (int) arrlen(runner->instances), (int) arrlen(runner->structInstances));
     gsKit_fontm_print_scaled(gOverlay.gsGlobal, gOverlay.gsFontm, 10.0f, 10.0f, 10, 0.6f, debugColor, debugText);
 
     if (gOverlay.state == STATS_ENABLED_WITH_PROFILER) {
-        float profilerY = 10.0f + (15.6f * 10.0f) + 6.0f;
+        float profilerY = 10.0f + (15.6f * (float) (10 + sizeBucketCount)) + 6.0f;
 
 #ifdef ENABLE_VM_GML_PROFILER
         gOverlay.profilerFramesInWindow++;
