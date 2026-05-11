@@ -69,9 +69,6 @@ const StickMapping STICK_MAPPINGS[] = {
 static const int STICK_MAPPING_COUNT = sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]);
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
-#define DATAWIN_PATH "/dev_hdd0/BUTTERSCOTCH/data.win"
-static const char* dataWinPath = DATAWIN_PATH;
-
 // ===[ MAIN ]===
 static double freq = 0; 
 #define PS3_GET_TIME ((double)__builtin_ppc_get_timebase() / (double)freq)
@@ -94,14 +91,79 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
     }
 }
 
+// Source - https://stackoverflow.com/a/779960
+// Posted by jmucchiello, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-05-10, License - CC BY-SA 4.0
+
+// You must free the result if result is non-NULL.
+char *str_replace(char *orig, char *rep, char *with) {
+    char *result; // the return string
+    char *ins;    // the next insert point
+    char *tmp;    // varies
+    int len_rep;  // length of rep (the string to remove)
+    int len_with; // length of with (the string to replace rep with)
+    int len_front; // distance between rep and end of last rep
+    int count;    // number of replacements
+
+    // sanity checks and initialization
+    if (!orig || !rep)
+        return NULL;
+    len_rep = strlen(rep);
+    if (len_rep == 0)
+        return NULL; // empty rep causes infinite loop during count
+    if (!with)
+        with = "";
+    len_with = strlen(with);
+
+    // count the number of replacements needed
+    ins = orig;
+    for (count = 0; (tmp = strstr(ins, rep)); ++count) {
+        ins = tmp + len_rep;
+    }
+
+    tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+
+    if (!result)
+        return NULL;
+
+    // first time through the loop, all the variable are set correctly
+    // from here on,
+    //    tmp points to the end of the result string
+    //    ins points to the next occurrence of rep in orig
+    //    orig points to the remainder of orig after "end of rep"
+    while (count--) {
+        ins = strstr(orig, rep);
+        len_front = ins - orig;
+        tmp = strncpy(tmp, orig, len_front) + len_front;
+        tmp = strcpy(tmp, with) + len_with;
+        orig += len_front + len_rep; // move to next "end of rep"
+    }
+    strcpy(tmp, orig);
+    return result;
+}
+
+static char buffer[9999];
 int main(int argc, char* argv[]) {
+    printf("%s\n", argv[0]);
+    strcpy(buffer, argv[0]);
+    char* tmp = str_replace(buffer, "butterscotch.elf", "");
+    char* tmp2 = str_replace(buffer, "EBOOT.BIN", "");
+    char* dataWinPath = malloc(strlen(tmp2) + strlen("data.win") + 1);
+    if (!dataWinPath) {
+        free(tmp);
+        return 1;
+    }
+    strcpy(dataWinPath, tmp2);
+    strcat(dataWinPath, "data.win");
+    free(tmp);
+    free(tmp2);
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-    printf("Loading %s...\n", DATAWIN_PATH);
+    printf("Loading %s...\n", dataWinPath);
 
     DataWin* dataWin = DataWin_parse(
-        DATAWIN_PATH,
+        dataWinPath,
         (DataWinParserOptions) {
             .parseGen8 = true,
             .parseOptn = true,

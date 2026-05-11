@@ -25,6 +25,7 @@
 #include "gs_renderer.h"
 #include "noop_audio_system.h"
 #include "ps2_utils.h"
+#include "ps2_gamepad.h"
 #include "stb_ds.h"
 #include "utils.h"
 #include "../profiler.h"
@@ -82,6 +83,9 @@ static bool padOpened[2] = {false, false};
 
 // Whether each pad was STABLE last frame (for disconnect/reconnect edge detection)
 static bool padWasStable[2] = {false, false};
+
+// Whether the controllers should be exposed via the GameMaker gamepad API
+static bool gamepadApiEnabled = false;
 
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
     JsonValue* mappingsObj = JsonReader_getObject(configRoot, key);
@@ -500,6 +504,16 @@ int main(int argc, char* argv[]) {
     parsePadMappings(configRoot, "controller1Mappings", &pad1Mappings, &pad1MappingCount, "controller1");
     parsePadMappings(configRoot, "controller2Mappings", &pad2Mappings, &pad2MappingCount, "controller2");
 
+    JsonValue* gamepadObj = JsonReader_getObject(configRoot, "gamepad");
+    if (gamepadObj != nullptr && JsonReader_isObject(gamepadObj)) {
+        gamepadApiEnabled = JsonReader_getBool(JsonReader_getObject(gamepadObj, "enabled"));
+    }
+    if (gamepadApiEnabled) {
+        printf("CONFIG.JSN: GameMaker gamepad API enabled\n");
+        if (padOpened[0]) Ps2Gamepad_init(0);
+        if (padOpened[1]) Ps2Gamepad_init(1);
+    }
+
     {
         void* heapTop = sbrk(0);
         int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
@@ -548,6 +562,12 @@ int main(int argc, char* argv[]) {
 
         if (padOpened[0]) pollPad(runner, 0, pad1Mappings, pad1MappingCount, &prevButtons[0], &padWasStable[0]);
         if (padOpened[1]) pollPad(runner, 1, pad2Mappings, pad2MappingCount, &prevButtons[1], &padWasStable[1]);
+
+        if (gamepadApiEnabled) {
+            RunnerGamepad_beginFrame(runner->gamepads);
+            if (padOpened[0]) Ps2Gamepad_poll(runner->gamepads, 0);
+            if (padOpened[1]) Ps2Gamepad_poll(runner->gamepads, 1);
+        }
 
         // ===[ Poll USB Keyboard ]===
         // Drain all pending RAW events this vsync so press/release edges aren't dropped.
