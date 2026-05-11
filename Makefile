@@ -8,9 +8,7 @@ LIBS := -lbz2
 
 OS := $(shell uname -s)
 
-DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
-		   -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
-		   -DENABLE_VM_GML_PROFILER \
+DEFINES := -DENABLE_VM_GML_PROFILER \
 		   -DENABLE_VM_OPCODE_PROFILER \
 		   -DENABLE_VM_STUB_LOGS \
 		   -DENABLE_VM_TRACING
@@ -20,6 +18,17 @@ HEADERS := $(wildcard src/*.h) \
 		   $(wildcard src/gl/*.h) \
            $(shell find vendor -name '*.h')
 SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) $(wildcard src/image/*.c) vendor/md5/md5.c vendor/glad/src/glad.c
+
+ifdef BUTTERSCOTCH_COMMIT_DATE
+DEFINES += -DBUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
+else
+DEFINES += -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\"
+endif
+ifdef BUTTERSCOTCH_COMMIT_HASH
+DEFINES += -DBUTTERSCOTCH_COMMIT_HASH=\"$(BUTTERSCOTCH_COMMIT_HASH)\"
+else
+DEFINES += -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\"
+endif
 
 ifndef DISABLE_BC16
 DEFINES += -DENABLE_BC16
