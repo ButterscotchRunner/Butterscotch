@@ -14,12 +14,12 @@ DEFINES := -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
 		   -DENABLE_VM_OPCODE_PROFILER \
 		   -DENABLE_VM_STUB_LOGS \
 		   -DENABLE_VM_TRACING
-INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/gl -Isrc/gl_legacy -Isrc/image -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/md5 -Ivendor/miniaudio -Ivendor/glad/include
+INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/image -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/md5 -Ivendor/glad/include
 
-HEADERS := $(wildcard src/*.h) \
-		   $(wildcard src/gl/*.h) \
-           $(shell find vendor -name '*.h')
-SRCS := $(wildcard src/*.c) $(wildcard src/gl/*.c) $(wildcard src/image/*.c) vendor/md5/md5.c vendor/glad/src/glad.c
+HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
+SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) vendor/md5/md5.c vendor/glad/src/glad.c
+
+AUDIO_BACKEND := miniaudio
 
 ifndef DISABLE_BC16
 DEFINES += -DENABLE_BC16
@@ -29,17 +29,56 @@ ifndef DISABLE_BC17
 DEFINES += -DENABLE_BC17
 endif
 
+ifndef DISABLE_LEGACY_GL
+ifndef ENABLE_GLES
+DEFINES += -DENABLE_LEGACY_GL
+SRCS += $(wildcard src/gl_legacy/*.c)
+INCLUDES += -Isrc/gl_legacy -Isrc/gl
+HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
+endif
+endif
+
+ifndef DISABLE_MODERN_GL
+DEFINES += -DENABLE_MODERN_GL
+SRCS += $(wildcard src/gl/*.c)
+HEADERS += $(wildcard src/gl/*.h)
+ifdef DISABLE_LEGACY_GL
+INCLUDES += -Isrc/gl
+endif
+endif
+
 ifdef DISABLE_BC16
 ifdef DISABLE_BC17
 $(error must enable at least 1 bytecode version)
 endif
 endif
 
+ifdef DISABLE_MODERN_GL
+ifdef DISABLE_LEGACY_GL
+$(error must enable at least 1 OpenGL renderer)
+endif
+endif
+
 ifdef ENABLE_GLES
 DEFINES += -DENABLE_GLES
+endif
+
+ifeq ($(AUDIO_BACKEND),miniaudio)
+INCLUDES += -Isrc/audio/miniaudio -Ivendor/miniaudio
+DEFINES += -DUSE_MINIAUDIO
+SRCS += $(wildcard src/audio/miniaudio/*.c)
+HEADERS += $(wildcard src/audio/miniaudio/*.h)
+endif
+ifeq ($(AUDIO_BACKEND),openal)
+INCLUDES += -Isrc/audio/openal
+DEFINES += -DUSE_OPENAL
+SRCS += $(wildcard src/audio/openal/*.c)
+HEADERS += $(wildcard src/audio/openal/*.h)
+ifeq ($(OS),Darwin)
+LIBS += -framework OpenAL
 else
-SRCS += $(wildcard src/gl_legacy/*.c)
-HEADERS += $(wildcard src/gl_legacy/*.h)
+LIBS += -lopenal
+endif
 endif
 
 PLATFORM := glfw
