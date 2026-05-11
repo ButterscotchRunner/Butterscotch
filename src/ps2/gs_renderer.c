@@ -2044,6 +2044,13 @@ static void gsGpuSetBlendEnable(Renderer* renderer, bool enable) {
     gsCommitBlend(gs);
 }
 
+static bool gsGpuGetBlendEnable(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+
+    return gs->blendEnabled;
+}
+
+
 static void gsGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     GsRenderer* gs = (GsRenderer*) renderer;
     GSGLOBAL* g = gs->gsGlobal;
@@ -2177,6 +2184,7 @@ static RendererVtable gsVtable = {
     .gpuSetBlendMode = gsGpuSetBlendMode,
     .gpuSetBlendModeExt = gsGpuSetBlendModeExt,
     .gpuSetBlendEnable = gsGpuSetBlendEnable,
+    .gpuGetBlendEnable = gsGpuGetBlendEnable,
     .gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable,
     .gpuSetAlphaTestRef = gsGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = gsGpuSetColorWriteEnable,

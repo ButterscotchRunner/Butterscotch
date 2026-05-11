@@ -58,6 +58,11 @@ static bool pathExists(const char* fullPath) {
 static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
     char* normalized = normalizePath(relativePath);
     if (isAbsolute(normalized)) return normalized;
+
+    // Check if the path is already resolved
+    if (strncmp(normalized, ofs->savePath, strlen(ofs->savePath)) == 0) return normalized;
+    if (strncmp(normalized, ofs->bundlePath, strlen(ofs->bundlePath)) == 0) return normalized;
+
     char* saveFull = joinPath(ofs->savePath, normalized);
     if (pathExists(saveFull)) {
         free(normalized);
@@ -74,6 +79,11 @@ static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
 static char* resolveForWrite(OverlayFileSystem* ofs, const char* relativePath) {
     char* normalized = normalizePath(relativePath);
     if (isAbsolute(normalized)) return normalized;
+
+    // Check if the path is already resolved
+    if (strncmp(normalized, ofs->savePath, strlen(ofs->savePath)) == 0) return normalized;
+    if (strncmp(normalized, ofs->bundlePath, strlen(ofs->bundlePath)) == 0) return normalized;
+
     char* full = joinPath(ofs->savePath, normalized);
     free(normalized);
     return full;
@@ -106,30 +116,20 @@ static char* overlayResolvePath(FileSystem* fs, const char* relativePath) {
     OverlayFileSystem* ofs = (OverlayFileSystem*) fs;
     char* normalized = normalizePath(relativePath);
     if (isAbsolute(normalized)) return normalized;
+
+    // Check if the path is already resolved
+    if (strncmp(normalized, ofs->savePath, strlen(ofs->savePath)) == 0) return normalized;
+    if (strncmp(normalized, ofs->bundlePath, strlen(ofs->bundlePath)) == 0) return normalized;
+
     char* full = joinPath(ofs->bundlePath, normalized);
     free(normalized);
     return full;
 }
 
 static bool overlayFileExists(FileSystem* fs, const char* relativePath) {
-    OverlayFileSystem* ofs = (OverlayFileSystem*) fs;
-    char* normalized = normalizePath(relativePath);
-    if (isAbsolute(normalized)) {
-        bool exists = pathExists(normalized);
-        free(normalized);
-        return exists;
-    }
-    char* saveFull = joinPath(ofs->savePath, normalized);
-    if (pathExists(saveFull)) {
-        free(saveFull);
-        free(normalized);
-        return true;
-    }
-    free(saveFull);
-    char* bundleFull = joinPath(ofs->bundlePath, normalized);
-    bool exists = pathExists(bundleFull);
-    free(bundleFull);
-    free(normalized);
+    char* fullPath = resolveForRead((OverlayFileSystem*) fs, relativePath);
+    bool exists = pathExists(fullPath);
+    free(fullPath);
     return exists;
 }
 

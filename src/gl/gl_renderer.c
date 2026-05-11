@@ -2087,6 +2087,11 @@ static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 }
 
+static bool glGpuGetBlendEnable(Renderer* renderer) {
+    
+    return glIsEnabled(GL_BLEND);
+}
+
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     GLRenderer* gl = (GLRenderer*) renderer;
     if (gl->alphaTestEnable == enable) return;
@@ -2158,6 +2163,7 @@ static RendererVtable glVtable = {
     .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
     .gpuSetFog = glGpuSetFog,
+    .gpuGetBlendEnable = glGpuGetBlendEnable,
     .drawTile = nullptr,
     .createSurface = glCreateSurface,
     .surfaceExists = glSurfaceExists,
