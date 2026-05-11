@@ -893,8 +893,6 @@ void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH
 }
 
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
-    if (runner->pendingRoom != -1) return;
-
     Renderer* renderer = runner->renderer;
     Room* activeRoom = runner->currentRoom;
     bool anyViewRendered = false;

@@ -681,9 +681,12 @@ int main(int argc, char* argv[]) {
         // ===[ Debug Overlay ]===
         PS2Overlay_drawDebugOverlay(renderer, runner, tickTime, stepTime, drawTime, audioTime, speedCapRemoved);
 
-        // Execute draw queue and flip buffers
+        // Execute draw queue and flip buffers.
+        // Only swap when there isn't a room change to match the original runner.
         gsKit_queue_exec(gsGlobal);
-        gsKit_sync_flip(gsGlobal);
+        if (runner->pendingRoom == -1) {
+            gsKit_sync_flip(gsGlobal);
+        }
         Runner_handlePendingRoomChange(runner);
 
         // Busy-wait until enough time has elapsed for this frame if needed

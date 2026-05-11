@@ -149,8 +149,11 @@ void* loop() {
 
         gRunner->renderer->vtable->endFrame(gRunner->renderer);
 
-        // Just like glfwSwapBuffers
-        emscripten_webgl_commit_frame();
+        // Just like glfwSwapBuffers.
+        // Only swap when there isn't a room change to match the original runner.
+        if (gRunner->pendingRoom == -1) {
+            emscripten_webgl_commit_frame();
+        }
         Runner_handlePendingRoomChange(gRunner);
 
         // Frame pacing: sleep until the next frame is due, based on the room's speed.
