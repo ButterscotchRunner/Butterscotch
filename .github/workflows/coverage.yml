@@ -2,7 +2,7 @@ name: Update Coverage
 
 env:
   GAMEMAKER_RUNNER_VERSION: "Version 2024.14.4.268"
-  RUN_FROM: "$GITHUB_WORKSPACE"
+  RUN_FROM: ${{ github.workspace }}
   GHIDRA_HOME: "/opt/ghidra"
 
 on:
