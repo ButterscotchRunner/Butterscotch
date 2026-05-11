@@ -893,6 +893,8 @@ void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH
 }
 
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
+    if (runner->pendingRoom != -1) return;
+
     Renderer* renderer = runner->renderer;
     Room* activeRoom = runner->currentRoom;
     bool anyViewRendered = false;
@@ -2377,6 +2379,57 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
     state->initialized = true;
 }
 
+void Runner_handlePendingRoomChange(Runner* runner) {
+    // Handle game restart
+    if (runner->pendingRoom == ROOM_RESTARTGAME) {
+        // See you soon!
+        // Free the currently-loaded non-eager room before reset so lazyLoadRooms stays steady-state.
+        if (runner->dataWin->lazyLoadRooms && runner->currentRoom != nullptr && !runner->currentRoom->eagerlyLoaded) {
+            DataWin_freeRoomPayload(runner->currentRoom);
+        }
+        Runner_reset(runner);
+        Runner_initFirstRoom(runner);
+        return;
+    }
+
+    // Handle room transition
+    if (runner->pendingRoom >= 0) {
+        int32_t oldRoomIndex = runner->currentRoomIndex;
+        Room* oldRoom = runner->currentRoom;
+        const char* oldRoomName = oldRoom->name;
+
+        // Clear pendingRoom BEFORE firing Room End so the dispatch gate lets the events through.
+        int32_t newRoomIndex = runner->pendingRoom;
+        runner->pendingRoom = -1;
+
+        // Fire Room End for all instances
+        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_END);
+        require(runner->dataWin->room.count > (uint32_t) newRoomIndex);
+        const char* newRoomName = runner->dataWin->room.rooms[newRoomIndex].name;
+
+        fprintf(stderr, "Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
+
+        // If the old room is persistent, save its instance and visual state
+        if (oldRoom->persistent) {
+            persistRoomState(runner, oldRoomIndex);
+        }
+
+        // Free the outgoing room's payload under lazyLoadRooms, unless it's eagerly pinned or we're restarting the same room (initRoom would just re-load it).
+        if (runner->dataWin->lazyLoadRooms && !oldRoom->eagerlyLoaded && newRoomIndex != oldRoomIndex) {
+            DataWin_freeRoomPayload(oldRoom);
+        }
+
+        // Load new room
+        initRoom(runner, newRoomIndex);
+
+        // Fire Room Start for all instances
+        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_START);
+
+        Runner_cleanupDestroyedInstances(runner);
+        Runner_sweepDeadStructs(runner);
+    }
+}
+
 void Runner_step(Runner* runner) {
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
     requireMessageFormatted(arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
@@ -2587,53 +2640,6 @@ void Runner_step(Runner* runner) {
 
     // Update view following
     updateViews(runner);
-
-    // Handle game restart
-    if (runner->pendingRoom == ROOM_RESTARTGAME) {
-        // See you soon!
-        // Free the currently-loaded non-eager room before reset so lazyLoadRooms stays steady-state.
-        if (runner->dataWin->lazyLoadRooms && runner->currentRoom != nullptr && !runner->currentRoom->eagerlyLoaded) {
-            DataWin_freeRoomPayload(runner->currentRoom);
-        }
-        Runner_reset(runner);
-        Runner_initFirstRoom(runner);
-        runner->frameCount++;
-        return;
-    }
-
-    // Handle room transition
-    if (runner->pendingRoom >= 0) {
-        int32_t oldRoomIndex = runner->currentRoomIndex;
-        Room* oldRoom = runner->currentRoom;
-        const char* oldRoomName = oldRoom->name;
-
-        // Clear pendingRoom BEFORE firing Room End so the dispatch gate lets the events through.
-        int32_t newRoomIndex = runner->pendingRoom;
-        runner->pendingRoom = -1;
-
-        // Fire Room End for all instances
-        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_END);
-        require(runner->dataWin->room.count > (uint32_t) newRoomIndex);
-        const char* newRoomName = runner->dataWin->room.rooms[newRoomIndex].name;
-
-        fprintf(stderr, "Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
-
-        // If the old room is persistent, save its instance and visual state
-        if (oldRoom->persistent) {
-            persistRoomState(runner, oldRoomIndex);
-        }
-
-        // Free the outgoing room's payload under lazyLoadRooms, unless it's eagerly pinned or we're restarting the same room (initRoom would just re-load it).
-        if (runner->dataWin->lazyLoadRooms && !oldRoom->eagerlyLoaded && newRoomIndex != oldRoomIndex) {
-            DataWin_freeRoomPayload(oldRoom);
-        }
-
-        // Load new room
-        initRoom(runner, newRoomIndex);
-
-        // Fire Room Start for all instances
-        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_START);
-    }
 
     Runner_cleanupDestroyedInstances(runner);
     Runner_sweepDeadStructs(runner);

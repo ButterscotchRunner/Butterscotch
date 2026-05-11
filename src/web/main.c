@@ -151,6 +151,7 @@ void* loop() {
 
         // Just like glfwSwapBuffers
         emscripten_webgl_commit_frame();
+        Runner_handlePendingRoomChange(gRunner);
 
         // Frame pacing: sleep until the next frame is due, based on the room's speed.
         // emscripten_get_now() returns milliseconds (performance.now()) and works in workers.

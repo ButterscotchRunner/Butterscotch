@@ -684,6 +684,7 @@ int main(int argc, char* argv[]) {
         // Execute draw queue and flip buffers
         gsKit_queue_exec(gsGlobal);
         gsKit_sync_flip(gsGlobal);
+        Runner_handlePendingRoomChange(runner);
 
         // Busy-wait until enough time has elapsed for this frame if needed
         if (!speedCapRemoved && roomSpeed > 0) {

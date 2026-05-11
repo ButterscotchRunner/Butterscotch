@@ -1369,6 +1369,7 @@ int main(int argc, char* argv[]) {
 #else
         glfwSwapBuffers(window);
 #endif
+        Runner_handlePendingRoomChange(runner);
 
         // Limit frame rate to room speed (skip in headless mode for max speed!!)
         if (!args.headless && runner->currentRoom->speed > 0) {
