@@ -155,6 +155,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          [ -f workspacecache.tar ] && tar xf workspacecache.tar
           ARCH=i486 ./artifacts/windows/build-toolchain.sh
           tar cf workspacecache.tar artifacts/windows/build/toolchain-i486
           mv workspacecache.tar ~
