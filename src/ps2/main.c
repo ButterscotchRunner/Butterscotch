@@ -510,8 +510,6 @@ int main(int argc, char* argv[]) {
     }
     if (gamepadApiEnabled) {
         printf("CONFIG.JSN: GameMaker gamepad API enabled\n");
-        if (padOpened[0]) Ps2Gamepad_init(0);
-        if (padOpened[1]) Ps2Gamepad_init(1);
     }
 
     {

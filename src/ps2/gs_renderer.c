@@ -21,8 +21,6 @@
 #endif
 
 // ===[ Constants ]===
-#define ATLAS_WIDTH 512
-#define ATLAS_HEIGHT 512
 #define PS2_SCREEN_WIDTH 640.0f
 #define PS2_SCREEN_HEIGHT 448.0f
 #define TEX_HEADER_SIZE 128
@@ -108,7 +106,6 @@ static void loadAtlas(GsRenderer* gs) {
         entry->cropW = BinaryReader_readUint16(&reader);
         entry->cropH = BinaryReader_readUint16(&reader);
         entry->clutIndex = BinaryReader_readUint16(&reader);
-        entry->bpp = BinaryReader_readUint8(&reader);
     }
 
     // Parse tile entries
@@ -131,7 +128,6 @@ static void loadAtlas(GsRenderer* gs) {
         entry->cropW = BinaryReader_readUint16(&reader);
         entry->cropH = BinaryReader_readUint16(&reader);
         entry->clutIndex = BinaryReader_readUint16(&reader);
-        entry->bpp = BinaryReader_readUint8(&reader);
     }
 
     fclose(f);
@@ -145,23 +141,11 @@ static void loadAtlas(GsRenderer* gs) {
     }
 
     gs->atlasBpp = safeCalloc(gs->atlasCount, sizeof(uint8_t));
+    gs->atlasWidth = safeCalloc(gs->atlasCount, sizeof(uint16_t));
+    gs->atlasHeight = safeCalloc(gs->atlasCount, sizeof(uint16_t));
     gs->atlasToChunk = safeMalloc(gs->atlasCount * sizeof(int16_t));
     repeat(gs->atlasCount, i) {
         gs->atlasToChunk[i] = -1;
-    }
-
-    // Build bpp table from TPAG and tile entries
-    repeat(gs->atlasTPAGCount, i) {
-        AtlasTPAGEntry* entry = &gs->atlasTPAGEntries[i];
-        if (entry->atlasId != 0xFFFF && gs->atlasCount > entry->atlasId) {
-            gs->atlasBpp[entry->atlasId] = entry->bpp;
-        }
-    }
-    repeat(gs->atlasTileCount, i) {
-        AtlasTileEntry* entry = &gs->atlasTileEntries[i];
-        if (entry->atlasId != 0xFFFF && gs->atlasCount > entry->atlasId) {
-            gs->atlasBpp[entry->atlasId] = entry->bpp;
-        }
     }
 
     fprintf(stderr, "GsRenderer: ATLAS.BIN loaded - %u TPAG entries, %u tile entries, %u atlases\n", gs->atlasTPAGCount, gs->atlasTileCount, gs->atlasCount);
@@ -406,9 +390,9 @@ static int32_t allocateChunks(GsRenderer* gs, int chunksNeeded) {
 
 #define EE_CACHE_CAPACITY (2 * 1024 * 1024) // 2 MiB
 
-// Uncompressed pixel data size for a 512x512 atlas at the given bpp.
-static uint32_t atlasUncompressedSize(uint8_t bpp) {
-    return (bpp == 4) ? (ATLAS_WIDTH * ATLAS_HEIGHT / 2) : (ATLAS_WIDTH * ATLAS_HEIGHT);
+// Uncompressed pixel data size for an atlas of the given size and bpp.
+static uint32_t atlasUncompressedSize(uint16_t width, uint16_t height, uint8_t bpp) {
+    return (bpp == 4) ? (width * height / 2) : (width * height);
 }
 
 // Decompress atlas pixel data from a compressed buffer (TEX_HEADER_SIZE header + RLE/raw payload).
@@ -436,6 +420,32 @@ static void decompressAtlasPixels(const uint8_t* compressedData, uint8_t* outBuf
     } else {
         memcpy(outBuf, rawData, uncompressedSize);
     }
+}
+
+// Read each atlas's per-page header from TEXTURES.BIN to populate metadata information.
+static void loadAtlasMetadata(GsRenderer* gs) {
+    uint8_t header[6];
+    repeat(gs->atlasCount, i) {
+        fseek(gs->texturesFile, (long) gs->atlasOffsets[i], SEEK_SET);
+        size_t read = fread(header, 1, sizeof(header), gs->texturesFile);
+        if (read != sizeof(header)) {
+            fprintf(stderr, "GsRenderer: Short read on atlas %u header\n", i);
+            abort();
+        }
+        gs->atlasWidth[i] = BinaryUtils_readUint16(header + 1);
+        gs->atlasHeight[i] = BinaryUtils_readUint16(header + 3);
+        gs->atlasBpp[i] = header[5];
+        if (gs->atlasBpp[i] != 4 && gs->atlasBpp[i] != 8) {
+            fprintf(stderr, "GsRenderer: Atlas %u has unsupported bpp %u\n", i, gs->atlasBpp[i]);
+            abort();
+        }
+    }
+}
+
+// Number of VRAM_CHUNK_SIZE chunks needed to hold an atlas at the given size/bpp.
+static int atlasChunkCount(uint16_t width, uint16_t height, uint8_t bpp) {
+    uint32_t bytes = atlasUncompressedSize(width, height, bpp);
+    return (int) ((bytes + VRAM_CHUNK_SIZE - 1) / VRAM_CHUNK_SIZE);
 }
 
 // Initialize the EE RAM cache. Called from gsInit after opening TEXTURES.BIN.
@@ -482,7 +492,9 @@ static void preloadEeCache(GsRenderer* gs) {
 
     repeat(gs->atlasCount, i) {
         uint8_t bpp = gs->atlasBpp[i];
-        uint32_t uncompSize = atlasUncompressedSize(bpp);
+        uint16_t width = gs->atlasWidth[i];
+        uint16_t height = gs->atlasHeight[i];
+        uint32_t uncompSize = atlasUncompressedSize(width, height, bpp);
         if (gs->eeCacheBumpPtr + uncompSize > gs->eeCacheCapacity) {
             break;
         }
@@ -637,7 +649,9 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
         }
 
         uint8_t bpp = gs->atlasBpp[atlasId];
-        uint32_t uncompSize = atlasUncompressedSize(bpp);
+        uint16_t width = gs->atlasWidth[atlasId];
+        uint16_t height = gs->atlasHeight[atlasId];
+        uint32_t uncompSize = atlasUncompressedSize(width, height, bpp);
         tempPixelData = (uint8_t*) safeMemalign(128, uncompSize);
         decompressAtlasPixels(compressedBuf, tempPixelData);
         free(compressedBuf);
@@ -661,14 +675,16 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
 
     // Upload pixel data to VRAM
     uint8_t bpp = gs->atlasBpp[atlasId];
+    uint16_t width = gs->atlasWidth[atlasId];
+    uint16_t height = gs->atlasHeight[atlasId];
     uint8_t psm = (bpp == 4) ? GS_PSM_T4 : GS_PSM_T8;
-    uint32_t tbw = ATLAS_WIDTH / 64;
+    uint32_t tbw = width / 64;
     uint32_t vramAddr = gs->textureVramBase + (uint32_t) firstChunk * VRAM_CHUNK_SIZE;
 
-    gsKit_texture_send((u32*) uploadData, ATLAS_WIDTH, ATLAS_HEIGHT, vramAddr, psm, tbw, GS_CLUT_TEXTURE);
+    gsKit_texture_send((u32*) uploadData, width, height, vramAddr, psm, tbw, GS_CLUT_TEXTURE);
 
     // Update chunk state
-    int chunksUsed = (bpp == 8) ? 2 : 1;
+    int chunksUsed = atlasChunkCount(width, height, bpp);
     repeat(chunksUsed, i) {
         gs->chunks[firstChunk + i].atlasId = (int16_t) atlasId;
         gs->chunks[firstChunk + i].lastUsed = gs->frameCounter;
@@ -692,7 +708,7 @@ static bool ensureAtlasLoaded(GsRenderer* gs, uint16_t atlasId) {
     if (gs->atlasToChunk[atlasId] >= 0) {
         int16_t firstChunk = gs->atlasToChunk[atlasId];
         uint8_t bpp = gs->atlasBpp[atlasId];
-        int chunksUsed = (bpp == 8) ? 2 : 1;
+        int chunksUsed = atlasChunkCount(gs->atlasWidth[atlasId], gs->atlasHeight[atlasId], bpp);
 
         // Track unique atlases per frame (first touch = lastUsed hasn't been updated yet)
         if (gs->chunks[firstChunk].lastUsed != gs->frameCounter) {
@@ -712,7 +728,7 @@ static bool ensureAtlasLoaded(GsRenderer* gs, uint16_t atlasId) {
         fprintf(stderr, "GsRenderer: Atlas %u has unknown bpp %u\n", atlasId, bpp);
         return false;
     }
-    int chunksNeeded = (bpp == 8) ? 2 : 1;
+    int chunksNeeded = atlasChunkCount(gs->atlasWidth[atlasId], gs->atlasHeight[atlasId], bpp);
 
     // Fresh load is always a new unique atlas this frame
     gs->uniqueAtlasesThisFrame++;
@@ -747,15 +763,19 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
     int16_t chunkIdx = gs->atlasToChunk[entry->atlasId];
     uint32_t vramAddr = gs->textureVramBase + (uint32_t) chunkIdx * VRAM_CHUNK_SIZE;
 
+    uint16_t pageWidth = gs->atlasWidth[entry->atlasId];
+    uint16_t pageHeight = gs->atlasHeight[entry->atlasId];
+    uint8_t pageBpp = gs->atlasBpp[entry->atlasId];
+
     memset(tex, 0, sizeof(GSTEXTURE));
-    tex->Width = ATLAS_WIDTH;
-    tex->Height = ATLAS_HEIGHT;
-    tex->TBW = ATLAS_WIDTH / 64;
+    tex->Width = pageWidth;
+    tex->Height = pageHeight;
+    tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
     tex->Filter = GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
-    if (entry->bpp == 4) {
+    if (pageBpp == 4) {
         tex->PSM = GS_PSM_T4;
         tex->ClutPSM = GS_PSM_CT32;
 
@@ -800,15 +820,19 @@ static bool setupTextureForTile(GsRenderer* gs, GSTEXTURE* tex, AtlasTileEntry* 
     int16_t chunkIdx = gs->atlasToChunk[entry->atlasId];
     uint32_t vramAddr = gs->textureVramBase + (uint32_t) chunkIdx * VRAM_CHUNK_SIZE;
 
+    uint16_t pageWidth = gs->atlasWidth[entry->atlasId];
+    uint16_t pageHeight = gs->atlasHeight[entry->atlasId];
+    uint8_t pageBpp = gs->atlasBpp[entry->atlasId];
+
     memset(tex, 0, sizeof(GSTEXTURE));
-    tex->Width = ATLAS_WIDTH;
-    tex->Height = ATLAS_HEIGHT;
-    tex->TBW = ATLAS_WIDTH / 64;
+    tex->Width = pageWidth;
+    tex->Height = pageHeight;
+    tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
     tex->Filter = GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
-    if (entry->bpp == 4) {
+    if (pageBpp == 4) {
         tex->PSM = GS_PSM_T4;
         tex->ClutPSM = GS_PSM_CT32;
 
@@ -916,6 +940,9 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
     // Initialize the texture cache chunk pool (uses remaining VRAM after CLUTs)
     initTextureCache(gs);
 
+    // Read per-page format/size from TEXTURES.BIN headers
+    loadAtlasMetadata(gs);
+
     // Initialize EE RAM cache for compressed atlas data
     initEeCache(gs);
     preloadEeCache(gs);
@@ -935,6 +962,8 @@ static void gsDestroy(Renderer* renderer) {
     free(gs->chunks);
     free(gs->atlasToChunk);
     free(gs->atlasBpp);
+    free(gs->atlasWidth);
+    free(gs->atlasHeight);
     free(gs->clut4VramAddrs);
     free(gs->clut8VramAddrs);
     free(gs->eeCache);

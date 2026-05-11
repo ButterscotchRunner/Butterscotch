@@ -32,18 +32,8 @@ static bool waitForRequest(int port) {
     return false;
 }
 
-void Ps2Gamepad_init(int port) {
-    if (0 > port || port >= 2) return;
-
-    int spins = 0;
-    while (padGetState(port, 0) != PAD_STATE_STABLE && spins < 100000) {
-        spins++;
-    }
-    if (padGetState(port, 0) != PAD_STATE_STABLE) {
-        printf("Ps2Gamepad: port %d never stabilized, skipping analog setup\n", port);
-        return;
-    }
-
+// Caller must guarantee padGetState(port, 0) == PAD_STATE_STABLE before invoking.
+static void setupAnalogMode(int port) {
     int modes = padInfoMode(port, 0, PAD_MODETABLE, -1);
     bool supportsDualshock = false;
     for (int i = 0; modes > i; i++) {
@@ -89,7 +79,7 @@ void Ps2Gamepad_poll(RunnerGamepadState* gp, int port) {
     }
 
     if (!analogModeReady[port]) {
-        Ps2Gamepad_init(port);
+        setupAnalogMode(port);
     }
 
     struct padButtonStatus padStatus;

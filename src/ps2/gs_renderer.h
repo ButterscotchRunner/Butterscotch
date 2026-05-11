@@ -17,7 +17,6 @@ typedef struct {
     uint16_t cropW;     // Pre-resize width of the cropped content
     uint16_t cropH;     // Pre-resize height of the cropped content
     uint16_t clutIndex; // CLUT index within the corresponding CLUT file
-    uint8_t bpp;        // 4 or 8
 } AtlasTPAGEntry;
 
 // ===[ Atlas Tile Entry (from ATLAS.BIN tile entries) ]===
@@ -37,7 +36,6 @@ typedef struct {
     uint16_t cropW;     // Pre-resize width of the cropped content
     uint16_t cropH;     // Pre-resize height of the cropped content
     uint16_t clutIndex; // CLUT index within the corresponding CLUT file
-    uint8_t bpp;        // 4 or 8
 } AtlasTileEntry;
 
 // ===[ Tile Lookup Key (for O(1) hashmap lookup) ]===
@@ -56,9 +54,9 @@ typedef struct {
 } TileEntryMap;
 
 // ===[ VRAM Chunk (buddy system unit) ]===
-// Each chunk is 128KB of VRAM (fits one 4bpp 512x512 atlas).
+// Each chunk is 128KB of VRAM (fits one 4bpp 256x256 atlas).
 // An 8bpp atlas uses 2 consecutive chunks.
-#define VRAM_CHUNK_SIZE 131072 // 128KB = gsKit_texture_size(512, 512, GS_PSM_T4)
+#define VRAM_CHUNK_SIZE 32768 // 32KB = gsKit_texture_size(256, 256, GS_PSM_T4)
 
 typedef struct {
     int16_t atlasId;    // Which atlas occupies this chunk (-1 = free)
@@ -113,6 +111,8 @@ typedef struct {
     int16_t* atlasToChunk;     // atlasId -> first chunk index (-1 = not loaded) [atlasCount]
     uint16_t atlasCount;       // Number of atlas IDs from ATLAS.BIN header
     uint8_t* atlasBpp;         // Bits per pixel per atlas (4 or 8), from ATLAS.BIN [atlasCount]
+    uint16_t* atlasWidth;       // Width per atlas
+    uint16_t* atlasHeight;      // Height per atlas
     uint64_t frameCounter;     // Incremented each frame for LRU tracking
     bool evictedAtlasUsedInCurrentFrame; // Used for debugging, true if a atlas that was used on the current frame was evicted (VRAM thrashing)
     uint16_t uniqueAtlasesThisFrame;     // Number of distinct atlases touched this frame
