@@ -131,6 +131,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get Time
+        id: get-time
+        run: echo "time=$(date -u '+%Y-%m-%d-%H:%M:%S')" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v5
+        with:
+          path: ~/ccache.tar.xz
+          key: win32-artifact-${{ steps.get-time.outputs.time }}
+          restore-keys: win32-artifact-
+      - name: Unpack cache
+        run: |
+          cd ~
+          [ -f ccache.tar.xz ] && tar xf ccache.tar.xz || true
+          [ -f workspacecache.tar ] && mv workspacecache.tar ${{ github.workspace }} || true
+
       - name: Get commit info
         id: commit-info
         run: |
@@ -140,38 +154,30 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake mingw-w64
-
-      - name: Build GLFW for MinGW (32-bit)
-        run: |
-          git clone https://github.com/glfw/glfw.git /tmp/glfw
-          git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          cmake -B /tmp/glfw/build -S /tmp/glfw \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/mingw-w64-i686.cmake \
-            -DCMAKE_INSTALL_PREFIX=/usr/i686-w64-mingw32 \
-            -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
-          make -C /tmp/glfw/build -j$(nproc)
-          sudo make -C /tmp/glfw/build install
-
-      - name: Build bzip2 for MinGW (32-bit)
-        run: |
-          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
-          tar -xf /tmp/bzip2.tar.gz -C /tmp
-          make -C /tmp/bzip2-1.0.8 libbz2.a CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar RANLIB=i686-w64-mingw32-ranlib -j$(nproc)
-          sudo cp /tmp/bzip2-1.0.8/libbz2.a /usr/i686-w64-mingw32/lib/
-          sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/i686-w64-mingw32/include/
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-i686.cmake -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          [ -f workspacecache.tar ] && tar xf workspacecache.tar
+          ARCH=i486 ./artifacts/windows/build-toolchain.sh
+          tar cf workspacecache.tar artifacts/windows/build/toolchain-i486
+          mv workspacecache.tar ~
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: |
+          PATH="$PWD/artifacts/windows/build/toolchain-i486/bin:$PATH" make \
+              CC='ccache i486-w64-mingw32-gcc' \
+              OS=Windows \
+              USE_GLFW2=1 \
+              GLFW_LIBS='-lglfw -lopengl32' \
+              EXTRALIBS='-latomic' \
+              BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
+              BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-glfw-windows-x86
           path: build/butterscotch.exe
+      - name: Pack cache
+        run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
 
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
