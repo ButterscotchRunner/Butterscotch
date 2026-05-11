@@ -1766,6 +1766,19 @@ static RValue builtinStringReplaceAll(MAYBE_UNUSED VMContext* ctx, RValue* args,
 
 // ===[ MATH FUNCTIONS ]===
 
+
+static RValue builtinArctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal y = RValue_toReal(args[0]);
+    return RValue_makeReal(GMLReal_atan(y));
+}
+
+static RValue builtinDarctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal y = RValue_toReal(args[0]);
+    return RValue_makeReal(GMLReal_atan(y) * (180.0 / M_PI));
+}
+
 static RValue builtinDarctan2(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal y = RValue_toReal(args[0]);
@@ -5515,11 +5528,13 @@ static RValue builtin_drawRectangleColor(VMContext* ctx, RValue* args, MAYBE_UNU
     float y1 = (float) RValue_toReal(args[1]);
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[4]);
-
+    uint32_t color1 = (uint32_t) RValue_toInt32(args[4]);
+    uint32_t color2 = (uint32_t) RValue_toInt32(args[5]);
+    uint32_t color3 = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color4 = (uint32_t) RValue_toInt32(args[7]);
     bool outline = RValue_toBool(args[8]);
 
-    runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, color, runner->renderer->drawAlpha, outline);
+    runner->renderer->vtable->drawRectangleColor(runner->renderer, x1, y1, x2, y2, color1, color2, color3, color4, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
 
@@ -8917,9 +8932,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sqr", builtinSqr);
     VM_registerBuiltin(ctx, "sin", builtinSin);
     VM_registerBuiltin(ctx, "arcsin", builtinArcsin);
+    VM_registerBuiltin(ctx, "arctan", builtinArctan);
     VM_registerBuiltin(ctx, "cos", builtinCos);
     VM_registerBuiltin(ctx, "dsin", builtinDsin);
     VM_registerBuiltin(ctx, "dcos", builtinDcos);
+    VM_registerBuiltin(ctx, "darctan", builtinDarctan);
     VM_registerBuiltin(ctx, "darctan2", builtinDarctan2);
     VM_registerBuiltin(ctx, "degtorad", builtinDegtorad);
     VM_registerBuiltin(ctx, "radtodeg", builtinRadtodeg);
