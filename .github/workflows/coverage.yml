@@ -71,8 +71,9 @@ jobs:
         run: ./gradlew run
 
       - name: Commit and Push
+        continue-on-error: true
         run: |
-          cd ButterscotchWikiGenerator
+          cd Butterscotch.wiki
           git add .
           git config user.name "Loritta Morenitta"
           git config user.email 47356322+LorittaMorenitta@users.noreply.github.com
