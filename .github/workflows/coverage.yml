@@ -1,0 +1,80 @@
+name: Update Coverage
+
+env:
+  GAMEMAKER_RUNNER_VERSION: "Version 2024.14.4.268"
+  RUN_FROM: "$GITHUB_WORKSPACE"
+  GHIDRA_HOME: "/opt/ghidra"
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-coverage:
+    name: Update Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Butterscotch repo
+        uses: actions/checkout@v4
+        with:
+          path: Butterscotch
+          token: ${{ secrets.LORITTA_PAT }}
+
+      - name: Checkout Butterscotch Wiki repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: Butterscotch.wiki
+          token: ${{ secrets.LORITTA_PAT }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Cache Ghidra
+        id: cache-ghidra
+        uses: actions/cache@v4
+        with:
+          path: /opt/ghidra
+          key: ghidra-12.0.4-PUBLIC-20260303
+
+      - name: Install Ghidra
+        if: steps.cache-ghidra.outputs.cache-hit != 'true'
+        run: |
+          GHIDRA_URL="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.0.4_build/ghidra_12.0.4_PUBLIC_20260303.zip"
+          GHIDRA_SHA256="c3b458661d69e26e203d739c0c82d143cc8a4a29d9e571f099c2cf4bda62a120"
+
+          wget -q "$GHIDRA_URL" -O /tmp/ghidra.zip
+          echo "${GHIDRA_SHA256}  /tmp/ghidra.zip" | sha256sum -c -
+
+          sudo unzip -q /tmp/ghidra.zip -d /opt
+          sudo mv /opt/ghidra_12.0.4_PUBLIC "${GHIDRA_HOME}"
+          sudo chown -R "$USER":"$USER" "${GHIDRA_HOME}"
+          rm /tmp/ghidra.zip
+
+      - name: Checkout Butterscotch Wiki Generator repo
+        uses: actions/checkout@v4
+        with:
+          repository: MrPowerGamerBR/ButterscotchWikiGenerator
+          path: ButterscotchWikiGenerator
+          token: ${{ secrets.LORITTA_PAT }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            libyoyo.c
+          key: builtin-coverage-${{ env.GAMEMAKER_RUNNER_VERSION }}
+
+      - name: Run Butterscotch Wiki Generator
+        working-directory: ButterscotchWikiGenerator
+        run: ./gradlew run
+
+      - name: Commit and Push
+        run: |
+          cd ButterscotchWikiGenerator
+          git add .
+          git config user.name "Loritta Morenitta"
+          git config user.email 47356322+LorittaMorenitta@users.noreply.github.com
+          git commit -m "Update Coverage"
+          git push

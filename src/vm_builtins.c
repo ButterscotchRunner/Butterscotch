@@ -31,6 +31,38 @@
 
 #define MAX_BACKGROUNDS 8
 
+// ===[ STUBS MACROS ]===
+
+#define STUB_RETURN_ZERO(name) \
+    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
+        logStubbedFunction(ctx, #name); \
+        return RValue_makeReal(0.0); \
+    }
+
+#define STUB_RETURN_TRUE(name) \
+    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
+        logStubbedFunction(ctx, #name); \
+        return RValue_makeBool(true); \
+    }
+
+#define STUB_RETURN_FALSE(name) \
+    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
+        logStubbedFunction(ctx, #name); \
+        return RValue_makeBool(false); \
+    }
+
+#define STUB_RETURN_VALUE(name, value) \
+    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
+        logStubbedFunction(ctx, #name); \
+        return RValue_makeReal(value); \
+    }
+
+#define STUB_RETURN_UNDEFINED(name) \
+    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
+        logStubbedFunction(ctx, #name); \
+        return RValue_makeUndefined(); \
+    }
+
 // ===[ STUB LOGGING ]===
 
 #ifdef ENABLE_VM_STUB_LOGS
@@ -2842,6 +2874,8 @@ static RValue builtinOsGetRegion(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValu
     return RValue_makeOwnedString(safeStrdup("US"));
 }
 
+STUB_RETURN_FALSE(os_is_paused);
+
 // ===[ DS_MAP BUILTIN FUNCTIONS ]===
 
 static inline ptrdiff_t getValueIndexInMap(DsMapEntry** mapPtr, RValue keyRvalue) {
@@ -3518,31 +3552,7 @@ static RValue builtinMpPotentialSettings(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeReal(0.0);
 }
 
-// ===[ STUBBED FUNCTIONS ]===
-
-#define STUB_RETURN_ZERO(name) \
-    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
-        logStubbedFunction(ctx, #name); \
-        return RValue_makeReal(0.0); \
-    }
-
-#define STUB_RETURN_TRUE(name) \
-    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
-        logStubbedFunction(ctx, #name); \
-        return RValue_makeBool(true); \
-    }
-
-#define STUB_RETURN_VALUE(name, value) \
-    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
-        logStubbedFunction(ctx, #name); \
-        return RValue_makeReal(value); \
-    }
-
-#define STUB_RETURN_UNDEFINED(name) \
-    static RValue builtin_##name(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) { \
-        logStubbedFunction(ctx, #name); \
-        return RValue_makeUndefined(); \
-    }
+// ===[ Steam ]===
 
 // Steam stubs
 STUB_RETURN_ZERO(steam_initialised)
@@ -5506,8 +5516,14 @@ static RValue builtin_bufferGetSurface(VMContext* ctx, RValue* args, MAYBE_UNUSE
 
 // PSN stubs
 STUB_RETURN_UNDEFINED(psn_init)
+STUB_RETURN_UNDEFINED(psn_init_np_libs)
 STUB_RETURN_ZERO(psn_default_user)
 STUB_RETURN_ZERO(psn_get_leaderboard_score)
+
+static RValue builtin_PSNSetupTrophies(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    // Always tells the runner that trophies have been set up successfully
+    return RValue_makeInt32(1);
+}
 
 // Draw functions
 static RValue builtin_drawSprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -9244,6 +9260,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtinOsGetLanguage);
     VM_registerBuiltin(ctx, "os_get_region", builtinOsGetRegion);
+    VM_registerBuiltin(ctx, "os_is_paused", builtin_os_is_paused);
 
     // ds_map
     VM_registerBuiltin(ctx, "ds_map_create", builtinDsMapCreate);
@@ -9449,8 +9466,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // PSN
     VM_registerBuiltin(ctx, "psn_init", builtin_psn_init);
+    VM_registerBuiltin(ctx, "psn_init_np_libs", builtin_psn_init_np_libs);
     VM_registerBuiltin(ctx, "psn_default_user", builtin_psn_default_user);
     VM_registerBuiltin(ctx, "psn_get_leaderboard_score", builtin_psn_get_leaderboard_score);
+    VM_registerBuiltin(ctx, "psn_setup_trophies", builtin_PSNSetupTrophies);
 
     // Draw
     VM_registerBuiltin(ctx, "draw_sprite", builtin_drawSprite);
