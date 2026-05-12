@@ -17,6 +17,7 @@ INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/image -Ivendor/stb/image -Ivendor/st
 HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) vendor/md5/md5.c vendor/glad/src/glad.c
 
+PLATFORM := glfw
 AUDIO_BACKEND := miniaudio
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
@@ -92,7 +93,6 @@ LIBS += -lopenal
 endif
 endif
 
-PLATFORM := glfw
 ifeq ($(PLATFORM),glfw)
 SRCS += $(wildcard src/glfw/*.c)
 HEADERS += $(wildcard src/glfw/*.h)

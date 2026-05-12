@@ -26,8 +26,12 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
+#ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
+#endif
+#ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"
+#endif
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
 #include "al_audio_system.h"
@@ -196,7 +200,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
+#ifdef DISABLE_LEGACY_GL
+    args->renderer = "software";
+#else
     args->renderer = "legacy-gl";
+#endif
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
 
@@ -800,6 +808,29 @@ int main(int argc, char* argv[]) {
     }
 
     bool useSWRend = strcmp(args.renderer, "software") == 0;
+    bool useLegacyGL = strcmp(args.renderer, "legacy-gl") == 0;
+#ifndef ENABLE_LEGACY_GL
+    if (useLegacyGL) {
+        fprintf(stderr, "The legacy-gl renderer is not supported in this build!\n");
+        DataWin_free(dataWin);
+        freeCommandLineArgs(&args);
+        return 1;
+    }
+#endif
+#ifndef ENABLE_SW_RENDERER
+    if (useSWRend) {
+        fprintf(stderr, "The software renderer is not supported in this build!\n");
+        DataWin_free(dataWin);
+        freeCommandLineArgs(&args);
+        return 1;
+    }
+#endif
+    if (!useSWRend && !useLegacyGL) {
+        fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
+        DataWin_free(dataWin);
+        freeCommandLineArgs(&args);
+        return 1;
+    }
 
     SDL_Surface* scr = nullptr;
     if(!args.headless) {
@@ -819,10 +850,16 @@ int main(int argc, char* argv[]) {
 
     // Initialize the renderer
     Renderer* renderer;
+#if defined(ENABLE_LEGACY_GL) && defined(ENABLE_SW_RENDERER)
     if(useSWRend)
         renderer = SWRenderer_create((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight);
     else
         renderer = GLLegacyRenderer_create();
+#elif defined(ENABLE_LEGACY_GL)
+    renderer = GLLegacyRenderer_create();
+#else
+    renderer = SWRenderer_create((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight);
+#endif
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
