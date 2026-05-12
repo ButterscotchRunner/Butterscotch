@@ -963,13 +963,13 @@ int main(int argc, char* argv[]) {
 
 #ifndef ENABLE_LEGACY_GL
     if (legacyGL) {
-        fprintf(stderr, "The legacy gl renderer is unavailable!\n");
+        fprintf(stderr, "The legacy-gl renderer is not available in this build!\n");
         return 0;
     }
 #endif
 #ifndef ENABLE_MODERN_GL
     if (modernGL) {
-        fprintf(stderr, "The modern gl renderer is unavailable!\n");
+        fprintf(stderr, "The modern gl renderer is not available in this build!\n");
         return 0;
     }
 #endif

@@ -811,7 +811,7 @@ int main(int argc, char* argv[]) {
     bool useLegacyGL = strcmp(args.renderer, "legacy-gl") == 0;
 #ifndef ENABLE_LEGACY_GL
     if (useLegacyGL) {
-        fprintf(stderr, "The legacy-gl renderer is not supported in this build!\n");
+        fprintf(stderr, "The legacy-gl renderer is not available in this build!\n");
         DataWin_free(dataWin);
         freeCommandLineArgs(&args);
         return 1;
@@ -819,7 +819,7 @@ int main(int argc, char* argv[]) {
 #endif
 #ifndef ENABLE_SW_RENDERER
     if (useSWRend) {
-        fprintf(stderr, "The software renderer is not supported in this build!\n");
+        fprintf(stderr, "The software renderer is not available in this build!\n");
         DataWin_free(dataWin);
         freeCommandLineArgs(&args);
         return 1;
