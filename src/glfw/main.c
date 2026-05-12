@@ -710,7 +710,6 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action, i
     // During playback, suppress real keyboard input (window events like close still work)
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
     int32_t gmlKey = glfwKeyToGml(key);
-    if (0 > gmlKey) return;
     if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
     else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
     // GLFW_REPEAT is ignored (GML doesn't use key repeat)
