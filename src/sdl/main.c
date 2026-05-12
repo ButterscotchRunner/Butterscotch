@@ -864,7 +864,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Initialize the audio system
-    AudioSystem* audioSystem = nullptr;
+    AudioSystem* audioSystem;
     if (args.headless) {
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
     } else {
