@@ -837,6 +837,7 @@ int main(int argc, char* argv[]) {
         scr = SDL_SetVideoMode((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 0, useSWRend ? 0 : SDL_OPENGL);
     }
 
+#ifdef ENABLE_LEGACY_GL
     if(!useSWRend) {
         // Load OpenGL function pointers via GLAD
         if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
@@ -847,6 +848,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+#endif
 
     // Initialize the renderer
     Renderer* renderer;
