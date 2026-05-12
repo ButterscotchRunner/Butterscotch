@@ -1234,6 +1234,23 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->alpha = 1.0f;
     }
 
+    // If the room contains a visible Background layer with no sprite, use that layer's color
+    // as the background color when initializing the room.
+    int32_t bestDepth = 0;
+    uint32_t bestColor = 0;
+    repeat(room->layerCount, i) {
+        RoomLayer* layerSource = &room->layers[i];
+        if (layerSource->type != RoomLayerType_Background || layerSource->backgroundData == nullptr) continue;
+        RoomLayerBackgroundData* data = layerSource->backgroundData;
+        if (!data->visible || data->spriteIndex >= 0) continue;
+        if (layerSource->depth > bestDepth) {
+            bestDepth = layerSource->depth;
+            bestColor = data->color;
+            runner->backgroundColor = bestColor;
+            runner->drawBackgroundColor = true;
+        }
+    }
+
     Instance** carriedPersistent = takePersistentInstances(runner);
 
     // Two-pass instance creation (matches HTML5 runner behavior):
