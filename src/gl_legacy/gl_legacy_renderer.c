@@ -1074,6 +1074,10 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     if (0 >= w || 0 >= h) return -1;
 
+    // Because we don't support surfaces for now, games may attempt to read from surfaces that aren't the main surface could cause the game to crash with a buffer overruns (example: the PS3 renderer)
+    // So, if we are trying to read from ANYWHERE that isn't the main surface, reject the read
+    if (surfaceID != 0)
+        return -1;
 
     uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
