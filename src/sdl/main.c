@@ -27,6 +27,7 @@
 #include "input_recording.h"
 #include "debug_overlay.h"
 #include "gl_legacy_renderer.h"
+#include "sw_renderer.h"
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
 #include "al_audio_system.h"
@@ -452,6 +453,7 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
+#ifdef USE_LEGACY_GL
 static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
 
     int stride = width * 4;
@@ -476,11 +478,14 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     free(pixels);
     printf("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
 }
+#endif
 
-static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height) {
+static void captureScreenshot(uint32_t fbo, const char* filenamePattern, int frameNumber, int width, int height) {
     char filename[512];
     snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
+#ifdef USE_LEGACY_GL
     writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true);
+#endif
 }
 
 // ===[ KEYBOARD INPUT ]===
@@ -581,6 +586,25 @@ static void setGlfwWindowTitle(void* window, const char* title) {
 
 static bool getGlfwWindowFocus(void *window) {
     return true;
+}
+
+static SDL_Surface* nextFb = NULL;
+static uint32_t fbW = 0, fbH = 0;
+void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
+{
+    fbW = width;
+    fbH = height;
+    nextFb = SDL_CreateRGBSurfaceFrom(
+        framebuffer, 
+        width, 
+        height, 
+        32, 
+        width*4, 
+        0xff0000, 
+        0x00ff00, 
+        0x0000ff, 
+        0
+    );
 }
 
 void saveInputRecording() {
@@ -775,19 +799,30 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_SetVideoMode((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 0, SDL_OPENGL);
+    bool useSWRend = strcmp(args.renderer, "software") == 0;
 
-    // Load OpenGL function pointers via GLAD
-    if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
-        fprintf(stderr, "Failed to initialize GLAD\n");
-        SDL_Quit();
-        DataWin_free(dataWin);
-        freeCommandLineArgs(&args);
-        return 1;
+    SDL_Surface* scr = nullptr;
+    if(!args.headless) {
+        scr = SDL_SetVideoMode((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 0, useSWRend ? 0 : SDL_OPENGL);
+    }
+
+    if(!useSWRend) {
+        // Load OpenGL function pointers via GLAD
+        if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
+            fprintf(stderr, "Failed to initialize GLAD\n");
+            SDL_Quit();
+            DataWin_free(dataWin);
+            freeCommandLineArgs(&args);
+            return 1;
+        }
     }
 
     // Initialize the renderer
-    Renderer* renderer = GLLegacyRenderer_create();
+    Renderer* renderer;
+    if(useSWRend)
+        renderer = SWRenderer_create((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight);
+    else
+        renderer = GLLegacyRenderer_create();
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
@@ -867,14 +902,11 @@ int main(int argc, char* argv[]) {
         SDL_PollEvent(&e);
         switch(e.type) {
             case SDL_KEYDOWN:
-            case SDL_KEYUP: {
-                int32_t gmlKey = SDLKeyToGml(e.key.keysym.sym);
-                if (0 > gmlKey) break;
-                if (e.type == SDL_KEYDOWN)
-                    RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
-                else
-                    RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
-                } break;
+                RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                break;
+            case SDL_KEYUP:
+                RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                break;
             case SDL_QUIT:
                 shouldExit = true;
                 break;
@@ -1022,7 +1054,8 @@ int main(int argc, char* argv[]) {
 
         // Clear the default framebuffer (window background) to black
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        if(useSWRend) SWRenderer_clearFrameBuffer(renderer, 0);
+        else glClear(GL_COLOR_BUFFER_BIT);
 
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
         int32_t gameH = (int32_t) gen8->defaultWindowHeight;
@@ -1042,14 +1075,20 @@ int main(int argc, char* argv[]) {
 
         // Clear FBO with room background color
         if (runner->drawBackgroundColor) {
-            int rInt = BGR_R(runner->backgroundColor);
-            int gInt = BGR_G(runner->backgroundColor);
-            int bInt = BGR_B(runner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
+            if(!useSWRend) {
+                int rInt = BGR_R(runner->backgroundColor);
+                int gInt = BGR_G(runner->backgroundColor);
+                int bInt = BGR_B(runner->backgroundColor);
+                glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
+            }
+            else SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
         } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            if(!useSWRend)
+                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            else
+                SWRenderer_clearFrameBuffer(renderer, 0);
         }
-        glClear(GL_COLOR_BUFFER_BIT);
+        if(!useSWRend) glClear(GL_COLOR_BUFFER_BIT);
 
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
 
@@ -1071,7 +1110,16 @@ int main(int argc, char* argv[]) {
 
         // Only swap when there isn't a room change to match the original runner.
         if (runner->pendingRoom == -1) {
-            SDL_GL_SwapBuffers();
+            if(!args.headless) {
+                if(!useSWRend)
+                    SDL_GL_SwapBuffers();
+                else {
+                    SDL_LockSurface(scr);
+                    SDL_BlitSurface(nextFb, NULL, scr, NULL);
+                    SDL_Flip(scr);
+                    SDL_UnlockSurface(scr);
+                }
+            }
         }
         Runner_handlePendingRoomChange(runner);
 
