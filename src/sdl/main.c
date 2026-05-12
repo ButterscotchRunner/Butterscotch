@@ -1091,8 +1091,16 @@ int main(int argc, char* argv[]) {
 
         // Clear the default framebuffer (window background) to black
 
-        if(useSWRend) SWRenderer_clearFrameBuffer(renderer, 0);
-        else glClear(GL_COLOR_BUFFER_BIT);
+#if defined(ENABLE_SW_RENDERER) && defined(ENABLE_LEGACY_GL)
+        if(useSWRend)
+            SWRenderer_clearFrameBuffer(renderer, 0);
+        else
+            glClear(GL_COLOR_BUFFER_BIT);
+#elif defined(ENABLE_LEGACY_GL)
+        glClear(GL_COLOR_BUFFER_BIT);
+#else
+        SWRenderer_clearFrameBuffer(renderer, 0);
+#endif
 
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
         int32_t gameH = (int32_t) gen8->defaultWindowHeight;
@@ -1112,18 +1120,31 @@ int main(int argc, char* argv[]) {
 
         // Clear FBO with room background color
         if (runner->drawBackgroundColor) {
+#if defined(ENABLE_SW_RENDERER) && defined(ENABLE_LEGACY_GL)
             if(!useSWRend) {
                 int rInt = BGR_R(runner->backgroundColor);
                 int gInt = BGR_G(runner->backgroundColor);
                 int bInt = BGR_B(runner->backgroundColor);
                 glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
-            }
-            else SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
+            } else
+                SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
         } else {
             if(!useSWRend)
                 glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             else
                 SWRenderer_clearFrameBuffer(renderer, 0);
+#elif defined(ENABLE_LEGACY_GL)
+            int rInt = BGR_R(runner->backgroundColor);
+            int gInt = BGR_G(runner->backgroundColor);
+            int bInt = BGR_B(runner->backgroundColor);
+            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
+        } else {
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+#else
+            SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
+        } else {
+            SWRenderer_clearFrameBuffer(renderer, 0);
+#endif
         }
         if(!useSWRend) glClear(GL_COLOR_BUFFER_BIT);
 
