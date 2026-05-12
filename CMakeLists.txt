@@ -225,6 +225,75 @@ if(PLATFORM STREQUAL "glfw")
             ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
             $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
     )
+elseif(PLATFORM STREQUAL "sdl")
+    if (NOT ENABLE_LEGACY_GL)
+        message(FATAL_ERROR "SDL requires legacy GL!")
+    endif()
+    file(GLOB GL_SOURCES src/gl_legacy/*.c src/image/*.c)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+
+    # Butterscotch VM/interpreter profiler
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
+    if(ENABLE_VM_GML_PROFILER)
+        add_compile_definitions(ENABLE_VM_GML_PROFILER)
+    endif()
+
+    # Butterscotch VM/interpreter tracing
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
+    if(ENABLE_VM_TRACING)
+        add_compile_definitions(ENABLE_VM_TRACING)
+    endif()
+
+    # Butterscotch VM opcode count profiler
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ON)
+    if(ENABLE_VM_OPCODE_PROFILER)
+        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
+    endif()
+
+    # Spatial grid logs
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    if(ENABLE_SPATIAL_GRID_LOGS)
+        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+    endif()
+
+    # VM unknown/stubbed function logs
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
+    if(ENABLE_VM_STUB_LOGS)
+        add_compile_definitions(ENABLE_VM_STUB_LOGS)
+    endif()
+
+    # GLAD
+    add_library(glad STATIC vendor/glad/src/glad.c)
+    target_include_directories(glad PUBLIC vendor/glad/include)
+
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
+    # stb_vorbis
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+
+    find_package(SDL REQUIRED)
+    target_include_directories(butterscotch PUBLIC "${SDL_INCLUDE_DIR}")
+    if(SDLMAIN_LIBRARY)
+        target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDLMAIN_LIBRARY} ${SDL_LIBRARY} glad m pthread bz2)
+    else()
+        target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDL_LIBRARY} glad m pthread bz2)
+    endif()
+
+    # Enable AddressSanitizer by default in Debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(ENABLE_ASAN_DEFAULT ON)
+    else()
+        set(ENABLE_ASAN_DEFAULT OFF)
+    endif()
+    set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
+    if(ENABLE_ASAN AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+        target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(butterscotch PRIVATE -fsanitize=address)
+    endif()
 elseif(PLATFORM STREQUAL "web")
     if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Web requires modern gl!")
