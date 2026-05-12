@@ -345,10 +345,21 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     gl->quadCount = 0;
     gl->currentTextureId = 0;
 
-    int32_t glPortY = gl->gameH - portY - portH;
-    glViewport(portX, glPortY, portW, portH);
+    GLint boundFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &boundFbo);
+
+    int32_t glPortY;
+    if (boundFbo == 0) {
+        glPortY = 0;
+        glViewport(0, 0, guiW, guiH);
+        glScissor(0, 0, guiW, guiH);
+    } else {
+        glPortY = gl->gameH - portY - portH;
+        glViewport(portX, glPortY, portW, portH);
+        glScissor(portX, glPortY, portW, portH);
+    }
+
     glEnable(GL_SCISSOR_TEST);
-    glScissor(portX, glPortY, portW, portH);
 
     Matrix4f projection;
     Matrix4f_identity(&projection);

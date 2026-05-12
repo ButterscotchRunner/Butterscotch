@@ -418,6 +418,7 @@ int main(int argc, char* argv[]) {
 
         double drawStart = PS3_GET_TIME;
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+        Runner_drawPost(runner);
 
         renderer->vtable->endFrame(renderer);
         double drawTime = PS3_GET_TIME - drawStart;

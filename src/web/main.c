@@ -146,6 +146,7 @@ void* loop() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         Runner_drawViews(gRunner, gameW, gameH, displayScaleX, displayScaleY, false);
+        Runner_drawPost(gRunner);
 
         gRunner->renderer->vtable->endFrame(gRunner->renderer);
 

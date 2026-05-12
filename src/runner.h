@@ -447,6 +447,7 @@ void Runner_executeEventFromObject(Runner* runner, Instance* instance, int32_t s
 void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventSubtype);
 void Runner_draw(Runner* runner);
 void Runner_drawGUI(Runner* runner);
+void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH, int32_t targetW, int32_t targetH);
 void Runner_drawBackgrounds(Runner* runner, bool foreground);
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY);
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);

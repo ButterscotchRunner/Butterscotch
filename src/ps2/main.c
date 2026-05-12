@@ -650,6 +650,7 @@ int main(int argc, char* argv[]) {
         // Render views
         u64 drawStartTime = GetTimerSystemTime();
         Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
+        Runner_drawPost(runner);
         u64 drawEndTime = GetTimerSystemTime();
 
         runner->viewCurrent = 0;

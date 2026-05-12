@@ -852,8 +852,6 @@ void Runner_draw(Runner* runner) {
 
     // Draw foreground backgrounds (in front of instances, behind GUI)
     Runner_drawBackgrounds(runner, true);
-
-    fireDrawSubtype(runner, drawables, drawableCount, DRAW_POST);
 }
 
 void Runner_drawGUI(Runner* runner) {
@@ -864,6 +862,16 @@ void Runner_drawGUI(Runner* runner) {
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
+}
+
+void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH, int32_t targetW, int32_t targetH) {
+    rebuildDrawableCacheIfDirty(runner);
+    Drawable* drawables = runner->cachedDrawables;
+    int32_t drawableCount = (int32_t) arrlen(drawables);
+
+    runner->renderer->vtable->beginGUI(runner->renderer, windowW, windowH, 0, 0, targetW, targetH);
+    fireDrawSubtype(runner, drawables, drawableCount, DRAW_POST);
+    runner->renderer->vtable->endGUI(runner->renderer);
 }
 
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY) {
