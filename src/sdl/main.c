@@ -934,6 +934,8 @@ int main(int argc, char* argv[]) {
     bool debugShowCollisionMasks = false;
     double lastFrameTime = (SDL_GetTicks()/1000.0f);
     SDL_Event e;
+    int lastkey = -1;
+    SDL_EventType lastkeystate = SDL_NOEVENT; // true is down, false is up
     while (!runner->shouldExit && !shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -941,10 +943,17 @@ int main(int argc, char* argv[]) {
         SDL_PollEvent(&e);
         switch(e.type) {
             case SDL_KEYDOWN:
-                RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
-                break;
             case SDL_KEYUP:
-                RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                if (lastkey == e.key.keysym.sym && lastkeystate == e.type)
+                    break;
+                else {
+                    lastkey = e.key.keysym.sym;
+                    lastkeystate = e.type;
+                }
+                if (e.type == SDL_KEYDOWN)
+                    RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                else
+                    RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_QUIT:
                 shouldExit = true;
