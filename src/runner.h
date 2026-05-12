@@ -363,6 +363,8 @@ struct Runner {
     bool debugMode;
     void* nativeWindow;
     void (*setWindowTitle)(void* window, const char* title);
+    bool (*getWindowSize)(void* window, int32_t* outW, int32_t* outH);
+    void (*setWindowSize)(void* window, int32_t width, int32_t height);
     bool (*windowHasFocus)(void* window);
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended

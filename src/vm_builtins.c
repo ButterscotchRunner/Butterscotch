@@ -4542,15 +4542,48 @@ static RValue builtinJoystickAxes(VMContext* ctx, RValue* args, MAYBE_UNUSED int
 // Window stubs
 STUB_RETURN_ZERO(window_get_fullscreen)
 STUB_RETURN_UNDEFINED(window_set_fullscreen)
-STUB_RETURN_UNDEFINED(window_set_size)
-STUB_RETURN_UNDEFINED(window_center)
 static RValue builtinWindowGetWidth(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner != nullptr && runner->getWindowSize != nullptr) {
+        int32_t w = 0;
+        int32_t h = 0;
+        if (runner->getWindowSize(runner->nativeWindow, &w, &h)) {
+            return RValue_makeReal((GMLReal) w);
+        }
+    }
     return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowWidth);
 }
 
 static RValue builtinWindowGetHeight(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner != nullptr && runner->getWindowSize != nullptr) {
+        int32_t w = 0;
+        int32_t h = 0;
+        if (runner->getWindowSize(runner->nativeWindow, &w, &h)) {
+            return RValue_makeReal((GMLReal) h);
+        }
+    }
     return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
 }
+
+static RValue builtinWindowSetSize(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (argCount < 2) return RValue_makeUndefined();
+
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner == nullptr) return RValue_makeUndefined();
+
+    int32_t width = RValue_toInt32(args[0]);
+    int32_t height = RValue_toInt32(args[1]);
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+
+    if (runner->setWindowSize != nullptr) {
+        runner->setWindowSize(runner->nativeWindow, width, height);
+    }
+
+    return RValue_makeUndefined();
+}
+STUB_RETURN_UNDEFINED(window_center)
 
 static RValue builtinWindowSetCaption(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     char* val = RValue_toString(args[0]);
@@ -9408,10 +9441,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_get_fullscreen", builtin_window_get_fullscreen);
     VM_registerBuiltin(ctx, "window_set_fullscreen", builtin_window_set_fullscreen);
     VM_registerBuiltin(ctx, "window_set_caption", builtinWindowSetCaption);
-    VM_registerBuiltin(ctx, "window_set_size", builtin_window_set_size);
-    VM_registerBuiltin(ctx, "window_center", builtin_window_center);
     VM_registerBuiltin(ctx, "window_get_width", builtinWindowGetWidth);
     VM_registerBuiltin(ctx, "window_get_height", builtinWindowGetHeight);
+    VM_registerBuiltin(ctx, "window_set_size", builtinWindowSetSize);
+    VM_registerBuiltin(ctx, "window_center", builtin_window_center);
     VM_registerBuiltin(ctx, "window_has_focus", builtinWindowHasFocus);
 
     // Game

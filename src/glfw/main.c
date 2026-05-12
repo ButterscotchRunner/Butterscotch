@@ -739,6 +739,36 @@ static void setGlfwWindowTitle(void* window, const char* title) {
 #endif
 }
 
+static bool getGlfwWindowSize(void* window, int32_t* outW, int32_t* outH) {
+    if (outW == nullptr || outH == nullptr) return false;
+#ifdef USE_GLFW2
+    (void)window;
+    int w = 0;
+    int h = 0;
+    glfwGetWindowSize(&w, &h);
+#else
+    if (window == nullptr) return false;
+    int w = 0;
+    int h = 0;
+    glfwGetWindowSize((GLFWwindow*) window, &w, &h);
+#endif
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+
+static void setGlfwWindowSize(void* window, int32_t width, int32_t height) {
+    if (width <= 0 || height <= 0) return;
+#ifdef USE_GLFW2
+    (void) window;
+    glfwSetWindowSize(width, height);
+#else
+    if (window == nullptr) return;
+    glfwSetWindowSize((GLFWwindow*) window, width, height);
+#endif
+}
+
 static bool getGlfwWindowFocus(void *window) {
 #ifdef USE_GLFW2
     (void)window;
@@ -1105,6 +1135,8 @@ int main(int argc, char* argv[]) {
     runner->debugMode = args.debug;
     runner->osType = args.osType;
     runner->setWindowTitle = setGlfwWindowTitle;
+    runner->getWindowSize = getGlfwWindowSize;
+    runner->setWindowSize = setGlfwWindowSize;
     runner->windowHasFocus = getGlfwWindowFocus;
 #ifdef USE_GLFW2
     runner->nativeWindow = (void*)0xDEADBEEF;
