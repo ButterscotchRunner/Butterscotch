@@ -458,44 +458,6 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
     shfree(args->tilesToBeTraced);
 }
 
-// ===[ SCREENSHOT ]===
-// Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
-// If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
-#ifdef USE_LEGACY_GL
-static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
-
-    int stride = width * 4;
-    unsigned char* pixels = safeMalloc(stride * height);
-    if (pixels == nullptr) {
-        fprintf(stderr, "Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
-        return;
-    }
-
-    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-    if (forceOpaque) {
-        int totalPixels = width * height;
-        repeat(totalPixels, i) pixels[i * 4 + 3] = 255;
-    }
-
-    // OpenGL reads bottom-to-top, but PNG is top-to-bottom.
-    // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
-    unsigned char* lastRow = pixels + (height - 1) * stride;
-    stbi_write_png(filename, width, height, 4, lastRow, -stride);
-
-    free(pixels);
-    printf("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
-}
-#endif
-
-static void captureScreenshot(uint32_t fbo, const char* filenamePattern, int frameNumber, int width, int height) {
-    char filename[512];
-    snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
-#ifdef USE_LEGACY_GL
-    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true);
-#endif
-}
-
 // ===[ KEYBOARD INPUT ]===
 
 static int32_t SDLKeyToGml(int sdlkey) {
@@ -1168,15 +1130,6 @@ int main(int argc, char* argv[]) {
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
 
         renderer->vtable->endFrame(renderer);
-
-        // Capture screenshot if this frame matches a requested frame
-        bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
-
-
-        // Dump all surfaces if this frame matches a requested frame
-        bool shouldDumpSurfaces = hmget(args.screenshotSurfacesFrames, runner->frameCount);
-
-
 
         if (shouldStep && args.traceFrames) {
             double frameElapsedMs = ((SDL_GetTicks()/1000.0f) - frameStartTime) * 1000.0;
