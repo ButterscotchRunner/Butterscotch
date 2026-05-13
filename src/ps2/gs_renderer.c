@@ -631,7 +631,10 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
     uint32_t tbw = width / 64;
     uint32_t vramAddr = gs->textureVramBase + (uint32_t) firstChunk * VRAM_CHUNK_SIZE;
 
-    gsKit_texture_send((u32*) uploadData, width, height, vramAddr, psm, tbw, GS_CLUT_TEXTURE);
+    // We use GS_CLUT_NONE instead of GS_CLUT_TEXTURE so gsKit_texture_send appends a GS_TEXFLUSH after the DMA.
+    // If we use GS_CLUT_TEXTURE, we'll have texture corruption if the chunk is reused for a different atlas in the same frame.
+    // It is a bit hacky, but it works.
+    gsKit_texture_send((u32*) uploadData, width, height, vramAddr, psm, tbw, GS_CLUT_NONE);
 
     // Update chunk state
     int chunksUsed = atlasChunkCount(width, height, bpp);
