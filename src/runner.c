@@ -2469,12 +2469,23 @@ void Runner_step(Runner* runner) {
     repeat(animCount, i) {
         Instance* inst = runner->instances[i];
         if (!inst->active) continue;
-        if (0 > inst->spriteIndex) continue;
-
-        inst->imageIndex += inst->imageSpeed;
-
+        if (0 > inst->spriteIndex) {
+            inst->imageIndex += inst->imageSpeed;
+            continue;
+        }
         // Wrap image_index (matches HTML5 runner: manual subtract/add instead of using fmod)
         Sprite* sprite = &runner->dataWin->sprt.sprites[inst->spriteIndex];
+        if (sprite->specialType == true) {
+            if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
+                if (sprite->gms2PlaybackSpeedType == true) {
+                    inst->imageIndex += inst->imageSpeed * sprite->gms2PlaybackSpeed;
+                } else {
+                    inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
+                }   
+            }
+        } else {
+        inst->imageIndex += inst->imageSpeed;    
+        }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
         if (inst->imageIndex >= frameCount) {
