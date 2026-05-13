@@ -837,6 +837,8 @@ int main(int argc, char* argv[]) {
         scr = SDL_SetVideoMode((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 0, useSWRend ? 0 : SDL_OPENGL);
     }
 
+    SDL_EnableKeyRepeat(0, 0);
+
 #ifdef ENABLE_LEGACY_GL
     if(!useSWRend) {
         // Load OpenGL function pointers via GLAD
@@ -940,24 +942,20 @@ int main(int argc, char* argv[]) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
         RunnerGamepad_beginFrame(runner->gamepads);
-        SDL_PollEvent(&e);
-        switch(e.type) {
-            case SDL_KEYDOWN:
-            case SDL_KEYUP:
-                if (lastkey == e.key.keysym.sym && lastkeystate == e.type)
-                    break;
-                else {
-                    lastkey = e.key.keysym.sym;
-                    lastkeystate = e.type;
-                }
-                if (e.type == SDL_KEYDOWN)
+        while (SDL_PollEvent(&e)) {
+            switch(e.type) {
+                case SDL_KEYDOWN:
                     RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
-                else
+                    break;
+                case SDL_KEYUP:
                     RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
-                break;
-            case SDL_QUIT:
-                shouldExit = true;
-                break;
+                    break;
+                case SDL_QUIT:
+                    shouldExit = true;
+                    // fall through
+                default:
+                    break;
+            }
         }
 
         // Process input recording/playback (must happen after SDL_PollEvents, before Runner_step)
