@@ -1157,7 +1157,10 @@ int main(int argc, char* argv[]) {
             SWRenderer_clearFrameBuffer(renderer, 0);
 #endif
         }
-        if(!useSWRend) glClear(GL_COLOR_BUFFER_BIT);
+#ifdef ENABLE_LEGACY_GL
+        if(!useSWRend)
+            glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
 
