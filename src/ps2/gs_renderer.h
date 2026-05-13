@@ -125,7 +125,8 @@ typedef struct {
 
     // TEXTURES.BIN file handle (kept open for on-demand atlas loading)
     FILE* texturesFile;
-    uint32_t* atlasOffsets;    // Byte offset of each atlas within TEXTURES.BIN [atlasCount]
+    uint32_t* atlasOffsets;    // Byte offset of each atlas's pixel data within TEXTURES.BIN [atlasCount]
+    uint8_t* atlasCompressionType; // Per-atlas compression: 0 = raw, 1 = RLE [atlasCount]
 
     // VRAM texture cache (buddy system with LRU eviction)
     uint32_t textureVramBase;  // Start of texture region in VRAM (after framebuffers + CLUTs)
@@ -141,6 +142,7 @@ typedef struct {
     bool evictedAtlasUsedInCurrentFrame; // Used for debugging, true if a atlas that was used on the current frame was evicted (VRAM thrashing)
     uint16_t uniqueAtlasesThisFrame;     // Number of distinct atlases touched this frame
     uint16_t chunksNeededThisFrame;      // Total VRAM chunks needed by all atlases touched this frame
+    uint16_t ramLoadsThisFrame;          // Number of atlas loads from RAM this frame (VRAM cache misses)
     uint16_t diskLoadsThisFrame;         // Number of atlas loads from TEXTURES.BIN this frame (EE cache misses)
 
     // EE RAM atlas cache (stores uncompressed atlas pixel data for zero-copy VRAM uploads)
@@ -148,7 +150,7 @@ typedef struct {
     uint32_t eeCacheCapacity;          // Total size (See EE_CACHE_CAPACITY)
     uint32_t eeCacheBumpPtr;           // End of live data
     EeAtlasCacheEntry* eeCacheEntries; // Per-atlas cache state [atlasCount]
-    uint32_t* atlasDataSizes;          // On-disk size per atlas (header + compressed data) [atlasCount]
+    uint32_t* atlasDataSizes;          // On-disk pixel data size per atlas (post-compression) [atlasCount]
 
     // GPU state (mirrors what was last sent to GS so we can re-apply after sync_flip clobbers FRAME)
     uint32_t fbmsk;          // Current FRAME register FBMSK (0 = all channels writable)

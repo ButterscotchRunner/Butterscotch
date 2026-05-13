@@ -1,0 +1,17 @@
+// Paletted fragment shader: samples a single-channel index texture and uses the value as a U coordinate into a 256xN palette LUT.
+//
+// uPaletteV is pre-normalized by the caller to the center of the desired palette row: ((row + 0.5) / rowCount).
+// The U coordinate is corrected here from the byte-normalized [0..1] returned by the B8 sampler to the texel-center within a 256-wide palette.
+
+void main(
+    float4 vColor    : COLOR0,
+    float2 vTexCoord : TEXCOORD0,
+    uniform sampler2D uIndex   : TEXUNIT0,
+    uniform sampler2D uPalette : TEXUNIT1,
+    uniform float uPaletteV,
+    out float4 oColor
+) {
+    float idx = tex2D(uIndex, vTexCoord).r;
+    float u = idx * (255.0 / 256.0) + (0.5 / 256.0);
+    oColor = tex2D(uPalette, float2(u, uPaletteV)) * vColor;
+}

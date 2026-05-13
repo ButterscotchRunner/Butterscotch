@@ -304,14 +304,18 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
     const char* roomName = runner->currentRoom != nullptr && runner->currentRoom->name != nullptr ? runner->currentRoom->name : "?";
 
     const char* thrashIndicator = "";
-    if (gsRenderer->chunksNeededThisFrame > gsRenderer->chunkCount) {
-        thrashIndicator = gsRenderer->diskLoadsThisFrame > 0 ? " [RAM+DISK THRASHING]" : " [RAM THRASHING]";
-    } else if (gsRenderer->diskLoadsThisFrame > 0) {
+    bool loadedFromRAM = gsRenderer->ramLoadsThisFrame != 0;
+    bool loadedFromDisk = gsRenderer->diskLoadsThisFrame != 0;
+
+    if (loadedFromRAM && loadedFromDisk) {
+        thrashIndicator = " [RAM+DISK THRASHING]";
+    } else if (loadedFromRAM) {
+        thrashIndicator = " [RAM THRASHING]";
+    } else if (loadedFromDisk) {
         thrashIndicator = " [DISK LOAD]";
     }
 
     int pinned = 0;
-
     repeat(gsRenderer->chunkCount, i) {
         if (gsRenderer->chunks[i].snapshotIdx != -1 || gsRenderer->chunks[i].surfaceIdx != -1)
             pinned++;

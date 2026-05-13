@@ -23,7 +23,6 @@
 // ===[ Constants ]===
 #define PS2_SCREEN_WIDTH 640.0f
 #define PS2_SCREEN_HEIGHT 448.0f
-#define TEX_HEADER_SIZE 128
 #define CLUT4_ENTRY_SIZE 64    // 16 colors * 4 bytes
 #define CLUT8_ENTRY_SIZE 1024  // 256 colors * 4 bytes
 
@@ -85,10 +84,24 @@ static void loadAtlas(GsRenderer* gs) {
     gs->atlasTileCount = BinaryReader_readUint16(&reader);
     gs->atlasCount = BinaryReader_readUint16(&reader);
 
-    // Parse atlas offset table
+    // Parse atlas table
     gs->atlasOffsets = safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasWidth = safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasHeight = safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasBpp = safeMalloc(gs->atlasCount * sizeof(uint8_t));
+    gs->atlasDataSizes = safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasCompressionType = safeMalloc(gs->atlasCount * sizeof(uint8_t));
     repeat(gs->atlasCount, i) {
         gs->atlasOffsets[i] = BinaryReader_readUint32(&reader);
+        gs->atlasWidth[i] = BinaryReader_readUint16(&reader);
+        gs->atlasHeight[i] = BinaryReader_readUint16(&reader);
+        gs->atlasBpp[i] = BinaryReader_readUint8(&reader);
+        gs->atlasDataSizes[i] = BinaryReader_readUint32(&reader);
+        gs->atlasCompressionType[i] = BinaryReader_readUint8(&reader);
+        if (gs->atlasBpp[i] != 4 && gs->atlasBpp[i] != 8) {
+            fprintf(stderr, "GsRenderer: Atlas %u has unsupported bpp %u\n", i, gs->atlasBpp[i]);
+            abort();
+        }
     }
 
     // Parse TPAG entries
@@ -140,9 +153,6 @@ static void loadAtlas(GsRenderer* gs) {
         hmput(gs->tileEntryMap, key, entry);
     }
 
-    gs->atlasBpp = safeCalloc(gs->atlasCount, sizeof(uint8_t));
-    gs->atlasWidth = safeCalloc(gs->atlasCount, sizeof(uint16_t));
-    gs->atlasHeight = safeCalloc(gs->atlasCount, sizeof(uint16_t));
     gs->atlasToChunk = safeMalloc(gs->atlasCount * sizeof(int16_t));
     repeat(gs->atlasCount, i) {
         gs->atlasToChunk[i] = -1;
@@ -409,50 +419,23 @@ static uint32_t atlasUncompressedSize(uint16_t width, uint16_t height, uint8_t b
     return (bpp == 4) ? (width * height / 2) : (width * height);
 }
 
-// Decompress atlas pixel data from a compressed buffer (TEX_HEADER_SIZE header + RLE/raw payload).
+// Decompress atlas pixel data from a payload buffer.
 // Writes uncompressed indexed pixels into outBuf (must be large enough and 128-byte aligned).
-static void decompressAtlasPixels(const uint8_t* compressedData, uint8_t* outBuf) {
-    uint16_t width = BinaryUtils_readUint16(compressedData + 1);
-    uint16_t height = BinaryUtils_readUint16(compressedData + 3);
-    uint8_t bpp = BinaryUtils_readUint8(compressedData + 5);
-    uint32_t pixelDataSize = BinaryUtils_readUint32(compressedData + 6);
-    uint8_t compressionType = BinaryUtils_readUint8(compressedData + 10);
-
+static void decompressAtlasPixels(const uint8_t* pixelData, uint32_t pixelDataSize, uint8_t compressionType, uint16_t width, uint16_t height, uint8_t bpp, uint8_t* outBuf) {
     uint32_t uncompressedSize = (bpp == 4) ? (uint32_t) ((width * height + 1) / 2) : (uint32_t) (width * height);
-    const uint8_t* rawData = compressedData + TEX_HEADER_SIZE;
 
     if (compressionType == 1) {
         // RLE decompression
         uint32_t srcPos = 0, dstPos = 0;
         while (pixelDataSize > srcPos + 1 && uncompressedSize > dstPos) {
-            uint8_t runLength = rawData[srcPos++];
-            uint8_t value = rawData[srcPos++];
+            uint8_t runLength = pixelData[srcPos++];
+            uint8_t value = pixelData[srcPos++];
             for (uint8_t j = 0; runLength > j && uncompressedSize > dstPos; j++) {
                 outBuf[dstPos++] = value;
             }
         }
     } else {
-        memcpy(outBuf, rawData, uncompressedSize);
-    }
-}
-
-// Read each atlas's per-page header from TEXTURES.BIN to populate metadata information.
-static void loadAtlasMetadata(GsRenderer* gs) {
-    uint8_t header[6];
-    repeat(gs->atlasCount, i) {
-        fseek(gs->texturesFile, (long) gs->atlasOffsets[i], SEEK_SET);
-        size_t read = fread(header, 1, sizeof(header), gs->texturesFile);
-        if (read != sizeof(header)) {
-            fprintf(stderr, "GsRenderer: Short read on atlas %u header\n", i);
-            abort();
-        }
-        gs->atlasWidth[i] = BinaryUtils_readUint16(header + 1);
-        gs->atlasHeight[i] = BinaryUtils_readUint16(header + 3);
-        gs->atlasBpp[i] = header[5];
-        if (gs->atlasBpp[i] != 4 && gs->atlasBpp[i] != 8) {
-            fprintf(stderr, "GsRenderer: Atlas %u has unsupported bpp %u\n", i, gs->atlasBpp[i]);
-            abort();
-        }
+        memcpy(outBuf, pixelData, uncompressedSize);
     }
 }
 
@@ -488,68 +471,6 @@ static void initEeCache(GsRenderer* gs) {
         gs->eeCacheEntries[i].size = 0;
         gs->eeCacheEntries[i].lastUsed = 0;
     }
-
-    // Compute on-disk sizes from offset table
-    gs->atlasDataSizes = safeMalloc(gs->atlasCount * sizeof(uint32_t));
-
-    // Get total file size for the last atlas
-    fseek(gs->texturesFile, 0, SEEK_END);
-    uint32_t texturesFileSize = (uint32_t) ftell(gs->texturesFile);
-
-    repeat(gs->atlasCount, i) {
-        if (gs->atlasCount - 1 > i) {
-            gs->atlasDataSizes[i] = gs->atlasOffsets[i + 1] - gs->atlasOffsets[i];
-        } else {
-            gs->atlasDataSizes[i] = texturesFileSize - gs->atlasOffsets[i];
-        }
-    }
-}
-
-// Preload atlases sequentially into the EE cache until the buffer is full.
-// Reads compressed data from disc, decompresses, and stores uncompressed pixels in the cache.
-static void preloadEeCache(GsRenderer* gs) {
-    uint32_t preloaded = 0;
-
-    // Allocate a temp buffer for reading compressed data from disc
-    uint32_t maxDiskSize = 0;
-    repeat(gs->atlasCount, i) {
-        if (gs->atlasDataSizes[i] > maxDiskSize) maxDiskSize = gs->atlasDataSizes[i];
-    }
-    uint8_t* tempBuf = (uint8_t*) safeMemalign(128, maxDiskSize);
-
-    repeat(gs->atlasCount, i) {
-        uint8_t bpp = gs->atlasBpp[i];
-        uint16_t width = gs->atlasWidth[i];
-        uint16_t height = gs->atlasHeight[i];
-        uint32_t uncompSize = atlasUncompressedSize(width, height, bpp);
-        if (gs->eeCacheBumpPtr + uncompSize > gs->eeCacheCapacity) {
-            break;
-        }
-
-        // Read compressed data from disc into temp buffer
-        uint32_t dataSize = gs->atlasDataSizes[i];
-        fseek(gs->texturesFile, (long) gs->atlasOffsets[i], SEEK_SET);
-        size_t bytesRead = fread(tempBuf, 1, dataSize, gs->texturesFile);
-        if (bytesRead != dataSize) {
-            fprintf(stderr, "GsRenderer: EE cache preload short read for atlas %u (expected %u, got %zu)\n", i, dataSize, bytesRead);
-            break;
-        }
-
-        // Decompress directly into the EE cache
-        decompressAtlasPixels(tempBuf, gs->eeCache + gs->eeCacheBumpPtr);
-
-        gs->eeCacheEntries[i].atlasId = (int16_t) i;
-        gs->eeCacheEntries[i].offset = gs->eeCacheBumpPtr;
-        gs->eeCacheEntries[i].size = uncompSize;
-        gs->eeCacheEntries[i].lastUsed = gs->frameCounter;
-
-        gs->eeCacheBumpPtr += uncompSize;
-        preloaded++;
-    }
-
-    free(tempBuf);
-
-    fprintf(stderr, "GsRenderer: EE cache initialized - %u MB, %u atlases preloaded (%u KB used)\n", EE_CACHE_CAPACITY / (1024 * 1024), preloaded, gs->eeCacheBumpPtr / 1024);
 }
 
 // Look up an atlas in the EE cache. Returns pointer to cached data or nullptr.
@@ -664,7 +585,7 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
     const char* atlasSource = "RAM";
 
     if (uploadData == nullptr) {
-        // Cache miss: read compressed data from TEXTURES.BIN and decompress
+        // Cache miss: read pixel data from TEXTURES.BIN and decompress (if RLE'd)
         uint32_t dataSize = gs->atlasDataSizes[atlasId];
         uint8_t* compressedBuf = (uint8_t*) safeMemalign(128, dataSize);
 
@@ -680,7 +601,7 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
         uint16_t height = gs->atlasHeight[atlasId];
         uint32_t uncompSize = atlasUncompressedSize(width, height, bpp);
         tempPixelData = (uint8_t*) safeMemalign(128, uncompSize);
-        decompressAtlasPixels(compressedBuf, tempPixelData);
+        decompressAtlasPixels(compressedBuf, dataSize, gs->atlasCompressionType[atlasId], width, height, bpp, tempPixelData);
         free(compressedBuf);
 
         // Try to insert uncompressed data into EE cache
@@ -698,6 +619,8 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
             rendererPrintf("GsRenderer: EE cache insert failed for atlas %u, uploading directly\n", atlasId);
             uploadData = tempPixelData;
         }
+    } else {
+        gs->ramLoadsThisFrame++;
     }
 
     // Upload pixel data to VRAM
@@ -1130,14 +1053,10 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
     gs->originalTpagCount = dataWin->tpag.count;
     gs->originalSpriteCount = dataWin->sprt.count;
 
-    // Read per-page format/size from TEXTURES.BIN headers
-    loadAtlasMetadata(gs);
-
     computeAtlasReservation(gs);
 
     // Initialize EE RAM cache for compressed atlas data
     initEeCache(gs);
-    preloadEeCache(gs);
 
     fprintf(stderr, "GsRenderer: Initialized (textured mode)\n");
 }
@@ -1148,6 +1067,7 @@ static void gsDestroy(Renderer* renderer) {
         fclose(gs->texturesFile);
     }
     free(gs->atlasOffsets);
+    free(gs->atlasCompressionType);
     free(gs->atlasTPAGEntries);
     free(gs->atlasTileEntries);
     hmfree(gs->tileEntryMap);
@@ -1173,6 +1093,7 @@ static void gsBeginFrame(Renderer* renderer, MAYBE_UNUSED int32_t gameW, MAYBE_U
     gs->evictedAtlasUsedInCurrentFrame = false;
     gs->uniqueAtlasesThisFrame = 0;
     gs->chunksNeededThisFrame = 0;
+    gs->ramLoadsThisFrame = 0;
     gs->diskLoadsThisFrame = 0;
 
     // gsKit_setactive (called by sync_flip) re-emits FRAME with FBMSK=0, so any color-write mask we set last frame is gone. Re-apply it here for cases where GML leaves it asserted across frames.
@@ -2610,7 +2531,7 @@ static int32_t gsCreateSurface(Renderer* renderer, int32_t width, int32_t height
     uint16_t tbw = (uint16_t) ((width + 63) / 64);
     if (tbw == 0) tbw = 1;
     uint32_t paddedWidth = (uint32_t) tbw * 64;
-    uint32_t bytes = paddedWidth * (uint32_t) height * 2; // CT16 = 2 bytes/pixel
+    uint32_t bytes = gsKit_texture_size(paddedWidth, height, GS_PSM_CT16);
 
     // Reuse a freed row if possible so the table doesn't grow unbounded.
     int32_t row = -1;
@@ -2902,6 +2823,12 @@ static void gsSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
         srcX = 0; srcY = 0;
         w = srcWidth;
         h = srcHeight;
+    }
+
+    // Same fix as the one from gsCreateSpriteFromSurface
+    if (srcSurfaceID == APPLICATION_SURFACE_ID && part) {
+        srcX += (int32_t) floorf(gs->offsetX);
+        srcY += (int32_t) floorf(gs->offsetY);
     }
 
     // Clip source rect to source bounds, propagating the offset into the destination so we copy the right sub-region.
