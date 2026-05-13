@@ -59,9 +59,10 @@ typedef struct {
 #define VRAM_CHUNK_SIZE 32768 // 32KB = gsKit_texture_size(256, 256, GS_PSM_T4)
 
 typedef struct {
-    int16_t atlasId;     // Atlas occupying this chunk (-1 = not an atlas chunk). Mutually exclusive with snapshotIdx.
+    int16_t atlasId;     // Atlas occupying this chunk (-1 = not an atlas chunk). Mutually exclusive with snapshotIdx and surfaceIdx.
     int16_t snapshotIdx; // Snapshot occupying this chunk (-1 = not a snapshot chunk). Pinned: LRU eviction skips these.
-    uint64_t lastUsed;   // Frame number when last accessed (used by atlas LRU; ignored for snapshot chunks)
+    int16_t surfaceIdx;  // GML surface occupying this chunk (-1 = not a surface chunk). Pinned the same way snapshots are.
+    uint64_t lastUsed;   // Frame number when last accessed (used by atlas LRU; ignored for snapshot/surface chunks)
 } VRAMChunk;
 
 // ===[ EE RAM Atlas Cache Entry ]===
@@ -82,6 +83,17 @@ typedef struct {
     uint16_t tbw;         // Buffer width in 64-pixel blocks (matches GS BITBLTBUF DBW)
     bool inUse;           // Table row owned by a live sprite. When false, chunks have already been released back to the atlas pool; the row index is held only so tpagToSnapshot pointers stay stable until the sprite slot is fully reaped.
 } SnapshotChunk;
+
+// ===[ GML Surface ]===
+// Backs surface_create / surface_set_target / draw_surface. Lives in a CT16 region of VRAM pinned via VRAMChunk.surfaceIdx.
+typedef struct {
+    uint16_t firstChunk;   // Index of first chunk in the consecutive run
+    uint16_t chunkCount;   // Number of consecutive chunks occupied
+    uint16_t width;        // Logical width in pixels (what GML asked for)
+    uint16_t height;       // Logical height in pixels
+    uint16_t tbw;          // Buffer width in 64-pixel blocks (= ceil(width/64)). Padded width is tbw * 64.
+    bool inUse;            // false = freed row, kept so the table doesn't shrink
+} Surface;
 
 // ===[ GsRenderer Struct ]===
 typedef struct {
@@ -118,6 +130,7 @@ typedef struct {
     // VRAM texture cache (buddy system with LRU eviction)
     uint32_t textureVramBase;  // Start of texture region in VRAM (after framebuffers + CLUTs)
     uint32_t chunkCount;       // Number of 128KB chunks available
+    uint32_t reservedAtlasChunks; // First N chunks are atlas-only to avoid starving all chunks with pinned chunks.
     VRAMChunk* chunks;         // Per-chunk state [chunkCount]
     int16_t* atlasToChunk;     // atlasId -> first chunk index (-1 = not loaded) [atlasCount]
     uint16_t atlasCount;       // Number of atlas IDs from ATLAS.BIN header
@@ -147,6 +160,7 @@ typedef struct {
     // That breaks textured alpha-mask sprites.
     // To keep TCC=1 always, we leave PrimAlphaEnable=ON and emulate blend-disable by switching ALPHA to an identity equation (Cs passes through unchanged).
     bool blendEnabled;       // What the GML last requested via gpu_set_blendenable
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA; // What the GML last requested via gpu_set_colorwriteenable
     u64 currentBlendAlpha;   // The ALPHA register value the GML last requested via gpu_set_blendmode[_ext]
 
     // Snapshot table for sprite_create_from_surface(application_surface, ...). VRAM lives in the shared chunk pool, pinned via VRAMChunk.snapshotIdx.
@@ -154,6 +168,27 @@ typedef struct {
     uint32_t originalTpagCount;    // dw->tpag.count at init time; slots >= this are dynamic and ours to free
     uint32_t originalSpriteCount;  // dw->sprt.count at init time
     int32_t* tpagToSnapshot;       // stb_ds dynamic array indexed by tpagIndex; -1 = not a snapshot, otherwise index into snapshotChunks
+
+    // GML surface table. Each row owns a CT16 region in the chunk pool, pinned via VRAMChunk.surfaceIdx.
+    Surface* surfaces;             // stb_ds dynamic array of surface rows
+    int32_t currentSurface;        // -1 = main framebuffer, otherwise index into surfaces[]
+
+    // Saved framebuffer state captured on the first push into a surface. Used to restore the screen FRAME on surface_reset_target.
+    uint32_t savedScreenBufferAddr; // gsGlobal->ScreenBuffer[ActiveBuffer] before the switch
+    uint16_t savedFbWidth;
+    uint16_t savedFbHeight;
+    uint8_t  savedFbPSM;
+    uint8_t  savedAte;              // Test->ATE at the moment of push (so we can restore the GML's last alpha-test enable choice on pop).
+    uint8_t  savedFba;              // gs->fba at the moment of push (main FB normally has FBA=1; surface flips it based on blend state).
+    uint32_t savedFbmsk;            // FBMSK at the moment of push (so a phantom-surface set_target can mask all writes and restore on pop).
+
+    // Saved view transform captured on push, restored on pop, so the GML view scale/offset doesn't bleed into surface-local draws.
+    float    savedScaleX;
+    float    savedScaleY;
+    float    savedOffsetX;
+    float    savedOffsetY;
+    int32_t  savedViewX;
+    int32_t  savedViewY;
 } GsRenderer;
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal);

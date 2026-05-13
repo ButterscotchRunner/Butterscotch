@@ -142,6 +142,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->uFogColor = glGetUniformLocation(gl->shaderProgram, "uFogColor");
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
+    gl->colorWriteR = true;
+    gl->colorWriteG = true;
+    gl->colorWriteB = true;
+    gl->colorWriteA = true;
     gl->fogEnable = false;
     gl->fogColor = 0;
     glUseProgram(gl->shaderProgram);
@@ -1415,8 +1419,7 @@ static float glGetSurfaceHeight(Renderer* renderer, int32_t surfaceId) {
     return 0.0;
 }
 
-static void glDrawSurface(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
-
+static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     GLuint texId;
@@ -1434,196 +1437,49 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, float x, float 
         texH = gl->fboHeight;
     }
 
+    if (0 > srcWidth) { srcLeft = 0; srcTop = 0; srcWidth = texW; srcHeight = texH; }
+
     // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
     if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
     if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
     gl->currentTextureId = texId;
 
-    float u0 = (float) 0.0;
-    float v0 = (float) 1.0;
-    float u1 = (float) 1.0;
-    float v1 = (float) 0.0;
+    // Texture is bottom-up in GL; GML src is top-down, so flip V.
+    float u0 = (float) srcLeft / (float) texW;
+    float u1 = (float) (srcLeft + srcWidth) / (float) texW;
+    float v0 = 1.0f - (float) srcTop / (float) texH;
+    float v1 = 1.0f - (float) (srcTop + srcHeight) / (float) texH;
 
+    float localX1 = (float) srcWidth;
+    float localY1 = (float) srcHeight;
 
-    // Compute local quad corners (relative to origin, with target offset)
-    float localX0 = (float) 0.0;
-    float localY0 = (float) 0.0;
-    float localX1 = (float) texW;
-    float localY1 = (float) texH;
-
-    // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
-    // GML rotation is counter-clockwise, OpenGL rotation is counter-clockwise, but
-    // since we have Y-down, we negate the angle to get the correct visual rotation
+    // GML rotation is counter-clockwise; with our Y-down coords we negate the angle to get the correct visual rotation.
     float angleRad = -angleDeg * ((float) M_PI / 180.0f);
     Matrix4f transform;
     Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
 
-    // Transform 4 corners
     float x0, y0, x1, y1, x2, y2, x3, y3;
-    Matrix4f_transformPoint(&transform, localX0, localY0, &x0, &y0); // top-left
-    Matrix4f_transformPoint(&transform, localX1, localY0, &x1, &y1); // top-right
+    Matrix4f_transformPoint(&transform, 0.0f,    0.0f,    &x0, &y0); // top-left
+    Matrix4f_transformPoint(&transform, localX1, 0.0f,    &x1, &y1); // top-right
     Matrix4f_transformPoint(&transform, localX1, localY1, &x2, &y2); // bottom-right
-    Matrix4f_transformPoint(&transform, localX0, localY1, &x3, &y3); // bottom-left
+    Matrix4f_transformPoint(&transform, 0.0f,    localY1, &x3, &y3); // bottom-left
 
-    // Convert BGR color to RGB floats
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
     float b = (float) BGR_B(color) / 255.0f;
 
-    // Write 4 vertices into batch buffer
     float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
-    // Vertex 0: top-left
     verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
     verts[4] = r;  verts[5] = g;  verts[6] = b;  verts[7] = alpha;
 
-    // Vertex 1: top-right
     verts[8]  = x1; verts[9]  = y1; verts[10] = u1; verts[11] = v0;
     verts[12] = r;  verts[13] = g;  verts[14] = b;  verts[15] = alpha;
 
-    // Vertex 2: bottom-right
     verts[16] = x2; verts[17] = y2; verts[18] = u1; verts[19] = v1;
     verts[20] = r;  verts[21] = g;  verts[22] = b;  verts[23] = alpha;
 
-    // Vertex 3: bottom-left
     verts[24] = x3; verts[25] = y3; verts[26] = u0; verts[27] = v1;
-    verts[28] = r;  verts[29] = g;  verts[30] = b;  verts[31] = alpha;
-
-    gl->quadCount++;
-}
-
-
-
-
-static void glDrawSurfacePart(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t left, int32_t top, int32_t width, int32_t height, float xscale, float yscale, uint32_t color, float alpha) {
-
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    GLuint texId;
-    int32_t texW = 0;
-    int32_t texH = 0;
-
-    if (surfaceID != -1) {
-        if (0 > surfaceID || gl->surfaceCount <= (uint32_t) surfaceID) return;
-        texId = gl->surfaceTexture[surfaceID];
-        texW = gl->surfaceWidth[surfaceID];
-        texH = gl->surfaceHeight[surfaceID];
-    } else {
-        texId = gl->fboTexture;
-        texW = gl->fboWidth;
-        texH = gl->fboHeight;
-    }
-
-    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
-    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
-    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-    gl->currentTextureId = texId;
-
-    float u0 = (float) left / (float) texW;
-    float v0 = (float) (float) texH - (top / (float) texH);
-    float u1 = (float) (left + width) / (float) texW;
-    float v1 = (float) (float) texH - ((top + height) / (float) texH);
-
-    // Compute local quad corners (relative to origin, with target offset)
-    float localX0 = 0;
-    float localY0 = 0;
-    float localX1 = (float) width;
-    float localY1 = (float) height;
-    //float alpha = 1.0;
-    // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
-    // GML rotation is counter-clockwise, OpenGL rotation is counter-clockwise, but
-    // since we have Y-down, we negate the angle to get the correct visual rotation
-
-    Matrix4f transform;
-    Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, 0.0);
-
-    // Transform 4 corners
-    float x0, y0, x1, y1, x2, y2, x3, y3;
-    Matrix4f_transformPoint(&transform, localX0, localY0, &x0, &y0); // top-left
-    Matrix4f_transformPoint(&transform, localX1, localY0, &x1, &y1); // top-right
-    Matrix4f_transformPoint(&transform, localX1, localY1, &x2, &y2); // bottom-right
-    Matrix4f_transformPoint(&transform, localX0, localY1, &x3, &y3); // bottom-left
-
-    // Convert BGR color to RGB floats
-    float r = 1.0f;
-    float g = 1.0f;
-    float b = 1.0f;
-
-    // Write 4 vertices into batch buffer
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
-
-    // Vertex 0: top-left
-    verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
-    verts[4] = r;  verts[5] = g;  verts[6] = b;  verts[7] = alpha;
-
-    // Vertex 1: top-right
-    verts[8]  = x1; verts[9]  = y1; verts[10] = u1; verts[11] = v0;
-    verts[12] = r;  verts[13] = g;  verts[14] = b;  verts[15] = alpha;
-
-    // Vertex 2: bottom-right
-    verts[16] = x2; verts[17] = y2; verts[18] = u1; verts[19] = v1;
-    verts[20] = r;  verts[21] = g;  verts[22] = b;  verts[23] = alpha;
-
-    // Vertex 3: bottom-left
-    verts[24] = x3; verts[25] = y3; verts[26] = u0; verts[27] = v1;
-    verts[28] = r;  verts[29] = g;  verts[30] = b;  verts[31] = alpha;
-
-    gl->quadCount++;
-
-}
-
-static void glDrawSurfaceStretched(Renderer* renderer, int32_t surfaceID, float x, float y, float width, float height) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    GLuint texId;
-
-    if (surfaceID != -1) {
-        if (0 > surfaceID || gl->surfaceCount <= (uint32_t) surfaceID) return;
-        texId = gl->surfaceTexture[surfaceID];
-    } else {
-        texId = gl->fboTexture;
-    }
-
-    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
-    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
-    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-    gl->currentTextureId = texId;
-
-    float u0 = (float) 0.0;
-    float v0 = (float) 1.0;
-    float u1 = (float) 1.0;
-    float v1 = (float) 0.0;
-
-    // Compute local quad corners (relative to origin, with target offset)
-    float x0 = (float) x;
-    float y0 = (float) y;
-    float x1 = x0 + (float) width;
-    float y1 = y0 + (float) height;
-    float alpha = 1.0;
-    // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
-    // GML rotation is counter-clockwise, OpenGL rotation is counter-clockwise, but
-    // since we have Y-down, we negate the angle to get the correct visual rotation
-    // Convert BGR color to RGB floats
-    float r = 1.0f;
-    float g = 1.0f;
-    float b = 1.0f;
-
-    // Write 4 vertices into batch buffer
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
-
-    // Vertex 0: top-left
-    verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
-    verts[4] = r;  verts[5] = g;  verts[6] = b;  verts[7] = alpha;
-
-    // Vertex 1: top-right
-    verts[8]  = x1; verts[9]  = y0; verts[10] = u1; verts[11] = v0;
-    verts[12] = r;  verts[13] = g;  verts[14] = b;  verts[15] = alpha;
-
-    // Vertex 2: bottom-right
-    verts[16] = x1; verts[17] = y1; verts[18] = u1; verts[19] = v1;
-    verts[20] = r;  verts[21] = g;  verts[22] = b;  verts[23] = alpha;
-
-    // Vertex 3: bottom-left
-    verts[24] = x0; verts[25] = y1; verts[26] = u0; verts[27] = v1;
     verts[28] = r;  verts[29] = g;  verts[30] = b;  verts[31] = alpha;
 
     gl->quadCount++;
@@ -1805,8 +1661,21 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
-    flushBatch((GLRenderer*)renderer);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    gl->colorWriteR = red;
+    gl->colorWriteG = green;
+    gl->colorWriteB = blue;
+    gl->colorWriteA = alpha;
     glColorMask(red, green, blue, alpha);
+}
+
+static void glGpuGetColorWriteEnable(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    *red = gl->colorWriteR;
+    *green = gl->colorWriteG;
+    *blue = gl->colorWriteB;
+    *alpha = gl->colorWriteA;
 }
 
 static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
@@ -1853,6 +1722,7 @@ static RendererVtable glVtable = {
     .gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable,
     .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
     .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
+    .gpuGetColorWriteEnable = glGpuGetColorWriteEnable,
     .gpuSetFog = glGpuSetFog,
     .gpuGetBlendEnable = glGpuGetBlendEnable,
     .drawTile = nullptr,
@@ -1864,8 +1734,6 @@ static RendererVtable glVtable = {
     .getSurfaceWidth = glGetSurfaceWidth,
     .getSurfaceHeight = glGetSurfaceHeight,
     .drawSurface = glDrawSurface,
-    .drawSurfacePart = glDrawSurfacePart,
-    .drawSurfaceStretched = glDrawSurfaceStretched,
     .surfaceResize = glSurfaceResize,
     .surfaceFree = glSurfaceFree,
 

@@ -22,6 +22,7 @@ typedef struct {
 
     bool alphaTestEnable;
     float alphaTestRef;
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
     bool fogEnable;
     uint32_t fogColor; // BGR
 

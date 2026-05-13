@@ -33,6 +33,8 @@ typedef struct {
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
 
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
+
 #ifndef PLATFORM_PS3
     // FBO for render-to-texture (game renders here, then blitted to screen)
     GLuint fbo;

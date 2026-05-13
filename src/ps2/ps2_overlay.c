@@ -310,7 +310,14 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
         thrashIndicator = " [DISK LOAD]";
     }
 
-    snprintf(debugText, sizeof(debugText), "Room: %s\nTick: %.2fms\nStep: %.2fms\nDraw: %.2fms\nAudio: %.2fms\nFree: %d bytes\nVRAM Free: %lu bytes\nRoom Speed: %u%s\nAtlas: (%u, %u, %u) [%u/%u]%s%s\nInstances: %d\nStructs: %d", roomName, (double) tick, (double) step, (double) draw, (double) audio, freeBytes, (unsigned long) vramFreeBytes, runner->currentRoom->speed, speedCapRemoved ? " [UNCAPPED]" : "", vramAtlasCount, eeramAtlasCount, gsRenderer->atlasCount, gsRenderer->chunksNeededThisFrame, gsRenderer->chunkCount, thrashIndicator, atlasSizeText, (int) arrlen(runner->instances), (int) arrlen(runner->structInstances));
+    int pinned = 0;
+
+    repeat(gsRenderer->chunkCount, i) {
+        if (gsRenderer->chunks[i].snapshotIdx != -1 || gsRenderer->chunks[i].surfaceIdx != -1)
+            pinned++;
+    }
+
+    snprintf(debugText, sizeof(debugText), "Room: %s\nTick: %.2fms\nStep: %.2fms\nDraw: %.2fms\nAudio: %.2fms\nFree: %d bytes\nVRAM Free: %lu bytes\nRoom Speed: %u%s\nAtlas: (%u, %u, %u) [%u/%u (%u pinned)]%s%s\nInstances: %d\nStructs: %d", roomName, (double) tick, (double) step, (double) draw, (double) audio, freeBytes, (unsigned long) vramFreeBytes, runner->currentRoom->speed, speedCapRemoved ? " [UNCAPPED]" : "", vramAtlasCount, eeramAtlasCount, gsRenderer->atlasCount, gsRenderer->chunksNeededThisFrame, gsRenderer->chunkCount, pinned, thrashIndicator, atlasSizeText, (int) arrlen(runner->instances), (int) arrlen(runner->structInstances));
     overlayPrint(10.0f, 10.0f, 10, 0.6f, debugColor, debugText);
 
     if (gOverlay.state == STATS_ENABLED_WITH_PROFILER) {

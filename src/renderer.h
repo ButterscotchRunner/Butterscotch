@@ -74,6 +74,7 @@ typedef struct {
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
+    void (*gpuGetColorWriteEnable)(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha);
     bool (*gpuGetBlendEnable)(Renderer* renderer);
     // Optional: when enabled, replaces output RGB with the fog color (preserving alpha)
     void (*gpuSetFog)(Renderer* renderer, bool enable, uint32_t color);
@@ -88,12 +89,10 @@ typedef struct {
     bool (*setRenderTarget)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
-    void (*drawSurface)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
-    void (*drawSurfacePart)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t left, int32_t top, int32_t width, int32_t height, float xscale, float yscale, uint32_t color, float alpha);
-    void (*drawSurfaceStretched)(Renderer* renderer, int32_t surfaceID, float x, float y, float width, float height);
+    void (*drawSurface)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
     void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
-    void (*surfaceCopy)(Renderer* renderer, int32_t DestSurfaceID, int32_t DestX, int32_t DestY, int32_t SrcSurfaceID, int32_t SrcX, int32_t SrcY, int32_t SrcW, int32_t SrcH, bool part);
+    void (*surfaceCopy)(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part);
     bool (*surfaceGetPixels)(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA);
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).

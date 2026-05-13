@@ -1234,6 +1234,23 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->alpha = 1.0f;
     }
 
+    // If the room contains a visible Background layer with no sprite, use that layer's color
+    // as the background color when initializing the room.
+    int32_t bestDepth = 0;
+    uint32_t bestColor = 0;
+    repeat(room->layerCount, i) {
+        RoomLayer* layerSource = &room->layers[i];
+        if (layerSource->type != RoomLayerType_Background || layerSource->backgroundData == nullptr) continue;
+        RoomLayerBackgroundData* data = layerSource->backgroundData;
+        if (!data->visible || data->spriteIndex >= 0) continue;
+        if (layerSource->depth > bestDepth) {
+            bestDepth = layerSource->depth;
+            bestColor = data->color;
+            runner->backgroundColor = bestColor;
+            runner->drawBackgroundColor = true;
+        }
+    }
+
     Instance** carriedPersistent = takePersistentInstances(runner);
 
     // Two-pass instance creation (matches HTML5 runner behavior):
@@ -1592,14 +1609,13 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(gpuSetAlphaTestEnable);
     requireNotNullFunction(gpuSetAlphaTestRef);
     requireNotNullFunction(gpuSetColorWriteEnable);
+    requireNotNullFunction(gpuGetColorWriteEnable);
     requireNotNullFunction(createSurface);
     requireNotNullFunction(surfaceExists);
     requireNotNullFunction(setRenderTarget);
     requireNotNullFunction(getSurfaceWidth);
     requireNotNullFunction(getSurfaceHeight);
     requireNotNullFunction(drawSurface);
-    requireNotNullFunction(drawSurfacePart);
-    requireNotNullFunction(drawSurfaceStretched);
     requireNotNullFunction(surfaceResize);
     requireNotNullFunction(surfaceFree);
     requireNotNullFunction(surfaceCopy);
@@ -2455,10 +2471,13 @@ void Runner_step(Runner* runner) {
         if (!inst->active) continue;
         if (0 > inst->spriteIndex) continue;
 
-        inst->imageIndex += inst->imageSpeed;
-
         // Wrap image_index (matches HTML5 runner: manual subtract/add instead of using fmod)
         Sprite* sprite = &runner->dataWin->sprt.sprites[inst->spriteIndex];
+        if (sprite->gms2PlaybackSpeedType == true) {
+            inst->imageIndex += inst->imageSpeed;
+        } else {
+            inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
+        }   
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
         if (inst->imageIndex >= frameCount) {
