@@ -12,24 +12,6 @@
 #include <glad/glad.h>
 #endif
 
-// ===[ Surface stack helpers ]===
-// In GameMaker, surfaces are handled via a stack:
-// * surface_set_target is like a "push"
-// * surface_reset_target is like a "pop"
-// * The top surface is the one that gets rendered to
-
-// Initializes the surface stack, MUST BE A MAX_SURFACES ARRAY
-void GLCommon_initStack(int32_t* stack);
-
-// Returns the lowest empty slot index, or -1 if the stack is full.
-int32_t GLCommon_findStackSlot(int32_t* stack);
-
-// Returns the highest occupied slot index, or -1 if the stack is empty.
-int32_t GLCommon_findStackTop(int32_t* stack);
-
-// Clears the highest occupied slot (sets it to -1). No-op when empty.
-void GLCommon_popStack(int32_t* stack);
-
 // ===[ Main FBO ]===
 
 // Allocates or recreates the main render-target FBO at (width, height).

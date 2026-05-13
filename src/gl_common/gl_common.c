@@ -8,38 +8,6 @@
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
 
-// ===[ Surface stack ]===
-
-void GLCommon_initStack(int32_t* stack) {
-    repeat(MAX_SURFACES, i) {
-        stack[i] = -1;
-    }
-}
-
-int32_t GLCommon_findStackSlot(int32_t* stack) {
-    repeat(MAX_SURFACES, i) {
-        if (stack[i] == -1)
-            return i;
-    }
-    return -1;
-}
-
-int32_t GLCommon_findStackTop(int32_t* stack) {
-    for (int32_t i = MAX_SURFACES - 1; i >= 0; i--) {
-        if (stack[i] != -1) return i;
-    }
-    return -1;
-}
-
-void GLCommon_popStack(int32_t* stack) {
-    for (int32_t i = MAX_SURFACES - 1; i >= 0; i--) {
-        if (stack[i] != -1) {
-            stack[i] = -1;
-            return;
-        }
-    }
-}
-
 // ===[ Main FBO ]===
 
 void GLCommon_resizeMainFBO(GLuint* fboTexture, GLuint fbo, int32_t* fboWidth, int32_t* fboHeight, int32_t width, int32_t height) {
@@ -112,10 +80,10 @@ uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceT
     return newIndex;
 }
 
-// Resolves a surface ID to its FBO handle and dimensions. id == -1 picks the
+// Resolves a surface ID to its FBO handle and dimensions. id == APPLICATION_SURFACE_ID picks the
 // main FBO. Returns false for out-of-range or freed surfaces.
 static bool resolveSurfaceFBO(GLuint mainFbo, int32_t mainFboWidth, int32_t mainFboHeight, GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t id, GLuint* outFbo, int32_t* outW, int32_t* outH) {
-    if (id == -1) {
+    if (id == APPLICATION_SURFACE_ID) {
         *outFbo = mainFbo;
         *outW = mainFboWidth;
         *outH = mainFboHeight;

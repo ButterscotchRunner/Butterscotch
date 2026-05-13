@@ -431,6 +431,9 @@ struct Runner {
 
     // GMS legacy (pre 2022.1) collision behavior: AABB overlap treats touching edges as overlap.
     bool collisionCompatibilityMode;
+
+    // GameMaker surface "stack".
+    int32_t surfaceStack[MAX_SURFACES];
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
@@ -472,6 +475,13 @@ int32_t Runner_pushInstancesOfObject(Runner* runner, int32_t targetObjIndex);
 int32_t Runner_pushInstancesForTarget(Runner* runner, int32_t target);
 // Truncate the snapshot arena back to "base", releasing everything pushed after it.
 void Runner_popInstanceSnapshot(Runner* runner, int32_t base);
+
+// Push the surfaceID onto the runner's surface stack and bind it as the active render target.
+// Returns false if the stack is full.
+bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID);
+// Pops the top of the surface stack and bind whatever is below (or the main framebuffer when the stack is empty).
+// Returns false when there was nothing to pop.
+bool Runner_surfaceResetTarget(Runner* runner);
 
 void Runner_dumpState(Runner* runner);
 char* Runner_dumpStateJson(Runner* runner);

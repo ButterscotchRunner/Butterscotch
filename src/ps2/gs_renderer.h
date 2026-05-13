@@ -59,8 +59,9 @@ typedef struct {
 #define VRAM_CHUNK_SIZE 32768 // 32KB = gsKit_texture_size(256, 256, GS_PSM_T4)
 
 typedef struct {
-    int16_t atlasId;    // Which atlas occupies this chunk (-1 = free)
-    uint64_t lastUsed;  // Frame number when last accessed
+    int16_t atlasId;     // Atlas occupying this chunk (-1 = not an atlas chunk). Mutually exclusive with snapshotIdx.
+    int16_t snapshotIdx; // Snapshot occupying this chunk (-1 = not a snapshot chunk). Pinned: LRU eviction skips these.
+    uint64_t lastUsed;   // Frame number when last accessed (used by atlas LRU; ignored for snapshot chunks)
 } VRAMChunk;
 
 // ===[ EE RAM Atlas Cache Entry ]===
@@ -71,6 +72,16 @@ typedef struct {
     uint32_t size;      // Total bytes stored (uncompressed indexed pixels: 128KB for 4bpp, 256KB for 8bpp)
     uint64_t lastUsed;  // Frame counter for LRU
 } EeAtlasCacheEntry;
+
+// ===[ Snapshot Chunk ]===
+typedef struct {
+    uint16_t firstChunk;  // Index of first chunk in the consecutive run
+    uint16_t chunkCount;  // Number of consecutive chunks occupied
+    uint16_t width;       // Snapshot width in pixels (fb-space)
+    uint16_t height;      // Snapshot height in pixels (fb-space)
+    uint16_t tbw;         // Buffer width in 64-pixel blocks (matches GS BITBLTBUF DBW)
+    bool inUse;           // Table row owned by a live sprite. When false, chunks have already been released back to the atlas pool; the row index is held only so tpagToSnapshot pointers stay stable until the sprite slot is fully reaped.
+} SnapshotChunk;
 
 // ===[ GsRenderer Struct ]===
 typedef struct {
@@ -137,6 +148,12 @@ typedef struct {
     // To keep TCC=1 always, we leave PrimAlphaEnable=ON and emulate blend-disable by switching ALPHA to an identity equation (Cs passes through unchanged).
     bool blendEnabled;       // What the GML last requested via gpu_set_blendenable
     u64 currentBlendAlpha;   // The ALPHA register value the GML last requested via gpu_set_blendmode[_ext]
+
+    // Snapshot table for sprite_create_from_surface(application_surface, ...). VRAM lives in the shared chunk pool, pinned via VRAMChunk.snapshotIdx.
+    SnapshotChunk* snapshotChunks; // stb_ds dynamic array of snapshot table rows
+    uint32_t originalTpagCount;    // dw->tpag.count at init time; slots >= this are dynamic and ours to free
+    uint32_t originalSpriteCount;  // dw->sprt.count at init time
+    int32_t* tpagToSnapshot;       // stb_ds dynamic array indexed by tpagIndex; -1 = not a snapshot, otherwise index into snapshotChunks
 } GsRenderer;
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal);

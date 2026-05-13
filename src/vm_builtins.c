@@ -6296,25 +6296,16 @@ static RValue builtin_surface_set_target(VMContext* ctx, RValue* args, MAYBE_UNU
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
 
     Runner* runner = (Runner*) ctx->runner;
-    if (runner->renderer != nullptr) {
-
-        bool exists = Renderer_surfaceSetTarget(runner->renderer, surfaceId);
-
-        if (exists == true) {
-        //fprintf(stderr, "Set Surface Target Yes\n");
+    if (Runner_surfaceSetTarget(runner, surfaceId)) {
         return RValue_makeReal(1.0);
-        }
     }
     return RValue_makeReal(0.0);
 }
 
-static RValue builtin_surface_reset_target(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+static RValue builtin_surface_reset_target(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
-    if (runner->renderer != nullptr) {
-        bool exists = Renderer_surfaceResetTarget(runner->renderer);
-        if (exists == true) {
-            return RValue_makeReal(1.0);
-        }
+    if (Runner_surfaceResetTarget(runner)) {
+        return RValue_makeReal(1.0);
     }
     return RValue_makeReal(0.0);
 }

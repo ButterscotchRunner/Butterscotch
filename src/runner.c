@@ -1594,8 +1594,7 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(gpuSetColorWriteEnable);
     requireNotNullFunction(createSurface);
     requireNotNullFunction(surfaceExists);
-    requireNotNullFunction(setSurfaceTarget);
-    requireNotNullFunction(resetSurfaceTarget);
+    requireNotNullFunction(setRenderTarget);
     requireNotNullFunction(getSurfaceWidth);
     requireNotNullFunction(getSurfaceHeight);
     requireNotNullFunction(drawSurface);
@@ -1626,6 +1625,10 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->osType = OS_WINDOWS;
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
+
+    repeat(MAX_SURFACES, i) {
+        runner->surfaceStack[i] = -1;
+    }
 
     // Collision compatibility mode is "enabled" for all pre-GM 2022.1 games AND for any post-GM 2022.1 games that have the bit 27 set
     runner->collisionCompatibilityMode = (dataWin->detectedFormat.major == 1) || (((dataWin->optn.info >> 27) & 1) != 0);
@@ -2643,6 +2646,52 @@ void Runner_step(Runner* runner) {
     Runner_sweepDeadStructs(runner);
 
     runner->frameCount++;
+}
+
+// ===[ Surface Stack ]===
+// In GameMaker, surfaces are handled via a stack:
+// * surface_set_target is like a "push"
+// * surface_reset_target is like a "pop"
+// * The top surface is the one that gets rendered to
+
+static int32_t findFreeStackSlot(Runner* runner) {
+    repeat(MAX_SURFACES, i) {
+        if (runner->surfaceStack[i] == -1) return i;
+    }
+    return -1;
+}
+
+static int32_t findStackTop(Runner* runner) {
+    for (int32_t i = MAX_SURFACES - 1; i >= 0; i--) {
+        if (runner->surfaceStack[i] != -1) return i;
+    }
+    return -1;
+}
+
+bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
+    if (runner->renderer == nullptr) return false;
+
+    int32_t slot = findFreeStackSlot(runner);
+    if (slot == -1) return false;
+
+    runner->surfaceStack[slot] = surfaceID;
+    runner->renderer->vtable->flush(runner->renderer);
+    return runner->renderer->vtable->setRenderTarget(runner->renderer, surfaceID);
+}
+
+bool Runner_surfaceResetTarget(Runner* runner) {
+    if (runner->renderer == nullptr) return false;
+
+    int32_t top = findStackTop(runner);
+    if (top == -1) return false;
+
+    runner->surfaceStack[top] = -1;
+    runner->renderer->vtable->flush(runner->renderer);
+
+    int32_t newTop = findStackTop(runner);
+    int32_t newTarget = newTop == -1 ? APPLICATION_SURFACE_ID : runner->surfaceStack[newTop];
+    runner->renderer->vtable->setRenderTarget(runner->renderer, newTarget);
+    return true;
 }
 
 // ===[ State Dump ]===

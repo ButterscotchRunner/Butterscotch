@@ -39,15 +39,19 @@ ifndef DISABLE_BC17
 DEFINES += -DENABLE_BC17
 endif
 
-INCLUDES += -Isrc/gl_common
+ifndef DISABLE_LEGACY_GL
+ifndef DISABLE_MODERN_GL
+INCLUDES += -Isrc/gl_common -Isrc/gl
 SRCS += $(wildcard src/gl_common/*.c)
 HEADERS += $(wildcard src/gl_common/*.h)
+endif
+endif
 
 ifndef DISABLE_LEGACY_GL
 ifndef ENABLE_GLES
 DEFINES += -DENABLE_LEGACY_GL
 SRCS += $(wildcard src/gl_legacy/*.c)
-INCLUDES += -Isrc/gl_legacy -Isrc/gl
+INCLUDES += -Isrc/gl_legacy
 HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
 endif
 endif
@@ -57,9 +61,6 @@ ifneq ($(PLATFORM),sdl)
 DEFINES += -DENABLE_MODERN_GL
 SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
-ifdef DISABLE_LEGACY_GL
-INCLUDES += -Isrc/gl
-endif
 endif
 endif
 

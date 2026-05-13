@@ -46,7 +46,6 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
-    int32_t surfaceStack[MAX_SURFACES];
 #endif
 } GLLegacyRenderer;
 

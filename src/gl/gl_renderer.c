@@ -1261,7 +1261,7 @@ glSurfaceFree
 static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (surfaceID == -1) return;
+    if (surfaceID == APPLICATION_SURFACE_ID) return;
     if (gl->surfaceTexture[surfaceID] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceID]);
     if (gl->surfaces[surfaceID] != 0) glDeleteFramebuffers(1, &gl->surfaces[surfaceID]);
 
@@ -1338,9 +1338,7 @@ static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* o
 static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    flushBatch(gl);
-
-    if (surfaceId > -1) {
+    if (surfaceId != APPLICATION_SURFACE_ID) {
         if (surfaceId < gl->surfaceCount)
         {
             if (gl->surfaces[surfaceId] != 0) {
@@ -1362,7 +1360,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
         }
     }
 
-    if (surfaceId == -1) {
+    if (surfaceId == APPLICATION_SURFACE_ID) {
         glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->PreviousViewMatrix.m);
         glBindFramebuffer(GL_FRAMEBUFFER, gl->fbo);
         //glViewport(0, 0, gl->fboWidth, gl->fboHeight);
@@ -1373,44 +1371,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     }
 
     return false;
-}
-
-static bool glSetSurfaceTarget(Renderer* renderer, int32_t surfaceId) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    flushBatch(gl);
-    int32_t slot = GLCommon_findStackSlot(gl->surfaceStack);
-
-
-    if (slot != -1) {
-        //fprintf(stderr, "Pushed Into Surface Slot %u\n", slot);
-        gl->surfaceStack[slot] = surfaceId;
-        glSetRenderTarget(renderer, gl->surfaceStack[slot]);
-        return true;
-    }  else {
-        return false;
-    }
-
-    //This has to be made into a stack surfaceStack
-    //fprintf(stderr, "Set Surface Target %u\n", surfaceId);
-
-
-    return false;
-}
-
-static bool glResetSurfaceTarget(Renderer* renderer) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
-    flushBatch(gl);
-    GLCommon_popStack(gl->surfaceStack);
-    int32_t top = GLCommon_findStackTop(gl->surfaceStack);
-    if (top != -1) {
-        glSetRenderTarget(renderer,gl->surfaceStack[top]);
-    } else {
-        glSetRenderTarget(renderer,-1);
-    }
-
-    return true;
 }
 
 static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
@@ -1682,7 +1642,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     int32_t glY = gl->fboHeight - y - h;
 
     // Read pixels from the FBO (application_surface)
-    if (surfaceID == -1) {
+    if (surfaceID == APPLICATION_SURFACE_ID) {
         glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->fbo);
     } else {
         if (surfaceID < gl->surfaceCount)
@@ -1898,8 +1858,7 @@ static RendererVtable glVtable = {
     .drawTile = nullptr,
     .createSurface = glCreateSurface,
     .surfaceExists = glSurfaceExists,
-    .setSurfaceTarget = glSetSurfaceTarget,
-    .resetSurfaceTarget = glResetSurfaceTarget,
+    .setRenderTarget = glSetRenderTarget,
     .surfaceCopy = glSurfaceCopy,
     .surfaceGetPixels = glSurfaceGetPixels,
     .getSurfaceWidth = glGetSurfaceWidth,
@@ -1923,6 +1882,5 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
-    GLCommon_initStack(gl->surfaceStack);
     return (Renderer*) gl;
 }

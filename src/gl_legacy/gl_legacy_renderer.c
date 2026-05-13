@@ -114,7 +114,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->surfaceWidth = nullptr;
     gl->surfaceHeight = nullptr;
     gl->surfaceCount = 0;
-    GLCommon_initStack(gl->surfaceStack);
 #endif
 
     fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
@@ -1362,11 +1361,11 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     fprintf(stderr, "GL: Freed Surface %d\n", surfaceId);
 }
 
-// Binds the given surface (or -1 for the main FBO) and sets a matching ortho projection.
+// Binds the given surface (or APPLICATION_SURFACE_ID for the main FBO) and sets a matching ortho projection.
 static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
-    if (surfaceId == -1) {
+    if (surfaceId == APPLICATION_SURFACE_ID) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->fbo);
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glMatrixMode(GL_PROJECTION);
@@ -1397,29 +1396,9 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     return true;
 }
 
-static bool glLegacySetSurfaceTarget(Renderer* renderer, int32_t surfaceId) {
-    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    int32_t slot = GLCommon_findStackSlot(gl->surfaceStack);
-    if (slot == -1) return false;
-    gl->surfaceStack[slot] = surfaceId;
-    return glLegacySetRenderTarget(renderer, surfaceId);
-}
-
-static bool glLegacyResetSurfaceTarget(Renderer* renderer) {
-    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    GLCommon_popStack(gl->surfaceStack);
-    int32_t top = GLCommon_findStackTop(gl->surfaceStack);
-    if (top != -1) {
-        glLegacySetRenderTarget(renderer, gl->surfaceStack[top]);
-    } else {
-        glLegacySetRenderTarget(renderer, -1);
-    }
-    return true;
-}
-
-// Resolves a surfaceID (or -1 for the main FBO) to a GL texture and its size.
+// Resolves a surfaceID (or APPLICATION_SURFACE_ID for the main FBO) to a GL texture and its size.
 static bool resolveSurfaceTexture(GLLegacyRenderer* gl, int32_t surfaceId, GLuint* outTexId, int32_t* outW, int32_t* outH) {
-    if (surfaceId == -1) {
+    if (surfaceId == APPLICATION_SURFACE_ID) {
         *outTexId = gl->fboTexture;
         *outW = gl->fboWidth;
         *outH = gl->fboHeight;
@@ -1530,8 +1509,7 @@ static bool glLegacySurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint
 
 static int32_t glLegacyCreateSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) { return -1; }
 static bool glLegacySurfaceExists(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
-static bool glLegacySetSurfaceTarget(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
-static bool glLegacyResetSurfaceTarget(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool glLegacySetRenderTarget(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return false; }
 static float glLegacyGetSurfaceWidth(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
 static float glLegacyGetSurfaceHeight(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0.0f; }
 static void glLegacyDrawSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
@@ -1581,8 +1559,7 @@ static RendererVtable glVtable = {
     .drawTiled = glDrawTiled,
     .createSurface = glLegacyCreateSurface,
     .surfaceExists = glLegacySurfaceExists,
-    .setSurfaceTarget = glLegacySetSurfaceTarget,
-    .resetSurfaceTarget = glLegacyResetSurfaceTarget,
+    .setRenderTarget = glLegacySetRenderTarget,
     .getSurfaceWidth = glLegacyGetSurfaceWidth,
     .getSurfaceHeight = glLegacyGetSurfaceHeight,
     .drawSurface = glLegacyDrawSurface,

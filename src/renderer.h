@@ -30,6 +30,9 @@
 #define bm_inv_dest_color 10
 #define bm_src_alpha_sat 11
 
+// The "application_surface" sentinel ID
+#define APPLICATION_SURFACE_ID (-1)
+
 // Nine-slice tile mode constants
 #define NS_STRETCH    0
 #define NS_REPEAT     1
@@ -81,8 +84,8 @@ typedef struct {
     // Surface Functions
     int32_t (*createSurface)(Renderer* renderer, int32_t width, int32_t height);
     bool (*surfaceExists)(Renderer* renderer, int32_t surfaceID);
-    bool (*setSurfaceTarget)(Renderer* renderer, int32_t surfaceID);
-    bool (*resetSurfaceTarget)(Renderer* renderer);
+    // Bind the given surface as the active render target. Pass APPLICATION_SURFACE_ID to bind the main framebuffer.
+    bool (*setRenderTarget)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
     void (*drawSurface)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
@@ -207,16 +210,6 @@ static float Renderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceIndex)
     return renderer->vtable->getSurfaceHeight(renderer, surfaceIndex);
 }
 
-
-static bool Renderer_surfaceSetTarget(Renderer* renderer, int32_t surfaceIndex) {
-    renderer->vtable->flush(renderer);
-    return renderer->vtable->setSurfaceTarget(renderer, surfaceIndex);
-}
-
-static bool Renderer_surfaceResetTarget(Renderer* renderer) {
-    renderer->vtable->flush(renderer);
-    return renderer->vtable->resetSurfaceTarget(renderer);
-}
 
 // Draws part of a sprite with extended parameters (scale, rotation, color, alpha)
 static void Renderer_drawSpritePartExt(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
