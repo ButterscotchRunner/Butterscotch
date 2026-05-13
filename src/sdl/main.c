@@ -799,7 +799,7 @@ int main(int argc, char* argv[]) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
     free(dataWinDir);
 
-    // Init GLFW
+    // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         DataWin_free(dataWin);
