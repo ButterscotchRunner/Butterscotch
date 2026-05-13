@@ -1368,8 +1368,22 @@ int main(int argc, char* argv[]) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        int32_t gameW = (int32_t) gen8->defaultWindowWidth;
-        int32_t gameH = (int32_t) gen8->defaultWindowHeight;
+        if (!runner->appSurfaceEnabled) {
+            runner->applicationWidth = fbWidth;
+            runner->applicationHeight = fbHeight;
+            runner->usingAppSurface = false;
+        } else {
+            if (runner->applicationWidth <= 0 || runner->applicationHeight <= 0) {
+                runner->applicationWidth = (int32_t) gen8->defaultWindowWidth;
+                runner->applicationHeight = (int32_t) gen8->defaultWindowHeight;
+            }
+            runner->usingAppSurface = true;
+        }
+
+        int32_t gameW = runner->applicationWidth;
+        int32_t gameH = runner->applicationHeight;
+        renderer->appSurfaceAutoDraw = runner->appSurfaceAutoDraw;
+        renderer->usingAppSurface = runner->usingAppSurface;
 
         // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
         // It is a bit hard to understand, but here's how it works:

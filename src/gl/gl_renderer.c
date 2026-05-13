@@ -382,6 +382,11 @@ static void glEndGUI(Renderer* renderer) {
 static void glEndFrame(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     glBindVertexArray(0);
+
+    if (renderer->usingAppSurface && !renderer->appSurfaceAutoDraw) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return;
+    }
     GLCommon_letterboxBlit(gl->fbo, gl->fboWidth, gl->fboHeight, gl->gameW, gl->gameH, gl->windowW, gl->windowH);
 }
 
@@ -1761,5 +1766,7 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
+    gl->base.appSurfaceAutoDraw = true;
+    gl->base.usingAppSurface = true;
     return (Renderer*) gl;
 }

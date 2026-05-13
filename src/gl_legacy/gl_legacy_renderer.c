@@ -1658,5 +1658,8 @@ Renderer* GLLegacyRenderer_create(void) {
     gl->colorWriteG = true;
     gl->colorWriteB = true;
     gl->colorWriteA = true;
+
+    gl->base.appSurfaceAutoDraw = true;
+    gl->base.usingAppSurface = true;
     return (Renderer*) gl;
 }

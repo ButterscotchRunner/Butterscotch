@@ -361,6 +361,14 @@ struct Runner {
     bool drawBackgroundColor;
     bool shouldExit;
     bool debugMode;
+    // application_surface runtime state (mirrors GML toggles)
+    bool appSurfaceEnabled;
+    bool appSurfaceAutoDraw;
+    bool usingAppSurface;
+    int32_t applicationWidth;
+    int32_t applicationHeight;
+    int32_t oldApplicationWidth;
+    int32_t oldApplicationHeight;
     void* nativeWindow;
     void (*setWindowTitle)(void* window, const char* title);
     bool (*getWindowSize)(void* window, int32_t* outW, int32_t* outH);

@@ -3826,9 +3826,46 @@ static RValue builtin_audioDestroyStream(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeReal(success ? 1.0 : -1.0);
 }
 
-// Application surface stubs
-STUB_RETURN_UNDEFINED(application_surface_enable)
-STUB_RETURN_UNDEFINED(application_surface_draw_enable)
+// Application surface
+static RValue builtin_application_surface_enable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner == nullptr || argCount < 1) return RValue_makeUndefined();
+
+    bool enable = RValue_toReal(args[0]) > 0.5;
+    if (runner->appSurfaceEnabled) {
+        runner->oldApplicationWidth = runner->applicationWidth;
+        runner->oldApplicationHeight = runner->applicationHeight;
+    }
+
+    runner->appSurfaceEnabled = enable;
+    runner->usingAppSurface = enable;
+
+    if (!enable) {
+        int32_t w = runner->applicationWidth;
+        int32_t h = runner->applicationHeight;
+        if (runner->getWindowSize != nullptr && runner->getWindowSize(runner->nativeWindow, &w, &h) && w > 0 && h > 0) {
+            runner->applicationWidth = w;
+            runner->applicationHeight = h;
+        }
+    } else {
+        if (runner->oldApplicationWidth > 0 && runner->oldApplicationHeight > 0) {
+            runner->applicationWidth = runner->oldApplicationWidth;
+            runner->applicationHeight = runner->oldApplicationHeight;
+        } else {
+            runner->applicationWidth = (int32_t) ctx->dataWin->gen8.defaultWindowWidth;
+            runner->applicationHeight = (int32_t) ctx->dataWin->gen8.defaultWindowHeight;
+        }
+    }
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_application_surface_draw_enable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner == nullptr || argCount < 1) return RValue_makeUndefined();
+    runner->appSurfaceAutoDraw = RValue_toReal(args[0]) > 0.5;
+    return RValue_makeUndefined();
+}
 
 // ===[ Gamepad Functions ]===
 static RValue builtinGamepadGetDeviceCount(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -6490,6 +6527,9 @@ static RValue builtinSurfaceGetWidth(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
     Runner* runner = (Runner*) ctx->runner;
     if (surfaceId == -1) {
+        if (runner != nullptr && runner->applicationWidth > 0) {
+            return RValue_makeReal((GMLReal) runner->applicationWidth);
+        }
         return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowWidth);
     } else {
         return RValue_makeReal(Renderer_getSurfaceWidth(runner->renderer, surfaceId));
@@ -6502,6 +6542,9 @@ static RValue builtinSurfaceGetHeight(VMContext* ctx, RValue* args, MAYBE_UNUSED
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
     Runner* runner = (Runner*) ctx->runner;
     if (surfaceId == -1) {
+        if (runner != nullptr && runner->applicationHeight > 0) {
+            return RValue_makeReal((GMLReal) runner->applicationHeight);
+        }
         return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
     } else {
         return RValue_makeReal(Renderer_getSurfaceHeight(runner->renderer, surfaceId));

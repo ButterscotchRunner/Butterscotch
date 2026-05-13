@@ -116,6 +116,8 @@ struct Renderer {
     int32_t CPortY;
     int32_t CPortW;
     int32_t CPortH;
+    bool appSurfaceAutoDraw;
+    bool usingAppSurface;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
