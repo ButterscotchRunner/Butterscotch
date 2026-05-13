@@ -586,13 +586,13 @@ static void installCrashHandlers(void) {
 }
 
 
-static void setGlfwWindowTitle(void* window, const char* title) {
+static void setSDLWindowTitle(void* window, const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     SDL_WM_SetCaption(windowTitle, NULL);
 }
 
-static bool getGlfwWindowFocus(void *window) {
+static bool getSDLWindowFocus(void *window) {
     return true;
 }
 
@@ -881,8 +881,8 @@ int main(int argc, char* argv[]) {
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = args.debug;
     runner->osType = args.osType;
-    runner->setWindowTitle = setGlfwWindowTitle;
-    runner->windowHasFocus = getGlfwWindowFocus;
+    runner->setWindowTitle = setSDLWindowTitle;
+    runner->windowHasFocus = getSDLWindowFocus;
     runner->nativeWindow = (void*)0xDEADBEEF;
 
     // Set up input recording/playback (both can be active: playback then continue recording)
