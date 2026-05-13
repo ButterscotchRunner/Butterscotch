@@ -600,17 +600,22 @@ static SDL_Surface* nextFb = NULL;
 static uint32_t fbW = 0, fbH = 0;
 void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
 {
+    if (nextFb != NULL) {
+        SDL_FreeSurface(nextFb);
+        nextFb = NULL;
+    }
+
     fbW = width;
     fbH = height;
     nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer, 
-        width, 
-        height, 
-        32, 
-        width*4, 
-        0xff0000, 
-        0x00ff00, 
-        0x0000ff, 
+        framebuffer,
+        width,
+        height,
+        32,
+        width * 4,
+        0xff0000,
+        0x00ff00,
+        0x0000ff,
         0
     );
 }
@@ -1184,10 +1189,8 @@ int main(int argc, char* argv[]) {
                 if(!useSWRend)
                     SDL_GL_SwapBuffers();
                 else {
-                    SDL_LockSurface(scr);
                     SDL_BlitSurface(nextFb, NULL, scr, NULL);
                     SDL_Flip(scr);
-                    SDL_UnlockSurface(scr);
                 }
             }
         }
