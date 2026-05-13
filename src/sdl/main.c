@@ -200,10 +200,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
-#ifdef DISABLE_LEGACY_GL
-    args->renderer = "software";
-#else
+#ifdef ENABLE_LEGACY_GL
     args->renderer = "legacy-gl";
+#else
+    args->renderer = "software";
 #endif
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
@@ -411,14 +411,32 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             default:
-                fprintf(stderr, "Usage: %s [--headless] [--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
+                fprintf(stderr, "Usage: %s "
+#ifdef ENABLE_SW_RENDERER
+                        "[--headless] "
+#endif
+                        "[--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
                 exit(1);
         }
     }
 
     if (optind >= argc) {
-        fprintf(stderr, "Usage: %s [--headless] [--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
+        fprintf(stderr, "Usage: %s "
+#ifdef ENABLE_SW_RENDERER
+                "[--headless] "
+#endif
+                "[--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
         exit(1);
+    }
+
+    if (args->headless) {
+#ifdef ENABLE_SW_RENDERER
+        args->renderer = "software";
+        fprintf(stderr, "Warning: forcing software rendering in headless mode!\n");
+#else
+        fprintf(stderr, "Error: headless mode requires the software renderer, but it is not enabled!\n");
+        exit(1);
+#endif
     }
 
     args->dataWinPath = argv[optind];
@@ -437,7 +455,6 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         fprintf(stderr, "You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
         exit(1);
     }
-
 }
 
 static void freeCommandLineArgs(CommandLineArgs* args) {
