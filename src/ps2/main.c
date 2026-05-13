@@ -650,12 +650,10 @@ int main(int argc, char* argv[]) {
         // Render views
         u64 drawStartTime = GetTimerSystemTime();
         Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
-        Runner_drawPost(runner);
-        u64 drawEndTime = GetTimerSystemTime();
-
         runner->viewCurrent = 0;
-
         renderer->vtable->endFrame(renderer);
+        Runner_drawPost(runner, 640, 448, gameW, gameH);
+        u64 drawEndTime = GetTimerSystemTime();
 
         // Clear pressed/released edges after both Step and Draw have consumed input
         // This MUST be after Runner_draw because games CAN handle input in Draw events (e.g. Undertale's naming screen)
