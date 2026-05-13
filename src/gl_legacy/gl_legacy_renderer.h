@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "renderer.h"
+#include "runner.h"
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
@@ -31,6 +32,22 @@ typedef struct {
     uint32_t originalTexturePageCount;
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
+
+#ifndef PLATFORM_PS3
+    // FBO for render-to-texture (game renders here, then blitted to screen)
+    GLuint fbo;
+    GLuint fboTexture;
+    int32_t fboWidth;
+    int32_t fboHeight;
+
+    // GML surfaces (each is an FBO with a backing color texture)
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t surfaceCount;
+    int32_t surfaceStack[MAX_SURFACES];
+#endif
 } GLLegacyRenderer;
 
 Renderer* GLLegacyRenderer_create(void);

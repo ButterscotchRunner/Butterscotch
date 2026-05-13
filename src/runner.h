@@ -53,6 +53,7 @@
 #define OTHER_ASYNC_SYSTEM  75
 
 #define MAX_VIEWS 8
+#define MAX_SURFACES 16
 
 // ===[ Operating System Types ]===
 // See GameMaker-HTML5's Globals.js

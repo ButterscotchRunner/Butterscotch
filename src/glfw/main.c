@@ -577,7 +577,7 @@ static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frame
 // Dumps every live surface in the GL renderer as a PNG.
 // Filename pattern takes two %d slots: frame number, then surface ID.
 static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int frameNumber) {
-    repeat(gl->ssurfaceCount, surfaceId) {
+    repeat(gl->surfaceCount, surfaceId) {
         if (gl->surfaces[surfaceId] == 0)
             continue;
 
@@ -1336,9 +1336,7 @@ int main(int argc, char* argv[]) {
 #endif
 
         // Clear the default framebuffer (window background) to black
-        if (!(strcmp(args.renderer, "legacy-gl") == 0)) {
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT);
 
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
@@ -1376,7 +1374,15 @@ int main(int argc, char* argv[]) {
         bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
         if (shouldScreenshot) {
-            GLuint readFbo = (strcmp(args.renderer, "legacy-gl") == 0) ? 0 : ((GLRenderer*) renderer)->fbo;
+            GLuint readFbo;
+#ifdef ENABLE_LEGACY_GL
+            if (strcmp(args.renderer, "legacy-gl") == 0) {
+                readFbo = ((GLLegacyRenderer*) renderer)->fbo;
+            } else
+#endif
+            {
+                readFbo = ((GLRenderer*) renderer)->fbo;
+            }
             captureScreenshot(readFbo, args.screenshotPattern, runner->frameCount, gameW, gameH);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         }

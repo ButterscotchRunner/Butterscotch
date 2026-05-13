@@ -39,6 +39,9 @@ ifndef DISABLE_BC17
 DEFINES += -DENABLE_BC17
 endif
 
+SRCS += $(wildcard src/gl_common/*.c)
+HEADERS += $(wildcard src/gl_common/*.h)
+
 ifndef DISABLE_LEGACY_GL
 ifndef ENABLE_GLES
 DEFINES += -DENABLE_LEGACY_GL
