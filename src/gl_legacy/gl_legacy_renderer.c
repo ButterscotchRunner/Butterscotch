@@ -279,10 +279,24 @@ static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-static void glEndFrame(Renderer* renderer) {
+static void glEndFrameInit(Renderer* renderer) {
     MAYBE_UNUSED GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 #ifndef PLATFORM_PS3
-    GLCommon_letterboxBlit(gl->fbo, gl->fboWidth, gl->fboHeight, gl->gameW, gl->gameH, gl->windowW, gl->windowH);
+    if (renderer->usingAppSurface && !renderer->appSurfaceAutoDraw) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return;
+    }
+    GLCommon_beginLetterboxBlit(gl->fbo);
+#endif
+}
+
+static void glEndFrameEnd(Renderer* renderer) {
+    MAYBE_UNUSED GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+#ifndef PLATFORM_PS3
+    if (renderer->usingAppSurface && !renderer->appSurfaceAutoDraw) {
+        return;
+    }
+    GLCommon_endLetterboxBlit(gl->fboWidth, gl->fboHeight, gl->gameW, gl->gameH, gl->windowW, gl->windowH);
 #endif
 }
 
@@ -1606,7 +1620,8 @@ static RendererVtable glVtable = {
     .init = glInit,
     .destroy = glDestroy,
     .beginFrame = glBeginFrame,
-    .endFrame = glEndFrame,
+    .endFrameInit = glEndFrameInit,
+    .endFrameEnd = glEndFrameEnd,
     .beginView = glBeginView,
     .endView = glEndView,
     .beginGUI = glBeginGUI,

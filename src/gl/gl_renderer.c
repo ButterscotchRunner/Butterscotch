@@ -379,7 +379,7 @@ static void glEndGUI(Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-static void glEndFrame(Renderer* renderer) {
+static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     glBindVertexArray(0);
 
@@ -387,7 +387,16 @@ static void glEndFrame(Renderer* renderer) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         return;
     }
-    GLCommon_letterboxBlit(gl->fbo, gl->fboWidth, gl->fboHeight, gl->gameW, gl->gameH, gl->windowW, gl->windowH);
+    GLCommon_beginLetterboxBlit(gl->fbo);
+}
+
+static void glEndFrameEnd(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    if (renderer->usingAppSurface && !renderer->appSurfaceAutoDraw) {
+        return;
+    }
+    GLCommon_endLetterboxBlit(gl->fboWidth, gl->fboHeight, gl->gameW, gl->gameH, gl->windowW, gl->windowH);
 }
 
 static void glRendererFlush(Renderer* renderer) {
@@ -1713,7 +1722,8 @@ static RendererVtable glVtable = {
     .init = glInit,
     .destroy = glDestroy,
     .beginFrame = glBeginFrame,
-    .endFrame = glEndFrame,
+    .endFrameInit = glEndFrameInit,
+    .endFrameEnd = glEndFrameEnd,
     .beginView = glBeginView,
     .endView = glEndView,
     .beginGUI = glBeginGUI,

@@ -418,8 +418,9 @@ int main(int argc, char* argv[]) {
 
         double drawStart = PS3_GET_TIME;
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
-        renderer->vtable->endFrame(renderer);
+        renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight, gameW, gameH);
+        renderer->vtable->endFrameEnd(renderer);
         double drawTime = PS3_GET_TIME - drawStart;
 
         // ===[ Debug Overlay ]===

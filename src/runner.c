@@ -1591,7 +1591,8 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(init);
     requireNotNullFunction(destroy);
     requireNotNullFunction(beginFrame);
-    requireNotNullFunction(endFrame);
+    requireNotNullFunction(endFrameInit);
+    requireNotNullFunction(endFrameEnd);
     requireNotNullFunction(beginView);
     requireNotNullFunction(endView);
     requireNotNullFunction(beginGUI);

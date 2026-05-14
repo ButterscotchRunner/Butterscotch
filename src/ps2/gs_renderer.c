@@ -1105,8 +1105,12 @@ static void gsBeginFrame(Renderer* renderer, MAYBE_UNUSED int32_t gameW, MAYBE_U
     }
 }
 
-static void gsEndFrame(MAYBE_UNUSED Renderer* renderer) {
-    // No-op: flip happens in main loop
+static void gsEndFrameInit(MAYBE_UNUSED Renderer* renderer) {
+    // No-op: GS draws directly to the display buffer.
+}
+
+static void gsEndFrameEnd(MAYBE_UNUSED Renderer* renderer) {
+    // No-op: flip happens in main loop.
 }
 
 static void gsBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED float viewAngle) {
@@ -2865,7 +2869,8 @@ static RendererVtable gsVtable = {
     .init = gsInit,
     .destroy = gsDestroy,
     .beginFrame = gsBeginFrame,
-    .endFrame = gsEndFrame,
+    .endFrameInit = gsEndFrameInit,
+    .endFrameEnd = gsEndFrameEnd,
     .beginView = gsBeginView,
     .endView = gsEndView,
     .beginGUI = gsBeginGUI,

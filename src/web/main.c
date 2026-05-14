@@ -146,8 +146,9 @@ void* loop() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         Runner_drawViews(gRunner, gameW, gameH, displayScaleX, displayScaleY, false);
-        gRunner->renderer->vtable->endFrame(gRunner->renderer);
+        gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
         Runner_drawPost(gRunner, 640, 480, gameW, gameH);
+        gRunner->renderer->vtable->endFrameEnd(gRunner->renderer);
 
         // Just like glfwSwapBuffers.
         // Only swap when there isn't a room change to match the original runner.

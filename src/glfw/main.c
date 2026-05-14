@@ -1410,8 +1410,9 @@ int main(int argc, char* argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
-        renderer->vtable->endFrame(renderer);
+        renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight, gameW, gameH);
+        renderer->vtable->endFrameEnd(renderer);
 
         // Capture screenshot if this frame matches a requested frame
         bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);

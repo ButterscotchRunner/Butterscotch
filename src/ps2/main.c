@@ -651,8 +651,9 @@ int main(int argc, char* argv[]) {
         u64 drawStartTime = GetTimerSystemTime();
         Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
         runner->viewCurrent = 0;
-        renderer->vtable->endFrame(renderer);
+        renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, 640, 448, gameW, gameH);
+        renderer->vtable->endFrameEnd(renderer);
         u64 drawEndTime = GetTimerSystemTime();
 
         // Clear pressed/released edges after both Step and Draw have consumed input

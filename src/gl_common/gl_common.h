@@ -25,7 +25,8 @@ void GLCommon_resizeMainFBO(GLuint* fboTexture, GLuint fbo, int32_t* fboWidth, i
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY);
 
 // Blits the main FBO to the default framebuffer with letterboxing.
-void GLCommon_letterboxBlit(GLuint fbo, int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+void GLCommon_beginLetterboxBlit(GLuint fbo);
+void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
 
 // ===[ Surface arrays ]===
 
