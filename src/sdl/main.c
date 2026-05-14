@@ -818,7 +818,24 @@ int main(int argc, char* argv[]) {
 
     SDL_Surface* scr = nullptr;
     if(!args.headless) {
-        scr = SDL_SetVideoMode((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 0, useSWRend ? 0 : SDL_OPENGL);
+        int reqW = (int) gen8->defaultWindowWidth;
+        int reqH = (int) gen8->defaultWindowHeight;
+        scr = SDL_SetVideoMode(reqW, reqH, 0, useSWRend ? 0 : SDL_OPENGL);
+        if (!scr && useSWRend) {
+            SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
+            if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
+                fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                        reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
+                scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
+            }
+        }
+        if (!scr) {
+            fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+            SDL_Quit();
+            DataWin_free(dataWin);
+            freeCommandLineArgs(&args);
+            return 1;
+        }
     }
 
     SDL_EnableKeyRepeat(0, 0);
@@ -1157,7 +1174,25 @@ int main(int argc, char* argv[]) {
                 if(!useSWRend)
                     SDL_GL_SwapBuffers();
                 else {
-                    SDL_BlitSurface(nextFb, NULL, scr, NULL);
+                    if (nextFb && (nextFb->w != scr->w || nextFb->h != scr->h)) {
+                        // Game rendered at a different resolution than the display surface
+                        // (e.g. 640x480 game → 320x240 display with SDL_VIDEO_FBCON_ROTATION).
+                        // SDL_SoftStretch requires matching pixel formats, so scale into an
+                        // intermediate 32bpp buffer first, then blit with format conversion.
+                        static SDL_Surface* scaledFb = NULL;
+                        if (!scaledFb || scaledFb->w != scr->w || scaledFb->h != scr->h) {
+                            SDL_FreeSurface(scaledFb);
+                            scaledFb = SDL_CreateRGBSurface(SDL_SWSURFACE, scr->w, scr->h, 32,
+                                nextFb->format->Rmask, nextFb->format->Gmask,
+                                nextFb->format->Bmask, nextFb->format->Amask);
+                        }
+                        if (scaledFb) {
+                            SDL_SoftStretch(nextFb, NULL, scaledFb, NULL);  // scale 32bpp→32bpp
+                            SDL_BlitSurface(scaledFb, NULL, scr, NULL);     // convert 32bpp→16bpp
+                        }
+                    } else {
+                        SDL_BlitSurface(nextFb, NULL, scr, NULL);
+                    }
                     SDL_Flip(scr);
                 }
             }
