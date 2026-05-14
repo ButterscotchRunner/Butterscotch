@@ -305,6 +305,47 @@ jobs:
           name: ${{ matrix.artifact }}
           path: build/butterscotch.elf
 
+  build-web:
+    name: Build (Web)${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ""
+            platform: web
+            artifact: butterscotch-web
+            output_glob: build/butterscotch.*
+          - label: " [Meta]"
+            platform: web-meta
+            artifact: butterscotch-web-meta
+            output_glob: build/butterscotch-meta.*
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Setup Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Configure
+        run: emcmake cmake -B build -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.output_glob }}
+
   build-ps3:
     name: Build (PS3)
     runs-on: ubuntu-latest
