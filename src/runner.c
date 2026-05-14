@@ -2484,7 +2484,7 @@ void Runner_step(Runner* runner) {
                 }   
             }
         } else {
-        inst->imageIndex += inst->imageSpeed;    
+            inst->imageIndex += inst->imageSpeed;    
         }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
