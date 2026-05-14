@@ -725,6 +725,11 @@ void Runner_draw(Runner* runner) {
                     if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
                         RuntimeBackgroundElement* bg = layerElement->backgroundElement;
                         if (!bg->visible) continue;
+                        if (0 > bg->spriteIndex) {
+                            // Spriteless background element: draw as a colored rectangle
+                            runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, bg->blend, bg->alpha, false);
+                            continue;
+                        }
                         int32_t tpagIndex = Renderer_resolveSpriteTPAGIndex(dataWin, bg->spriteIndex);
                         if (0 > tpagIndex) continue;
                         if (bg->stretch) {
@@ -818,26 +823,33 @@ void Runner_draw(Runner* runner) {
                 }
             } else if(parsedLayer->type == RoomLayerType_Background) {
                 if (runner->renderer == nullptr) return;
-                    DataWin* dataWin = runner->dataWin;
-                    float roomW = (float) runner->currentRoom->width;
-                    float roomH = (float) runner->currentRoom->height;
-                    RoomLayerBackgroundData* data = parsedLayer->backgroundData;
+                DataWin* dataWin = runner->dataWin;
+                float roomW = (float) runner->currentRoom->width;
+                float roomH = (float) runner->currentRoom->height;
+                RoomLayerBackgroundData* data = parsedLayer->backgroundData;
 
-                        int32_t tpagIndex = Renderer_resolveSpriteTPAGIndex(dataWin, data->spriteIndex);
-                        if (0 > tpagIndex) continue;
+                if (0 > data->spriteIndex) {
+                    // Spriteless background layer: draw as a colored rectangle with the layer's color/alpha
+                    float alpha = (float) BGR_A(data->color) / 255.0f;
+                    runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, data->color, alpha, false);
+                    continue;
+                }
 
-                        if (data->stretch) {
-                            // Stretch to fill room dimensions
-                            TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                            float xscale = roomW / (float) tpag->boundingWidth;
-                            float yscale = roomH / (float) tpag->boundingHeight;
-                            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, 1.0);
-                        } else if (data->hTiled || data->vTiled) {
-                            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, data->hTiled, data->vTiled, roomW, roomH, 1.0);
-                        } else {
-                            // Single placement
-                            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0);
-                        }
+                int32_t tpagIndex = Renderer_resolveSpriteTPAGIndex(dataWin, data->spriteIndex);
+                if (0 > tpagIndex) continue;
+
+                if (data->stretch) {
+                    // Stretch to fill room dimensions
+                    TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
+                    float xscale = roomW / (float) tpag->boundingWidth;
+                    float yscale = roomH / (float) tpag->boundingHeight;
+                    runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, 1.0);
+                } else if (data->hTiled || data->vTiled) {
+                    Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, data->hTiled, data->vTiled, roomW, roomH, 1.0);
+                } else {
+                    // Single placement
+                    runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0);
+                }
             } else if(parsedLayer->type == RoomLayerType_Instances) {
                 // Instance depth is assigned from layers during room init (initRoom).
                 // Nothing to do here - instances are drawn from the DRAWABLE_INSTANCE path.
@@ -1232,23 +1244,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->speedY = (float) src->speedY;
         dst->stretch = src->stretch;
         dst->alpha = 1.0f;
-    }
-
-    // If the room contains a visible Background layer with no sprite, use that layer's color
-    // as the background color when initializing the room.
-    int32_t bestDepth = 0;
-    uint32_t bestColor = 0;
-    repeat(room->layerCount, i) {
-        RoomLayer* layerSource = &room->layers[i];
-        if (layerSource->type != RoomLayerType_Background || layerSource->backgroundData == nullptr) continue;
-        RoomLayerBackgroundData* data = layerSource->backgroundData;
-        if (!data->visible || data->spriteIndex >= 0) continue;
-        if (layerSource->depth > bestDepth) {
-            bestDepth = layerSource->depth;
-            bestColor = data->color;
-            runner->backgroundColor = bestColor;
-            runner->drawBackgroundColor = true;
-        }
     }
 
     Instance** carriedPersistent = takePersistentInstances(runner);
