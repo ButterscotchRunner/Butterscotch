@@ -920,8 +920,6 @@ int main(int argc, char* argv[]) {
     bool debugShowCollisionMasks = false;
     double lastFrameTime = (SDL_GetTicks()/1000.0f);
     SDL_Event e;
-    int lastkey = -1;
-    SDL_EventType lastkeystate = SDL_NOEVENT; // true is down, false is up
     while (!runner->shouldExit && !shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
