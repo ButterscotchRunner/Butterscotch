@@ -827,8 +827,6 @@ int main(int argc, char* argv[]) {
                 fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                         reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
                 scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
-                reqW = modes[0]->w;
-                reqH = modes[0]->h;
             }
         }
         if (!scr) {
@@ -1170,7 +1168,25 @@ int main(int argc, char* argv[]) {
                 if(!useSWRend)
                     SDL_GL_SwapBuffers();
                 else {
-                    SDL_BlitSurface(nextFb, NULL, scr, NULL);
+                    if (nextFb && (nextFb->w != scr->w || nextFb->h != scr->h)) {
+                        // Game rendered at a different resolution than the display surface
+                        // (e.g. 640x480 game → 320x240 display with SDL_VIDEO_FBCON_ROTATION).
+                        // SDL_SoftStretch requires matching pixel formats, so scale into an
+                        // intermediate 32bpp buffer first, then blit with format conversion.
+                        static SDL_Surface* scaledFb = NULL;
+                        if (!scaledFb || scaledFb->w != scr->w || scaledFb->h != scr->h) {
+                            SDL_FreeSurface(scaledFb);
+                            scaledFb = SDL_CreateRGBSurface(SDL_SWSURFACE, scr->w, scr->h, 32,
+                                nextFb->format->Rmask, nextFb->format->Gmask,
+                                nextFb->format->Bmask, nextFb->format->Amask);
+                        }
+                        if (scaledFb) {
+                            SDL_SoftStretch(nextFb, NULL, scaledFb, NULL);  // scale 32bpp→32bpp
+                            SDL_BlitSurface(scaledFb, NULL, scr, NULL);     // convert 32bpp→16bpp
+                        }
+                    } else {
+                        SDL_BlitSurface(nextFb, NULL, scr, NULL);
+                    }
                     SDL_Flip(scr);
                 }
             }
