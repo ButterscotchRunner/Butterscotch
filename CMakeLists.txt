@@ -280,11 +280,7 @@ elseif(PLATFORM STREQUAL "sdl")
 
     find_package(SDL REQUIRED)
     target_include_directories(butterscotch PUBLIC "${SDL_INCLUDE_DIR}")
-    if(SDLMAIN_LIBRARY)
-        target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDLMAIN_LIBRARY} ${SDL_LIBRARY} glad m pthread bz2)
-    else()
-        target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDL_LIBRARY} glad m pthread bz2)
-    endif()
+    target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDL_LIBRARY} glad m pthread bz2)
 
     # Enable AddressSanitizer by default in Debug builds
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
