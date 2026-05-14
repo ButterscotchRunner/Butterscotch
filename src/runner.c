@@ -1367,11 +1367,15 @@ static void cleanupState(Runner* runner) {
     runner->savedRoomStates = nullptr;
 
     // Free struct instances (created via @@NewGMLObject@@). Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
+    // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
     repeat(arrlen(runner->structInstances), i) {
         Instance* s = runner->structInstances[i];
         hmdel(runner->instancesById, s->instanceId);
         s->structRegistryIndex = -1;
-        Instance_free(s);
+        Instance_freeContents(s);
+    }
+    repeat(arrlen(runner->structInstances), i) {
+        free(runner->structInstances[i]);
     }
     arrfree(runner->structInstances);
     runner->structInstances = nullptr;
@@ -2880,6 +2884,9 @@ static void writeRValueJson(JsonWriter* w, RValue val) {
             JsonWriter_string(w, buf);
             break;
         }
+        case RVALUE_ASSETREF:
+            JsonWriter_int(w, val.int32);
+            break;
     }
 }
 

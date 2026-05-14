@@ -8251,6 +8251,11 @@ static RValue builtinThis(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSE
     return RValue_makeInt32((int32_t) inst->instanceId);
 }
 
+// @@Global@@ - GMS2 internal function returning the "global" instance's ID.
+static RValue builtinGlobal(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeInt32(INSTANCE_GLOBAL);
+}
+
 // @@Other@@ - GMS2 internal function returning the "other" instance's ID.
 // Falls back to the current instance when there is no other (matches GML semantics outside with/collision).
 static RValue builtinOther(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -9676,6 +9681,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "@@NewGMLArray@@", builtinNewGMLArray);
     VM_registerBuiltin(ctx, "@@This@@", builtinThis);
     VM_registerBuiltin(ctx, "@@Other@@", builtinOther);
+    VM_registerBuiltin(ctx, "@@Global@@", builtinGlobal);
 #if IS_BC17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "@@NullObject@@", builtinNullObject);
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtinNewGMLObject);

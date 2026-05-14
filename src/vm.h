@@ -100,6 +100,8 @@
 #define BREAK_SETSTATIC    (-7)  // Mark current function's static as initialized
 #define BREAK_SAVEAREF     (-8)  // Save top-of-stack array ref for compound assignment
 #define BREAK_RESTOREAREF  (-9)  // Push previously saved array ref
+#define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
+#define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)

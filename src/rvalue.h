@@ -34,6 +34,24 @@ uint32_t Instance_getInstanceId(struct Instance* inst);
 #define GML_TYPE_STRING   0x6
 #define GML_TYPE_INT16    0xF
 
+// ===[ Asset Reference Types ]===
+typedef enum {
+    ASSET_TYPE_OBJECT = 0,
+    ASSET_TYPE_SPRITE = 1,
+    ASSET_TYPE_SOUND = 2,
+    ASSET_TYPE_ROOM = 3,
+    ASSET_TYPE_PATH = 4,
+    ASSET_TYPE_SCRIPT = 5,
+    ASSET_TYPE_FONT = 6,
+    ASSET_TYPE_TIMELINE = 7,
+    ASSET_TYPE_SHADER = 8,
+    ASSET_TYPE_SEQUENCE = 9,
+    ASSET_TYPE_ANIMCURVE = 10,
+    ASSET_TYPE_PARTICLESYSTEM = 11,
+    ASSET_TYPE_UNKNOWN = 12,
+    ASSET_TYPE_TILESET = 13,
+} AssetRefType;
+
 // ===[ RValue - Tagged Union ]===
 typedef enum {
     RVALUE_UNDEFINED = 0,
@@ -45,6 +63,7 @@ typedef enum {
     RVALUE_ARRAY = 6,
     RVALUE_METHOD = 7,
     RVALUE_STRUCT = 8,
+    RVALUE_ASSETREF = 9,
 } RValueType;
 
 struct RValue {
@@ -70,6 +89,7 @@ struct RValue {
 #if IS_BC17_OR_HIGHER_ENABLED
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
 #endif
+    uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
 } __attribute__((aligned(8)));
 
 // Helper to initialize .gmlStackType only on BC17+ builds
@@ -178,6 +198,13 @@ static RValue RValue_makeStructWeak(Instance* inst) {
     return rv;
 }
 
+static RValue RValue_makeAssetRef(int32_t assetIndex, uint8_t assetType) {
+    RValue rv = { .type = RVALUE_ASSETREF, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+    rv.int32 = assetIndex;
+    rv.assetRefType = assetType;
+    return rv;
+}
+
 // Makes "val" independent, that is...
 // * For strings, it creates an owned copy of it (copying the original string underneath)
 // * For arrays/methods/structs, it increments the reference count
@@ -239,6 +266,9 @@ static char* RValue_toString(RValue val) {
 #endif
         case RVALUE_STRUCT:
             snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
+            return safeStrdup(buf);
+        case RVALUE_ASSETREF:
+            snprintf(buf, sizeof(buf), "%d", val.int32);
             return safeStrdup(buf);
     }
     return safeStrdup("");
@@ -305,6 +335,9 @@ static char* RValue_toStringTyped(RValue val) {
         case RVALUE_STRUCT:
             snprintf(buf, sizeof(buf), "struct(id=%u)", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
             return safeStrdup(buf);
+        case RVALUE_ASSETREF:
+            snprintf(buf, sizeof(buf), "assetref(type=%d, index=%d)", val.assetRefType, val.int32);
+            return safeStrdup(buf);
     }
     return safeStrdup("???");
 }
@@ -345,6 +378,7 @@ static GMLReal RValue_toReal(RValue val) {
         case RVALUE_METHOD: return 0.0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (GMLReal) Instance_getInstanceId(val.structInst) : 0.0;
+        case RVALUE_ASSETREF: return (GMLReal) val.int32;
         default:            return 0.0;
     }
 }
@@ -363,6 +397,7 @@ static int32_t RValue_toInt32(RValue val) {
         case RVALUE_METHOD: return 0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (int32_t) Instance_getInstanceId(val.structInst) : 0;
+        case RVALUE_ASSETREF: return val.int32;
         default:            return 0;
     }
 }
@@ -381,6 +416,7 @@ static int64_t RValue_toInt64(RValue val) {
         case RVALUE_METHOD: return 0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (int64_t) Instance_getInstanceId(val.structInst) : 0;
+        case RVALUE_ASSETREF: return (int64_t) val.int32;
         default:            return 0;
     }
 }
@@ -399,6 +435,7 @@ static bool RValue_toBool(RValue val) {
         case RVALUE_METHOD: return true;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr;
+        case RVALUE_ASSETREF: return val.int32 > 0;
         default:            return false;
     }
 }

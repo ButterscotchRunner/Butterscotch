@@ -63,6 +63,8 @@ struct Instance {
 };
 
 Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y);
+// Frees an instance's owned contents (selfVars values, collision cells) but NOT the Instance struct itself.
+void Instance_freeContents(Instance* instance);
 void Instance_free(Instance* instance);
 
 // GML-struct refcount helpers. Only meaningful when inst->objectIndex == -1.
