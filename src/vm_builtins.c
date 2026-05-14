@@ -3117,6 +3117,11 @@ static RValue builtinArrayLength1d(MAYBE_UNUSED VMContext* ctx, RValue* args, MA
     return RValue_makeReal((GMLReal) GMLArray_length1D(args[0].array));
 }
 
+static RValue builtinArrayHeight2d(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) GMLArray_height2D(args[0].array));
+}
+
 // array_push(array, values...) - append one or more values to the end of the array (row 0). BC17+ arrays are mutable references; mutate in place.
 static RValue builtinArrayPush(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
@@ -9289,9 +9294,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_find_value", builtinDsListFindValue);
 
     // Array
+    
     VM_registerBuiltin(ctx, "array_length_1d", builtinArrayLength1d);
-    // GM:S 2 alias for array_length_1d
-    VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d);
+    VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d); // GM:S 2 alias for array_length_1d
+    VM_registerBuiltin(ctx, "array_height_2d", builtinArrayHeight2d);
     VM_registerBuiltin(ctx, "array_push", builtinArrayPush);
     VM_registerBuiltin(ctx, "array_resize", builtinArrayResize);
     VM_registerBuiltin(ctx, "array_delete", builtinArrayDelete);
