@@ -199,9 +199,8 @@ static RValue RValue_makeStructWeak(Instance* inst) {
 }
 
 static RValue RValue_makeAssetRef(int32_t assetIndex, uint8_t assetType) {
-    RValue rv = { .type = RVALUE_ASSETREF, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
+    RValue rv = { .type = RVALUE_ASSETREF, .assetRefType = assetType, RVALUE_INIT_GMLTYPE(GML_TYPE_INT32) };
     rv.int32 = assetIndex;
-    rv.assetRefType = assetType;
     return rv;
 }
 
