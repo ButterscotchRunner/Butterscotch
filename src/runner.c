@@ -830,6 +830,7 @@ void Runner_draw(Runner* runner) {
 
                 if (0 > data->spriteIndex) {
                     // Spriteless background layer: draw as a colored rectangle with the layer's color/alpha
+                    // TODO: Match GMS's renering more closely (see PR #120)
                     float alpha = (float) BGR_A(data->color) / 255.0f;
                     runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, data->color, alpha, false);
                     continue;
