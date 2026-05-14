@@ -817,9 +817,9 @@ int main(int argc, char* argv[]) {
     }
 
     SDL_Surface* scr = nullptr;
+    int reqW = (int) gen8->defaultWindowWidth;
+    int reqH = (int) gen8->defaultWindowHeight;
     if(!args.headless) {
-        int reqW = (int) gen8->defaultWindowWidth;
-        int reqH = (int) gen8->defaultWindowHeight;
         scr = SDL_SetVideoMode(reqW, reqH, 0, useSWRend ? 0 : SDL_OPENGL);
         if (!scr && useSWRend) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
@@ -827,6 +827,8 @@ int main(int argc, char* argv[]) {
                 fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                         reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
                 scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
+                reqW = modes[0]->w;
+                reqH = modes[0]->h;
             }
         }
         if (!scr) {
@@ -1094,9 +1096,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Query actual framebuffer size (differs from window size on Wayland with fractional scaling)
-        int fbWidth = 640, fbHeight = 480;
-
         // Clear the default framebuffer (window background) to black
 
 #if defined(ENABLE_SW_RENDERER) && defined(ENABLE_LEGACY_GL)
@@ -1110,9 +1109,6 @@ int main(int argc, char* argv[]) {
         SWRenderer_clearFrameBuffer(renderer, 0);
 #endif
 
-        int32_t gameW = (int32_t) gen8->defaultWindowWidth;
-        int32_t gameH = (int32_t) gen8->defaultWindowHeight;
-
         // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
         // It is a bit hard to understand, but here's how it works:
         // The Port X/Port Y controls the position of the game viewport within the application surface.
@@ -1122,9 +1118,9 @@ int main(int argc, char* argv[]) {
         float displayScaleX;
         float displayScaleY;
 
-        Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
+        Runner_computeViewDisplayScale(runner, reqW, reqH, &displayScaleX, &displayScaleY);
 
-        renderer->vtable->beginFrame(renderer, gameW, gameH, fbWidth, fbHeight);
+        renderer->vtable->beginFrame(renderer, reqW, reqH, reqW, reqH);
 
         // Clear FBO with room background color
         if (runner->drawBackgroundColor) {
@@ -1159,7 +1155,7 @@ int main(int argc, char* argv[]) {
             glClear(GL_COLOR_BUFFER_BIT);
 #endif
 
-        Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+        Runner_drawViews(runner, reqW, reqH, displayScaleX, displayScaleY, debugShowCollisionMasks);
 
         renderer->vtable->endFrame(renderer);
 
