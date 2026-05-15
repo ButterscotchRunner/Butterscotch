@@ -365,18 +365,17 @@ void VM_arraySet(MAYBE_UNUSED VMContext* ctx, RValue* arrayRef, int32_t index, R
     storeIntoArraySlot(GMLArray_slot(arr, index), val);
 }
 
-void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val) {
-    int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
-    if (builtinId != BUILTIN_VAR_UNKNOWN) {
-        Instance* saved = (Instance*) ctx->currentInstance;
-        ctx->currentInstance = structInst;
-        VMBuiltins_setVariable(ctx, builtinId, name, val, -1);
-        ctx->currentInstance = saved;
-        RValue_free(&val);
-        return;
-    }
+int32_t VM_getOrAllocateSelfVarID(VMContext* ctx, const char* name) {
     ptrdiff_t slot = shgeti(ctx->selfVarNameMap, (char*) name);
-    if (slot >= 0) Instance_setSelfVar(structInst, ctx->selfVarNameMap[slot].value, val);
+    if (slot >= 0) return ctx->selfVarNameMap[slot].value;
+    int32_t id = ctx->nextDynamicSelfVarID++;
+    shput(ctx->selfVarNameMap, (char*) name, id);
+    return id;
+}
+
+void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val) {
+    int32_t varID = VM_getOrAllocateSelfVarID(ctx, name);
+    Instance_setSelfVar(structInst, varID, val);
     RValue_free(&val);
 }
 
@@ -448,7 +447,7 @@ static const char* instanceTypeName(int32_t instanceType) {
 
 // Returns the object name for an instance, or "<global_scope>" for the global scope dummy instance
 static const char* instanceObjectName(VMContext* ctx, Instance* inst) {
-    if (0 > inst->objectIndex) return "<global_scope>";
+    if (inst->objectIndex == STRUCT_OBJECT_INDEX) return "<global_scope>";
     return ctx->dataWin->objt.objects[inst->objectIndex].name;
 }
 
@@ -643,6 +642,18 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             }
         }
 
+        // GameMaker emits a "push builtin" inside a function for "read this as a self-variable"
+        if (varDef->instanceType == INSTANCE_SELF && ctx->currentInstance != nullptr) {
+            Instance* self = (Instance*) ctx->currentInstance;
+            RValue* selfSlot = IntRValueHashMap_findSlot(&self->selfVars, varDef->varID);
+            if (selfSlot != nullptr) {
+                if (access.isArray) return VM_arrayReadAt(selfSlot, access.arrayIndex);
+                RValue val = *selfSlot;
+                val.ownsReference = false;
+                return val;
+            }
+        }
+
         // Then try user scripts/code entries (funcMap maps both "funcName" and "gml_Script_funcName")
         ptrdiff_t mapIdx = shgeti(ctx->codeIndexByName, varDef->name);
         if (mapIdx >= 0) {
@@ -666,6 +677,21 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 
     // Check for built-in variable (varID == -6 sentinel)
     if (varDef->varID == -6) {
+        // Structs aren't real game instances, but structs CAN store fields with the same names as built-ins.
+        // So we'll check the self variables FIRST before checking for built-ins.
+        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX) {
+            ptrdiff_t nameSlot = shgeti(ctx->selfVarNameMap, (char*) varDef->name);
+            if (nameSlot >= 0) {
+                int32_t structVarID = ctx->selfVarNameMap[nameSlot].value;
+                RValue* slot = IntRValueHashMap_findSlot(&targetInstance->selfVars, structVarID);
+                if (slot != nullptr) {
+                    if (access.isArray) return VM_arrayReadAt(slot, access.arrayIndex);
+                    RValue val = *slot;
+                    val.ownsReference = false;
+                    return val;
+                }
+            }
+        }
         // For object/instance references, temporarily swap currentInstance so VMBuiltins reads the correct instance
         Instance* savedInstance = (Instance*) ctx->currentInstance;
         bool needsInstanceSwap = (instanceType >= 0) || (instanceType == INSTANCE_OTHER);
@@ -3301,14 +3327,17 @@ VMContext* VM_create(DataWin* dataWin) {
 
     // Build selfVarNameMap: varName -> varID for self/instance-scoped variables.
     ctx->selfVarNameMap = nullptr;
+    int32_t maxSelfVarID = 0;
     forEach(Variable, v3, dataWin->vari.variables, dataWin->vari.variableCount) {
         if (v3->varID >= 0 && (v3->instanceType == INSTANCE_SELF || 0 > v3->instanceType)) {
             ptrdiff_t existing = shgeti(ctx->selfVarNameMap, (char*) v3->name);
             if (0 > existing) {
                 shput(ctx->selfVarNameMap, (char*) v3->name, v3->varID);
             }
+            if (v3->varID > maxSelfVarID) maxSelfVarID = v3->varID;
         }
     }
+    ctx->nextDynamicSelfVarID = maxSelfVarID + 1;
 
     // Build funcName -> codeIndex hash map from SCPT chunk
     ctx->codeIndexByName = nullptr;

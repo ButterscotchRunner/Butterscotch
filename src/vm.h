@@ -227,6 +227,7 @@ struct VMContext {
     struct { char* key; int32_t value; }* globalVarNameMap;
     // varName -> varID hash map for self/instance-scoped variables (stb_ds).
     struct { char* key; int32_t value; }* selfVarNameMap;
+    int32_t nextDynamicSelfVarID;
     // "codeName\tfuncName" -> true, for deduplicating unknown function warnings
     StringBooleanEntry* loggedUnknownFuncs;
     // "codeName\tfuncName" -> true, for deduplicating stubbed function warnings
@@ -290,6 +291,9 @@ void VM_arraySet(VMContext* ctx, RValue* arrayRef, int32_t index, RValue val);
 // Unknown variables are not written to the struct.
 // Takes ownership of "val" and frees it after copying into the struct.
 void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val);
+
+// Look up the varID for a self-scoped variable name, allocating a fresh synthetic ID if absent.
+int32_t VM_getOrAllocateSelfVarID(VMContext* ctx, const char* name);
 
 static const char* VM_getCallerName(VMContext* ctx) {
     return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";

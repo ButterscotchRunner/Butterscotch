@@ -1317,7 +1317,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Run room creation code
     if (room->creationCodeId >= 0 && dataWin->code.count > (uint32_t) room->creationCodeId) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
-        Instance* dummy = Instance_create(0, -1, 0, 0);
+        Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
         runner->vmContext->currentInstance = dummy;
         RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
         RValue_free(&result);
@@ -1481,7 +1481,7 @@ void Runner_reset(Runner* runner) {
 
     // Create the instance used for "self" in GLOB scripts
     Instance_free(runner->globalScopeInstance);
-    runner->globalScopeInstance = Instance_create(0, -1, 0, 0);
+    runner->globalScopeInstance = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
 
     // Reset builtin function state
     runner->mpPotMaxrot = 30.0;
@@ -1708,7 +1708,7 @@ static inline void dispatchInstanceCreationEvents(Runner* runner, Instance* inst
 }
 
 Instance* Runner_createStruct(Runner* runner) {
-    Instance* s = Instance_create(runner->nextInstanceId++, -1, 0, 0);
+    Instance* s = Instance_create(runner->nextInstanceId++, STRUCT_OBJECT_INDEX, 0, 0);
     hmput(runner->instancesById, s->instanceId, s);
     s->structRegistryIndex = (int32_t) arrlen(runner->structInstances);
     arrput(runner->structInstances, s);

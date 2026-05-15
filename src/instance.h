@@ -8,13 +8,16 @@
 
 #define GML_ALARM_COUNT 12
 
+// Fake objectIndex ID for GML structs and global scoped instances
+#define STRUCT_OBJECT_INDEX (-1)
+
 // Forward decl for Instance_structDecRef
 struct Runner;
 
 struct Instance {
     uint32_t instanceId;
     int32_t objectIndex;
-    // Reference count for GML structs (objectIndex == -1 mode). Unused for game-object instances.
+    // Reference count for GML structs (objectIndex == STRUCT_OBJECT_INDEX mode). Unused for game-object instances.
     // The runner's structInstances registry holds an implicit +1 ref while the struct is registered, so a refCount of 1 means "only the registry references this"; the per-frame sweep (Runner_sweepDeadStructs) decRefs those to free them. RValues with ownsReference=true on RVALUE_STRUCT contribute one ref each.
     int32_t refCount;
     // Position of this struct in runner->structInstances (for O(1) swap-remove when freed). -1 when not registered.
@@ -67,7 +70,7 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
 void Instance_freeContents(Instance* instance);
 void Instance_free(Instance* instance);
 
-// GML-struct refcount helpers. Only meaningful when inst->objectIndex == -1.
+// GML-struct refcount helpers. Only meaningful when inst->objectIndex == STRUCT_OBJECT_INDEX.
 // incRef: bumps the count. decRef: drops the count. Never frees on its own; the per-frame sweep (Runner_sweepDeadStructs) is the single point that physically frees a struct (after dropping the registry's implicit ref).
 void Instance_structIncRef(Instance* inst);
 void Instance_structDecRef(Instance* inst);

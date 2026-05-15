@@ -2870,7 +2870,7 @@ static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char
 }
 
 static inline bool variableScopedMatches(Instance* inst, bool structOnly) {
-    return inst->active && (!structOnly || inst->objectIndex == -1);
+    return inst->active && (!structOnly || inst->objectIndex == STRUCT_OBJECT_INDEX);
 }
 
 static bool variableInstanceExistsOn(VMContext* ctx, Instance* target, const char* name) {
@@ -3786,6 +3786,11 @@ STUB_RETURN_ZERO(steam_get_persona_name)
 static AudioSystem* getAudioSystem(VMContext* ctx) {
     Runner* runner = (Runner*) ctx->runner;
     return runner->audioSystem;
+}
+
+static RValue builtin_audioSystemIsAvailable(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    logSemiStubbedFunction(ctx, "audio_system_is_available");
+    return RValue_makeBool(true);
 }
 
 static RValue builtin_audioExists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -8499,7 +8504,7 @@ static RValue builtinSetStatic(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
 }
 
 // @@NewGMLObject@@(methodRef, ...args) - GMS2 internal function that allocates a fresh struct instance, runs the constructor method against it, and returns the new instance ID.
-// We reuse Instance (with objectIndex = -1) the same way globalScopeInstance is used for GLOB scripts, instead of introducing a separate struct type.
+// We reuse Instance (with objectIndex = STRUCT_OBJECT_INDEX) the same way globalScopeInstance is used for GLOB scripts, instead of introducing a separate struct type.
 static RValue builtinNewGMLObject(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         fprintf(stderr, "VM: @@NewGMLObject@@ called with no arguments\n");
@@ -9539,6 +9544,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "steam_get_persona_name", builtin_steam_get_persona_name);
 
     // Audio
+    VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audioSystemIsAvailable);
     VM_registerBuiltin(ctx, "audio_exists", builtin_audioExists);
     VM_registerBuiltin(ctx, "sound_exists", builtin_audioExists); // Replaced with audio_exists in GMS2
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audioChannelNum);
