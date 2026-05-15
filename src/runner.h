@@ -452,6 +452,9 @@ void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);
 void Runner_scrollBackgrounds(Runner* runner);
 void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerOffsetX, float layerOffsetY);
+// Allocates a fresh GML struct and registers it in instancesById and structInstances.
+// refCount starts at 1 (the registry's implicit ref); callers that retain a reference must Instance_structIncRef.
+Instance* Runner_createStruct(Runner* runner);
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex);
 Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t depth);
 Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId);

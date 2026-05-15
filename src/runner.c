@@ -1707,6 +1707,15 @@ static inline void dispatchInstanceCreationEvents(Runner* runner, Instance* inst
     Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
 }
 
+Instance* Runner_createStruct(Runner* runner) {
+    Instance* s = Instance_create(runner->nextInstanceId++, -1, 0, 0);
+    hmput(runner->instancesById, s->instanceId, s);
+    s->structRegistryIndex = (int32_t) arrlen(runner->structInstances);
+    arrput(runner->structInstances, s);
+    s->refCount = 1;
+    return s;
+}
+
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex) {
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);

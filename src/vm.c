@@ -365,6 +365,21 @@ void VM_arraySet(MAYBE_UNUSED VMContext* ctx, RValue* arrayRef, int32_t index, R
     storeIntoArraySlot(GMLArray_slot(arr, index), val);
 }
 
+void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val) {
+    int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
+    if (builtinId != BUILTIN_VAR_UNKNOWN) {
+        Instance* saved = (Instance*) ctx->currentInstance;
+        ctx->currentInstance = structInst;
+        VMBuiltins_setVariable(ctx, builtinId, name, val, -1);
+        ctx->currentInstance = saved;
+        RValue_free(&val);
+        return;
+    }
+    ptrdiff_t slot = shgeti(ctx->selfVarNameMap, (char*) name);
+    if (slot >= 0) Instance_setSelfVar(structInst, ctx->selfVarNameMap[slot].value, val);
+    RValue_free(&val);
+}
+
 // ===[ Array Access Helpers ]===
 
 typedef struct {

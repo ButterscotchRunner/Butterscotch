@@ -286,6 +286,11 @@ BuiltinFunc VM_findBuiltin(VMContext* ctx, const char* name);
 RValue VM_createArray(VMContext* ctx);
 void VM_arraySet(VMContext* ctx, RValue* arrayRef, int32_t index, RValue val);
 
+// Set a named field on a freshly-built GML struct, handles built-in vars and self-vars.
+// Unknown variables are not written to the struct.
+// Takes ownership of "val" and frees it after copying into the struct.
+void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val);
+
 static const char* VM_getCallerName(VMContext* ctx) {
     return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
 }

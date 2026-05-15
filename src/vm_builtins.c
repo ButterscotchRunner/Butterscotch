@@ -1272,7 +1272,7 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_DEBUG_MODE:
         case BUILTIN_VAR_ROOM_FIRST:
         case BUILTIN_VAR_GP_FACE1 ... BUILTIN_VAR_GP_AXIS_RV:
-            fprintf(stderr, "VM: Warning - attempted write to read-only built-in '%s'\n", name);
+            fprintf(stderr, "VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
             return;
 
         // argument[N] - array-style write to script arguments
@@ -1469,6 +1469,39 @@ static RValue builtinIsUndefined(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     if (1 > argCount) return RValue_makeBool(true);
     return RValue_makeBool(args[0].type == RVALUE_UNDEFINED);
 }
+
+#if IS_BC17_OR_HIGHER_ENABLED
+static RValue builtinIsCallable(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    RValue v = args[0];
+
+    if (v.type == RVALUE_METHOD) return RValue_makeBool(v.method != nullptr);
+    if (v.type == RVALUE_ASSETREF) return RValue_makeBool(v.assetRefType == ASSET_TYPE_SCRIPT);
+
+    if (v.type == RVALUE_REAL || v.type == RVALUE_INT32 || v.type == RVALUE_INT64) {
+        int32_t idx = RValue_toInt32(v);
+        if (0 > idx) return RValue_makeBool(false);
+
+        // BC17+: scriptName compiles to a FUNC-table index. Resolve via codeIndexByName or builtinMap.
+        if (ctx->dataWin->func.functionCount > (uint32_t) idx) {
+            const char* funcName = ctx->dataWin->func.functions[idx].name;
+            if (funcName != nullptr) {
+                if (shgeti(ctx->codeIndexByName, (char*) funcName) >= 0) return RValue_makeBool(true);
+                if (shgeti(ctx->builtinMap, (char*) funcName) >= 0) return RValue_makeBool(true);
+            }
+        }
+
+        // Fallback: SCPT index
+        if (ctx->dataWin->scpt.count > (uint32_t) idx) {
+            int32_t codeId = ctx->dataWin->scpt.scripts[idx].codeId;
+            if (codeId >= 0 && ctx->dataWin->code.count > (uint32_t) codeId) return RValue_makeBool(true);
+        }
+        return RValue_makeBool(false);
+    }
+
+    return RValue_makeBool(false);
+}
+#endif
 
 // ===[ STRING FUNCTIONS ]===
 
@@ -2345,6 +2378,190 @@ static RValue builtinRoomGetName(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYB
     if (1 > argCount) return RValue_makeUndefined();
     Room* room = &ctx->dataWin->room.rooms[RValue_toInt32(args[0])];
     return RValue_makeOwnedString(safeStrdup(room->name));
+}
+
+static RValue builtinRoomGetInfo(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    int32_t roomId = RValue_toInt32(args[0]);
+    if (0 > roomId || (uint32_t) roomId >= ctx->dataWin->room.count) return RValue_makeUndefined();
+
+    bool wantViews = (argCount > 1) ? RValue_toBool(args[1]) : true;
+    bool wantInsts = (argCount > 2) ? RValue_toBool(args[2]) : true;
+    bool wantLayers = (argCount > 3) ? RValue_toBool(args[3]) : true;
+    bool wantLayerEls = (argCount > 4) ? RValue_toBool(args[4]) : true;
+    bool wantTilemap = (argCount > 5) ? RValue_toBool(args[5]) : true;
+
+    Room* room = &ctx->dataWin->room.rooms[roomId];
+    DataWin_loadRoomPayload(ctx->dataWin, roomId);
+
+    Instance* ret = Runner_createStruct(ctx->runner);
+    VM_structSet(ctx, ret, "width", RValue_makeInt32((int32_t) room->width));
+    VM_structSet(ctx, ret, "height", RValue_makeInt32((int32_t) room->height));
+    VM_structSet(ctx, ret, "persistent", RValue_makeBool(room->persistent));
+    VM_structSet(ctx, ret, "colour", RValue_makeInt32((int32_t) room->backgroundColor));
+    VM_structSet(ctx, ret, "creationCode", RValue_makeInt32(room->creationCodeId));
+    VM_structSet(ctx, ret, "physicsWorld", RValue_makeBool(room->world));
+    if (room->world) {
+        VM_structSet(ctx, ret, "physicsGravityX", RValue_makeReal(room->gravityX));
+        VM_structSet(ctx, ret, "physicsGravityY", RValue_makeReal(room->gravityY));
+        VM_structSet(ctx, ret, "physicsPixToMeters", RValue_makeReal(room->metersPerPixel));
+    }
+    VM_structSet(ctx, ret, "enableViews", RValue_makeBool((room->flags & 1) != 0));
+    VM_structSet(ctx, ret, "clearDisplayBuffer", RValue_makeBool(true));
+    VM_structSet(ctx, ret, "clearViewportBackground", RValue_makeBool(true));
+
+    if (wantViews && room->views != nullptr) {
+        GMLArray* views = GMLArray_create(MAX_VIEWS);
+        repeat(MAX_VIEWS, i) {
+            RoomView* v = &room->views[i];
+            Instance* vs = Runner_createStruct(ctx->runner);
+            VM_structSet(ctx, vs, "visible", RValue_makeBool(v->enabled));
+            VM_structSet(ctx, vs, "xview", RValue_makeInt32(v->viewX));
+            VM_structSet(ctx, vs, "yview", RValue_makeInt32(v->viewY));
+            VM_structSet(ctx, vs, "wview", RValue_makeInt32(v->viewWidth));
+            VM_structSet(ctx, vs, "hview", RValue_makeInt32(v->viewHeight));
+            VM_structSet(ctx, vs, "xport", RValue_makeInt32(v->portX));
+            VM_structSet(ctx, vs, "yport", RValue_makeInt32(v->portY));
+            VM_structSet(ctx, vs, "wport", RValue_makeInt32(v->portWidth));
+            VM_structSet(ctx, vs, "hport", RValue_makeInt32(v->portHeight));
+            VM_structSet(ctx, vs, "hborder", RValue_makeInt32((int32_t) v->borderX));
+            VM_structSet(ctx, vs, "vborder", RValue_makeInt32((int32_t) v->borderY));
+            VM_structSet(ctx, vs, "hspeed", RValue_makeInt32(v->speedX));
+            VM_structSet(ctx, vs, "vspeed", RValue_makeInt32(v->speedY));
+            VM_structSet(ctx, vs, "object", RValue_makeInt32(v->objectId));
+            VM_structSet(ctx, vs, "cameraID", RValue_makeInt32(-1));
+            Instance_structIncRef(vs);
+            *GMLArray_slot(views, i) = RValue_makeStruct(vs);
+        }
+        VM_structSet(ctx, ret, "views", RValue_makeArray(views));
+    }
+
+    if (wantInsts) {
+        int32_t count = (int32_t) room->gameObjectCount;
+        GMLArray* insts = GMLArray_create(count > 0 ? count : 1);
+        repeat(count, i) {
+            RoomGameObject* go = &room->gameObjects[i];
+            Instance* is = Runner_createStruct(ctx->runner);
+            VM_structSet(ctx, is, "x", RValue_makeInt32(go->x));
+            VM_structSet(ctx, is, "y", RValue_makeInt32(go->y));
+            const char* objName = (go->objectDefinition >= 0 && (uint32_t) go->objectDefinition < ctx->dataWin->objt.count) ? ctx->dataWin->objt.objects[go->objectDefinition].name : "";
+            VM_structSet(ctx, is, "object_index", RValue_makeOwnedString(safeStrdup(objName)));
+            VM_structSet(ctx, is, "id", RValue_makeInt32((int32_t) go->instanceID));
+            VM_structSet(ctx, is, "angle", RValue_makeReal(go->rotation));
+            VM_structSet(ctx, is, "xscale", RValue_makeReal(go->scaleX));
+            VM_structSet(ctx, is, "yscale", RValue_makeReal(go->scaleY));
+            VM_structSet(ctx, is, "image_speed", RValue_makeReal(go->imageSpeed));
+            VM_structSet(ctx, is, "image_index", RValue_makeInt32(go->imageIndex));
+            VM_structSet(ctx, is, "colour", RValue_makeInt32((int32_t) go->color));
+            VM_structSet(ctx, is, "creation_code", RValue_makeInt32(go->creationCode));
+            VM_structSet(ctx, is, "pre_creation_code", RValue_makeInt32(go->preCreateCode));
+            Instance_structIncRef(is);
+            *GMLArray_slot(insts, i) = RValue_makeStruct(is);
+        }
+        VM_structSet(ctx, ret, "instances", RValue_makeArray(insts));
+    }
+
+    if (wantLayers && room->layers != nullptr) {
+        int32_t count = (int32_t) room->layerCount;
+        GMLArray* layers = GMLArray_create(count > 0 ? count : 1);
+        repeat(count, i) {
+            RoomLayer* lay = &room->layers[i];
+            Instance* ls = Runner_createStruct(ctx->runner);
+            VM_structSet(ctx, ls, "name", RValue_makeOwnedString(safeStrdup(lay->name != nullptr ? lay->name : "")));
+            VM_structSet(ctx, ls, "id", RValue_makeInt32((int32_t) lay->id));
+            VM_structSet(ctx, ls, "type", RValue_makeInt32((int32_t) lay->type));
+            VM_structSet(ctx, ls, "depth", RValue_makeInt32(lay->depth));
+            VM_structSet(ctx, ls, "xoffset", RValue_makeReal(lay->xOffset));
+            VM_structSet(ctx, ls, "yoffset", RValue_makeReal(lay->yOffset));
+            VM_structSet(ctx, ls, "hspeed", RValue_makeReal(lay->hSpeed));
+            VM_structSet(ctx, ls, "vspeed", RValue_makeReal(lay->vSpeed));
+            VM_structSet(ctx, ls, "visible", RValue_makeBool(lay->visible));
+
+            if (wantLayerEls) {
+                int32_t elemCount = 0;
+                GMLArray* elements = nullptr;
+                switch ((RoomLayerType) lay->type) {
+                    case RoomLayerType_Background: {
+                        elements = GMLArray_create(1);
+                        GMLArray_growTo(elements, 1);
+                        Instance* es = Runner_createStruct(ctx->runner);
+                        RoomLayerBackgroundData* bg = lay->backgroundData;
+                        VM_structSet(ctx, es, "type", RValue_makeInt32((int32_t) lay->type));
+                        if (bg != nullptr) {
+                            VM_structSet(ctx, es, "visible", RValue_makeBool(bg->visible));
+                            VM_structSet(ctx, es, "foreground", RValue_makeBool(bg->foreground));
+                            VM_structSet(ctx, es, "sprite_index", RValue_makeInt32(bg->spriteIndex));
+                            VM_structSet(ctx, es, "htiled", RValue_makeBool(bg->hTiled));
+                            VM_structSet(ctx, es, "vtiled", RValue_makeBool(bg->vTiled));
+                            VM_structSet(ctx, es, "stretch", RValue_makeBool(bg->stretch));
+                            VM_structSet(ctx, es, "image_speed", RValue_makeReal(bg->animSpeed));
+                            VM_structSet(ctx, es, "image_index", RValue_makeReal(bg->firstFrame));
+                            VM_structSet(ctx, es, "speed_type", RValue_makeInt32((int32_t) bg->animSpeedType));
+                        }
+                        Instance_structIncRef(es);
+                        *GMLArray_slot(elements, 0) = RValue_makeStruct(es);
+                        elemCount = 1;
+                        break;
+                    }
+                    case RoomLayerType_Instances: {
+                        RoomLayerInstancesData* id = lay->instancesData;
+                        int32_t ic = (id != nullptr) ? (int32_t) id->instanceCount : 0;
+                        elements = GMLArray_create(ic > 0 ? ic : 1);
+                        if (ic > 0) GMLArray_growTo(elements, ic);
+                        for (int32_t j = 0; ic > j; j++) {
+                            Instance* es = Runner_createStruct(ctx->runner);
+                            VM_structSet(ctx, es, "type", RValue_makeInt32((int32_t) lay->type));
+                            VM_structSet(ctx, es, "inst_id", RValue_makeInt32((int32_t) id->instanceIds[j]));
+                            Instance_structIncRef(es);
+                            *GMLArray_slot(elements, j) = RValue_makeStruct(es);
+                        }
+                        elemCount = ic;
+                        break;
+                    }
+                    case RoomLayerType_Tiles: {
+                        elements = GMLArray_create(1);
+                        GMLArray_growTo(elements, 1);
+                        Instance* es = Runner_createStruct(ctx->runner);
+                        RoomLayerTilesData* td = lay->tilesData;
+                        VM_structSet(ctx, es, "type", RValue_makeInt32((int32_t) lay->type));
+                        VM_structSet(ctx, es, "x", RValue_makeInt32(0));
+                        VM_structSet(ctx, es, "y", RValue_makeInt32(0));
+                        if (td != nullptr) {
+                            VM_structSet(ctx, es, "width", RValue_makeInt32((int32_t) td->tilesX));
+                            VM_structSet(ctx, es, "height", RValue_makeInt32((int32_t) td->tilesY));
+                            VM_structSet(ctx, es, "tileset_index", RValue_makeInt32(td->backgroundIndex));
+                            if (wantTilemap && td->tileData != nullptr) {
+                                int32_t total = (int32_t) (td->tilesX * td->tilesY);
+                                GMLArray* tiles = GMLArray_create(total > 0 ? total : 1);
+                                if (total > 0) GMLArray_growTo(tiles, total);
+                                for (int32_t k = 0; total > k; k++) {
+                                    *GMLArray_slot(tiles, k) = RValue_makeInt32((int32_t) td->tileData[k]);
+                                }
+                                VM_structSet(ctx, es, "tiles", RValue_makeArray(tiles));
+                            }
+                        }
+                        Instance_structIncRef(es);
+                        *GMLArray_slot(elements, 0) = RValue_makeStruct(es);
+                        elemCount = 1;
+                        break;
+                    }
+                    default:
+                        // Asset/Path/Effect layers: emit an empty element list. Filling these out matches the HTML5 runner but isn't required for room_goto navigation.
+                        elements = GMLArray_create(1);
+                        elemCount = 0;
+                        break;
+                }
+                if (elements != nullptr) VM_structSet(ctx, ls, "elements", RValue_makeArray(elements));
+            }
+
+            Instance_structIncRef(ls);
+            *GMLArray_slot(layers, i) = RValue_makeStruct(ls);
+        }
+        VM_structSet(ctx, ret, "layers", RValue_makeArray(layers));
+    }
+
+    Instance_structIncRef(ret);
+    return RValue_makeStruct(ret);
 }
 
 static RValue builtinRoomGotoNext(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -8273,6 +8490,14 @@ static RValue builtinNullObject(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue
     return RValue_makeInt32(INSTANCE_NOONE);
 }
 
+// @@SetStatic@@() - GMS2.3+ internal function emitted at the top of constructor bodies.
+// TODO: Semi-stub! The native runner does more things than that
+static RValue builtinSetStatic(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    logSemiStubbedFunction(ctx, "@@SetStatic@@");
+    if (ctx->staticInitialized != nullptr) ctx->staticInitialized[ctx->currentCodeIndex] = true;
+    return RValue_makeUndefined();
+}
+
 // @@NewGMLObject@@(methodRef, ...args) - GMS2 internal function that allocates a fresh struct instance, runs the constructor method against it, and returns the new instance ID.
 // We reuse Instance (with objectIndex = -1) the same way globalScopeInstance is used for GLOB scripts, instead of introducing a separate struct type.
 static RValue builtinNewGMLObject(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -8303,11 +8528,8 @@ static RValue builtinNewGMLObject(VMContext* ctx, RValue* args, int32_t argCount
         return RValue_makeUndefined();
     }
 
-    Instance* structInst = Instance_create(runner->nextInstanceId++, -1, 0, 0);
-    hmput(runner->instancesById, structInst->instanceId, structInst);
-    structInst->structRegistryIndex = (int32_t) arrlen(runner->structInstances);
-    arrput(runner->structInstances, structInst);
-    // Two refs at birth: one for the registry's implicit ref (structInstances), one for the returned RValue.
+    Instance* structInst = Runner_createStruct(runner);
+    // Bump to 2: registry's implicit ref + the returned RValue's ref.
     structInst->refCount = 2;
 
     Instance* savedSelf = (Instance*) ctx->currentInstance;
@@ -9174,6 +9396,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "is_string", builtinIsString);
     VM_registerBuiltin(ctx, "is_real", builtinIsReal);
     VM_registerBuiltin(ctx, "is_undefined", builtinIsUndefined);
+#if IS_BC17_OR_HIGHER_ENABLED
+    VM_registerBuiltin(ctx, "is_callable", builtinIsCallable);
+#endif
 
     // Math functions
     VM_registerBuiltin(ctx, "floor", builtinFloor);
@@ -9231,6 +9456,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "game_get_speed", builtinGameGetSpeed);
     VM_registerBuiltin(ctx, "room_exists", builtinRoomExists);
     VM_registerBuiltin(ctx, "room_get_name", builtinRoomGetName);
+    VM_registerBuiltin(ctx, "room_get_info", builtinRoomGetInfo);
     VM_registerBuiltin(ctx, "room_goto_next", builtinRoomGotoNext);
     VM_registerBuiltin(ctx, "room_goto_previous", builtinRoomGotoPrevious);
     VM_registerBuiltin(ctx, "room_goto", builtinRoomGoto);
@@ -9685,6 +9911,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #if IS_BC17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "@@NullObject@@", builtinNullObject);
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtinNewGMLObject);
+    VM_registerBuiltin(ctx, "@@SetStatic@@", builtinSetStatic);
 #endif
 
     // Path
