@@ -860,13 +860,13 @@ int main(int argc, char* argv[]) {
     Renderer* renderer;
 #if defined(ENABLE_LEGACY_GL) && defined(ENABLE_SW_RENDERER)
     if(useSWRend)
-        renderer = SWRenderer_create((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight);
+        renderer = SWRenderer_create(reqW, reqH);
     else
         renderer = GLLegacyRenderer_create();
 #elif defined(ENABLE_LEGACY_GL)
     renderer = GLLegacyRenderer_create();
 #else
-    renderer = SWRenderer_create((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight);
+    renderer = SWRenderer_create(reqW, reqH);
 #endif
 
     // Initialize the audio system
