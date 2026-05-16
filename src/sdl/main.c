@@ -860,13 +860,13 @@ int main(int argc, char* argv[]) {
     Renderer* renderer;
 #if defined(ENABLE_LEGACY_GL) && defined(ENABLE_SW_RENDERER)
     if(useSWRend)
-        renderer = SWRenderer_create(reqW, reqH);
+        renderer = SWRenderer_create(fbWidth, fbHeight);
     else
         renderer = GLLegacyRenderer_create();
 #elif defined(ENABLE_LEGACY_GL)
     renderer = GLLegacyRenderer_create();
 #else
-    renderer = SWRenderer_create(reqW, reqH);
+    renderer = SWRenderer_create(fbWidth, fbHeight);
 #endif
 
     // Initialize the audio system
@@ -953,6 +953,8 @@ int main(int argc, char* argv[]) {
                     RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                     break;
                 case SDL_VIDEORESIZE:
+                    if (useSWRend)
+                        break;
                     fbWidth = e.resize.w;
                     fbHeight = e.resize.h;
                     scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (useSWRend ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
