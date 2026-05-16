@@ -85,6 +85,7 @@ INCLUDES += -Isrc/audio/miniaudio -Ivendor/miniaudio
 DEFINES += -DUSE_MINIAUDIO
 SRCS += $(wildcard src/audio/miniaudio/*.c)
 HEADERS += $(wildcard src/audio/miniaudio/*.h)
+LIBS += -pthread
 endif
 ifeq ($(AUDIO_BACKEND),openal)
 INCLUDES += -Isrc/audio/openal
