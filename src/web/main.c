@@ -130,6 +130,7 @@ void* loop() {
         float displayScaleX;
         float displayScaleY;
 
+        Runner_drawPre(gRunner, 640, 480);
         Runner_computeViewDisplayScale(gRunner, gameW, gameH, &displayScaleX, &displayScaleY);
 
         gRunner->renderer->vtable->beginFrame(gRunner->renderer, gameW, gameH, 640, 480);

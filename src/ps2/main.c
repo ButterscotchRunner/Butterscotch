@@ -636,6 +636,7 @@ int main(int argc, char* argv[]) {
 
         gsKit_clear(gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
 
+        Runner_drawPre(runner, 640, 448);
         renderer->vtable->beginFrame(renderer, gameW, gameH, 640, 448);
 
         // Clear with room background color

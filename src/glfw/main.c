@@ -1394,6 +1394,7 @@ int main(int argc, char* argv[]) {
         float displayScaleX;
         float displayScaleY;
 
+        Runner_drawPre(runner, fbWidth, fbHeight);
         Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
         renderer->vtable->beginFrame(renderer, gameW, gameH, fbWidth, fbHeight);

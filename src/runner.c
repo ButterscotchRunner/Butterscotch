@@ -646,8 +646,6 @@ void Runner_draw(Runner* runner) {
     if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0))
         Runner_drawBackgrounds(runner, false);
 
-    // Fire draw subtypes in correct GameMaker order. fireDrawSubtype walks the cache and filters inline.
-    fireDrawSubtype(runner, drawables, drawableCount, DRAW_PRE);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_BEGIN);
 
     // Draw interleaved tiles and instances
@@ -865,6 +863,16 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
+    runner->renderer->vtable->endGUI(runner->renderer);
+}
+
+void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH) {
+    rebuildDrawableCacheIfDirty(runner);
+    Drawable* drawables = runner->cachedDrawables;
+    int32_t drawableCount = (int32_t) arrlen(drawables);
+
+    runner->renderer->vtable->beginGUI(runner->renderer, windowW, windowH, 0, 0, windowW, windowH);
+    fireDrawSubtype(runner, drawables, drawableCount, DRAW_PRE);
     runner->renderer->vtable->endGUI(runner->renderer);
 }
 
