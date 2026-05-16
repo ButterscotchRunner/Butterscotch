@@ -741,15 +741,13 @@ static void setGlfwWindowTitle(void* window, const char* title) {
 
 static bool getGlfwWindowSize(void* window, int32_t* outW, int32_t* outH) {
     if (outW == nullptr || outH == nullptr) return false;
-#ifdef USE_GLFW2
-    (void)window;
     int w = 0;
     int h = 0;
+#ifdef USE_GLFW2
+    (void)window;
     glfwGetWindowSize(&w, &h);
 #else
     if (window == nullptr) return false;
-    int w = 0;
-    int h = 0;
     glfwGetWindowSize((GLFWwindow*) window, &w, &h);
 #endif
     if (w <= 0 || h <= 0) return false;
