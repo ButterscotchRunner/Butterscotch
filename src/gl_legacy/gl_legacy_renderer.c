@@ -256,9 +256,9 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     GLint boundFbo = 0;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &boundFbo);
     if (boundFbo == 0) {
-        glViewport(0, 0, guiW, guiH);
+        glViewport(0, 0, portW, portH);
         glEnable(GL_SCISSOR_TEST);
-        glScissor(0, 0, guiW, guiH);
+        glScissor(0, 0, portW, portH);
     } else {
         glApplyViewport(gl, portX, portY, portW, portH);
     }

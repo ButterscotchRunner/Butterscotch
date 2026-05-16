@@ -351,8 +351,8 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     int32_t glPortY;
     if (boundFbo == 0) {
         glPortY = 0;
-        glViewport(0, 0, guiW, guiH);
-        glScissor(0, 0, guiW, guiH);
+        glViewport(0, 0, portW, portH);
+        glScissor(0, 0, portW, portH);
     } else {
         glPortY = gl->gameH - portY - portH;
         glViewport(portX, glPortY, portW, portH);

@@ -1411,8 +1411,9 @@ int main(int argc, char* argv[]) {
 
         Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
         renderer->vtable->endFrameInit(renderer);
-        Runner_drawPost(runner, fbWidth, fbHeight, gameW, gameH);
+        Runner_drawPost(runner, fbWidth, fbHeight);
         renderer->vtable->endFrameEnd(renderer);
+        Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
 
         // Capture screenshot if this frame matches a requested frame
         bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
