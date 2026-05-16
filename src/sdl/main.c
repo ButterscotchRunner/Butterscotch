@@ -959,7 +959,7 @@ int main(int argc, char* argv[]) {
                     break;
                 case SDL_QUIT:
                     shouldExit = true;
-                    // fall through
+                    break;
                 default:
                     break;
             }
