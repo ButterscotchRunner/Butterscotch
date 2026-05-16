@@ -567,13 +567,14 @@ static bool isDrawableArraySorted(Drawable* drawables, int32_t count) {
 }
 
 // Refreshes each entry's cached .depth from the live instance/runtime-layer pointer. Tile entries never change depth mid-room so they're left alone.
-static void refreshDrawableDepths(Drawable* drawables, int32_t count) {
+static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t count) {
     for (int32_t i = 0; count > i; i++) {
         Drawable* d = &drawables[i];
         if (d->type == DRAWABLE_INSTANCE) {
             d->depth = d->instance->depth;
         } else if (d->type == DRAWABLE_LAYER) {
-            d->depth = d->runtimeLayer->depth;
+            RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+            if (rl != nullptr) d->depth = rl->depth;
         }
     }
 }
@@ -611,7 +612,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             repeat(runtimeLayersCount, i) {
                 RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
                 Drawable d = { .type = DRAWABLE_LAYER, .depth = runtimeLayer->depth };
-                d.runtimeLayer = runtimeLayer;
+                d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
         }
@@ -627,7 +628,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 
     if (runner->drawableListSortDirty) {
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
-        refreshDrawableDepths(runner->cachedDrawables, count);
+        refreshDrawableDepths(runner, runner->cachedDrawables, count);
         if (count > 1 && !isDrawableArraySorted(runner->cachedDrawables, count)) {
             qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawableDepth);
         }
@@ -706,7 +707,8 @@ void Runner_draw(Runner* runner) {
             }
         } else if (d->type == DRAWABLE_LAYER)
         {
-            RuntimeLayer* runtimeLayer = d->runtimeLayer;
+            // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
+            RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
@@ -1024,6 +1026,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 
             hmdel(runner->instancesById, inst->instanceId);
             Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+            Runner_removeInstanceFromObjectLists(runner, inst);
             Instance_free(inst);
         }
     }
@@ -1366,7 +1369,32 @@ static void cleanupState(Runner* runner) {
     }
     runner->savedRoomStates = nullptr;
 
-    // Free struct instances (created via @@NewGMLObject@@). Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
+    // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
+    repeat((int32_t) arrlen(runner->dsMapPool), i) {
+        DsMapEntry* map = runner->dsMapPool[i];
+        if (map != nullptr) {
+            repeat(shlen(map), j) {
+                free(map[j].key);
+                RValue_free(&map[j].value);
+            }
+            shfree(map);
+        }
+    }
+    arrfree(runner->dsMapPool);
+    runner->dsMapPool = nullptr;
+
+    repeat((int32_t) arrlen(runner->dsListPool), i) {
+        DsList* list = &runner->dsListPool[i];
+        repeat(arrlen(list->items), j) {
+            RValue_free(&list->items[j]);
+        }
+        arrfree(list->items);
+    }
+    arrfree(runner->dsListPool);
+    runner->dsListPool = nullptr;
+
+    // Free struct instances.
+    // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
     // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
     repeat(arrlen(runner->structInstances), i) {
         Instance* s = runner->structInstances[i];
@@ -1387,31 +1415,6 @@ static void cleanupState(Runner* runner) {
     freeRuntimeLayersArray(&runner->runtimeLayers);
     shfree(runner->disabledObjects);
     runner->disabledObjects = nullptr;
-
-    // Free ds_map pool
-    repeat((int32_t) arrlen(runner->dsMapPool), i) {
-        DsMapEntry* map = runner->dsMapPool[i];
-        if (map != nullptr) {
-            repeat(shlen(map), j) {
-                free(map[j].key);
-                RValue_free(&map[j].value);
-            }
-            shfree(map);
-        }
-    }
-    arrfree(runner->dsMapPool);
-    runner->dsMapPool = nullptr;
-
-    // Free ds_list pool
-    repeat((int32_t) arrlen(runner->dsListPool), i) {
-        DsList* list = &runner->dsListPool[i];
-        repeat(arrlen(list->items), j) {
-            RValue_free(&list->items[j]);
-        }
-        arrfree(list->items);
-    }
-    arrfree(runner->dsListPool);
-    runner->dsListPool = nullptr;
 
     // Free mp_grid pool
     repeat((int32_t) arrlen(runner->mpGridPool), i) {
@@ -1651,7 +1654,8 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     }
 
     // Collision compatibility mode is "enabled" for all pre-GM 2022.1 games AND for any post-GM 2022.1 games that have the bit 27 set
-    runner->collisionCompatibilityMode = (dataWin->detectedFormat.major == 1) || (((dataWin->optn.info >> 27) & 1) != 0);
+    bool isVersionAtLeastGM_2022_1 = DataWin_isVersionAtLeast(dataWin, 2022, 1, 0, 0);
+    runner->collisionCompatibilityMode = !isVersionAtLeastGM_2022_1 || ((dataWin->optn.info >> 27) & 1) != 0;
 
     // Build the event dispatch acceleration tables.
     EventSlotMap_build(&runner->eventSlotMap, dataWin);

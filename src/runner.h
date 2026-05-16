@@ -204,7 +204,8 @@ typedef struct {
     union {
         Instance* instance;
         int32_t tileIndex;
-        RuntimeLayer* runtimeLayer;
+        // Stored as an ID (resolved via Runner_findRuntimeLayerById) instead of a pointer, because layer_create can call arrput on runner->runtimeLayers mid-draw and realloc the array, invalidating any cached pointers.
+        int32_t runtimeLayerId;
     };
 } Drawable;
 

@@ -2668,11 +2668,10 @@ static void handleBreakRestoreARef(VMContext* ctx) {
 }
 
 static void handleBreakIsNullish(VMContext* ctx) {
-    // Pop a value, push a bool: true if the value is "nullish".
-    RValue value = stackPop(ctx);
+    // Peek the top of the stack and push a bool above it: true if the value is "nullish"
+    RValue* value = stackPeek(ctx);
     // TODO: We need to support a RValue pointer_null later, because that's also considered as "nullish" here!
-    bool nullish = value.type == RVALUE_UNDEFINED;
-    RValue_free(&value);
+    bool nullish = value->type == RVALUE_UNDEFINED;
     stackPush(ctx, RValue_makeBool(nullish));
 }
 
@@ -2704,7 +2703,7 @@ static void handleBreakPushRef(VMContext* ctx, const uint8_t* extraData) {
         return;
     }
 
-    stackPushTyped(ctx, RValue_makeAssetRef(index, assetType), GML_TYPE_INT32);
+    stackPushTyped(ctx, RValue_makeAssetRef(index, assetType), GML_TYPE_VARIABLE);
 }
 
 static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, const uint8_t* extraData) {

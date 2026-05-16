@@ -3335,6 +3335,16 @@ static RValue builtinArrayLength1d(MAYBE_UNUSED VMContext* ctx, RValue* args, MA
     return RValue_makeReal((GMLReal) GMLArray_length1D(args[0].array));
 }
 
+// array_get(array, index) - return the value at the given index of row 0. Out-of-range or non-array input returns undefined.
+static RValue builtinArrayGet(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) return RValue_makeUndefined();
+    int32_t index = (int32_t) RValue_toReal(args[1]);
+    RValue* slot = GMLArray_slot(args[0].array, index);
+    if (slot == nullptr) return RValue_makeUndefined();
+    return RValue_makeIndependent(*slot);
+}
+
 // array_push(array, values...) - append one or more values to the end of the array (row 0). BC17+ arrays are mutable references; mutate in place.
 static RValue builtinArrayPush(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
@@ -6483,6 +6493,14 @@ static RValue builtin_draw_get_alpha(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeReal(0.0);
 }
 
+static RValue builtin_draw_get_font(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeInt32(runner->renderer->drawFont);
+    }
+    return RValue_makeInt32(-1);
+}
+
 // merge_color(col1, col2, amount) - lerps between two colors
 static RValue builtinMergeColor(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t col1 = RValue_toInt32(args[0]);
@@ -9529,6 +9547,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_length_1d", builtinArrayLength1d);
     // GM:S 2 alias for array_length_1d
     VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d);
+    VM_registerBuiltin(ctx, "array_get", builtinArrayGet);
     VM_registerBuiltin(ctx, "array_push", builtinArrayPush);
     VM_registerBuiltin(ctx, "array_resize", builtinArrayResize);
     VM_registerBuiltin(ctx, "array_delete", builtinArrayDelete);
@@ -9775,6 +9794,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_colour", builtin_draw_get_colour);
     VM_registerBuiltin(ctx, "draw_get_color", builtin_draw_get_color);
     VM_registerBuiltin(ctx, "draw_get_alpha", builtin_draw_get_alpha);
+    VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
 
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtinMergeColor);
