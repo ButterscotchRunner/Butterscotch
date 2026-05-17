@@ -643,7 +643,8 @@ int main(int argc, char* argv[]) {
             uint8_t bgR = BGR_R(runner->backgroundColor);
             uint8_t bgG = BGR_G(runner->backgroundColor);
             uint8_t bgB = BGR_B(runner->backgroundColor);
-            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, 0x80, 0x00);
+            uint8_t bgA = BGR_A(runner->backgroundColor);
+            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, bgA, 0x00);
             gsKit_prim_sprite(gsGlobal, 0, 0, 640, 448, 0, bgColor);
         }
 

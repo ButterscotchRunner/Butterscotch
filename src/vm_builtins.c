@@ -3343,6 +3343,11 @@ static RValue builtinArrayLength2d(MAYBE_UNUSED VMContext* ctx, RValue* args, MA
     return RValue_makeReal((GMLReal) GMLArray_length1D(slot->array));
 }
 
+static RValue builtinArrayHeight2d(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) GMLArray_height2D(args[0].array));
+}
+
 // array_get(array, index) - return the value at the given index of row 0. Out-of-range or non-array input returns undefined.
 static RValue builtinArrayGet(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
@@ -9552,10 +9557,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_find_value", builtinDsListFindValue);
 
     // Array
+    
     VM_registerBuiltin(ctx, "array_length_1d", builtinArrayLength1d);
     VM_registerBuiltin(ctx, "array_length_2d", builtinArrayLength2d);
-    // GM:S 2 alias for array_length_1d
-    VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d);
+    VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d); // GM:S 2 alias for array_length_1d
+    VM_registerBuiltin(ctx, "array_height_2d", builtinArrayHeight2d);
     VM_registerBuiltin(ctx, "array_get", builtinArrayGet);
     VM_registerBuiltin(ctx, "array_push", builtinArrayPush);
     VM_registerBuiltin(ctx, "array_resize", builtinArrayResize);

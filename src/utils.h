@@ -117,6 +117,7 @@ static inline GMLReal clampFloat(GMLReal f) {
 #define BGR_B(c) (((c) >> 16) & 0xFF)
 #define BGR_G(c) (((c) >>  8) & 0xFF)
 #define BGR_R(c) (((c) >>  0) & 0xFF)
+#define BGR_A(c) (((c) >> 24) & 0xFF)
 
 // Mixes 2 colors with a blend factor
 static inline int32_t Color_lerp(int32_t color1, int32_t color2, float blending) {

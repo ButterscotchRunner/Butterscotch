@@ -38,12 +38,18 @@ ifndef DISABLE_BC17
 DEFINES += -DENABLE_BC17
 endif
 
+# GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
 ifndef DISABLE_LEGACY_GL
+ENABLE_GL := 1
+endif
 ifndef DISABLE_MODERN_GL
+ENABLE_GL := 1
+endif
+
+ifdef ENABLE_GL
 INCLUDES += -Isrc/gl_common -Isrc/gl
 SRCS += $(wildcard src/gl_common/*.c)
 HEADERS += $(wildcard src/gl_common/*.h)
-endif
 endif
 
 ifndef DISABLE_LEGACY_GL

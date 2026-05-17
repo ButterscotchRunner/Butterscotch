@@ -139,7 +139,8 @@ void* loop() {
             int rInt = BGR_R(gRunner->backgroundColor);
             int gInt = BGR_G(gRunner->backgroundColor);
             int bInt = BGR_B(gRunner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
+            int aInt = BGR_A(gRunner->backgroundColor);
+            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
         } else {
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         }
