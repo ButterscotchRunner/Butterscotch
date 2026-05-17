@@ -100,6 +100,10 @@ typedef struct {
 #endif
 } CommandLineArgs;
 
+static int fbWidth, fbHeight;
+static SDL_Surface* scr;
+static bool useSWRend;
+
 typedef struct { const char* name; YoYoOperatingSystem value; } OsTypeNameEntry;
 
 static const OsTypeNameEntry OS_TYPE_NAMES[] = {
@@ -571,7 +575,26 @@ static void setSDLWindowTitle(void* window, const char* title) {
     SDL_WM_SetCaption(windowTitle, NULL);
 }
 
+static bool getSDLWindowSize(void *window, int32_t *outW, int32_t *outH) {
+    (void)window;
+    if (outW == nullptr || outH == nullptr) return false;
+    *outW = fbWidth;
+    *outH = fbHeight;
+    return true;
+}
+
+static void setSDLWindowSize(void *window, int32_t width, int32_t height) {
+    (void)window;
+    if (useSWRend)
+        return;
+    if (width <= 0 || height <= 0) return;
+    fbWidth = width;
+    fbHeight = height;
+    scr = SDL_SetVideoMode(width, height, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
+}
+
 static bool getSDLWindowFocus(void *window) {
+    (void)window;
     return true;
 }
 
@@ -791,7 +814,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bool useSWRend = strcmp(args.renderer, "software") == 0;
+    useSWRend = strcmp(args.renderer, "software") == 0;
     bool useLegacyGL = strcmp(args.renderer, "legacy-gl") == 0;
 #ifndef ENABLE_LEGACY_GL
     if (useLegacyGL) {
@@ -816,10 +839,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Surface* scr = nullptr;
     int reqW = (int) gen8->defaultWindowWidth;
     int reqH = (int) gen8->defaultWindowHeight;
-    int fbWidth = reqW, fbHeight = reqH;
+    fbWidth = reqW;
+    fbHeight = reqH;
     if(!args.headless) {
         scr = SDL_SetVideoMode(reqW, reqH, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
         if (!scr && useSWRend) {
@@ -888,6 +911,8 @@ int main(int argc, char* argv[]) {
     runner->debugMode = args.debug;
     runner->osType = args.osType;
     runner->setWindowTitle = setSDLWindowTitle;
+    runner->getWindowSize = getSDLWindowSize;
+    runner->setWindowSize = setSDLWindowSize;
     runner->windowHasFocus = getSDLWindowFocus;
     runner->nativeWindow = (void*)0xDEADBEEF;
 
