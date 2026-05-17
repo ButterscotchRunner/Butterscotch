@@ -2120,7 +2120,7 @@ static RValue builtinMatrixInverse(MAYBE_UNUSED VMContext *ctx, RValue *args, in
     bool toPrevMatrix = argCount == 2;
     GMLArray *destArray = toPrevMatrix ? args[1].array : nullptr;
     if (toPrevMatrix && !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
-    
+
     Matrix4f source, inverse;
     matrixFromGml(&source, args[0].array);
     if (!Matrix4f_inverse(&inverse, &source)) {
@@ -2147,7 +2147,7 @@ static RValue builtinMatrixMultiply(MAYBE_UNUSED VMContext *ctx, RValue *args, i
     matrixFromGml(&a, args[0].array);
     matrixFromGml(&b, args[1].array);
     Matrix4f_multiply(&r, &a, &b);
-    
+
     if (!toPrevMatrix) {
         return RValue_makeArray(matrixToGml(&r));
     } else {
@@ -2224,7 +2224,7 @@ static RValue builtinMatrixBuildProjectionPerspectiveFOV(MAYBE_UNUSED VMContext 
 
 static RValue builtinMatrixBuildLookat(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     if (argCount < 9 || argCount > 10) return RValue_makeUndefined();
-    
+
     GMLReal xFrom = RValue_toReal(args[0]);
     GMLReal yFrom = RValue_toReal(args[1]);
     GMLReal zFrom = RValue_toReal(args[2]);
@@ -2294,7 +2294,7 @@ static RValue builtinMatrixBuildLookat(MAYBE_UNUSED VMContext *ctx, RValue *args
     bool toPrevMatrix = argCount == 10;
     GMLArray *destArray = toPrevMatrix ? args[9].array : nullptr;
     if (toPrevMatrix && !rvalueIsMatrix(args[9])) return RValue_makeUndefined();
-    
+
     if (toPrevMatrix) {
         repeat (16, i) {
             *GMLArray_slot(destArray, i) = RValue_makeReal(matrix.m[i]);
@@ -3325,6 +3325,20 @@ static RValue builtinDsListFindIndex(VMContext* ctx, RValue* args, MAYBE_UNUSED 
         }
     }
     return RValue_makeReal(-1.0);
+}
+
+static RValue builtinDsListShuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsList* list = dsListGet(runner, id);
+    if (list == nullptr) return RValue_makeUndefined();
+    for (int32_t i = 1; i < argCount; i++) {
+        int32_t j = rand() % (i + 1);
+        RValue temp = list->items[i];
+        list->items[i] = list->items[j];
+        list->items[j] = temp;
+    }
+    return RValue_makeUndefined();
 }
 
 // ===[ ARRAY FUNCTIONS ]===
@@ -6510,7 +6524,7 @@ static RValue builtinMergeColor(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE
 
 static RValue builtin_surface_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t width = (int32_t) RValue_toReal(args[0]);
-    int32_t height = (int32_t) RValue_toReal(args[1]);    
+    int32_t height = (int32_t) RValue_toReal(args[1]);
     Runner* runner = (Runner*) ctx->runner;
     if (runner->renderer != nullptr) {
         int32_t surfaceId = Renderer_createSurface(runner->renderer, width,height);
@@ -9541,6 +9555,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_size", builtinDsListSize);
     VM_registerBuiltin(ctx, "ds_list_find_index", builtinDsListFindIndex);
     VM_registerBuiltin(ctx, "ds_list_find_value", builtinDsListFindValue);
+    VM_registerBuiltin(ctx, "ds_list_shuffle", builtinDsListShuffle);
 
     // Array
     VM_registerBuiltin(ctx, "array_length_1d", builtinArrayLength1d);
@@ -9986,4 +10001,3 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_fog", builtinGpuSetFog);
     VM_registerBuiltin(ctx,"d3d_set_fog", builtinGpuSetFog);
 }
-
