@@ -1465,6 +1465,31 @@ static RValue builtinIsReal(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t a
     return RValue_makeBool(result);
 }
 
+static RValue builtinIsBool(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_BOOL);
+}
+
+static RValue builtinIsArray(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_ARRAY);
+}
+
+static RValue builtinIsStruct(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_STRUCT);
+}
+
+static RValue builtinIsInt32(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_INT32);
+}
+
+static RValue builtinIsInt64(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_INT64);
+}
+
 static RValue builtinIsUndefined(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(true);
     return RValue_makeBool(args[0].type == RVALUE_UNDEFINED);
@@ -9737,6 +9762,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "real", builtinReal);
     VM_registerBuiltin(ctx, "is_string", builtinIsString);
     VM_registerBuiltin(ctx, "is_real", builtinIsReal);
+    VM_registerBuiltin(ctx, "is_numeric", builtinIsReal);
+    VM_registerBuiltin(ctx, "is_bool", builtinIsBool);
+    VM_registerBuiltin(ctx, "is_array", builtinIsArray);
+    VM_registerBuiltin(ctx, "is_struct", builtinIsStruct);
+    VM_registerBuiltin(ctx, "is_int32", builtinIsInt32);
+    VM_registerBuiltin(ctx, "is_int64", builtinIsInt64);
     VM_registerBuiltin(ctx, "is_undefined", builtinIsUndefined);
 #if IS_BC17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "is_callable", builtinIsCallable);
@@ -9864,7 +9895,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_shuffle", builtinDsListShuffle);
 
     // Array
-    
+
     VM_registerBuiltin(ctx, "array_length_1d", builtinArrayLength1d);
     VM_registerBuiltin(ctx, "array_length_2d", builtinArrayLength2d);
     VM_registerBuiltin(ctx, "array_length", builtinArrayLength1d); // GM:S 2 alias for array_length_1d
