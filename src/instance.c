@@ -72,13 +72,19 @@ uint32_t Instance_getInstanceId(Instance* inst) {
     return inst != nullptr ? inst->instanceId : 0;
 }
 
-void Instance_free(Instance* instance) {
+void Instance_freeContents(Instance* instance) {
     if (instance == nullptr) return;
 
     // Free owned strings and decRef owned arrays in selfVars hashmap, then release the entries buffer.
     IntRValueHashMap_freeAllValues(&instance->selfVars);
     arrfree(instance->collisionCells);
+    instance->collisionCells = nullptr;
+}
 
+void Instance_free(Instance* instance) {
+    if (instance == nullptr) return;
+
+    Instance_freeContents(instance);
     free(instance);
 }
 

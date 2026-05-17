@@ -1192,10 +1192,20 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     if (0 >= w || 0 >= h) return -1;
 
-    // Because we don't support surfaces for now, games may attempt to read from surfaces that aren't the main surface could cause the game to crash with a buffer overruns (example: the PS3 renderer)
-    // So, if we are trying to read from ANYWHERE that isn't the main surface, reject the read
-    if (surfaceID != 0)
-        return -1;
+#ifndef PLATFORM_PS3
+    // Bind the source FBO and figure out its height for the GL bottom-up flip.
+    // application_surface (-1) reads from the main FBO; otherwise read from the matching surface FBO.
+    int32_t srcHeight;
+    if (surfaceID == APPLICATION_SURFACE_ID) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->fbo);
+        srcHeight = gl->fboHeight;
+    } else {
+        if (0 > surfaceID || (uint32_t) surfaceID >= gl->surfaceCount) return -1;
+        if (gl->surfaces[surfaceID] == 0) return -1;
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
+        srcHeight = gl->surfaceHeight[surfaceID];
+    }
+#endif
 
     uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr)
@@ -1228,8 +1238,8 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     }
     // We don't need to flip vertically because the PlayStation 3 framebuffer is already top-down
 #else
-    // OpenGL Y is bottom-up, GML Y is top-down, so flip the Y coordinate
-    int32_t glY = gl->gameH - y - h;
+    // OpenGL Y is bottom-up, GML Y is top-down, so flip the Y coordinate against the source FBO's height
+    int32_t glY = srcHeight - y - h;
     glReadPixels(x, glY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     // Flip vertically (OpenGL reads bottom-to-top)

@@ -100,6 +100,8 @@
 #define BREAK_SETSTATIC    (-7)  // Mark current function's static as initialized
 #define BREAK_SAVEAREF     (-8)  // Save top-of-stack array ref for compound assignment
 #define BREAK_RESTOREAREF  (-9)  // Push previously saved array ref
+#define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
+#define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
@@ -225,6 +227,7 @@ struct VMContext {
     struct { char* key; int32_t value; }* globalVarNameMap;
     // varName -> varID hash map for self/instance-scoped variables (stb_ds).
     struct { char* key; int32_t value; }* selfVarNameMap;
+    int32_t nextDynamicSelfVarID;
     // "codeName\tfuncName" -> true, for deduplicating unknown function warnings
     StringBooleanEntry* loggedUnknownFuncs;
     // "codeName\tfuncName" -> true, for deduplicating stubbed function warnings
@@ -283,6 +286,14 @@ void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func);
 BuiltinFunc VM_findBuiltin(VMContext* ctx, const char* name);
 RValue VM_createArray(VMContext* ctx);
 void VM_arraySet(VMContext* ctx, RValue* arrayRef, int32_t index, RValue val);
+
+// Set a named field on a freshly-built GML struct, handles built-in vars and self-vars.
+// Unknown variables are not written to the struct.
+// Takes ownership of "val" and frees it after copying into the struct.
+void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val);
+
+// Look up the varID for a self-scoped variable name, allocating a fresh synthetic ID if absent.
+int32_t VM_getOrAllocateSelfVarID(VMContext* ctx, const char* name);
 
 static const char* VM_getCallerName(VMContext* ctx) {
     return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";

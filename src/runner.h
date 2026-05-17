@@ -204,7 +204,8 @@ typedef struct {
     union {
         Instance* instance;
         int32_t tileIndex;
-        RuntimeLayer* runtimeLayer;
+        // Stored as an ID (resolved via Runner_findRuntimeLayerById) instead of a pointer, because layer_create can call arrput on runner->runtimeLayers mid-draw and realloc the array, invalidating any cached pointers.
+        int32_t runtimeLayerId;
     };
 } Drawable;
 
@@ -384,9 +385,9 @@ struct Runner {
     // Dummy instance to serve as "self" during GLOB script execution
     // In bytecode version 17+, global init scripts store method values on "self" via Pop.v.v
     // The real runner uses a persistent YYObjectBase for this, the YYObjectBase is a "parent" of Instance
-    // For now, we'll use a dummy Instance with objectIndex = -1 as a hack
+    // For now, we'll use a dummy Instance with objectIndex = STRUCT_OBJECT_INDEX as a hack
     Instance* globalScopeInstance;
-    // Struct instances created by @@NewGMLObject@@. Reuses Instance with objectIndex=-1.
+    // Struct instances created by @@NewGMLObject@@. Reuses Instance with objectIndex=STRUCT_OBJECT_INDEX.
     // Tracked separately so event/step/draw iteration over runner->instances stays clean.
     Instance** structInstances;
     int32_t forcedDepth;
@@ -452,6 +453,9 @@ void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);
 void Runner_scrollBackgrounds(Runner* runner);
 void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerOffsetX, float layerOffsetY);
+// Allocates a fresh GML struct and registers it in instancesById and structInstances.
+// refCount starts at 1 (the registry's implicit ref); callers that retain a reference must Instance_structIncRef.
+Instance* Runner_createStruct(Runner* runner);
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex);
 Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t depth);
 Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId);

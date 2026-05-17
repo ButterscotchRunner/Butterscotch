@@ -709,6 +709,18 @@ static void parseSHDR(BinaryReader* reader, DataWin* dw) {
 
     uint32_t count;
     uint32_t* ptrs = readPointerTable(reader, &count);
+
+    // Some GameMaker games emit a SHDR chunk with all zero pointers, in this case, we'll just consider that it isn't a real shader and drop it.
+    if (ptrs != nullptr) {
+        uint32_t realCount = 0;
+        repeat(count, i) {
+            if (ptrs[i] != 0) {
+                ptrs[realCount] = ptrs[i];
+                realCount++;
+            }
+        }
+        count = realCount;
+    }
     s->count = count;
 
     if (count == 0) { free(ptrs); s->shaders = nullptr; return; }
@@ -1498,8 +1510,7 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->metersPerPixel = BinaryReader_readFloat32(reader);
         if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
             // skip instanceCreationOrderIDs
-            int icCount = BinaryReader_readInt32(reader);
-            BinaryReader_skip(reader, sizeof(int32_t) * icCount);
+            BinaryReader_skip(reader, 4);
         }
         room->layersFileOffset = 0;
         if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {

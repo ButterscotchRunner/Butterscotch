@@ -567,13 +567,14 @@ static bool isDrawableArraySorted(Drawable* drawables, int32_t count) {
 }
 
 // Refreshes each entry's cached .depth from the live instance/runtime-layer pointer. Tile entries never change depth mid-room so they're left alone.
-static void refreshDrawableDepths(Drawable* drawables, int32_t count) {
+static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t count) {
     for (int32_t i = 0; count > i; i++) {
         Drawable* d = &drawables[i];
         if (d->type == DRAWABLE_INSTANCE) {
             d->depth = d->instance->depth;
         } else if (d->type == DRAWABLE_LAYER) {
-            d->depth = d->runtimeLayer->depth;
+            RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+            if (rl != nullptr) d->depth = rl->depth;
         }
     }
 }
@@ -611,7 +612,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             repeat(runtimeLayersCount, i) {
                 RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
                 Drawable d = { .type = DRAWABLE_LAYER, .depth = runtimeLayer->depth };
-                d.runtimeLayer = runtimeLayer;
+                d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
         }
@@ -627,7 +628,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 
     if (runner->drawableListSortDirty) {
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
-        refreshDrawableDepths(runner->cachedDrawables, count);
+        refreshDrawableDepths(runner, runner->cachedDrawables, count);
         if (count > 1 && !isDrawableArraySorted(runner->cachedDrawables, count)) {
             qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawableDepth);
         }
@@ -706,7 +707,8 @@ void Runner_draw(Runner* runner) {
             }
         } else if (d->type == DRAWABLE_LAYER)
         {
-            RuntimeLayer* runtimeLayer = d->runtimeLayer;
+            // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
+            RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
@@ -1024,6 +1026,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 
             hmdel(runner->instancesById, inst->instanceId);
             Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+            Runner_removeInstanceFromObjectLists(runner, inst);
             Instance_free(inst);
         }
     }
@@ -1317,7 +1320,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Run room creation code
     if (room->creationCodeId >= 0 && dataWin->code.count > (uint32_t) room->creationCodeId) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
-        Instance* dummy = Instance_create(0, -1, 0, 0);
+        Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
         runner->vmContext->currentInstance = dummy;
         RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
         RValue_free(&result);
@@ -1366,25 +1369,7 @@ static void cleanupState(Runner* runner) {
     }
     runner->savedRoomStates = nullptr;
 
-    // Free struct instances (created via @@NewGMLObject@@). Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
-    repeat(arrlen(runner->structInstances), i) {
-        Instance* s = runner->structInstances[i];
-        hmdel(runner->instancesById, s->instanceId);
-        s->structRegistryIndex = -1;
-        Instance_free(s);
-    }
-    arrfree(runner->structInstances);
-    runner->structInstances = nullptr;
-
-    hmfree(runner->instancesById);
-    runner->instancesById = nullptr;
-    hmfree(runner->tileLayerMap);
-    runner->tileLayerMap = nullptr;
-    freeRuntimeLayersArray(&runner->runtimeLayers);
-    shfree(runner->disabledObjects);
-    runner->disabledObjects = nullptr;
-
-    // Free ds_map pool
+    // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
     repeat((int32_t) arrlen(runner->dsMapPool), i) {
         DsMapEntry* map = runner->dsMapPool[i];
         if (map != nullptr) {
@@ -1398,7 +1383,6 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsMapPool);
     runner->dsMapPool = nullptr;
 
-    // Free ds_list pool
     repeat((int32_t) arrlen(runner->dsListPool), i) {
         DsList* list = &runner->dsListPool[i];
         repeat(arrlen(list->items), j) {
@@ -1408,6 +1392,29 @@ static void cleanupState(Runner* runner) {
     }
     arrfree(runner->dsListPool);
     runner->dsListPool = nullptr;
+
+    // Free struct instances.
+    // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
+    // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
+    repeat(arrlen(runner->structInstances), i) {
+        Instance* s = runner->structInstances[i];
+        hmdel(runner->instancesById, s->instanceId);
+        s->structRegistryIndex = -1;
+        Instance_freeContents(s);
+    }
+    repeat(arrlen(runner->structInstances), i) {
+        free(runner->structInstances[i]);
+    }
+    arrfree(runner->structInstances);
+    runner->structInstances = nullptr;
+
+    hmfree(runner->instancesById);
+    runner->instancesById = nullptr;
+    hmfree(runner->tileLayerMap);
+    runner->tileLayerMap = nullptr;
+    freeRuntimeLayersArray(&runner->runtimeLayers);
+    shfree(runner->disabledObjects);
+    runner->disabledObjects = nullptr;
 
     // Free mp_grid pool
     repeat((int32_t) arrlen(runner->mpGridPool), i) {
@@ -1477,7 +1484,7 @@ void Runner_reset(Runner* runner) {
 
     // Create the instance used for "self" in GLOB scripts
     Instance_free(runner->globalScopeInstance);
-    runner->globalScopeInstance = Instance_create(0, -1, 0, 0);
+    runner->globalScopeInstance = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
 
     // Reset builtin function state
     runner->mpPotMaxrot = 30.0;
@@ -1647,7 +1654,8 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     }
 
     // Collision compatibility mode is "enabled" for all pre-GM 2022.1 games AND for any post-GM 2022.1 games that have the bit 27 set
-    runner->collisionCompatibilityMode = (dataWin->detectedFormat.major == 1) || (((dataWin->optn.info >> 27) & 1) != 0);
+    bool isVersionAtLeastGM_2022_1 = DataWin_isVersionAtLeast(dataWin, 2022, 1, 0, 0);
+    runner->collisionCompatibilityMode = !isVersionAtLeastGM_2022_1 || ((dataWin->optn.info >> 27) & 1) != 0;
 
     // Build the event dispatch acceleration tables.
     EventSlotMap_build(&runner->eventSlotMap, dataWin);
@@ -1701,6 +1709,15 @@ static inline void dispatchInstanceCreationEvents(Runner* runner, Instance* inst
     inst->createEventFired = true;
     Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
     Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
+}
+
+Instance* Runner_createStruct(Runner* runner) {
+    Instance* s = Instance_create(runner->nextInstanceId++, STRUCT_OBJECT_INDEX, 0, 0);
+    hmput(runner->instancesById, s->instanceId, s);
+    s->structRegistryIndex = (int32_t) arrlen(runner->structInstances);
+    arrput(runner->structInstances, s);
+    s->refCount = 1;
+    return s;
 }
 
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex) {
@@ -2880,6 +2897,9 @@ static void writeRValueJson(JsonWriter* w, RValue val) {
             JsonWriter_string(w, buf);
             break;
         }
+        case RVALUE_ASSETREF:
+            JsonWriter_int(w, val.int32);
+            break;
     }
 }
 
