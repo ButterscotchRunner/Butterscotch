@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#if defined(__BYTE__ORDER__) && (__BYTE__ORDER__ == __ORDER_BIG_ENDIAN__)
+#if (defined(__BYTE__ORDER__) && (__BYTE__ORDER__ == __ORDER_BIG_ENDIAN__)) || defined(__BIG_ENDIAN__)
 #define IS_BIG_ENDIAN
 #endif
 
