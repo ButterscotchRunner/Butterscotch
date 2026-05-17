@@ -4,7 +4,7 @@
 #include "audio_system.h"
 #ifdef __APPLE__
 #include <OpenAL/al.h>
-#include <AL/alc.h>
+#include <OpenAL/alc.h>
 #else
 #include <AL/al.h>
 #include <AL/alc.h>
