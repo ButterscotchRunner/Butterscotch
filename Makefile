@@ -172,14 +172,20 @@ endif
 
 OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
 
+ifndef DISABLE_MMD
+DEPFLAGS = -MMD -MP
+endif
+
 all: build/butterscotch
+
+-include $(OBJS:.o=.d)
 
 build/butterscotch: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
-build/%.c.o: %.c $(HEADERS)
+build/%.c.o: %.c $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
-	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) -c $< -o $@
+	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf build
