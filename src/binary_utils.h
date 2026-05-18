@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "endianness.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>

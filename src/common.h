@@ -5,6 +5,10 @@
 #define nullptr NULL
 #endif
 
+#if (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)) || defined(__BIG_ENDIAN__)
+#define IS_BIG_ENDIAN
+#endif
+
 #if defined(__has_c_attribute)
     #if __has_c_attribute(maybe_unused)
         #define MAYBE_UNUSED [[maybe_unused]]
