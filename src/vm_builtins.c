@@ -9455,7 +9455,7 @@ static RValue builtin_json_decode(VMContext* ctx, RValue* args, int32_t argCount
     int32_t mapIndex = dsMapCreate(runner);
     DsMapEntry **mapPtr = dsMapGet(runner, mapIndex);
     const char* content = args[0].string;
-    const JsonValue* json = JsonReader_parse(content);
+    JsonValue* json = JsonReader_parse(content);
 
     repeat(JsonReader_objectLength(json), i) {
         const char *key = safeStrdup(JsonReader_getObjectKey(json, i));
