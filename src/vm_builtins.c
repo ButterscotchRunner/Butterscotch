@@ -258,6 +258,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "gp_stickr", BUILTIN_VAR_GP_STICKR },
     { "gravity", BUILTIN_VAR_GRAVITY },
     { "gravity_direction", BUILTIN_VAR_GRAVITY_DIRECTION },
+    { "health", BUILTIN_VAR_HEALTH },
     { "hspeed", BUILTIN_VAR_HSPEED },
     { "id", BUILTIN_VAR_ID },
     { "image_alpha", BUILTIN_VAR_IMAGE_ALPHA },
@@ -272,6 +273,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
     { "layer", BUILTIN_VAR_LAYER },
+    { "lives", BUILTIN_VAR_LIVES },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
     { "object_index", BUILTIN_VAR_OBJECT_INDEX },
     { "os_3ds", BUILTIN_VAR_OS_3DS },
@@ -325,6 +327,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "room_persistent", BUILTIN_VAR_ROOM_PERSISTENT },
     { "room_speed", BUILTIN_VAR_ROOM_SPEED },
     { "room_width", BUILTIN_VAR_ROOM_WIDTH },
+    { "score", BUILTIN_VAR_SCORE },
     { "solid", BUILTIN_VAR_SOLID },
     { "speed", BUILTIN_VAR_SPEED },
     { "sprite_height", BUILTIN_VAR_SPRITE_HEIGHT },
@@ -927,6 +930,13 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
         case BUILTIN_VAR_DEBUG_MODE:
             return RValue_makeBool(false);
 
+        case BUILTIN_VAR_SCORE:
+            return RValue_makeReal(runner->score);
+        case BUILTIN_VAR_LIVES:
+            return RValue_makeReal(runner->lives);
+        case BUILTIN_VAR_HEALTH:
+            return RValue_makeReal(runner->health);
+
         default:
             break;
     }
@@ -1292,6 +1302,16 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             }
             return;
         }
+
+        case BUILTIN_VAR_SCORE:
+            runner->score = RValue_toReal(val);
+            return;
+        case BUILTIN_VAR_LIVES:
+            Runner_setLives(runner, RValue_toReal(val));
+            return;
+        case BUILTIN_VAR_HEALTH:
+            Runner_setHealth(runner, RValue_toReal(val));
+            return;
 
         default:
             break;
@@ -5305,6 +5325,14 @@ static RValue builtin_action_set_relative(VMContext* ctx, MAYBE_UNUSED RValue* a
     return RValue_makeUndefined();
 }
 
+// When the DnD "relative" checkbox is active and there is a calling instance, shifts (*x, *y) by that instance's position.
+static void applyActionRelativeOffset(VMContext* ctx, float* x, float* y) {
+    if (!ctx->actionRelativeFlag || ctx->currentInstance == nullptr) return;
+    Instance* inst = (Instance*) ctx->currentInstance;
+    *x += inst->x;
+    *y += inst->y;
+}
+
 static RValue builtin_action_move(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     // action_move(direction_string, speed)
     // Direction string is 9 chars of '0'/'1' encoding a 3x3 direction grid:
@@ -7947,6 +7975,180 @@ static RValue builtin_action_if_variable(VMContext* ctx, MAYBE_UNUSED RValue* ar
 
 STUB_RETURN_UNDEFINED(action_sound)
 
+#define LEGACY_DND_CMP_EQ 0
+#define LEGACY_DND_CMP_LT 1
+#define LEGACY_DND_CMP_GT 2
+
+static RValue builtin_action_set_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal val = RValue_toReal(args[0]);
+    if (ctx->actionRelativeFlag) runner->score += val;
+    else runner->score = val;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_if_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal value = RValue_toReal(args[0]);
+    int32_t op = RValue_toInt32(args[1]);
+    bool result;
+    if (op == LEGACY_DND_CMP_LT) result = runner->score < value;
+    else if (op == LEGACY_DND_CMP_GT) result = runner->score > value;
+    else result = runner->score == value;
+    return RValue_makeBool(result);
+}
+
+// Shared implementation for action_draw_score and action_draw_life: draws "caption + value" at (x, y), respecting the relative flag.
+// The value is integer-formatted to match the native runner's "%d" output.
+static void drawLegacyDndCaptionedCounter(VMContext* ctx, RValue* args, int32_t intValue) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer == nullptr) return;
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    char* caption = RValue_toString(args[2]);
+
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    char numBuf[64];
+    snprintf(numBuf, sizeof(numBuf), "%d", intValue);
+    size_t captionLen = strlen(caption);
+    size_t numLen = strlen(numBuf);
+    char* combined = (char*) safeMalloc(captionLen + numLen + 1);
+    memcpy(combined, caption, captionLen);
+    memcpy(combined + captionLen, numBuf, numLen + 1);
+
+    PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, combined);
+    runner->renderer->vtable->drawText(runner->renderer, processedText.text, x, y, 1.0f, 1.0f, 0.0f);
+    PreprocessedText_free(processedText);
+    free(combined);
+    free(caption);
+}
+
+static RValue builtin_action_draw_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    drawLegacyDndCaptionedCounter(ctx, args, (int32_t) ((Runner*) ctx->runner)->score);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_set_life(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal val = RValue_toReal(args[0]);
+    Runner_setLives(runner, ctx->actionRelativeFlag ? runner->lives + val : val);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_if_life(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal value = RValue_toReal(args[0]);
+    int32_t op = RValue_toInt32(args[1]);
+    bool result;
+    if (op == LEGACY_DND_CMP_LT) result = runner->lives < value;
+    else if (op == LEGACY_DND_CMP_GT) result = runner->lives > value;
+    else result = runner->lives == value;
+    return RValue_makeBool(result);
+}
+
+static RValue builtin_action_draw_life(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    drawLegacyDndCaptionedCounter(ctx, args, (int32_t) ((Runner*) ctx->runner)->lives);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_draw_life_images(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    int32_t spriteIndex = RValue_toInt32(args[2]);
+
+    if (0 > spriteIndex || runner->dataWin->sprt.count <= (uint32_t) spriteIndex) return RValue_makeUndefined();
+
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    int32_t spriteWidth = (int32_t) runner->dataWin->sprt.sprites[spriteIndex].width;
+    int32_t lives = (int32_t) runner->lives;
+    for (int32_t i = 0; lives > i; i++) {
+        Renderer_drawSprite(runner->renderer, spriteIndex, 0, x + (float) (i * spriteWidth), y);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_set_health(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal val = RValue_toReal(args[0]);
+    Runner_setHealth(runner, ctx->actionRelativeFlag ? runner->health + val : val);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_if_health(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    GMLReal value = RValue_toReal(args[0]);
+    int32_t op = RValue_toInt32(args[1]);
+    bool result;
+    if (op == LEGACY_DND_CMP_LT) result = runner->health < value;
+    else if (op == LEGACY_DND_CMP_GT) result = runner->health > value;
+    else result = runner->health == value;
+    return RValue_makeBool(result);
+}
+
+// DnD "back" / "bar" color preset in BGR format enum used by action_draw_health.
+// Indices match the GMS 1.x DnD dropdowns:
+// Stored as BGR (GameMaker color order) so they can be passed straight to the renderer.
+static const uint32_t DND_PALETTE_BGR[17] = {
+    0x000000, // 0 = no fill (the "no fill" part is handled on the handler itself)
+    0x000000, // 1 = black
+    0x808080, // 2 = gray
+    0xC0C0C0, // 3 = silver
+    0xFFFFFF, // 4 = white
+    0x000080, // 5 = maroon
+    0x008000, // 6 = green
+    0x008080, // 7 = olive
+    0x800000, // 8 = navy
+    0x800080, // 9 = purple
+    0x808000, // 10 = teal
+    0x0000FF, // 11 = red
+    0x00FF00, // 12 = lime
+    0x00FFFF, // 13 = yellow
+    0xFF0000, // 14 = blue
+    0xFF00FF, // 15 = fuchsia
+    0xFFFF00, // 16 = aqua
+};
+
+static RValue builtin_action_draw_health(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x1 = (float) RValue_toReal(args[0]);
+    float y1 = (float) RValue_toReal(args[1]);
+    float x2 = (float) RValue_toReal(args[2]);
+    float y2 = (float) RValue_toReal(args[3]);
+    int32_t backIdx = RValue_toInt32(args[4]);
+    int32_t barIdx = RValue_toInt32(args[5]);
+
+    applyActionRelativeOffset(ctx, &x1, &y1);
+    applyActionRelativeOffset(ctx, &x2, &y2);
+
+    if (0 > backIdx || backIdx >= 17) backIdx = 0;
+    if (0 > barIdx || barIdx >= 17) barIdx = 12; // lime fallback
+
+    // Optional back fill.
+    if (backIdx > 0) {
+        uint32_t backCol = DND_PALETTE_BGR[backIdx];
+        runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, backCol, runner->renderer->drawAlpha, false);
+    }
+
+    GMLReal amount = runner->health;
+    if (0.0 > amount) amount = 0.0;
+    if (amount > 100.0) amount = 100.0;
+    float fillFraction = (float) (amount / 100.0);
+    if (fillFraction > 0.0f) {
+        uint32_t barCol = DND_PALETTE_BGR[barIdx];
+        float fillX = x1 + (x2 - x1) * fillFraction;
+        runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, fillX, y2, barCol, runner->renderer->drawAlpha, false);
+    }
+    return RValue_makeUndefined();
+}
+
 // ===[ Tile Layer Functions ]===
 
 static TileLayerState* getOrCreateTileLayer(Runner* runner, int32_t depth) {
@@ -10361,6 +10563,16 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
     VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
     VM_registerBuiltin(ctx, "action_set_alarm", builtin_action_set_alarm);
+    VM_registerBuiltin(ctx, "action_set_score", builtin_action_set_score);
+    VM_registerBuiltin(ctx, "action_if_score", builtin_action_if_score);
+    VM_registerBuiltin(ctx, "action_draw_score", builtin_action_draw_score);
+    VM_registerBuiltin(ctx, "action_set_life", builtin_action_set_life);
+    VM_registerBuiltin(ctx, "action_if_life", builtin_action_if_life);
+    VM_registerBuiltin(ctx, "action_draw_life", builtin_action_draw_life);
+    VM_registerBuiltin(ctx, "action_draw_life_images", builtin_action_draw_life_images);
+    VM_registerBuiltin(ctx, "action_set_health", builtin_action_set_health);
+    VM_registerBuiltin(ctx, "action_if_health", builtin_action_if_health);
+    VM_registerBuiltin(ctx, "action_draw_health", builtin_action_draw_health);
     VM_registerBuiltin(ctx, "alarm_set", builtin_alarm_set);
     VM_registerBuiltin(ctx, "alarm_get", builtin_alarm_get);
     VM_registerBuiltin(ctx, "action_sound",builtin_action_sound);

@@ -207,6 +207,11 @@ typedef enum {
     BUILTIN_VAR_FPS,
     BUILTIN_VAR_DEBUG_MODE,
 
+    // Legacy GMS 1.x globals
+    BUILTIN_VAR_SCORE,
+    BUILTIN_VAR_LIVES,
+    BUILTIN_VAR_HEALTH,
+
     // Gamepad constants
     BUILTIN_VAR_GP_FACE1,
     BUILTIN_VAR_GP_FACE2,

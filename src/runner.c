@@ -261,7 +261,10 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
                 case OTHER_GAME_START:      return "GameStart";
                 case OTHER_ROOM_START:      return "RoomStart";
                 case OTHER_ROOM_END:        return "RoomEnd";
+                case OTHER_NO_MORE_LIVES:   return "NoMoreLives";
+                case OTHER_ANIMATION_END:   return "AnimationEnd";
                 case OTHER_END_OF_PATH:     return "EndOfPath";
+                case OTHER_NO_MORE_HEALTH:  return "NoMoreHealth";
                 case OTHER_USER0 +  0:      return "UserEvent0";
                 case OTHER_USER0 +  1:      return "UserEvent1";
                 case OTHER_USER0 +  2:      return "UserEvent2";
@@ -411,6 +414,18 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
         if (0 > codeId) continue;
         Runner_executeResolvedEvent(runner, inst, eventType, eventSubtype, codeId, ownerObjectIndex);
     }
+}
+
+void Runner_setLives(Runner* runner, GMLReal value) {
+    GMLReal old = runner->lives;
+    runner->lives = value;
+    if (old > 0.0 && 0.0 >= value) Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_NO_MORE_LIVES);
+}
+
+void Runner_setHealth(Runner* runner, GMLReal value) {
+    GMLReal old = runner->health;
+    runner->health = value;
+    if (old > 0.0 && 0.0 >= value) Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_NO_MORE_HEALTH);
 }
 
 // ===[ Background Scrolling & Drawing ]===
@@ -1479,6 +1494,9 @@ void Runner_reset(Runner* runner) {
 
     runner->pendingRoom = -1;
     runner->asyncLoadMapId = -1;
+    runner->score = 0.0;
+    runner->lives = -1.0;
+    runner->health = 0.0;
     runner->gameStartFired = false;
     runner->currentRoomIndex = -1;
     runner->currentRoomOrderPosition = -1;
