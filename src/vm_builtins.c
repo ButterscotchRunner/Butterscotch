@@ -9387,6 +9387,47 @@ static RValue builtin_layer_background_alpha(VMContext* ctx, RValue* args, MAYBE
     return RValue_makeUndefined();
 }
 
+static RValue builtin_layer_background_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t elementId = RValue_toInt32(args[0]);
+    int32_t spriteIndex = RValue_toInt32(args[1]);
+
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, elementId);
+    if (bg != nullptr) {
+        bg->spriteIndex = spriteIndex;
+        return RValue_makeUndefined();
+    }
+
+    RoomLayer* roomLayer = Runner_findRoomLayerById(runner, elementId);
+    if (roomLayer != nullptr && roomLayer->type == RoomLayerType_Background && roomLayer->backgroundData != nullptr) {
+        roomLayer->backgroundData->spriteIndex = spriteIndex;
+    }
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_background_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t layerId = resolveLayerIdArg(runner, args[0]);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, layerId);
+    if (runtimeLayer != nullptr) {
+        size_t count = arrlenu(runtimeLayer->elements);
+        repeat(count, i) {
+            if (runtimeLayer->elements[i].type == RuntimeLayerElementType_Background) {
+                return RValue_makeReal((GMLReal) runtimeLayer->elements[i].id);
+            }
+        }
+    }
+
+    RoomLayer* roomLayer = Runner_findRoomLayerById(runner, layerId);
+    if (roomLayer != nullptr && roomLayer->type == RoomLayerType_Background) {
+        return RValue_makeReal((GMLReal) layerId);
+    }
+
+    return RValue_makeReal(-1.0);
+}
+
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
@@ -11314,6 +11355,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_stretch", builtin_layer_background_stretch);
     VM_registerBuiltin(ctx, "layer_background_blend", builtin_layer_background_blend);
     VM_registerBuiltin(ctx, "layer_background_alpha", builtin_layer_background_alpha);
+    VM_registerBuiltin(ctx, "layer_background_sprite", builtin_layer_background_sprite);
+    VM_registerBuiltin(ctx, "layer_background_change", builtin_layer_background_sprite);
+    VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
 
     // GMS2 internal
