@@ -4164,7 +4164,7 @@ static RValue builtin_application_surface_enable(VMContext* ctx, RValue* args, M
 static RValue builtin_application_surface_draw_enable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner == nullptr || argCount < 1) return RValue_makeUndefined();
-    runner->appSurfaceAutoDraw = RValue_toReal(args[0]) > 0.5;
+    runner->appSurfaceAutoDraw = RValue_toBool(args[0]);
     return RValue_makeUndefined();
 }
 
