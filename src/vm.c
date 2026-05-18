@@ -458,19 +458,45 @@ static Variable* resolveVarDef(VMContext* ctx, uint32_t varRef) {
     return varDef;
 }
 
+static uint32_t growGlobalSlotSparse(VMContext* ctx, int32_t varKey) {
+    uint32_t slot = IntIntHashMap_getOrInsertSequential(&ctx->globalVarsSlotMap, varKey);
+    if (slot >= ctx->globalVarCount) {
+        if (slot >= ctx->globalVarCapacity) {
+            uint32_t newCap = ctx->globalVarCapacity == 0 ? 64 : ctx->globalVarCapacity * 2;
+            while (slot >= newCap) newCap *= 2;
+            ctx->globalVars = safeRealloc(ctx->globalVars, newCap * sizeof(RValue));
+            ctx->globalVarCapacity = newCap;
+        }
+        for (uint32_t i = ctx->globalVarCount; slot >= i; i++) {
+            ctx->globalVars[i] = (RValue){ .type = RVALUE_UNDEFINED };
+        }
+        ctx->globalVarCount = slot + 1;
+    }
+    return slot;
+}
+
+// Maps a global variable key to its slot in globalVars[]
+static inline uint32_t resolveGlobalSlot(VMContext* ctx, int32_t varKey) {
+    if (IS_BC15_OR_HIGHER(ctx)) {
+        // Bytecode Version 15+ provides the key directly in the data.win
+        return (uint32_t) varKey;
+    } else {
+        return growGlobalSlotSparse(ctx, varKey);
+    }
+}
+
 // Maps a GML local's varID to its slot position in the current code's localVars[] array.
 //
-// BC16: varIDs for locals are already sequential slot indices (0, 1, 2, ...), so we return the varID unchanged.
+// BC15/16: varIDs for locals are already sequential slot indices (0, 1, 2, ...), so we return the varID unchanged.
 //
-// BC17+: a single GML local can surface as several VARI chunk entries that share a varID.
-// We key by that shared varID via the precomputed currentCodeLocalsSlotMap so reads/writes via any VARI
-// entry agree on the same localVars slot.
+// BC13/BC14, BC17+: a single GML local can surface as several VARI chunk entries that share a varID (BC17+) or has no pre-assigned slot at all (BC13/BC14).
+// We key by varID/varIdx via the per-code currentCodeLocalsSlotMap so reads/writes via any reference agree on the same localVars slot.
 static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
-    if (IS_BC16_OR_BELOW(ctx)) {
+    if (IS_BC15_OR_HIGHER(ctx) && IS_BC16_OR_BELOW(ctx)) {
         return (uint32_t) varID;
     }
 
-    // For BC17, we'll allocate the slot dynamically because the data.win CANNOT be trusted to know how localVars the script has
+    // BC13/BC14 and BC17+: allocate the slot dynamically because the data.win CANNOT be trusted to know how many localVars the script has
     uint32_t slot = IntIntHashMap_getOrInsertSequential(ctx->currentCodeLocalsSlotMap, varID);
     // Even though we are dynamically allocating the slots, we are still bound to whatever localVars is allocated to
     // So, if a script goes over the MAX_CODE_LOCALS, it would cause unforeseen consequences...
@@ -530,8 +556,9 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
             return true;
         }
         case INSTANCE_GLOBAL: {
-            require(ctx->globalVarCount > (uint32_t) varDef->varID);
-            *out = ctx->globalVars[varDef->varID];
+            uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+            require(ctx->globalVarCount > globalSlot);
+            *out = ctx->globalVars[globalSlot];
             out->ownsReference = false;
             return true;
         }
@@ -720,10 +747,12 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             slot = &ctx->localVars[localSlot];
             break;
         }
-        case INSTANCE_GLOBAL:
-            require(ctx->globalVarCount > (uint32_t) varDef->varID);
-            slot = &ctx->globalVars[varDef->varID];
+        case INSTANCE_GLOBAL: {
+            uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+            require(ctx->globalVarCount > globalSlot);
+            slot = &ctx->globalVars[globalSlot];
             break;
+        }
         case INSTANCE_SELF:
         default: {
             Instance* inst = targetInstance;
@@ -844,10 +873,11 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
                 return;
             }
             case INSTANCE_GLOBAL: {
-                require(ctx->globalVarCount > (uint32_t) varDef->varID);
-                writeIntoSlot(&ctx->globalVars[varDef->varID], val);
+                uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+                require(ctx->globalVarCount > globalSlot);
+                writeIntoSlot(&ctx->globalVars[globalSlot], val);
 #ifdef ENABLE_VM_TRACING
-                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, ctx->globalVars[varDef->varID], true, -1, -1, "");
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, ctx->globalVars[globalSlot], true, -1, -1, "");
 #endif
                 return;
             }
@@ -1003,10 +1033,12 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             slot = &ctx->localVars[localSlot];
             break;
         }
-        case INSTANCE_GLOBAL:
-            require(ctx->globalVarCount > (uint32_t) varDef->varID);
-            slot = &ctx->globalVars[varDef->varID];
+        case INSTANCE_GLOBAL: {
+            uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+            require(ctx->globalVarCount > globalSlot);
+            slot = &ctx->globalVars[globalSlot];
             break;
+        }
         case INSTANCE_SELF:
         default: {
             Instance* inst = targetInstance;
@@ -1046,8 +1078,9 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             return;
         }
         case INSTANCE_GLOBAL: {
-            require(ctx->globalVarCount > (uint32_t) varDef->varID);
-            RValue* dest = &ctx->globalVars[varDef->varID];
+            uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+            require(ctx->globalVarCount > globalSlot);
+            RValue* dest = &ctx->globalVars[globalSlot];
             writeIntoSlot(dest, val);
 #ifdef ENABLE_VM_TRACING
             VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, *dest, true, -1, -1, "");
@@ -1146,10 +1179,12 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                         slot = &ctx->localVars[localSlot];
                         break;
                     }
-                    case INSTANCE_GLOBAL:
-                        require(ctx->globalVarCount > (uint32_t) varDef->varID);
-                        slot = &ctx->globalVars[varDef->varID];
+                    case INSTANCE_GLOBAL: {
+                        uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+                        require(ctx->globalVarCount > globalSlot);
+                        slot = &ctx->globalVars[globalSlot];
                         break;
+                    }
                     case INSTANCE_SELF:
                     case INSTANCE_OTHER: {
                         Instance* inst = (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
@@ -1414,10 +1449,12 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
                     slot = &ctx->localVars[localSlot];
                     break;
                 }
-                case INSTANCE_GLOBAL:
-                    require(ctx->globalVarCount > (uint32_t) varDef->varID);
-                    slot = &ctx->globalVars[varDef->varID];
+                case INSTANCE_GLOBAL: {
+                    uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+                    require(ctx->globalVarCount > globalSlot);
+                    slot = &ctx->globalVars[globalSlot];
                     break;
+                }
                 case INSTANCE_SELF:
                 default: {
                     struct Instance* inst = (struct Instance*) ctx->currentInstance;
@@ -2893,8 +2930,9 @@ static RValue executeLoop(VMContext* ctx) {
                     break;
                 }
                 // Inline the read straight from globalVars[].
-                require(ctx->globalVarCount > (uint32_t) varDef->varID);
-                RValue val = ctx->globalVars[varDef->varID];
+                uint32_t globalSlot = resolveGlobalSlot(ctx, varDef->varID);
+                require(ctx->globalVarCount > globalSlot);
+                RValue val = ctx->globalVars[globalSlot];
                 val.ownsReference = false;
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 #ifdef ENABLE_VM_TRACING
@@ -3237,6 +3275,11 @@ static void rewriteBytecode14To16(VMContext* ctx) {
     uint8_t* buf = dw->bytecodeBuffer;
     size_t base = dw->bytecodeBufferBase;
 
+    // Synthesize varIDs for each variable
+    repeat(dw->vari.variableCount, i) {
+        dw->vari.variables[i].varID = (int32_t) i;
+    }
+
     repeat(dw->code.count, codeIdx) {
         CodeEntry* entry = &dw->code.entries[codeIdx];
         if (entry->length == 0) continue;
@@ -3291,6 +3334,22 @@ static void rewriteBytecode14To16(VMContext* ctx) {
             if (newKind != oldKind || oldKind == 0x11 || oldKind == 0x12 || oldKind == 0x13 || oldKind == 0x14 || oldKind == 0x16) {
                 instr = (instr & 0x00FFFFFF) | ((uint32_t)newKind << 24);
                 BinaryUtils_writeUint32(&buf[instrAddr - base], instr);
+            }
+
+            // BC13/14 encodes the globalvar flag as bit 30 of the operand.
+            // We will strip the globalvar flag and replace it with a proper BC16+ INSTANCE_GLOBAL instanceType
+            if ((newKind == OP_PUSH || newKind == OP_POP) && type1 == GML_TYPE_VARIABLE) {
+                uint32_t operandAddr = instrAddr + 4;
+                uint32_t operand = BinaryUtils_readUint32(&buf[operandAddr - base]);
+                // 0x40000000u = "globalvar"
+                if (operand & 0x40000000u) {
+                    // Remove the globalvar state from the operand
+                    operand &= ~0x40000000u;
+                    BinaryUtils_writeUint32(&buf[operandAddr - base], operand);
+                    // And replace it to set the instanceType to "INSTANCE_GLOBAL"
+                    instr = (instr & 0xFFFF0000u) | (uint16_t) INSTANCE_GLOBAL;
+                    BinaryUtils_writeUint32(&buf[instrAddr - base], instr);
+                }
             }
 
             uint32_t size = 4;
@@ -3354,8 +3413,17 @@ VMContext* VM_create(DataWin* dataWin) {
         Variable* var = &dataWin->vari.variables[i];
         // varID == -6 is the BC16 built-in sentinel.
         // In BC17, argument variables have instanceType == -6 (Builtin) with varID >= 0, so we also check instanceType.
-        if (var->varID == -6 || var->instanceType == -6) {
+        if (IS_BC15_OR_HIGHER(ctx) && (var->varID == -6 || var->instanceType == -6)) {
             var->builtinVarId = VMBuiltins_resolveBuiltinVarId(var->name);
+        } else if (IS_BC14_OR_BELOW(ctx)) {
+            // BC13/14 has no -6 sentinel in the file. Detect builtins by name and switch the VARI entry to use the BC16 sentinel so downstream dispatch paths treat it as a builtin.
+            int16_t builtinId = VMBuiltins_resolveBuiltinVarId(var->name);
+            if (builtinId != BUILTIN_VAR_UNKNOWN) {
+                var->varID = -6;
+                var->builtinVarId = builtinId;
+            } else {
+                var->builtinVarId = BUILTIN_VAR_UNKNOWN;
+            }
         } else {
             var->builtinVarId = BUILTIN_VAR_UNKNOWN;
         }
@@ -3366,17 +3434,21 @@ VMContext* VM_create(DataWin* dataWin) {
 
     // Scan VARI entries to find max varID for global scope
     // Built-in variables have varID == -6 (sentinel), skip those
+    // BC13/BC14: no eager scan, the sparse globalVarsSlotMap grows on first touch via resolveGlobalSlot.
     uint32_t maxGlobalVarID = 0;
-    forEach(Variable, v, dataWin->vari.variables, dataWin->vari.variableCount) {
-        if (0 > v->varID) continue;
-        // In BC17 any varID can be used as a global variable
-        if (IS_BC17_OR_HIGHER(ctx) || v->instanceType == INSTANCE_GLOBAL) {
-            if ((uint32_t) v->varID + 1 > maxGlobalVarID) maxGlobalVarID = (uint32_t) v->varID + 1;
+    if (!IS_BC14_OR_BELOW(ctx)) {
+        forEach(Variable, v, dataWin->vari.variables, dataWin->vari.variableCount) {
+            if (0 > v->varID) continue;
+            // In BC17 any varID can be used as a global variable
+            if (IS_BC17_OR_HIGHER(ctx) || v->instanceType == INSTANCE_GLOBAL) {
+                if ((uint32_t) v->varID + 1 > maxGlobalVarID) maxGlobalVarID = (uint32_t) v->varID + 1;
+            }
         }
     }
 
     ctx->globalVarCount = maxGlobalVarID;
-    ctx->globalVars = safeCalloc(maxGlobalVarID, sizeof(RValue));
+    ctx->globalVarCapacity = maxGlobalVarID;
+    ctx->globalVars = maxGlobalVarID == 0 ? nullptr : safeCalloc(maxGlobalVarID, sizeof(RValue));
     repeat(maxGlobalVarID, i) {
         ctx->globalVars[i].type = RVALUE_UNDEFINED;
     }
@@ -3465,10 +3537,11 @@ VMContext* VM_create(DataWin* dataWin) {
         }
     }
 
-    // BC17+: build per-CodeLocals varID -> slot hmap so resolveLocalSlot is O(1)
-    // We NEED to do it with the "code.count" because YoYo Games in their infinite wisdom thought "what if... we just didn't include some local variables in the localVars map? heck, sometimes we can just NOT include any CodeLocals!"... fun!
+    // BC13/BC14/BC17+: build per-CodeLocals varID -> slot hmap so resolveLocalSlot is O(1)
+    // BC17+ NEEDS "code.count" size entries because YoYo Games in their infinite wisdom thought "what if... we just didn't include some local variables in the localVars map? heck, sometimes we can just NOT include any CodeLocals!"... fun!
+    // BC13/BC14 NEEDS the per-code map because BC<=14 has no CodeLocals chunk at all, so slots are allocated on first reference.
     ctx->codeLocalsSlotMaps = nullptr;
-    if (dataWin->gen8.bytecodeVersion >= 17) {
+    if (dataWin->gen8.bytecodeVersion >= 17 || 14 >= dataWin->gen8.bytecodeVersion) {
         ctx->codeLocalsSlotMaps = safeCalloc(dataWin->code.count, sizeof(*ctx->codeLocalsSlotMaps));
     }
 
@@ -3549,18 +3622,18 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
     return shget(ctx->codeLocalsMap, (char*) codeName);
 }
 
-// Sets the currentCodeLocalsSlotMap for BC17+ games
+// Sets the currentCodeLocalsSlotMap for BC13/BC14/BC17+ games.
 static void setCurrentCodeLocalsSlotMap(VMContext* ctx) {
-    if (IS_BC17_OR_HIGHER(ctx)) {
+    if (IS_BC17_OR_HIGHER(ctx) || IS_BC14_OR_BELOW(ctx)) {
         ctx->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCodeIndex];
     }
 }
 
 static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
-    if (IS_BC16_OR_BELOW(ctx)) {
+    if (IS_BC15_OR_HIGHER(ctx) && IS_BC16_OR_BELOW(ctx)) {
         return code->localsCount;
     } else {
-        // We can't trust localVarCount in GM:S 2.3+, so we will get our cached map
+        // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
         // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
         return IntIntHashMap_count(&ctx->codeLocalsSlotMaps[ctx->currentCodeIndex]);
     }
@@ -4331,6 +4404,7 @@ void VM_free(VMContext* ctx) {
 
     // Free global vars array itself
     free(ctx->globalVars);
+    IntIntHashMap_free(&ctx->globalVarsSlotMap);
 
     // Free hash maps
     shfree(ctx->codeIndexByName);

@@ -221,8 +221,12 @@ struct VMContext {
     struct { char* key; int32_t value; }* codeIndexByName;
     // codeName -> CodeLocals* hash map (stb_ds)
     struct { char* key; CodeLocals* value; }* codeLocalsMap;
-    // BC17+: A map of CODE indexes -> localVars slot lookup map
+    // BC13/BC14/BC17+: A map of CODE indexes -> localVars slot lookup map
     IntIntHashMap* codeLocalsSlotMaps;
+    // BC13/BC14 only: varIdx -> globalVars slot lookup
+    IntIntHashMap globalVarsSlotMap;
+    // Allocated capacity of ctx->globalVars, only used for BC13/BC14
+    uint32_t globalVarCapacity;
     // varName -> varID hash map for global variables (stb_ds)
     struct { char* key; int32_t value; }* globalVarNameMap;
     // varName -> varID hash map for self/instance-scoped variables (stb_ds).
