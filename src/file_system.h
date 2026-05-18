@@ -40,6 +40,13 @@ typedef struct {
     int32_t (*binarySize)(FileSystem* fs, void* handle);
     // Truncates the file to zero length and rewinds
     void (*binaryRewrite)(FileSystem* fs, void* handle);
+
+    // Check if a directory exists
+    bool (*directoryExists)(FileSystem* fs, const char* relativePath);
+    // Create a directory, returns true on success
+    bool (*createDirectory)(FileSystem* fs, const char* relativePath);
+    // Delete a directory, returns true on success
+    bool (*deleteDirectory)(FileSystem* fs, const char* relativePath);
 } FileSystemVtable;
 
 struct FileSystem {

@@ -4843,6 +4843,32 @@ static RValue builtin_file_exists(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeBool(fs->vtable->fileExists(fs, path));
 }
 
+static RValue builtin_directory_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    const char* path = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    Runner* runner = (Runner*) ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+    return RValue_makeBool(fs->vtable->directoryExists(fs, path));
+}
+
+static RValue builtin_directory_create(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    const char* path = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    Runner* runner = (Runner*) ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+    fs->vtable->createDirectory(fs, path);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_directory_destroy(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    const char* path = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    Runner* runner = (Runner*) ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+    fs->vtable->deleteDirectory(fs, path);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1.0);
     const char* path = (args[0].type == RVALUE_STRING ? args[0].string : "");
@@ -11256,6 +11282,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ini_read_string", builtin_ini_read_string);
     VM_registerBuiltin(ctx, "ini_read_real", builtin_ini_read_real);
     VM_registerBuiltin(ctx, "ini_section_exists", builtin_ini_section_exists);
+
+    // Directory
+    VM_registerBuiltin(ctx, "directory_exists", builtin_directory_exists);
+    VM_registerBuiltin(ctx, "directory_create", builtin_directory_create);
+    VM_registerBuiltin(ctx, "directory_destroy", builtin_directory_destroy);
 
     // File
     VM_registerBuiltin(ctx, "file_exists", builtin_file_exists);

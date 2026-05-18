@@ -484,6 +484,19 @@ static void ps2BinaryRewrite(MAYBE_UNUSED FileSystem* fs, void* handle) {
     h->fp = fopen(h->resolvedPath, "wb+");
 }
 
+//Directory, pretty much stubbed
+static bool ps2DirectoryExists(FileSystem* fs, const char* relativePath) {
+    return true;
+}
+
+static bool ps2CreateDirectory(FileSystem* fs, const char* relativePath) {
+    return true;
+}
+
+static bool ps2DeleteDirectory(FileSystem* fs, const char* relativePath) {
+    return true;
+}
+
 // ===[ Vtable ]===
 
 static FileSystemVtable ps2FileSystemVtable = {
@@ -502,6 +515,9 @@ static FileSystemVtable ps2FileSystemVtable = {
     .binarySeek = ps2BinarySeek,
     .binarySize = ps2BinarySize,
     .binaryRewrite = ps2BinaryRewrite,
+    .directoryExists = ps2DirectoryExists,
+    .createDirectory = ps2CreateDirectory,
+    .deleteDirectory = ps2DeleteDirectory,
 };
 
 // ===[ Lifecycle ]===
