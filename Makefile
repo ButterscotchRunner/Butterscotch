@@ -78,9 +78,13 @@ $(error must enable at least 1 bytecode version)
 endif
 endif
 
-ifdef DISABLE_MODERN_GL
 ifdef DISABLE_LEGACY_GL
-$(error must enable at least 1 OpenGL renderer)
+ifeq ($(PLATFORM),sdl)
+$(error must enable at least 1 renderer)
+else
+ifdef DISABLE_MODERN_GL
+$(error must enable at least 1 renderer)
+endif
 endif
 endif
 
