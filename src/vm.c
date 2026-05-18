@@ -3331,7 +3331,7 @@ static void rewriteBytecode14To16(VMContext* ctx) {
                     break;
             }
 
-            if (newKind != oldKind || oldKind == 0x11 || oldKind == 0x12 || oldKind == 0x13 || oldKind == 0x14 || oldKind == 0x16) {
+            if (newKind != oldKind || oldKind == 0x11 || oldKind == 0x12 || oldKind == 0x13 || oldKind == 0x14 || oldKind == 0x15 || oldKind == 0x16) {
                 instr = (instr & 0x00FFFFFF) | ((uint32_t)newKind << 24);
                 BinaryUtils_writeUint32(&buf[instrAddr - base], instr);
             }
