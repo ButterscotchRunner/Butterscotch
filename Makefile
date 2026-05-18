@@ -31,6 +31,10 @@ else
 DEFINES += -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\"
 endif
 
+ifndef DISABLE_BC14
+DEFINES += -DENABLE_BC14
+endif
+
 ifndef DISABLE_BC16
 DEFINES += -DENABLE_BC16
 endif
@@ -72,9 +76,11 @@ HEADERS += $(wildcard src/gl/*.h)
 endif
 endif
 
+ifdef DISABLE_BC14
 ifdef DISABLE_BC16
 ifdef DISABLE_BC17
 $(error must enable at least 1 bytecode version)
+endif
 endif
 endif
 
