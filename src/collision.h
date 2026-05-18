@@ -253,9 +253,12 @@ static inline bool Collision_lineOverlapsInstance(DataWin* dataWin, Instance* in
     InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
     if (!bbox.valid) return false;
 
+    // Epsilon from GameMaker-HTML5, we apply it because the BBox is "exclusive" (outside of the sprite) but we need to put the right/bottom INSIDE of the sprite
+    // So we nudge it to be inside on it
+    GMLReal eps = 1e-5;
     Sprite* spr = Collision_getSprite(dataWin, inst);
     if (!Collision_obbNeedsSAT(spr, inst)) {
-        return Collision_segmentVsAARect(x1, y1, x2, y2, bbox.left, bbox.top, bbox.right, bbox.bottom);
+        return Collision_segmentVsAARect(x1, y1, x2, y2, bbox.left, bbox.top, bbox.right - eps, bbox.bottom - eps);
     }
 
     // For rotated OBB: transform line endpoints into local frame and clip against local rect.
@@ -263,7 +266,7 @@ static inline bool Collision_lineOverlapsInstance(DataWin* dataWin, Instance* in
     GMLReal lx1, ly1, lx2, ly2;
     Collision_obbWorldToLocal(&obb, x1, y1, &lx1, &ly1);
     Collision_obbWorldToLocal(&obb, x2, y2, &lx2, &ly2);
-    return Collision_segmentVsAARect(lx1, ly1, lx2, ly2, obb.lx0, obb.ly0, obb.lx1, obb.ly1);
+    return Collision_segmentVsAARect(lx1, ly1, lx2, ly2, obb.lx0, obb.ly0, obb.lx1 - eps, obb.ly1 - eps);
 }
 
 // Tests if world point (px, py) is inside the given instance's collision shape.

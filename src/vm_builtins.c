@@ -8334,6 +8334,10 @@ static RValue builtin_instance_position(VMContext* ctx, RValue* args, int32_t ar
     GMLReal py = RValue_toReal(args[1]);
     int32_t targetObjIndex = RValue_toInt32(args[2]);
 
+    if (runner->collisionCompatibilityMode) {
+        px = compatRoundCoord(px); py = compatRoundCoord(py);
+    }
+
     int32_t resultId = INSTANCE_NOONE;
     int32_t snapBase = Runner_pushInstancesForTarget(runner, targetObjIndex);
     int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
@@ -8342,6 +8346,10 @@ static RValue builtin_instance_position(VMContext* ctx, RValue* args, int32_t ar
         if (!inst->active) continue;
 
         if (!Collision_pointInsideInstanceBox(ctx->dataWin, inst, px, py)) continue;
+
+        // GameMaker ALWAYS does precise collision checks here
+        Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
+        if (Collision_hasFrameMasks(spr) && !Collision_pointInInstance(spr, inst, px, py)) continue;
 
         resultId = inst->instanceId;
         break;
@@ -8360,6 +8368,9 @@ static RValue builtin_position_meeting(VMContext* ctx, RValue* args, int32_t arg
     GMLReal py = RValue_toReal(args[1]);
     int32_t target = RValue_toInt32(args[2]);
 
+    if (runner->collisionCompatibilityMode) {
+        px = compatRoundCoord(px); py = compatRoundCoord(py);
+    }
 
     SpatialGrid_syncGrid(runner, runner->spatialGrid);
     SpatialGridQuery query = SpatialGrid_prepareQuery(runner, px, py, px, py, target);
@@ -8380,6 +8391,10 @@ static RValue builtin_position_meeting(VMContext* ctx, RValue* args, int32_t arg
                 if (query.filterByInstanceId && other->instanceId != (uint32_t) target) continue;
 
                 if (!Collision_pointInsideInstanceBox(ctx->dataWin, other, px, py)) continue;
+
+                // GameMaker ALWAYS does precise collision checks here
+                Sprite* spr = Collision_getSprite(ctx->dataWin, other);
+                if (Collision_hasFrameMasks(spr) && !Collision_pointInInstance(spr, other, px, py)) continue;
 
                 found = true;
                 break;

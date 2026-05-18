@@ -2448,13 +2448,61 @@ static void gsGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, b
     gsApplyFBA(gs, alphaOnly ? 0 : 1);
 }
 
+// Fallback for tiles not pre-baked into ATLAS.BIN.
+// Mirrors the generic Renderer_drawTile path: clamp the tile's source rect to the TPAG content area, then draw as a sub-rect of the background TPAG.
+static void gsDrawTileFromTPAG(GsRenderer* gs, RoomTile* tile, float offsetX, float offsetY) {
+    Renderer* renderer = &gs->base;
+    int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(renderer->dataWin, tile);
+    if (0 > tpagIndex) return;
+
+    TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
+
+    int32_t srcX = tile->sourceX;
+    int32_t srcY = tile->sourceY;
+    int32_t srcW = (int32_t) tile->width;
+    int32_t srcH = (int32_t) tile->height;
+    float drawX = (float) tile->x + offsetX;
+    float drawY = (float) tile->y + offsetY;
+
+    int32_t contentLeft = tpag->targetX;
+    int32_t contentTop = tpag->targetY;
+    if (contentLeft > srcX) {
+        int32_t clip = contentLeft - srcX;
+        drawX += (float) clip * tile->scaleX;
+        srcW -= clip;
+        srcX = contentLeft;
+    }
+    if (contentTop > srcY) {
+        int32_t clip = contentTop - srcY;
+        drawY += (float) clip * tile->scaleY;
+        srcH -= clip;
+        srcY = contentTop;
+    }
+
+    int32_t contentRight = tpag->targetX + tpag->sourceWidth;
+    int32_t contentBottom = tpag->targetY + tpag->sourceHeight;
+    if (srcX + srcW > contentRight) srcW = contentRight - srcX;
+    if (srcY + srcH > contentBottom) srcH = contentBottom - srcY;
+
+    if (0 >= srcW || 0 >= srcH) return;
+
+    int32_t atlasOffX = srcX - tpag->targetX;
+    int32_t atlasOffY = srcY - tpag->targetY;
+
+    uint32_t bgr = tile->color & 0x00FFFFFF;
+    gsDrawSpritePart(renderer, tpagIndex, atlasOffX, atlasOffY, srcW, srcH, drawX, drawY, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f, bgr, tile->alpha);
+}
+
 static void gsDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
     // Look up the tile in the atlas tile entries
     AtlasTileEntry* tileEntry = findTileEntry(gs, (int16_t) tile->backgroundDefinition, (uint16_t) tile->sourceX, (uint16_t) tile->sourceY, (uint16_t) tile->width, (uint16_t) tile->height);
-    if (tileEntry == nullptr)
+    if (tileEntry == nullptr) {
+        // Runtime-added tiles (tile_add) won't be in the pre-baked atlas. Fall back to rendering the sub-rect from the background's TPAG entry.
+        gsDrawTileFromTPAG(gs, tile, offsetX, offsetY);
         return;
+    }
 
     // Set up GSTEXTURE for this tile entry
     GSTEXTURE tex;
