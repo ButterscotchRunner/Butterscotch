@@ -1373,6 +1373,54 @@ static RValue builtin_string_letters(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     return RValue_makeString(str);
 }
 
+static RValue builtin_string_digits(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeOwnedString(safeStrdup(""));
+    char* str = RValue_toString(args[0]);
+    int len = strlen(str);
+    char* result = (char*)malloc(len + 1);
+    if (result == NULL) return RValue_makeOwnedString(safeStrdup(""));
+
+    int digitCount = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (isdigit(str[i])) result[digitCount++] = str[i];
+    }
+
+    free(str);
+    result[digitCount] = '\0';
+
+    if (digitCount == 0) {
+        free(result);
+        return RValue_makeOwnedString(safeStrdup(""));
+    }
+
+    char* exact_result = (char*)realloc(result, digitCount + 1);
+    return RValue_makeOwnedString(exact_result ? exact_result : result);
+}
+
+static RValue builtin_string_lettersdigits(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeOwnedString(safeStrdup(""));
+    char* str = RValue_toString(args[0]);
+    int len = strlen(str);
+    char* result = (char*)malloc(len + 1);
+    if (result == NULL) return RValue_makeOwnedString(safeStrdup(""));
+
+    int count = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (isalnum(str[i])) result[count++] = str[i];
+    }
+
+    free(str);
+    result[count] = '\0';
+
+    if (count == 0) {
+        free(result);
+        return RValue_makeOwnedString(safeStrdup(""));
+    }
+
+    char* exact_result = (char*)realloc(result, count + 1);
+    return RValue_makeOwnedString(exact_result ? exact_result : result);
+}
+
 static RValue builtin_string_byte_length(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeInt32(0);
     // GML converts non-string arguments to string before measuring length
@@ -1660,30 +1708,6 @@ static RValue builtin_string_count(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     free(substr);
     free(str);
     return RValue_makeInt32(count);
-}
-
-static RValue builtin_string_digits(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
-    if (1 > argCount) return RValue_makeOwnedString(safeStrdup(""));
-    char* str = RValue_toString(args[0]);
-    int len = strlen(str);
-    char* result = (char*)malloc(len + 1);
-    if (result == NULL) return RValue_makeOwnedString(safeStrdup(""));
-
-    int digitCount = 0;
-    for (int i = 0; str[i] != '\0'; i++) {
-        if (isdigit(str[i])) result[digitCount++] = str[i];
-    }
-
-    free(str);
-    result[digitCount] = '\0';
-
-    if (digitCount == 0) {
-        free(result);
-        return RValue_makeOwnedString(safeStrdup(""));
-    }
-
-    char* exact_result = (char*)realloc(result, digitCount + 1);
-    return RValue_makeOwnedString(exact_result ? exact_result : result);
 }
 
 static RValue builtin_ord(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -9973,6 +9997,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtin_string_length);
     VM_registerBuiltin(ctx, "string_letters", builtin_string_letters);
+    VM_registerBuiltin(ctx, "string_digits", builtin_string_digits);
+    VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
@@ -9987,7 +10013,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_repeat", builtin_string_repeat);
     VM_registerBuiltin(ctx, "string_format", builtin_string_format);
     VM_registerBuiltin(ctx, "string_count", builtin_string_count);
-    VM_registerBuiltin(ctx, "string_digits", builtin_string_digits);
     VM_registerBuiltin(ctx, "ord", builtin_ord);
     VM_registerBuiltin(ctx, "chr", builtin_chr);
 
