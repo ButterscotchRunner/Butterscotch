@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #ifdef USE_FLOAT_REALS
@@ -51,3 +52,16 @@ typedef double GMLReal;
 #define GMLReal_strtod(str, endptr) strtod(str, endptr)
 
 #endif
+
+// Round-half-to-even (banker's rounding).
+// While the original runner uses "llrint(double)", we use our own banker's rounding implementation to avoid quirks in specific platforms (like the PlayStation 2) having different llrint rounding implementations.
+static inline GMLReal GMLReal_bankersRound(GMLReal v) {
+    if (isnan(v) || isinf(v)) return v;
+    GMLReal f = GMLReal_floor(v);
+    GMLReal frac = v - f;
+    if (0.5 > frac) return f;
+    if (frac > 0.5) return f + 1.0;
+    // Exactly halfway: round to the even neighbor.
+    int64_t fi = (int64_t) f;
+    return (fi & 1) == 0 ? f : f + 1.0;
+}

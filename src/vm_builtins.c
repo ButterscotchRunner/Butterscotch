@@ -1393,17 +1393,7 @@ static RValue builtin_ceil(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t ar
 
 static RValue builtin_round(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
-    // GameMaker's round() uses banker's rounding (round half to even).
-    // While the original runner uses "llrint(double)", we use our own banker's rounding implementation to avoid quirks in specific platforms (like the PlayStation 2) having different llrint rounding implementations.
-    GMLReal v = RValue_toReal(args[0]);
-    if (isnan(v) || isinf(v)) return RValue_makeReal(v);
-    GMLReal f = GMLReal_floor(v);
-    GMLReal frac = v - f;
-    if (0.5 > frac) return RValue_makeReal(f);
-    if (frac > 0.5) return RValue_makeReal(f + 1.0);
-    // Exactly halfway: round to the even neighbor.
-    int64_t fi = (int64_t) f;
-    return RValue_makeReal((fi & 1) == 0 ? f : f + 1.0);
+    return RValue_makeReal(GMLReal_bankersRound(RValue_toReal(args[0])));
 }
 
 static RValue builtin_abs(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -7198,6 +7188,10 @@ static RValue builtin_place_meeting(VMContext* ctx, RValue* args, int32_t argCou
 
     return RValue_makeBool(found);
 }
+
+// GameMaker rounds the coordinates when in collision compatibility mode
+static inline GMLReal compatRoundCoord(GMLReal v) { return GMLReal_bankersRound(v); }
+
 // collision_line(x1, y1, x2, y2, obj, prec, notme)
 static RValue builtin_collision_line(VMContext* ctx, RValue* args, int32_t argCount) {
     if (7 > argCount) return RValue_makeReal((GMLReal) INSTANCE_NOONE);
@@ -7210,6 +7204,11 @@ static RValue builtin_collision_line(VMContext* ctx, RValue* args, int32_t argCo
     int32_t targetObjIndex = RValue_toInt32(args[4]);
     int32_t prec = RValue_toInt32(args[5]);
     int32_t notme = RValue_toInt32(args[6]);
+
+    if (runner->collisionCompatibilityMode) {
+        lx1 = compatRoundCoord(lx1); ly1 = compatRoundCoord(ly1);
+        lx2 = compatRoundCoord(lx2); ly2 = compatRoundCoord(ly2);
+    }
 
     Instance* self = (Instance*) ctx->currentInstance;
 
@@ -7381,6 +7380,11 @@ static RValue builtin_collision_rectangle(VMContext* ctx, RValue* args, int32_t 
     int32_t prec = RValue_toInt32(args[5]);
     int32_t notme = RValue_toInt32(args[6]);
 
+    if (runner->collisionCompatibilityMode) {
+        x1 = compatRoundCoord(x1); y1 = compatRoundCoord(y1);
+        x2 = compatRoundCoord(x2); y2 = compatRoundCoord(y2);
+    }
+
     // Normalize rect
     if (x1 > x2) { GMLReal tmp = x1; x1 = x2; x2 = tmp; }
     if (y1 > y2) { GMLReal tmp = y1; y1 = y2; y2 = tmp; }
@@ -7450,6 +7454,19 @@ static RValue builtin_collision_circle(VMContext* ctx, RValue* args, int32_t arg
     GMLReal radiusSq = radius * radius;
 
     Instance* self = (Instance*) ctx->currentInstance;
+    if (runner->collisionCompatibilityMode) {
+        GMLReal qx1r = compatRoundCoord(cx - radius);
+        GMLReal qy1r = compatRoundCoord(cy - radius);
+        GMLReal qx2r = compatRoundCoord(cx + radius);
+        GMLReal qy2r = compatRoundCoord(cy + radius);
+        cx = (qx1r + qx2r) * 0.5;
+        cy = (qy1r + qy2r) * 0.5;
+        // Genuine collision_circle has qx2-qx1 == qy2-qy1 == 2r; use the smaller in case of rounding asymmetry.
+        GMLReal rx = (qx2r - qx1r) * 0.5;
+        GMLReal ry = (qy2r - qy1r) * 0.5;
+        radius = rx < ry ? rx : ry;
+        radiusSq = radius * radius;
+    }
 
     GMLReal qx1 = cx - radius;
     GMLReal qy1 = cy - radius;
@@ -7535,6 +7552,11 @@ static RValue builtin_collision_rectangle_list(VMContext* ctx, RValue* args, int
     DsList* list = dsListGet(runner, listId);
     if (list == nullptr) return RValue_makeReal(0.0);
 
+    if (runner->collisionCompatibilityMode) {
+        x1 = compatRoundCoord(x1); y1 = compatRoundCoord(y1);
+        x2 = compatRoundCoord(x2); y2 = compatRoundCoord(y2);
+    }
+
     if (x1 > x2) { GMLReal tmp = x1; x1 = x2; x2 = tmp; }
     if (y1 > y2) { GMLReal tmp = y1; y1 = y2; y2 = tmp; }
 
@@ -7605,6 +7627,10 @@ static RValue builtin_collision_point(VMContext* ctx, RValue* args, int32_t argC
     int32_t targetObjIndex = RValue_toInt32(args[2]);
     int32_t prec = RValue_toInt32(args[3]);
     int32_t notme = RValue_toInt32(args[4]);
+
+    if (runner->collisionCompatibilityMode) {
+        px = compatRoundCoord(px); py = compatRoundCoord(py);
+    }
 
     Instance* self = (Instance*) ctx->currentInstance;
 
