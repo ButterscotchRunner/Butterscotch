@@ -103,6 +103,28 @@ static GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
     return program;
 }
 
+static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader) {
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertShader);
+    glAttachShader(program, fragShader);
+
+    glBindAttribLocation(program, 0, "in_Position");
+    glBindAttribLocation(program, 2, "in_Colour");
+    glBindAttribLocation(program, 1, "in_TexCoord");
+    
+    glLinkProgram(program);
+
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
+        fprintf(stderr, "GL: Shader linking failed: %s\n", infoLog);
+        abort();
+    }
+    return program;
+}
+
 // ===[ Batch Flush ]===
 
 static void flushBatch(GLRenderer* gl) {
@@ -164,6 +186,25 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->shaderProgram = linkProgram(vertShader, fragShader);
     glDeleteShader(vertShader);
     glDeleteShader(fragShader);
+   //yeah find the way to get the shaders here!!!
+    fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
+    for (uint32_t i = 0; dataWin->shdr.count > i; i++)
+    {
+        Shader* shdr = &dataWin->shdr.shaders[i];
+        //fprintf(stderr, "GL: Shader %u %s Type %u\n", i, shdr->name, shdr->type);      
+        //GLuint* GMLShaders;
+        fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name); 
+        GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, shdr->glsl_Vertex);
+        fprintf(stderr, "GL: Compiling %s Fragment Shader\n", shdr->name); 
+        GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, shdr->glsl_Fragment);
+        gl->GMLShaderCount++;
+        gl->GMLShaders = safeRealloc(gl->GMLShaders, gl->GMLShaderCount * sizeof(GLuint));
+        fprintf(stderr, "GL: Linking %s\n", shdr->name); 
+        gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT);
+         
+         
+         
+    }
 
     gl->uProjection = glGetUniformLocation(gl->shaderProgram, "uProjection");
     gl->uTexture = glGetUniformLocation(gl->shaderProgram, "uTexture");
@@ -335,6 +376,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
 
     glUseProgram(gl->shaderProgram);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
+    renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glUniform1i(gl->uTexture, 0);
     glActiveTexture(GL_TEXTURE0);
 
@@ -386,6 +428,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
 
     glUseProgram(gl->shaderProgram);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
+    renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glUniform1i(gl->uTexture, 0);
     glActiveTexture(GL_TEXTURE0);
 
@@ -1382,6 +1425,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
 
     if (surfaceId == renderer->runner->applicationSurfaceId) {
         glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->PreviousViewMatrix.m);
+        renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->PreviousViewMatrix;
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         return true;
@@ -1392,6 +1436,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     Matrix4f_identity(&projection);
     Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
+    renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
     return true;
@@ -1668,6 +1713,68 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     glUniform4f(gl->uFogColor, r, g, b, enable ? 1.0f : 0.0f);
 }
 
+static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    GLuint Shader = gl->GMLShaders[ShaderIndex];
+    GLint gm_BaseTexture = glGetUniformLocation(Shader, "gm_BaseTexture");
+    GLint gm_Matrices0 = glGetUniformLocation(Shader, "gm_Matrices[0]");
+    GLint gm_Matrices1 = glGetUniformLocation(Shader, "gm_Matrices[1]");
+    GLint gm_Matrices2 = glGetUniformLocation(Shader, "gm_Matrices[2]");
+    GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
+    GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
+
+    glUseProgram(Shader);
+    if (gm_BaseTexture != -1) {
+    glUniform1i(gm_BaseTexture, 0);
+    }
+
+    if (gm_Matrices0 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
+    }
+    if (gm_Matrices1 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_PROJECTION].m);
+    }
+    if (gm_Matrices2 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD].m);
+    }
+    if (gm_Matrices3 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW].m);
+    }
+    if (gm_Matrices4 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION].m);
+    }
+}
+
+static void glGpuResetShader(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glUseProgram(gl->shaderProgram);
+}
+
+static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    GLuint Shader = gl->GMLShaders[shaderIndex];
+    return glGetUniformLocation(Shader, uniform);   
+}
+
+static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int8_t count, float value1, float value2, float value3, float value4) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    if (count == 1) {
+    glUniform1f(handle, value1);
+    } else if (count == 2) {
+    glUniform2f(handle, value1, value2);
+    } else if (count == 3) {
+    glUniform3f(handle, value1, value2, value3);
+    } else if (count == 4) {
+    glUniform4f(handle, value1, value2, value3, value4);
+    }
+    
+}
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;
@@ -1722,6 +1829,10 @@ Renderer* GLRenderer_create(void) {
     glVtable.drawSurface = glDrawSurface;
     glVtable.surfaceResize = glSurfaceResize;
     glVtable.surfaceFree = glSurfaceFree;
+    glVtable.gpuSetShader = glGpuSetShader,
+    glVtable.gpuResetShader = glGpuResetShader,
+    glVtable.shaderGetUniform = glShaderGetUniform,
+    glVtable.shaderSetUniformF = glShaderSetUniformF,
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
     gl->base.drawFont = -1;

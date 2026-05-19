@@ -13012,6 +13012,65 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeString(ctx->runner->gameArgs[index]);
 }
 
+static RValue builtin_shader_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    //fprintf(stderr, "Set Shader ID %u\n", ShaderID);
+    //gpuSetShader
+    if (ctx->runner->renderer->vtable->gpuSetShader != nullptr) {
+    ctx->runner->renderer->vtable->gpuSetShader(ctx->runner->renderer, ShaderID);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_reset(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    if (ctx->runner->renderer->vtable->gpuResetShader != nullptr) {
+    ctx->runner->renderer->vtable->gpuResetShader(ctx->runner->renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    if (ctx->runner->renderer->vtable->shaderGetUniform != nullptr) {
+    return RValue_makeReal(ctx->runner->renderer->vtable->shaderGetUniform(ctx->runner->renderer, ShaderID, uniform));
+    }
+    return RValue_makeReal(-1);
+}
+
+static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t handle = (int32_t) RValue_toReal(args[0]);
+    float value1, value2, value3, value4;
+    //fprintf(stderr, "Set ARG Count %u\n", argCount);
+    if (ctx->runner->renderer->vtable->shaderSetUniformF != nullptr) {
+    //return RValue_makeReal(ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, ShaderID, uniform));
+    if (argCount == 2) {
+        value1 = (float) RValue_toReal(args[2]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 1, value1, 0.0, 0.0, 0.0);
+    } else if (argCount == 3) {
+        value1 = (float) RValue_toReal(args[2]);
+        value2 = (float) RValue_toReal(args[3]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 2, value1, value2, 0.0, 0.0);
+    } else if (argCount == 4) {
+        value1 = (float) RValue_toReal(args[2]);
+        value2 = (float) RValue_toReal(args[3]);
+        value3 = (float) RValue_toReal(args[4]);       
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 3, value1, value2, value3, 0.0);
+    } else if (argCount == 5) {
+        value1 = (float) RValue_toReal(args[2]);
+        value2 = (float) RValue_toReal(args[3]);
+        value3 = (float) RValue_toReal(args[4]);       
+        value4 = (float) RValue_toReal(args[5]);        
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 4, value1, value2, value3, value4);
+    }
+
+    }
+    return RValue_makeUndefined();
+}
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -13879,4 +13938,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "game_change", builtin_game_change);
     VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
     VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
+    VM_registerBuiltin(ctx,"shader_set", builtin_shader_set);
+    VM_registerBuiltin(ctx,"shader_reset", builtin_shader_reset);
+    VM_registerBuiltin(ctx,"shader_get_uniform", builtin_shader_get_uniform);   
+    VM_registerBuiltin(ctx,"shader_set_uniform_f", builtin_shader_set_uniformF); 
+
 }

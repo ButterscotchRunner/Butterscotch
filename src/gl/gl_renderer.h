@@ -24,6 +24,8 @@ typedef struct {
     GLint uTexture;
     GLint uAlphaTestRef;
     GLint uFogColor;
+    GLuint* GMLShaders;
+    uint32_t GMLShaderCount;
 
     bool alphaTestEnable;
     float alphaTestRef;
