@@ -844,7 +844,7 @@ int main(int argc, char* argv[]) {
     fbWidth = reqW;
     fbHeight = reqH;
     if(!args.headless) {
-        scr = SDL_SetVideoMode(reqW, reqH, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
+        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
         if (!scr && useSWRend) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
