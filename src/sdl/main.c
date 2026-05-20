@@ -599,7 +599,6 @@ static bool getSDLWindowFocus(void *window) {
 }
 
 static SDL_Surface* nextFb = NULL;
-static uint32_t fbW = 0, fbH = 0;
 void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
 {
     if (nextFb != NULL) {
@@ -607,8 +606,6 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
         nextFb = NULL;
     }
 
-    fbW = width;
-    fbH = height;
     nextFb = SDL_CreateRGBSurfaceFrom(
         framebuffer,
         width,
