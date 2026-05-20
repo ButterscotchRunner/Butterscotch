@@ -366,7 +366,7 @@ static inline void Renderer_nineSliceTile2D(Renderer* renderer, int32_t spriteIn
     }
 }
 
-static inline inline void Renderer_drawSpriteNineSlice(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float x, float y, float w, float h, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static inline void Renderer_drawSpriteNineSlice(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float x, float y, float w, float h, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     DataWin* dw = renderer->dataWin;
     if (0 > spriteIndex || dw->sprt.count <= (uint32_t) spriteIndex) return;
     Sprite* sprite = &dw->sprt.sprites[spriteIndex];

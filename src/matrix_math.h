@@ -188,7 +188,7 @@ static inline float Matrix4f_determinant(const Matrix4f *mat) {
 }
 
 // Computes a matrix's inverse and returns true/false if it even exists
-static inline inline bool Matrix4f_inverse(Matrix4f *inv, const Matrix4f *mat) {
+static inline bool Matrix4f_inverse(Matrix4f *inv, const Matrix4f *mat) {
     float determinant = Matrix4f_determinant(mat);
 
     // TODO: have an epsilon.
