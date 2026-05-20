@@ -3349,6 +3349,30 @@ static RValue builtin_ds_list_add(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_list_delete(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t pos = RValue_toInt32(args[1]);
+    DsList* list = dsListGet(runner, id);
+    if (list == nullptr) return RValue_makeUndefined();
+    if (0 > pos || pos >= (int32_t) arrlen(list->items)) return RValue_makeUndefined();
+    
+    if (list->items[pos].type == RVALUE_STRING) {
+        RValue_free(&list->items[pos]);
+    }
+    arrdel(list->items, pos);
+    return RValue_makeUndefined();
+
+}
+
+static RValue builtin_ds_list_empty(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsList* list = dsListGet(runner, id);
+    if (list == nullptr) return RValue_makeBool(true);
+    return RValue_makeBool(arrlen(list->items) == 0);
+}
+
 static RValue builtin_ds_list_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
@@ -11011,10 +11035,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_size", builtin_ds_map_size);
     VM_registerBuiltin(ctx, "ds_map_destroy", builtin_ds_map_destroy);
 
-    // ds_list stubs
+    // ds_list
     VM_registerBuiltin(ctx, "ds_list_create", builtin_ds_list_create);
     VM_registerBuiltin(ctx, "ds_list_destroy", builtin_ds_list_destroy);
     VM_registerBuiltin(ctx, "ds_list_add", builtin_ds_list_add);
+    VM_registerBuiltin(ctx, "ds_list_delete", builtin_ds_list_delete);
+    VM_registerBuiltin(ctx, "ds_list_empty", builtin_ds_list_empty);
     VM_registerBuiltin(ctx, "ds_list_size", builtin_ds_list_size);
     VM_registerBuiltin(ctx, "ds_list_find_index", builtin_ds_list_find_index);
     VM_registerBuiltin(ctx, "ds_list_find_value", builtin_ds_list_find_value);
