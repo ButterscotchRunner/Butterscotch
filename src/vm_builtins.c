@@ -3356,13 +3356,9 @@ static RValue builtin_ds_list_delete(VMContext* ctx, RValue* args, int32_t argCo
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
     if (0 > pos || pos >= (int32_t) arrlen(list->items)) return RValue_makeUndefined();
-    
-    if (list->items[pos].type == RVALUE_STRING) {
-        RValue_free(&list->items[pos]);
-    }
+    if (list->items[pos].type == RVALUE_STRING) RValue_free(&list->items[pos]);
     arrdel(list->items, pos);
     return RValue_makeUndefined();
-
 }
 
 static RValue builtin_ds_list_empty(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
