@@ -37,6 +37,8 @@
 #define	MATRIX_WORLD_VIEW_PROJECTION 	4
 #define	MATRICES_MAX					5
 
+#define MAX_TEXTURE_STAGES 8
+
 // Sentinel returned by ensureApplicationSurface on platforms that don't back the application_surface with a real entry in the renderer's surface table.
 //
 // Also used as the initial value of Runner.applicationSurfaceId before the first ensure call.
@@ -121,7 +123,10 @@ typedef struct {
     void (*gpuSetShader)(Renderer* renderer, int32_t shaderIndex);
     void (*gpuResetShader)(Renderer* renderer);
     int32_t (*shaderGetUniform)(Renderer* renderer, int32_t shaderIndex, char* uniform);
-    void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int8_t count, float value1, float value2, float value3, float value4);
+    void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4);
+    int32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);
+    float (*textureGetTexelWidth)(Renderer* renderer, int16_t pageId);
+    float (*textureGetTexelHeight)(Renderer* renderer, int16_t pageId);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===
@@ -143,6 +148,7 @@ struct Renderer {
     int32_t CPortH;
     Runner* runner;
     Matrix4f GML_Matrices[MATRICES_MAX];
+    int32_t CurrentShader;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===

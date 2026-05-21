@@ -199,10 +199,39 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, shdr->glsl_Fragment);
         gl->GMLShaderCount++;
         gl->GMLShaders = safeRealloc(gl->GMLShaders, gl->GMLShaderCount * sizeof(GLuint));
+        gl->Sampler2DLookUpTable = safeRealloc(gl->Sampler2DLookUpTable, gl->GMLShaderCount * sizeof(int32_t*));
         fprintf(stderr, "GL: Linking %s\n", shdr->name); 
         gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT);
          
-         
+        //Texture Set Stage BS has to be done bruh :(
+        int32_t SamplerIndex = 0;
+        GLint UniformCount;
+        glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORMS, &UniformCount);
+
+        gl->Sampler2DLookUpTable[i] = malloc(UniformCount * sizeof(int32_t));
+
+        GLint LongestUniformName = 0;
+        glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
+        char *UniformName = malloc(LongestUniformName);
+
+        for (GLint b = 0; b < UniformCount; b++) {
+            GLsizei length = 0;
+            GLint size = 0;
+            GLenum type = 0;
+            glGetActiveUniform(gl->GMLShaders[i], b, LongestUniformName, &length, &size, &type, UniformName);
+                //glGetUniformIndices
+                gl->Sampler2DLookUpTable[i][b] = -1;
+                if (type == GL_SAMPLER_2D)
+                {
+                    GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
+                    SamplerIndex += 1;
+                    gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
+                    //printf("GL: %s Should Be Texture Stage %d at %d\n", UniformName, SamplerIndex, location);
+                }
+            printf("GL: Uniform Index %d is Sampler2D Index %d\n", b, gl->Sampler2DLookUpTable[i][b]);
+        }
+        free(UniformName);
+        //fprintf(stderr, "GL: Shader Uniform Count %u\n", UniformCount);
          
     }
 
@@ -1730,36 +1759,40 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     }
 
     if (gm_Matrices0 != -1) {
-        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
+        glUniformMatrix4fv(gm_Matrices0, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
     }
     if (gm_Matrices1 != -1) {
-        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_PROJECTION].m);
+        glUniformMatrix4fv(gm_Matrices1, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_PROJECTION].m);
     }
     if (gm_Matrices2 != -1) {
-        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD].m);
+        glUniformMatrix4fv(gm_Matrices2, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD].m);
     }
     if (gm_Matrices3 != -1) {
-        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW].m);
+        glUniformMatrix4fv(gm_Matrices3, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW].m);
     }
     if (gm_Matrices4 != -1) {
         glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION].m);
     }
+    renderer->CurrentShader = ShaderIndex;
 }
 
 static void glGpuResetShader(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     glUseProgram(gl->shaderProgram);
+    renderer->CurrentShader = -1;
 }
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     GLuint Shader = gl->GMLShaders[shaderIndex];
+    //fprintf(stderr, "GL: Uniform Location %u\n", glGetUniformLocation(Shader, uniform));
+
     return glGetUniformLocation(Shader, uniform);   
 }
 
-static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int8_t count, float value1, float value2, float value3, float value4) {
+static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
 
@@ -1775,6 +1808,31 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int8_t count
     
 }
 
+static int32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    TexturePageItem* tpag;
+    GLuint texId;
+    int32_t texW, texH;
+    if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return -1;
+
+    return (int32_t) texId;
+    
+}
+
+//static void glTextureSetStage(Renderer* renderer, int32_t stage, int32_t texture) {
+//     GLRenderer* gl = (GLRenderer*) renderer;
+//
+//}
+
+static float glTextureGetTexelWidth(Renderer* renderer, int16_t pageId) {
+    GLRenderer* gl = (GLRenderer*) renderer;   
+    return (1.0 / (float) gl->textureWidths[pageId]);
+}
+
+static float glTextureGetTexelHeight(Renderer* renderer, int16_t pageId) {
+    GLRenderer* gl = (GLRenderer*) renderer;   
+    return (1.0 / (float) gl->textureHeights[pageId]);
+}
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;
@@ -1833,12 +1891,17 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuResetShader = glGpuResetShader,
     glVtable.shaderGetUniform = glShaderGetUniform,
     glVtable.shaderSetUniformF = glShaderSetUniformF,
+    glVtable.spriteGetTexture = glSpriteGetTexture,
+    glVtable.textureGetTexelWidth = glTextureGetTexelWidth,
+    glVtable.textureGetTexelHeight = glTextureGetTexelHeight,
+    //.textureSetStage = glTextureSetStage,
+
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
     gl->base.drawFont = -1;
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
-
+    gl->base.CurrentShader = -1;
     return (Renderer*) gl;
 }

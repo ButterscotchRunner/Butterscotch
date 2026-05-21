@@ -26,6 +26,7 @@ typedef struct {
     GLint uFogColor;
     GLuint* GMLShaders;
     uint32_t GMLShaderCount;
+    int32_t** Sampler2DLookUpTable;
 
     bool alphaTestEnable;
     float alphaTestRef;

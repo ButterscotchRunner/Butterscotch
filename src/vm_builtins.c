@@ -13031,14 +13031,24 @@ static RValue builtin_shader_reset(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
     return RValue_makeUndefined();
 }
 
+static RValue builtin_shader_current(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    if (ctx->runner->renderer != nullptr) {
+    return RValue_makeReal(ctx->runner->renderer->CurrentShader);
+    }
+    return RValue_makeReal(-1);
+}
+
+
+
 static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
     char* uniform = RValue_toString(args[1]);
     if (ctx->runner->renderer->vtable->shaderGetUniform != nullptr) {
-    return RValue_makeReal(ctx->runner->renderer->vtable->shaderGetUniform(ctx->runner->renderer, ShaderID, uniform));
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetUniform(ctx->runner->renderer, ShaderID, uniform));
     }
-    return RValue_makeReal(-1);
+    return RValue_makeInt32(-1);
 }
 
 static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -13049,28 +13059,84 @@ static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* a
     if (ctx->runner->renderer->vtable->shaderSetUniformF != nullptr) {
     //return RValue_makeReal(ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, ShaderID, uniform));
     if (argCount == 2) {
-        value1 = (float) RValue_toReal(args[2]);
+        value1 = (float) RValue_toReal(args[1]);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 1, value1, 0.0, 0.0, 0.0);
     } else if (argCount == 3) {
-        value1 = (float) RValue_toReal(args[2]);
-        value2 = (float) RValue_toReal(args[3]);
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 2, value1, value2, 0.0, 0.0);
     } else if (argCount == 4) {
-        value1 = (float) RValue_toReal(args[2]);
-        value2 = (float) RValue_toReal(args[3]);
-        value3 = (float) RValue_toReal(args[4]);       
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 3, value1, value2, value3, 0.0);
     } else if (argCount == 5) {
-        value1 = (float) RValue_toReal(args[2]);
-        value2 = (float) RValue_toReal(args[3]);
-        value3 = (float) RValue_toReal(args[4]);       
-        value4 = (float) RValue_toReal(args[5]);        
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
+        value4 = (float) RValue_toReal(args[4]);
+        //fprintf(stderr, "Value4  %.8f\n", value4);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 4, value1, value2, value3, value4);
     }
 
     }
     return RValue_makeUndefined();
 }
+
+static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+    
+    if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+    }
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+
+
+
+    GMLArray* out = GMLArray_create(8);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    *GMLArray_slot(out, 4) = RValue_makeReal(0.0);
+    *GMLArray_slot(out, 5) = RValue_makeReal(0.0);
+    *GMLArray_slot(out, 6) = RValue_makeReal(0.0);
+    *GMLArray_slot(out, 7) = RValue_makeReal(0.0);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_sprite_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int16_t TpagIndex = (int16_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId));
+}
+
+static RValue builtin_texture_get_texel_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int16_t TpagIndex = (int16_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId));
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -13938,9 +14004,15 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "game_change", builtin_game_change);
     VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
     VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
-    VM_registerBuiltin(ctx,"shader_set", builtin_shader_set);
-    VM_registerBuiltin(ctx,"shader_reset", builtin_shader_reset);
-    VM_registerBuiltin(ctx,"shader_get_uniform", builtin_shader_get_uniform);   
-    VM_registerBuiltin(ctx,"shader_set_uniform_f", builtin_shader_set_uniformF); 
+    VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
+    VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
+    VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
+    VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
+
+    VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF); 
+    VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
+    VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
+    VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
+    VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
 
 }
