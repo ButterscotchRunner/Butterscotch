@@ -143,8 +143,15 @@ ifeq ($(PLATFORM),sdl)
 SRCS += $(wildcard src/sdl/*.c)
 HEADERS += $(wildcard src/sdl/*.h)
 DEFINES += -DUSE_SDL
+ifdef USE_SDL2
+DEFINES += -DUSE_SDL2
+ifndef SDL_LIBS
+SDL_LIBS := $(shell pkg-config --libs sdl2)
+endif
+else
 ifndef SDL_LIBS
 SDL_LIBS := $(shell pkg-config --libs sdl)
+endif
 endif
 LIBS += $(SDL_LIBS)
 else

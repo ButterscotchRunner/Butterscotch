@@ -1,9 +1,15 @@
 #include "data_win.h"
 #include "vm.h"
-#include <SDL/SDL_events.h>
 
+#ifdef USE_SDL2
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_video.h>
+#else
+#include <SDL/SDL_events.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_video.h>
+#endif
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -572,7 +578,12 @@ static void installCrashHandlers(void) {
 static void setSDLWindowTitle(void* window, const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
+#ifdef USE_SDL2
+    SDL_SetWindowTitle(window, windowTitle);
+#else
+    (void)window;
     SDL_WM_SetCaption(windowTitle, NULL);
+#endif
 }
 
 static bool getSDLWindowSize(void *window, int32_t *outW, int32_t *outH) {
@@ -590,7 +601,12 @@ static void setSDLWindowSize(void *window, int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
+#ifdef USE_SDL2
+    SDL_SetWindowSize(window, width, height);
+    scr = SDL_GetWindowSurface(window);
+#else
     scr = SDL_SetVideoMode(width, height, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
+#endif
 }
 
 static bool getSDLWindowFocus(void *window) {
@@ -599,6 +615,7 @@ static bool getSDLWindowFocus(void *window) {
 }
 
 static SDL_Surface* nextFb = NULL;
+
 void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
 {
     if (nextFb != NULL) {
@@ -840,7 +857,20 @@ int main(int argc, char* argv[]) {
     int reqH = (int) gen8->defaultWindowHeight;
     fbWidth = reqW;
     fbHeight = reqH;
+#ifdef USE_SDL2
+    SDL_Window *window;
+#endif
     if(!args.headless) {
+#ifdef USE_SDL2
+        window = SDL_CreateWindow(
+                "Butterscotch",
+                SDL_WINDOWPOS_CENTERED,
+                SDL_WINDOWPOS_CENTERED,
+                fbWidth, fbHeight,
+                useSWRend ? 0 : (SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE)
+        );
+        scr = SDL_GetWindowSurface(window);
+#else
         scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, useSWRend ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
         if (!scr && useSWRend) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
@@ -852,6 +882,7 @@ int main(int argc, char* argv[]) {
                 fbHeight = modes[0]->h;
             }
         }
+#endif
         if (!scr) {
             fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
             SDL_Quit();
@@ -861,10 +892,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
+#ifndef USE_SDL2
     SDL_EnableKeyRepeat(0, 0);
+#endif
 
 #ifdef ENABLE_LEGACY_GL
     if(!useSWRend) {
+        SDL_GLContext ctx = SDL_GL_CreateContext(window);
         // Load OpenGL function pointers via GLAD
         if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
             fprintf(stderr, "Failed to initialize GLAD\n");
@@ -911,7 +945,11 @@ int main(int argc, char* argv[]) {
     runner->getWindowSize = getSDLWindowSize;
     runner->setWindowSize = setSDLWindowSize;
     runner->windowHasFocus = getSDLWindowFocus;
+#ifdef USE_SDL2
+    runner->nativeWindow = window;
+#else
     runner->nativeWindow = (void*)0xDEADBEEF;
+#endif
 
     // Set up input recording/playback (both can be active: playback then continue recording)
     if (args.playbackInputsPath != nullptr) {
@@ -969,11 +1007,26 @@ int main(int argc, char* argv[]) {
         while (SDL_PollEvent(&e)) {
             switch(e.type) {
                 case SDL_KEYDOWN:
+#ifdef USE_SDL2
+                    if (e.key.repeat != 0)
+                        break;
+#endif
                     RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                     break;
                 case SDL_KEYUP:
                     RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                     break;
+#ifdef USE_SDL2
+                case SDL_WINDOWEVENT:
+                    if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
+                        break;
+                    if (!useSWRend) {
+                        fbWidth = e.window.data1;
+                        fbHeight = e.window.data2;
+                    }
+                    scr = SDL_GetWindowSurface(window);
+                    break;
+#else
                 case SDL_VIDEORESIZE:
                     if (useSWRend)
                         break;
@@ -981,6 +1034,7 @@ int main(int argc, char* argv[]) {
                     fbHeight = e.resize.h;
                     scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (useSWRend ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
                     break;
+#endif
                 case SDL_QUIT:
                     shouldExit = true;
                     break;
@@ -1199,11 +1253,19 @@ int main(int argc, char* argv[]) {
         // Only swap when there isn't a room change to match the original runner.
         if (runner->pendingRoom == -1) {
             if(!args.headless) {
-                if(!useSWRend)
+                if(!useSWRend) {
+#ifdef USE_SDL2
+                    SDL_GL_SwapWindow(window);
+#else
                     SDL_GL_SwapBuffers();
-                else {
+#endif
+                } else {
                     SDL_BlitSurface(nextFb, NULL, scr, NULL);
+#ifdef USE_SDL2
+                    SDL_UpdateWindowSurface(window);
+#else
                     SDL_Flip(scr);
+#endif
                 }
             }
         }
