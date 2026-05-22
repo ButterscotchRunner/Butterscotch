@@ -45,7 +45,10 @@
 // ===[ Renderer Vtable ]===
 
 typedef struct Renderer Renderer;
+#ifndef RUNNER_DEFINED
+#define RUNNER_DEFINED
 typedef struct Runner Runner;
+#endif
 
 typedef struct {
     void (*init)(Renderer* renderer, DataWin* dataWin);
