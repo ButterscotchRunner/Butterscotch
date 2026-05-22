@@ -898,7 +898,9 @@ int main(int argc, char* argv[]) {
 
 #ifdef ENABLE_LEGACY_GL
     if(!useSWRend) {
-        SDL_GLContext ctx = SDL_GL_CreateContext(window);
+#ifdef USE_SDL2
+        SDL_GL_CreateContext(window);
+#endif
         // Load OpenGL function pointers via GLAD
         if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
             fprintf(stderr, "Failed to initialize GLAD\n");
