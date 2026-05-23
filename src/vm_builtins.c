@@ -11698,6 +11698,17 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_font", builtin_action_font);
         VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
         VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+        VM_registerBuiltin(ctx, "action_change_object", builtin_instance_change);
+        VM_registerBuiltin(ctx, "action_end_game", builtin_game_end);
+        VM_registerBuiltin(ctx, "action_end_sound", builtin_audio_stop_sound);
+        VM_registerBuiltin(ctx, "action_execute_script", builtin_script_execute); //It its right? i think
+        VM_registerBuiltin(ctx, "action_if_sound", builtin_audio_is_playing);
+        VM_registerBuiltin(ctx, "action_load_game", builtin_game_load);
+        VM_registerBuiltin(ctx, "action_path", builtin_path_start);
+        VM_registerBuiltin(ctx, "action_path_end", builtin_path_end);
+        VM_registerBuiltin(ctx, "action_previous_room", builtin_room_goto_previous);
+        VM_registerBuiltin(ctx, "action_restart_game", builtin_game_restart);
+        VM_registerBuiltin(ctx, "action_save_game", builtin_game_save);
     }
     VM_registerBuiltin(ctx, "alarm_set", builtin_alarm_set);
     VM_registerBuiltin(ctx, "alarm_get", builtin_alarm_get);
