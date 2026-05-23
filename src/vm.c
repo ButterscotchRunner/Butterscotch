@@ -1207,9 +1207,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     RValue_free(topSlot);
                     GMLArray* sub = GMLArray_create(0);
                     sub->owner = top->owner;
-                    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
-                    rv.array = sub;
-                    *topSlot = rv;
+                    *topSlot = RValue_makeArray(sub);
                 }
                 // Push a weak ref to the sub-array — short-lived, consumed by the next BREAK op.
                 stackPush(ctx, RValue_makeArrayWeak(topSlot->array));
@@ -2631,9 +2629,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
         RValue_free(parentSlot);
         GMLArray* sub = GMLArray_create(0);
         sub->owner = parent->owner;
-        RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
-        rv.array = sub;
-        *parentSlot = rv;
+        *parentSlot = RValue_makeArray(sub);
     }
     stackPush(ctx, RValue_makeArrayWeak(parentSlot->array));
     RValue_free(&arrayRef);
