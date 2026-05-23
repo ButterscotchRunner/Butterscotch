@@ -7430,6 +7430,7 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     }
 
     runner->renderer->vtable->drawRectangle(runner->renderer,x1,y1,healthbarX,y2,intermediateColor, runner->renderer->drawAlpha, false);
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_draw_set_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
