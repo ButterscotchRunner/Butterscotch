@@ -11085,7 +11085,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "distance_to_point", builtin_distance_to_point);
     VM_registerBuiltin(ctx, "distance_to_object", builtin_distance_to_object);
     VM_registerBuiltin(ctx, "move_towards_point", builtin_move_towards_point);
-    VM_registerBuiltin(ctx, "action_move_point", builtin_move_towards_point);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "action_move_point", builtin_move_towards_point);
+    }
     VM_registerBuiltin(ctx, "move_snap", builtin_move_snap);
     VM_registerBuiltin(ctx, "lengthdir_x", builtin_lengthdir_x);
     VM_registerBuiltin(ctx, "lengthdir_y", builtin_lengthdir_y);
@@ -11205,7 +11207,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Audio
     VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audio_system_is_available);
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
-    VM_registerBuiltin(ctx, "sound_exists", builtin_audio_exists); // Replaced with audio_exists in GMS2
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "sound_exists", builtin_audio_exists); // Replaced with audio_exists in GMS2
+        VM_registerBuiltin(ctx, "sound_fade", builtin_audio_sound_gain);
+        VM_registerBuiltin(ctx, "sound_global_volume", builtin_audio_master_gain);
+        VM_registerBuiltin(ctx, "sound_isplaying", builtin_audio_is_playing);
+        VM_registerBuiltin(ctx, "sound_stop", builtin_audio_stop_sound);
+        VM_registerBuiltin(ctx, "sound_stop_all", builtin_audio_stop_all);
+    }
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
@@ -11300,16 +11309,18 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "keyboard_clear", builtin_keyboard_clear);
 
     // Joystick
-    VM_registerBuiltin(ctx, "joystick_exists", builtin_joystick_exists);
-    VM_registerBuiltin(ctx, "joystick_name", builtin_joystick_name);
-    VM_registerBuiltin(ctx, "joystick_axes", builtin_joystick_axes);
-    VM_registerBuiltin(ctx, "joystick_xpos", builtin_joystick_xpos);
-    VM_registerBuiltin(ctx, "joystick_ypos", builtin_joystick_ypos);
-    VM_registerBuiltin(ctx, "joystick_direction", builtin_joystick_direction);
-    VM_registerBuiltin(ctx, "joystick_pov", builtin_joystick_pov);
-    VM_registerBuiltin(ctx, "joystick_check_button", builtin_joystick_check_button);
-    VM_registerBuiltin(ctx, "joystick_has_pov", builtin_joystick_has_pov);
-    VM_registerBuiltin(ctx, "joystick_buttons", builtin_joystick_buttons);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "joystick_exists", builtin_joystick_exists);
+        VM_registerBuiltin(ctx, "joystick_name", builtin_joystick_name);
+        VM_registerBuiltin(ctx, "joystick_axes", builtin_joystick_axes);
+        VM_registerBuiltin(ctx, "joystick_xpos", builtin_joystick_xpos);
+        VM_registerBuiltin(ctx, "joystick_ypos", builtin_joystick_ypos);
+        VM_registerBuiltin(ctx, "joystick_direction", builtin_joystick_direction);
+        VM_registerBuiltin(ctx, "joystick_pov", builtin_joystick_pov);
+        VM_registerBuiltin(ctx, "joystick_check_button", builtin_joystick_check_button);
+        VM_registerBuiltin(ctx, "joystick_has_pov", builtin_joystick_has_pov);
+        VM_registerBuiltin(ctx, "joystick_buttons", builtin_joystick_buttons);
+    }
 
     // Window
     VM_registerBuiltin(ctx, "window_get_fullscreen", builtin_window_get_fullscreen);
@@ -11350,18 +11361,20 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "instance_deactivate_region", builtin_instance_deactivate_region);
     VM_registerBuiltin(ctx, "instance_activate_layer", builtin_instance_activate_layer);
     VM_registerBuiltin(ctx, "instance_deactivate_layer", builtin_instance_deactivate_layer);
-    VM_registerBuiltin(ctx, "action_kill_object", builtin_action_kill_object);
-    VM_registerBuiltin(ctx, "action_create_object", builtin_action_create_object);
-    VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
-    VM_registerBuiltin(ctx, "action_move", builtin_action_move);
-    VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);
-    VM_registerBuiltin(ctx, "action_snap", builtin_action_snap);
-    VM_registerBuiltin(ctx, "action_set_friction", builtin_action_set_friction);
-    VM_registerBuiltin(ctx, "action_set_gravity", builtin_action_set_gravity);
-    VM_registerBuiltin(ctx, "action_set_hspeed", builtin_action_set_hspeed);
-    VM_registerBuiltin(ctx, "action_set_vspeed", builtin_action_set_vspeed);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "action_kill_object", builtin_action_kill_object);
+        VM_registerBuiltin(ctx, "action_create_object", builtin_action_create_object);
+        VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
+        VM_registerBuiltin(ctx, "action_move", builtin_action_move);
+        VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);
+        VM_registerBuiltin(ctx, "action_snap", builtin_action_snap);
+        VM_registerBuiltin(ctx, "action_set_friction", builtin_action_set_friction);
+        VM_registerBuiltin(ctx, "action_set_gravity", builtin_action_set_gravity);
+        VM_registerBuiltin(ctx, "action_set_hspeed", builtin_action_set_hspeed);
+        VM_registerBuiltin(ctx, "action_set_vspeed", builtin_action_set_vspeed);
+        VM_registerBuiltin(ctx, "action_inherited", builtin_event_inherited);
+    }
     VM_registerBuiltin(ctx, "event_inherited", builtin_event_inherited);
-    VM_registerBuiltin(ctx, "action_inherited", builtin_event_inherited);
     VM_registerBuiltin(ctx, "event_user", builtin_event_user);
     VM_registerBuiltin(ctx, "event_perform", builtin_event_perform);
 
@@ -11437,6 +11450,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "draw_background_tiled_ext", builtin_draw_background_tiled_ext);
         VM_registerBuiltin(ctx, "background_get_width", builtin_background_get_width);
         VM_registerBuiltin(ctx, "background_get_height", builtin_background_get_height);
+        VM_registerBuiltin(ctx, "background_delete", builtin_sprite_delete);
+        VM_registerBuiltin(ctx, "background_exists", builtin_sprite_exists);
+        VM_registerBuiltin(ctx, "background_get_name", builtin_sprite_get_name);
+        VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
     }
     VM_registerBuiltin(ctx, "draw_self", builtin_draw_self);
     VM_registerBuiltin(ctx, "draw_line", builtin_draw_line);
@@ -11550,6 +11567,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "tile_delete", builtin_tile_delete);
         VM_registerBuiltin(ctx, "tile_get_ids_at_depth", builtin_tile_get_ids_at_depth);
         VM_registerBuiltin(ctx, "tile_set_alpha", builtin_tile_set_alpha);
+        VM_registerBuiltin(ctx, "tile_set_visible", builtin_layer_tile_visible);
     }
 
     // Layer
@@ -11655,33 +11673,37 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Misc
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
-    VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
-    VM_registerBuiltin(ctx, "action_set_alarm", builtin_action_set_alarm);
-    VM_registerBuiltin(ctx, "action_set_score", builtin_action_set_score);
-    VM_registerBuiltin(ctx, "action_if_score", builtin_action_if_score);
-    VM_registerBuiltin(ctx, "action_draw_score", builtin_action_draw_score);
-    VM_registerBuiltin(ctx, "action_set_life", builtin_action_set_life);
-    VM_registerBuiltin(ctx, "action_if_life", builtin_action_if_life);
-    VM_registerBuiltin(ctx, "action_draw_life", builtin_action_draw_life);
-    VM_registerBuiltin(ctx, "action_draw_life_images", builtin_action_draw_life_images);
-    VM_registerBuiltin(ctx, "action_set_health", builtin_action_set_health);
-    VM_registerBuiltin(ctx, "action_if_health", builtin_action_if_health);
-    VM_registerBuiltin(ctx, "action_draw_health", builtin_action_draw_health);
-    VM_registerBuiltin(ctx, "action_sprite_set", builtin_action_sprite_set);
-    VM_registerBuiltin(ctx, "action_message", builtin_action_message);
-    VM_registerBuiltin(ctx, "action_another_room", builtin_action_another_room);
-    VM_registerBuiltin(ctx, "action_current_room", builtin_action_current_room);
-    VM_registerBuiltin(ctx, "action_next_room", builtin_action_next_room);
-    VM_registerBuiltin(ctx, "action_reverse_xdir", builtin_action_reverse_xdir);
-    VM_registerBuiltin(ctx, "action_reverse_ydir", builtin_action_reverse_ydir);
-    VM_registerBuiltin(ctx, "action_color", builtin_action_color);
-    VM_registerBuiltin(ctx, "action_colour", builtin_action_color);
-    VM_registerBuiltin(ctx, "action_font", builtin_action_font);
-    VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
-    VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
+        VM_registerBuiltin(ctx, "action_set_alarm", builtin_action_set_alarm);
+        VM_registerBuiltin(ctx, "action_set_score", builtin_action_set_score);
+        VM_registerBuiltin(ctx, "action_if_score", builtin_action_if_score);
+        VM_registerBuiltin(ctx, "action_draw_score", builtin_action_draw_score);
+        VM_registerBuiltin(ctx, "action_set_life", builtin_action_set_life);
+        VM_registerBuiltin(ctx, "action_if_life", builtin_action_if_life);
+        VM_registerBuiltin(ctx, "action_draw_life", builtin_action_draw_life);
+        VM_registerBuiltin(ctx, "action_draw_life_images", builtin_action_draw_life_images);
+        VM_registerBuiltin(ctx, "action_set_health", builtin_action_set_health);
+        VM_registerBuiltin(ctx, "action_if_health", builtin_action_if_health);
+        VM_registerBuiltin(ctx, "action_draw_health", builtin_action_draw_health);
+        VM_registerBuiltin(ctx, "action_sprite_set", builtin_action_sprite_set);
+        VM_registerBuiltin(ctx, "action_message", builtin_action_message);
+        VM_registerBuiltin(ctx, "action_another_room", builtin_action_another_room);
+        VM_registerBuiltin(ctx, "action_current_room", builtin_action_current_room);
+        VM_registerBuiltin(ctx, "action_next_room", builtin_action_next_room);
+        VM_registerBuiltin(ctx, "action_reverse_xdir", builtin_action_reverse_xdir);
+        VM_registerBuiltin(ctx, "action_reverse_ydir", builtin_action_reverse_ydir);
+        VM_registerBuiltin(ctx, "action_color", builtin_action_color);
+        VM_registerBuiltin(ctx, "action_colour", builtin_action_color);
+        VM_registerBuiltin(ctx, "action_font", builtin_action_font);
+        VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
+        VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+    }
     VM_registerBuiltin(ctx, "alarm_set", builtin_alarm_set);
     VM_registerBuiltin(ctx, "alarm_get", builtin_alarm_get);
-    VM_registerBuiltin(ctx, "action_sound",builtin_action_sound);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx, "action_sound",builtin_action_sound);
+    }
     VM_registerBuiltin(ctx, "string_hash_to_newline", builtin_string_hash_to_newline);
     VM_registerBuiltin(ctx, "json_decode", builtin_json_decode);
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
@@ -11691,8 +11713,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
-    VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);
-    VM_registerBuiltin(ctx,"draw_set_blend_mode_ext", builtin_gpu_set_blendmode_ext);
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
@@ -11700,20 +11720,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
-    VM_registerBuiltin(ctx,"d3d_set_fog", builtin_gpu_set_fog);
-    VM_registerBuiltin(ctx, "background_delete", builtin_sprite_delete);
-    VM_registerBuiltin(ctx, "background_exists", builtin_sprite_exists);
-    VM_registerBuiltin(ctx, "background_get_name", builtin_sprite_get_name);
-    VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
-    VM_registerBuiltin(ctx, "draw_enable_alphablend", builtin_gpu_set_blendenable);
-    VM_registerBuiltin(ctx, "draw_set_alpha_test", builtin_gpu_set_alphatestenable);
-    VM_registerBuiltin(ctx, "draw_set_alpha_test_ref_value", builtin_gpu_set_alphatestref);
-    VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
-    VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
-    VM_registerBuiltin(ctx, "sound_fade", builtin_audio_sound_gain);
-    VM_registerBuiltin(ctx, "sound_global_volume", builtin_audio_master_gain);
-    VM_registerBuiltin(ctx, "sound_isplaying", builtin_audio_is_playing);
-    VM_registerBuiltin(ctx, "sound_stop", builtin_audio_stop_sound);
-    VM_registerBuiltin(ctx, "sound_stop_all", builtin_audio_stop_all);
-    VM_registerBuiltin(ctx, "tile_set_visible", builtin_layer_tile_visible);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);
+        VM_registerBuiltin(ctx,"draw_set_blend_mode_ext", builtin_gpu_set_blendmode_ext);
+        VM_registerBuiltin(ctx,"d3d_set_fog", builtin_gpu_set_fog);
+        VM_registerBuiltin(ctx, "draw_enable_alphablend", builtin_gpu_set_blendenable);
+        VM_registerBuiltin(ctx, "draw_set_alpha_test", builtin_gpu_set_alphatestenable);
+        VM_registerBuiltin(ctx, "draw_set_alpha_test_ref_value", builtin_gpu_set_alphatestref);
+        VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
+        VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
+    }
 }
