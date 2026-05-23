@@ -11701,4 +11701,19 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
     VM_registerBuiltin(ctx,"d3d_set_fog", builtin_gpu_set_fog);
+    VM_registerBuiltin(ctx, "background_delete", builtin_sprite_delete);
+    VM_registerBuiltin(ctx, "background_exists", builtin_sprite_exists);
+    VM_registerBuiltin(ctx, "background_get_name", builtin_sprite_get_name);
+    VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
+    VM_registerBuiltin(ctx, "draw_enable_alphablend", builtin_gpu_set_blendenable);
+    VM_registerBuiltin(ctx, "draw_set_alpha_test", builtin_gpu_set_alphatestenable);
+    VM_registerBuiltin(ctx, "draw_set_alpha_test_ref_value", builtin_gpu_set_alphatestref);
+    VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx, "sound_fade", builtin_audio_sound_gain);
+    VM_registerBuiltin(ctx, "sound_global_volume", builtin_audio_master_gain);
+    VM_registerBuiltin(ctx, "sound_isplaying", builtin_audio_is_playing);
+    VM_registerBuiltin(ctx, "sound_stop", builtin_audio_stop_sound);
+    VM_registerBuiltin(ctx, "sound_stop_all", builtin_audio_stop_all);
+    VM_registerBuiltin(ctx, "tile_set_visible", builtin_layer_tile_visible);
 }
