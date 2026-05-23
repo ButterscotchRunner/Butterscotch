@@ -11207,14 +11207,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Audio
     VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audio_system_is_available);
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
-    if (!isGMS2) {
-        VM_registerBuiltin(ctx, "sound_exists", builtin_audio_exists); // Replaced with audio_exists in GMS2
-        VM_registerBuiltin(ctx, "sound_fade", builtin_audio_sound_gain);
-        VM_registerBuiltin(ctx, "sound_global_volume", builtin_audio_master_gain);
-        VM_registerBuiltin(ctx, "sound_isplaying", builtin_audio_is_playing);
-        VM_registerBuiltin(ctx, "sound_stop", builtin_audio_stop_sound);
-        VM_registerBuiltin(ctx, "sound_stop_all", builtin_audio_stop_all);
-    }
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
@@ -11242,7 +11234,16 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_create_stream", builtin_audio_create_stream);
     VM_registerBuiltin(ctx, "audio_destroy_stream", builtin_audio_destroy_stream);
     if (!isGMS2) {
+        VM_registerBuiltin(ctx, "action_sound",builtin_action_sound);
+        VM_registerBuiltin(ctx, "action_end_sound", builtin_audio_stop_sound);
+        VM_registerBuiltin(ctx, "action_if_sound", builtin_audio_is_playing);
         VM_registerBuiltin(ctx, "sound_play", builtin_sound_play);
+        VM_registerBuiltin(ctx, "sound_exists", builtin_audio_exists); // Replaced with audio_exists in GMS2
+        VM_registerBuiltin(ctx, "sound_fade", builtin_audio_sound_gain);
+        VM_registerBuiltin(ctx, "sound_global_volume", builtin_audio_master_gain);
+        VM_registerBuiltin(ctx, "sound_isplaying", builtin_audio_is_playing);
+        VM_registerBuiltin(ctx, "sound_stop", builtin_audio_stop_sound);
+        VM_registerBuiltin(ctx, "sound_stop_all", builtin_audio_stop_all);
     }
     // Application surface
     VM_registerBuiltin(ctx, "application_surface_enable", builtin_application_surface_enable);
@@ -11700,9 +11701,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
         VM_registerBuiltin(ctx, "action_change_object", builtin_instance_change);
         VM_registerBuiltin(ctx, "action_end_game", builtin_game_end);
-        VM_registerBuiltin(ctx, "action_end_sound", builtin_audio_stop_sound);
         VM_registerBuiltin(ctx, "action_execute_script", builtin_script_execute); //It its right? i think
-        VM_registerBuiltin(ctx, "action_if_sound", builtin_audio_is_playing);
         VM_registerBuiltin(ctx, "action_load_game", builtin_game_load);
         VM_registerBuiltin(ctx, "action_path", builtin_path_start);
         VM_registerBuiltin(ctx, "action_path_end", builtin_path_end);
@@ -11712,9 +11711,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     }
     VM_registerBuiltin(ctx, "alarm_set", builtin_alarm_set);
     VM_registerBuiltin(ctx, "alarm_get", builtin_alarm_get);
-    if (!isGMS2) {
-        VM_registerBuiltin(ctx, "action_sound",builtin_action_sound);
-    }
     VM_registerBuiltin(ctx, "string_hash_to_newline", builtin_string_hash_to_newline);
     VM_registerBuiltin(ctx, "json_decode", builtin_json_decode);
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
