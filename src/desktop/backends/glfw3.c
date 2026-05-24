@@ -8,7 +8,6 @@
 #include "input_recording.h"
 
 static GLFWwindow *window;
-
 static Runner *g_runner;
 
 void platformSetWindowTitle(const char* title) {
@@ -18,10 +17,10 @@ void platformSetWindowTitle(const char* title) {
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
-    if (outW == nullptr || outH == nullptr) return false;
+    if (!outW || !outH) return false;
     int w = 0;
     int h = 0;
-    if (window == nullptr) return false;
+    if (!window) return false;
     glfwGetFramebufferSize(window, &w, &h);
     if (w <= 0 || h <= 0) return false;
     *outW = w;
@@ -31,7 +30,7 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-    if (window == nullptr) return;
+    if (!window) return;
     // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
     // Convert via the current content scale so the resulting framebuffer matches what the GML asked for.
     float xs = 1.0f, ys = 1.0f;

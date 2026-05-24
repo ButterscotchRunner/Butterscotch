@@ -1183,13 +1183,8 @@ int main(int argc, char* argv[]) {
                 free(json);
             }
 
-            // Query actual framebuffer size (differs from window size on Wayland with fractional scaling)
+            // Query actual framebuffer size
             int fbWidth, fbHeight;
-// #ifdef USE_GLFW2
-//             glfwGetWindowSize(&fbWidth, &fbHeight);
-// #else
-//             glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-// #endif
             platformGetWindowSize(&fbWidth, &fbHeight);
 
             // Clear the default framebuffer (window background) to black
@@ -1227,15 +1222,36 @@ int main(int argc, char* argv[]) {
 
             // Clear FBO with room background color
             if (runner->drawBackgroundColor) {
+#if defined(ENABLE_SW_RENDERER) && defined(ENABLE_LEGACY_GL)
+                if(!SWRender) {
+                    int rInt = BGR_R(runner->backgroundColor);
+                    int gInt = BGR_G(runner->backgroundColor);
+                    int bInt = BGR_B(runner->backgroundColor);
+                    glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
+                } else
+                    SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
+            } else {
+                if(!SWRender)
+                    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                else
+                    SWRenderer_clearFrameBuffer(renderer, 0);
+#elif defined(ENABLE_LEGACY_GL)
                 int rInt = BGR_R(runner->backgroundColor);
                 int gInt = BGR_G(runner->backgroundColor);
                 int bInt = BGR_B(runner->backgroundColor);
-                int aInt = BGR_A(runner->backgroundColor);
-                glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
+                glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
             } else {
                 glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+#else
+                SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
+            } else {
+                SWRenderer_clearFrameBuffer(renderer, 0);
+#endif
             }
-            glClear(GL_COLOR_BUFFER_BIT);
+#ifdef ENABLE_LEGACY_GL
+            if(!SWRender)
+                glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
             Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
             renderer->vtable->endFrameInit(renderer);

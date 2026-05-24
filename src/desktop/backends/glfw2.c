@@ -16,7 +16,7 @@ void platformSetWindowTitle(const char* title) {
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
-    if (outW == nullptr || outH == nullptr) return false;
+    if (!outW || !outH) return false;
     int w = 0;
     int h = 0;
     glfwGetWindowSize(&w, &h);
@@ -79,20 +79,18 @@ static int32_t glfwKeyToGml(int glfwKey) {
 }
 
 static void keyCallback(int key, int action) {
-    Runner* runner = g_runner;
     // During playback, suppress real keyboard input (window events like close still work)
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
     int32_t gmlKey = glfwKeyToGml(key);
-    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
-    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(g_runner->keyboard, gmlKey);
+    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(g_runner->keyboard, gmlKey);
     // GLFW_REPEAT is ignored (GML doesn't use key repeat)
 }
 
 static void characterCallback(int codepoint, int action) {
     if (action != GLFW_PRESS) return;
-    Runner* runner = g_runner;
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
-    RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
+    RunnerKeyboard_onCharacter(g_runner->keyboard, codepoint);
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
