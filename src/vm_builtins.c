@@ -1528,7 +1528,8 @@ static RValue builtin_string_length(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
 // https://docs.vultr.com/clang/examples/remove-all-characters-in-a-string-except-alphabets
 void filterAlphabets(char *str) {
-    char *result = (char*)calloc(strlen(str) + 1, sizeof(char));
+	size_t resultLen = strlen(str) + 1;
+    char *result = (char*)malloc(resultLen);
     int j = 0;
     for (int i = 0; str[i] != '\0'; i++) {
         if ((str[i] >= 'a' && str[i] <= 'z') || (str[i] >= 'A' && str[i] <= 'Z')) {

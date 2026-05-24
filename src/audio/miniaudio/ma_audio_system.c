@@ -610,8 +610,9 @@ static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
 static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
     if (groupIndex > 0) {
         int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-        char *buf = (char*)calloc(sz + 1, 1);
-        snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
+		size_t bufSize = (size_t)sz + 1;
+        char *buf = malloc(bufSize);
+        snprintf(buf, bufSize, "audiogroup%d.dat", groupIndex);
 		free(buf);
         DataWin *audioGroup = DataWin_parse(((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf),
         (DataWinParserOptions) {
