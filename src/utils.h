@@ -15,7 +15,7 @@
     // The "typeof((typeof(x))0" is used to remove the "const" from the typeof
     #define TYPEOF(x) typeof((typeof(x))0)
 #else
-    #define TYPEOF(x) long long
+    #define TYPEOF(x) unsigned long long
 #endif
 
 #define forEach(type, item, array, count) \
