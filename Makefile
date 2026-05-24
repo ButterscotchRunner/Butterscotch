@@ -120,7 +120,7 @@ endif
 endif
 
 # TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND)/*.c)
+SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
 INCLUDES += -Isrc/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
 DEFINES += -DUSE_GLFW3
