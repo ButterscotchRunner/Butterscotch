@@ -262,17 +262,17 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
-#ifdef ENABLE_MODERN_GL
-#if defined(USE_GLFW2) && defined(ENABLE_LEGACY_GL)
-    args->renderer = "legacy-gl";
-#else
-    args->renderer = "gl";
-#endif
-#else
-    args->renderer = "legacy-gl";
-#endif
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
+    // TODO: detect available driver features
+    // at runtime to improve defaults.
+#if defined(ENABLE_MODERN_GL)
+    args->renderer = "modern-gl";
+#elif defined(ENABLE_LEGACY_GL)
+    args->renderer = "legacy-gl";
+#else
+    args->renderer = "software";
+#endif
 
     int opt;
     while ((opt = getopt_long(argc, argv, "", longOptions, nullptr)) != -1) {
@@ -901,7 +901,7 @@ int main(int argc, char* argv[]) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
     free(dataWinDir);
 
-    modernGL = strcmp(args.renderer, "gl") == 0;
+    modernGL = strcmp(args.renderer, "modern-gl") == 0;
     legacyGL = strcmp(args.renderer, "legacy-gl") == 0;
     SWRender = strcmp(args.renderer, "software") == 0;
 
