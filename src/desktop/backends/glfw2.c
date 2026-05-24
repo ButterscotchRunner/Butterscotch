@@ -1,0 +1,165 @@
+#include <string.h>
+#include <stdio.h>
+
+#include <GL/glfw.h>
+
+#include "common.h"
+#include "platformdefs.h"
+#include "input_recording.h"
+
+static Runner *g_runner;
+
+void platformSetWindowTitle(const char* title) {
+    char windowTitle[256];
+    snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
+    glfwSetWindowTitle(windowTitle);
+}
+
+bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
+    if (outW == nullptr || outH == nullptr) return false;
+    int w = 0;
+    int h = 0;
+    glfwGetWindowSize(&w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+
+void platformSetWindowSize(int32_t width, int32_t height) {
+    if (width <= 0 || height <= 0) return;
+    glfwSetWindowSize(width, height);
+}
+
+bool platformGetWindowFocus(void) {
+    return glfwGetWindowParam(GLFW_ACTIVE);
+}
+
+static int32_t glfwKeyToGml(int glfwKey) {
+    // Letters and numbers are the same as GML
+    if (glfwKey >= 'A' && glfwKey <= 'Z') return glfwKey;
+    if (glfwKey >= '0' && glfwKey <= '9') return glfwKey;
+    // Special keys need mapping
+    switch (glfwKey) {
+        case GLFW_KEY_ESC:       return VK_ESCAPE;
+        case GLFW_KEY_ENTER:     return VK_ENTER;
+        case GLFW_KEY_TAB:       return VK_TAB;
+        case GLFW_KEY_BACKSPACE: return VK_BACKSPACE;
+        case GLFW_KEY_SPACE:     return VK_SPACE;
+        case GLFW_KEY_LSHIFT:
+        case GLFW_KEY_RSHIFT:    return VK_SHIFT;
+        case GLFW_KEY_LCTRL:
+        case GLFW_KEY_RCTRL:     return VK_CONTROL;
+        case GLFW_KEY_LALT:
+        case GLFW_KEY_RALT:      return VK_ALT;
+        case GLFW_KEY_UP:        return VK_UP;
+        case GLFW_KEY_DOWN:      return VK_DOWN;
+        case GLFW_KEY_LEFT:      return VK_LEFT;
+        case GLFW_KEY_RIGHT:     return VK_RIGHT;
+        case GLFW_KEY_F1:        return VK_F1;
+        case GLFW_KEY_F2:        return VK_F2;
+        case GLFW_KEY_F3:        return VK_F3;
+        case GLFW_KEY_F4:        return VK_F4;
+        case GLFW_KEY_F5:        return VK_F5;
+        case GLFW_KEY_F6:        return VK_F6;
+        case GLFW_KEY_F7:        return VK_F7;
+        case GLFW_KEY_F8:        return VK_F8;
+        case GLFW_KEY_F9:        return VK_F9;
+        case GLFW_KEY_F10:       return VK_F10;
+        case GLFW_KEY_F11:       return VK_F11;
+        case GLFW_KEY_F12:       return VK_F12;
+        case GLFW_KEY_INSERT:    return VK_INSERT;
+        case GLFW_KEY_DEL:       return VK_DELETE;
+        case GLFW_KEY_HOME:      return VK_HOME;
+        case GLFW_KEY_END:       return VK_END;
+        case GLFW_KEY_PAGEUP:    return VK_PAGEUP;
+        case GLFW_KEY_PAGEDOWN:  return VK_PAGEDOWN;
+        default:                 return -1; // Unknown
+    }
+}
+
+static void keyCallback(int key, int action) {
+    Runner* runner = g_runner;
+    // During playback, suppress real keyboard input (window events like close still work)
+    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
+    int32_t gmlKey = glfwKeyToGml(key);
+    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
+    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+    // GLFW_REPEAT is ignored (GML doesn't use key repeat)
+}
+
+static void characterCallback(int codepoint, int action) {
+    if (action != GLFW_PRESS) return;
+    Runner* runner = g_runner;
+    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
+    RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
+}
+
+bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+    // Init GLFW
+    if (!glfwInit()) {
+        fprintf(stderr, "Failed to initialize GLFW\n");
+        return false;
+    }
+
+    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
+    if (!window) {
+        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        return false;
+    }
+
+    glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
+
+    // Set up keyboard input
+    glfwSetKeyCallback(keyCallback);
+    glfwSetCharCallback(characterCallback);
+    return true;
+}
+
+void platformExit(void) {
+    glfwCloseWindow();
+    glfwTerminate();
+}
+
+void platformInitFunctions(Runner *runner) {
+    g_runner = runner;
+    runner->setWindowTitle = platformSetWindowTitle;
+    runner->getWindowSize = platformGetWindowSize;
+    runner->setWindowSize = platformSetWindowSize;
+    runner->windowHasFocus = platformGetWindowFocus;
+}
+
+void platformSwapBuffers(void) {
+    glfwSwapBuffers();
+}
+
+void *platformGetProcAddress(const char *name) {
+#ifdef _WIN32
+    // glfw2's glfwGetProcAddress is broken on Windows.
+    // This just implements it in a way that's fixed
+    // so it can be passed to GLAD.
+    void *ret = (void *)wglGetProcAddress(name);
+    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
+        HMODULE handle = GetModuleHandle("opengl32.dll");
+        if (handle)
+            ret = (void *)GetProcAddress(handle, name);
+    }
+    return ret;
+#else
+    return glfwGetProcAddress(name);
+#endif
+}
+
+double platformGetTime(void) {
+    return glfwGetTime();
+}
+
+bool platformHandleEvents(void) {
+    glfwPollEvents();
+    return false;
+}
+
+void PlatformGamepad_poll(RunnerGamepadState* gp) {
+    (void)gp;
+}

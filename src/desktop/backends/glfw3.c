@@ -1,42 +1,28 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef USE_GLFW2
-#include <GL/glfw.h>
-#else
 #include <GLFW/glfw3.h>
-#endif
 
 #include "common.h"
 #include "platformdefs.h"
 #include "input_recording.h"
 
-#ifndef USE_GLFW2
 static GLFWwindow *window;
-#endif
 
 static Runner *g_runner;
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
-#ifdef USE_GLFW2
-    glfwSetWindowTitle(windowTitle);
-#else
     glfwSetWindowTitle(window, windowTitle);
-#endif
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (outW == nullptr || outH == nullptr) return false;
     int w = 0;
     int h = 0;
-#ifdef USE_GLFW2
-    glfwGetWindowSize(&w, &h);
-#else
     if (window == nullptr) return false;
     glfwGetFramebufferSize(window, &w, &h);
-#endif
     if (w <= 0 || h <= 0) return false;
     *outW = w;
     *outH = h;
@@ -45,9 +31,6 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-#ifdef USE_GLFW2
-    glfwSetWindowSize(width, height);
-#else
     if (window == nullptr) return;
     // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
     // Convert via the current content scale so the resulting framebuffer matches what the GML asked for.
@@ -56,35 +39,15 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     int logicalW = (xs > 0.0f) ? (int) ((float) width  / xs + 0.5f) : width;
     int logicalH = (ys > 0.0f) ? (int) ((float) height / ys + 0.5f) : height;
     glfwSetWindowSize(window, logicalW, logicalH);
-#endif
 }
 
 bool platformGetWindowFocus(void) {
-#ifdef USE_GLFW2
-    return glfwGetWindowParam(GLFW_ACTIVE);
-#else
     return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-#endif
 }
 
-#ifndef USE_GLFW2
 static void glfwErrorCallback(int code, const char* description) {
     fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
 }
-#endif
-
-#ifdef USE_GLFW2
-#define GLFW_KEY_ESCAPE GLFW_KEY_ESC
-#define GLFW_KEY_LEFT_SHIFT GLFW_KEY_LSHIFT
-#define GLFW_KEY_RIGHT_SHIFT GLFW_KEY_RSHIFT
-#define GLFW_KEY_LEFT_CONTROL GLFW_KEY_LCTRL
-#define GLFW_KEY_RIGHT_CONTROL GLFW_KEY_RCTRL
-#define GLFW_KEY_LEFT_ALT GLFW_KEY_LALT
-#define GLFW_KEY_RIGHT_ALT GLFW_KEY_RALT
-#define GLFW_KEY_DELETE GLFW_KEY_DEL
-#define GLFW_KEY_PAGE_UP GLFW_KEY_PAGEUP
-#define GLFW_KEY_PAGE_DOWN GLFW_KEY_PAGEDOWN
-#endif
 
 static int32_t glfwKeyToGml(int glfwKey) {
     // Letters and numbers are the same as GML
@@ -129,12 +92,8 @@ static int32_t glfwKeyToGml(int glfwKey) {
     }
 }
 
-#ifdef USE_GLFW2
-static void keyCallback(int key, int action) {
-#else
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     (void)scancode; (void)mods; (void)window;
-#endif
     Runner* runner = g_runner;
     // During playback, suppress real keyboard input (window events like close still work)
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
@@ -144,13 +103,8 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action, i
     // GLFW_REPEAT is ignored (GML doesn't use key repeat)
 }
 
-#ifdef USE_GLFW2
-static void characterCallback(int codepoint, int action) {
-    if (action != GLFW_PRESS) return;
-#else
-static void characterCallback(GLFWwindow* window, unsigned int codepoint) {
-    (void)window;
-#endif
+static void characterCallback(GLFWwindow* _window, unsigned int codepoint) {
+    (void)_window;
     Runner* runner = g_runner;
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
     RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
@@ -158,15 +112,12 @@ static void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init GLFW
-#ifndef USE_GLFW2
     glfwSetErrorCallback(glfwErrorCallback);
-#endif
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
         return false;
     }
 
-#ifndef USE_GLFW2
     if (!modernGL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -183,9 +134,8 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
     }
-#endif
 
-#ifndef USE_GLFW2
+    // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "r");
     if (f != NULL) {
@@ -211,41 +161,25 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-#endif
 
-#ifdef USE_GLFW2
-    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-#else
     window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
-#endif
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }
 
-#ifndef USE_GLFW2
     glfwMakeContextCurrent(window);
-#endif
     glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
 
     // Set up keyboard input
-#ifdef USE_GLFW2
-    glfwSetKeyCallback(keyCallback);
-    glfwSetCharCallback(characterCallback);
-#else
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCharCallback(window, characterCallback);
-#endif
     return true;
 }
 
 void platformExit(void) {
-#ifdef USE_GLFW2
-    glfwCloseWindow();
-#else
     glfwDestroyWindow(window);
-#endif
     glfwTerminate();
 }
 
@@ -258,28 +192,11 @@ void platformInitFunctions(Runner *runner) {
 }
 
 void platformSwapBuffers(void) {
-#ifdef USE_GLFW2
-    glfwSwapBuffers();
-#else
     glfwSwapBuffers(window);
-#endif
 }
 
 void *platformGetProcAddress(const char *name) {
-#if defined(_WIN32) && defined(USE_GLFW2)
-    // glfw2's glfwGetProcAddress is broken on Windows.
-    // This just implements it in a way that's fixed
-    // so it can be passed to GLAD.
-    void *ret = (void *)wglGetProcAddress(name);
-    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
-        HMODULE handle = GetModuleHandle("opengl32.dll");
-        if (handle)
-            ret = (void *)GetProcAddress(handle, name);
-    }
-    return ret;
-#else
     return glfwGetProcAddress(name);
-#endif
 }
 
 double platformGetTime(void) {
@@ -287,18 +204,10 @@ double platformGetTime(void) {
 }
 
 bool platformHandleEvents(void) {
-#ifdef USE_GLFW2
-    if(!glfwGetWindowParam(GLFW_OPENED))
-        return true;
-#else
-    if (glfwWindowShouldClose(window))
-        return true;
-#endif
     glfwPollEvents();
     return false;
 }
 
-#ifndef USE_GLFW2
 static float applyDeadzone(float value, float deadzone) {
     if (value < 0.0f) {
         if (value > -deadzone) return 0.0f;
@@ -421,11 +330,3 @@ void PlatformGamepad_poll(RunnerGamepadState* gp) {
         }
     }
 }
-
-#else
-
-void PlatformGamepad_poll(RunnerGamepadState* gp) {
-    (void)gp;
-}
-
-#endif
