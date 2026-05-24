@@ -3392,7 +3392,7 @@ VMContext* VM_create(DataWin* dataWin) {
 
     ctx->profiler = nullptr; // lazily allocated by Profiler_setEnabled(&ctx->profiler, true)
 
-    if (dataWin->gen8.bytecodeVersion == 13 || dataWin->gen8.bytecodeVersion == 14) {
+    if (IS_BC14_OR_BELOW(ctx)) {
         rewriteBytecode14To16(ctx);
     }
 

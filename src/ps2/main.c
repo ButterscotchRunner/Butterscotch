@@ -474,7 +474,8 @@ int main(int argc, char* argv[]) {
     // ===[ Initialize Renderer ]===
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Initializing renderer...", true);
 
-    Renderer* renderer = GsRenderer_create(gsGlobal);
+    int64_t eeAtlasCacheBytes = JsonReader_getInt(JsonReader_getObject(configRoot, "eeAtlasCacheBytes"));
+    Renderer* renderer = GsRenderer_create(gsGlobal, eeAtlasCacheBytes);
 
     // ===[ Initialize Audio System ]===
 #ifdef USE_PS2_AUDIO

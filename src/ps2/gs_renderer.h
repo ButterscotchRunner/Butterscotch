@@ -146,6 +146,7 @@ typedef struct {
     uint16_t diskLoadsThisFrame;         // Number of atlas loads from TEXTURES.BIN this frame (EE cache misses)
 
     // EE RAM atlas cache (stores uncompressed atlas pixel data for zero-copy VRAM uploads)
+    uint64_t eeAtlasCacheBytes;
     uint8_t* eeCache;                  // Contiguous buffer with uncompressed texture data
     uint32_t eeCacheCapacity;          // Total size (See EE_CACHE_CAPACITY)
     uint32_t eeCacheBumpPtr;           // End of live data
@@ -193,4 +194,4 @@ typedef struct {
     int32_t  savedViewY;
 } GsRenderer;
 
-Renderer* GsRenderer_create(GSGLOBAL* gsGlobal);
+Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB);

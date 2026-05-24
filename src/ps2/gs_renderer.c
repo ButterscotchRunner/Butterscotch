@@ -410,9 +410,7 @@ static int32_t allocateChunks(GsRenderer* gs, int chunksNeeded, uint32_t startId
 }
 
 // ===[ EE RAM Atlas Cache (Bump Allocator with LRU Eviction + Compaction) ]===
-// Caches uncompressed atlas pixel data in a EE RAM buffer, allowingzero-copy DMA uploads to VRAM without per-upload decompression or temp allocations.
-
-#define EE_CACHE_CAPACITY (2 * 1024 * 1024) // 2 MiB
+// Caches uncompressed atlas pixel data in a EE RAM buffer, allowing zero-copy DMA uploads to VRAM without per-upload decompression or temp allocations.
 
 // Uncompressed pixel data size for an atlas of the given size and bpp.
 static uint32_t atlasUncompressedSize(uint16_t width, uint16_t height, uint8_t bpp) {
@@ -460,9 +458,9 @@ static void computeAtlasReservation(GsRenderer* gs) {
 
 // Initialize the EE RAM cache. Called from gsInit after opening TEXTURES.BIN.
 static void initEeCache(GsRenderer* gs) {
-    gs->eeCacheCapacity = EE_CACHE_CAPACITY;
+    gs->eeCacheCapacity = gs->eeAtlasCacheBytes;
     gs->eeCacheBumpPtr = 0;
-    gs->eeCache = (uint8_t*) safeMemalign(128, EE_CACHE_CAPACITY);
+    gs->eeCache = (uint8_t*) safeMemalign(128, gs->eeAtlasCacheBytes);
 
     gs->eeCacheEntries = safeMalloc(gs->atlasCount * sizeof(EeAtlasCacheEntry));
     repeat(gs->atlasCount, i) {
@@ -2995,8 +2993,9 @@ static RendererVtable gsVtable = {
 
 // ===[ Public API ]===
 
-Renderer* GsRenderer_create(GSGLOBAL* gsGlobal) {
+Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     GsRenderer* gs = safeCalloc(1, sizeof(GsRenderer));
+    gs->eeAtlasCacheBytes = eeAtlasCacheMiB;
     gs->base.vtable = &gsVtable;
     gs->gsGlobal = gsGlobal;
     gs->scaleX = 2.0f;

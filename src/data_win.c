@@ -221,6 +221,47 @@ static void parseGEN8(BinaryReader* reader, DataWin* dw) {
     g->isDebuggerDisabled = BinaryReader_readUint8(reader);
     g->bytecodeVersion = BinaryReader_readUint8(reader);
     BinaryReader_skip(reader, 2); // padding
+
+    // BC8 GEN8 is 84 bytes total with a radically different field layout:
+    // * No config/name/displayName string ptrs.
+    // * No major/minor/release/build, but a roomOrder list is appended at the tail.
+    if (8 >= g->bytecodeVersion) {
+        g->fileName = readStringPtr(reader, dw);
+        g->config = nullptr;
+        g->lastObj = BinaryReader_readUint32(reader);
+        g->lastTile = BinaryReader_readUint32(reader);
+        g->gameID = BinaryReader_readUint32(reader);
+        BinaryReader_readBytes(reader, g->directPlayGuid, 16);
+        g->name = nullptr;
+        g->major = 1;
+        g->minor = 0;
+        g->release = 0;
+        g->build = 198;
+        g->defaultWindowWidth = BinaryReader_readUint32(reader);
+        g->defaultWindowHeight = BinaryReader_readUint32(reader);
+        g->info = BinaryReader_readUint32(reader);
+        g->licenseCRC32 = BinaryReader_readUint32(reader);
+        BinaryReader_readBytes(reader, g->licenseMD5, 16);
+        g->timestamp = (uint64_t) BinaryReader_readUint32(reader); // BC8 stores a signed int32 timestamp (FILETIME-derived), sign-extended at use sites
+        BinaryReader_skip(reader, 4); // unread 4-byte gap at offset 72
+        g->displayName = nullptr;
+        g->activeTargets = 0;
+        g->functionClassifications = 0;
+        g->steamAppID = 0;
+        g->debuggerPort = 0;
+        g->roomOrderCount = BinaryReader_readUint32(reader);
+        if (g->roomOrderCount > 0) {
+            g->roomOrder = safeMalloc(g->roomOrderCount * sizeof(int32_t));
+            repeat(g->roomOrderCount, i) {
+                g->roomOrder[i] = BinaryReader_readInt32(reader);
+            }
+        } else {
+            g->roomOrder = nullptr;
+        }
+        DataWin_bumpVersionTo(dw, g->major, g->minor, g->release, g->build);
+        return;
+    }
+
     g->fileName = readStringPtr(reader, dw);
     g->config = readStringPtr(reader, dw);
     g->lastObj = BinaryReader_readUint32(reader);
@@ -333,7 +374,12 @@ static void parseOPTN(BinaryReader* reader, DataWin* dw) {
         if (BinaryReader_readBool32(reader)) o->info |= (uint64_t) 0x800000; // CreationEventOrder
     }
 
-    // Constants SimpleList
+    // Constants SimpleList (absent on BC8)
+    if (8 >= dw->gen8.bytecodeVersion) {
+        o->constantCount = 0;
+        o->constants = nullptr;
+        return;
+    }
     o->constantCount = BinaryReader_readUint32(reader);
     if (o->constantCount > 0) {
         o->constants = safeMalloc(o->constantCount * sizeof(OptnConstant));
@@ -1154,9 +1200,16 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
         obj->linearDamping = BinaryReader_readFloat32(reader);
         obj->angularDamping = BinaryReader_readFloat32(reader);
         obj->physicsVertexCount = BinaryReader_readInt32(reader);
-        obj->friction = BinaryReader_readFloat32(reader);
-        obj->awake = BinaryReader_readBool32(reader);
-        obj->kinematic = BinaryReader_readBool32(reader);
+        // BC8 object records end at physicsVertexCount (no friction/awake/kinematic before the events list)
+        if (8 >= dw->gen8.bytecodeVersion) {
+            obj->friction = 0;
+            obj->awake = false;
+            obj->kinematic = false;
+        } else {
+            obj->friction = BinaryReader_readFloat32(reader);
+            obj->awake = BinaryReader_readBool32(reader);
+            obj->kinematic = BinaryReader_readBool32(reader);
+        }
 
         // Physics vertices
         if (obj->physicsVertexCount > 0) {

@@ -28,11 +28,14 @@ While our target is Undertale v1.08, that doesn't mean that other games CAN'T ru
 
 Butterscotch supports the following bytecode versions:
 
+* Bytecode Version 8 (GameMaker: Studio 1.0.198+)
 * Bytecode Version 13
 * Bytecode Version 14
 * Bytecode Version 15
 * Bytecode Version 16
-* Bytecode Version 17
+* Bytecode Version 17 (GameMaker: Studio 2.3+)
+
+Versions before GameMaker: Studio 1.0.198 (that is, pre-bytecode version 8) uses raw GML code interpreted on load, so these versions would require a GML compiler to be supported in Butterscotch.
 
 However, that doesn't mean that a game that uses a compatible version WILL run! The bytecode support is still a WIP, and Butterscotch may have quirks that the original GameMaker: Studio runner may not have.
 

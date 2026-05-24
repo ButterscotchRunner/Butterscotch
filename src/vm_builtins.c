@@ -1666,6 +1666,11 @@ static RValue builtin_is_undefined(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 }
 
 #if IS_BC17_OR_HIGHER_ENABLED
+static RValue builtin_is_method(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_METHOD);
+}
+
 static RValue builtin_is_callable(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
     RValue v = args[0];
@@ -2103,6 +2108,18 @@ static RValue builtin_point_in_rectangle(MAYBE_UNUSED VMContext* ctx, RValue* ar
     GMLReal x2 = RValue_toReal(args[4]);
     GMLReal y2 = RValue_toReal(args[5]);
     return RValue_makeBool(px >= x1 && px <= x2 && py >= y1 && py <= y2);
+}
+
+static RValue builtin_point_in_circle(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (5 > argCount) return RValue_makeBool(false);
+    GMLReal px = RValue_toReal(args[0]);
+    GMLReal py = RValue_toReal(args[1]);
+    GMLReal cx = RValue_toReal(args[2]);
+    GMLReal cy = RValue_toReal(args[3]);
+    GMLReal rad = RValue_toReal(args[4]);
+    GMLReal dx = px - cx;
+    GMLReal dy = py - cy;
+    return RValue_makeBool(dx * dx + dy * dy <= rad * rad);
 }
 
 static RValue builtin_distance_to_point(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -4338,29 +4355,29 @@ static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 }
 
 // same as builtin_sound_play with loop enabled
-static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {   
+static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
     if (audio == nullptr) return RValue_makeReal(-1.0);
-    
+
     // Do not attempt to play "undefined" sounds
     if (args[0].type == RVALUE_UNDEFINED)
         return RValue_makeReal(-1.0);
-    
+
     int32_t soundIndex = RValue_toInt32(args[0]);
     int32_t instanceId = audio->vtable->playSound(audio, soundIndex, 10, true);
     return RValue_makeReal((GMLReal) instanceId);
 }
 
-static RValue builtin_sound_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {   
+static RValue builtin_sound_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
     if (audio == nullptr) return RValue_makeUndefined();
-    
+
     int32_t soundIndex = RValue_toInt32(args[0]);
     float volume = (float) RValue_toReal(args[1]);
 
     // Set timeMs to 0 for immediate change
     audio->vtable->setSoundGain(audio, soundIndex, volume, 0);
-    
+
     return RValue_makeUndefined();
 }
 
@@ -8939,6 +8956,17 @@ static RValue builtin_action_if_variable(VMContext* ctx, MAYBE_UNUSED RValue* ar
     return result;
 }
 
+static RValue builtin_action_if_dice(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+
+    int32_t probability = RValue_toInt32(args[0]);
+    if (probability <= 1) {
+        return RValue_makeBool(probability > 0);
+    }
+
+    return RValue_makeBool((rand() % probability) == 0);
+}
+
 #define LEGACY_DND_CMP_EQ 0
 #define LEGACY_DND_CMP_LT 1
 #define LEGACY_DND_CMP_GT 2
@@ -11384,6 +11412,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "is_int64", builtin_is_int64);
     VM_registerBuiltin(ctx, "is_undefined", builtin_is_undefined);
 #if IS_BC17_OR_HIGHER_ENABLED
+    VM_registerBuiltin(ctx, "is_method", builtin_is_method);
     VM_registerBuiltin(ctx, "is_callable", builtin_is_callable);
 #endif
 
@@ -11415,6 +11444,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "lerp", builtin_lerp);
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
     VM_registerBuiltin(ctx, "point_in_rectangle", builtin_point_in_rectangle);
+    VM_registerBuiltin(ctx, "point_in_circle", builtin_point_in_circle);
     VM_registerBuiltin(ctx, "point_direction", builtin_point_direction);
     VM_registerBuiltin(ctx, "angle_difference", builtin_angle_difference);
     VM_registerBuiltin(ctx, "distance_to_point", builtin_distance_to_point);
@@ -12038,6 +12068,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
+        VM_registerBuiltin(ctx, "action_if_dice", builtin_action_if_dice);
         VM_registerBuiltin(ctx, "action_set_alarm", builtin_action_set_alarm);
         VM_registerBuiltin(ctx, "action_set_score", builtin_action_set_score);
         VM_registerBuiltin(ctx, "action_if_score", builtin_action_if_score);
