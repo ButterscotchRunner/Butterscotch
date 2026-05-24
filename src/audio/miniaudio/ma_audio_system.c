@@ -8,6 +8,9 @@
 // which enables miniaudio's built-in OGG Vorbis decoding support.
 #include "stb_vorbis.c"
 
+#ifdef _MSC_VER // Workaround for miniaudio compilation error on MSVC
+#define MA_DISABLE_WASAPI
+#endif
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
@@ -607,8 +610,9 @@ static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
 static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
     if (groupIndex > 0) {
         int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-        char buf[sz + 1];
-        snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
+        char *buf = (char*)calloc(sz + 1, 1);
+        snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
+		free(buf);
         DataWin *audioGroup = DataWin_parse(((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf),
         (DataWinParserOptions) {
             .parseAudo = true,

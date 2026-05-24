@@ -848,7 +848,7 @@ static inline void writeIntoSlot(RValue* dest, RValue val) {
 }
 
 // Force out-of-line so the OP_POP fast path in executeLoop doesn't inline this, because we already have an "optimized" version for common writes
-__attribute__((noinline))
+NOINLINE
 static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t varRef, RValue val) {
     Variable* varDef = resolveVarDef(ctx, varRef);
 
@@ -1499,7 +1499,7 @@ static void handlePopz(VMContext* ctx) {
     RValue_free(&val);
 }
 
-__attribute__((noinline))
+NOINLINE
 static void handleAddString(VMContext* ctx, RValue a, RValue b, uint8_t resultType) {
     if (a.type == RVALUE_STRING && b.type == RVALUE_STRING) {
         // String concatenation
@@ -1540,7 +1540,7 @@ static void handleAddString(VMContext* ctx, RValue a, RValue b, uint8_t resultTy
     }
 }
 
-__attribute__((noinline))
+NOINLINE
 static void handleMulString(VMContext* ctx, RValue a, RValue b, uint8_t resultType) {
     // a.type == RVALUE_STRING; b is the repetition count.
     int count = RValue_toInt32(b);

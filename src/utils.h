@@ -3,12 +3,14 @@
 #include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
 
 #include "real_type.h"
 
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L) || defined(__GNUC__) || defined(__clang__)
 #define forEach(type, item, array, count) \
     for (typeof(count) item##_i_ = 0; item##_i_ < (count); item##_i_++) \
     for (type* item = &(array)[item##_i_]; item; item = NULL)
@@ -20,6 +22,17 @@
 // The "typeof((typeof(n))0" is used to remove the "const" from the typeof
 
 #define repeat(n, it) for (typeof((typeof(n))0) it = 0; it < (n); it++)
+#else
+#define forEach(type, item, array, count) \
+    for (long long item##_i_ = 0; item##_i_ < (long long)(count); item##_i_++) \
+    for (type* item = &(array)[item##_i_]; item; item = 0)
+
+#define forEachIndexed(type, item, index, array, count) \
+    for (long long index = 0; index < (long long)(count); index++) \
+    for (type* item = &(array)[index]; item; item = 0)
+
+#define repeat(n, it) for (long long it = 0; it < (long long)(n); it++)
+#endif
 
 #define require(condition) \
     do { \
@@ -45,52 +58,49 @@ abort(); \
 } \
 } while (0)
 
-#define requireNotNull(ptr) ({ \
-typeof(ptr) _val = (ptr); \
-if (_val == NULL) { \
-fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", __FILE__, __LINE__, #ptr); \
-abort(); \
-} \
-_val; \
-})
+static inline void* requireNotNullFunction(void* ptr, char* file, int line, char* name) {
+    if (ptr == nullptr) {
+        fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", file, line, name);
+        abort();
+    }
+    return ptr;
+}
+#define requireNotNull(ptr) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, #ptr)
 
-#define requireNotNullMessage(ptr, msg) ({ \
-typeof(ptr) _val = (ptr); \
-if (_val == NULL) { \
-fprintf(stderr, "%s:%d: requireNotNull failed: %s\n", __FILE__, __LINE__, (msg)); \
-abort(); \
-} \
-_val; \
-})
+#define requireNotNullMessage(ptr, msg) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, msg)
 
 // Safe allocation macros - check for nullptr and abort with file/line info
-#define safeMalloc(size) ({ \
-    void* _ptr = malloc(size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void* safeMallocFunction(size_t size, char* file, int line) {
+    void* _ptr = malloc(size);
+    if (_ptr == nullptr) {
+        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
+        abort();
+    }
+    return _ptr;
+}
+#define safeMalloc(size) safeMallocFunction(size, __FILE__, __LINE__)
 
-#define safeCalloc(count, size) ({ \
-    void* _ptr = calloc(count, size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", (size_t)(count), (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void* safeCallocFunction(size_t count, size_t size, char* file, int line) {
+    void* _ptr = calloc(count, size);
+    if (_ptr == nullptr) {
+        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
+        abort();
+    }
+    return _ptr;
+}
+#define safeCalloc(count, size) safeCallocFunction(count, size, __FILE__, __LINE__)
 
-#define safeRealloc(ptr, size) ({ \
-    void* _ptr = realloc(ptr, size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void* safeReallocFunction(void* ptr, size_t size, char* file, int line) {
+    void* _ptr = realloc(ptr, size);
+    if (_ptr == nullptr) {
+        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
+        abort();
+    }
+    return _ptr;
+}
+#define safeRealloc(ptr, size) safeReallocFunction(ptr, size, __FILE__, __LINE__)
 
+#if defined(PLATFORM_PS2)
 #define safeMemalign(alignment, size) ({ \
     void* _ptr = memalign(alignment, size); \
     if (_ptr == nullptr) { \
@@ -99,15 +109,17 @@ _val; \
     } \
     _ptr; \
 })
+#endif
 
-#define safeStrdup(str) ({ \
-    char* _ptr = strdup(str); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline const char* safeStrdupFunction(const char* str, char* file, int line) {
+    const char* _ptr = strdup(str);
+    if (_ptr == nullptr) {
+        fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", file, line);
+        abort();
+    }
+    return _ptr;
+}
+#define safeStrdup(str) safeStrdupFunction(str, __FILE__, __LINE__)
 
 // Truncates to 6 decimal places, matching the HTML5 runner's ClampFloat
 static inline GMLReal clampFloat(GMLReal f) {

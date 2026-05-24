@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#ifndef _MSC_VER
 #include <sys/time.h>
+#endif
 
 #include "utils.h"
 #include "stb_ds.h"

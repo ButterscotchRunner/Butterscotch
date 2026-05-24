@@ -11,6 +11,9 @@
 #include <direct.h>
 #define overlayMkdir(path) _mkdir(path)
 #define overlayRmdir(path) _rmdir(path)
+#ifndef S_ISDIR
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#endif
 #else
 #include <unistd.h>
 #define overlayMkdir(path) mkdir((path), 0777)

@@ -1,7 +1,8 @@
 build/
-build_ps2/
-build_ps3/
+build_*/
 .gitignore
 .cache
 CMakeUserPresets.json
 .devcontainer/
+vcpkg_installed/
+.vs/

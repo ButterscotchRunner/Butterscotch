@@ -333,13 +333,17 @@ static inline bool VM_shouldTraceVariable(StringBooleanEntry* traceMap, const ch
     if (shgeti(traceMap, "*") != -1) return true;
     if (shgeti(traceMap, scopeName) != -1) return true;
     if (altScopeName != nullptr && shgeti(traceMap, altScopeName) != -1) return true;
-    char formatted[strlen(scopeName) + 1 + strlen(varName) + 1];
+    char *formatted = calloc(strlen(scopeName) + 1 + strlen(varName) + 1, 1);
     snprintf(formatted, sizeof(formatted), "%s.%s", scopeName, varName);
-    if (shgeti(traceMap, formatted) != -1) return true;
+    bool match = shgeti(traceMap, formatted) != -1;
+    free(formatted);
+    if (match) return true;
     if (altScopeName != nullptr) {
-        char altFormatted[strlen(altScopeName) + 1 + strlen(varName) + 1];
+        char *altFormatted = calloc(strlen(altScopeName) + 1 + strlen(varName) + 1, 1);
         snprintf(altFormatted, sizeof(altFormatted), "%s.%s", altScopeName, varName);
-        if (shgeti(traceMap, altFormatted) != -1) return true;
+        bool altMatch = shgeti(traceMap, altFormatted) != -1;
+        free(altFormatted);
+        if (altMatch) return true;
     }
     return false;
 }

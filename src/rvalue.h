@@ -90,7 +90,7 @@ struct RValue {
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
 #endif
     uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
-} __attribute__((aligned(8)));
+} ALIGN(8);
 
 // Helper to initialize .gmlStackType only on BC17+ builds
 #if IS_BC17_OR_HIGHER_ENABLED
