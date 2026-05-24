@@ -25,9 +25,14 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
 #include "gl_renderer.h"
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
+#endif
+#endif
+#ifdef ENABLE_SW_RENDERER
+#include "sw_renderer.h"
 #endif
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
@@ -577,6 +582,7 @@ static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frame
 
 // Dumps every live surface in the GL renderer as a PNG.
 // Filename pattern takes two %d slots: frame number, then surface ID.
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int frameNumber) {
     repeat(gl->surfaceCount, surfaceId) {
         if (gl->surfaces[surfaceId] == 0)
@@ -593,6 +599,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
+#endif
 
 // ===[ KEYBOARD INPUT ]===
 
@@ -916,6 +923,12 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 #endif
+#ifdef ENABLE_GLES
+    if (legacyGL) {
+        fprintf(stderr, "The legacy gl renderer is not available in GLES builds!\n");
+        return 0;
+    }
+#endif
     if (!modernGL && !legacyGL && !SWRender) {
         fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
         return 0;
@@ -952,23 +965,29 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Initialize the renderer
+    int fbWidth, fbHeight;
     Renderer* renderer = nullptr;
-#ifdef ENABLE_GLES
-    if (strcmp(args.renderer, "legacy-gl") == 0) {
-        fprintf(stderr, "--renderer legacy-gl is not available in GLES builds; falling back to gl\n");
+#ifdef ENABLE_SW_RENDERER
+    if (SWRender) {
+        platformGetWindowSize(&fbWidth, &fbHeight);
+        renderer = SWRenderer_create(fbWidth, fbHeight);
     }
-    renderer = GLRenderer_create();
-#else
-    if(strcmp(args.renderer, "legacy-gl") == 0) {
+#endif
 #ifdef ENABLE_LEGACY_GL
+    if (legacyGL)
         renderer = GLLegacyRenderer_create();
 #endif
-    } else {
 #ifdef ENABLE_MODERN_GL
+    if (modernGL)
         renderer = GLRenderer_create();
 #endif
+    if (!renderer) {
+        fprintf(stderr, "Failed to initialize a renderer\n");
+        platformExit();
+        DataWin_free(dataWin);
+        freeCommandLineArgs(&args);
+        return 1;
     }
-#endif
 
     // Initialize the audio system
     AudioSystem* audioSystem = nullptr;
@@ -1183,13 +1202,20 @@ int main(int argc, char* argv[]) {
                 free(json);
             }
 
-            // Query actual framebuffer size
-            int fbWidth, fbHeight;
-            platformGetWindowSize(&fbWidth, &fbHeight);
-
             // Clear the default framebuffer (window background) to black
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glClear(GL_COLOR_BUFFER_BIT);
+#ifdef ENABLE_SW_RENDERER
+            if (SWRender)
+                SWRenderer_clearFrameBuffer(renderer, 0);
+#endif
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+            if (legacyGL || modernGL) {
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glClear(GL_COLOR_BUFFER_BIT);
+            }
+#endif
+
+            // Query actual framebuffer size
+            platformGetWindowSize(&fbWidth, &fbHeight);
 
             if (!runner->appSurfaceEnabled) {
                 runner->applicationWidth = fbWidth;
@@ -1259,6 +1285,7 @@ int main(int argc, char* argv[]) {
             renderer->vtable->endFrameEnd(renderer);
             Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
 
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
             // Capture screenshot if this frame matches a requested frame
             bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
@@ -1266,7 +1293,7 @@ int main(int argc, char* argv[]) {
                 int32_t appId = runner->applicationSurfaceId;
                 GLuint readFbo;
 #ifdef ENABLE_LEGACY_GL
-                if (strcmp(args.renderer, "legacy-gl") == 0) {
+                if (legacyGL) {
                     readFbo = ((GLLegacyRenderer*) renderer)->surfaces[appId];
                 } else
 #endif
@@ -1285,6 +1312,7 @@ int main(int argc, char* argv[]) {
                 dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
             }
+#endif
 
             if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {
                 printf("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
