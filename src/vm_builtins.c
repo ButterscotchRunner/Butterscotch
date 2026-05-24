@@ -1666,6 +1666,11 @@ static RValue builtin_is_undefined(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 }
 
 #if IS_BC17_OR_HIGHER_ENABLED
+static RValue builtin_is_method(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(args[0].type == RVALUE_METHOD);
+}
+
 static RValue builtin_is_callable(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
     RValue v = args[0];
@@ -11384,6 +11389,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "is_int64", builtin_is_int64);
     VM_registerBuiltin(ctx, "is_undefined", builtin_is_undefined);
 #if IS_BC17_OR_HIGHER_ENABLED
+    VM_registerBuiltin(ctx, "is_method", builtin_is_method);
     VM_registerBuiltin(ctx, "is_callable", builtin_is_callable);
 #endif
 
