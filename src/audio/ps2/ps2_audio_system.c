@@ -759,8 +759,8 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     float sondVolume = (float) sond->volume / 256.0f;
     float sondPitch = (sond->pitch == 0) ? 1.0f : (float) sond->pitch / 256.0f;
 
-    bool isEmbedded = (sond->flags & 0x01) != 0;
-    bool isCompressed = (sond->flags & 0x02) != 0;
+    bool isEmbedded = (sond->flags & AUDIO_ENTRY_FLAG_IS_EMBEDDED) != 0;
+    bool isCompressed = (sond->flags & AUDIO_ENTRY_FLAG_IS_COMPRESSED) != 0;
 
     // Some sounds are mis-flagged as embedded when they are actually long tracks (example: "spamton_neo_mix_ex_wip" in DELTARUNE Chapter 2)
     // Decoding them into the LRU cache would blow EE RAM, so force them through the streaming path when the decoded PCM would exceed the cache budget.

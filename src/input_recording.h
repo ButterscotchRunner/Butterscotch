@@ -8,6 +8,7 @@
 typedef struct InputRecording {
     bool isRecording;
     bool isPlayback;
+    bool filterDebugKeys;
     const char* recordFilePath;
 
     // Recording: stb_ds array of stb_ds int32_t arrays (one per frame)

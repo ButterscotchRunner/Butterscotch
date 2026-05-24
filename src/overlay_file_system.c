@@ -10,8 +10,11 @@
 #ifdef _WIN32
 #include <direct.h>
 #define overlayMkdir(path) _mkdir(path)
+#define overlayRmdir(path) _rmdir(path)
 #else
+#include <unistd.h>
 #define overlayMkdir(path) mkdir((path), 0777)
+#define overlayRmdir(path) rmdir(path)
 #endif
 
 // ===[ Helpers ]===
@@ -289,6 +292,28 @@ static void overlayBinaryRewrite(MAYBE_UNUSED FileSystem* fs, void* handle) {
     h->fp = fopen(h->fullPath, "wb+");
 }
 
+static bool overlayDirectoryExists(FileSystem* fs, const char* relativePath) {
+    char* fullPath = resolveForRead((OverlayFileSystem*) fs, relativePath);
+    struct stat st;
+    bool exists = (stat(fullPath, &st) == 0 && S_ISDIR(st.st_mode));
+    free(fullPath);
+    return exists;
+}
+
+static bool overlayCreateDirectory(FileSystem* fs, const char* relativePath) {
+    char* fullPath = resolveForWrite((OverlayFileSystem*) fs, relativePath);
+    int result = overlayMkdir(fullPath);
+    free(fullPath);
+    return result == 0;
+}
+
+static bool overlayDeleteDirectory(FileSystem* fs, const char* relativePath) {
+    char* fullPath = resolveForWrite((OverlayFileSystem*) fs, relativePath);
+    int result = overlayRmdir(fullPath);
+    free(fullPath);
+    return result == 0;
+}
+
 // ===[ Vtable ]===
 
 static FileSystemVtable overlayFileSystemVtable = {
@@ -307,6 +332,9 @@ static FileSystemVtable overlayFileSystemVtable = {
     .binarySeek = overlayBinarySeek,
     .binarySize = overlayBinarySize,
     .binaryRewrite = overlayBinaryRewrite,
+    .directoryExists = overlayDirectoryExists,
+    .createDirectory = overlayCreateDirectory,
+    .deleteDirectory = overlayDeleteDirectory,
 };
 
 // ===[ Lifecycle ]===

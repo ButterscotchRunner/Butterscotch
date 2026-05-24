@@ -13,7 +13,15 @@ RunnerKeyboardState* RunnerKeyboard_create(void) {
     kb->lastKey = VK_NOKEY;
     kb->lastChar[0] = 0;
     kb->lastChar[1] = 0;
+    repeat(GML_KEY_COUNT, i) {
+        kb->keyMap[i] = i;
+    }
     return kb;
+}
+
+static int32_t mapKey(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
+    if (!isValidKey(gmlKeyCode)) return gmlKeyCode;
+    return kb->keyMap[gmlKeyCode];
 }
 
 void RunnerKeyboard_free(RunnerKeyboardState* kb) {
@@ -26,6 +34,7 @@ void RunnerKeyboard_beginFrame(RunnerKeyboardState* kb) {
 }
 
 void RunnerKeyboard_onKeyDown(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
+    gmlKeyCode = mapKey(kb, gmlKeyCode);
     if (!isValidKey(gmlKeyCode)) return;
     kb->keyDown[gmlKeyCode] = true;
     kb->keyPressed[gmlKeyCode] = true;
@@ -33,6 +42,7 @@ void RunnerKeyboard_onKeyDown(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
 }
 
 void RunnerKeyboard_onKeyUp(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
+    gmlKeyCode = mapKey(kb, gmlKeyCode);
     if (!isValidKey(gmlKeyCode)) return;
     kb->keyDown[gmlKeyCode] = false;
     kb->keyReleased[gmlKeyCode] = true;
@@ -118,4 +128,20 @@ void RunnerKeyboard_clear(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     kb->keyDown[gmlKeyCode] = false;
     kb->keyPressed[gmlKeyCode] = false;
     kb->keyReleased[gmlKeyCode] = false;
+}
+
+void RunnerKeyboard_setMap(RunnerKeyboardState* kb, int32_t fromKey, int32_t toKey) {
+    if (!isValidKey(fromKey)) return;
+    kb->keyMap[fromKey] = toKey;
+}
+
+int32_t RunnerKeyboard_getMap(RunnerKeyboardState* kb, int32_t fromKey) {
+    if (!isValidKey(fromKey)) return fromKey;
+    return kb->keyMap[fromKey];
+}
+
+void RunnerKeyboard_unsetMap(RunnerKeyboardState* kb) {
+    repeat(GML_KEY_COUNT, i) {
+        kb->keyMap[i] = i;
+    }
 }

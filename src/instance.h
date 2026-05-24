@@ -63,6 +63,13 @@ struct Instance {
     float pathYStart;
 
     int32_t alarm[GML_ALARM_COUNT];
+
+    // Timeline following state
+    int32_t timelineIndex; // -1 = no timeline assigned
+    float timelinePosition;
+    float timelineSpeed; // default 1.0
+    bool timelineLoop;
+    bool timelineRunning;
 };
 
 Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y);

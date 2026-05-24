@@ -24,9 +24,15 @@ typedef struct {
 } MemoryBinaryEntry;
 
 typedef struct {
+    char* key; // directory path
+    bool value; // always true if it exists
+} MemoryDirEntry;
+
+typedef struct {
     FileSystem base;
     MemoryFileEntry* files; // stb_ds string hashmap
     MemoryBinaryEntry* binaryFiles; // stb_ds string hashmap
+    MemoryDirEntry* directories; // stb_ds string hashmap
 } NoopFileSystem;
 
 // ===[ Vtable Implementations ]===
@@ -229,6 +235,31 @@ static void noopBinaryRewrite(MAYBE_UNUSED FileSystem* fs, void* handle) {
     h->dirty = true; // matches the native runner, which reopens "wb+" and so always touches the file
 }
 
+static bool noopDirectoryExists(FileSystem* fs, const char* relativePath) {
+    NoopFileSystem* nfs = (NoopFileSystem*) fs;
+    return shgeti(nfs->directories, relativePath) >= 0;
+}
+
+static bool noopCreateDirectory(FileSystem* fs, const char* relativePath) {
+    NoopFileSystem* nfs = (NoopFileSystem*) fs;
+    ptrdiff_t idx = shgeti(nfs->directories, relativePath);
+    if (idx >= 0) {
+        return false;
+    }
+    shput(nfs->directories, relativePath, true);
+    return true;
+}
+
+static bool noopDeleteDirectory(FileSystem* fs, const char* relativePath) {
+    NoopFileSystem* nfs = (NoopFileSystem*) fs;
+    ptrdiff_t idx = shgeti(nfs->directories, relativePath);
+    if (idx < 0) {
+        return false;
+    }
+    shdel(nfs->directories, relativePath);
+    return true;
+}
+
 // ===[ Vtable ]===
 
 static FileSystemVtable noopFileSystemVtable = {
@@ -247,6 +278,9 @@ static FileSystemVtable noopFileSystemVtable = {
     .binarySeek = noopBinarySeek,
     .binarySize = noopBinarySize,
     .binaryRewrite = noopBinaryRewrite,
+    .directoryExists = noopDirectoryExists,
+    .createDirectory = noopCreateDirectory,
+    .deleteDirectory = noopDeleteDirectory,
 };
 
 // ===[ Lifecycle ]===
@@ -258,6 +292,8 @@ FileSystem* NoopFileSystem_create(void) {
     sh_new_strdup(nfs->files);
     nfs->binaryFiles = nullptr;
     sh_new_strdup(nfs->binaryFiles);
+    nfs->directories = nullptr;
+    sh_new_strdup(nfs->directories);
     return (FileSystem*) nfs;
 }
 
@@ -271,5 +307,6 @@ void NoopFileSystem_destroy(FileSystem* fs) {
         free(nfs->binaryFiles[i].value.data);
     }
     shfree(nfs->binaryFiles);
+    shfree(nfs->directories);
     free(nfs);
 }

@@ -3,6 +3,7 @@
 #include "common.h"
 #include "data_win.h"
 #include "instance.h"
+#include "runner.h"
 #include "vm.h"
 
 #include <math.h>
@@ -30,8 +31,8 @@ static inline Sprite* Collision_getSprite(DataWin* dataWin, Instance* inst) {
 }
 
 // Computes the axis-aligned bounding box for an instance using its collision sprite
-static inline InstanceBBox Collision_computeBBox(DataWin* dataWin, Instance* inst) {
-    Sprite* spr = Collision_getSprite(dataWin, inst);
+static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst) {
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (spr == nullptr) return (InstanceBBox){0, 0, 0, 0, false};
 
     GMLReal marginL = (GMLReal) spr->marginLeft;
@@ -41,6 +42,7 @@ static inline InstanceBBox Collision_computeBBox(DataWin* dataWin, Instance* ins
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
 
+    GMLReal left, right, top, bottom;
     if (GMLReal_fabs(inst->imageAngle) > 0.0001) {
         // Compute rotated AABB: transform the 4 corners of the unrotated bbox
         GMLReal rad = inst->imageAngle * M_PI / 180.0;
@@ -68,24 +70,28 @@ static inline InstanceBBox Collision_computeBBox(DataWin* dataWin, Instance* ins
             if (cy[c] > maxY) maxY = cy[c];
         }
 
-        return (InstanceBBox){
-            .left   = inst->x + minX,
-            .right  = inst->x + maxX,
-            .top    = inst->y + minY,
-            .bottom = inst->y + maxY,
-            .valid  = true
-        };
+        left   = inst->x + minX;
+        right  = inst->x + maxX;
+        top    = inst->y + minY;
+        bottom = inst->y + maxY;
+    } else {
+        // No rotation fast path
+        left   = inst->x + inst->imageXscale * (marginL - originX);
+        right  = inst->x + inst->imageXscale * (marginR - originX);
+        top    = inst->y + inst->imageYscale * (marginT - originY);
+        bottom = inst->y + inst->imageYscale * (marginB - originY);
+
+        // Normalize if negative scale
+        if (left > right) { GMLReal tmp = left; left = right; right = tmp; }
+        if (top > bottom) { GMLReal tmp = top; top = bottom; bottom = tmp; }
     }
 
-    // No rotation fast path
-    GMLReal left   = inst->x + inst->imageXscale * (marginL - originX);
-    GMLReal right  = inst->x + inst->imageXscale * (marginR - originX);
-    GMLReal top    = inst->y + inst->imageYscale * (marginT - originY);
-    GMLReal bottom = inst->y + inst->imageYscale * (marginB - originY);
-
-    // Normalize if negative scale
-    if (left > right) { GMLReal tmp = left; left = right; right = tmp; }
-    if (top > bottom) { GMLReal tmp = top; top = bottom; bottom = tmp; }
+    if (runner->collisionCompatibilityMode) {
+        left   = GMLReal_bankersRound(left);
+        top    = GMLReal_bankersRound(top);
+        right  = GMLReal_bankersRound(right);
+        bottom = GMLReal_bankersRound(bottom);
+    }
 
     return (InstanceBBox){left, right, top, bottom, true};
 }
@@ -145,13 +151,13 @@ static inline bool Collision_obbNeedsSAT(Sprite* spr, Instance* inst) {
     return spr != nullptr && spr->sepMasks == 2 && GMLReal_fabs(inst->imageAngle) > 0.0001;
 }
 
-static inline bool Collision_rectOverlapsInstance(DataWin* dataWin, Instance* inst, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
-    InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
+static inline bool Collision_rectOverlapsInstance(Runner* runner, Instance* inst, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+    InstanceBBox bbox = Collision_computeBBox(runner, inst);
     if (!bbox.valid) return false;
 
-    if (rx1 >= bbox.right || bbox.left >= rx2 || ry1 >= bbox.bottom || bbox.top >= ry2) return false;
+    if (rx1 >= bbox.right || bbox.left > rx2 || ry1 >= bbox.bottom || bbox.top > ry2) return false;
 
-    Sprite* spr = Collision_getSprite(dataWin, inst);
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (!Collision_obbNeedsSAT(spr, inst)) return true;
 
     // OBB-vs-AABB SAT for sepMasks==2 with rotation. Native uses SeparatingAxisCollisionBox here.
@@ -175,12 +181,12 @@ static inline bool Collision_rectOverlapsInstance(DataWin* dataWin, Instance* in
 }
 
 // Tests whether a world point lies inside the instance's collision rect (margins, rotated/scaled). Cheaper and more correct than Collision_pointInInstance for sepMasks != 1, since point_in_instance bounds-checks against the full sprite texture rather than the bbox margins.
-static inline bool Collision_pointInsideInstanceBox(DataWin* dataWin, Instance* inst, GMLReal px, GMLReal py) {
-    InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
+static inline bool Collision_pointInsideInstanceBox(Runner* runner, Instance* inst, GMLReal px, GMLReal py) {
+    InstanceBBox bbox = Collision_computeBBox(runner, inst);
     if (!bbox.valid) return false;
     if (bbox.left > px || px >= bbox.right || bbox.top > py || py >= bbox.bottom) return false;
 
-    Sprite* spr = Collision_getSprite(dataWin, inst);
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (!Collision_obbNeedsSAT(spr, inst)) return true;
 
     InstanceOBB obb = Collision_instanceOBB(spr, inst);
@@ -190,12 +196,12 @@ static inline bool Collision_pointInsideInstanceBox(DataWin* dataWin, Instance* 
 }
 
 // Circle (cx, cy, radius) vs instance collision rect. Falls back to circle-vs-AABB when the instance isn't a rotated sepMasks==2 sprite.
-static inline bool Collision_circleOverlapsInstance(DataWin* dataWin, Instance* inst, GMLReal cx, GMLReal cy, GMLReal radius) {
-    InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
+static inline bool Collision_circleOverlapsInstance(Runner* runner, Instance* inst, GMLReal cx, GMLReal cy, GMLReal radius) {
+    InstanceBBox bbox = Collision_computeBBox(runner, inst);
     if (!bbox.valid) return false;
     GMLReal rSq = radius * radius;
 
-    Sprite* spr = Collision_getSprite(dataWin, inst);
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (!Collision_obbNeedsSAT(spr, inst)) {
         // Closest point on AABB to circle center.
         GMLReal closestX = cx;
@@ -249,14 +255,14 @@ static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2,
 }
 
 // Line segment (x1,y1)-(x2,y2) vs instance collision rect.
-static inline bool Collision_lineOverlapsInstance(DataWin* dataWin, Instance* inst, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2) {
-    InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
+static inline bool Collision_lineOverlapsInstance(Runner* runner, Instance* inst, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2) {
+    InstanceBBox bbox = Collision_computeBBox(runner, inst);
     if (!bbox.valid) return false;
 
     // Epsilon from GameMaker-HTML5, we apply it because the BBox is "exclusive" (outside of the sprite) but we need to put the right/bottom INSIDE of the sprite
     // So we nudge it to be inside on it
     GMLReal eps = 1e-5;
-    Sprite* spr = Collision_getSprite(dataWin, inst);
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (!Collision_obbNeedsSAT(spr, inst)) {
         return Collision_segmentVsAARect(x1, y1, x2, y2, bbox.left, bbox.top, bbox.right - eps, bbox.bottom - eps);
     }
@@ -324,7 +330,9 @@ static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLRea
 //      pixel via Collision_pointInInstance. Both sides get inverse-transformed
 //      regardless of whether they're individually precise, so a rotated
 //      non-precise sprite collides as an OBB as long as its partner is precise.
-static inline bool Collision_instancesOverlapPrecise(DataWin* dataWin, bool compatMode, Instance* a, Instance* b, InstanceBBox bboxA, InstanceBBox bboxB) {
+static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a, Instance* b, InstanceBBox bboxA, InstanceBBox bboxB) {
+    bool compatMode = runner->collisionCompatibilityMode;
+    DataWin* dataWin = runner->dataWin;
     // Compute world-space intersection of the two AABBs
     GMLReal iLeft   = GMLReal_fmax(bboxA.left, bboxB.left);
     GMLReal iRight  = GMLReal_fmin(bboxA.right, bboxB.right);

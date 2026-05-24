@@ -2194,18 +2194,22 @@ static void dispatchCollisionEvents(Runner* runner) {
                 // Iterate only the descendant-inclusive list for the target object via a snapshot, so nested user code (collision handlers calling instance_exists, with (...), etc.) can push/pop their own snapshots above ours without corrupting this iteration.
                 int32_t snapBase = Runner_pushInstancesOfObject(runner, targetObjIndex);
                 int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
-                for (int32_t snapIdx = snapBase; snapEnd > snapIdx; snapIdx++) {
+                // TODO: This is a STUPID HACKY HACK to fix phasing through the pillar in the long corridor section in Undertale
+                //  I DO NOT THINK THAT THIS IS CORRECT, and this CAN and WILL cause iteration order issues in the future
+                //  But at the same time I couldn't figure out HOW the YoYo collision iteration order works to NOT have this issue
+                //  (The stupid hack is iterating in reverse order)
+                for (int32_t snapIdx = snapEnd - 1; snapIdx >= snapBase; snapIdx--) {
                     Instance* other = runner->instanceSnapshots[snapIdx];
                     if (!other->active) continue;
                     if (other == self) continue;
 
                     // Compute bboxes
                     if (selfDirty) {
-                        bboxSelf = Collision_computeBBox(dataWin, self);
+                        bboxSelf = Collision_computeBBox(runner, self);
                         sprSelf = Collision_getSprite(dataWin, self);
                         selfDirty = false;
                     }
-                    InstanceBBox bboxOther = Collision_computeBBox(dataWin, other);
+                    InstanceBBox bboxOther = Collision_computeBBox(runner, other);
 
 #ifdef ENABLE_VM_TRACING
                     bool traceThisPair = shouldTraceCollisionPair(runner->vmContext, dataWin, self, other);
@@ -2222,12 +2226,12 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool aabbMiss = bboxSelf.left >= bboxOther.right || bboxOther.left >= bboxSelf.right || bboxSelf.top >= bboxOther.bottom || bboxOther.top >= bboxSelf.bottom;
 #ifdef ENABLE_VM_TRACING
                     if (traceThisPair) {
-                        fprintf(stderr, "Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g) otherBB=(%g,%g,%g,%g) AABB=%s\n",
+                        fprintf(stderr, "Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g %gx%g) otherBB=(%g,%g,%g,%g %gx%g) selfSolid=%d otherSolid=%d AABB=%s\n",
                             dataWin->objt.objects[self->objectIndex].name, self->instanceId, self->x, self->y,
                             dataWin->objt.objects[other->objectIndex].name, other->instanceId, other->x, other->y,
-                            bboxSelf.left, bboxSelf.top, bboxSelf.right, bboxSelf.bottom,
-                            bboxOther.left, bboxOther.top, bboxOther.right, bboxOther.bottom,
-                            aabbMiss ? "miss" : "overlap");
+                            bboxSelf.left, bboxSelf.top, bboxSelf.right, bboxSelf.bottom, bboxSelf.right - bboxSelf.left, bboxSelf.bottom - bboxSelf.top,
+                            bboxOther.left, bboxOther.top, bboxOther.right, bboxOther.bottom, bboxOther.right - bboxOther.left, bboxOther.bottom - bboxOther.top,
+                            self->solid, other->solid, aabbMiss ? "miss" : "overlap");
                     }
 #endif
                     if (aabbMiss) continue;
@@ -2237,7 +2241,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool needsPrecise = (sprSelf != nullptr && sprSelf->sepMasks == 1) || (sprOther != nullptr && sprOther->sepMasks == 1) || Collision_obbNeedsSAT(sprSelf, self) || Collision_obbNeedsSAT(sprOther, other);
 
                     if (needsPrecise) {
-                        bool preciseHit = Collision_instancesOverlapPrecise(dataWin, runner->collisionCompatibilityMode, self, other, bboxSelf, bboxOther);
+                        bool preciseHit = Collision_instancesOverlapPrecise(runner, self, other, bboxSelf, bboxOther);
 #ifdef ENABLE_VM_TRACING
                         if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? sprSelf->sepMasks : -1, sprOther ? sprOther->sepMasks : -1);
 #endif
@@ -2264,7 +2268,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     // And if it DOES move via GML, the variable write handlers will set it to dirty
 
 #ifdef ENABLE_VM_TRACING
-                    if (traceThisPair) fprintf(stderr, "  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId);
+                    if (traceThisPair) fprintf(stderr, "  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d codeName=%s\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId, dataWin->code.entries[evt->codeId].name);
 #endif
                     executeCollisionEvent(runner, self, other, targetObjIndex, evt->codeId, evt->ownerObjectIndex);
 
@@ -2276,7 +2280,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                         FlattenedCollisionEvent* reverseEvt = findSymmetricCollisionEvent(runner, other, self);
 #ifdef ENABLE_VM_TRACING
                         if (traceThisPair) {
-                            if (reverseEvt != nullptr) fprintf(stderr, "  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId);
+                            if (reverseEvt != nullptr) fprintf(stderr, "  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d codeName=%s  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId, dataWin->code.entries[evt->codeId].name);
                             else fprintf(stderr, "  fire other->self: none (no matching handler)  [symmetric]\n");
                         }
 #endif
@@ -2298,6 +2302,40 @@ static void dispatchCollisionEvents(Runner* runner) {
                             other->x += other->hspeed;
                             other->y += other->vspeed;
                             SpatialGrid_markInstanceAsDirty(runner->spatialGrid, other);
+                        }
+
+                        // When we are in collision compatibility mode, we need to recheck if the player is STILL colliding after we have moved them
+                        // If they are, we revert the collision
+                        if (runner->collisionCompatibilityMode) {
+                            InstanceBBox bboxSelf2 = Collision_computeBBox(runner, self);
+                            InstanceBBox bboxOther2 = Collision_computeBBox(runner, other);
+                            if (bboxSelf2.valid && bboxOther2.valid) {
+                                bool aabbMiss2 = bboxSelf2.left >= bboxOther2.right || bboxOther2.left >= bboxSelf2.right || bboxSelf2.top >= bboxOther2.bottom || bboxOther2.top >= bboxSelf2.bottom;
+                                bool stillColliding = false;
+                                if (!aabbMiss2) {
+                                    Sprite* sprSelf2 = Collision_getSprite(dataWin, self);
+                                    Sprite* sprOther2 = Collision_getSprite(dataWin, other);
+                                    bool needsPrecise2 = (sprSelf2 != nullptr && sprSelf2->sepMasks == 1) || (sprOther2 != nullptr && sprOther2->sepMasks == 1) || Collision_obbNeedsSAT(sprSelf2, self) || Collision_obbNeedsSAT(sprOther2, other);
+                                    if (needsPrecise2) {
+                                        stillColliding = Collision_instancesOverlapPrecise(runner, self, other, bboxSelf2, bboxOther2);
+                                    } else {
+                                        stillColliding = true;
+                                    }
+                                }
+                                if (stillColliding) {
+    #ifdef ENABLE_VM_TRACING
+                                    if (traceThisPair) fprintf(stderr, "  post-event re-revert: still colliding, restoring self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+    #endif
+                                    self->x = self->xprevious;
+                                    self->y = self->yprevious;
+                                    if (self->pathIndex >= 0) self->pathPosition = self->pathPositionPrevious;
+                                    other->x = other->xprevious;
+                                    other->y = other->yprevious;
+                                    if (other->pathIndex >= 0) other->pathPosition = other->pathPositionPrevious;
+                                    SpatialGrid_markInstanceAsDirty(runner->spatialGrid, self);
+                                    SpatialGrid_markInstanceAsDirty(runner->spatialGrid, other);
+                                }
+                            }
                         }
                     }
 
@@ -2399,7 +2437,7 @@ static void dispatchOutsideRoomEvents(Runner* runner) {
             if (!inst->active) continue;
 
             bool outside;
-            InstanceBBox bbox = Collision_computeBBox(dataWin, inst);
+            InstanceBBox bbox = Collision_computeBBox(runner, inst);
             if (bbox.valid) {
                 outside = (0 > bbox.right || bbox.left > roomWidth || 0 > bbox.bottom || bbox.top > roomHeight);
             } else {
@@ -2525,6 +2563,111 @@ void Runner_handlePendingRoomChange(Runner* runner) {
         Runner_cleanupDestroyedInstances(runner);
         Runner_sweepDeadStructs(runner);
     }
+}
+
+// Finds the index for the first event larger than or equal to the timeStamp
+static uint32_t Timeline_findLarger(Timeline* timeline, float timeStamp) {
+    if (timeline->momentCount == 0)
+        return 0;
+
+    // Will happen very often so we first check last
+    if (timeStamp > (float) timeline->moments[timeline->momentCount - 1].step)
+        return timeline->momentCount;
+
+    repeat(timeline->momentCount, i) {
+        if ((float) timeline->moments[i].step >= timeStamp) return (uint32_t) i;
+    }
+    return timeline->momentCount;
+}
+
+// Finds the index for the last event smaller than or equal to _timeStamp
+static int32_t Timeline_findSmaller(Timeline* timeline, float timeStamp) {
+    if (timeline->momentCount == 0)
+        return 0;
+
+    // Will happen very often so we first check last
+    if ((float) timeline->moments[0].step > timeStamp)
+        return -1;
+
+    for (int32_t i = (int32_t) timeline->momentCount - 1; 0 <= i; i--) {
+        if ((float) timeline->moments[i].step <= timeStamp) return i;
+    }
+    return -1;
+}
+
+// See GameMaker-HTML5's "HandleTimeLine" for reference
+static void tickTimelines(Runner* runner) {
+    Tmln* tmln = &runner->dataWin->tmln;
+    // Fast path: if the data.win doesn't have any timelines, we don't need to snapshot instances
+    if (tmln->count == 0)
+        return;
+
+    int32_t n = (int32_t) arrlen(runner->instances);
+    if (n == 0)
+        return;
+
+    // Snapshot the live instance list so moment code that calls instance_create/destroy doesn't mutate what we iterate.
+    int32_t snapBase = (int32_t) arrlen(runner->instanceSnapshots);
+    arrsetlen(runner->instanceSnapshots, snapBase + n);
+    memcpy(&runner->instanceSnapshots[snapBase], runner->instances, (size_t) n * sizeof(Instance*));
+
+    repeat(n, i) {
+        Instance* inst = runner->instanceSnapshots[snapBase + i];
+        if (!inst->active || inst->destroyed)
+            continue;
+
+        int32_t idx = inst->timelineIndex;
+        if (0 > idx)
+            continue;
+
+        if ((uint32_t) idx >= tmln->count)
+            continue;
+
+        if (!inst->timelineRunning)
+            continue;
+
+        Timeline* timeline = &tmln->timelines[idx];
+        if (!timeline->present || timeline->momentCount == 0)
+            continue;
+
+        float maxMoment = (float) timeline->moments[timeline->momentCount - 1].step;
+
+        if (inst->timelineSpeed > 0.0f) {
+            // Forward sweep: fire moments in [oldPos, newPos)
+            uint32_t ind1 = Timeline_findLarger(timeline, inst->timelinePosition);
+            inst->timelinePosition += inst->timelineSpeed;
+            uint32_t ind2 = Timeline_findLarger(timeline, inst->timelinePosition);
+
+            for (uint32_t j = ind1; ind2 > j; j++) {
+                TimelineMoment* moment = &timeline->moments[j];
+                repeat(moment->actionCount, a) {
+                    executeCode(runner, inst, moment->actions[a].codeId);
+                }
+            }
+
+            if (inst->timelineLoop && inst->timelinePosition > maxMoment) {
+                inst->timelinePosition = 0.0f;
+            }
+        } else {
+            // Backward sweep (also covers timelineSpeed == 0: ind1 == ind2, no events, no position change): fire moments in (newPos, oldPos]
+            int32_t ind1 = Timeline_findSmaller(timeline, inst->timelinePosition);
+            inst->timelinePosition += inst->timelineSpeed;
+            int32_t ind2 = Timeline_findSmaller(timeline, inst->timelinePosition);
+
+            for (int32_t j = ind1; j > ind2; j--) {
+                TimelineMoment* moment = &timeline->moments[j];
+                repeat(moment->actionCount, a) {
+                    executeCode(runner, inst, moment->actions[a].codeId);
+                }
+            }
+
+            if (inst->timelineLoop && 0.0f > inst->timelinePosition) {
+                inst->timelinePosition = maxMoment;
+            }
+        }
+    }
+
+    arrsetlen(runner->instanceSnapshots, snapBase);
 }
 
 void Runner_step(Runner* runner) {
@@ -2664,6 +2807,9 @@ void Runner_step(Runner* runner) {
             Runner_executeEventForAll(runner, EVENT_KEYRELEASE, key);
         }
     }
+
+    // Tick timelines
+    tickTimelines(runner);
 
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);

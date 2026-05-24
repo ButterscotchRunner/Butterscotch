@@ -484,7 +484,7 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
 
         // AudioGroup or preload field at offset +28
         // For GMS 1.4.x (bytecodeVersion >= 14) with Regular flag: resource_id
-        if ((snd->flags & 0x64) == 0x64) {
+        if ((snd->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR && dw->gen8.bytecodeVersion >= 14) {
             snd->audioGroup = BinaryReader_readInt32(reader);
         } else {
             int32_t preload = BinaryReader_readInt32(reader);

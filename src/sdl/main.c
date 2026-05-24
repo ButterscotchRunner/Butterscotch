@@ -662,6 +662,8 @@ static void onCrashSignal(int sig) {
 // ===[ MAIN ]===
 static bool shouldExit = false;
 int main(int argc, char* argv[]) {
+    setbuf(stderr, NULL);
+
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
 

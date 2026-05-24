@@ -158,10 +158,17 @@ typedef struct {
     Extension* extensions;
 } Extn;
 
-// The "present" field can be false for deleted/null pointer-table slots
+// The "present" field can be false for deleted/null pointer-table slots on asset structs below
 // This will MOST LIKELY ALWAYS be true on pre-2024.11+ games, but CAN be false in 2022.11+ games if the asset was deleted
 
 // ===[ SOND - Sounds ]===
+typedef enum {
+    AUDIO_ENTRY_FLAG_IS_EMBEDDED = 0x01, // Sound data is embedded
+    AUDIO_ENTRY_FLAG_IS_COMPRESSED = 0x02, // Sound data is compressed
+    AUDIO_ENTRY_FLAG_IS_DECOMPRESSED_ON_LOAD = 0x03, // Decompress when loading
+    AUDIO_ENTRY_FLAG_REGULAR = 0x64  // Uses new audio system
+} AudioEntryFlags;
+
 typedef struct {
     bool present;
     const char* name;

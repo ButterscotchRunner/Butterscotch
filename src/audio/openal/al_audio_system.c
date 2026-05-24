@@ -360,10 +360,12 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     } else {
         alGenSources(1, &slot->alSource);
         alGenBuffers(1, &slot->alBuffer);
-        bool isEmbedded = (sound->flags & 0x01) != 0;
-        bool isCompressed = (sound->flags & 0x02) != 0;
+        bool isRegular = (sound->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR;
+        bool isEmbedded = (sound->flags & AUDIO_ENTRY_FLAG_IS_EMBEDDED) != 0;
+        bool isCompressed = (sound->flags & AUDIO_ENTRY_FLAG_IS_COMPRESSED) != 0;
+        bool inAudo = !isRegular || isEmbedded || isCompressed;
 
-        if (isEmbedded || isCompressed) {
+        if (inAudo) {
            // Embedded audio: decode from AUDO chunk memory
             if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) {
                 fprintf(stderr, "Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
@@ -740,9 +742,11 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
 
     Sound* sound = &dw->sond.sounds[soundOrInstance];
 
-    bool isEmbedded = (sound->flags & 0x01) != 0;
-    bool isCompressed = (sound->flags & 0x02) != 0;
-    if (isEmbedded || isCompressed) {
+    bool isRegular = (sound->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR;
+    bool isEmbedded = (sound->flags & AUDIO_ENTRY_FLAG_IS_EMBEDDED) != 0;
+    bool isCompressed = (sound->flags & AUDIO_ENTRY_FLAG_IS_COMPRESSED) != 0;
+    bool inAudo = !isRegular || isEmbedded || isCompressed;
+    if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
         AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
         WAVFile wav = WAV_ParseFileData(entry->data);
