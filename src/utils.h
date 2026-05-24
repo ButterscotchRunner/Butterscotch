@@ -111,8 +111,8 @@ static inline void* safeReallocFunction(void* ptr, size_t size, char* file, int 
 })
 #endif
 
-static inline const char* safeStrdupFunction(const char* str, char* file, int line) {
-    const char* _ptr = strdup(str);
+static inline char* safeStrdupFunction(const char* str, char* file, int line) {
+    char* _ptr = strdup(str);
     if (_ptr == nullptr) {
         fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", file, line);
         abort();
