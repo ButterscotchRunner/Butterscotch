@@ -5,8 +5,6 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
-> [!IMPORTANT]  
-> Butterscotch is still VERY early in development and it is NOT that good yet.
 
 When you create a game in GameMaker: Studio and export it, GameMaker: Studio exports the game code as bytecode instead of native compiled code, and that bytecode is compatible with any other GameMaker: Studio runner (also known as YoYo runner), as long as they have matching GameMaker: Studio versions. This is similar to how Java applications work.
 
@@ -22,7 +20,7 @@ And that's where Butterscotch comes in! Butterscotch is an open source re-implem
 
 ## Game Compatibility
 
-Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, Bytecode Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
+Butterscotch's goal is to be able to have a variety of games such as UNDERTALE, DELTARUNE, and SURVEY_PROGRAM fully playable. Other GameMaker: Studio games should work as long as they share the same functions that UNDERTALE, DELTARUNE, and SURVEY_PROGRAM use! More GameMaker: Studio functions for other games may be added in the future!
 
 While our target is Undertale v1.08, that doesn't mean that other games CAN'T run in Butterscotch! Because Butterscotch is a runner and not a Undertale port/remake, you CAN run other GameMaker: Studio games with it and, as long as the game is compiled with GameMaker: Studio 1.4.1804 and they only use GML variables and functions that Butterscotch supports, it should work fine.
 
@@ -53,12 +51,12 @@ Of course, there are exceptions that break game compatibility altogether:
 * PlayStation 2 (ps2sdk, gsKit)
 * PlayStation 3 (PSL1GHT, PS3GL)
 * Haiku (GLFW)
-* ...and maybe more in the future!
+* ...and maybe more in the future! Butterscotch is able to be ported to any console that has the power for it!
 
 ## Community Ports
 
 * [Xbox 360 (Butterscotch-360)](https://github.com/ceilingtilefan/Butterscotch-360) by @ceilingtilefan
-* [3DS and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682, @d16.dorian, @ralcactus
+* [3DS and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682, @d16.dorian
 
 ## Building Butterscotch
 
@@ -126,7 +124,7 @@ When running Butterscotch with `--debug`, the following hotkeys are enabled:
 
 ## Performance
 
-Performance is pretty good on any modern computer, but when running on low end targets (like the PS2) it is *very* slow when there's a lot of instances on screen, or when a instance does a for loop.
+Performance is pretty good on any modern computer, but when running on low end targets (like the PS2) it is *very* slow when there's a lot of instances on screen, or when a instance does a for loop. Games like UNDERTALE or SURVEY_PROGRAM run relatively good but performance WILL dip in DELTARUNE chapters 2-4.
 
 ## Then why not have a transpiler?
 
