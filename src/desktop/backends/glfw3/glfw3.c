@@ -295,6 +295,7 @@ bool platformHandleEvents(void) {
         return true;
 #endif
     glfwPollEvents();
+    return false;
 }
 
 #ifndef USE_GLFW2
