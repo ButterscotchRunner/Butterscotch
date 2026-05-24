@@ -48,9 +48,7 @@ ifndef DISABLE_LEGACY_GL
 ENABLE_GL := 1
 endif
 ifndef DISABLE_MODERN_GL
-ifneq ($(DESKTOP_BACKEND),sdl1)
 ENABLE_GL := 1
-endif
 endif
 
 ifdef ENABLE_GL
@@ -69,11 +67,9 @@ endif
 endif
 
 ifndef DISABLE_MODERN_GL
-ifneq ($(DESKTOP_BACKEND),sdl1)
 DEFINES += -DENABLE_MODERN_GL
 SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
-endif
 endif
 
 ifdef DISABLE_BC14
@@ -85,12 +81,8 @@ endif
 endif
 
 ifdef DISABLE_LEGACY_GL
-ifeq ($(DESKTOP_BACKEND),sdl1)
-$(error must enable at least 1 renderer)
-else
 ifdef DISABLE_MODERN_GL
 $(error must enable at least 1 renderer)
-endif
 endif
 endif
 
