@@ -1247,36 +1247,26 @@ int main(int argc, char* argv[]) {
             Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
 
             // Clear FBO with room background color
-            if (runner->drawBackgroundColor) {
-#if defined(ENABLE_SW_RENDERER) && defined(ENABLE_LEGACY_GL)
-                if(!SWRender) {
+#ifdef ENABLE_SW_RENDERER
+            if (SWRender) {
+                if (runner->drawBackgroundColor)
+                    SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
+                else
+                    SWRenderer_clearFrameBuffer(renderer, 0);
+            }
+#endif
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+            if (modernGL || legacyGL) {
+                if (runner->drawBackgroundColor) {
                     int rInt = BGR_R(runner->backgroundColor);
                     int gInt = BGR_G(runner->backgroundColor);
                     int bInt = BGR_B(runner->backgroundColor);
                     glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
                 } else
-                    SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
-            } else {
-                if(!SWRender)
                     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-                else
-                    SWRenderer_clearFrameBuffer(renderer, 0);
-#elif defined(ENABLE_LEGACY_GL)
-                int rInt = BGR_R(runner->backgroundColor);
-                int gInt = BGR_G(runner->backgroundColor);
-                int bInt = BGR_B(runner->backgroundColor);
-                glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
-            } else {
-                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-#else
-                SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
-            } else {
-                SWRenderer_clearFrameBuffer(renderer, 0);
-#endif
-            }
-#ifdef ENABLE_LEGACY_GL
-            if(!SWRender)
+
                 glClear(GL_COLOR_BUFFER_BIT);
+            }
 #endif
 
             Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
