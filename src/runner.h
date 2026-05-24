@@ -382,11 +382,10 @@ struct Runner {
     // ID returned by renderer->vtable->ensureApplicationSurface each frame. Real surface ID on GL/GL-legacy,
     // APPLICATION_SURFACE_ID (-1) on PS2. This is what BUILTIN_VAR_APPLICATION_SURFACE returns to GML.
     int32_t applicationSurfaceId;
-    void* nativeWindow;
-    void (*setWindowTitle)(void* window, const char* title);
-    bool (*getWindowSize)(void* window, int32_t* outW, int32_t* outH);
-    void (*setWindowSize)(void* window, int32_t width, int32_t height);
-    bool (*windowHasFocus)(void* window);
+    void (*setWindowTitle)(const char* title);
+    bool (*getWindowSize)(int32_t* outW, int32_t* outH);
+    void (*setWindowSize)(int32_t width, int32_t height);
+    bool (*windowHasFocus)(void);
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime

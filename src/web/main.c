@@ -203,7 +203,7 @@ void* loop() {
     return nullptr;
 }
 
-void setWindowTitle(MAYBE_UNUSED void* nativeWindow, const char* title) {
+void setWindowTitle(const char* title) {
     MAIN_THREAD_EM_ASM({ postMessage({ type: 'windowTitle', title: UTF8ToString($0) }); }, title);
 }
 
@@ -302,7 +302,6 @@ void startRunner(const char* gamePath, const char* savesPath) {
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
-    runner->nativeWindow = nullptr;
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 

@@ -1,12 +1,13 @@
 #include "data_win.h"
 #include "vm.h"
 
+#include "platformdefs.h"
 #include <glad/glad.h>
-#ifdef USE_GLFW2
-#include <GL/glfw.h>
-#else
-#include <GLFW/glfw3.h>
-#endif
+// #ifdef USE_GLFW2
+// #include <GL/glfw.h>
+// #else
+// #include <GLFW/glfw3.h>
+// #endif
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,9 +27,6 @@
 #endif
 
 #include "runner_keyboard.h"
-#ifndef USE_GLFW2
-#include "glfw_gamepad.h"
-#endif
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
@@ -49,11 +47,9 @@
 #include "utils.h"
 #include "profiler.h"
 
-#ifndef USE_GLFW2
-static void glfwErrorCallback(int code, const char* description) {
-    fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
-}
-#endif
+bool modernGL;
+bool legacyGL;
+bool SWRender;
 
 #ifndef ENABLE_GLES
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
@@ -605,63 +601,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
 // ===[ KEYBOARD INPUT ]===
 
-#ifdef USE_GLFW2
-#define GLFW_KEY_ESCAPE GLFW_KEY_ESC
-#define GLFW_KEY_LEFT_SHIFT GLFW_KEY_LSHIFT
-#define GLFW_KEY_RIGHT_SHIFT GLFW_KEY_RSHIFT
-#define GLFW_KEY_LEFT_CONTROL GLFW_KEY_LCTRL
-#define GLFW_KEY_RIGHT_CONTROL GLFW_KEY_RCTRL
-#define GLFW_KEY_LEFT_ALT GLFW_KEY_LALT
-#define GLFW_KEY_RIGHT_ALT GLFW_KEY_RALT
-#define GLFW_KEY_DELETE GLFW_KEY_DEL
-#define GLFW_KEY_PAGE_UP GLFW_KEY_PAGEUP
-#define GLFW_KEY_PAGE_DOWN GLFW_KEY_PAGEDOWN
-#endif
-
-static int32_t glfwKeyToGml(int glfwKey) {
-    // Letters and numbers are the same as GML
-    if (glfwKey >= 'A' && glfwKey <= 'Z') return glfwKey;
-    if (glfwKey >= '0' && glfwKey <= '9') return glfwKey;
-    // Special keys need mapping
-    switch (glfwKey) {
-        case GLFW_KEY_ESCAPE:        return VK_ESCAPE;
-        case GLFW_KEY_ENTER:         return VK_ENTER;
-        case GLFW_KEY_TAB:           return VK_TAB;
-        case GLFW_KEY_BACKSPACE:     return VK_BACKSPACE;
-        case GLFW_KEY_SPACE:         return VK_SPACE;
-        case GLFW_KEY_LEFT_SHIFT:
-        case GLFW_KEY_RIGHT_SHIFT:   return VK_SHIFT;
-        case GLFW_KEY_LEFT_CONTROL:
-        case GLFW_KEY_RIGHT_CONTROL: return VK_CONTROL;
-        case GLFW_KEY_LEFT_ALT:
-        case GLFW_KEY_RIGHT_ALT:     return VK_ALT;
-        case GLFW_KEY_UP:            return VK_UP;
-        case GLFW_KEY_DOWN:          return VK_DOWN;
-        case GLFW_KEY_LEFT:          return VK_LEFT;
-        case GLFW_KEY_RIGHT:         return VK_RIGHT;
-        case GLFW_KEY_F1:            return VK_F1;
-        case GLFW_KEY_F2:            return VK_F2;
-        case GLFW_KEY_F3:            return VK_F3;
-        case GLFW_KEY_F4:            return VK_F4;
-        case GLFW_KEY_F5:            return VK_F5;
-        case GLFW_KEY_F6:            return VK_F6;
-        case GLFW_KEY_F7:            return VK_F7;
-        case GLFW_KEY_F8:            return VK_F8;
-        case GLFW_KEY_F9:            return VK_F9;
-        case GLFW_KEY_F10:           return VK_F10;
-        case GLFW_KEY_F11:           return VK_F11;
-        case GLFW_KEY_F12:           return VK_F12;
-        case GLFW_KEY_INSERT:        return VK_INSERT;
-        case GLFW_KEY_DELETE:        return VK_DELETE;
-        case GLFW_KEY_HOME:          return VK_HOME;
-        case GLFW_KEY_END:           return VK_END;
-        case GLFW_KEY_PAGE_UP:       return VK_PAGEUP;
-        case GLFW_KEY_PAGE_DOWN:     return VK_PAGEDOWN;
-        default:                     return -1; // Unknown
-    }
-}
-
-static InputRecording* globalInputRecording = nullptr;
+InputRecording* globalInputRecording = nullptr;
 
 #if defined(__has_feature)
     #if __has_feature(address_sanitizer)
@@ -705,92 +645,6 @@ static void installCrashHandlers(void) {
     signal(SIGILL,  crashSignalHandler);
 }
 
-#ifdef USE_GLFW2
-static Runner *g_runner = nullptr;
-#endif
-
-#ifdef USE_GLFW2
-static void keyCallback(int key, int action) {
-    Runner* runner = g_runner;
-#else
-static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    (void) scancode; (void) mods;
-    Runner* runner = (Runner*) glfwGetWindowUserPointer(window);
-#endif
-    // During playback, suppress real keyboard input (window events like close still work)
-    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
-    int32_t gmlKey = glfwKeyToGml(key);
-    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
-    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
-    // GLFW_REPEAT is ignored (GML doesn't use key repeat)
-}
-
-#ifdef USE_GLFW2
-static void characterCallback(int codepoint, int action) {
-    if (action != GLFW_PRESS) return;
-    Runner* runner = g_runner;
-#else
-static void characterCallback(GLFWwindow* window, unsigned int codepoint) {
-    Runner* runner = (Runner*) glfwGetWindowUserPointer(window);
-#endif
-    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
-    RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
-}
-
-static void setGlfwWindowTitle(void* window, const char* title) {
-    char windowTitle[256];
-    snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
-#ifdef USE_GLFW2
-    (void)window;
-    glfwSetWindowTitle(windowTitle);
-#else
-    glfwSetWindowTitle((GLFWwindow*) window, windowTitle);
-#endif
-}
-
-static bool getGlfwWindowSize(void* window, int32_t* outW, int32_t* outH) {
-    if (outW == nullptr || outH == nullptr) return false;
-    int w = 0;
-    int h = 0;
-#ifdef USE_GLFW2
-    (void)window;
-    glfwGetWindowSize(&w, &h);
-#else
-    if (window == nullptr) return false;
-    glfwGetFramebufferSize((GLFWwindow*) window, &w, &h);
-#endif
-    if (w <= 0 || h <= 0) return false;
-    *outW = w;
-    *outH = h;
-    return true;
-}
-
-static void setGlfwWindowSize(void* window, int32_t width, int32_t height) {
-    if (width <= 0 || height <= 0) return;
-#ifdef USE_GLFW2
-    (void) window;
-    glfwSetWindowSize(width, height);
-#else
-    if (window == nullptr) return;
-    // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
-    // Convert via the current content scale so the resulting framebuffer matches what the GML asked for.
-    float xs = 1.0f, ys = 1.0f;
-    glfwGetWindowContentScale((GLFWwindow*) window, &xs, &ys);
-    int logicalW = (xs > 0.0f) ? (int) ((float) width  / xs + 0.5f) : width;
-    int logicalH = (ys > 0.0f) ? (int) ((float) height / ys + 0.5f) : height;
-    glfwSetWindowSize((GLFWwindow*) window, logicalW, logicalH);
-#endif
-}
-
-static bool getGlfwWindowFocus(void *window) {
-#ifdef USE_GLFW2
-    (void)window;
-    return glfwGetWindowParam(GLFW_ACTIVE);
-#else
-    return glfwGetWindowAttrib((GLFWwindow*) window, GLFW_FOCUSED) != 0;
-#endif
-}
-
 void saveInputRecording() {
     // Save input recording if active, then free
     if (globalInputRecording != nullptr) {
@@ -811,22 +665,6 @@ static void onCrashSignal(int sig) {
     // Restore the previous handler (ASAN) and re-raise so it can report the fault
     sigaction(sig, &previousSignalActions[hmgeti(previousSignalActions, sig)].value, nullptr);
     raise(sig);
-}
-#endif
-
-#if defined(_WIN32) && defined(USE_GLFW2)
-// glfw2's glfwGetProcAddress is broken on Windows.
-// This just implements it in a way that's fixed
-// so it can be passed to GLAD.
-#define glfwGetProcAddress fixed_glfwGetProcAddress
-static void *fixed_glfwGetProcAddress(const char *name) {
-    void *ret = (void *)wglGetProcAddress(name);
-    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
-        HMODULE handle = GetModuleHandle("opengl32.dll");
-        if (handle)
-            ret = (void *)GetProcAddress(handle, name);
-    }
-    return ret;
 }
 #endif
 
@@ -1061,23 +899,13 @@ int main(int argc, char* argv[]) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
     free(dataWinDir);
 
-    // Init GLFW
-#ifndef USE_GLFW2
-    glfwSetErrorCallback(glfwErrorCallback);
-#endif
-    if (!glfwInit()) {
-        fprintf(stderr, "Failed to initialize GLFW\n");
-        DataWin_free(dataWin);
-        freeCommandLineArgs(&args);
-        return 1;
-    }
-
-    bool modernGL = strcmp(args.renderer, "gl") == 0;
-    bool legacyGL = strcmp(args.renderer, "legacy-gl") == 0;
+    modernGL = strcmp(args.renderer, "gl") == 0;
+    legacyGL = strcmp(args.renderer, "legacy-gl") == 0;
+    SWRender = strcmp(args.renderer, "software") == 0;
 
 #ifndef ENABLE_LEGACY_GL
     if (legacyGL) {
-        fprintf(stderr, "The legacy-gl renderer is not available in this build!\n");
+        fprintf(stderr, "The legacy gl renderer is not available in this build!\n");
         return 0;
     }
 #endif
@@ -1087,7 +915,13 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 #endif
-    if (!modernGL && !legacyGL) {
+#ifndef ENABLE_SW_RENDERER
+    if (SWRender) {
+        fprintf(stderr, "The software renderer is not available in this build!\n");
+        return 0;
+    }
+#endif
+    if (!modernGL && !legacyGL && !SWRender) {
         fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
         return 0;
     }
@@ -1097,83 +931,19 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-#ifndef USE_GLFW2
-    if (!modernGL) {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    } else {
-#ifdef ENABLE_GLES
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    }
-#endif
-
-#ifndef USE_GLFW2
-    // Load SDL gamecontroller mappings
-    {
-        const char* dbPath = "gamecontrollerdb.txt";
-        FILE* f = fopen(dbPath, "r");
-        if (f != NULL) {
-            fseek(f, 0, SEEK_END);
-            long len = ftell(f);
-            fseek(f, 0, SEEK_SET);
-            char* buffer = (char*) malloc(len + 1);
-            if (buffer != NULL) {
-                fread(buffer, 1, len, f);
-                buffer[len] = '\0';
-                GlfwGamepad_loadMappings(buffer);
-                free(buffer);
-            }
-            fclose(f);
-        } else {
-            fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
-        }
-    }
-
-    if (args.headless) {
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    }
-#endif
-
-#ifdef USE_GLFW2
-    int window = glfwOpenWindow((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-#else
-    GLFWwindow* window = glfwCreateWindow((int) gen8->defaultWindowWidth, (int) gen8->defaultWindowHeight, windowTitle, nullptr, nullptr);
-#endif
-    if (!window) {
-        fprintf(stderr, "Failed to create GLFW window\n");
-        glfwTerminate();
+    if (!platformInit((int)gen8->defaultWindowWidth, (int)gen8->defaultWindowHeight, windowTitle, args.headless)) {
         DataWin_free(dataWin);
         freeCommandLineArgs(&args);
-        return 1;
     }
-
-#ifndef USE_GLFW2
-    glfwMakeContextCurrent(window);
-#endif
-    glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
 
     // Load OpenGL function pointers via GLAD
 #ifdef ENABLE_GLES
-    if (!gladLoadGLES2Loader((GLADloadproc) glfwGetProcAddress)) {
+    if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
 #else
-    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+    if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
 #endif
         fprintf(stderr, "Failed to initialize GLAD\n");
-#ifdef USE_GLFW2
-        glfwCloseWindow();
-#else
-        glfwDestroyWindow(window);
-#endif
-        glfwTerminate();
+        platformExit();
         DataWin_free(dataWin);
         freeCommandLineArgs(&args);
         return 1;
@@ -1222,16 +992,10 @@ int main(int argc, char* argv[]) {
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = args.debug;
     runner->osType = args.osType;
-    runner->setWindowTitle = setGlfwWindowTitle;
-    runner->getWindowSize = getGlfwWindowSize;
-    runner->setWindowSize = setGlfwWindowSize;
-    runner->windowHasFocus = getGlfwWindowFocus;
 #ifdef USE_GLFW2
-    runner->nativeWindow = (void*)0xDEADBEEF;
     g_runner = runner;
-#else
-    runner->nativeWindow = window;
 #endif
+    platformInitFunctions(runner);
 
     // Set up input recording/playback (both can be active: playback then continue recording)
     if (args.playbackInputsPath != nullptr) {
@@ -1258,16 +1022,6 @@ int main(int argc, char* argv[]) {
     runner->vmContext->alwaysLogStubbedFunctions = args.alwaysLogStubbedFunctions;
     runner->vmContext->traceEventInherited = args.traceEventInherited;
 
-    // Set up keyboard input
-#ifdef USE_GLFW2
-    glfwSetKeyCallback(keyCallback);
-    glfwSetCharCallback(characterCallback);
-#else
-    glfwSetWindowUserPointer(window, runner);
-    glfwSetKeyCallback(window, keyCallback);
-    glfwSetCharCallback(window, characterCallback);
-#endif
-
 #ifndef _WIN32
     struct sigaction sa = { .sa_handler = onCrashSignal };
     sigemptyset(&sa.sa_mask);
@@ -1290,23 +1044,15 @@ int main(int argc, char* argv[]) {
     // Main loop
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
-    double lastFrameTime = glfwGetTime();
-    while (true) {
-#ifdef USE_GLFW2
-        bool shouldWindowClose = !glfwGetWindowParam(GLFW_OPENED);
-#else
-        bool shouldWindowClose = glfwWindowShouldClose(window);
-#endif
-        if (runner->shouldExit || shouldWindowClose)
-            break;
-
+    double lastFrameTime = platformGetTime();
+    bool should_close = false;
+    while (!runner->shouldExit && !should_close) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
         RunnerGamepad_beginFrame(runner->gamepads);
-        glfwPollEvents();
-#ifndef USE_GLFW2
-        GlfwGamepad_poll(runner->gamepads);
-#endif
+        if (platformHandleEvents())
+            should_close = true;
+        PlatformGamepad_poll(runner->gamepads);
 
         // Debug key bindings
         if (runner->debugMode) {
@@ -1328,14 +1074,14 @@ int main(int argc, char* argv[]) {
 
         if (shouldStep) {
             if (args.traceFrames) {
-                frameStartTime = glfwGetTime();
+                frameStartTime = platformGetTime();
                 fprintf(stderr, "Frame %d (Start)\n", runner->frameCount);
             }
 
-            // Process input recording/playback (must happen after glfwPollEvents, before Runner_step)
+            // Process input recording/playback (must happen after platformHandleEvents, before Runner_step)
             InputRecording_processFrame(globalInputRecording, runner->keyboard, runner->frameCount);
 
-                        // Go to next room
+            // Go to next room
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEUP)) {
                 DataWin* dw = runner->dataWin;
                 if ((int32_t) dw->gen8.roomOrderCount > runner->currentRoomOrderPosition + 1) {
@@ -1413,7 +1159,7 @@ int main(int argc, char* argv[]) {
             }
 
             // Update audio system (gain fading, cleanup ended sounds)
-            float dt = (float) (glfwGetTime() - lastFrameTime);
+            float dt = (float) (platformGetTime() - lastFrameTime);
             if (0.0f > dt) dt = 0.0f;
             if (dt > 0.1f) dt = 0.1f; // cap delta to avoid huge fades on lag spikes
             runner->audioSystem->vtable->update(runner->audioSystem, dt);
@@ -1446,11 +1192,12 @@ int main(int argc, char* argv[]) {
 
             // Query actual framebuffer size (differs from window size on Wayland with fractional scaling)
             int fbWidth, fbHeight;
-#ifdef USE_GLFW2
-            glfwGetWindowSize(&fbWidth, &fbHeight);
-#else
-            glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-#endif
+// #ifdef USE_GLFW2
+//             glfwGetWindowSize(&fbWidth, &fbHeight);
+// #else
+//             glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+// #endif
+            platformGetWindowSize(&fbWidth, &fbHeight);
 
             // Clear the default framebuffer (window background) to black
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1532,26 +1279,17 @@ int main(int argc, char* argv[]) {
 
             if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {
                 printf("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
-#ifdef USE_GLFW2
-                glfwCloseWindow();
-#else
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
-#endif
+                should_close = true;
             }
 
             if (shouldStep && args.traceFrames) {
-                double frameElapsedMs = (glfwGetTime() - frameStartTime) * 1000.0;
+                double frameElapsedMs = (platformGetTime() - frameStartTime) * 1000.0;
                 fprintf(stderr, "Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
             }
 
             // Only swap when there isn't a room change to match the original runner.
-            if (runner->pendingRoom == -1) {
-#ifdef USE_GLFW2
-                glfwSwapBuffers();
-#else
-                glfwSwapBuffers(window);
-#endif
-            }
+            if (runner->pendingRoom == -1)
+                platformSwapBuffers();
             Runner_handlePendingRoomChange(runner);
         }
 
@@ -1559,21 +1297,17 @@ int main(int argc, char* argv[]) {
         if (!args.headless && runner->currentRoom->speed > 0) {
             static bool fastForwardActive = false;
             static bool fastForwardTabPrev = false;
-            bool fastForwardTabNow = glfwGetKey(
-#ifndef USE_GLFW2
-                    window,
-#endif
-                    GLFW_KEY_TAB) == GLFW_PRESS;
+            bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, '\t');
             if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                 fastForwardActive = !fastForwardActive;
-                lastFrameTime = glfwGetTime();
+                lastFrameTime = platformGetTime();
             }
             fastForwardTabPrev = fastForwardTabNow;
             double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
             double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
             double nextFrameTime = lastFrameTime + targetFrameTime;
             // Sleep for most of the remaining time, then spin-wait for precision
-            double remaining = nextFrameTime - glfwGetTime();
+            double remaining = nextFrameTime - platformGetTime();
             if (remaining > 0.002) {
                 #ifdef _WIN32
                 Sleep((DWORD) ((remaining - 0.001) * 1000));
@@ -1585,12 +1319,12 @@ int main(int argc, char* argv[]) {
                 nanosleep(&ts, nullptr);
                 #endif
             }
-            while (glfwGetTime() < nextFrameTime) {
+            while (platformGetTime() < nextFrameTime) {
                 // Spin-wait for the remaining sub-millisecond
             }
             lastFrameTime = nextFrameTime;
         } else {
-            lastFrameTime = glfwGetTime();
+            lastFrameTime = platformGetTime();
         }
     }
 
@@ -1601,12 +1335,7 @@ int main(int argc, char* argv[]) {
     runner->audioSystem = nullptr;
     renderer->vtable->destroy(renderer);
 
-#ifdef USE_GLFW2
-    glfwCloseWindow();
-#else
-    glfwDestroyWindow(window);
-#endif
-    glfwTerminate();
+    platformExit();
 
     Runner_free(runner);
     OverlayFileSystem_destroy(overlayFs);

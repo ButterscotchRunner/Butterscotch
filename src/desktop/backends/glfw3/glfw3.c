@@ -1,0 +1,415 @@
+#include <string.h>
+#include <stdio.h>
+
+#include <GLFW/glfw3.h>
+
+#include "common.h"
+#include "platformdefs.h"
+#include "input_recording.h"
+
+#ifndef USE_GLFW2
+static GLFWwindow *window;
+#endif
+
+static Runner *g_runner = nullptr;
+
+void platformSetWindowTitle(const char* title) {
+    char windowTitle[256];
+    snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
+#ifdef USE_GLFW2
+    glfwSetWindowTitle(windowTitle);
+#else
+    glfwSetWindowTitle(window, windowTitle);
+#endif
+}
+
+bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
+    if (outW == nullptr || outH == nullptr) return false;
+    int w = 0;
+    int h = 0;
+#ifdef USE_GLFW2
+    glfwGetWindowSize(&w, &h);
+#else
+    if (window == nullptr) return false;
+    glfwGetFramebufferSize(window, &w, &h);
+#endif
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+
+void platformSetWindowSize(int32_t width, int32_t height) {
+    if (width <= 0 || height <= 0) return;
+#ifdef USE_GLFW2
+    glfwSetWindowSize(width, height);
+#else
+    if (window == nullptr) return;
+    // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
+    // Convert via the current content scale so the resulting framebuffer matches what the GML asked for.
+    float xs = 1.0f, ys = 1.0f;
+    glfwGetWindowContentScale((GLFWwindow*) window, &xs, &ys);
+    int logicalW = (xs > 0.0f) ? (int) ((float) width  / xs + 0.5f) : width;
+    int logicalH = (ys > 0.0f) ? (int) ((float) height / ys + 0.5f) : height;
+    glfwSetWindowSize(window, logicalW, logicalH);
+#endif
+}
+
+bool platformGetWindowFocus(void) {
+#ifdef USE_GLFW2
+    return glfwGetWindowParam(GLFW_ACTIVE);
+#else
+    return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
+#endif
+}
+
+#ifndef USE_GLFW2
+static void glfwErrorCallback(int code, const char* description) {
+    fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
+}
+#endif
+
+static int32_t glfwKeyToGml(int glfwKey) {
+    // Letters and numbers are the same as GML
+    if (glfwKey >= 'A' && glfwKey <= 'Z') return glfwKey;
+    if (glfwKey >= '0' && glfwKey <= '9') return glfwKey;
+    // Special keys need mapping
+    switch (glfwKey) {
+        case GLFW_KEY_ESCAPE:        return VK_ESCAPE;
+        case GLFW_KEY_ENTER:         return VK_ENTER;
+        case GLFW_KEY_TAB:           return VK_TAB;
+        case GLFW_KEY_BACKSPACE:     return VK_BACKSPACE;
+        case GLFW_KEY_SPACE:         return VK_SPACE;
+        case GLFW_KEY_LEFT_SHIFT:
+        case GLFW_KEY_RIGHT_SHIFT:   return VK_SHIFT;
+        case GLFW_KEY_LEFT_CONTROL:
+        case GLFW_KEY_RIGHT_CONTROL: return VK_CONTROL;
+        case GLFW_KEY_LEFT_ALT:
+        case GLFW_KEY_RIGHT_ALT:     return VK_ALT;
+        case GLFW_KEY_UP:            return VK_UP;
+        case GLFW_KEY_DOWN:          return VK_DOWN;
+        case GLFW_KEY_LEFT:          return VK_LEFT;
+        case GLFW_KEY_RIGHT:         return VK_RIGHT;
+        case GLFW_KEY_F1:            return VK_F1;
+        case GLFW_KEY_F2:            return VK_F2;
+        case GLFW_KEY_F3:            return VK_F3;
+        case GLFW_KEY_F4:            return VK_F4;
+        case GLFW_KEY_F5:            return VK_F5;
+        case GLFW_KEY_F6:            return VK_F6;
+        case GLFW_KEY_F7:            return VK_F7;
+        case GLFW_KEY_F8:            return VK_F8;
+        case GLFW_KEY_F9:            return VK_F9;
+        case GLFW_KEY_F10:           return VK_F10;
+        case GLFW_KEY_F11:           return VK_F11;
+        case GLFW_KEY_F12:           return VK_F12;
+        case GLFW_KEY_INSERT:        return VK_INSERT;
+        case GLFW_KEY_DELETE:        return VK_DELETE;
+        case GLFW_KEY_HOME:          return VK_HOME;
+        case GLFW_KEY_END:           return VK_END;
+        case GLFW_KEY_PAGE_UP:       return VK_PAGEUP;
+        case GLFW_KEY_PAGE_DOWN:     return VK_PAGEDOWN;
+        default:                     return -1; // Unknown
+    }
+}
+
+#ifdef USE_GLFW2
+static void keyCallback(int key, int action) {
+#else
+static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    (void)scancode; (void)mods; (void)window;
+#endif
+    Runner* runner = g_runner;
+    // During playback, suppress real keyboard input (window events like close still work)
+    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
+    int32_t gmlKey = glfwKeyToGml(key);
+    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
+    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+    // GLFW_REPEAT is ignored (GML doesn't use key repeat)
+}
+
+#ifdef USE_GLFW2
+static void characterCallback(int codepoint, int action) {
+    if (action != GLFW_PRESS) return;
+#else
+static void characterCallback(GLFWwindow* window, unsigned int codepoint) {
+    (void)window;
+#endif
+    Runner* runner = g_runner;
+    if (InputRecording_isPlaybackActive(globalInputRecording)) return;
+    RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
+}
+
+bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+    // Init GLFW
+#ifndef USE_GLFW2
+    glfwSetErrorCallback(glfwErrorCallback);
+#endif
+    if (!glfwInit()) {
+        fprintf(stderr, "Failed to initialize GLFW\n");
+        return false;
+    }
+
+#ifndef USE_GLFW2
+    if (!modernGL) {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    } else {
+#ifdef ENABLE_GLES
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#else
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+    }
+#endif
+
+    const char* dbPath = "gamecontrollerdb.txt";
+    FILE* f = fopen(dbPath, "r");
+    if (f != NULL) {
+        fseek(f, 0, SEEK_END);
+        long len = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        char* buffer = (char*) malloc(len + 1);
+        if (buffer != NULL) {
+            fread(buffer, 1, len, f);
+            buffer[len] = '\0';
+            if (buffer != NULL && buffer[0] != '\0') {
+                if (glfwUpdateGamepadMappings(buffer)) {
+                    fprintf(stderr, "Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+                } else {
+                    fprintf(stderr, "Gamepad: Failed to load SDL gamecontroller mappings\n");
+                }
+            }
+            free(buffer);
+        }
+        fclose(f);
+    } else
+        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
+
+#ifndef USE_GLFW2
+    if (headless)
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+#endif
+
+#ifdef USE_GLFW2
+    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
+#else
+    window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+#endif
+    if (!window) {
+        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        return false;
+    }
+
+#ifndef USE_GLFW2
+    glfwMakeContextCurrent(window);
+#endif
+    glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
+
+    // Set up keyboard input
+#ifdef USE_GLFW2
+    glfwSetKeyCallback(keyCallback);
+    glfwSetCharCallback(characterCallback);
+#else
+    glfwSetKeyCallback(window, keyCallback);
+    glfwSetCharCallback(window, characterCallback);
+#endif
+}
+
+void platformExit(void) {
+#ifdef USE_GLFW2
+    glfwCloseWindow();
+#else
+    glfwDestroyWindow(window);
+#endif
+    glfwTerminate();
+}
+
+void platformInitFunctions(Runner *runner) {
+    runner->setWindowTitle = platformSetWindowTitle;
+    runner->getWindowSize = platformGetWindowSize;
+    runner->setWindowSize = platformSetWindowSize;
+    runner->windowHasFocus = platformGetWindowFocus;
+}
+
+void platformSwapBuffers(void) {
+#ifdef USE_GLFW2
+    glfwSwapBuffers();
+#else
+    glfwSwapBuffers(window);
+#endif
+}
+
+void *platformGetProcAddress(const char *name) {
+#if defined(_WIN32) && defined(USE_GLFW2)
+    // glfw2's glfwGetProcAddress is broken on Windows.
+    // This just implements it in a way that's fixed
+    // so it can be passed to GLAD.
+    void *ret = (void *)wglGetProcAddress(name);
+    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
+        HMODULE handle = GetModuleHandle("opengl32.dll");
+        if (handle)
+            ret = (void *)GetProcAddress(handle, name);
+    }
+    return ret;
+#else
+    return glfwGetProcAddress(name);
+#endif
+}
+
+#ifdef USE_GLFW2
+#define GLFW_KEY_ESCAPE GLFW_KEY_ESC
+#define GLFW_KEY_LEFT_SHIFT GLFW_KEY_LSHIFT
+#define GLFW_KEY_RIGHT_SHIFT GLFW_KEY_RSHIFT
+#define GLFW_KEY_LEFT_CONTROL GLFW_KEY_LCTRL
+#define GLFW_KEY_RIGHT_CONTROL GLFW_KEY_RCTRL
+#define GLFW_KEY_LEFT_ALT GLFW_KEY_LALT
+#define GLFW_KEY_RIGHT_ALT GLFW_KEY_RALT
+#define GLFW_KEY_DELETE GLFW_KEY_DEL
+#define GLFW_KEY_PAGE_UP GLFW_KEY_PAGEUP
+#define GLFW_KEY_PAGE_DOWN GLFW_KEY_PAGEDOWN
+#endif
+
+double platformGetTime(void) {
+    return glfwGetTime();
+}
+
+bool platformHandleEvents(void) {
+#ifdef USE_GLFW2
+    if(!glfwGetWindowParam(GLFW_OPENED))
+        return true;
+#else
+    if (glfwWindowShouldClose(window))
+        return true;
+#endif
+    glfwPollEvents();
+}
+
+static float applyDeadzone(float value, float deadzone) {
+    if (value < 0.0f) {
+        if (value > -deadzone) return 0.0f;
+        return (value + deadzone) / (1.0f - deadzone);
+    } else {
+        if (value < deadzone) return 0.0f;
+        return (value - deadzone) / (1.0f - deadzone);
+    }
+}
+
+enum {
+    IDX_LT = 6,
+    IDX_RT = 7,
+};
+
+static void mapGlfwToGml(const GLFWgamepadstate* glfwState, GamepadSlot* slot) {
+    memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
+    memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
+    memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
+    memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
+    memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
+    memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_A]) slot->buttonDown[0] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_B]) slot->buttonDown[1] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_X]) slot->buttonDown[2] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_Y]) slot->buttonDown[3] = true;
+
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_LEFT_BUMPER]) slot->buttonDown[4] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER]) slot->buttonDown[5] = true;
+
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_BACK]) slot->buttonDown[8] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_START]) slot->buttonDown[9] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_GUIDE]) slot->buttonDown[16] = true;
+
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_LEFT_THUMB]) slot->buttonDown[10] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_RIGHT_THUMB]) slot->buttonDown[11] = true;
+
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP]) slot->buttonDown[12] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN]) slot->buttonDown[13] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT]) slot->buttonDown[14] = true;
+    if (glfwState->buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT]) slot->buttonDown[15] = true;
+
+    float lt = glfwState->axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER];
+    float rt = glfwState->axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER];
+    if (lt < 0.0f) lt = 0.0f;
+    if (rt < 0.0f) rt = 0.0f;
+    slot->buttonValue[IDX_LT] = lt;
+    slot->buttonValue[IDX_RT] = rt;
+    if (lt >= slot->triggerThreshold) slot->buttonDown[IDX_LT] = true;
+    if (rt >= slot->triggerThreshold) slot->buttonDown[IDX_RT] = true;
+
+    float lh = glfwState->axes[GLFW_GAMEPAD_AXIS_LEFT_X];
+    float lv = glfwState->axes[GLFW_GAMEPAD_AXIS_LEFT_Y];
+    float rh = glfwState->axes[GLFW_GAMEPAD_AXIS_RIGHT_X];
+    float rv = glfwState->axes[GLFW_GAMEPAD_AXIS_RIGHT_Y];
+
+    slot->axisValue[0] = applyDeadzone(lh, slot->deadzone);
+    slot->axisValue[1] = applyDeadzone(lv, slot->deadzone);
+    slot->axisValue[2] = applyDeadzone(rh, slot->deadzone);
+    slot->axisValue[3] = applyDeadzone(rv, slot->deadzone);
+
+    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
+        if (i == IDX_LT || i == IDX_RT) continue;
+        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
+    }
+}
+
+void PlatformGamepad_poll(RunnerGamepadState* gp) {
+    for (int slotIdx = 0; slotIdx < 1 && slotIdx < MAX_GAMEPADS; slotIdx++) {
+        GamepadSlot* slot = &gp->slots[slotIdx];
+
+        bool currentlyConnected = false;
+        int  foundJid = -1;
+
+        for (int jid = GLFW_JOYSTICK_1; jid <= GLFW_JOYSTICK_16; jid++) {
+            if (glfwJoystickPresent(jid) && glfwJoystickIsGamepad(jid)) {
+                foundJid = jid;
+                currentlyConnected = true;
+                break;
+            }
+        }
+
+        if (currentlyConnected) {
+            GLFWgamepadstate state;
+            if (glfwGetGamepadState(foundJid, &state)) {
+                mapGlfwToGml(&state, slot);
+                slot->jid = foundJid;
+                slot->connected = true;
+
+                const char* name = glfwGetJoystickName(foundJid);
+                if (name != NULL) {
+                    strncpy(slot->description, name, sizeof(slot->description) - 1);
+                    slot->description[sizeof(slot->description) - 1] = '\0';
+                }
+
+                const char* guid = glfwGetJoystickGUID(foundJid);
+                if (guid != NULL) {
+                    strncpy(slot->guid, guid, sizeof(slot->guid) - 1);
+                    slot->guid[sizeof(slot->guid) - 1] = '\0';
+                } else {
+                    slot->guid[0] = '\0';
+                }
+            } else {
+                slot->connected = false;
+                slot->guid[0] = '\0';
+            }
+        } else {
+            slot->connected = false;
+            slot->guid[0] = '\0';
+        }
+
+        if (slot->connected) {
+            for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                bool wasDown = slot->buttonDownPrev[btn];
+                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
+                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+            }
+            gp->connectedCount++;
+        }
+    }
+}

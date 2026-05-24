@@ -4556,7 +4556,7 @@ static RValue builtin_application_surface_enable(VMContext* ctx, RValue* args, M
     if (!enable) {
         int32_t w = runner->applicationWidth;
         int32_t h = runner->applicationHeight;
-        if (runner->getWindowSize != nullptr && runner->getWindowSize(runner->nativeWindow, &w, &h) && w > 0 && h > 0) {
+        if (runner->getWindowSize != nullptr && runner->getWindowSize(&w, &h) && w > 0 && h > 0) {
             runner->applicationWidth = w;
             runner->applicationHeight = h;
         }
@@ -5447,7 +5447,7 @@ static RValue builtin_window_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args
     if (runner != nullptr && runner->getWindowSize != nullptr) {
         int32_t w = 0;
         int32_t h = 0;
-        if (runner->getWindowSize(runner->nativeWindow, &w, &h)) {
+        if (runner->getWindowSize(&w, &h)) {
             return RValue_makeReal((GMLReal) w);
         }
     }
@@ -5459,7 +5459,7 @@ static RValue builtin_window_get_height(VMContext* ctx, MAYBE_UNUSED RValue* arg
     if (runner != nullptr && runner->getWindowSize != nullptr) {
         int32_t w = 0;
         int32_t h = 0;
-        if (runner->getWindowSize(runner->nativeWindow, &w, &h)) {
+        if (runner->getWindowSize(&w, &h)) {
             return RValue_makeReal((GMLReal) h);
         }
     }
@@ -5478,7 +5478,7 @@ static RValue builtin_window_set_size(VMContext* ctx, RValue* args, MAYBE_UNUSED
     if (height < 1) height = 1;
 
     if (runner->setWindowSize != nullptr) {
-        runner->setWindowSize(runner->nativeWindow, width, height);
+        runner->setWindowSize(width, height);
     }
 
     return RValue_makeUndefined();
@@ -5490,7 +5490,7 @@ static RValue builtin_window_set_caption(VMContext* ctx, MAYBE_UNUSED RValue* ar
 
     Runner* runner = ctx->runner;
     if (runner->setWindowTitle) {
-        runner->setWindowTitle(runner->nativeWindow, val);
+        runner->setWindowTitle(val);
         printf("GL: Window title set to: %s\n", val);
     }
 
@@ -5501,7 +5501,7 @@ static RValue builtin_window_set_caption(VMContext* ctx, MAYBE_UNUSED RValue* ar
 static RValue builtin_window_has_focus(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->windowHasFocus) {
-        return RValue_makeBool(runner->windowHasFocus(runner->nativeWindow));
+        return RValue_makeBool(runner->windowHasFocus());
     }
 
     return RValue_makeBool(true);

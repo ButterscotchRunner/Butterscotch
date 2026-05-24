@@ -17,7 +17,7 @@ INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/image -Ivendor/stb/image -Ivendor/st
 HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
-PLATFORM := glfw
+DESKTOP_BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
@@ -48,7 +48,7 @@ ifndef DISABLE_LEGACY_GL
 ENABLE_GL := 1
 endif
 ifndef DISABLE_MODERN_GL
-ifneq ($(PLATFORM),sdl)
+ifneq ($(DESKTOP_BACKEND),sdl1)
 ENABLE_GL := 1
 endif
 endif
@@ -69,7 +69,7 @@ endif
 endif
 
 ifndef DISABLE_MODERN_GL
-ifneq ($(PLATFORM),sdl)
+ifneq ($(DESKTOP_BACKEND),sdl1)
 DEFINES += -DENABLE_MODERN_GL
 SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
@@ -85,7 +85,7 @@ endif
 endif
 
 ifdef DISABLE_LEGACY_GL
-ifeq ($(PLATFORM),sdl)
+ifeq ($(DESKTOP_BACKEND),sdl1)
 $(error must enable at least 1 renderer)
 else
 ifdef DISABLE_MODERN_GL
@@ -119,37 +119,23 @@ LIBS += -lopenal
 endif
 endif
 
-ifeq ($(PLATFORM),glfw)
-SRCS += $(wildcard src/glfw/*.c)
-HEADERS += $(wildcard src/glfw/*.h)
-DEFINES += -DUSE_GLFW
-ifdef USE_GLFW2
-ifdef ENABLE_GLES
-$(error can't enable both GLES and GLFW2 at the same time!)
+# TODO: add support for non-desktop backends
+SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND)/*.c)
+INCLUDES += -Isrc/desktop
+ifeq ($(DESKTOP_BACKEND),glfw3)
+DEFINES += -DUSE_GLFW3
+GLFW3_LIBS += $(shell pkg-config --libs glfw3)
+LIBS += $(GLFW3_LIBS)
 endif
+ifeq ($(DESKTOP_BACKEND),glfw2)
 DEFINES += -DUSE_GLFW2
-SRCS := $(filter-out src/glfw/glfw_gamepad.c,$(SRCS))
-ifndef GLFW_LIBS
-GLFW_LIBS := $(shell pkg-config --libs libglfw)
+GLFW2_LIBS += $(shell pkg-config --libs libglfw)
+LIBS += $(GLFW2_LIBS)
 endif
-else
-ifndef GLFW_LIBS
-GLFW_LIBS := $(shell pkg-config --libs glfw3)
-endif
-endif
-LIBS += $(GLFW_LIBS)
-else
-ifeq ($(PLATFORM),sdl)
-SRCS += $(wildcard src/sdl/*.c)
-HEADERS += $(wildcard src/sdl/*.h)
-DEFINES += -DUSE_SDL
-ifndef SDL_LIBS
-SDL_LIBS := $(shell pkg-config --libs sdl)
-endif
-LIBS += $(SDL_LIBS)
-else
-$(error invalid platform)
-endif
+ifeq ($(DESKTOP_BACKEND),sdl1)
+DEFINES += -DUSE_SDL1
+SDL1_LIBS += $(shell pkg-config --libs sdl)
+LIBS += $(SDL1_LIBS)
 endif
 
 ifeq ($(OS),Windows)
