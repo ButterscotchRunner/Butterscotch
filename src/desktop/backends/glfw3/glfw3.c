@@ -1,7 +1,11 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef USE_GLFW2
+#include <GL/glfw.h>
+#else
 #include <GLFW/glfw3.h>
+#endif
 
 #include "common.h"
 #include "platformdefs.h"
@@ -11,7 +15,7 @@
 static GLFWwindow *window;
 #endif
 
-static Runner *g_runner = nullptr;
+static Runner *g_runner;
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -67,6 +71,19 @@ bool platformGetWindowFocus(void) {
 static void glfwErrorCallback(int code, const char* description) {
     fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
 }
+#endif
+
+#ifdef USE_GLFW2
+#define GLFW_KEY_ESCAPE GLFW_KEY_ESC
+#define GLFW_KEY_LEFT_SHIFT GLFW_KEY_LSHIFT
+#define GLFW_KEY_RIGHT_SHIFT GLFW_KEY_RSHIFT
+#define GLFW_KEY_LEFT_CONTROL GLFW_KEY_LCTRL
+#define GLFW_KEY_RIGHT_CONTROL GLFW_KEY_RCTRL
+#define GLFW_KEY_LEFT_ALT GLFW_KEY_LALT
+#define GLFW_KEY_RIGHT_ALT GLFW_KEY_RALT
+#define GLFW_KEY_DELETE GLFW_KEY_DEL
+#define GLFW_KEY_PAGE_UP GLFW_KEY_PAGEUP
+#define GLFW_KEY_PAGE_DOWN GLFW_KEY_PAGEDOWN
 #endif
 
 static int32_t glfwKeyToGml(int glfwKey) {
@@ -168,6 +185,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 #endif
 
+#ifndef USE_GLFW2
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "r");
     if (f != NULL) {
@@ -191,7 +209,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     } else
         fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
 
-#ifndef USE_GLFW2
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 #endif
@@ -232,6 +249,7 @@ void platformExit(void) {
 }
 
 void platformInitFunctions(Runner *runner) {
+    g_runner = runner;
     runner->setWindowTitle = platformSetWindowTitle;
     runner->getWindowSize = platformGetWindowSize;
     runner->setWindowSize = platformSetWindowSize;
@@ -263,19 +281,6 @@ void *platformGetProcAddress(const char *name) {
 #endif
 }
 
-#ifdef USE_GLFW2
-#define GLFW_KEY_ESCAPE GLFW_KEY_ESC
-#define GLFW_KEY_LEFT_SHIFT GLFW_KEY_LSHIFT
-#define GLFW_KEY_RIGHT_SHIFT GLFW_KEY_RSHIFT
-#define GLFW_KEY_LEFT_CONTROL GLFW_KEY_LCTRL
-#define GLFW_KEY_RIGHT_CONTROL GLFW_KEY_RCTRL
-#define GLFW_KEY_LEFT_ALT GLFW_KEY_LALT
-#define GLFW_KEY_RIGHT_ALT GLFW_KEY_RALT
-#define GLFW_KEY_DELETE GLFW_KEY_DEL
-#define GLFW_KEY_PAGE_UP GLFW_KEY_PAGEUP
-#define GLFW_KEY_PAGE_DOWN GLFW_KEY_PAGEDOWN
-#endif
-
 double platformGetTime(void) {
     return glfwGetTime();
 }
@@ -291,6 +296,7 @@ bool platformHandleEvents(void) {
     glfwPollEvents();
 }
 
+#ifndef USE_GLFW2
 static float applyDeadzone(float value, float deadzone) {
     if (value < 0.0f) {
         if (value > -deadzone) return 0.0f;
@@ -413,3 +419,11 @@ void PlatformGamepad_poll(RunnerGamepadState* gp) {
         }
     }
 }
+
+#else
+
+void PlatformGamepad_poll(RunnerGamepadState* gp) {
+    (void)gp;
+}
+
+#endif

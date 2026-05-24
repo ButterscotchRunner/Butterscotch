@@ -3,11 +3,6 @@
 
 #include "platformdefs.h"
 #include <glad/glad.h>
-// #ifdef USE_GLFW2
-// #include <GL/glfw.h>
-// #else
-// #include <GLFW/glfw3.h>
-// #endif
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -992,9 +987,6 @@ int main(int argc, char* argv[]) {
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = args.debug;
     runner->osType = args.osType;
-#ifdef USE_GLFW2
-    g_runner = runner;
-#endif
     platformInitFunctions(runner);
 
     // Set up input recording/playback (both can be active: playback then continue recording)
