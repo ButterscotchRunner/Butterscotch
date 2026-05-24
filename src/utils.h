@@ -10,29 +10,23 @@
 
 #include "real_type.h"
 
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L) || defined(__GNUC__) || defined(__clang__)
-#define forEach(type, item, array, count) \
-    for (typeof(count) item##_i_ = 0; item##_i_ < (count); item##_i_++) \
-    for (type* item = &(array)[item##_i_]; item; item = NULL)
-
-#define forEachIndexed(type, item, index, array, count) \
-    for (typeof(count) index = 0; index < (count); index++) \
-    for (type* item = &(array)[index]; item; item = NULL)
-
-// The "typeof((typeof(n))0" is used to remove the "const" from the typeof
-
-#define repeat(n, it) for (typeof((typeof(n))0) it = 0; it < (n); it++)
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)) \
+    || defined(__GNUC__) || defined(__clang__) || defined(__TINYC__)
+    // The "typeof((typeof(x))0" is used to remove the "const" from the typeof
+    #define TYPEOF(x) typeof((typeof(x))0)
 #else
+    #define TYPEOF(x) long long
+#endif
+
 #define forEach(type, item, array, count) \
-    for (long long item##_i_ = 0; item##_i_ < (long long)(count); item##_i_++) \
+    for (TYPEOF(count) item##_i_ = 0; item##_i_ < (long long)(count); item##_i_++) \
     for (type* item = &(array)[item##_i_]; item; item = 0)
 
 #define forEachIndexed(type, item, index, array, count) \
-    for (long long index = 0; index < (long long)(count); index++) \
+    for (TYPEOF(count) index = 0; index < (long long)(count); index++) \
     for (type* item = &(array)[index]; item; item = 0)
 
-#define repeat(n, it) for (long long it = 0; it < (long long)(n); it++)
-#endif
+#define repeat(n, it) for (TYPEOF(n) it = 0; it < (long long)(n); it++)
 
 #define require(condition) \
     do { \
