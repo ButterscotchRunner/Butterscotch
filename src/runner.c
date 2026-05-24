@@ -2565,6 +2565,111 @@ void Runner_handlePendingRoomChange(Runner* runner) {
     }
 }
 
+// Finds the index for the first event larger than or equal to the timeStamp
+static uint32_t Timeline_findLarger(Timeline* timeline, float timeStamp) {
+    if (timeline->momentCount == 0)
+        return 0;
+
+    // Will happen very often so we first check last
+    if (timeStamp > (float) timeline->moments[timeline->momentCount - 1].step)
+        return timeline->momentCount;
+
+    repeat(timeline->momentCount, i) {
+        if ((float) timeline->moments[i].step >= timeStamp) return (uint32_t) i;
+    }
+    return timeline->momentCount;
+}
+
+// Finds the index for the last event smaller than or equal to _timeStamp
+static int32_t Timeline_findSmaller(Timeline* timeline, float timeStamp) {
+    if (timeline->momentCount == 0)
+        return 0;
+
+    // Will happen very often so we first check last
+    if ((float) timeline->moments[0].step > timeStamp)
+        return -1;
+
+    for (int32_t i = (int32_t) timeline->momentCount - 1; 0 <= i; i--) {
+        if ((float) timeline->moments[i].step <= timeStamp) return i;
+    }
+    return -1;
+}
+
+// See GameMaker-HTML5's "HandleTimeLine" for reference
+static void tickTimelines(Runner* runner) {
+    Tmln* tmln = &runner->dataWin->tmln;
+    // Fast path: if the data.win doesn't have any timelines, we don't need to snapshot instances
+    if (tmln->count == 0)
+        return;
+
+    int32_t n = (int32_t) arrlen(runner->instances);
+    if (n == 0)
+        return;
+
+    // Snapshot the live instance list so moment code that calls instance_create/destroy doesn't mutate what we iterate.
+    int32_t snapBase = (int32_t) arrlen(runner->instanceSnapshots);
+    arrsetlen(runner->instanceSnapshots, snapBase + n);
+    memcpy(&runner->instanceSnapshots[snapBase], runner->instances, (size_t) n * sizeof(Instance*));
+
+    repeat(n, i) {
+        Instance* inst = runner->instanceSnapshots[snapBase + i];
+        if (!inst->active || inst->destroyed)
+            continue;
+
+        int32_t idx = inst->timelineIndex;
+        if (0 > idx)
+            continue;
+
+        if ((uint32_t) idx >= tmln->count)
+            continue;
+
+        if (!inst->timelineRunning)
+            continue;
+
+        Timeline* timeline = &tmln->timelines[idx];
+        if (!timeline->present || timeline->momentCount == 0)
+            continue;
+
+        float maxMoment = (float) timeline->moments[timeline->momentCount - 1].step;
+
+        if (inst->timelineSpeed > 0.0f) {
+            // Forward sweep: fire moments in [oldPos, newPos)
+            uint32_t ind1 = Timeline_findLarger(timeline, inst->timelinePosition);
+            inst->timelinePosition += inst->timelineSpeed;
+            uint32_t ind2 = Timeline_findLarger(timeline, inst->timelinePosition);
+
+            for (uint32_t j = ind1; ind2 > j; j++) {
+                TimelineMoment* moment = &timeline->moments[j];
+                repeat(moment->actionCount, a) {
+                    executeCode(runner, inst, moment->actions[a].codeId);
+                }
+            }
+
+            if (inst->timelineLoop && inst->timelinePosition > maxMoment) {
+                inst->timelinePosition = 0.0f;
+            }
+        } else {
+            // Backward sweep (also covers timelineSpeed == 0: ind1 == ind2, no events, no position change): fire moments in (newPos, oldPos]
+            int32_t ind1 = Timeline_findSmaller(timeline, inst->timelinePosition);
+            inst->timelinePosition += inst->timelineSpeed;
+            int32_t ind2 = Timeline_findSmaller(timeline, inst->timelinePosition);
+
+            for (int32_t j = ind1; j > ind2; j--) {
+                TimelineMoment* moment = &timeline->moments[j];
+                repeat(moment->actionCount, a) {
+                    executeCode(runner, inst, moment->actions[a].codeId);
+                }
+            }
+
+            if (inst->timelineLoop && 0.0f > inst->timelinePosition) {
+                inst->timelinePosition = maxMoment;
+            }
+        }
+    }
+
+    arrsetlen(runner->instanceSnapshots, snapBase);
+}
+
 void Runner_step(Runner* runner) {
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
     requireMessageFormatted(arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
@@ -2702,6 +2807,9 @@ void Runner_step(Runner* runner) {
             Runner_executeEventForAll(runner, EVENT_KEYRELEASE, key);
         }
     }
+
+    // Tick timelines
+    tickTimelines(runner);
 
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
