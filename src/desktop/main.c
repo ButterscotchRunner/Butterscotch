@@ -927,7 +927,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (!modernGL && hmlen(args.screenshotSurfacesFrames)) {
-        fprintf(stderr, "You can't use --screenshot-surfaces with --renderer legacy-gl!\n");
+        fprintf(stderr, "You can only use --screenshot-surfaces with the modern gl renderer!\n");
         return 0;
     }
 
