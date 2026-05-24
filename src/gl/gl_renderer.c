@@ -109,8 +109,8 @@ static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader) {
     glAttachShader(program, fragShader);
 
     glBindAttribLocation(program, 0, "in_Position");
-    glBindAttribLocation(program, 2, "in_Colour");
     glBindAttribLocation(program, 1, "in_TexCoord");
+    glBindAttribLocation(program, 2, "in_Colour");
     
     glLinkProgram(program);
 
@@ -180,16 +180,15 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    // Compile shaders
+    //compile em shaders!
     GLuint vertShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
     GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
     gl->shaderProgram = linkProgram(vertShader, fragShader);
     glDeleteShader(vertShader);
     glDeleteShader(fragShader);
-   //yeah find the way to get the shaders here!!!
+    //yeah find the way to get the shaders here!!!
     fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
-    for (uint32_t i = 0; dataWin->shdr.count > i; i++)
-    {
+    for (uint32_t i = 0; dataWin->shdr.count > i; i++) {
         Shader* shdr = &dataWin->shdr.shaders[i];
         //fprintf(stderr, "GL: Shader %u %s Type %u\n", i, shdr->name, shdr->type);      
         //GLuint* GMLShaders;
@@ -208,11 +207,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         GLint UniformCount;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORMS, &UniformCount);
 
-        gl->Sampler2DLookUpTable[i] = malloc(UniformCount * sizeof(int32_t));
-
+        gl->Sampler2DLookUpTable[i] = safeMalloc(UniformCount * sizeof(int32_t));
+        //bool FoundBaseTexture = false;
         GLint LongestUniformName = 0;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
-        char *UniformName = malloc(LongestUniformName);
+        char *UniformName = safeMalloc(LongestUniformName);
 
         for (GLint b = 0; b < UniformCount; b++) {
             GLsizei length = 0;
@@ -223,13 +222,22 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
                 gl->Sampler2DLookUpTable[i][b] = -1;
                 if (type == GL_SAMPLER_2D)
                 {
+                    //if (UniformName == "gm_BaseTexture") {
+                    //    FoundBaseTexture = true;
+                    //}
                     GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
+                    glUseProgram(gl->GMLShaders[i]);
+                    glUniform1i(location, SamplerIndex);
                     SamplerIndex += 1;
                     gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
                     //printf("GL: %s Should Be Texture Stage %d at %d\n", UniformName, SamplerIndex, location);
+                    //printf("GL: Uniform Index %d is Sampler2D Index %d %s\n", b, gl->Sampler2DLookUpTable[i][b], UniformName);
                 }
-            printf("GL: Uniform Index %d is Sampler2D Index %d\n", b, gl->Sampler2DLookUpTable[i][b]);
+            //printf("GL: Uniform Index %d is Sampler2D Index %d\n", b, gl->Sampler2DLookUpTable[i][b]);
         }
+        //if (FoundBaseTexture == false) {
+        //    printf("GL: gm_BaseTexture Not Used In Shader %s \n", shdr->name);
+        //}
         free(UniformName);
         //fprintf(stderr, "GL: Shader Uniform Count %u\n", UniformCount);
          
@@ -330,6 +338,72 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
+
+static void glGpuResetShader(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glUseProgram(gl->shaderProgram);
+    renderer->CurrentShader = -1;
+}
+
+static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    GLuint Shader = gl->GMLShaders[ShaderIndex];
+    glUseProgram(Shader);
+    //Gotta set those built-ins! they ain't gonna set themselves
+    GLint gm_Matrices0 = glGetUniformLocation(Shader, "gm_Matrices[0]");
+    GLint gm_Matrices1 = glGetUniformLocation(Shader, "gm_Matrices[1]");
+    GLint gm_Matrices2 = glGetUniformLocation(Shader, "gm_Matrices[2]");
+    GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
+    GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
+    GLint gm_BaseTexture = glGetUniformLocation(Shader, "gm_BaseTexture");
+
+    GLint gm_FogStart = glGetUniformLocation(Shader, "gm_FogStart");
+    GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");  
+    GLint gm_PS_FogEnabled = glGetUniformLocation(Shader, "gm_PS_FogEnabled");
+    GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");    
+    GLint gm_VS_FogEnabled = glGetUniformLocation(Shader, "gm_VS_FogEnabled");
+
+    GLint gm_AlphaTestEnabled = glGetUniformLocation(Shader, "gm_AlphaTestEnabled");
+    GLint gm_AlphaRefValue = glGetUniformLocation(Shader, "gm_AlphaRefValue");
+
+    if (gm_BaseTexture != -1) {
+    glUniform1i(gm_BaseTexture, 0);
+    }
+
+    if (gm_Matrices0 != -1) {
+        glUniformMatrix4fv(gm_Matrices0, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
+    }
+    if (gm_Matrices1 != -1) {
+        glUniformMatrix4fv(gm_Matrices1, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_PROJECTION].m);
+    }
+    if (gm_Matrices2 != -1) {
+        glUniformMatrix4fv(gm_Matrices2, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD].m);
+    }
+    if (gm_Matrices3 != -1) {
+        glUniformMatrix4fv(gm_Matrices3, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW].m);
+    }
+    if (gm_Matrices4 != -1) {
+        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION].m);
+    }
+
+
+    if (gm_FogColour != -1) {
+        glUniform1i(gm_FogColour, gl->fogColor);
+    }
+
+
+    if (gm_AlphaTestEnabled != -1) {
+        glUniform1i(gm_AlphaTestEnabled, gl->alphaTestEnable);
+    }
+    if (gm_AlphaRefValue != -1) {
+        glUniform1f(gm_AlphaRefValue, gl->alphaTestRef);
+    }
+
+    renderer->CurrentShader = ShaderIndex;
+}
+
 
 static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
@@ -537,8 +611,8 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     free(pixels);
     fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
@@ -1454,20 +1528,29 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
 
     if (surfaceId == renderer->runner->applicationSurfaceId) {
         glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->PreviousViewMatrix.m);
-        renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->PreviousViewMatrix;
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
+        renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->PreviousViewMatrix;
         return true;
     }
 
     // Normal surface bind: surface-local ortho covering the whole surface, no scissor.
     Matrix4f projection;
     Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
+    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], 0.0f, (float) gl->surfaceHeight[surfaceId], -1.0f, 1.0f);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
-    renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
+    renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+    if (renderer->CurrentShader != -1)
+    {
+    glGpuSetShader(renderer, (int32_t) renderer->CurrentShader);
+    } else  {
+        glUseProgram(gl->shaderProgram);
+        glUniform1i(gl->uTexture, 0);
+        glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
+    }
+
     return true;
 }
 
@@ -1508,8 +1591,8 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     // Texture is bottom-up in GL; GML src is top-down, so flip V.
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-    float v0 = 1.0f - (float) srcTop / (float) texH;
-    float v1 = 1.0f - (float) (srcTop + srcHeight) / (float) texH;
+    float v1 = (float) srcTop / (float) texH;
+    float v0 = (float) (srcTop + srcHeight) / (float) texH;
 
     float localX1 = (float) srcWidth;
     float localY1 = (float) srcHeight;
@@ -1520,10 +1603,10 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
 
     float x0, y0, x1, y1, x2, y2, x3, y3;
-    Matrix4f_transformPoint(&transform, 0.0f,    0.0f,    &x0, &y0); // top-left
-    Matrix4f_transformPoint(&transform, localX1, 0.0f,    &x1, &y1); // top-right
-    Matrix4f_transformPoint(&transform, localX1, localY1, &x2, &y2); // bottom-right
-    Matrix4f_transformPoint(&transform, 0.0f,    localY1, &x3, &y3); // bottom-left
+    Matrix4f_transformPoint(&transform, 0.0f,    localY1,    &x0, &y0); // top-left
+    Matrix4f_transformPoint(&transform, localX1, localY1,    &x1, &y1); // top-right
+    Matrix4f_transformPoint(&transform, localX1, 0.0, &x2, &y2); // bottom-right
+    Matrix4f_transformPoint(&transform, 0.0f,    0.0, &x3, &y3); // bottom-left
 
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
@@ -1560,25 +1643,30 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
     // OpenGL Y is bottom-up, GML Y is top-down; flip Y to the GL coordinate.
     int32_t glY = gl->surfaceHeight[surfaceID] - y - h;
+    //if (surfaceID != APPLICATION_SURFACE_ID) {
+    glY = y;
+    //}
 
     uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
 
 
     glReadPixels(x, glY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-    // Flip vertically (OpenGL reads bottom-to-top)
-    size_t rowBytes = (size_t) w * 4;
-    uint8_t* rowTemp = safeMalloc(rowBytes);
-    repeat(h / 2, row) {
-        uint8_t* top = pixels + row * rowBytes;
-        uint8_t* bot = pixels + (h - 1 - row) * rowBytes;
-        memcpy(rowTemp, top, rowBytes);
-        memcpy(top, bot, rowBytes);
-        memcpy(bot, rowTemp, rowBytes);
+    /*
+    if (surfaceID == APPLICATION_SURFACE_ID) {
+        // Flip vertically (OpenGL reads bottom-to-top)
+        size_t rowBytes = (size_t) w * 4;
+        uint8_t* rowTemp = safeMalloc(rowBytes);
+        repeat(h / 2, row) {
+            uint8_t* top = pixels + row * rowBytes;
+            uint8_t* bot = pixels + (h - 1 - row) * rowBytes;
+            memcpy(rowTemp, top, rowBytes);
+            memcpy(top, bot, rowBytes);
+            memcpy(bot, rowTemp, rowBytes);
+        }
+        free(rowTemp);
     }
-    free(rowTemp);
-
+    */
     // Create a new GL texture from the captured pixels
     GLuint newTexId;
     glGenTextures(1, &newTexId);
@@ -1586,8 +1674,8 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     free(pixels);
 
@@ -1742,67 +1830,85 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     glUniform4f(gl->uFogColor, r, g, b, enable ? 1.0f : 0.0f);
 }
 
-static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-    GLuint Shader = gl->GMLShaders[ShaderIndex];
-    GLint gm_BaseTexture = glGetUniformLocation(Shader, "gm_BaseTexture");
-    GLint gm_Matrices0 = glGetUniformLocation(Shader, "gm_Matrices[0]");
-    GLint gm_Matrices1 = glGetUniformLocation(Shader, "gm_Matrices[1]");
-    GLint gm_Matrices2 = glGetUniformLocation(Shader, "gm_Matrices[2]");
-    GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
-    GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
-
-    glUseProgram(Shader);
-    if (gm_BaseTexture != -1) {
-    glUniform1i(gm_BaseTexture, 0);
-    }
-
-    if (gm_Matrices0 != -1) {
-        glUniformMatrix4fv(gm_Matrices0, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
-    }
-    if (gm_Matrices1 != -1) {
-        glUniformMatrix4fv(gm_Matrices1, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_PROJECTION].m);
-    }
-    if (gm_Matrices2 != -1) {
-        glUniformMatrix4fv(gm_Matrices2, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD].m);
-    }
-    if (gm_Matrices3 != -1) {
-        glUniformMatrix4fv(gm_Matrices3, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW].m);
-    }
-    if (gm_Matrices4 != -1) {
-        glUniformMatrix4fv(gm_Matrices4, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION].m);
-    }
-    renderer->CurrentShader = ShaderIndex;
-}
-
-static void glGpuResetShader(Renderer* renderer) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-    glUseProgram(gl->shaderProgram);
-    renderer->CurrentShader = -1;
-}
-
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
+    if (renderer->CurrentShader != -1) {
+    glUseProgram(gl->GMLShaders[renderer->CurrentShader]); //tf you mean this fixed the invalid location thing shouldn't GML code assume the same shader is still bound??? why was it even changed what the fu
+    }
     GLuint Shader = gl->GMLShaders[shaderIndex];
-    //fprintf(stderr, "GL: Uniform Location %u\n", glGetUniformLocation(Shader, uniform));
+    //fprintf(stderr, "GL: Uniform Get Location %u\n", glGetUniformLocation(Shader, uniform));
 
     return glGetUniformLocation(Shader, uniform);   
 }
 
+static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    GLuint Shader = gl->GMLShaders[shaderIndex];
+
+    GLint UniformCount;
+    glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
+
+    const GLchar* name = uniform;
+    GLuint index;
+
+    glGetUniformIndices(Shader, 1, &name, &index);
+
+    if (index == GL_INVALID_INDEX)
+    {
+        return -1;
+    }
+
+    return gl->Sampler2DLookUpTable[shaderIndex][index]; 
+}
+
+
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
+    int32_t RealCount = count;
+    if (renderer->CurrentShader != -1) {
+    GLuint Shader = gl->GMLShaders[renderer->CurrentShader];
+    glUseProgram(Shader); //tf you mean this fixed the invalid location thing shouldn't GML code assume the same shader is still bound??? why was it even changed what the fu
 
-    if (count == 1) {
+        GLint UniformCount;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
+        GLint LongestUniformName = 0;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
+        char *UniformName = safeMalloc(LongestUniformName);
+
+        for (GLint b = 0; b < UniformCount; b++) {
+            GLsizei length = 0;
+            GLint size = 0;
+            GLenum type = 0;
+            glGetActiveUniform(Shader, b, LongestUniformName, &length, &size, &type, UniformName);
+
+            int32_t location = glGetUniformLocation(Shader, UniformName);
+            if (location == handle)
+            {
+                //fprintf(stderr, "GL: TF BRO IS RIGHT?\n");
+                if (type == GL_FLOAT) RealCount = 1;
+                if (type == GL_FLOAT_VEC2) RealCount = 2;
+                if (type == GL_FLOAT_VEC3) RealCount = 3;
+                if (type == GL_FLOAT_VEC4) RealCount = 4;
+            }
+
+
+        }
+        free(UniformName);
+
+
+
+    }
+
+    if (RealCount == 1) {
     glUniform1f(handle, value1);
-    } else if (count == 2) {
+    } else if (RealCount == 2) {
     glUniform2f(handle, value1, value2);
-    } else if (count == 3) {
+    } else if (RealCount == 3) {
     glUniform3f(handle, value1, value2, value3);
-    } else if (count == 4) {
+    } else if (RealCount == 4) {
     glUniform4f(handle, value1, value2, value3, value4);
     }
     
@@ -1815,22 +1921,36 @@ static int32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
     int32_t texW, texH;
     if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return -1;
 
-    return (int32_t) texId;
+    return texId;
     
 }
 
-//static void glTextureSetStage(Renderer* renderer, int32_t stage, int32_t texture) {
-//     GLRenderer* gl = (GLRenderer*) renderer;
-//
-//}
+static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (slot < 0) {
+        return;
+    }
+    if (slot == -1) {
+        fprintf(stderr, "GL: SOMETHING WRONK\n");
+        return;
+    }
+    //return;
+    glActiveTexture(GL_TEXTURE0 + (slot-1));
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glActiveTexture(GL_TEXTURE0);
+
+}
 
 static float glTextureGetTexelWidth(Renderer* renderer, int16_t pageId) {
-    GLRenderer* gl = (GLRenderer*) renderer;   
+    GLRenderer* gl = (GLRenderer*) renderer;
+    ensureTextureLoaded(gl, (uint32_t) pageId);
     return (1.0 / (float) gl->textureWidths[pageId]);
 }
 
 static float glTextureGetTexelHeight(Renderer* renderer, int16_t pageId) {
-    GLRenderer* gl = (GLRenderer*) renderer;   
+    GLRenderer* gl = (GLRenderer*) renderer;
+    ensureTextureLoaded(gl, (uint32_t) pageId);
     return (1.0 / (float) gl->textureHeights[pageId]);
 }
 // ===[ Vtable ]===
@@ -1894,7 +2014,8 @@ Renderer* GLRenderer_create(void) {
     glVtable.spriteGetTexture = glSpriteGetTexture,
     glVtable.textureGetTexelWidth = glTextureGetTexelWidth,
     glVtable.textureGetTexelHeight = glTextureGetTexelHeight,
-    //.textureSetStage = glTextureSetStage,
+    glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex,
+    glVtable.textureSetStage = glTextureSetStage,
 
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;

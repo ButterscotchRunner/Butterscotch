@@ -13051,6 +13051,26 @@ static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* ar
     return RValue_makeInt32(-1);
 }
 
+static RValue builtin_shader_get_sampler_index(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    if (ctx->runner->renderer->vtable->shaderGetSamplerIndex != nullptr) {
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetSamplerIndex(ctx->runner->renderer, ShaderID, uniform));
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_texture_set_stage(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t TextureSlot = (int32_t) RValue_toReal(args[0]);
+    int32_t texID = (int32_t) RValue_toInt32(args[1]);
+    if (ctx->runner->renderer->vtable->textureSetStage != nullptr) {
+    ctx->runner->renderer->vtable->textureSetStage(ctx->runner->renderer, TextureSlot, texID);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t handle = (int32_t) RValue_toReal(args[0]);
@@ -14008,11 +14028,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
     VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
     VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
-
+    VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
     VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF); 
     VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
     VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
     VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
     VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
-
+    VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
 }

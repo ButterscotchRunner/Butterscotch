@@ -123,10 +123,12 @@ typedef struct {
     void (*gpuSetShader)(Renderer* renderer, int32_t shaderIndex);
     void (*gpuResetShader)(Renderer* renderer);
     int32_t (*shaderGetUniform)(Renderer* renderer, int32_t shaderIndex, char* uniform);
+    int32_t (*shaderGetSamplerIndex)(Renderer* renderer, int32_t shaderIndex, char* uniform);
     void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4);
     int32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);
     float (*textureGetTexelWidth)(Renderer* renderer, int16_t pageId);
     float (*textureGetTexelHeight)(Renderer* renderer, int16_t pageId);
+    void (*textureSetStage)(Renderer* renderer, int32_t slot, int32_t texID);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===

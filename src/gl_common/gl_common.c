@@ -34,8 +34,9 @@ void GLCommon_beginLetterboxBlit(GLuint fbo, GLuint hostFbo) {
 
 void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, GLuint hostFbo) {
     int32_t sx, sy, ex, ey;
+    glClearColor(0.0, 0.0, 0.0, 1.0); //please remove if it breaks something like borders, it was just my quick-fix for the color to not be randomly changed
     GLCommon_computeLetterbox(gameW, gameH, windowW, windowH, &sx, &sy, &ex, &ey);
-    glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, sy, ex, ey, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, hostFbo);
 }
 
@@ -86,7 +87,7 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
 
     if (part) {
         // GL Y is bottom-up; convert GML's top-down (srcX, srcY) source rect.
-        int32_t srcY0 = srcFboH - srcY - srcH;
+        int32_t srcY0 = srcY;
         glBlitFramebuffer(srcX, srcY0, srcX + srcW, srcY0 + srcH, dstX, dstY, dstX + srcW, dstY + srcH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     } else {
         glBlitFramebuffer(0, 0, srcFboW, srcFboH, dstX, dstY, dstX + srcFboW, dstY + srcFboH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
