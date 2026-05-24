@@ -237,6 +237,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCharCallback(window, characterCallback);
 #endif
+    return true;
 }
 
 void platformExit(void) {

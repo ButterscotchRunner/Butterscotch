@@ -929,6 +929,7 @@ int main(int argc, char* argv[]) {
     if (!platformInit((int)gen8->defaultWindowWidth, (int)gen8->defaultWindowHeight, windowTitle, args.headless)) {
         DataWin_free(dataWin);
         freeCommandLineArgs(&args);
+        return 1;
     }
 
     // Load OpenGL function pointers via GLAD
