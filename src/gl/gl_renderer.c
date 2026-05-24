@@ -207,8 +207,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         GLint UniformCount;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORMS, &UniformCount);
 
+        //I know it looks baddd.... butttt it works
         gl->Sampler2DLookUpTable[i] = safeMalloc(UniformCount * sizeof(int32_t));
-        //bool FoundBaseTexture = false;
         GLint LongestUniformName = 0;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
         char *UniformName = safeMalloc(LongestUniformName);
@@ -218,28 +218,20 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             GLint size = 0;
             GLenum type = 0;
             glGetActiveUniform(gl->GMLShaders[i], b, LongestUniformName, &length, &size, &type, UniformName);
-                //glGetUniformIndices
+
                 gl->Sampler2DLookUpTable[i][b] = -1;
                 if (type == GL_SAMPLER_2D)
                 {
-                    //if (UniformName == "gm_BaseTexture") {
-                    //    FoundBaseTexture = true;
-                    //}
                     GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
                     glUseProgram(gl->GMLShaders[i]);
                     glUniform1i(location, SamplerIndex);
                     SamplerIndex += 1;
                     gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
-                    //printf("GL: %s Should Be Texture Stage %d at %d\n", UniformName, SamplerIndex, location);
-                    //printf("GL: Uniform Index %d is Sampler2D Index %d %s\n", b, gl->Sampler2DLookUpTable[i][b], UniformName);
                 }
-            //printf("GL: Uniform Index %d is Sampler2D Index %d\n", b, gl->Sampler2DLookUpTable[i][b]);
+
         }
-        //if (FoundBaseTexture == false) {
-        //    printf("GL: gm_BaseTexture Not Used In Shader %s \n", shdr->name);
-        //}
+
         free(UniformName);
-        //fprintf(stderr, "GL: Shader Uniform Count %u\n", UniformCount);
          
     }
 
