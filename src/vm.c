@@ -44,13 +44,12 @@ static char* formatStackContents(VMContext* ctx) {
 }
 #endif
 
-#if IS_WAD17_OR_HIGHER_ENABLED
 // Returns the native byte size of a GML data type on the runner's stack.
-// This is needed because the Dup instruction encodes byte counts, not slot counts.
-// Only used by BC17+ Dup paths; BC16 Dup decodes the operand as a slot count directly.
+// The Dup instruction (and several BC17+ BREAK sub-opcodes) encode byte counts, not slot counts.
 static int gmlTypeNativeSize(uint8_t gmlType) {
     switch (gmlType) {
         case GML_TYPE_DOUBLE:   return 8;
+        case GML_TYPE_FLOAT:    return 4;
         case GML_TYPE_INT32:    return 4;
         case GML_TYPE_INT64:    return 8;
         case GML_TYPE_BOOL:     return 4;
@@ -60,7 +59,6 @@ static int gmlTypeNativeSize(uint8_t gmlType) {
         default:                return 16;
     }
 }
-#endif
 
 static void stackPush(VMContext* ctx, RValue val) {
     require(VM_STACK_SIZE > ctx->stack.top);
@@ -78,18 +76,10 @@ static void stackPush(VMContext* ctx, RValue val) {
     ctx->stack.slots[ctx->stack.top++] = val;
 }
 
-#if IS_WAD17_OR_HIGHER_ENABLED
 static void stackPushTyped(VMContext* ctx, RValue val, uint8_t gmlStackType) {
-    if (IS_WAD17_OR_HIGHER(ctx)) {
-        val.gmlStackType = gmlStackType;
-    }
+    val.gmlStackType = gmlStackType;
     stackPush(ctx, val);
 }
-#else
-// BC16-only builds don't carry per-slot GML stack type, so this is just a plain push.
-// Defined as a macro so the gmlStackType argument (often `instrType2(instr)`) is never computed at call sites.
-#define stackPushTyped(ctx, val, gmlStackType) stackPush((ctx), (val))
-#endif
 
 static RValue stackPop(VMContext* ctx) {
     require(ctx->stack.top > 0);
@@ -1133,19 +1123,20 @@ static RValue convertValue(RValue val, uint8_t targetType) {
 static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData, uint8_t type1) {
     switch (type1) {
         case GML_TYPE_DOUBLE:
-            stackPush(ctx, RValue_makeReal(BinaryUtils_readFloat64Aligned(extraData)));
+            stackPushTyped(ctx, RValue_makeReal(BinaryUtils_readFloat64Aligned(extraData)), GML_TYPE_DOUBLE);
             break;
         case GML_TYPE_FLOAT:
-            stackPush(ctx, RValue_makeReal((GMLReal) BinaryUtils_readFloat32Aligned(extraData)));
+            // Native push.f reads a 4-byte float; the bytecode-declared footprint is FLOAT (4 bytes), not DOUBLE (8).
+            stackPushTyped(ctx, RValue_makeReal((GMLReal) BinaryUtils_readFloat32Aligned(extraData)), GML_TYPE_FLOAT);
             break;
         case GML_TYPE_INT32:
-            stackPush(ctx, RValue_makeInt32(BinaryUtils_readInt32Aligned(extraData)));
+            stackPushTyped(ctx, RValue_makeInt32(BinaryUtils_readInt32Aligned(extraData)), GML_TYPE_INT32);
             break;
         case GML_TYPE_INT64:
-            stackPush(ctx, RValue_makeInt64(BinaryUtils_readInt64Aligned(extraData)));
+            stackPushTyped(ctx, RValue_makeInt64(BinaryUtils_readInt64Aligned(extraData)), GML_TYPE_INT64);
             break;
         case GML_TYPE_BOOL:
-            stackPush(ctx, RValue_makeBool(BinaryUtils_readInt32Aligned(extraData) != 0));
+            stackPushTyped(ctx, RValue_makeBool(BinaryUtils_readInt32Aligned(extraData) != 0), GML_TYPE_BOOL);
             break;
         case GML_TYPE_VARIABLE: {
             int32_t instanceType = (int32_t) instrInstanceType(instr);
@@ -1216,7 +1207,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     RValue_free(topSlot);
                     GMLArray* sub = GMLArray_create(0);
                     sub->owner = top->owner;
-                    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+                    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
                     rv.array = sub;
                     *topSlot = rv;
                 }
@@ -1741,12 +1732,8 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         RValue_free(&val);
     }
 
-    // Set gmlStackType to the destination type so Dup can compute correct byte sizes (BC17+ only)
-#if IS_WAD17_OR_HIGHER_ENABLED
-    if (IS_WAD17_OR_HIGHER(ctx)) {
-        result.gmlStackType = dstType;
-    }
-#endif
+    // Set gmlStackType to the bytecode-declared destination type so Dup and other byte-level walks see the correct native footprint.
+    result.gmlStackType = dstType;
     stackPush(ctx, result);
 }
 
@@ -1864,9 +1851,8 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
     stackPush(ctx,RValue_makeBool(result));
 }
 
-#if IS_WAD17_OR_HIGHER_ENABLED
 // Converts a native byte count to RValue slot count by walking the stack backwards from a given position.
-// Only used by BC17+ Dup paths; reads the per-slot gmlStackType which doesn't exist on BC16-only builds.
+// Reads each slot's gmlStackType (set at push time) to compute its native footprint.
 static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t stackPos) {
     int32_t slots = 0;
     int32_t remaining = nativeBytes;
@@ -1879,15 +1865,14 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
     require(remaining == 0); // Byte count must align exactly to slot boundaries
     return slots;
 }
-#endif
 
 static void handleDup(VMContext* ctx, uint32_t instr) {
     uint16_t operand = (uint16_t)(instr & 0xFFFF);
-#if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t type1 = instrType1(instr);
     int32_t typeSize = gmlTypeNativeSize(type1);
 
-    // Swap mode: bit 15 of operand is set
+#if IS_WAD17_OR_HIGHER_ENABLED
+    // Swap mode (WAD17+): bit 15 of operand is set.
     // The Dup instruction doubles as a stack rotation when bit 15 is set.
     // It takes the top N items and moves them below the next M items.
     // Bits 0-10: top group size (in native type units)
@@ -1924,27 +1909,18 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     }
 #endif
 
-    // Normal dup mode
-    int32_t count;
-
+    // Normal dup mode: total bytes to duplicate = (operand + 1) * sizeof(type1)
+    // WAD17+ uses the low 15 bits of operand.
+    // WAD16 and below uses the low 15 bits of operand.
+    // Bit 15 is the swap-mode flag, handled above.
+    int32_t operandCount;
 #if IS_WAD17_OR_HIGHER_ENABLED
-    if (IS_WAD17_OR_HIGHER(ctx)) {
-        // In WAD 17+, the operand encodes a native element count: total bytes = (operand + 1) * typeSize(type1).
-        // The native runner's stack stores raw bytes (int=4, double=8, variable=16), but our VM uses uniform RValue slots.
-        // We walk backward through the stack, summing each slot's native size (tracked via gmlStackType), to find how many slots correspond to the byte count.
-        int32_t totalBytes = ((int32_t)(operand & 0x7FFF) + 1) * typeSize;
-
-        count = bytesToSlotCount(ctx, totalBytes, ctx->stack.top);
-    } else {
-        // WAD 16: operand directly encodes how many additional items beyond 1 to duplicate (dup.i 0 = duplicate 1 item, dup.i 1 = duplicate 2 items, etc)
-        count = (int32_t)(operand & 0xFF) + 1;
-        require(ctx->stack.top >= count);
-    }
+    operandCount = IS_WAD17_OR_HIGHER(ctx) ? (int32_t)(operand & 0x7FFF) : (int32_t)(operand & 0xFF);
 #else
-    // WAD 16: operand directly encodes how many additional items beyond 1 to duplicate
-    count = (int32_t)(operand & 0xFF) + 1;
-    require(ctx->stack.top >= count);
+    operandCount = (int32_t)(operand & 0xFF);
 #endif
+    int32_t totalBytes = (operandCount + 1) * typeSize;
+    int32_t count = bytesToSlotCount(ctx, totalBytes, ctx->stack.top);
 
     // Copy 'count' items from the top of the stack (preserving order)
     int32_t startIdx = ctx->stack.top - count;
@@ -2616,9 +2592,9 @@ static void handleBreakPushAF(VMContext* ctx) {
         result = *cell;
         result.ownsReference = false; // weak view
     } else {
-        result = (RValue){ .type = RVALUE_UNDEFINED };
+        result = RValue_makeUndefined();
     }
-    stackPush(ctx, result);
+    stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
     RValue_free(&arrayRef);
 }
 
@@ -2655,7 +2631,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
         RValue_free(parentSlot);
         GMLArray* sub = GMLArray_create(0);
         sub->owner = parent->owner;
-        RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, RVALUE_INIT_GMLTYPE(GML_TYPE_VARIABLE) };
+        RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
         rv.array = sub;
         *parentSlot = rv;
     }
@@ -2984,9 +2960,7 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal + bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_WAD17_OR_HIGHER_ENABLED
-                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
-#endif
+                    slotA->gmlStackType = instrType2(instr);
                     ctx->stack.top--;
                 } else {
                     uint8_t resultType = instrType2(instr);
@@ -3023,9 +2997,7 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal - bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_WAD17_OR_HIGHER_ENABLED
-                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
-#endif
+                    slotA->gmlStackType = instrType2(instr);
                     ctx->stack.top--;
                 } else {
                     uint8_t resultType = instrType2(instr);
@@ -3058,9 +3030,7 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal * bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_WAD17_OR_HIGHER_ENABLED
-                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
-#endif
+                    slotA->gmlStackType = instrType2(instr);
                     ctx->stack.top--;
                 } else {
                     uint8_t resultType = instrType2(instr);
@@ -3145,9 +3115,7 @@ static RValue executeLoop(VMContext* ctx) {
                 }
 
                 if (fastHit) {
-#if IS_WAD17_OR_HIGHER_ENABLED
-                    if (IS_WAD17_OR_HIGHER(ctx)) top->gmlStackType = dstType;
-#endif
+                    top->gmlStackType = dstType;
                 } else {
                     handleConv(ctx, srcType, dstType, convKey);
                 }
@@ -3175,9 +3143,7 @@ static RValue executeLoop(VMContext* ctx) {
                     }
                     slotA->int32 = result ? 1 : 0;
                     slotA->type = RVALUE_BOOL;
-#if IS_WAD17_OR_HIGHER_ENABLED
-                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = GML_TYPE_BOOL;
-#endif
+                    slotA->gmlStackType = GML_TYPE_BOOL;
                     ctx->stack.top--;
                 } else {
                     handleCmp(ctx, instr);

@@ -731,6 +731,10 @@ int main(int argc, char* argv[]) {
         // Under --lazy-rooms we load each room for display and then free it again so the dump
         // reflects what each room contains without keeping all of them resident simultaneously.
         forEachIndexed(Room, room, idx, dataWin->room.rooms, dataWin->room.count) {
+            if (!room->present) {
+                printf("[%d] <absent>\n", idx);
+                continue;
+            }
             bool loadedHere = false;
             if (!room->payloadLoaded) {
                 DataWin_loadRoomPayload(dataWin, (int32_t) idx);

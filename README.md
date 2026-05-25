@@ -29,10 +29,11 @@ While our target is Undertale v1.08, that doesn't mean that other games CAN'T ru
 Butterscotch supports the following WAD versions:
 
 * WAD Version 8 (GameMaker: Studio 1.0.198+)
-* WAD Version 10 (GameMaker: Studio 1.1.622+)
-* WAD Version 11 (GameMaker: Studio 1.1.827+)
+* WAD Version 9 (GameMaker: Studio 1.0.527+)
+* WAD Version 10 (GameMaker: Studio 1.1.609+)
+* WAD Version 11 (GameMaker: Studio 1.1.754+)
 * WAD Version 12 (GameMaker: Studio 1.1.867+)
-* WAD Version 13
+* WAD Version 13 (GameMaker: Studio 1.1.917+)
 * WAD Version 14
 * WAD Version 15
 * WAD Version 16

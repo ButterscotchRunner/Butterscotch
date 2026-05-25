@@ -283,8 +283,8 @@ static void parseGEN8(BinaryReader* reader, DataWin* dw) {
         int32_t ts = BinaryReader_readInt32(reader); // int32 timestamp (FILETIME-derived)
         g->timestamp = (uint64_t) (int64_t) ts;
         BinaryReader_skip(reader, 4); // unread padding at body+0x60
-        // If it is expanded but WAD8, then we won't have the displayName here
-        if (8 >= g->wadVersion) {
+        // If it is expanded but WAD8 or WAD9, then we won't have the displayName here
+        if (9 >= g->wadVersion) {
             g->displayName = nullptr;
         } else {
             g->displayName = readStringPtr(reader, dw);
