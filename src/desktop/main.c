@@ -282,13 +282,13 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'f': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s'\n", optarg);
                     exit(1);
                 }
 
-                hmput(args->screenshotFrames, (int) frame, true);
+                hmput(args->screenshotFrames, frame, true);
                 break;
             }
             case 'U':
@@ -296,12 +296,12 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'V': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
                     exit(1);
                 }
-                hmput(args->screenshotSurfacesFrames, (int) frame, true);
+                hmput(args->screenshotSurfacesFrames, frame, true);
                 break;
             }
             case 'h':
@@ -357,42 +357,42 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'x': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s' for --exit-at-frame\n", optarg);
                     exit(1);
                 }
-                args->exitAtFrame = (int) frame;
+                args->exitAtFrame = frame;
                 break;
             }
             case 'F': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
                     exit(1);
                 }
-                args->traceBytecodeAfterFrame = (int) frame;
+                args->traceBytecodeAfterFrame = frame;
                 break;
             }
             case 'd': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s' for --dump-frame\n", optarg);
                     exit(1);
                 }
-                hmput(args->dumpFrames, (int) frame, true);
+                hmput(args->dumpFrames, frame, true);
                 break;
             }
             case 'j': {
                 char* endPtr;
-                long frame = strtol(optarg, &endPtr, 10);
+                int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
                     fprintf(stderr, "Error: Invalid frame number '%s' for --dump-frame-json\n", optarg);
                     exit(1);
                 }
-                hmput(args->dumpJsonFrames, (int) frame, true);
+                hmput(args->dumpJsonFrames, frame, true);
                 break;
             }
             case 'J':
@@ -441,12 +441,12 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'Z': {
                 char* endPtr;
-                long seedVal = strtol(optarg, &endPtr, 10);
+                int seedVal = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0') {
                     fprintf(stderr, "Error: Invalid seed value '%s' for --seed\n", optarg);
                     exit(1);
                 }
-                args->seed = (int) seedVal;
+                args->seed = seedVal;
                 args->hasSeed = true;
                 break;
             }
@@ -458,12 +458,12 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'q': {
                 char* endPtr;
-                long framesBetween = strtol(optarg, &endPtr, 10);
+                int framesBetween = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || framesBetween <= 0) {
                     fprintf(stderr, "Error: Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
                     exit(1);
                 }
-                args->profilerFramesBetween = (int) framesBetween;
+                args->profilerFramesBetween = framesBetween;
                 break;
             }
             case 'B':
