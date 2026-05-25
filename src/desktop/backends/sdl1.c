@@ -192,7 +192,7 @@ void PlatformGamepad_poll(RunnerGamepadState* gp) {
     (void)gp;
 }
 
-#ifdef USE_SW_RENDERER
+#ifdef ENABLE_SW_RENDERER
 
 static SDL_Surface* nextFb = NULL;
 
