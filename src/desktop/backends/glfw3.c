@@ -117,7 +117,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (!modernGL) {
+    if (legacyGL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     } else {
