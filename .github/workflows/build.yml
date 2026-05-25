@@ -166,7 +166,7 @@ jobs:
               CC='ccache i486-w64-mingw32-gcc' \
               OS=Windows \
               DESKTOP_BACKEND=glfw2 \
-              GLFW_LIBS='-lglfw -lopengl32' \
+              GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic' \
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
               BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
