@@ -917,12 +917,6 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 #endif
-#ifdef ENABLE_GLES
-    if (legacyGL) {
-        fprintf(stderr, "The legacy gl renderer is not available in GLES builds!\n");
-        return 0;
-    }
-#endif
     if (!modernGL && !legacyGL && !SWRender) {
         fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
         return 0;
