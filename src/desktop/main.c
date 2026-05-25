@@ -744,6 +744,10 @@ int main(int argc, char* argv[]) {
             printf("[%d] %s ()\n", idx, room->name);
 
             forEachIndexed(RoomGameObject, roomGameObject, idx2, room->gameObjects, room->gameObjectCount) {
+                if (roomGameObject->objectDefinition < 0 || (uint32_t) roomGameObject->objectDefinition >= dataWin->objt.count) {
+                    printf("  [%d] <no object> (x=%d,y=%d)\n", idx2, roomGameObject->x, roomGameObject->y);
+                    continue;
+                }
                 GameObject* gameObject = &dataWin->objt.objects[roomGameObject->objectDefinition];
                 printf(
                     "  [%d] %s (x=%d,y=%d,persistent=%d,solid=%d,spriteId=%d,preCreateCode=%d,creationCode=%d)\n",
