@@ -4,8 +4,8 @@
 #include <GLFW/glfw3.h>
 
 #include "common.h"
-#include "platformdefs.h"
 #include "input_recording.h"
+#include "src/platformdefs.h"
 
 #ifdef ENABLE_SW_RENDERER
 #error The software renderer is not compatible with GLFW

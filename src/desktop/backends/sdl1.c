@@ -6,8 +6,8 @@
 #include <SDL/SDL_video.h>
 
 #include "common.h"
-#include "platformdefs.h"
 #include "input_recording.h"
+#include "src/platformdefs.h"
 
 static Runner *g_runner;
 static int fbWidth, fbHeight;
