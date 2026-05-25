@@ -1305,6 +1305,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         inst->imageAngle = (float) roomObj->rotation;
         inst->imageSpeed = roomObj->imageSpeed;
         inst->imageIndex = (float) roomObj->imageIndex;
+        // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
+        inst->imageBlend = roomObj->color & 0x00FFFFFF;
+        inst->imageAlpha = (float) ((roomObj->color >> 24) & 0xFF) / 255.0f;
     }
 
     // In GMS2, instances get their depth from their room layer, not the object definition.
@@ -1421,6 +1424,16 @@ static void cleanupState(Runner* runner) {
     }
     arrfree(runner->dsListPool);
     runner->dsListPool = nullptr;
+
+    repeat((int32_t) arrlen(runner->dsQueuePool), i) {
+        DsQueue* q = &runner->dsQueuePool[i];
+        repeat(arrlen(q->items), j) {
+            RValue_free(&q->items[j]);
+        }
+        arrfree(q->items);
+    }
+    arrfree(runner->dsQueuePool);
+    runner->dsQueuePool = nullptr;
 
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.

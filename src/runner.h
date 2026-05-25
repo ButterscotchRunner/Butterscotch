@@ -223,6 +223,12 @@ typedef struct {
     bool freed;    // true when the slot is destroyed and available for reuse by ds_list_create (matches native GMS)
 } DsList;
 
+// ds_queue: FIFO, items[0] is the head (next to dequeue), last item is the tail.
+typedef struct {
+    RValue* items; // stb_ds dynamic array of RValues
+    bool freed;    // true when the slot is destroyed and available for reuse by ds_queue_create
+} DsQueue;
+
 // ===[ GML Buffer System ]===
 
 // Buffer type constants (matching GML)
@@ -416,6 +422,7 @@ struct Runner {
     // ===[ Builtin function state ]===
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
+    DsQueue* dsQueuePool; // stb_ds array of DsQueue
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 

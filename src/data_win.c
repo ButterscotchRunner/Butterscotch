@@ -222,10 +222,11 @@ static void parseGEN8(BinaryReader* reader, DataWin* dw) {
     g->wadVersion = BinaryReader_readUint8(reader);
     BinaryReader_skip(reader, 2); // padding
 
-    // WAD8 GEN8 is 84 bytes total with a radically different field layout:
-    // * No config/name/displayName string ptrs.
-    // * No major/minor/release/build, but a roomOrder list is appended at the tail.
-    if (8 >= g->wadVersion) {
+    // WAD8 has TWO known GEN8 layouts that share the same version:
+    // Around GMS 1.0.198: 84 bytes
+    // Around GMS 1.0.469: Same shape as WAD10's GEN8 except that the displayName is still absent
+    bool isCompactWad8 = 8 >= g->wadVersion && 108 > reader->bufferSize;
+    if (isCompactWad8) {
         g->fileName = readStringPtr(reader, dw);
         g->config = nullptr;
         g->lastObj = BinaryReader_readUint32(reader);
@@ -282,7 +283,12 @@ static void parseGEN8(BinaryReader* reader, DataWin* dw) {
         int32_t ts = BinaryReader_readInt32(reader); // int32 timestamp (FILETIME-derived)
         g->timestamp = (uint64_t) (int64_t) ts;
         BinaryReader_skip(reader, 4); // unread padding at body+0x60
-        g->displayName = readStringPtr(reader, dw);
+        // If it is expanded but WAD8, then we won't have the displayName here
+        if (8 >= g->wadVersion) {
+            g->displayName = nullptr;
+        } else {
+            g->displayName = readStringPtr(reader, dw);
+        }
         g->activeTargets = (g->wadVersion >= 11) ? BinaryReader_readUint64(reader) : 0;
         g->functionClassifications = (g->wadVersion >= 12) ? BinaryReader_readUint64(reader) : 0;
         g->roomOrderCount = BinaryReader_readUint32(reader);
@@ -784,14 +790,8 @@ static void parsePATH(BinaryReader* reader, DataWin* dw) {
         path->internalPointCount = 0;
         path->length = 0.0;
         path->name = readStringPtr(reader, dw);
-        if (12 >= dw->gen8.wadVersion) {
-            // Pre-WAD13 (WAD<=12): closed at +4, smooth at +8 (swapped vs WAD13+). Inherited from the GMS legacy .gmk stream format.
-            path->isClosed = BinaryReader_readBool32(reader);
-            path->isSmooth = BinaryReader_readBool32(reader);
-        } else {
-            path->isSmooth = BinaryReader_readBool32(reader);
-            path->isClosed = BinaryReader_readBool32(reader);
-        }
+        path->isSmooth = BinaryReader_readBool32(reader);
+        path->isClosed = BinaryReader_readBool32(reader);
         path->precision = BinaryReader_readUint32(reader);
 
         // Points SimpleList
