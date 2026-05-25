@@ -122,17 +122,14 @@ endif
 SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
 INCLUDES += -Isrc/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-DEFINES += -DUSE_GLFW3
 GLFW3_LIBS += $(shell pkg-config --libs glfw3)
 LIBS += $(GLFW3_LIBS)
 endif
 ifeq ($(DESKTOP_BACKEND),glfw2)
-DEFINES += -DUSE_GLFW2
 GLFW2_LIBS += $(shell pkg-config --libs libglfw)
 LIBS += $(GLFW2_LIBS)
 endif
 ifeq ($(DESKTOP_BACKEND),sdl1)
-DEFINES += -DUSE_SDL1
 SDL1_LIBS += $(shell pkg-config --libs sdl)
 LIBS += $(SDL1_LIBS)
 endif

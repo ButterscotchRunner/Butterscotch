@@ -11,6 +11,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra)
 
 set(PLATFORM "" CACHE STRING "Platform backend")
+set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
 # Build metadata
@@ -22,7 +23,7 @@ add_compile_definitions(
 )
 
 if(PLATFORM STREQUAL "")
-    message(FATAL_ERROR "PLATFORM is not set! Use -DPLATFORM=glfw (or another supported platform).")
+    message(FATAL_ERROR "PLATFORM is not set! Use -DPLATFORM=desktop (or another supported platform).")
 endif()
 
 # Audio backend defaults
@@ -115,6 +116,7 @@ elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     target_include_directories(butterscotch PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_MINIAUDIO)
+    set(AUDIO_LIBRARIES pthread)
 elseif(AUDIO_BACKEND STREQUAL "web")
     target_include_directories(butterscotch PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/web)
@@ -140,9 +142,14 @@ target_include_directories(butterscotch PUBLIC vendor/sha1)
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
 target_include_directories(butterscotch PUBLIC vendor/base64)
 
-if(PLATFORM STREQUAL "glfw")
-    if (NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "GLFW requires at least one GL version!")
+if(PLATFORM STREQUAL "desktop")
+    if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
+        # if(DESKTOP_BACKEND STREQUAL "glfw2" OR DESKTOP_BACKEND STREQUAL "glfw3")
+        #     message(FATAL_ERROR "GLFW requires at least one GL version!")
+        # elseif(NOT ENABLE_SW_RENDERER)
+        #     message(FATAL_ERROR "You must enable at least one renderer!")
+        # endif()
+        message(FATAL_ERROR "You must enable at least one renderer!")
     endif()
     file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)
     if(ENABLE_LEGACY_GL)
@@ -203,101 +210,49 @@ if(PLATFORM STREQUAL "glfw")
     # stb_vorbis
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
 
+    set(PLATFORM_LIBRARIES glad m bz2)
     if(MINGW)
-        find_package(glfw3 REQUIRED)
-        set(GLFW3_LIBRARIES glfw3)
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
+    elseif(NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} dl)
+    endif()
 
-        # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
-        # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
-        target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m opengl32 gdi32 winmm bz2)
-        target_link_options(butterscotch PRIVATE -static)
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+    if(DESKTOP_BACKEND STREQUAL "glfw3")
+        if(MINGW)
+            find_package(glfw3 REQUIRED)
+
+            # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
+            # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
+            target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
+            target_link_options(butterscotch PRIVATE -static)
+            set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(GLFW3 REQUIRED glfw3)
+            target_include_directories(butterscotch PRIVATE ${GLFW3_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${GLFW3_LIBRARIES})
+        endif()
+
+        #gamecontrollerdb
+        add_custom_command(TARGET butterscotch POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
+                $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
+        )
+    elseif(DESKTOP_BACKEND STREQUAL "glfw2")
         find_package(PkgConfig REQUIRED)
-        pkg_check_modules(GLFW3 REQUIRED glfw3)
-        target_include_directories(butterscotch PRIVATE ${GLFW3_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m pthread bz2)
-    else()
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(GLFW3 REQUIRED glfw3)
-        target_include_directories(butterscotch PRIVATE ${GLFW3_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
-        target_link_libraries(butterscotch ${GLFW3_LIBRARIES} ${AUDIO_LIBRARIES} glad m pthread dl bz2)
+        pkg_check_modules(GLFW2 REQUIRED libglfw)
+        target_include_directories(butterscotch PRIVATE ${GLFW2_INCLUDE_DIRS})
+        target_link_directories(butterscotch PRIVATE ${GLFW2_LIBRARY_DIRS})
+        set(BACKEND_LIBRARIES ${GLFW2_LIBRARIES})
+    elseif(DESKTOP_BACKEND STREQUAL "sdl1")
+        find_package(SDL REQUIRED)
+        target_include_directories(butterscotch PUBLIC ${SDL_INCLUDE_DIR})
+        set(BACKEND_LIBRARIES ${SDL_LIBRARY})
     endif()
-
-    # Enable AddressSanitizer by default in Debug builds
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(ENABLE_ASAN_DEFAULT ON)
-    else()
-        set(ENABLE_ASAN_DEFAULT OFF)
-    endif()
-    set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-        target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-        target_link_options(butterscotch PRIVATE -fsanitize=address)
-    endif()
-
-    #gamecontrollerdb
-    add_custom_command(TARGET butterscotch POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
-            $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-    )
-elseif(PLATFORM STREQUAL "sdl")
-    if (NOT ENABLE_LEGACY_GL)
-        message(FATAL_ERROR "SDL requires legacy GL!")
-    endif()
-    file(GLOB GL_SOURCES src/gl_legacy/*.c src/gl_common/*.c src/image/*.c)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-
-    # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
-    if(ENABLE_VM_GML_PROFILER)
-        add_compile_definitions(ENABLE_VM_GML_PROFILER)
-    endif()
-
-    # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
-    if(ENABLE_VM_TRACING)
-        add_compile_definitions(ENABLE_VM_TRACING)
-    endif()
-
-    # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ON)
-    if(ENABLE_VM_OPCODE_PROFILER)
-        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
-    endif()
-
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
-    # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
-    if(ENABLE_VM_STUB_LOGS)
-        add_compile_definitions(ENABLE_VM_STUB_LOGS)
-    endif()
-
-    # GLAD
-    add_library(glad STATIC vendor/glad/src/glad.c)
-    target_include_directories(glad PUBLIC vendor/glad/include)
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # stb_vorbis
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
-    find_package(SDL REQUIRED)
-    target_include_directories(butterscotch PUBLIC "${SDL_INCLUDE_DIR}")
-    target_link_libraries(butterscotch ${AUDIO_LIBRARIES} ${SDL_LIBRARY} glad m pthread bz2)
+    target_link_libraries(butterscotch ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+    target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
 
     # Enable AddressSanitizer by default in Debug builds
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
