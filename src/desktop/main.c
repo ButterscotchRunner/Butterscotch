@@ -672,6 +672,8 @@ static void onCrashSignal(int sig) {
 
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
+    setbuf(stderr, NULL);
+
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
 
