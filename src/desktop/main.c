@@ -483,21 +483,13 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             default:
-                fprintf(stderr, "Usage: %s "
-#ifndef USE_GLFW2
-                        "[--headless] "
-#endif
-                        "[--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
+                fprintf(stderr, "Usage: %s <path to data.win or game.unx>\n", argv[0]);
                 exit(1);
         }
     }
 
     if (optind >= argc) {
-        fprintf(stderr, "Usage: %s "
-#ifndef USE_GLFW2
-                "[--headless] "
-#endif
-                "[--screenshot=PATTERN] [--screenshot-at-frame=N ...] <path to data.win or game.unx>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <path to data.win or game.unx>\n", argv[0]);
         exit(1);
     }
 
@@ -513,18 +505,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         exit(1);
     }
 
-#ifdef USE_GLFW2
-    if (args->headless) {
-        fprintf(stderr, "Headless mode is not supported with GLFW2\n");
-        exit(1);
-    }
-#else
     if (args->headless && args->speedMultiplier != 1.0) {
         fprintf(stderr, "You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
         exit(1);
     }
-#endif
-
 }
 
 static void freeCommandLineArgs(CommandLineArgs* args) {
