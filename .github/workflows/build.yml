@@ -23,7 +23,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
 
       - name: Configure
-        run: cmake -B build -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -71,7 +71,7 @@ jobs:
           sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/x86_64-w64-mingw32/include/
 
       - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -114,7 +114,7 @@ jobs:
       - name: Configure
         run: |
           export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -165,7 +165,7 @@ jobs:
           PATH="$PWD/artifacts/windows/build/toolchain-i486/bin:$PATH" make \
               CC='ccache i486-w64-mingw32-gcc' \
               OS=Windows \
-              USE_GLFW2=1 \
+              DESKTOP_BACKEND=glfw2 \
               GLFW_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic' \
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \

@@ -10,7 +10,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra)
 
-set(PLATFORM "" CACHE STRING "Platform backend")
+set(PLATFORM "desktop" CACHE STRING "Platform backend")
 set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
@@ -21,10 +21,6 @@ add_compile_definitions(
     BUTTERSCOTCH_COMMIT_HASH="${BUTTERSCOTCH_COMMIT_HASH}"
     BUTTERSCOTCH_COMMIT_DATE="${BUTTERSCOTCH_COMMIT_DATE}"
 )
-
-if(PLATFORM STREQUAL "")
-    message(FATAL_ERROR "PLATFORM is not set! Use -DPLATFORM=desktop (or another supported platform).")
-endif()
 
 # Audio backend defaults
 if(AUDIO_BACKEND STREQUAL "")
