@@ -186,15 +186,16 @@ bool platformHandleEvents(void) {
     while (SDL_PollEvent(&e)) {
         switch(e.type) {
             case SDL_KEYDOWN:
+                // During playback, suppress real keyboard input
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                if (e.key.keysym.unicode != 0)
+                    RunnerKeyboard_onCharacter(g_runner->keyboard, e.key.keysym.unicode);
+                break;
             case SDL_KEYUP:
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
-                if (e.type == SDL_KEYDOWN) {
-                    RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
-                    if (e.key.keysym.unicode != 0)
-                        RunnerKeyboard_onCharacter(g_runner->keyboard, e.key.keysym.unicode);
-                } else
-                    RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_VIDEORESIZE:
                 if (SWRender)
