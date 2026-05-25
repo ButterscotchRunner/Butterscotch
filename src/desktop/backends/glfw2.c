@@ -1,4 +1,3 @@
-#include <string.h>
 #include <stdio.h>
 
 #include <GL/glfw.h>
