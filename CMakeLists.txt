@@ -148,6 +148,7 @@ add_library(bzip2 STATIC
     vendor/bzip2/huffman.c
     vendor/bzip2/randtable.c
 )
+target_include_directories(bzip2 PUBLIC vendor/bzip2)
 
 if(PLATFORM STREQUAL "desktop")
     if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
