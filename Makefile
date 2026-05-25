@@ -31,16 +31,16 @@ else
 DEFINES += -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\"
 endif
 
-ifndef DISABLE_BC14
-DEFINES += -DENABLE_BC14
+ifndef DISABLE_WAD14
+DEFINES += -DENABLE_WAD14
 endif
 
-ifndef DISABLE_BC16
-DEFINES += -DENABLE_BC16
+ifndef DISABLE_WAD16
+DEFINES += -DENABLE_WAD16
 endif
 
-ifndef DISABLE_BC17
-DEFINES += -DENABLE_BC17
+ifndef DISABLE_WAD17
+DEFINES += -DENABLE_WAD17
 endif
 
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
@@ -79,9 +79,9 @@ SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
 endif
 
-ifdef DISABLE_BC14
-ifdef DISABLE_BC16
-ifdef DISABLE_BC17
+ifdef DISABLE_WAD14
+ifdef DISABLE_WAD16
+ifdef DISABLE_WAD17
 $(error must enable at least 1 bytecode version)
 endif
 endif

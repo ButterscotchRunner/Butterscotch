@@ -3115,7 +3115,7 @@ static void writeRValueJson(JsonWriter* w, RValue val) {
             JsonWriter_endArray(w);
             break;
         }
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: {
             char buf[64];
             snprintf(buf, sizeof(buf), "<method:%d>", val.method->codeIndex);

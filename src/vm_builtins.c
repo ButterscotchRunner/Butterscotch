@@ -1665,7 +1665,7 @@ static RValue builtin_is_undefined(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     return RValue_makeBool(args[0].type == RVALUE_UNDEFINED);
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_is_method(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
     return RValue_makeBool(args[0].type == RVALUE_METHOD);
@@ -3153,7 +3153,7 @@ static RValue builtin_variable_struct_exists(VMContext* ctx, RValue* args, int32
 
 // ===[ METHOD ]===
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_method(VMContext* ctx, MAYBE_UNUSED RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
 
@@ -3188,7 +3188,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
 
     int32_t codeId;
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     if (args[0].type == RVALUE_METHOD) {
         // If it is a method value, we'll need to extract code index directly
         codeId = args[0].method->codeIndex;
@@ -3199,9 +3199,9 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
         int32_t rawArg = RValue_toInt32(args[0]);
         codeId = -1;
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         // In GMS 2 BC17+, "scriptName" in source code is compiled as a FUNC-table index (same as builtin_method). Resolve funcIdx -> codeIndex via codeIndexByName.
-        if (IS_BC17_OR_HIGHER(ctx) && rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+        if (IS_WAD17_OR_HIGHER(ctx) && rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
             const char* funcName = ctx->dataWin->func.functions[rawArg].name;
             if (funcName != nullptr) {
                 ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
@@ -3241,7 +3241,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
 
     // If the method has a bound instance, temporarily swap currentInstance
     Instance* savedInstance = ctx->currentInstance;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     if (args[0].type == RVALUE_METHOD && args[0].method->boundInstanceId >= 0) {
         Runner* runner = ctx->runner;
         Instance* bound = hmget(runner->instancesById, args[0].method->boundInstanceId);
@@ -4513,8 +4513,8 @@ static RValue builtin_audio_group_is_loaded(VMContext* ctx, RValue* args, MAYBE_
 }
 
 static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (ctx->dataWin->gen8.bytecodeVersion >= 14) {
-        fprintf(stderr, "VM: [%s] audio_play_music is no-op in bytecode version 14+!\n", ctx->currentCodeName);
+    if (ctx->dataWin->gen8.wadVersion >= 14) {
+        fprintf(stderr, "VM: [%s] audio_play_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
         return RValue_makeUndefined();
     }
 
@@ -4529,8 +4529,8 @@ static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_stop_music(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (ctx->dataWin->gen8.bytecodeVersion >= 14) {
-        fprintf(stderr, "VM: [%s] audio_stop_music is no-op in bytecode version 14+!\n", ctx->currentCodeName);
+    if (ctx->dataWin->gen8.wadVersion >= 14) {
+        fprintf(stderr, "VM: [%s] audio_stop_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
         return RValue_makeUndefined();
     }
 
@@ -9922,7 +9922,7 @@ static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSE
     return RValue_makeUndefined();
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_layer_get_all_elements(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = resolveLayerIdArg(runner, args[0]);
@@ -10064,7 +10064,7 @@ static RValue builtin_layer_sprite_destroy(VMContext* ctx, RValue* args, MAYBE_U
     return RValue_makeUndefined();
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_layer_tilemap_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1.0);
     Runner* runner = ctx->runner;
@@ -10233,7 +10233,7 @@ static RValue builtin_Other(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNU
     return RValue_makeInt32((int32_t) inst->instanceId);
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // @@NullObject@@ - GMS2 internal sentinel pushed before "method()" when the GML source is a struct literal or anonymous constructor: the bound self is "nothing yet", and @@NewGMLObject@@ rebinds to the fresh struct.
 // We encode it as INSTANCE_NOONE so "method()" stores it as is (its -1 -> current remap does not fire).
 static RValue builtin_NullObject(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -11411,7 +11411,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "is_int32", builtin_is_int32);
     VM_registerBuiltin(ctx, "is_int64", builtin_is_int64);
     VM_registerBuiltin(ctx, "is_undefined", builtin_is_undefined);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "is_method", builtin_is_method);
     VM_registerBuiltin(ctx, "is_callable", builtin_is_callable);
 #endif
@@ -11513,7 +11513,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Script
     VM_registerBuiltin(ctx, "script_execute", builtin_script_execute);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "method", builtin_method);
 #endif
 
@@ -11976,7 +11976,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_hspeed", builtin_layer_hspeed);
     VM_registerBuiltin(ctx, "layer_get_vspeed", builtin_layer_get_vspeed);
     VM_registerBuiltin(ctx, "layer_vspeed", builtin_layer_vspeed);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "layer_get_all", builtin_layer_get_all);
     VM_registerBuiltin(ctx, "layer_get_all_elements", builtin_layer_get_all_elements);
 #endif
@@ -11991,7 +11991,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_get_angle", builtin_layer_sprite_get_angle);
     VM_registerBuiltin(ctx, "layer_sprite_destroy", builtin_layer_sprite_destroy);
     VM_registerBuiltin(ctx, "layer_tile_visible", builtin_layer_tile_visible);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "layer_get_id_at_depth", builtin_layer_get_id_at_depth);
     VM_registerBuiltin(ctx, "layer_tilemap_get_id", builtin_layer_tilemap_get_id);
     VM_registerBuiltin(ctx, "draw_tilemap", builtin_draw_tilemap);
@@ -12022,7 +12022,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "@@This@@", builtin_This);
     VM_registerBuiltin(ctx, "@@Other@@", builtin_Other);
     VM_registerBuiltin(ctx, "@@Global@@", builtin_Global);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "@@NullObject@@", builtin_NullObject);
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtin_NewGMLObject);
     VM_registerBuiltin(ctx, "@@SetStatic@@", builtin_SetStatic);

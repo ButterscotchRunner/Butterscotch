@@ -436,20 +436,20 @@ int main(int argc, char* argv[]) {
     free(dataWinPath);
     shfree(eagerRooms);
 
-    bool bytecodeVersionSupported = false;
-#ifdef ENABLE_BC14
-    if (dataWin->gen8.bytecodeVersion == 13 || dataWin->gen8.bytecodeVersion == 14) bytecodeVersionSupported = true;
+    bool wadVersionSupported = false;
+#ifdef ENABLE_WAD14
+    if (dataWin->gen8.wadVersion == 13 || dataWin->gen8.wadVersion == 14) wadVersionSupported = true;
 #endif
-#ifdef ENABLE_BC16
-    if (dataWin->gen8.bytecodeVersion == 15 || dataWin->gen8.bytecodeVersion == 16) bytecodeVersionSupported = true;
+#ifdef ENABLE_WAD16
+    if (dataWin->gen8.wadVersion == 15 || dataWin->gen8.wadVersion == 16) wadVersionSupported = true;
 #endif
-#ifdef ENABLE_BC17
-    if (dataWin->gen8.bytecodeVersion == 17) bytecodeVersionSupported = true;
+#ifdef ENABLE_WAD17
+    if (dataWin->gen8.wadVersion == 17) wadVersionSupported = true;
 #endif
 
-    if (!bytecodeVersionSupported) {
+    if (!wadVersionSupported) {
         char errorText[128];
-        snprintf(errorText, sizeof(errorText), "Unsupported bytecode version %u!", dataWin->gen8.bytecodeVersion);
+        snprintf(errorText, sizeof(errorText), "Unsupported WAD version %u!", dataWin->gen8.wadVersion);
         PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, errorText, true);
         while (true) {}
     }

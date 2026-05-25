@@ -89,7 +89,7 @@
 #define OP_CALL     0xD9
 #define OP_BREAK    0xFF
 
-// ===[ Extended BREAK Sub-Opcodes (bytecode version 17+) ]===
+// ===[ Extended BREAK Sub-Opcodes (WAD version 17+) ]===
 // Encoded in bits 0-15 of the BREAK instruction (instrInstanceType field, as int16_t)
 #define BREAK_CHKINDEX     (-1)  // Validate array index bounds
 #define BREAK_PUSHAF       (-2)  // Pop array ref + index, push element (final dimension)

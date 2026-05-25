@@ -15,7 +15,7 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     printf("  Display Name:     %s\n", g->displayName ? g->displayName : "(null)");
     printf("  File Name:        %s\n", g->fileName ? g->fileName : "(null)");
     printf("  Config:           %s\n", g->config ? g->config : "(null)");
-    printf("  Bytecode Version: %u\n", g->bytecodeVersion);
+    printf("  WAD Version: %u\n", g->wadVersion);
     printf("  Game ID:          %u\n", g->gameID);
     printf("  Version:          %u.%u.%u.%u\n", g->major, g->minor, g->release, g->build);
     printf("  Window Size:      %ux%u\n", g->defaultWindowWidth, g->defaultWindowHeight);

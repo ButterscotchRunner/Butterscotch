@@ -4,7 +4,7 @@
 #include "runner.h"
 #include "binary_utils.h"
 #include "utils.h"
-#include "bytecode_versions.h"
+#include "wad_versions.h"
 #include "profiler.h"
 #include "string_builder.h"
 
@@ -44,7 +44,7 @@ static char* formatStackContents(VMContext* ctx) {
 }
 #endif
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // Returns the native byte size of a GML data type on the runner's stack.
 // This is needed because the Dup instruction encodes byte counts, not slot counts.
 // Only used by BC17+ Dup paths; BC16 Dup decodes the operand as a slot count directly.
@@ -78,9 +78,9 @@ static void stackPush(VMContext* ctx, RValue val) {
     ctx->stack.slots[ctx->stack.top++] = val;
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 static void stackPushTyped(VMContext* ctx, RValue val, uint8_t gmlStackType) {
-    if (IS_BC17_OR_HIGHER(ctx)) {
+    if (IS_WAD17_OR_HIGHER(ctx)) {
         val.gmlStackType = gmlStackType;
     }
     stackPush(ctx, val);
@@ -278,7 +278,7 @@ static void storeIntoArraySlot(RValue* slot, RValue val) {
         GMLArray_incRef(val.array);
         val.ownsReference = true;
         *slot = val;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
         GMLMethod_incRef(val.method);
         val.ownsReference = true;
@@ -302,8 +302,8 @@ static GMLArray* VM_arrayWriteAt(VMContext* ctx, RValue* slot, int32_t index, RV
     requireMessageFormatted(index >= 0, "Trying to write to an array using a negative index! Index: %d", index);
 
     void* intendedOwner;
-#if IS_BC17_OR_HIGHER_ENABLED
-    intendedOwner = IS_BC17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
+#if IS_WAD17_OR_HIGHER_ENABLED
+    intendedOwner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
 #else
     intendedOwner = (void*) slot;
 #endif
@@ -323,8 +323,8 @@ static GMLArray* VM_arrayWriteAt(VMContext* ctx, RValue* slot, int32_t index, RV
 
     // Case 2: CoW fork check.
     bool needFork;
-#if IS_BC17_OR_HIGHER_ENABLED
-    if (IS_BC17_OR_HIGHER(ctx)) {
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (IS_WAD17_OR_HIGHER(ctx)) {
         needFork = (arr->owner != ctx->currentArrayOwner);
     } else
 #endif
@@ -414,7 +414,7 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
 
         // BC17: if instanceType is -9 (INSTANCE_STACKTOP), the actual instance is the next stack item.
         // This is used for chained access like `command_actor[i].specialsprite[arg]` where the array variable's owning instance is resolved from a computed value on the stack.
-        if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
+        if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
             instanceType = resolveInstanceStackTop(ctx);
         }
 
@@ -425,7 +425,7 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
 
         // BC17: PushI.e -9 (INSTANCE_STACKTOP) is pushed before the Pop instruction.
         // When we pop -9, it means "the real instance type is the next item on the stack".
-        if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
+        if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
             instanceType = resolveInstanceStackTop(ctx);
         }
         return (ArrayAccess){ .arrayIndex = -1, .isArray = false, .hasInstanceType = true, .instanceType = instanceType };
@@ -477,8 +477,8 @@ static uint32_t growGlobalSlotSparse(VMContext* ctx, int32_t varKey) {
 
 // Maps a global variable key to its slot in globalVars[]
 static inline uint32_t resolveGlobalSlot(VMContext* ctx, int32_t varKey) {
-    if (IS_BC15_OR_HIGHER(ctx)) {
-        // Bytecode Version 15+ provides the key directly in the data.win
+    if (IS_WAD15_OR_HIGHER(ctx)) {
+        // WAD Version 15+ provides the key directly in the data.win
         return (uint32_t) varKey;
     } else {
         return growGlobalSlotSparse(ctx, varKey);
@@ -492,7 +492,7 @@ static inline uint32_t resolveGlobalSlot(VMContext* ctx, int32_t varKey) {
 // BC13/BC14, BC17+: a single GML local can surface as several VARI chunk entries that share a varID (BC17+) or has no pre-assigned slot at all (BC13/BC14).
 // We key by varID/varIdx via the per-code currentCodeLocalsSlotMap so reads/writes via any reference agree on the same localVars slot.
 static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
-    if (IS_BC15_OR_HIGHER(ctx) && IS_BC16_OR_BELOW(ctx)) {
+    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
         return (uint32_t) varID;
     }
 
@@ -586,8 +586,8 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 
     // BC17+: Push.v/Pop.v with instrInstanceType == -9 (STACKTOP) and VARTYPE_NORMAL means
     // "the instance is on the stack" (e.g. `struct.field` after @@NewGMLObject@@). Pop it here.
-#if IS_BC17_OR_HIGHER_ENABLED
-    if (IS_BC17_OR_HIGHER(ctx) && !access.hasInstanceType && instanceType == INSTANCE_STACKTOP) {
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (IS_WAD17_OR_HIGHER(ctx) && !access.hasInstanceType && instanceType == INSTANCE_STACKTOP) {
         instanceType = resolveInstanceStackTop(ctx);
     }
 #endif
@@ -610,7 +610,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         if (ctx->otherInstance != nullptr) {
             targetInstance = (Instance*) ctx->otherInstance;
         }
-    } else if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
+    } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
         int16_t builtinVarId = varDef->builtinVarId;
         RValue result;
@@ -649,10 +649,10 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         return result;
     }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     // BC17+: instanceType == INSTANCE_BUILTIN (-6) on a Push.v means "look up this name as a function reference" (emitted for CallV dispatch paths like `@@This@@(); texture_set_interpolation_ext; CallV`).
     // Intercept before the builtin-variable path: only treat it as a function if the VARI entry isn't a real built-in variable (varID == -6 with a resolved builtinVarId).
-    if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_BUILTIN && !(varDef->varID == -6 && varDef->builtinVarId != -1)) {
+    if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_BUILTIN && !(varDef->varID == -6 && varDef->builtinVarId != -1)) {
         // `@@This@@(); push.v bltn.<name>; CallV` is also used for `self.method()` where `method` is a user-defined method stored on the instance (e.g. `init = method(...)` on an object).
         // CallV pops [func, instance, args], so the instance is sitting right below the func we're about to push. Peek at it and try to read `<name>` off its selfVars first; if the VARI entry has a self scope and the peeked slot resolves to an instance with the field, return that method. Otherwise fall through to global function lookup.
         if (varDef->instanceType == INSTANCE_SELF && ctx->stack.top > 0) {
@@ -834,7 +834,7 @@ static inline void writeIntoSlot(RValue* dest, RValue val) {
     } else if (val.type == RVALUE_ARRAY && val.array != nullptr) {
         if (!val.ownsReference) GMLArray_incRef(val.array);
         val.ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
         if (!val.ownsReference) GMLMethod_incRef(val.method);
         val.ownsReference = true;
@@ -921,8 +921,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // BC17+: Pop.v with instrInstanceType == -9 (STACKTOP) and VARTYPE_NORMAL means
     // "the instance is on the stack" (e.g. `struct.field =` after @@NewGMLObject@@). Pop it here.
-#if IS_BC17_OR_HIGHER_ENABLED
-    if (IS_BC17_OR_HIGHER(ctx) && !access.hasInstanceType && instanceType == INSTANCE_STACKTOP) {
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (IS_WAD17_OR_HIGHER(ctx) && !access.hasInstanceType && instanceType == INSTANCE_STACKTOP) {
         instanceType = resolveInstanceStackTop(ctx);
     }
 #endif
@@ -970,7 +970,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         if (ctx->otherInstance != nullptr) {
             targetInstance = (Instance*) ctx->otherInstance;
         }
-    } else if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
+    } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: write to argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
         int16_t bid = varDef->builtinVarId;
         int32_t writeIndex = -1;
@@ -1154,7 +1154,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
             // BC17: VARTYPE_INSTANCE encodes (instanceId - 100000) in the instruction's lower 16 bits.
             // Add 100000 back so findInstanceByTarget sees the real runtime instance ID.
             if (varType == VARTYPE_INSTANCE) instanceType += 100000;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
             if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
                 // V17: multi-dim first-step. Stack has [scope, firstIndex] (with an optional real-instance slot underneath when scope == -9 INSTANCE_STACKTOP).
                 // We resolve the variable's top-level array slot, materialise it if needed, then drill into arr->data[firstIndex] (materialising a sub-array there too).
@@ -1162,7 +1162,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 Variable* varDef = resolveVarDef(ctx, varRef);
                 int32_t firstIndex = stackPopInt32(ctx);
                 int32_t scope = stackPopInt32(ctx);
-                if (IS_BC17_OR_HIGHER(ctx) && scope == INSTANCE_STACKTOP) {
+                if (IS_WAD17_OR_HIGHER(ctx) && scope == INSTANCE_STACKTOP) {
                     scope = resolveInstanceStackTop(ctx);
                 }
 
@@ -1205,7 +1205,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 if (slot->type != RVALUE_ARRAY || slot->array == nullptr) {
                     RValue_free(slot);
                     GMLArray* fresh = GMLArray_create(0);
-                    fresh->owner = IS_BC17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
+                    fresh->owner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
                     *slot = RValue_makeArray(fresh);
                 }
                 GMLArray* top = slot->array;
@@ -1249,7 +1249,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
     }
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // For V17+ VARTYPE_ARRAYPUSHAF/POPAF on a top-level variable: return the slot's GMLArray*,
 // materialising a fresh empty one in the slot if it isn't an array yet. Used by PushLoc/Glb/Bltn.
 // Pushes a weak ref onto the stack — short-lived, consumed by the next BREAK_PUSHAC/PUSHAF/POPAF.
@@ -1257,7 +1257,7 @@ static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot) {
     if (slot->type != RVALUE_ARRAY || slot->array == nullptr) {
         RValue_free(slot);
         GMLArray* fresh = GMLArray_create(0);
-        fresh->owner = IS_BC17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
+        fresh->owner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
         *slot = RValue_makeArray(fresh);
     }
     stackPush(ctx, RValue_makeArrayWeak(slot->array));
@@ -1266,7 +1266,7 @@ static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot) {
 
 static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraData) {
     uint32_t varRef = resolveVarOperand(extraData);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t varType = (varRef >> 24) & 0xF8;
     if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
         Variable* varDef = resolveVarDef(ctx, varRef);
@@ -1328,7 +1328,7 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
             instanceType = stackPopInt32(ctx);
 
             // BC17: -9 (INSTANCE_STACKTOP) means "pop again for the real instance ID/object index" (e.g. `su_actor.specialsprite[0] = ...`)
-            if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
+            if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
                 instanceType = resolveInstanceStackTop(ctx);
             }
 
@@ -1341,7 +1341,7 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
             instanceType = stackPopInt32(ctx);
 
             // BC17: -9 (INSTANCE_STACKTOP) means "pop again for the real instance ID/object index"
-            if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
+            if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
                 instanceType = resolveInstanceStackTop(ctx);
             }
         }
@@ -1351,7 +1351,7 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
         instanceType = stackPopInt32(ctx);
 
         // BC17: -9 (INSTANCE_STACKTOP) means "pop again for the real instance type"
-        if (IS_BC17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
+        if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
             instanceType = resolveInstanceStackTop(ctx);
         }
 
@@ -1688,7 +1688,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x23: result = RValue_makeInt32((int32_t) val.int64); break;
         case 0x43: result = RValue_makeBool(val.int64 > 0); break;
         case 0x53: result = val; break; // Int64 -> Variable (passthrough)
-#elif IS_BC17_OR_HIGHER_ENABLED
+#elif IS_WAD17_OR_HIGHER_ENABLED
         // Int64 (3) -> other (Int64 stored as Int32 when NO_RVALUE_INT64).
         // Only emitted on BC17+ builds: BC16 games (Undertale, SURVEY_PROGRAM) never emit Int64 Conv opcodes.
         case 0x03: result = RValue_makeReal((GMLReal) val.int32); break;
@@ -1742,8 +1742,8 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
     }
 
     // Set gmlStackType to the destination type so Dup can compute correct byte sizes (BC17+ only)
-#if IS_BC17_OR_HIGHER_ENABLED
-    if (IS_BC17_OR_HIGHER(ctx)) {
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (IS_WAD17_OR_HIGHER(ctx)) {
         result.gmlStackType = dstType;
     }
 #endif
@@ -1786,7 +1786,7 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
             case CMP_NEQ: result = !eq; break;
             default:      result = false; break;
         }
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (a.type == RVALUE_METHOD || b.type == RVALUE_METHOD) {
         // Method is only == to the same method
         bool eq = (a.type == RVALUE_METHOD && b.type == RVALUE_METHOD) && (a.method == b.method);
@@ -1864,7 +1864,7 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
     stackPush(ctx,RValue_makeBool(result));
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // Converts a native byte count to RValue slot count by walking the stack backwards from a given position.
 // Only used by BC17+ Dup paths; reads the per-slot gmlStackType which doesn't exist on BC16-only builds.
 static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t stackPos) {
@@ -1883,7 +1883,7 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
 
 static void handleDup(VMContext* ctx, uint32_t instr) {
     uint16_t operand = (uint16_t)(instr & 0xFFFF);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t type1 = instrType1(instr);
     int32_t typeSize = gmlTypeNativeSize(type1);
 
@@ -1892,7 +1892,7 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     // It takes the top N items and moves them below the next M items.
     // Bits 0-10: top group size (in native type units)
     // Bits 11-14: bottom group size (in native type units)
-    if (IS_BC17_OR_HIGHER(ctx) && (operand & 0x8000) != 0) {
+    if (IS_WAD17_OR_HIGHER(ctx) && (operand & 0x8000) != 0) {
         int32_t topNativeCount = operand & 0x7FF;
         int32_t bottomNativeCount = (operand >> 11) & 0xF;
         int32_t topBytes = topNativeCount * typeSize;
@@ -1927,21 +1927,21 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     // Normal dup mode
     int32_t count;
 
-#if IS_BC17_OR_HIGHER_ENABLED
-    if (IS_BC17_OR_HIGHER(ctx)) {
-        // In bytecode 17+, the operand encodes a native element count: total bytes = (operand + 1) * typeSize(type1).
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (IS_WAD17_OR_HIGHER(ctx)) {
+        // In WAD 17+, the operand encodes a native element count: total bytes = (operand + 1) * typeSize(type1).
         // The native runner's stack stores raw bytes (int=4, double=8, variable=16), but our VM uses uniform RValue slots.
         // We walk backward through the stack, summing each slot's native size (tracked via gmlStackType), to find how many slots correspond to the byte count.
         int32_t totalBytes = ((int32_t)(operand & 0x7FFF) + 1) * typeSize;
 
         count = bytesToSlotCount(ctx, totalBytes, ctx->stack.top);
     } else {
-        // Bytecode 16: operand directly encodes how many additional items beyond 1 to duplicate (dup.i 0 = duplicate 1 item, dup.i 1 = duplicate 2 items, etc)
+        // WAD 16: operand directly encodes how many additional items beyond 1 to duplicate (dup.i 0 = duplicate 1 item, dup.i 1 = duplicate 2 items, etc)
         count = (int32_t)(operand & 0xFF) + 1;
         require(ctx->stack.top >= count);
     }
 #else
-    // Bytecode 16: operand directly encodes how many additional items beyond 1 to duplicate
+    // WAD 16: operand directly encodes how many additional items beyond 1 to duplicate
     count = (int32_t)(operand & 0xFF) + 1;
     require(ctx->stack.top >= count);
 #endif
@@ -1957,7 +1957,7 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
             copy.string = safeStrdup(copy.string);
         } else if (copy.type == RVALUE_ARRAY && copy.ownsReference && copy.array != nullptr) {
             GMLArray_incRef(copy.array);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         } else if (copy.type == RVALUE_METHOD && copy.ownsReference && copy.method != nullptr) {
             GMLMethod_incRef(copy.method);
 #endif
@@ -2098,7 +2098,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
     stackPush(ctx, RValue_makeUndefined());
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // BC17+ CALLV: dynamic call through a variable (method/script reference).
 // Stack layout (top -> bottom): function, instance, arg[N-1], ..., arg[0]
 // argCount is in the low 16 bits of the instruction.
@@ -2205,7 +2205,7 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
     // Pop target from stack
     int32_t target = stackPopInt32(ctx);
     // BC17: -9 (INSTANCE_STACKTOP) means "pop again for the real target"
-    if (IS_BC17_OR_HIGHER(ctx) && target == INSTANCE_STACKTOP) {
+    if (IS_WAD17_OR_HIGHER(ctx) && target == INSTANCE_STACKTOP) {
         target = resolveInstanceStackTop(ctx);
     }
 
@@ -2593,7 +2593,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
 // Forward declaration for formatInstruction (defined in disassembler section, used by trace-opcodes)
 static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint32_t instrAddr, uint32_t instr, const uint8_t* extraData, char* opcodeStr, size_t opcodeSize, char* operandStr, size_t operandSize, char* commentStr, size_t commentSize);
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // ===[ BREAK sub-opcode handlers (BC17+) ]===
 
 static void handleBreakChkIndex(VMContext* ctx, uint32_t instrAddr) {
@@ -2740,7 +2740,7 @@ static void handleBreakPushRef(VMContext* ctx, const uint8_t* extraData) {
 }
 
 static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, const uint8_t* extraData) {
-    if (IS_BC16_OR_BELOW(ctx)) return;
+    if (IS_WAD16_OR_BELOW(ctx)) return;
     int16_t breakType = instrInstanceType(instr);
     switch (breakType) {
         case BREAK_CHKINDEX:    handleBreakChkIndex(ctx, instrAddr); break;
@@ -2892,7 +2892,7 @@ static RValue executeLoop(VMContext* ctx) {
             }
             case OP_PUSHLOC: {
                 uint32_t varRef = resolveVarOperand(extraData);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
                 if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
                     Variable* varDef = resolveVarDef(ctx, varRef);
@@ -2984,8 +2984,8 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal + bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_BC17_OR_HIGHER_ENABLED
-                    if (IS_BC17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
+#if IS_WAD17_OR_HIGHER_ENABLED
+                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
 #endif
                     ctx->stack.top--;
                 } else {
@@ -3023,8 +3023,8 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal - bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_BC17_OR_HIGHER_ENABLED
-                    if (IS_BC17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
+#if IS_WAD17_OR_HIGHER_ENABLED
+                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
 #endif
                     ctx->stack.top--;
                 } else {
@@ -3058,8 +3058,8 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal * bVal;
                         slotA->type = RVALUE_REAL;
                     }
-#if IS_BC17_OR_HIGHER_ENABLED
-                    if (IS_BC17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
+#if IS_WAD17_OR_HIGHER_ENABLED
+                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = instrType2(instr);
 #endif
                     ctx->stack.top--;
                 } else {
@@ -3145,8 +3145,8 @@ static RValue executeLoop(VMContext* ctx) {
                 }
 
                 if (fastHit) {
-#if IS_BC17_OR_HIGHER_ENABLED
-                    if (IS_BC17_OR_HIGHER(ctx)) top->gmlStackType = dstType;
+#if IS_WAD17_OR_HIGHER_ENABLED
+                    if (IS_WAD17_OR_HIGHER(ctx)) top->gmlStackType = dstType;
 #endif
                 } else {
                     handleConv(ctx, srcType, dstType, convKey);
@@ -3175,8 +3175,8 @@ static RValue executeLoop(VMContext* ctx) {
                     }
                     slotA->int32 = result ? 1 : 0;
                     slotA->type = RVALUE_BOOL;
-#if IS_BC17_OR_HIGHER_ENABLED
-                    if (IS_BC17_OR_HIGHER(ctx)) slotA->gmlStackType = GML_TYPE_BOOL;
+#if IS_WAD17_OR_HIGHER_ENABLED
+                    if (IS_WAD17_OR_HIGHER(ctx)) slotA->gmlStackType = GML_TYPE_BOOL;
 #endif
                     ctx->stack.top--;
                 } else {
@@ -3220,7 +3220,7 @@ static RValue executeLoop(VMContext* ctx) {
                 VM_SYNC_IP();
                 handleCall(ctx, instr, extraData);
                 break;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
             case OP_CALLV:
                 VM_SYNC_IP();
                 handleCallV(ctx, instr);
@@ -3251,7 +3251,7 @@ static RValue executeLoop(VMContext* ctx) {
 
             // Break (extended opcodes in V17+, no-op/debug in V16)
             case OP_BREAK:
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
                 handleBreak(ctx, instr, instrAddr, extraData);
 #endif
                 break;
@@ -3265,7 +3265,7 @@ static RValue executeLoop(VMContext* ctx) {
     return RValue_makeUndefined();
 }
 
-// Rewrites bytecode version 14 opcodes to use bytecode version 16 opcodes
+// Rewrites WAD 14 bytecode opcodes to use WAD 16 bytecode opcodes
 static void rewriteBytecode14To16(VMContext* ctx) {
     DataWin* dw = ctx->dataWin;
     uint8_t* buf = dw->bytecodeBuffer;
@@ -3392,7 +3392,7 @@ VMContext* VM_create(DataWin* dataWin) {
 
     ctx->profiler = nullptr; // lazily allocated by Profiler_setEnabled(&ctx->profiler, true)
 
-    if (IS_BC14_OR_BELOW(ctx)) {
+    if (IS_WAD14_OR_BELOW(ctx)) {
         rewriteBytecode14To16(ctx);
     }
 
@@ -3409,9 +3409,9 @@ VMContext* VM_create(DataWin* dataWin) {
         Variable* var = &dataWin->vari.variables[i];
         // varID == -6 is the BC16 built-in sentinel.
         // In BC17, argument variables have instanceType == -6 (Builtin) with varID >= 0, so we also check instanceType.
-        if (IS_BC15_OR_HIGHER(ctx) && (var->varID == -6 || var->instanceType == -6)) {
+        if (IS_WAD15_OR_HIGHER(ctx) && (var->varID == -6 || var->instanceType == -6)) {
             var->builtinVarId = VMBuiltins_resolveBuiltinVarId(var->name);
-        } else if (IS_BC14_OR_BELOW(ctx)) {
+        } else if (IS_WAD14_OR_BELOW(ctx)) {
             // BC13/14 has no -6 sentinel in the file. Detect builtins by name and switch the VARI entry to use the BC16 sentinel so downstream dispatch paths treat it as a builtin.
             int16_t builtinId = VMBuiltins_resolveBuiltinVarId(var->name);
             if (builtinId != BUILTIN_VAR_UNKNOWN) {
@@ -3432,11 +3432,11 @@ VMContext* VM_create(DataWin* dataWin) {
     // Built-in variables have varID == -6 (sentinel), skip those
     // BC13/BC14: no eager scan, the sparse globalVarsSlotMap grows on first touch via resolveGlobalSlot.
     uint32_t maxGlobalVarID = 0;
-    if (!IS_BC14_OR_BELOW(ctx)) {
+    if (!IS_WAD14_OR_BELOW(ctx)) {
         forEach(Variable, v, dataWin->vari.variables, dataWin->vari.variableCount) {
             if (0 > v->varID) continue;
             // In BC17 any varID can be used as a global variable
-            if (IS_BC17_OR_HIGHER(ctx) || v->instanceType == INSTANCE_GLOBAL) {
+            if (IS_WAD17_OR_HIGHER(ctx) || v->instanceType == INSTANCE_GLOBAL) {
                 if ((uint32_t) v->varID + 1 > maxGlobalVarID) maxGlobalVarID = (uint32_t) v->varID + 1;
             }
         }
@@ -3452,7 +3452,7 @@ VMContext* VM_create(DataWin* dataWin) {
     ctx->currentCodeIndex = -1;
 
     // V17+ static initialization tracking
-    if (dataWin->gen8.bytecodeVersion >= 17) {
+    if (dataWin->gen8.wadVersion >= 17) {
         ctx->staticInitialized = safeCalloc(dataWin->code.count, sizeof(bool));
     } else {
         ctx->staticInitialized = nullptr;
@@ -3523,8 +3523,8 @@ VMContext* VM_create(DataWin* dataWin) {
     repeat(dataWin->func.codeLocalsCount, i) {
         CodeLocals* cl = &dataWin->func.codeLocals[i];
         shput(ctx->codeLocalsMap, safeStrdup(cl->name), cl);
-        // In bytecode 17+, CodeLocals uses "gml_GlobalScript_" prefix but callable CODE entries use "gml_Script_", so we'll map the "gml_Script_" variant too
-        if (dataWin->gen8.bytecodeVersion >= 17) {
+        // In WAD 17+, CodeLocals uses "gml_GlobalScript_" prefix but callable CODE entries use "gml_Script_", so we'll map the "gml_Script_" variant too
+        if (dataWin->gen8.wadVersion >= 17) {
             if (strncmp(cl->name, "gml_GlobalScript_", 17) == 0) {
                 char scriptName[512];
                 snprintf(scriptName, sizeof(scriptName), "gml_Script_%s", cl->name + 17);
@@ -3537,7 +3537,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // BC17+ NEEDS "code.count" size entries because YoYo Games in their infinite wisdom thought "what if... we just didn't include some local variables in the localVars map? heck, sometimes we can just NOT include any CodeLocals!"... fun!
     // BC13/BC14 NEEDS the per-code map because BC<=14 has no CodeLocals chunk at all, so slots are allocated on first reference.
     ctx->codeLocalsSlotMaps = nullptr;
-    if (dataWin->gen8.bytecodeVersion >= 17 || 14 >= dataWin->gen8.bytecodeVersion) {
+    if (dataWin->gen8.wadVersion >= 17 || 14 >= dataWin->gen8.wadVersion) {
         ctx->codeLocalsSlotMaps = safeCalloc(dataWin->code.count, sizeof(*ctx->codeLocalsSlotMaps));
     }
 
@@ -3620,13 +3620,13 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
 
 // Sets the currentCodeLocalsSlotMap for BC13/BC14/BC17+ games.
 static void setCurrentCodeLocalsSlotMap(VMContext* ctx) {
-    if (IS_BC17_OR_HIGHER(ctx) || IS_BC14_OR_BELOW(ctx)) {
+    if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
         ctx->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCodeIndex];
     }
 }
 
 static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
-    if (IS_BC15_OR_HIGHER(ctx) && IS_BC16_OR_BELOW(ctx)) {
+    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
         return code->localsCount;
     } else {
         // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
@@ -3732,7 +3732,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
             } else if (argCopy.type == RVALUE_ARRAY && argCopy.array != nullptr) {
                 GMLArray_incRef(argCopy.array);
                 argCopy.ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
             } else if (argCopy.type == RVALUE_METHOD && argCopy.method != nullptr) {
                 GMLMethod_incRef(argCopy.method);
                 argCopy.ownsReference = true;
@@ -3765,7 +3765,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     } else if (result.type == RVALUE_ARRAY && !result.ownsReference && result.array != nullptr) {
         GMLArray_incRef(result.array);
         result.ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (result.type == RVALUE_METHOD && !result.ownsReference && result.method != nullptr) {
         GMLMethod_incRef(result.method);
         result.ownsReference = true;

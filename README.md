@@ -22,20 +22,25 @@ And that's where Butterscotch comes in! Butterscotch is an open source re-implem
 
 ## Game Compatibility
 
-Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, Bytecode Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
+Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, WAD Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
 
 While our target is Undertale v1.08, that doesn't mean that other games CAN'T run in Butterscotch! Because Butterscotch is a runner and not a Undertale port/remake, you CAN run other GameMaker: Studio games with it and, as long as the game is compiled with GameMaker: Studio 1.4.1804 and they only use GML variables and functions that Butterscotch supports, it should work fine.
 
-Butterscotch supports the following bytecode versions:
+Butterscotch supports the following WAD versions:
 
-* Bytecode Version 8 (GameMaker: Studio 1.0.198+)
-* Bytecode Version 13
-* Bytecode Version 14
-* Bytecode Version 15
-* Bytecode Version 16
-* Bytecode Version 17 (GameMaker: Studio 2.3+)
+* WAD Version 8 (GameMaker: Studio 1.0.198+)
+* WAD Version 10 (GameMaker: Studio 1.1.622+)
+* WAD Version 11 (GameMaker: Studio 1.1.827+)
+* WAD Version 12 (GameMaker: Studio 1.1.867+)
+* WAD Version 13
+* WAD Version 14
+* WAD Version 15
+* WAD Version 16
+* WAD Version 17 (GameMaker: Studio 2.2+)
 
-Versions before GameMaker: Studio 1.0.198 (that is, pre-bytecode version 8) uses raw GML code interpreted on load, so these versions would require a GML compiler to be supported in Butterscotch.
+Other modding tools, such as UndertaleModTool, calls it "bytecode version" instead of "WAD version". We decided to go with WAD version instead because there are GameMaker: Studio versions (WAD version 6 and 7) that DO NOT use bytecode altogether, so calling it "bytecode version" is not quite correct, and because that's what the YoYo Runner calls it under the hood.
+
+Versions before GameMaker: Studio 1.0.198 (that is, pre-WAD version 8) uses raw GML code interpreted on load, so these versions would require a GML compiler to be supported in Butterscotch.
 
 However, that doesn't mean that a game that uses a compatible version WILL run! The bytecode support is still a WIP, and Butterscotch may have quirks that the original GameMaker: Studio runner may not have.
 
@@ -140,7 +145,7 @@ Having a transpiler also have other disadvantages:
 
 ## Screenshots
 
-### Undertale (GLFW) [Bytecode Version 16]
+### Undertale (GLFW) [WAD Version 16]
 
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/6651cc2e-0d6d-4354-b98d-081e84a981df" />
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/1d6edc51-2829-4f8f-b900-393f21a6655b" />
@@ -155,45 +160,45 @@ Having a transpiler also have other disadvantages:
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/e5c67781-0ffc-43c8-9c7d-333254eed704" />
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/93900e3c-79b5-4a05-bd6c-d68814e9e101" />
 
-### Undertale (PlayStation 2) [Bytecode Version 16]
+### Undertale (PlayStation 2) [WAD Version 16]
 
 Here's a video :3 https://youtu.be/PuzBxe0VGtY
 
 Here's also another video, this time showing off the Asriel Dreemurr final battle https://youtu.be/vkQMqXr0MQE
 
-### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [Bytecode Version 16]
+### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [WAD Version 16]
 
 Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 
-### DELTARUNE Chapter 2 (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter 2 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d0df9858-ad2b-4642-9f32-a542d1d942e0" />
 
-### DELTARUNE Chapter 2 (PlayStation 2) [Bytecode Version 17]
+### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/uuN72Hv50d4
 
-### DELTARUNE Chapter 3 (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter 3 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/7b49d434-e66f-4ee3-bfe8-c0b4f45ceeb7" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/afbe62ad-4706-4882-a9c9-6c239ed57c69" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d83c9f8c-e9b9-410e-8d3d-3663ede23fab" />
 
-### DELTARUNE Chapter 3 (PlayStation 2) [Bytecode Version 17]
+### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/c9r79sQABYg
 
-### DELTARUNE Chapter Selector (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter Selector (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/b8a848df-fd1c-49b7-9602-e8020ac86d5d" />
 
-### Undertale 10th Anniversary (GLFW) [Bytecode Version 17]
+### Undertale 10th Anniversary (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ec0c64e-23f1-4bb1-8291-6aaf626a690f" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ea7d078-784d-4861-aeb1-4ee2d1d70508" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/45eb5be9-5e7b-4930-bb7e-2f2c49c76a49" />
 
-### AM2R (GLFW) [Bytecode Version 14]
+### AM2R (GLFW) [WAD Version 14]
 
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3e46dfed-487c-4d91-9cd5-c71adc7a6cb5" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/4a4b6da1-dae4-4d0f-8611-12e7a1fc8d8c" />

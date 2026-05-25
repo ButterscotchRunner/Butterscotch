@@ -104,7 +104,7 @@ static inline void Instance_setSelfVar(Instance* inst, int32_t varID, RValue val
     } else if (val.type == RVALUE_ARRAY && val.array != nullptr) {
         GMLArray_incRef(val.array);
         val.ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
         GMLMethod_incRef(val.method);
         val.ownsReference = true;

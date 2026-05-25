@@ -8,7 +8,7 @@
 #include "real_type.h"
 #include "stb_ds.h"
 #include "utils.h"
-#include "bytecode_versions.h"
+#include "wad_versions.h"
 
 // Forward declarations
 struct GMLArray;
@@ -75,7 +75,7 @@ struct RValue {
 #endif
         const char* string;
         GMLArray* array;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         GMLMethod* method;
 #endif
         Instance* structInst;
@@ -86,14 +86,14 @@ struct RValue {
     // For RVALUE_ARRAY, RVALUE_METHOD, RVALUE_STRUCT: true = this RValue holds one strong ref and must decRef on RValue_free.
     // Non-owning ("weak") RValues are short-lived views returned by getters, caller must NOT free them.
     bool ownsReference;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
 #endif
     uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
 } __attribute__((aligned(8)));
 
 // Helper to initialize .gmlStackType only on BC17+ builds
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 #  define RVALUE_INIT_GMLTYPE(t) .gmlStackType = (t)
 #else
 #  define RVALUE_INIT_GMLTYPE(t)
@@ -167,7 +167,7 @@ static inline RValue RValue_makeArrayWeak(GMLArray* arr) {
     return rv;
 }
 
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 static inline RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
     RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
@@ -218,7 +218,7 @@ static inline RValue RValue_makeIndependent(RValue val) {
         GMLArray_incRef(val.array);
         val.ownsReference = true;
         return val;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
         GMLMethod_incRef(val.method);
         val.ownsReference = true;
@@ -258,7 +258,7 @@ static inline char* RValue_toString(RValue val) {
         case RVALUE_ARRAY:
             snprintf(buf, sizeof(buf), "<array:%p>", (void*) val.array);
             return safeStrdup(buf);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
             snprintf(buf, sizeof(buf), "<method:%d>", val.method->codeIndex);
             return safeStrdup(buf);
@@ -326,7 +326,7 @@ static inline char* RValue_toStringTyped(RValue val) {
         case RVALUE_ARRAY:
             snprintf(buf, sizeof(buf), "<array:%p>", (void*) val.array);
             return safeStrdup(buf);
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
             snprintf(buf, sizeof(buf), "method(code=%d, inst=%d)", val.method->codeIndex, val.method->boundInstanceId);
             return safeStrdup(buf);
@@ -350,7 +350,7 @@ static inline void RValue_free(RValue* val) {
         GMLArray_decRef(val->array);
         val->array = nullptr;
         val->ownsReference = false;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
     } else if (val->type == RVALUE_METHOD && val->ownsReference && val->method != nullptr) {
         GMLMethod_decRef(val->method);
         val->method = nullptr;
@@ -373,7 +373,7 @@ static inline GMLReal RValue_toReal(RValue val) {
         case RVALUE_BOOL:   return (GMLReal) val.int32;
         case RVALUE_STRING: return GMLReal_strtod(val.string, nullptr);
         case RVALUE_ARRAY:  return 0.0;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: return 0.0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (GMLReal) Instance_getInstanceId(val.structInst) : 0.0;
@@ -392,7 +392,7 @@ static inline int32_t RValue_toInt32(RValue val) {
         case RVALUE_BOOL:   return val.int32;
         case RVALUE_STRING: return (int32_t) GMLReal_strtod(val.string, nullptr);
         case RVALUE_ARRAY:  return 0;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: return 0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (int32_t) Instance_getInstanceId(val.structInst) : 0;
@@ -411,7 +411,7 @@ static inline int64_t RValue_toInt64(RValue val) {
         case RVALUE_BOOL:   return (int64_t) val.int32;
         case RVALUE_STRING: return (int64_t) GMLReal_strtod(val.string, nullptr);
         case RVALUE_ARRAY:  return 0;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: return 0;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr ? (int64_t) Instance_getInstanceId(val.structInst) : 0;
@@ -430,7 +430,7 @@ static inline bool RValue_toBool(RValue val) {
         case RVALUE_BOOL:   return val.int32 != 0;
         case RVALUE_STRING: return val.string != nullptr && val.string[0] != '\0';
         case RVALUE_ARRAY:  return false;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: return true;
 #endif
         case RVALUE_STRUCT: return val.structInst != nullptr;

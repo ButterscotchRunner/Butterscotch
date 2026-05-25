@@ -58,7 +58,7 @@ typedef struct {
 // ===[ GEN8 - General Info ]===
 typedef struct {
     uint8_t isDebuggerDisabled;
-    uint8_t bytecodeVersion;
+    uint8_t wadVersion;
     const char* fileName;
     const char* config;
     uint32_t lastObj;
@@ -178,6 +178,7 @@ typedef struct {
     uint32_t effects;
     float volume;
     float pitch;
+    float pan; // -1.0 = full left, 0.0 = center, +1.0 = full right. Legacy field that is not used in WAD11+.
     int32_t audioGroup;
     int32_t audioFile;
 } Sound;
@@ -389,7 +390,7 @@ typedef struct {
     int32_t tpagIndex;      // resolved TPAG index, -1 if unresolved
     float scaleX;
     float scaleY;
-    int32_t ascenderOffset; // bytecodeVersion >= 17 only
+    int32_t ascenderOffset; // wadVersion >= 17 only
     uint32_t ascender;  // GMS 2022.2+ (0 when absent)
     uint32_t sdfSpread; // GMS 2023.2 nonLTS+ (0 when absent)
     uint32_t lineHeight; // GMS 2023.6+ (0 when absent)
@@ -798,8 +799,8 @@ typedef struct {
 } Function;
 
 typedef struct {
-    // UndertaleModTool calls this field "Index", but that's because that's how it seemingly worked in pre-bytecode version 17
-    // After bytecode version 17+, this has shown that this is actually the varID of the local variable (it matches the Variable.varID)
+    // UndertaleModTool calls this field "Index", but that's because that's how it seemingly worked in pre-WAD version 17
+    // After WAD version 17+, this has shown that this is actually the varID of the local variable (it matches the Variable.varID)
     uint32_t varID;
     const char* name;
 } LocalVar;
