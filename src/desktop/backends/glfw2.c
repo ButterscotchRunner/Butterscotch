@@ -7,6 +7,10 @@
 #include "platformdefs.h"
 #include "input_recording.h"
 
+#ifdef ENABLE_SW_RENDERER
+#error The software renderer is not compatible with GLFW
+#endif
+
 static Runner *g_runner;
 
 void platformSetWindowTitle(const char* title) {
