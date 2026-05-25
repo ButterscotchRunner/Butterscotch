@@ -34,9 +34,9 @@ Butterscotch supports the following WAD versions:
 * WAD Version 11 (GameMaker: Studio 1.1.754+)
 * WAD Version 12 (GameMaker: Studio 1.1.867+)
 * WAD Version 13 (GameMaker: Studio 1.1.917+)
-* WAD Version 14
-* WAD Version 15
-* WAD Version 16
+* WAD Version 14 (GameMaker: Studio 1.4.1464+)
+* WAD Version 15 (GameMaker: Studio 1.4.1675+)
+* WAD Version 16 (GameMaker: Studio 1.4.1767+)
 * WAD Version 17 (GameMaker: Studio 2.2+)
 
 Other modding tools, such as UndertaleModTool, calls it "bytecode version" instead of "WAD version". We decided to go with WAD version instead because there are GameMaker: Studio versions (WAD version 6 and 7) that DO NOT use bytecode altogether, so calling it "bytecode version" is not quite correct, and because that's what the YoYo Runner calls it under the hood.
