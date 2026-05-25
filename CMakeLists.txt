@@ -138,6 +138,17 @@ target_include_directories(butterscotch PUBLIC vendor/sha1)
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
 target_include_directories(butterscotch PUBLIC vendor/base64)
 
+# bzip2
+add_library(bzip2 STATIC
+    vendor/bzip2/blocksort.c
+    vendor/bzip2/bzlib.c
+    vendor/bzip2/compress.c
+    vendor/bzip2/crctable.c
+    vendor/bzip2/decompress.c
+    vendor/bzip2/huffman.c
+    vendor/bzip2/randtable.c
+)
+
 if(PLATFORM STREQUAL "desktop")
     if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
         # if(DESKTOP_BACKEND STREQUAL "glfw2" OR DESKTOP_BACKEND STREQUAL "glfw3")
@@ -206,7 +217,7 @@ if(PLATFORM STREQUAL "desktop")
     # stb_vorbis
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
 
-    set(PLATFORM_LIBRARIES glad m bz2)
+    set(PLATFORM_LIBRARIES glad m bzip2)
     if(MINGW)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
     elseif(NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
@@ -278,6 +289,9 @@ elseif(PLATFORM STREQUAL "web")
     # stb_vorbis (for miniaudio's OGG decoding)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
 
+    # bzip2
+    target_link_libraries(butterscotch PRIVATE bzip2)
+
     set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
 
     target_link_options(
@@ -297,11 +311,10 @@ elseif(PLATFORM STREQUAL "web")
             "-sALLOW_MEMORY_GROWTH"
             "-sSHARED_MEMORY=1"
             "-sPTHREAD_POOL_SIZE=4"
-            "--use-port=bzip2"
             "-pthread"
     )
 
-    target_compile_options(butterscotch PRIVATE "--use-port=bzip2" "-pthread")
+    target_compile_options(butterscotch PRIVATE "-pthread")
 elseif(PLATFORM STREQUAL "web-meta")
     set_target_properties(butterscotch PROPERTIES
         SUFFIX ".mjs"
@@ -562,7 +575,7 @@ elseif(PLATFORM STREQUAL "ps3")
 
     find_package(SDL2 REQUIRED)
     target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bz2)
+    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2)
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()
