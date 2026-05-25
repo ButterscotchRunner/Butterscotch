@@ -7,7 +7,7 @@
 
 #include "common.h"
 #include "input_recording.h"
-#include "src/desktop/platformdefs.h"
+#include "desktop/platformdefs.h"
 
 static Runner *g_runner;
 static int fbWidth, fbHeight;
