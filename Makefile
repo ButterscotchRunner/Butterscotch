@@ -52,9 +52,16 @@ ENABLE_GL := 1
 endif
 
 ifdef ENABLE_GL
-INCLUDES += -Isrc/gl_common -Isrc/gl -Ivendor/glad/include
-SRCS += $(wildcard src/gl_common/*.c) vendor/glad/src/glad.c
+SRCS += $(wildcard src/gl_common/*.c)
+INCLUDES += -Isrc/gl_common -Isrc/gl
 HEADERS += $(wildcard src/gl_common/*.h)
+ifdef ENABLE_GLES
+SRCS += vendor/glad-gles/src/glad.c
+INCLUDES += -Ivendor/glad-gles/include
+else
+SRCS += vendor/glad/src/glad.c
+INCLUDES += -Ivendor/glad/include
+endif
 endif
 
 ifndef DISABLE_LEGACY_GL
