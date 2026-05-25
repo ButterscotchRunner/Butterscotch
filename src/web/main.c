@@ -305,7 +305,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 
-    setWindowTitle(nullptr, dataWin->gen8.name);
+    setWindowTitle(dataWin->gen8.name);
 
     gRunner = runner;
 
