@@ -6,6 +6,9 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #ifdef ENABLE_SW_RENDERER
 #error The software renderer is not compatible with GLFW
