@@ -90,6 +90,32 @@ void platformInitFunctions(Runner *runner) {
     runner->windowHasFocus = platformGetWindowFocus;
 }
 
+#ifdef ENABLE_SW_RENDERER
+
+static SDL_Surface* nextFb = NULL;
+
+void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
+{
+    if (nextFb) {
+        SDL_FreeSurface(nextFb);
+        nextFb = NULL;
+    }
+
+    nextFb = SDL_CreateRGBSurfaceFrom(
+        framebuffer,
+        width,
+        height,
+        32,
+        width * 4,
+        0x00ff0000, // Rmask
+        0x0000ff00, // Gmask
+        0x000000ff, // Bmask
+        0x00000000  // Amask
+    );
+}
+
+#endif
+
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
     if(SWRender) {
@@ -191,29 +217,3 @@ bool platformHandleEvents(void) {
 void PlatformGamepad_poll(RunnerGamepadState* gp) {
     (void)gp;
 }
-
-#ifdef ENABLE_SW_RENDERER
-
-static SDL_Surface* nextFb = NULL;
-
-void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
-{
-    if (nextFb) {
-        SDL_FreeSurface(nextFb);
-        nextFb = NULL;
-    }
-
-    nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer,
-        width,
-        height,
-        32,
-        width * 4,
-        0x00ff0000, // Rmask
-        0x0000ff00, // Gmask
-        0x000000ff, // Bmask
-        0x00000000  // Amask
-    );
-}
-
-#endif
