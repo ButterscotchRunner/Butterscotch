@@ -98,6 +98,11 @@ static void characterCallback(int codepoint, int action) {
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+    if (headless) {
+        fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
+        return false;
+    }
+
     // Init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");

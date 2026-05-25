@@ -40,6 +40,11 @@ bool platformGetWindowFocus(void) {
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+    if (headless && !SWRender) {
+        fprintf(stderr, "Headless mode on SDL requires the software renderer!\n");
+        return false;
+    }
+
     // Init GLFW
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
@@ -50,7 +55,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbHeight = reqH;
     if(!headless) {
         if (!SWRender)
-            SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 0);
+            SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 0); // disable vsync
         scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, SWRender ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
         if (!scr && SWRender) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
