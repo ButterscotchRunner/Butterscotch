@@ -2,7 +2,6 @@
 #include "vm.h"
 
 #include "platformdefs.h"
-#include <glad/glad.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +25,7 @@
 #include "input_recording.h"
 #include "debug_overlay.h"
 #if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+#include <glad/glad.h>
 #include "gl_renderer.h"
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
@@ -931,18 +931,22 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Load OpenGL function pointers via GLAD
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+    if (legacyGL || modernGL) {
+        // Load OpenGL function pointers via GLAD
 #ifdef ENABLE_GLES
-    if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
+        if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
 #else
-    if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
+        if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
 #endif
-        fprintf(stderr, "Failed to initialize GLAD\n");
-        platformExit();
-        DataWin_free(dataWin);
-        freeCommandLineArgs(&args);
-        return 1;
+            fprintf(stderr, "Failed to initialize GLAD\n");
+            platformExit();
+            DataWin_free(dataWin);
+            freeCommandLineArgs(&args);
+            return 1;
+        }
     }
+#endif
 
     // Install the OpenGL debug message callback
 #ifndef ENABLE_GLES
