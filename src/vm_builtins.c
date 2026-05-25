@@ -13104,9 +13104,11 @@ static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* a
 }
 
 static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-
     int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
-    int32_t subimg = RValue_toInt32(args[1]);  
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
     int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
     //I think default texture page size is 2048x2048?
     float DivW = 0.00048828125; //1.0/2048.0
@@ -13121,7 +13123,10 @@ static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
     float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
     float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
-
+    float trimmedLeft = (float) ctx->dataWin->tpag.items[TpagIndex].targetX;
+    float trimmedTop = (float) ctx->dataWin->tpag.items[TpagIndex].targetY;
+    float NormWidthS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceWidth / (float) ctx->dataWin->tpag.items[TpagIndex].boundingWidth;
+    float NormHeightS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceHeight / (float) ctx->dataWin->tpag.items[TpagIndex].boundingHeight;
 
 
     GMLArray* out = GMLArray_create(8);
@@ -13129,18 +13134,61 @@ static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     *GMLArray_slot(out, 1) = RValue_makeReal(top);
     *GMLArray_slot(out, 2) = RValue_makeReal(right);
     *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
-    *GMLArray_slot(out, 4) = RValue_makeReal(0.0);
-    *GMLArray_slot(out, 5) = RValue_makeReal(0.0);
-    *GMLArray_slot(out, 6) = RValue_makeReal(0.0);
-    *GMLArray_slot(out, 7) = RValue_makeReal(0.0);
+    *GMLArray_slot(out, 4) = RValue_makeReal(trimmedLeft);
+    *GMLArray_slot(out, 5) = RValue_makeReal(trimmedTop);
+    *GMLArray_slot(out, 6) = RValue_makeReal(NormWidthS);
+    *GMLArray_slot(out, 7) = RValue_makeReal(NormHeightS);
     return RValue_makeArray(out);
 }
 
 static RValue builtin_sprite_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
-    int32_t subimg = RValue_toInt32(args[1]);  
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
     int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+
+    //if (0 > fontIndex || ctx->dataWin->font.count <= (uint32_t) fontIndex) return;
+
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    
+
+    int32_t TpagIndex = font->tpagIndex;
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+    
+    if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+    }
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+
+    GMLArray* out = GMLArray_create(4);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    //see if it works
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    int32_t TpagIndex = font->tpagIndex;
 
     return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
 }
@@ -14032,6 +14080,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF); 
     VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
     VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
+    VM_registerBuiltin(ctx, "font_get_uvs", builtin_font_get_uvs);   
     VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
     VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
     VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);

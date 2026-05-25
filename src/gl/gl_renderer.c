@@ -187,6 +187,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glDeleteShader(vertShader);
     glDeleteShader(fragShader);
     //yeah find the way to get the shaders here!!!
+    gl->GMLShaderCompiled = safeMalloc(dataWin->shdr.count * sizeof(bool));
     fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
     for (uint32_t i = 0; dataWin->shdr.count > i; i++) {
         Shader* shdr = &dataWin->shdr.shaders[i];
@@ -200,8 +201,12 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         gl->GMLShaders = safeRealloc(gl->GMLShaders, gl->GMLShaderCount * sizeof(GLuint));
         gl->Sampler2DLookUpTable = safeRealloc(gl->Sampler2DLookUpTable, gl->GMLShaderCount * sizeof(int32_t*));
         fprintf(stderr, "GL: Linking %s\n", shdr->name); 
+        gl->GMLShaderCompiled[i] = false;
+        bool success = true;
         gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT);
-         
+        if (success) {
+        gl->GMLShaderCompiled[i] = true; 
+        }
         //Texture Set Stage BS has to be done bruh :(
         int32_t SamplerIndex = 0;
         GLint UniformCount;
@@ -1936,15 +1941,28 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
 
 static float glTextureGetTexelWidth(Renderer* renderer, int16_t pageId) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    ensureTextureLoaded(gl, (uint32_t) pageId);
+    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 1.0;
     return (1.0 / (float) gl->textureWidths[pageId]);
 }
 
 static float glTextureGetTexelHeight(Renderer* renderer, int16_t pageId) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    ensureTextureLoaded(gl, (uint32_t) pageId);
+    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 1.0;
     return (1.0 / (float) gl->textureHeights[pageId]);
 }
+/*
+static float glTextureGetWidth(Renderer* renderer, int16_t pageId) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 0.0;
+    return (float) gl->textureWidths[pageId];
+}
+
+static float glTextureGetHeight(Renderer* renderer, int16_t pageId) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 0.0;
+    return (float) gl->textureHeights[pageId];
+}
+*/
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;
