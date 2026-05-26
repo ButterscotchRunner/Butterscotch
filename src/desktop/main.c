@@ -1325,7 +1325,7 @@ int main(int argc, char* argv[]) {
             double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
             double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
             double nextFrameTime = lastFrameTime + targetFrameTime;
-            platformSleepUtil(nextFrameTime);
+            platformSleepUntil(nextFrameTime);
             lastFrameTime = nextFrameTime;
         } else {
             lastFrameTime = platformGetTime();
