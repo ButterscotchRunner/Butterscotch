@@ -169,6 +169,24 @@ bool platformHandleEvents(void) {
     return false;
 }
 
-void PlatformGamepad_poll(RunnerGamepadState* gp) {
+void platformSleepUtil(double time) {
+    double remaining = time - platformGetTime();
+    if (remaining > 0.002) {
+#ifdef _WIN32
+        Sleep((DWORD) ((remaining - 0.001) * 1000));
+#else
+        struct timespec ts = {
+            .tv_sec = 0,
+            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
+        };
+        nanosleep(&ts, NULL);
+#endif
+    }
+    while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
+    }
+}
+
+void platformGamepad_poll(RunnerGamepadState* gp) {
     (void)gp;
 }

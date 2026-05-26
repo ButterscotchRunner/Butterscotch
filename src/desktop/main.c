@@ -1056,7 +1056,7 @@ int main(int argc, char* argv[]) {
         RunnerGamepad_beginFrame(runner->gamepads);
         if (platformHandleEvents())
             should_close = true;
-        PlatformGamepad_poll(runner->gamepads);
+        platformGamepad_poll(runner->gamepads);
 
         // Debug key bindings
         if (runner->debugMode) {
@@ -1325,22 +1325,7 @@ int main(int argc, char* argv[]) {
             double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
             double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
             double nextFrameTime = lastFrameTime + targetFrameTime;
-            // Sleep for most of the remaining time, then spin-wait for precision
-            double remaining = nextFrameTime - platformGetTime();
-            if (remaining > 0.002) {
-                #ifdef _WIN32
-                Sleep((DWORD) ((remaining - 0.001) * 1000));
-                #else
-                struct timespec ts = {
-                    .tv_sec = 0,
-                    .tv_nsec = (long) ((remaining - 0.001) * 1e9)
-                };
-                nanosleep(&ts, nullptr);
-                #endif
-            }
-            while (platformGetTime() < nextFrameTime) {
-                // Spin-wait for the remaining sub-millisecond
-            }
+            platformSleepUtil(nextFrameTime);
             lastFrameTime = nextFrameTime;
         } else {
             lastFrameTime = platformGetTime();

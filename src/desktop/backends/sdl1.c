@@ -214,6 +214,16 @@ bool platformHandleEvents(void) {
     return should_exit;
 }
 
-void PlatformGamepad_poll(RunnerGamepadState* gp) {
+void platformSleepUtil(double time) {
+    double remaining = time - platformGetTime();
+    if (remaining > 0.002)
+        SDL_Delay((Uint32)((remaining - 0.001) * 1000));
+
+    while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
+    }
+}
+
+void platformGamepad_poll(RunnerGamepadState* gp) {
     (void)gp;
 }

@@ -211,6 +211,24 @@ bool platformHandleEvents(void) {
     return false;
 }
 
+void platformSleepUtil(double time) {
+    double remaining = time - platformGetTime();
+    if (remaining > 0.002) {
+#ifdef _WIN32
+        Sleep((DWORD) ((remaining - 0.001) * 1000));
+#else
+        struct timespec ts = {
+            .tv_sec = 0,
+            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
+        };
+        nanosleep(&ts, NULL);
+#endif
+    }
+    while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
+    }
+}
+
 static float applyDeadzone(float value, float deadzone) {
     if (value < 0.0f) {
         if (value > -deadzone) return 0.0f;
@@ -279,7 +297,7 @@ static void mapGlfwToGml(const GLFWgamepadstate* glfwState, GamepadSlot* slot) {
     }
 }
 
-void PlatformGamepad_poll(RunnerGamepadState* gp) {
+void platformGamepad_poll(RunnerGamepadState* gp) {
     for (int slotIdx = 0; slotIdx < 1 && slotIdx < MAX_GAMEPADS; slotIdx++) {
         GamepadSlot* slot = &gp->slots[slotIdx];
 
