@@ -45,7 +45,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    // Init GLFW
+    // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
