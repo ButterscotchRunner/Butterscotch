@@ -214,7 +214,7 @@ bool platformHandleEvents(void) {
     return should_exit;
 }
 
-void platformSleepUtil(double time) {
+void platformSleepUntil(double time) {
     double remaining = time - platformGetTime();
     if (remaining > 0.002)
         SDL_Delay((Uint32)((remaining - 0.001) * 1000));

@@ -211,7 +211,7 @@ bool platformHandleEvents(void) {
     return false;
 }
 
-void platformSleepUtil(double time) {
+void platformSleepUntil(double time) {
     double remaining = time - platformGetTime();
     if (remaining > 0.002) {
 #ifdef _WIN32
