@@ -957,7 +957,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Initialize the renderer
-    int fbWidth, fbHeight;
+    uint32_t fbWidth, fbHeight;
     Renderer* renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
     if (SWRender) {
