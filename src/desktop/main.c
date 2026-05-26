@@ -51,7 +51,7 @@ bool modernGL;
 bool legacyGL;
 bool SWRender;
 
-#ifndef ENABLE_GLES
+#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
     switch (source) {
@@ -532,6 +532,7 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
@@ -566,7 +567,6 @@ static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frame
 
 // Dumps every live surface in the GL renderer as a PNG.
 // Filename pattern takes two %d slots: frame number, then surface ID.
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int frameNumber) {
     repeat(gl->surfaceCount, surfaceId) {
         if (gl->surfaces[surfaceId] == 0)
