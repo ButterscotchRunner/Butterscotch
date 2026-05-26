@@ -2242,11 +2242,10 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     // Validate FORM header
     char formMagic[4];
     BinaryReader_readBytes(&reader, formMagic, 4);
+    // Some games may purposely corrupt the magic value so that UndertaleModTool doesn't open it
+    // The native runner does not care about verifying the magic value, so we'll validate it and warn, but we won't exit
     if (memcmp(formMagic, "FORM", 4) != 0) {
-        fprintf(stderr, "Invalid file: expected FORM magic, got '%.4s'\n", formMagic);
-        free(dw);
-        fclose(file);
-        exit(1);
+        fprintf(stderr, "The file does not have the expected FORM magic, got '%.4s'. The file may not be a WAD or it may have been tampered with!\n", formMagic);
     }
 
     uint32_t formLength = BinaryReader_readUint32(&reader);
