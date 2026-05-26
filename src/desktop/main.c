@@ -950,8 +950,8 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
+#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
     // Install the OpenGL debug message callback
-#ifndef ENABLE_GLES
     if (modernGL)
         installGLDebugCallback();
 #endif
