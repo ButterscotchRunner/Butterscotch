@@ -1,5 +1,9 @@
 #include <stdio.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <GL/glfw.h>
 
 #include "common.h"
