@@ -10,7 +10,7 @@
 #include "desktop/platformdefs.h"
 
 static Runner *g_runner;
-static int fbWidth, fbHeight;
+static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 
 void platformSetWindowTitle(const char* title) {
