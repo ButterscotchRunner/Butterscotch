@@ -1093,6 +1093,13 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             bool changed = value != inst->spriteIndex;
             if (changed) {
                 inst->spriteIndex = value;
+                // The native runner resets the image_index to zero if the new frame count is smaller than the current image_index
+                if (value >= 0 && runner->dataWin->sprt.count > (uint32_t) value) {
+                    int32_t newFrameCount = (int32_t) runner->dataWin->sprt.sprites[value].textureCount;
+                    if (newFrameCount > 0 && (int32_t) inst->imageIndex >= newFrameCount) {
+                        inst->imageIndex = 0;
+                    }
+                }
                 SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
             }
             return;
@@ -11314,6 +11321,16 @@ static RValue builtin_json_decode(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeReal(mapIndex);
 }
 
+static RValue builtin_object_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        return RValue_makeBool(false);
+    }
+
+    int32_t id = RValue_toInt32(args[0]);
+    bool exists = id >= 0 && ctx->dataWin->objt.count > (uint32_t) id;
+    return RValue_makeBool(exists);
+}
+
 static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         fprintf(stderr, "[object_get_sprite] Expected at least 1 argument\n");
@@ -12361,6 +12378,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
+    VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);

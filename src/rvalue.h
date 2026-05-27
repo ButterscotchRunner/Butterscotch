@@ -229,9 +229,24 @@ static inline RValue RValue_makeIndependent(RValue val) {
 static inline char* RValue_toString(RValue val) {
     char buf[64];
     switch (val.type) {
-        case RVALUE_REAL:
-            snprintf(buf, sizeof(buf), "%.16g", (double) val.real);
+        case RVALUE_REAL: {
+            GMLReal r = val.real;
+            if (isnan(r)) return safeStrdup("NaN");
+            if (isinf(r)) return safeStrdup(r < (GMLReal) 0 ? "-inf" : "inf");
+#ifdef USE_FLOAT_REALS
+            const GMLReal INT_SAFE_BOUND = 9.2233715e18f; // largest float strictly < 2^63
+#else
+            const GMLReal INT_SAFE_BOUND = 9.2233720368547758e18;
+#endif
+            // Is this a integer?
+            if (r >= -INT_SAFE_BOUND && r <= INT_SAFE_BOUND && r == (GMLReal) (int64_t) r) {
+                snprintf(buf, sizeof(buf), "%lld", (long long) (int64_t) r);
+            } else {
+                // For anything else, we format to two decimal places
+                snprintf(buf, sizeof(buf), "%.2f", (double) r);
+            }
             return safeStrdup(buf);
+        }
         case RVALUE_INT32:
             snprintf(buf, sizeof(buf), "%d", val.int32);
             return safeStrdup(buf);

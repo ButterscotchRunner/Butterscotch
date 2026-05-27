@@ -508,11 +508,12 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
     float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
 
-    // Compute local quad corners (relative to origin, with target offset)
+    // Use targetWidth/Height (draw size in bounding rect), not sourceWidth/Height (texture sample size).
+    // They differ when the texture was auto-downscaled by GMS to fit a texture page.
     float localX0 = (float) tpag->targetX - originX;
     float localY0 = (float) tpag->targetY - originY;
-    float localX1 = localX0 + (float) tpag->sourceWidth;
-    float localY1 = localY0 + (float) tpag->sourceHeight;
+    float localX1 = localX0 + (float) tpag->targetWidth;
+    float localY1 = localY0 + (float) tpag->targetHeight;
 
     // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
     // GML rotation is counter-clockwise, OpenGL rotation is counter-clockwise, but

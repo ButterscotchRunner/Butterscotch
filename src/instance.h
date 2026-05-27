@@ -39,7 +39,8 @@ struct Instance {
 
     // Built-in instance properties
     int32_t spriteIndex;
-    float imageSpeed, imageIndex;
+    float imageSpeed;
+    float imageIndex; // Even though textureCount is unsigned, games CAN set the image_index to negative values
     float imageXscale, imageYscale, imageAngle, imageAlpha;
     uint32_t imageBlend;
     int32_t depth;
