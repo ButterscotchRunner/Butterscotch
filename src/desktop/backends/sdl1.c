@@ -27,12 +27,10 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
-    if (SWRender)
-        return;
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
-    scr = SDL_SetVideoMode(width, height, 0, SWRender ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
+    scr = SDL_SetVideoMode(width, height, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
 bool platformGetWindowFocus(void) {
@@ -56,7 +54,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     if(!headless) {
         if (!SWRender)
             SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 0); // disable vsync
-        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, SWRender ? 0 : (SDL_OPENGL | SDL_RESIZABLE));
+        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
         if (!scr && SWRender) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
@@ -197,8 +195,6 @@ bool platformHandleEvents(void) {
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_VIDEORESIZE:
-                if (SWRender)
-                    break;
                 fbWidth = e.resize.w;
                 fbHeight = e.resize.h;
                 scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);

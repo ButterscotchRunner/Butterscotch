@@ -957,13 +957,10 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Initialize the renderer
-    int32_t fbWidth, fbHeight;
     Renderer* renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
-    if (SWRender) {
-        platformGetWindowSize(&fbWidth, &fbHeight);
-        renderer = SWRenderer_create(fbWidth, fbHeight);
-    }
+    if (SWRender)
+        renderer = SWRenderer_create();
 #endif
 #ifdef ENABLE_LEGACY_GL
     if (legacyGL)
@@ -1207,6 +1204,7 @@ int main(int argc, char* argv[]) {
 #endif
 
             // Query actual framebuffer size
+            int32_t fbWidth, fbHeight;
             platformGetWindowSize(&fbWidth, &fbHeight);
 
             if (!runner->appSurfaceEnabled) {
