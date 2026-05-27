@@ -254,6 +254,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "buffer_u8", BUILTIN_VAR_BUFFER_U8 },
     { "buffer_wrap", BUILTIN_VAR_BUFFER_WRAP },
     { "current_day", BUILTIN_VAR_CURRENT_DAY },
+    { "current_hour", BUILTIN_VAR_CURRENT_HOUR },
     { "current_month", BUILTIN_VAR_CURRENT_MONTH },
     { "current_time", BUILTIN_VAR_CURRENT_TIME },
     { "debug_mode", BUILTIN_VAR_DEBUG_MODE },
@@ -818,6 +819,11 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             struct tm *t = localtime(&now);
             return RValue_makeReal(t->tm_mday);
         }
+        case BUILTIN_VAR_CURRENT_HOUR: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_hour);
+        }
         case BUILTIN_VAR_CURRENT_MONTH: {
             time_t now = time(NULL);
             struct tm *t = localtime(&now);
@@ -1380,6 +1386,7 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_ID:
         case BUILTIN_VAR_OBJECT_INDEX:
         case BUILTIN_VAR_CURRENT_DAY:
+        case BUILTIN_VAR_CURRENT_HOUR:
         case BUILTIN_VAR_CURRENT_MONTH:
         case BUILTIN_VAR_CURRENT_TIME:
         case BUILTIN_VAR_VIEW_CURRENT:
