@@ -24,8 +24,10 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
 #include <glad/glad.h>
+#endif
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 #include "gl_renderer.h"
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
