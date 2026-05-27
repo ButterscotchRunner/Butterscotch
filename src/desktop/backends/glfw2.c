@@ -145,6 +145,8 @@ void platformSwapBuffers(void) {
     glfwSwapBuffers();
 }
 
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+
 void *platformGetProcAddress(const char *name) {
 #ifdef _WIN32
     // glfw2's glfwGetProcAddress is broken on Windows.
@@ -161,6 +163,8 @@ void *platformGetProcAddress(const char *name) {
     return glfwGetProcAddress(name);
 #endif
 }
+
+#endif
 
 double platformGetTime(void) {
     return glfwGetTime();

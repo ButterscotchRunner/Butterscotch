@@ -126,9 +126,13 @@ void platformSwapBuffers(void) {
 #endif
 }
 
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+
 void *platformGetProcAddress(const char *name) {
     return SDL_GL_GetProcAddress(name);
 }
+
+#endif
 
 double platformGetTime(void) {
     return (double)SDL_GetTicks() / 1000.0;

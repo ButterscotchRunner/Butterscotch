@@ -202,9 +202,13 @@ void platformSwapBuffers(void) {
     glfwSwapBuffers(window);
 }
 
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+
 void *platformGetProcAddress(const char *name) {
     return glfwGetProcAddress(name);
 }
+
+#endif
 
 double platformGetTime(void) {
     return glfwGetTime();
