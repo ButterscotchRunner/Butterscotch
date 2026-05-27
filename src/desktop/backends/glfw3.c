@@ -1,19 +1,19 @@
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
+#ifdef ENABLE_SW_RENDERER
+#include <glad/glad.h>
+#endif
 #include <GLFW/glfw3.h>
 
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
-
-#ifdef ENABLE_SW_RENDERER
-#error The software renderer is not compatible with GLFW
-#endif
 
 static GLFWwindow *window;
 static Runner *g_runner;
@@ -117,6 +117,15 @@ static void characterCallback(GLFWwindow* _window, unsigned int codepoint) {
     RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
 }
 
+#ifdef ENABLE_SW_RENDERER
+
+static void resizeCallback(GLFWwindow* window, int width, int height) {
+    (void)window;
+    glViewport(0, 0, width, height);
+}
+
+#endif
+
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
@@ -125,7 +134,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (legacyGL) {
+    if (SWRender) {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    } else if (legacyGL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     } else {
@@ -196,19 +208,41 @@ void platformInitFunctions(Runner *runner) {
     runner->getWindowSize = platformGetWindowSize;
     runner->setWindowSize = platformSetWindowSize;
     runner->windowHasFocus = platformGetWindowFocus;
+#ifdef ENABLE_SW_RENDERER
+    if (SWRender)
+        glfwSetWindowSizeCallback(window, resizeCallback);
+#endif
 }
+
+#ifdef ENABLE_SW_RENDERER
+
+static uint32_t* nextFb = NULL;
+static int fbWidth = 0, fbHeight = 0;
+
+void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
+    nextFb = framebuffer;
+    fbWidth = width;
+    fbHeight = height;
+}
+
+#endif
 
 void platformSwapBuffers(void) {
+#ifdef ENABLE_SW_RENDERER
+    if (SWRender && nextFb) {
+        // glDrawPixels origin is bottom-left, so flip if your FB is top-left
+        glRasterPos2f(-1, 1);
+        glPixelZoom(1, -1);
+        glDrawPixels(fbWidth, fbHeight, GL_BGRA, GL_UNSIGNED_BYTE, nextFb);
+        nextFb = NULL;
+    }
+#endif
     glfwSwapBuffers(window);
 }
-
-#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
 
 void *platformGetProcAddress(const char *name) {
     return glfwGetProcAddress(name);
 }
-
-#endif
 
 double platformGetTime(void) {
     return glfwGetTime();

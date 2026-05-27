@@ -42,6 +42,27 @@ ifndef DISABLE_WAD17
 DEFINES += -DENABLE_WAD17
 endif
 
+# TODO: add support for non-desktop backends
+SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
+INCLUDES += -Isrc/desktop
+ifeq ($(DESKTOP_BACKEND),glfw3)
+GLFW3_LIBS += $(shell pkg-config --libs glfw3)
+LIBS += $(GLFW3_LIBS)
+DEFINES += -DUSE_GLFW3
+ENABLE_GLAD := 1
+endif
+ifeq ($(DESKTOP_BACKEND),glfw2)
+GLFW2_LIBS += $(shell pkg-config --libs libglfw)
+LIBS += $(GLFW2_LIBS)
+DEFINES += -DUSE_GLFW2
+ENABLE_GLAD := 1
+endif
+ifeq ($(DESKTOP_BACKEND),sdl1)
+SDL1_LIBS += $(shell pkg-config --libs sdl)
+LIBS += $(SDL1_LIBS)
+DEFINES += -DUSE_SDL1
+endif
+
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
 ifndef DISABLE_LEGACY_GL
 ENABLE_GL := 1
@@ -54,13 +75,7 @@ ifdef ENABLE_GL
 SRCS += $(wildcard src/gl_common/*.c)
 INCLUDES += -Isrc/gl_common -Isrc/gl
 HEADERS += $(wildcard src/gl_common/*.h)
-ifdef ENABLE_GLES
-SRCS += vendor/glad-gles/src/glad.c
-INCLUDES += -Ivendor/glad-gles/include
-else
-SRCS += vendor/glad/src/glad.c
-INCLUDES += -Ivendor/glad/include
-endif
+ENABLE_GLAD := 1
 endif
 
 ifndef DISABLE_LEGACY_GL
@@ -117,20 +132,14 @@ LIBS += -lopenal
 endif
 endif
 
-# TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
-INCLUDES += -Isrc/desktop
-ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell pkg-config --libs glfw3)
-LIBS += $(GLFW3_LIBS)
+ifdef ENABLE_GLAD
+ifdef ENABLE_GLES
+SRCS += vendor/glad-gles/src/glad.c
+INCLUDES += -Ivendor/glad-gles/include
+else
+SRCS += vendor/glad/src/glad.c
+INCLUDES += -Ivendor/glad/include
 endif
-ifeq ($(DESKTOP_BACKEND),glfw2)
-GLFW2_LIBS += $(shell pkg-config --libs libglfw)
-LIBS += $(GLFW2_LIBS)
-endif
-ifeq ($(DESKTOP_BACKEND),sdl1)
-SDL1_LIBS += $(shell pkg-config --libs sdl)
-LIBS += $(SDL1_LIBS)
 endif
 
 ifeq ($(OS),Windows)

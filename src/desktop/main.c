@@ -933,8 +933,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#if defined(USE_GLFW3) || defined(USE_GLFW2)
+    if (legacyGL || modernGL || SWRender) {
+#else
     if (legacyGL || modernGL) {
+#endif
         // Load OpenGL function pointers via GLAD
 #ifdef ENABLE_GLES
         if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
