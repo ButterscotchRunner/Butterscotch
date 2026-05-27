@@ -253,6 +253,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "buffer_u64", BUILTIN_VAR_BUFFER_U64 },
     { "buffer_u8", BUILTIN_VAR_BUFFER_U8 },
     { "buffer_wrap", BUILTIN_VAR_BUFFER_WRAP },
+    { "current_day", BUILTIN_VAR_CURRENT_DAY },
     { "current_month", BUILTIN_VAR_CURRENT_MONTH },
     { "current_time", BUILTIN_VAR_CURRENT_TIME },
     { "debug_mode", BUILTIN_VAR_DEBUG_MODE },
@@ -812,6 +813,16 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeReal((GMLReal) runner->backgroundColor);
 
         // Timing
+        case BUILTIN_VAR_CURRENT_DAY: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_mday);
+        }
+        case BUILTIN_VAR_CURRENT_MONTH: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_mon + 1);
+        }
         case BUILTIN_VAR_CURRENT_TIME: {
             #ifdef _WIN32
             LARGE_INTEGER freq, counter;
@@ -830,11 +841,6 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             GMLReal ms = (GMLReal) tv.tv_sec * 1000.0 + (GMLReal) tv.tv_usec / 1000.0;
             #endif
             return RValue_makeReal(ms);
-        }
-        case BUILTIN_VAR_CURRENT_MONTH: {
-            time_t now = time(NULL);
-            struct tm *t = localtime(&now);
-            return RValue_makeReal(t->tm_mon + 1);
         }
 
         // Arguments
@@ -1373,8 +1379,9 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_BUFFER_FIXED ... BUILTIN_VAR_BUFFER_SEEK_END:
         case BUILTIN_VAR_ID:
         case BUILTIN_VAR_OBJECT_INDEX:
-        case BUILTIN_VAR_CURRENT_TIME:
+        case BUILTIN_VAR_CURRENT_DAY:
         case BUILTIN_VAR_CURRENT_MONTH:
+        case BUILTIN_VAR_CURRENT_TIME:
         case BUILTIN_VAR_VIEW_CURRENT:
         case BUILTIN_VAR_PATH_INDEX:
         case BUILTIN_VAR_DEBUG_MODE:
