@@ -103,7 +103,7 @@ static GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
     return program;
 }
 
-static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader) {
+static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *success2) {
     GLuint program = glCreateProgram();
     glAttachShader(program, vertShader);
     glAttachShader(program, fragShader);
@@ -121,6 +121,8 @@ static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader) {
         glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
         fprintf(stderr, "GL: Shader linking failed: %s\n", infoLog);
         abort();
+    } else {
+        *success2 = true;
     }
     return program;
 }
@@ -180,7 +182,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    //compile em shaders!
+    //compile shaders
     GLuint vertShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
     GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
     gl->shaderProgram = linkProgram(vertShader, fragShader);
@@ -201,38 +203,43 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         gl->GMLShaders = safeRealloc(gl->GMLShaders, gl->GMLShaderCount * sizeof(GLuint));
         gl->Sampler2DLookUpTable = safeRealloc(gl->Sampler2DLookUpTable, gl->GMLShaderCount * sizeof(int32_t*));
         fprintf(stderr, "GL: Linking %s\n", shdr->name); 
-        gl->GMLShaderCompiled[i] = false;
-        bool success = true;
-        gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT);
-        if (success) {
-        gl->GMLShaderCompiled[i] = true; 
-        }
+        bool success = false;
+        gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT, &success);
+        gl->GMLShaderCompiled[i] = success;
+        glDeleteShader(vertShaderT);
+        glDeleteShader(fragShaderT);
         //Texture Set Stage BS has to be done bruh :(
         int32_t SamplerIndex = 0;
         GLint UniformCount;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORMS, &UniformCount);
-
+        
         //I know it looks baddd.... butttt it works
         gl->Sampler2DLookUpTable[i] = safeMalloc(UniformCount * sizeof(int32_t));
         GLint LongestUniformName = 0;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
-        char *UniformName = safeMalloc(LongestUniformName);
-
+        char *UniformName = safeMalloc(LongestUniformName+1);
+        GLint gm_BaseTexture = glGetUniformLocation(gl->GMLShaders[i], "gm_BaseTexture");
+        if (gm_BaseTexture == -1) //I assume "slot" 1 is always gm_BaseTexture, do tell me if I am wrong
+        {
+            SamplerIndex = 1;
+            fprintf(stderr, "GL: %s does not use gm_BaseTexture\n", shdr->name); 
+        }
         for (GLint b = 0; b < UniformCount; b++) {
+            
             GLsizei length = 0;
             GLint size = 0;
             GLenum type = 0;
             glGetActiveUniform(gl->GMLShaders[i], b, LongestUniformName, &length, &size, &type, UniformName);
-
-                gl->Sampler2DLookUpTable[i][b] = -1;
-                if (type == GL_SAMPLER_2D)
-                {
-                    GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
-                    glUseProgram(gl->GMLShaders[i]);
-                    glUniform1i(location, SamplerIndex);
-                    SamplerIndex += 1;
-                    gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
-                }
+            
+            gl->Sampler2DLookUpTable[i][b] = -1;
+            if (type == GL_SAMPLER_2D)
+            {
+                GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
+                glUseProgram(gl->GMLShaders[i]);
+                glUniform1i(location, SamplerIndex);
+                SamplerIndex += 1;
+                gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
+            }
 
         }
 
@@ -389,7 +396,6 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     if (gm_FogColour != -1) {
         glUniform1i(gm_FogColour, gl->fogColor);
     }
-
 
     if (gm_AlphaTestEnabled != -1) {
         glUniform1i(gm_AlphaTestEnabled, gl->alphaTestEnable);
@@ -1638,32 +1644,12 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     flushBatch(gl);
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
-    // OpenGL Y is bottom-up, GML Y is top-down; flip Y to the GL coordinate.
-    int32_t glY = gl->surfaceHeight[surfaceID] - y - h;
-    //if (surfaceID != APPLICATION_SURFACE_ID) {
-    glY = y;
-    //}
 
     uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
 
+    glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-    glReadPixels(x, glY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    /*
-    if (surfaceID == APPLICATION_SURFACE_ID) {
-        // Flip vertically (OpenGL reads bottom-to-top)
-        size_t rowBytes = (size_t) w * 4;
-        uint8_t* rowTemp = safeMalloc(rowBytes);
-        repeat(h / 2, row) {
-            uint8_t* top = pixels + row * rowBytes;
-            uint8_t* bot = pixels + (h - 1 - row) * rowBytes;
-            memcpy(rowTemp, top, rowBytes);
-            memcpy(top, bot, rowBytes);
-            memcpy(bot, rowTemp, rowBytes);
-        }
-        free(rowTemp);
-    }
-    */
     // Create a new GL texture from the captured pixels
     GLuint newTexId;
     glGenTextures(1, &newTexId);
@@ -1932,6 +1918,9 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
         fprintf(stderr, "GL: SOMETHING WRONK\n");
         return;
     }
+    if (slot == 0) {
+    gl->currentTextureId = texID;  
+    }
     //return;
     glActiveTexture(GL_TEXTURE0 + (slot-1));
     glBindTexture(GL_TEXTURE_2D, texID);
@@ -1950,19 +1939,7 @@ static float glTextureGetTexelHeight(Renderer* renderer, int16_t pageId) {
     if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 1.0;
     return (1.0 / (float) gl->textureHeights[pageId]);
 }
-/*
-static float glTextureGetWidth(Renderer* renderer, int16_t pageId) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 0.0;
-    return (float) gl->textureWidths[pageId];
-}
 
-static float glTextureGetHeight(Renderer* renderer, int16_t pageId) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 0.0;
-    return (float) gl->textureHeights[pageId];
-}
-*/
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;

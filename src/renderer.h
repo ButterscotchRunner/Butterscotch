@@ -128,8 +128,6 @@ typedef struct {
     int32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);
     float (*textureGetTexelWidth)(Renderer* renderer, int16_t pageId);
     float (*textureGetTexelHeight)(Renderer* renderer, int16_t pageId);
-    float (*textureGetWidth)(Renderer* renderer, int16_t pageId);
-    float (*textureGetHeight)(Renderer* renderer, int16_t pageId);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, int32_t texID);
 } RendererVtable;
 
