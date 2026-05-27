@@ -141,6 +141,7 @@ typedef enum {
 
     // Timing
     BUILTIN_VAR_CURRENT_TIME,
+    BUILTIN_VAR_CURRENT_MONTH,
 
     // File system
     BUILTIN_VAR_WORKING_DIRECTORY,

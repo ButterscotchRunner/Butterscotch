@@ -253,6 +253,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "buffer_u64", BUILTIN_VAR_BUFFER_U64 },
     { "buffer_u8", BUILTIN_VAR_BUFFER_U8 },
     { "buffer_wrap", BUILTIN_VAR_BUFFER_WRAP },
+    { "current_month", BUILTIN_VAR_CURRENT_MONTH },
     { "current_time", BUILTIN_VAR_CURRENT_TIME },
     { "debug_mode", BUILTIN_VAR_DEBUG_MODE },
     { "depth", BUILTIN_VAR_DEPTH },
@@ -830,6 +831,11 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             #endif
             return RValue_makeReal(ms);
         }
+        case BUILTIN_VAR_CURRENT_MONTH: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_mon + 1);
+        }
 
         // Arguments
         case BUILTIN_VAR_ARGUMENT_COUNT:
@@ -1368,6 +1374,7 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_ID:
         case BUILTIN_VAR_OBJECT_INDEX:
         case BUILTIN_VAR_CURRENT_TIME:
+        case BUILTIN_VAR_CURRENT_MONTH:
         case BUILTIN_VAR_VIEW_CURRENT:
         case BUILTIN_VAR_PATH_INDEX:
         case BUILTIN_VAR_DEBUG_MODE:
