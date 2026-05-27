@@ -255,7 +255,9 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "buffer_wrap", BUILTIN_VAR_BUFFER_WRAP },
     { "current_day", BUILTIN_VAR_CURRENT_DAY },
     { "current_hour", BUILTIN_VAR_CURRENT_HOUR },
+    { "current_minute", BUILTIN_VAR_CURRENT_MINUTE },
     { "current_month", BUILTIN_VAR_CURRENT_MONTH },
+    { "current_second", BUILTIN_VAR_CURRENT_SECOND },
     { "current_time", BUILTIN_VAR_CURRENT_TIME },
     { "debug_mode", BUILTIN_VAR_DEBUG_MODE },
     { "depth", BUILTIN_VAR_DEPTH },
@@ -824,10 +826,20 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             struct tm *t = localtime(&now);
             return RValue_makeReal(t->tm_hour);
         }
+        case BUILTIN_VAR_CURRENT_MINUTE: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_min);
+        }
         case BUILTIN_VAR_CURRENT_MONTH: {
             time_t now = time(NULL);
             struct tm *t = localtime(&now);
             return RValue_makeReal(t->tm_mon + 1);
+        }
+        case BUILTIN_VAR_CURRENT_SECOND: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            return RValue_makeReal(t->tm_sec);
         }
         case BUILTIN_VAR_CURRENT_TIME: {
             #ifdef _WIN32
@@ -1387,7 +1399,9 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_OBJECT_INDEX:
         case BUILTIN_VAR_CURRENT_DAY:
         case BUILTIN_VAR_CURRENT_HOUR:
+        case BUILTIN_VAR_CURRENT_MINUTE:
         case BUILTIN_VAR_CURRENT_MONTH:
+        case BUILTIN_VAR_CURRENT_SECOND:
         case BUILTIN_VAR_CURRENT_TIME:
         case BUILTIN_VAR_VIEW_CURRENT:
         case BUILTIN_VAR_PATH_INDEX:
