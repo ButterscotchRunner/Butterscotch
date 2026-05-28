@@ -101,20 +101,18 @@ static int32_t glfwKeyToGml(int glfwKey) {
 
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     (void)scancode; (void)mods; (void)window;
-    Runner* runner = g_runner;
     // During playback, suppress real keyboard input (window events like close still work)
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
     int32_t gmlKey = glfwKeyToGml(key);
-    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(runner->keyboard, gmlKey);
-    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(runner->keyboard, gmlKey);
+    if (action == GLFW_PRESS) RunnerKeyboard_onKeyDown(g_runner->keyboard, gmlKey);
+    else if (action == GLFW_RELEASE) RunnerKeyboard_onKeyUp(g_runner->keyboard, gmlKey);
     // GLFW_REPEAT is ignored (GML doesn't use key repeat)
 }
 
 static void characterCallback(GLFWwindow* _window, unsigned int codepoint) {
     (void)_window;
-    Runner* runner = g_runner;
     if (InputRecording_isPlaybackActive(globalInputRecording)) return;
-    RunnerKeyboard_onCharacter(runner->keyboard, codepoint);
+    RunnerKeyboard_onCharacter(g_runner->keyboard, codepoint);
 }
 
 #ifdef ENABLE_SW_RENDERER
