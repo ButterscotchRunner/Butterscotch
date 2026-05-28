@@ -230,7 +230,6 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
     if (SWRender && nextFb) {
-        // glDrawPixels origin is bottom-left, so flip if your FB is top-left
         glRasterPos2f(-1, 1);
         glPixelZoom(1, -1);
         glDrawPixels(fbWidth, fbHeight, GL_BGRA, GL_UNSIGNED_BYTE, nextFb);
