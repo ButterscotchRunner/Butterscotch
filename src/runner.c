@@ -1839,6 +1839,13 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     return inst;
 }
 
+void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
+    repeat(arrlen(runner->gameArgs), i) free(runner->gameArgs[i]);
+    arrfree(runner->gameArgs);
+    runner->gameArgs = nullptr;
+    repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));
+}
+
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst) {
     // We check this to avoid a infinite loop if "inst" is destroyed within a event destroy event
     if (inst->destroyed)
@@ -3372,6 +3379,11 @@ void Runner_free(Runner* runner) {
     ResolvedEventTable_free(&runner->eventTable);
     EventSlotMap_destroy(&runner->eventSlotMap);
     shfree(runner->assetsByName);
+
+    repeat(arrlen(runner->gameArgs), i) {
+        free(runner->gameArgs[i]);
+    }
+    arrfree(runner->gameArgs);
 
     RunnerKeyboard_free(runner->keyboard);
     RunnerGamepad_free(runner->gamepads);

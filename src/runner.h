@@ -469,11 +469,21 @@ struct Runner {
 
     // GameMaker surface "stack".
     int32_t surfaceStack[MAX_SURFACES];
+
+    // Both must be set
+    // The original runner actually spawns a new process when game_change is called
+    char* pendingWorkingDirectory;
+    char* pendingLaunchParameters;
+
+    // GameMaker launcher parameters
+    // Just like the original runner, argv[0] is included in gameArgs
+    char** gameArgs;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem);
+void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
 void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);
 void Runner_handlePendingRoomChange(Runner* runner);

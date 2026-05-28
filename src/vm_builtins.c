@@ -6385,6 +6385,148 @@ static RValue builtin_action_move_to(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeUndefined();
 }
 
+// action_move_start(): teleport the current instance back to its (xstart, ystart) spawn position.
+static RValue builtin_action_move_start(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance != nullptr) {
+        Instance* inst = ctx->currentInstance;
+        inst->x = inst->xstart;
+        inst->y = inst->ystart;
+        SpatialGrid_markInstanceAsDirty(ctx->runner->spatialGrid, inst);
+    }
+    return RValue_makeUndefined();
+}
+
+// action_potential_step(x, y, stepsize, checkall): DnD wrapper around mp_potential_step that honors the "relative" checkbox by shifting (x, y) by the current instance's position.
+static RValue builtin_action_potential_step(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    GMLReal goalX = RValue_toReal(args[0]);
+    GMLReal goalY = RValue_toReal(args[1]);
+    GMLReal stepsize = RValue_toReal(args[2]);
+    bool checkall = RValue_toBool(args[3]);
+    if (ctx->actionRelativeFlag && ctx->currentInstance != nullptr) {
+        goalX += ctx->currentInstance->x;
+        goalY += ctx->currentInstance->y;
+    }
+    return builtinMpPotentialStepCommon(ctx, goalX, goalY, stepsize, INSTANCE_ALL, checkall);
+}
+
+// Tests whether the current instance can occupy (testX, testY) without colliding (useall=true checks all instances, false checks only solids).
+static bool bounceTestFree(Runner* runner, Instance* inst, GMLReal testX, GMLReal testY, bool useall) {
+    if (useall) {
+        return placeEmptyAt(runner, inst, testX, testY);
+    }
+    return placeFreeAt(runner, inst, testX, testY);
+}
+
+// action_bounce(adv, against): DnD wrapper around move_bounce_solid / move_bounce_all.
+// * adv (arg[0]): real, treated as bool via the native ">= 0.5" rule.
+// * against (arg[1]): real menu pick: 0 = solid only, 1 = all instances (useall = (against == 1.0)).
+static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
+
+    Runner* runner = ctx->runner;
+    Instance* inst = ctx->currentInstance;
+    bool advanced = RValue_toReal(args[0]) >= 0.5;
+    bool useall = RValue_toReal(args[1]) == 1.0;
+
+    bool didBounce = false;
+    if (!bounceTestFree(runner, inst, inst->x, inst->y, useall)) {
+        inst->x = inst->xprevious;
+        inst->y = inst->yprevious;
+        SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
+        didBounce = true;
+    }
+
+    GMLReal xx = inst->x;
+    GMLReal yy = inst->y;
+
+    if (advanced) {
+        int32_t n = 18;
+        GMLReal dir = 10.0 * GMLReal_round(inst->direction / 10.0);
+        GMLReal ldir = dir;
+        GMLReal rdir = dir;
+        for (int32_t i = 1; 2 * n > i; i++) {
+            ldir -= 180.0 / (GMLReal) n;
+            GMLReal xn = xx + inst->speed * GMLReal_cos(ldir * (M_PI / 180.0));
+            GMLReal yn = yy - inst->speed * GMLReal_sin(ldir * (M_PI / 180.0));
+            if (bounceTestFree(runner, inst, xn, yn, useall)) {
+                break;
+            }
+            didBounce = true;
+        }
+        for (int32_t i = 1; 2 * n > i; i++) {
+            rdir += 180.0 / (GMLReal) n;
+            GMLReal xn = xx + inst->speed * GMLReal_cos(rdir * (M_PI / 180.0));
+            GMLReal yn = yy - inst->speed * GMLReal_sin(rdir * (M_PI / 180.0));
+            if (bounceTestFree(runner, inst, xn, yn, useall)) {
+                break;
+            }
+            didBounce = true;
+        }
+        if (didBounce) {
+            inst->direction = (float) (180.0 + (ldir + rdir) - dir);
+            Instance_computeComponentsFromSpeed(inst);
+        }
+    } else {
+        bool canMoveH = bounceTestFree(runner, inst, inst->x + inst->hspeed, inst->y, useall);
+        bool canMoveV = bounceTestFree(runner, inst, inst->x, inst->y + inst->vspeed, useall);
+        bool canMoveDiagonally = bounceTestFree(runner, inst, inst->x + inst->hspeed, inst->y + inst->vspeed, useall);
+        if (!canMoveH && !canMoveV) {
+            inst->hspeed = -inst->hspeed;
+            inst->vspeed = -inst->vspeed;
+        } else if (canMoveH && canMoveV && !canMoveDiagonally) {
+            inst->hspeed = -inst->hspeed;
+            inst->vspeed = -inst->vspeed;
+        } else if (!canMoveH) {
+            inst->hspeed = -inst->hspeed;
+        } else if (!canMoveV) {
+            inst->vspeed = -inst->vspeed;
+        }
+        Instance_computeSpeedFromComponents(inst);
+    }
+    return RValue_makeUndefined();
+}
+
+// Steps the current instance up to maxdist pixels in "dir" (degrees), stopping the unit before it would collide. useall=true tests all instances, false tests only solids.
+static void moveContactCommon(Runner* runner, Instance* inst, GMLReal dir, GMLReal maxdist, bool useall) {
+    int32_t steps = (maxdist <= 0.0) ? 1000 : (int32_t) GMLReal_bankersRound(maxdist);
+    GMLReal rad = dir * (M_PI / 180.0);
+    GMLReal dx = GMLReal_cos(rad);
+    GMLReal dy = -GMLReal_sin(rad);
+    if (!bounceTestFree(runner, inst, inst->x, inst->y, useall)) {
+        return;
+    }
+    for (int32_t i = 1; steps >= i; i++) {
+        GMLReal nx = inst->x + dx;
+        GMLReal ny = inst->y + dy;
+        if (!bounceTestFree(runner, inst, nx, ny, useall)) {
+            return;
+        }
+        inst->x = (float) nx;
+        inst->y = (float) ny;
+        SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
+    }
+}
+
+static RValue builtin_move_contact_solid(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    GMLReal dir = RValue_toReal(args[0]);
+    GMLReal maxdist = RValue_toReal(args[1]);
+    moveContactCommon(ctx->runner, ctx->currentInstance, dir, maxdist, false);
+    return RValue_makeUndefined();
+}
+
+// action_move_contact(dir, maxdist, against): DnD wrapper around move_contact_solid / move_contact_all.
+// * args[2] == 0: solid only
+// * args[2] == 1: use all
+static RValue builtin_action_move_contact(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    GMLReal dir = RValue_toReal(args[0]);
+    GMLReal maxdist = RValue_toReal(args[1]);
+    bool useall = RValue_toReal(args[2]) == 1.0;
+    moveContactCommon(ctx->runner, ctx->currentInstance, dir, maxdist, useall);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_action_snap(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     GMLReal hsnap = RValue_toReal(args[0]);
     GMLReal vsnap = RValue_toReal(args[1]);
@@ -9202,41 +9344,39 @@ static RValue builtin_alarm_get(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
     return RValue_makeReal(-1);
 }
 
+#define LEGACY_DND_CMP_EQ 0
+#define LEGACY_DND_CMP_LT 1
+#define LEGACY_DND_CMP_GT 2
+#define LEGACY_DND_CMP_LTE 3
+#define LEGACY_DND_CMP_GTE 4
+
+// action_if_variable(variable, value, op)
+// Compares the variable against value using op (LEGACY_DND_CMP_*).
+// String operands compare via strcmp; mismatched types compare unequal.
 static RValue builtin_action_if_variable(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    bool check;
-    switch (args[0].type) {
-        case RVALUE_REAL: {
-            check = args[0].real != 0.0;
-            break;
-        }
-        case RVALUE_INT32: {
-            check = args[0].int32 != 0;
-            break;
-        }
-#ifndef NO_RVALUE_INT64
-        case RVALUE_INT64: {
-            check = args[0].int64 != 0;
-            break;
-        }
-#endif
-        case RVALUE_BOOL: {
-            check = args[0].int32 != 0;
-            break;
-        }
-        case RVALUE_STRING: {
-            check = args[0].string != nullptr && args[0].string[0] != '\0';
-            break;
-        }
-        default: {
-            check = false;
-            break;
-        }
+    int32_t op = RValue_toInt32(args[2]);
+    GMLReal diff;
+
+    bool aIsString = args[0].type == RVALUE_STRING;
+    bool bIsString = args[1].type == RVALUE_STRING;
+    if (aIsString != bIsString) {
+        return RValue_makeBool(false);
+    }
+    if (aIsString) {
+        const char* sa = args[0].string != nullptr ? args[0].string : "";
+        const char* sb = args[1].string != nullptr ? args[1].string : "";
+        diff = (GMLReal) strcmp(sa, sb);
+    } else {
+        diff = (GMLReal) (RValue_toReal(args[0]) - RValue_toReal(args[1]));
     }
 
-    int32_t idx = check ? 1 : 2;
-    RValue result = args[idx];
-    args[idx].ownsReference = false; // Steal ownership to avoid double-free in handleCall
-    return result;
+    bool result;
+    if (op == LEGACY_DND_CMP_LT) result = diff < 0.0;
+    else if (op == LEGACY_DND_CMP_GT) result = diff > 0.0;
+    else if (op == LEGACY_DND_CMP_LTE) result = diff <= 0.0;
+    else if (op == LEGACY_DND_CMP_GTE) result = diff >= 0.0;
+    else result = diff == 0.0f;
+    return RValue_makeBool(result);
 }
 
 static RValue builtin_action_if_dice(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -9250,9 +9390,6 @@ static RValue builtin_action_if_dice(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeBool((rand() % probability) == 0);
 }
 
-#define LEGACY_DND_CMP_EQ 0
-#define LEGACY_DND_CMP_LT 1
-#define LEGACY_DND_CMP_GT 2
 
 static RValue builtin_action_set_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -11771,6 +11908,38 @@ static RValue builtin_gpu_get_colorwriteenable(VMContext* ctx, MAYBE_UNUSED RVal
     return RValue_makeArray(out);
 }
 
+static RValue builtin_game_change(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    char* workingDirectory = RValue_toString(args[0]);
+    char* launchParameters = RValue_toString(args[1]);
+
+    // I really doubt that a game calls game_change twice in a row, but...
+    if (ctx->runner->pendingWorkingDirectory != nullptr) {
+        free(ctx->runner->pendingWorkingDirectory);
+    }
+
+    if (ctx->runner->pendingLaunchParameters != nullptr) {
+        free(ctx->runner->pendingLaunchParameters);
+    }
+
+    ctx->runner->pendingWorkingDirectory = workingDirectory;
+    ctx->runner->pendingLaunchParameters = launchParameters;
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_parameter_count(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal((int32_t) arrlen(ctx->runner->gameArgs));
+}
+
+static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeString("");
+    int32_t index = RValue_toInt32(args[0]);
+    if (0 > index || index >= (int32_t) arrlen(ctx->runner->gameArgs)) return RValue_makeString("");
+    return RValue_makeString(ctx->runner->gameArgs[index]);
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -11860,6 +12029,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_move_point", builtin_move_towards_point);
     }
     VM_registerBuiltin(ctx, "move_snap", builtin_move_snap);
+    VM_registerBuiltin(ctx, "move_contact_solid", builtin_move_contact_solid);
     VM_registerBuiltin(ctx, "lengthdir_x", builtin_lengthdir_x);
     VM_registerBuiltin(ctx, "lengthdir_y", builtin_lengthdir_y);
 
@@ -12164,6 +12334,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
         VM_registerBuiltin(ctx, "action_move", builtin_action_move);
         VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);
+        VM_registerBuiltin(ctx, "action_move_start", builtin_action_move_start);
+        VM_registerBuiltin(ctx, "action_potential_step", builtin_action_potential_step);
+        VM_registerBuiltin(ctx, "action_bounce", builtin_action_bounce);
+        VM_registerBuiltin(ctx, "action_move_contact", builtin_action_move_contact);
         VM_registerBuiltin(ctx, "action_snap", builtin_action_snap);
         VM_registerBuiltin(ctx, "action_set_friction", builtin_action_set_friction);
         VM_registerBuiltin(ctx, "action_set_gravity", builtin_action_set_gravity);
@@ -12565,4 +12739,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
         VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
     }
+    VM_registerBuiltin(ctx, "game_change", builtin_game_change);
+    VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
+    VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
 }
