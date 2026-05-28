@@ -25,10 +25,9 @@ void platformSetWindowTitle(const char* title) {
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
-    if (!outW || !outH) return false;
+    if (!outW || !outH || !window) return false;
     int w = 0;
     int h = 0;
-    if (!window) return false;
     glfwGetFramebufferSize(window, &w, &h);
     if (w <= 0 || h <= 0) return false;
     *outW = w;
