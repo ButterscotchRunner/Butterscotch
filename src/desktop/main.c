@@ -49,9 +49,7 @@
 #include "utils.h"
 #include "profiler.h"
 
-bool modernGL;
-bool legacyGL;
-bool SWRender;
+enum gfx_api gfx;
 
 #if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
@@ -897,36 +895,39 @@ int main(int argc, char* argv[]) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
     free(dataWinDir);
 
-    modernGL = strcmp(args.renderer, "modern-gl") == 0;
-    legacyGL = strcmp(args.renderer, "legacy-gl") == 0;
-    SWRender = strcmp(args.renderer, "software") == 0;
+    if (strcmp(args.renderer, "modern-gl") == 0)
+        gfx = MODERN_GL;
+    else if (strcmp(args.renderer, "legacy-gl") == 0)
+        gfx = LEGACY_GL;
+    else if (strcmp(args.renderer, "software") == 0)
+        gfx = SOFTWARE;
+    else {
+        fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
+        return 1;
+    }
 
 #ifndef ENABLE_LEGACY_GL
-    if (legacyGL) {
+    if (gfx == LEGACY_GL) {
         fprintf(stderr, "The legacy gl renderer is not available in this build!\n");
-        return 0;
+        return 1;
     }
 #endif
 #ifndef ENABLE_MODERN_GL
-    if (modernGL) {
+    if (gfx == MODERN_GL) {
         fprintf(stderr, "The modern gl renderer is not available in this build!\n");
-        return 0;
+        return 1;
     }
 #endif
 #ifndef ENABLE_SW_RENDERER
-    if (SWRender) {
+    if (gfx == SOFTWARE) {
         fprintf(stderr, "The software renderer is not available in this build!\n");
-        return 0;
+        return 1;
     }
 #endif
-    if (!modernGL && !legacyGL && !SWRender) {
-        fprintf(stderr, "Unknown renderer: %s!\n", args.renderer);
-        return 0;
-    }
 
-    if (!modernGL && hmlen(args.screenshotSurfacesFrames)) {
+    if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
         fprintf(stderr, "You can only use --screenshot-surfaces with the modern gl renderer!\n");
-        return 0;
+        return 1;
     }
 
     if (!platformInit((int)gen8->defaultWindowWidth, (int)gen8->defaultWindowHeight, windowTitle, args.headless)) {
@@ -937,9 +938,9 @@ int main(int argc, char* argv[]) {
 
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
 #if defined(USE_GLFW3) || defined(USE_GLFW2)
-    if (legacyGL || modernGL || SWRender) {
+    if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
 #else
-    if (legacyGL || modernGL) {
+    if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
         // Load OpenGL function pointers via GLAD
 #ifdef ENABLE_GLES
@@ -958,22 +959,22 @@ int main(int argc, char* argv[]) {
 
 #if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
     // Install the OpenGL debug message callback
-    if (modernGL)
+    if (gfx == MODERN_GL)
         installGLDebugCallback();
 #endif
 
     // Initialize the renderer
     Renderer* renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
-    if (SWRender)
+    if (gfx == SOFTWARE)
         renderer = SWRenderer_create();
 #endif
 #ifdef ENABLE_LEGACY_GL
-    if (legacyGL)
+    if (gfx == LEGACY_GL)
         renderer = GLLegacyRenderer_create();
 #endif
 #ifdef ENABLE_MODERN_GL
-    if (modernGL)
+    if (gfx == MODERN_GL)
         renderer = GLRenderer_create();
 #endif
     if (!renderer) {
@@ -1199,11 +1200,11 @@ int main(int argc, char* argv[]) {
 
             // Clear the default framebuffer (window background) to black
 #ifdef ENABLE_SW_RENDERER
-            if (SWRender)
+            if (gfx == SOFTWARE)
                 SWRenderer_clearFrameBuffer(renderer, 0);
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-            if (legacyGL || modernGL) {
+            if (gfx == LEGACY_GL || gfx == MODERN_GL) {
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 glClear(GL_COLOR_BUFFER_BIT);
             }
@@ -1244,7 +1245,7 @@ int main(int argc, char* argv[]) {
 
             // Clear FBO with room background color
 #ifdef ENABLE_SW_RENDERER
-            if (SWRender) {
+            if (gfx == SOFTWARE) {
                 if (runner->drawBackgroundColor)
                     SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
                 else
@@ -1252,7 +1253,7 @@ int main(int argc, char* argv[]) {
             }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-            if (modernGL || legacyGL) {
+            if (gfx == MODERN_GL || gfx == LEGACY_GL) {
                 if (runner->drawBackgroundColor) {
                     int rInt = BGR_R(runner->backgroundColor);
                     int gInt = BGR_G(runner->backgroundColor);
@@ -1279,7 +1280,7 @@ int main(int argc, char* argv[]) {
                 int32_t appId = runner->applicationSurfaceId;
                 GLuint readFbo;
 #ifdef ENABLE_LEGACY_GL
-                if (legacyGL) {
+                if (gfx == LEGACY_GL) {
                     readFbo = ((GLLegacyRenderer*) renderer)->surfaces[appId];
                 } else
 #endif

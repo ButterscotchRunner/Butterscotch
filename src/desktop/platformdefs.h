@@ -16,8 +16,12 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH);
 void platformGamepad_poll(RunnerGamepadState* gp);
 void platformSleepUntil(double time);
 
-extern bool modernGL;
-extern bool legacyGL;
-extern bool SWRender;
+enum gfx_api {
+    SOFTWARE,
+    MODERN_GL,
+    LEGACY_GL
+};
+
+extern enum gfx_api gfx;
 
 extern InputRecording *globalInputRecording;

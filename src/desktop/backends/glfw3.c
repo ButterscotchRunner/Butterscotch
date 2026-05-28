@@ -131,10 +131,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (SWRender) {
+    if (gfx == SOFTWARE) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    } else if (legacyGL) {
+    } else if (gfx == LEGACY_GL) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     } else {
@@ -206,7 +206,7 @@ void platformInitFunctions(Runner *runner) {
     runner->setWindowSize = platformSetWindowSize;
     runner->windowHasFocus = platformGetWindowFocus;
 #ifdef ENABLE_SW_RENDERER
-    if (SWRender)
+    if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
 #endif
 }
@@ -226,7 +226,7 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
-    if (SWRender && nextFb) {
+    if (gfx == SOFTWARE && nextFb) {
         glRasterPos2f(-1, 1);
         glPixelZoom(1, -1);
         glDrawPixels(fbWidth, fbHeight, GL_BGRA, GL_UNSIGNED_BYTE, nextFb);

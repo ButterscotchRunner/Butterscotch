@@ -30,7 +30,7 @@ static void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
-    scr = SDL_SetVideoMode(width, height, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+    scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
 static bool platformGetWindowFocus(void) {
@@ -38,7 +38,7 @@ static bool platformGetWindowFocus(void) {
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
-    if (headless && !SWRender) {
+    if (headless && gfx != SOFTWARE) {
         fprintf(stderr, "Headless mode on SDL requires the software renderer!\n");
         return false;
     }
@@ -52,10 +52,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbWidth = reqW;
     fbHeight = reqH;
     if(!headless) {
-        if (!SWRender)
+        if (gfx == LEGACY_GL || gfx == MODERN_GL)
             SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 0); // disable vsync
-        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
-        if (!scr && SWRender) {
+        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+        if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
                 fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
@@ -115,13 +115,13 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
-    if(SWRender) {
+    if(gfx == SOFTWARE) {
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
         SDL_Flip(scr);
     }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    if (legacyGL || modernGL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL)
         SDL_GL_SwapBuffers();
 #endif
 }
@@ -201,7 +201,7 @@ bool platformHandleEvents(void) {
             case SDL_VIDEORESIZE:
                 fbWidth = e.resize.w;
                 fbHeight = e.resize.h;
-                scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+                scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
                 break;
             case SDL_QUIT:
                 should_exit = true;
