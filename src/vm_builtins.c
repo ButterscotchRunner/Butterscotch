@@ -253,7 +253,14 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "buffer_u64", BUILTIN_VAR_BUFFER_U64 },
     { "buffer_u8", BUILTIN_VAR_BUFFER_U8 },
     { "buffer_wrap", BUILTIN_VAR_BUFFER_WRAP },
+    { "current_day", BUILTIN_VAR_CURRENT_DAY },
+    { "current_hour", BUILTIN_VAR_CURRENT_HOUR },
+    { "current_minute", BUILTIN_VAR_CURRENT_MINUTE },
+    { "current_month", BUILTIN_VAR_CURRENT_MONTH },
+    { "current_second", BUILTIN_VAR_CURRENT_SECOND },
     { "current_time", BUILTIN_VAR_CURRENT_TIME },
+    { "current_weekday", BUILTIN_VAR_CURRENT_WEEKDAY },
+    { "current_year", BUILTIN_VAR_CURRENT_YEAR },
     { "debug_mode", BUILTIN_VAR_DEBUG_MODE },
     { "depth", BUILTIN_VAR_DEPTH },
     { "direction", BUILTIN_VAR_DIRECTION },
@@ -811,6 +818,25 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeReal((GMLReal) runner->backgroundColor);
 
         // Timing
+        case BUILTIN_VAR_CURRENT_DAY:
+        case BUILTIN_VAR_CURRENT_HOUR:
+        case BUILTIN_VAR_CURRENT_MINUTE:
+        case BUILTIN_VAR_CURRENT_MONTH:
+        case BUILTIN_VAR_CURRENT_SECOND:
+        case BUILTIN_VAR_CURRENT_WEEKDAY:
+        case BUILTIN_VAR_CURRENT_YEAR: {
+            time_t now = time(NULL);
+            struct tm *t = localtime(&now);
+            switch (builtinVarId) {
+                case BUILTIN_VAR_CURRENT_DAY:     return RValue_makeReal(t->tm_mday);
+                case BUILTIN_VAR_CURRENT_HOUR:    return RValue_makeReal(t->tm_hour);
+                case BUILTIN_VAR_CURRENT_MINUTE:  return RValue_makeReal(t->tm_min);
+                case BUILTIN_VAR_CURRENT_MONTH:   return RValue_makeReal(t->tm_mon + 1);
+                case BUILTIN_VAR_CURRENT_SECOND:  return RValue_makeReal(t->tm_sec);
+                case BUILTIN_VAR_CURRENT_WEEKDAY: return RValue_makeReal(t->tm_wday);
+                case BUILTIN_VAR_CURRENT_YEAR:    return RValue_makeReal(t->tm_year + 1900);
+            }
+        }
         case BUILTIN_VAR_CURRENT_TIME: {
             #ifdef _WIN32
             LARGE_INTEGER freq, counter;
@@ -1067,6 +1093,13 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             bool changed = value != inst->spriteIndex;
             if (changed) {
                 inst->spriteIndex = value;
+                // The native runner resets the image_index to zero if the new frame count is smaller than the current image_index
+                if (value >= 0 && runner->dataWin->sprt.count > (uint32_t) value) {
+                    int32_t newFrameCount = (int32_t) runner->dataWin->sprt.sprites[value].textureCount;
+                    if (newFrameCount > 0 && (int32_t) inst->imageIndex >= newFrameCount) {
+                        inst->imageIndex = 0;
+                    }
+                }
                 SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
             }
             return;
@@ -1367,7 +1400,14 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_BUFFER_FIXED ... BUILTIN_VAR_BUFFER_SEEK_END:
         case BUILTIN_VAR_ID:
         case BUILTIN_VAR_OBJECT_INDEX:
+        case BUILTIN_VAR_CURRENT_DAY:
+        case BUILTIN_VAR_CURRENT_HOUR:
+        case BUILTIN_VAR_CURRENT_MINUTE:
+        case BUILTIN_VAR_CURRENT_MONTH:
+        case BUILTIN_VAR_CURRENT_SECOND:
         case BUILTIN_VAR_CURRENT_TIME:
+        case BUILTIN_VAR_CURRENT_WEEKDAY:
+        case BUILTIN_VAR_CURRENT_YEAR:
         case BUILTIN_VAR_VIEW_CURRENT:
         case BUILTIN_VAR_PATH_INDEX:
         case BUILTIN_VAR_DEBUG_MODE:
@@ -3289,6 +3329,20 @@ static RValue builtin_os_get_region(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RV
 }
 
 STUB_RETURN_FALSE(os_is_paused);
+
+static RValue builtin_environment_get_variable(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    char* name = RValue_toString(args[0]);
+    if (name == nullptr) return RValue_makeOwnedString(safeStrdup(""));
+
+    const char* value = getenv(name);
+    free(name);
+
+    if (value == nullptr) {
+        return RValue_makeOwnedString(safeStrdup(""));
+    }
+
+    return RValue_makeOwnedString(safeStrdup(value));
+}
 
 // ===[ DS_MAP BUILTIN FUNCTIONS ]===
 
@@ -8026,6 +8080,30 @@ static RValue builtin_sprite_get_yoffset(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].originY);
 }
 
+static RValue builtin_sprite_get_bbox_left(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].marginLeft);
+}
+
+static RValue builtin_sprite_get_bbox_right(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].marginRight);
+}
+
+static RValue builtin_sprite_get_bbox_top(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].marginTop);
+}
+
+static RValue builtin_sprite_get_bbox_bottom(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].marginBottom);
+}
+
 static RValue builtin_sprite_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
     if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeString("<undefined>");
@@ -9287,6 +9365,119 @@ static RValue builtin_action_if_health(VMContext* ctx, MAYBE_UNUSED RValue* args
     else result = runner->health == value;
     return RValue_makeBool(result);
 }
+
+// action_if_aligned(hsnap, vsnap) - Returns true if self.x is a multiple of hsnap AND self.y is a multiple of vsnap.
+// A snap value <= 0 disables that axis check.
+static RValue builtin_action_if_aligned(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Instance* self = ctx->currentInstance;
+    if (self == nullptr) return RValue_makeBool(false);
+
+    GMLReal hsnap = RValue_toReal(args[0]);
+    GMLReal vsnap = RValue_toReal(args[1]);
+
+    if (hsnap > 0.0) {
+        GMLReal q = self->x / hsnap;
+        GMLReal rounded = (GMLReal) (long) (q + (q >= 0.0 ? 0.5 : -0.5));
+        if (((self->x - hsnap * rounded) > 0.001) || (-0.001 > (self->x - hsnap * rounded))) return RValue_makeBool(false);
+    }
+    if (vsnap > 0.0) {
+        GMLReal q = self->y / vsnap;
+        GMLReal rounded = (GMLReal) (long) (q + (q >= 0.0 ? 0.5 : -0.5));
+        if (((self->y - vsnap * rounded) > 0.001) || (-0.001 > (self->y - vsnap * rounded))) return RValue_makeBool(false);
+    }
+    return RValue_makeBool(true);
+}
+
+// action_if_collision(x, y, kind)
+// * kind 0: "only solid": returns true if NOT place_free (there's a solid collision)
+// * kind 1: "all": returns true if NOT place_empty (there's any collision)
+// When relative flag is set, x/y are offsets from self.
+static RValue builtin_action_if_collision(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Instance* self = ctx->currentInstance;
+    if (self == nullptr) return RValue_makeBool(false);
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    int32_t kind = RValue_toInt32(args[2]);
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    RValue posArgs[2] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y) };
+    RValue inner = (kind == 0) ? builtin_place_free(ctx, posArgs, 2) : builtin_place_empty(ctx, posArgs, 2);
+    return RValue_makeBool(!RValue_toBool(inner));
+}
+
+// action_if_empty(x, y, kind)
+// * kind 0: returns place_free(x, y)
+// * kind 1: returns place_empty(x, y)
+static RValue builtin_action_if_empty(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Instance* self = ctx->currentInstance;
+    if (self == nullptr) return RValue_makeBool(true);
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    int32_t kind = RValue_toInt32(args[2]);
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    RValue posArgs[2] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y) };
+    return (kind == 0) ? builtin_place_free(ctx, posArgs, 2) : builtin_place_empty(ctx, posArgs, 2);
+}
+
+// action_if_object(obj, x, y)
+// Returns true if the self instance, moved to (x, y), would be touching an instance of obj.
+// Equivalent to place_meeting(x, y, obj). Relative flag offsets x/y from self.
+static RValue builtin_action_if_object(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Instance* self = ctx->currentInstance;
+    if (self == nullptr) return RValue_makeBool(false);
+
+    int32_t obj = RValue_toInt32(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    RValue meetArgs[3] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y), RValue_makeReal((GMLReal) obj) };
+    return builtin_place_meeting(ctx, meetArgs, 3);
+}
+
+// action_if_number(obj, number, op)
+// * op 0: instance_number(obj) == number
+// * op 1: instance_number(obj) < number
+// * op 2: instance_number(obj) > number
+static RValue builtin_action_if_number(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    GMLReal value = RValue_toReal(args[1]);
+    int32_t op = RValue_toInt32(args[2]);
+
+    RValue numArgs[1] = { args[0] };
+    GMLReal count = RValue_toReal(builtin_instance_number(ctx, numArgs, 1));
+
+    bool result;
+    if (op == LEGACY_DND_CMP_LT) result = count < value;
+    else if (op == LEGACY_DND_CMP_GT) result = count > value;
+    else result = count == value;
+    return RValue_makeBool(result);
+}
+
+// action_if_next_room()
+// Returns true if there IS a room after the current one in room order.
+static RValue builtin_action_if_next_room(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    uint32_t count = runner->dataWin->gen8.roomOrderCount;
+    if (count == 0) return RValue_makeBool(false);
+    int32_t lastRoom = runner->dataWin->gen8.roomOrder[count - 1];
+    return RValue_makeBool(runner->currentRoomIndex != lastRoom);
+}
+
+// action_if_previous_room()
+// Returns true if there IS a room before the current one in room order.
+static RValue builtin_action_if_previous_room(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    uint32_t count = runner->dataWin->gen8.roomOrderCount;
+    if (count == 0) return RValue_makeBool(false);
+    int32_t firstRoom = runner->dataWin->gen8.roomOrder[0];
+    return RValue_makeBool(runner->currentRoomIndex != firstRoom);
+}
+
+STUB_RETURN_FALSE(action_if_mouse)
+STUB_RETURN_FALSE(action_if_question)
 
 // DnD "back" / "bar" color preset in BGR format enum used by action_draw_health.
 // Indices match the GMS 1.x DnD dropdowns:
@@ -11281,6 +11472,16 @@ static RValue builtin_json_decode(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeReal(mapIndex);
 }
 
+static RValue builtin_object_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        return RValue_makeBool(false);
+    }
+
+    int32_t id = RValue_toInt32(args[0]);
+    bool exists = id >= 0 && ctx->dataWin->objt.count > (uint32_t) id;
+    return RValue_makeBool(exists);
+}
+
 static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         fprintf(stderr, "[object_get_sprite] Expected at least 1 argument\n");
@@ -11726,6 +11927,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
     VM_registerBuiltin(ctx, "os_get_region", builtin_os_get_region);
     VM_registerBuiltin(ctx, "os_is_paused", builtin_os_is_paused);
+    VM_registerBuiltin(ctx, "environment_get_variable", builtin_environment_get_variable);
 
     // ds_map
     VM_registerBuiltin(ctx, "ds_map_create", builtin_ds_map_create);
@@ -12102,6 +12304,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_xoffset", builtin_sprite_get_xoffset);
     VM_registerBuiltin(ctx, "sprite_get_yoffset", builtin_sprite_get_yoffset);
     VM_registerBuiltin(ctx, "sprite_get_name", builtin_sprite_get_name);
+    VM_registerBuiltin(ctx, "sprite_get_bbox_left", builtin_sprite_get_bbox_left);
+    VM_registerBuiltin(ctx, "sprite_get_bbox_right", builtin_sprite_get_bbox_right);
+    VM_registerBuiltin(ctx, "sprite_get_bbox_top", builtin_sprite_get_bbox_top);
+    VM_registerBuiltin(ctx, "sprite_get_bbox_bottom", builtin_sprite_get_bbox_bottom);
     VM_registerBuiltin(ctx, "sprite_set_offset", builtin_sprite_set_offset);
     VM_registerBuiltin(ctx, "sprite_create_from_surface", builtin_sprite_create_from_surface);
     VM_registerBuiltin(ctx, "sprite_delete", builtin_sprite_delete);
@@ -12298,6 +12504,15 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_draw_life_images", builtin_action_draw_life_images);
         VM_registerBuiltin(ctx, "action_set_health", builtin_action_set_health);
         VM_registerBuiltin(ctx, "action_if_health", builtin_action_if_health);
+        VM_registerBuiltin(ctx, "action_if_aligned", builtin_action_if_aligned);
+        VM_registerBuiltin(ctx, "action_if_collision", builtin_action_if_collision);
+        VM_registerBuiltin(ctx, "action_if_empty", builtin_action_if_empty);
+        VM_registerBuiltin(ctx, "action_if_object", builtin_action_if_object);
+        VM_registerBuiltin(ctx, "action_if_number", builtin_action_if_number);
+        VM_registerBuiltin(ctx, "action_if_next_room", builtin_action_if_next_room);
+        VM_registerBuiltin(ctx, "action_if_previous_room", builtin_action_if_previous_room);
+        VM_registerBuiltin(ctx, "action_if_mouse", builtin_action_if_mouse);
+        VM_registerBuiltin(ctx, "action_if_question", builtin_action_if_question);
         VM_registerBuiltin(ctx, "action_draw_health", builtin_action_draw_health);
         VM_registerBuiltin(ctx, "action_sprite_set", builtin_action_sprite_set);
         VM_registerBuiltin(ctx, "action_message", builtin_action_message);
@@ -12328,6 +12543,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
+    VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);

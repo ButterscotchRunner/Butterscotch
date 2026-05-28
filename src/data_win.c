@@ -2225,7 +2225,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     setvbuf(file, nullptr, _IOFBF, 128 * 1024);
 
     fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
+    size_t fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
 
     if (fileSize <= 0) {
@@ -2286,6 +2286,11 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             DataWin_bumpVersionTo(dw, 2024, 13, 0, 0);
         } else if (memcmp(chunkName, "PSEM", 4) == 0 || memcmp(chunkName, "PSYS", 4) == 0) {
             DataWin_bumpVersionTo(dw, 2023, 2, 0, 0);
+        }
+
+        if (chunkDataStart + chunkLength > fileSize) {
+            fprintf(stderr, "Chunk data extends beyond file size: chunkDataStart=%zu, chunkLength=%u, fileSize=%zu! Are you running a GameMaker Raspberry Pi game? Skipping bytes out of bounds...\n", chunkDataStart, chunkLength, fileSize);
+            break;
         }
 
         BinaryReader_seek(&reader, chunkDataStart + chunkLength);
