@@ -120,6 +120,22 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
+#ifdef GLFW_OPENGL_VERSION_MAJOR
+    if (SWRender) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
+    } else if (legacyGL) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+    } else {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+    }
+#endif
+
     int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
