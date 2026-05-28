@@ -18,7 +18,7 @@
 static GLFWwindow *window;
 static Runner *g_runner;
 
-void platformSetWindowTitle(const char* title) {
+static void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     glfwSetWindowTitle(window, windowTitle);
@@ -35,7 +35,7 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-void platformSetWindowSize(int32_t width, int32_t height) {
+static void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     if (!window) return;
     // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
@@ -47,7 +47,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     glfwSetWindowSize(window, logicalW, logicalH);
 }
 
-bool platformGetWindowFocus(void) {
+static bool platformGetWindowFocus(void) {
     return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 }
 

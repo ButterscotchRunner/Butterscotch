@@ -13,7 +13,7 @@ static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 
-void platformSetWindowTitle(const char* title) {
+static void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     SDL_WM_SetCaption(windowTitle, NULL);
@@ -26,14 +26,14 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-void platformSetWindowSize(int32_t width, int32_t height) {
+static void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
     scr = SDL_SetVideoMode(width, height, 0, (SWRender ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
-bool platformGetWindowFocus(void) {
+static bool platformGetWindowFocus(void) {
     return SDL_GetAppState() & SDL_APPINPUTFOCUS;
 }
 
