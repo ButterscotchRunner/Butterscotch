@@ -1057,6 +1057,9 @@ int main(int argc, char* argv[]) {
         Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
         runner->debugMode = args.debug;
         runner->osType = args.osType;
+        runner->setWindowSize = platformSetWindowSize;
+        runner->getWindowSize = platformGetWindowSize;
+        runner->setWindowTitle = platformSetWindowTitle;
         Runner_setGameArgs(runner, currentGameArgs, (int32_t) arrlen(currentGameArgs));
         platformInitFunctions(runner);
 
