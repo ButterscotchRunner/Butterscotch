@@ -182,7 +182,6 @@ static int32_t SDLKeyToGml(int sdlkey) {
 }
 
 bool platformHandleEvents(void) {
-    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch(e.type) {
@@ -204,14 +203,13 @@ bool platformHandleEvents(void) {
                 scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
                 break;
             case SDL_QUIT:
-                should_exit = true;
-                break;
+                return true;
             default:
                 break;
         }
     }
 
-    return should_exit;
+    return false;
 }
 
 void platformSleepUntil(double time) {
