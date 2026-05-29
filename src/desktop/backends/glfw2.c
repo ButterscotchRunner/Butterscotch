@@ -16,7 +16,7 @@
 
 static Runner *g_runner;
 
-static void platformSetWindowTitle(const char* title) {
+void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     glfwSetWindowTitle(windowTitle);
@@ -33,7 +33,7 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static void platformSetWindowSize(int32_t width, int32_t height) {
+void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     glfwSetWindowSize(width, height);
 }

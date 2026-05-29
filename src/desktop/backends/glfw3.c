@@ -18,7 +18,13 @@
 static GLFWwindow *window;
 static Runner *g_runner;
 
-static void platformSetWindowTitle(const char* title) {
+// Butterscotch expects framebuffer pixels, but GLFW3 expects logical pixels
+static void framebufferToLogical(float xs, float ys, int fbW, int fbH, int* outW, int* outH) {
+    *outW = (xs > 0.0f) ? (int) ((float) fbW / xs + 0.5f) : fbW;
+    *outH = (ys > 0.0f) ? (int) ((float) fbH / ys + 0.5f) : fbH;
+}
+
+void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     glfwSetWindowTitle(window, windowTitle);
@@ -35,15 +41,13 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static void platformSetWindowSize(int32_t width, int32_t height) {
+void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     if (!window) return;
-    // window_set_size's GML argument is in pixels (the framebuffer dimension the game wants), but glfwSetWindowSize takes LOGICAL screen-coordinate units.
-    // Convert via the current content scale so the resulting framebuffer matches what the GML asked for.
     float xs = 1.0f, ys = 1.0f;
     glfwGetWindowContentScale((GLFWwindow*) window, &xs, &ys);
-    int logicalW = (xs > 0.0f) ? (int) ((float) width  / xs + 0.5f) : width;
-    int logicalH = (ys > 0.0f) ? (int) ((float) height / ys + 0.5f) : height;
+    int logicalW, logicalH;
+    framebufferToLogical(xs, ys, width, height, &logicalW, &logicalH);
     glfwSetWindowSize(window, logicalW, logicalH);
 }
 
@@ -187,6 +191,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
+
+    // If we don't do this, the window will be larger than it should be if you are using Wayland fractional scaling
+    // We set the window size AFTER the window creation so we can use glfwGetWindowContentScale
+    platformSetWindowSize(reqW, reqH);
 
     // Set up keyboard input
     glfwSetKeyCallback(window, keyCallback);

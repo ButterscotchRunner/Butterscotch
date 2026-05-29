@@ -13,7 +13,7 @@ static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 
-static void platformSetWindowTitle(const char* title) {
+void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     SDL_WM_SetCaption(windowTitle, NULL);
@@ -26,7 +26,7 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static void platformSetWindowSize(int32_t width, int32_t height) {
+void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
