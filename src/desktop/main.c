@@ -1114,8 +1114,10 @@ int main(int argc, char* argv[]) {
             // Clear last frame's pressed/released state, then poll new input events
             RunnerKeyboard_beginFrame(runner->keyboard);
             RunnerGamepad_beginFrame(runner->gamepads);
-            if (platformHandleEvents())
+            if (platformHandleEvents()) {
                 shouldWindowClose = true;
+                continue;
+            }
 
             // Debug key bindings
             if (runner->debugMode) {
