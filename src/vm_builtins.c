@@ -7526,17 +7526,27 @@ static RValue builtin_draw_text_transformed(VMContext* ctx, RValue* args, MAYBE_
 
 // Drives draw_text_ext / draw_text_ext_transformed by wrapping the (preprocessed) text and forwarding to drawText.
 // Disable wrapping with 0 > "width", keep the font default line stride with 0 > "separation".
-static void drawTextExtCommon(Runner* runner, const char* str, float x, float y, float xscale, float yscale, float angle, int32_t separation, int32_t width) {
+static void drawTextExtCommonColor(Runner* runner, const char* str, float x, float y, float xscale, float yscale, float angle, int32_t separation, int32_t width, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4) {
     int32_t fontIndex = runner->renderer->drawFont;
     if (0 > fontIndex || (uint32_t) fontIndex >= runner->dataWin->font.count) return;
     Font* font = &runner->dataWin->font.fonts[fontIndex];
 
     PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
     PreprocessedText wrappedText = TextUtils_wrapText(font, processedText.text, width);
-    runner->renderer->vtable->drawText(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, (float) separation);
+    if (c1 == c2 && c2 == c3 && c3 == c4 && c4 == runner->renderer->drawColor) {
+        // using the ordinary drawText is safe
+        runner->renderer->vtable->drawText(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, (float) separation);
+    } else {
+        runner->renderer->vtable->drawTextColor(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, c1, c2, c3, c4, 1.0f, (float) separation);
+    }
     PreprocessedText_free(wrappedText);
     PreprocessedText_free(processedText);
 }
+static void drawTextExtCommon(Runner* runner, const char* str, float x, float y, float xscale, float yscale, float angle, int32_t separation, int32_t width) {
+    uint32_t fill = runner->renderer->drawColor;
+    drawTextExtCommonColor(runner, str, x, y, xscale, yscale, angle, separation, width, fill, fill, fill, fill);
+}
+
 
 static RValue builtin_draw_text_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -7549,6 +7559,26 @@ static RValue builtin_draw_text_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     int32_t width = RValue_toInt32(args[4]);
 
     drawTextExtCommon(runner, str, x, y, 1.0f, 1.0f, 0.0f, separation, width);
+    free(str);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_text_ext_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    char* str = RValue_toString(args[2]);
+    int32_t separation = RValue_toInt32(args[3]);
+    int32_t width = RValue_toInt32(args[4]);
+
+    int32_t c1 = (float) RValue_toInt32(args[5]);
+    int32_t c2 = (float) RValue_toInt32(args[6]);
+    int32_t c3 = (float) RValue_toInt32(args[7]);
+    int32_t c4 = (float) RValue_toInt32(args[8]);
+
+    drawTextExtCommonColor(runner, str, x, y, 1.0f, 1.0f, 0.0f, separation, width, c1, c2, c3, c4);
     free(str);
     return RValue_makeUndefined();
 }
@@ -12407,6 +12437,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_text", builtin_draw_text);
     VM_registerBuiltin(ctx, "draw_text_transformed", builtin_draw_text_transformed);
     VM_registerBuiltin(ctx, "draw_text_ext", builtin_draw_text_ext);
+    VM_registerBuiltin(ctx, "draw_text_ext_color", builtin_draw_text_ext_color);
     VM_registerBuiltin(ctx, "draw_text_ext_transformed", builtin_draw_text_ext_transformed);
     VM_registerBuiltin(ctx, "draw_text_color", builtin_draw_text_color);
     VM_registerBuiltin(ctx, "draw_text_color_transformed", builtin_draw_text_color_transformed);
