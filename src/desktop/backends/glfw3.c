@@ -45,7 +45,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     if (!window) return;
     float xs = 1.0f, ys = 1.0f;
-    glfwGetWindowContentScale((GLFWwindow*) window, &xs, &ys);
+    glfwGetWindowContentScale(window, &xs, &ys);
     int logicalW, logicalH;
     framebufferToLogical(xs, ys, width, height, &logicalW, &logicalH);
     glfwSetWindowSize(window, logicalW, logicalH);
