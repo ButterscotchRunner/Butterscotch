@@ -7533,7 +7533,12 @@ static void drawTextExtCommonColor(Runner* runner, const char* str, float x, flo
 
     PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
     PreprocessedText wrappedText = TextUtils_wrapText(font, processedText.text, width);
-    runner->renderer->vtable->drawTextColor(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, c1, c2, c3, c4, 1.0f, (float) separation);
+    if (c1 == c2 && c2 == c3 && c3 == c4 && c4 == runner->renderer->drawColor) {
+        // using the ordinary drawText is safe
+        runner->renderer->vtable->drawText(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, (float) separation);
+    } else {
+        runner->renderer->vtable->drawTextColor(runner->renderer, wrappedText.text, x, y, xscale, yscale, angle, c1, c2, c3, c4, 1.0f, (float) separation);
+    }
     PreprocessedText_free(wrappedText);
     PreprocessedText_free(processedText);
 }
