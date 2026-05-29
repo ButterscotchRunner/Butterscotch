@@ -246,7 +246,7 @@ double platformGetTime(void) {
 
 bool platformHandleEvents(void) {
     glfwPollEvents();
-    return false;
+    return glfwWindowShouldClose(window);
 }
 
 void platformSleepUntil(double time) {
