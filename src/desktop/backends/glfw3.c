@@ -249,16 +249,6 @@ double platformGetTime(void) {
     return glfwGetTime();
 }
 
-static float applyDeadzone(float value, float deadzone) {
-    if (value < 0.0f) {
-        if (value > -deadzone) return 0.0f;
-        return (value + deadzone) / (1.0f - deadzone);
-    } else {
-        if (value < deadzone) return 0.0f;
-        return (value - deadzone) / (1.0f - deadzone);
-    }
-}
-
 enum {
     IDX_LT = 6,
     IDX_RT = 7,
@@ -306,10 +296,10 @@ static void mapGlfwToGml(const GLFWgamepadstate* glfwState, GamepadSlot* slot) {
     float rh = glfwState->axes[GLFW_GAMEPAD_AXIS_RIGHT_X];
     float rv = glfwState->axes[GLFW_GAMEPAD_AXIS_RIGHT_Y];
 
-    slot->axisValue[0] = applyDeadzone(lh, slot->deadzone);
-    slot->axisValue[1] = applyDeadzone(lv, slot->deadzone);
-    slot->axisValue[2] = applyDeadzone(rh, slot->deadzone);
-    slot->axisValue[3] = applyDeadzone(rv, slot->deadzone);
+    slot->axisValue[0] = lh;
+    slot->axisValue[1] = lv;
+    slot->axisValue[2] = rh;
+    slot->axisValue[3] = rv;
 
     for (int i = 0; GP_BUTTON_COUNT > i; i++) {
         if (i == IDX_LT || i == IDX_RT) continue;

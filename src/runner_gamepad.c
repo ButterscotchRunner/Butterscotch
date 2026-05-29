@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 //DELTARUNE HACK
 int RawToGPDelta(int32_t gmlButton) {
@@ -132,7 +133,17 @@ float RunnerGamepad_axisValue(RunnerGamepadState* gp, int device, int axis) {
     if (!gp->slots[device].connected) return 0.0f;
     int idx = gmlAxisToIndex(axis);
     if (idx < 0 || idx >= GP_AXIS_COUNT) return 0.0f;
-    return gp->slots[device].axisValue[idx];
+
+    // Handle deadzoning
+    float value = gp->slots[device].axisValue[idx];
+    float deadzone = gp->slots[device].deadzone;
+    if (deadzone > 0.0f) {
+        float magnitude = fabsf(value);
+        if (deadzone > magnitude) return 0.0f;
+        float sign = (value >= 0.0f) ? 1.0f : -1.0f;
+        return (1.0f > deadzone) ? sign * ((magnitude - deadzone) / (1.0f - deadzone)) : sign;
+    }
+    return value;
 }
 
 const char* RunnerGamepad_getDescription(RunnerGamepadState* gp, int device) {
