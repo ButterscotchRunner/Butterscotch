@@ -2111,6 +2111,11 @@ static RValue builtin_cos(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(GMLReal_cos(RValue_toReal(args[0])));
 }
 
+static RValue builtin_arccos(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    return RValue_makeReal(GMLReal_acos(RValue_toReal(args[0])));
+}
+
 static RValue builtin_dsin(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     return RValue_makeReal(GMLReal_sin(RValue_toReal(args[0]) * (M_PI / 180.0)));
@@ -12036,6 +12041,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "log2", builtin_log2);
     VM_registerBuiltin(ctx, "sqr", builtin_sqr);
     VM_registerBuiltin(ctx, "sin", builtin_sin);
+    VM_registerBuiltin(ctx, "arccos", builtin_arccos);
     VM_registerBuiltin(ctx, "arcsin", builtin_arcsin);
     VM_registerBuiltin(ctx, "arctan", builtin_arctan);
     VM_registerBuiltin(ctx, "cos", builtin_cos);
