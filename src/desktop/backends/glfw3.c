@@ -316,7 +316,7 @@ bool platformHandleEvents(void) {
     glfwPollEvents();
 
     for (int slotIdx = 0; slotIdx < 1 && slotIdx < MAX_GAMEPADS; slotIdx++) {
-        GamepadSlot* slot = g_runner->gamepads->slots[slotIdx];
+        GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
 
         bool currentlyConnected = false;
         int  foundJid = -1;
