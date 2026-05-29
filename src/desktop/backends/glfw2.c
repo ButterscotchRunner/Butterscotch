@@ -216,7 +216,7 @@ double platformGetTime(void) {
 
 bool platformHandleEvents(void) {
     glfwPollEvents();
-    return false;
+    return !glfwGetWindowParam(GLFW_OPENED);
 }
 
 void platformSleepUntil(double time) {
