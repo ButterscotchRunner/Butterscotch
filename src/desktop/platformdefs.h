@@ -13,7 +13,6 @@ void *platformGetProcAddress(const char *name);
 double platformGetTime(void);
 bool platformHandleEvents(void);
 bool platformGetWindowSize(int32_t* outW, int32_t* outH);
-void platformGamepad_poll(RunnerGamepadState* gp);
 void platformSleepUntil(double time);
 
 enum gfx_api {

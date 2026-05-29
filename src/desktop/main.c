@@ -1116,7 +1116,6 @@ int main(int argc, char* argv[]) {
             RunnerGamepad_beginFrame(runner->gamepads);
             if (platformHandleEvents())
                 shouldWindowClose = true;
-            platformGamepad_poll(runner->gamepads);
 
             // Debug key bindings
             if (runner->debugMode) {

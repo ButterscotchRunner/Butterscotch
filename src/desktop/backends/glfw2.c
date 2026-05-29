@@ -236,7 +236,3 @@ void platformSleepUntil(double time) {
         // Spin-wait for the remaining sub-millisecond
     }
 }
-
-void platformGamepad_poll(RunnerGamepadState* gp) {
-    (void)gp;
-}

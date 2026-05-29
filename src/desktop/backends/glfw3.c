@@ -244,29 +244,6 @@ double platformGetTime(void) {
     return glfwGetTime();
 }
 
-bool platformHandleEvents(void) {
-    glfwPollEvents();
-    return glfwWindowShouldClose(window);
-}
-
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
-    if (remaining > 0.002) {
-#ifdef _WIN32
-        Sleep((DWORD) ((remaining - 0.001) * 1000));
-#else
-        struct timespec ts = {
-            .tv_sec = 0,
-            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
-        };
-        nanosleep(&ts, NULL);
-#endif
-    }
-    while (platformGetTime() < time) {
-        // Spin-wait for the remaining sub-millisecond
-    }
-}
-
 static float applyDeadzone(float value, float deadzone) {
     if (value < 0.0f) {
         if (value > -deadzone) return 0.0f;
@@ -335,9 +312,11 @@ static void mapGlfwToGml(const GLFWgamepadstate* glfwState, GamepadSlot* slot) {
     }
 }
 
-void platformGamepad_poll(RunnerGamepadState* gp) {
+bool platformHandleEvents(void) {
+    glfwPollEvents();
+
     for (int slotIdx = 0; slotIdx < 1 && slotIdx < MAX_GAMEPADS; slotIdx++) {
-        GamepadSlot* slot = &gp->slots[slotIdx];
+        GamepadSlot* slot = g_runner.gamepads->slots[slotIdx];
 
         bool currentlyConnected = false;
         int  foundJid = -1;
@@ -385,7 +364,27 @@ void platformGamepad_poll(RunnerGamepadState* gp) {
                 if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
                 if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
             }
-            gp->connectedCount++;
+            g_runner->gamepads->connectedCount++;
         }
+    }
+
+    return glfwWindowShouldClose(window);
+}
+
+void platformSleepUntil(double time) {
+    double remaining = time - platformGetTime();
+    if (remaining > 0.002) {
+#ifdef _WIN32
+        Sleep((DWORD) ((remaining - 0.001) * 1000));
+#else
+        struct timespec ts = {
+            .tv_sec = 0,
+            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
+        };
+        nanosleep(&ts, NULL);
+#endif
+    }
+    while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
     }
 }
