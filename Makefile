@@ -153,6 +153,10 @@ SRCS += vendor/glad/src/glad.c
 INCLUDES += -Ivendor/glad/include
 endif
 endif
+ifeq ($(DESKTOP_BACKEND),sdl2)
+SDL1_LIBS += $(shell pkg-config --libs sdl2)
+LIBS += $(SDL1_LIBS)
+endif
 
 ifeq ($(OS),Windows)
 LIBS += -static -lwinmm
