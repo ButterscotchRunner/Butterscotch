@@ -703,6 +703,8 @@ int main(int argc, char* argv[]) {
     // The first argument will ALWAYS be the argv[0]
     arrins(currentGameArgs, 0, safeStrdup(argv[0]));
 
+    bool platformInitialized = false;
+
     while (true) {
         printf("Loading %s...\n", args.dataWinPath);
 
@@ -974,38 +976,46 @@ int main(int argc, char* argv[]) {
         }
 
 
-        if (!platformInit((int)gen8->defaultWindowWidth, (int)gen8->defaultWindowHeight, windowTitle, args.headless)) {
-            DataWin_free(dataWin);
-            freeCommandLineArgs(&args);
-            return 1;
-        }
-
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
-#if defined(USE_GLFW3) || defined(USE_GLFW2)
-        if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
-#else
-        if (gfx == LEGACY_GL || gfx == MODERN_GL) {
-#endif
-            // Load OpenGL function pointers via GLAD
-#ifdef ENABLE_GLES
-            if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
-#else
-            if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
-#endif
-                fprintf(stderr, "Failed to initialize GLAD\n");
-                platformExit();
+        if (!platformInitialized) {
+            if (!platformInit((int)gen8->defaultWindowWidth, (int)gen8->defaultWindowHeight, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
                 freeCommandLineArgs(&args);
                 return 1;
             }
-        }
+
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#if defined(USE_GLFW3) || defined(USE_GLFW2)
+            if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
+#else
+            if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+#endif
+                // Load OpenGL function pointers via GLAD
+#ifdef ENABLE_GLES
+                if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
+#else
+                if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
+#endif
+                    fprintf(stderr, "Failed to initialize GLAD\n");
+                    platformExit();
+                    DataWin_free(dataWin);
+                    freeCommandLineArgs(&args);
+                    return 1;
+                }
+            }
 #endif
 
-        // Install the OpenGL debug message callback
+            // Install the OpenGL debug message callback
 #if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
-        if (gfx == MODERN_GL)
-            installGLDebugCallback();
+            if (gfx == MODERN_GL)
+                installGLDebugCallback();
 #endif
+
+            platformInitialized = true;
+        } else {
+            // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
+            platformSetWindowTitle(gen8->displayName);
+            platformSetWindowSize((int32_t) gen8->defaultWindowWidth, (int32_t) gen8->defaultWindowHeight);
+        }
 
         // Initialize the renderer
         Renderer* renderer = nullptr;
@@ -1114,8 +1124,10 @@ int main(int argc, char* argv[]) {
             // Clear last frame's pressed/released state, then poll new input events
             RunnerKeyboard_beginFrame(runner->keyboard);
             RunnerGamepad_beginFrame(runner->gamepads);
-            if (platformHandleEvents())
+            if (platformHandleEvents()) {
                 shouldWindowClose = true;
+                continue;
+            }
             platformGamepad_poll(runner->gamepads);
 
             // Debug key bindings
@@ -1406,7 +1418,11 @@ int main(int argc, char* argv[]) {
         runner->audioSystem = nullptr;
         renderer->vtable->destroy(renderer);
 
-        platformExit();
+        // Keep the window + GL context alive across game_change so we don't spawn a new window
+        if (actuallyShuttingDown) {
+            platformExit();
+            platformInitialized = false;
+        }
 
         Runner_free(runner);
         OverlayFileSystem_destroy(overlayFs);
