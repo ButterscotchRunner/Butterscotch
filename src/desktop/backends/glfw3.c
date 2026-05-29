@@ -313,6 +313,9 @@ static void mapGlfwToGml(const GLFWgamepadstate* glfwState, GamepadSlot* slot) {
 }
 
 bool platformHandleEvents(void) {
+    if (glfwWindowShouldClose(window))
+        return true;
+
     glfwPollEvents();
 
     for (int slotIdx = 0; slotIdx < 1 && slotIdx < MAX_GAMEPADS; slotIdx++) {
@@ -368,7 +371,7 @@ bool platformHandleEvents(void) {
         }
     }
 
-    return glfwWindowShouldClose(window);
+    return false;
 }
 
 void platformSleepUntil(double time) {
