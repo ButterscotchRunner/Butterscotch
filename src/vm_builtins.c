@@ -2022,8 +2022,8 @@ static RValue builtin_string_replace(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     int32_t before = (int32_t) (appearance - str);
     char *outputString = safeMalloc(newLen + 1);
 
-    strncpy(outputString, str, before);
-    strncpy(outputString + before, replacement, replacementLen);
+    memcpy(outputString, str, before);
+    memcpy(outputString + before, replacement, replacementLen);
     strcpy(outputString + before + replacementLen, appearance + needleLen);
 
     free(str);
