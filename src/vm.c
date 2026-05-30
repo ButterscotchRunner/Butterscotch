@@ -247,11 +247,11 @@ static Instance* findInstanceByTarget(VMContext* ctx, int32_t target);
 // The returned RValue is a weak view, callers that stash it must strengthen (incRef, strdup).
 static RValue VM_arrayReadAt(RValue* slot, int32_t index) {
     if (slot == nullptr || slot->type != RVALUE_ARRAY || slot->array == nullptr) {
-        return (RValue){ .type = RVALUE_UNDEFINED };
+        return RValue_makeUndefined();
     }
     RValue* cell = GMLArray_slot(slot->array, index);
     if (cell == nullptr) {
-        return (RValue){ .type = RVALUE_UNDEFINED };
+        return RValue_makeUndefined();
     }
     RValue result = *cell;
     result.ownsReference = false;
@@ -458,7 +458,7 @@ static uint32_t growGlobalSlotSparse(VMContext* ctx, int32_t varKey) {
             ctx->globalVarCapacity = newCap;
         }
         for (uint32_t i = ctx->globalVarCount; slot >= i; i++) {
-            ctx->globalVars[i] = (RValue){ .type = RVALUE_UNDEFINED };
+            ctx->globalVars[i] = RValue_makeUndefined();
         }
         ctx->globalVarCount = slot + 1;
     }
@@ -496,7 +496,7 @@ static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
     // Pre-existing entries can still be past ctx->localVarCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
     if (slot >= ctx->localVarCount) {
         for (uint32_t i = ctx->localVarCount; slot >= i; i++) {
-            ctx->localVars[i] = (RValue){ .type = RVALUE_UNDEFINED };
+            ctx->localVars[i] = RValue_makeUndefined();
         }
         ctx->localVarCount = slot + 1;
     }
@@ -534,7 +534,7 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
             Instance* inst = (Instance*) ctx->currentInstance;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
-            *out = (slot != nullptr) ? *slot : (RValue){ .type = RVALUE_UNDEFINED };
+            *out = (slot != nullptr) ? *slot : RValue_makeUndefined();
             out->ownsReference = false;
             return true;
         }
@@ -556,7 +556,7 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
             Instance* inst = (Instance*) ctx->otherInstance;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
-            *out = (slot != nullptr) ? *slot : (RValue){ .type = RVALUE_UNDEFINED };
+            *out = (slot != nullptr) ? *slot : RValue_makeUndefined();
             out->ownsReference = false;
             return true;
         }
@@ -833,7 +833,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
                     return staticVal;
                 }
 #endif
-                return (RValue){ .type = RVALUE_UNDEFINED };
+                return RValue_makeUndefined();
             }
             break;
         }

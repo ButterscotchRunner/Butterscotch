@@ -3328,7 +3328,7 @@ static void writeRValueJson(JsonWriter* w, RValue val) {
             if (val.array != nullptr) {
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
-                    writeRValueJson(w, cell != nullptr ? *cell : (RValue){ .type = RVALUE_UNDEFINED });
+                    writeRValueJson(w, cell != nullptr ? *cell : RValue_makeUndefined());
                 }
             }
             JsonWriter_endArray(w);
