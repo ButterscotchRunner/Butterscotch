@@ -683,7 +683,8 @@ static PreviousSignalActionEntry* previousSignalActions = nullptr;
 static void onCrashSignal(int sig) {
     saveInputRecording();
     // Restore the previous handler (ASAN) and re-raise so it can report the fault
-    sigaction(sig, &previousSignalActions[hmgeti(previousSignalActions, sig)].value, nullptr);
+    ssize_t idx = hmgeti(previousSignalActions, sig);
+    sigaction(sig, &previousSignalActions[idx].value, nullptr);
     raise(sig);
 }
 #endif
