@@ -52,8 +52,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbWidth = reqW;
     fbHeight = reqH;
     if(!headless) {
-        if (gfx == LEGACY_GL || gfx == MODERN_GL)
-            SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 0); // disable vsync
         scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
         if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
