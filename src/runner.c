@@ -2264,7 +2264,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     if (needsPrecise) {
                         bool preciseHit = Collision_instancesOverlapPrecise(runner, self, other, bboxSelf, bboxOther);
 #ifdef ENABLE_VM_TRACING
-                        if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? sprSelf->sepMasks : -1, sprOther ? sprOther->sepMasks : -1);
+                        if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? (int32_t)sprSelf->sepMasks : -1, sprOther ? (int32_t)sprOther->sepMasks : -1);
 #endif
                         if (!preciseHit) continue;
                     }
@@ -2426,7 +2426,6 @@ static void updateViews(Runner* runner) {
 }
 
 static void dispatchOutsideRoomEvents(Runner* runner) {
-    DataWin* dataWin = runner->dataWin;
     int32_t outsideSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, OTHER_OUTSIDE_ROOM);
     if (0 > outsideSlot) return;
     ResolvedEventTable* table = &runner->eventTable;

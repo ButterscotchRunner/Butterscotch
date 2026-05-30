@@ -828,7 +828,6 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
 
         flushBatch(gl);
 
-        int i = 0;
         float verts[24] = {
             x1, y1, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
             x2, y2, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,

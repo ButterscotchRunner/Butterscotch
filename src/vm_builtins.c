@@ -166,24 +166,6 @@ static DsQueue* dsQueueGet(Runner* runner, int32_t id) {
 
 // ===[ BUILT-IN VARIABLE GET/SET ]===
 
-/**
- * Gets the argument number from the name
- *
- * If it returns -1, then the name is not an argument variable
- *
- * @param name The name
- * @return The argument number, -1 if it is not an argument variable
- */
-static int extractArgumentNumber(const char* name) {
-    if (strncmp(name, "argument", 8) == 0) {
-        char* end;
-        long argNumber = strtol(name + 8, &end, 10);
-        if (end == name + 8 || *end != '\0' || 0 > argNumber || argNumber > 15) return -1;
-        return (int) argNumber;
-    }
-    return -1;
-}
-
 static bool isValidAlarmIndex(int alarmIndex) {
     return alarmIndex >= 0 && GML_ALARM_COUNT > alarmIndex;
 }
@@ -2719,7 +2701,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
             VM_structSet(ctx, ls, "visible", RValue_makeBool(lay->visible));
 
             if (wantLayerEls) {
-                int32_t elemCount = 0;
                 GMLArray* elements = nullptr;
                 switch ((RoomLayerType) lay->type) {
                     case RoomLayerType_Background: {
@@ -2741,7 +2722,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                         }
                         Instance_structIncRef(es);
                         *GMLArray_slot(elements, 0) = RValue_makeStruct(es);
-                        elemCount = 1;
                         break;
                     }
                     case RoomLayerType_Instances: {
@@ -2756,7 +2736,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                             Instance_structIncRef(es);
                             *GMLArray_slot(elements, j) = RValue_makeStruct(es);
                         }
-                        elemCount = ic;
                         break;
                     }
                     case RoomLayerType_Tiles: {
@@ -2783,13 +2762,11 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                         }
                         Instance_structIncRef(es);
                         *GMLArray_slot(elements, 0) = RValue_makeStruct(es);
-                        elemCount = 1;
                         break;
                     }
                     default:
                         // Asset/Path/Effect layers: emit an empty element list. Filling these out matches the HTML5 runner but isn't required for room_goto navigation.
                         elements = GMLArray_create(1);
-                        elemCount = 0;
                         break;
                 }
                 if (elements != nullptr) VM_structSet(ctx, ls, "elements", RValue_makeArray(elements));
@@ -7028,7 +7005,7 @@ static RValue builtin_buffer_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* 
     unsigned int inLen = (unsigned int) strlen(input);
     size_t outLen = BASE64_DECODE_OUT_SIZE(inLen);
     uint8_t* out = safeMalloc(outLen);
-    base64_decode((const unsigned char*) input, inLen, out);
+    base64_decode(input, inLen, out);
     free(input);
     int32_t id = gmlBufferCreate(runner, outLen, GML_BUFFER_GROW, 1);
     GmlBuffer* buf = gmlBufferGet(runner, id);
@@ -7080,7 +7057,6 @@ static RValue builtin_buffer_md5(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYB
     MD5Final(digest, &mctx);
 
     char* hex = safeMalloc(33);
-    static const char HEX[] = "0123456789abcdef";
     for (int32_t i = 0; 16 > i; i++) {
         sprintf(&hex[i * 2], "%02x", digest[i]);
     }
@@ -7338,9 +7314,6 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
     float yscale = (float) RValue_toReal(args[9]);
     float rot = (float) RValue_toReal(args[10]);
     uint32_t c1 = (uint32_t) RValue_toInt32(args[11]);
-    uint32_t c2 = (uint32_t) RValue_toInt32(args[12]);
-    uint32_t c3 = (uint32_t) RValue_toInt32(args[13]);
-    uint32_t c4 = (uint32_t) RValue_toInt32(args[14]);
     float alpha = (float) RValue_toReal(args[15]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -7426,8 +7399,6 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     uint32_t minCol = (uint32_t) RValue_toInt32(args[6]);
     uint32_t maxCol = (uint32_t) RValue_toInt32(args[7]);
     uint32_t intermediateColor = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, amount);
-
-    int32_t direction = RValue_toInt32(args[8]);
 
     bool showBack = RValue_toBool(args[9]);
 
@@ -11258,7 +11229,8 @@ static RValue builtin_mp_grid_add_rectangle(VMContext* ctx, RValue* args, int32_
     int32_t y1 = RValue_toInt32(args[2]);
     int32_t x2 = RValue_toInt32(args[3]);
     int32_t y2 = RValue_toInt32(args[4]);
-    if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0;
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
     if (x2 >= g->hcells) x2 = g->hcells - 1;
     if (y2 >= g->vcells) y2 = g->vcells - 1;
     for (int32_t cx = x1; x2 >= cx; cx++) {
@@ -11278,7 +11250,8 @@ static RValue builtin_mp_grid_clear_rectangle(VMContext* ctx, RValue* args, int3
     int32_t y1 = RValue_toInt32(args[2]);
     int32_t x2 = RValue_toInt32(args[3]);
     int32_t y2 = RValue_toInt32(args[4]);
-    if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0;
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
     if (x2 >= g->hcells) x2 = g->hcells - 1;
     if (y2 >= g->vcells) y2 = g->vcells - 1;
     for (int32_t cx = x1; x2 >= cx; cx++) {
@@ -11852,7 +11825,6 @@ static RValue builtin_asset_get_index(VMContext* ctx, RValue* args, int32_t argC
     }
 
     char* name = RValue_toString(args[0]);
-    DataWin* dw = ctx->dataWin;
 
     int32_t value = shget(ctx->runner->assetsByName, name);
     free(name);

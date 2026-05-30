@@ -424,16 +424,6 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
 }
 
 // ===[ Variable Resolution ]===
-static const char* instanceTypeName(int32_t instanceType) {
-    switch (instanceType) {
-        case INSTANCE_SELF: return "self";
-        case INSTANCE_OTHER: return "other";
-        case INSTANCE_GLOBAL: return "global";
-        case INSTANCE_LOCAL: return "local";
-        case INSTANCE_ARG: return "arg";
-        default: return "instance";
-    }
-}
 
 // Returns the object name for an instance, or "<global_scope>" for the global scope dummy instance
 static const char* instanceObjectName(VMContext* ctx, Instance* inst) {
