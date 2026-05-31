@@ -5,7 +5,7 @@
 #include "runner.h"
 #include "input_recording.h"
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless);
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless);
 void platformInitFunctions(Runner *);
 void platformExit(void);
 void platformSwapBuffers(void);

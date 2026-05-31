@@ -37,7 +37,7 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetAppState() & SDL_APPINPUTFOCUS;
 }
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless && gfx != SOFTWARE) {
         fprintf(stderr, "Headless mode on SDL requires the software renderer!\n");
         return false;

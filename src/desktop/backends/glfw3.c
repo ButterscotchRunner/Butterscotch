@@ -129,7 +129,7 @@ static void resizeCallback(GLFWwindow* window, int width, int height) {
 
 #endif
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
