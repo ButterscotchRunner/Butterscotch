@@ -4116,6 +4116,30 @@ static RValue builtin_array_get(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE
     return RValue_makeIndependent(*slot);
 }
 
+// array_set(array, index, value) - write "value" into slot "index" of row 0, growing the array (padding with real 0) if needed.
+// Mutates in place so the change is visible through every handle that shares the underlying GMLArray.
+static RValue builtin_array_set(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (3 > argCount) return RValue_makeUndefined();
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) return RValue_makeUndefined();
+    int32_t index = (int32_t) RValue_toReal(args[1]);
+    if (0 > index) return RValue_makeUndefined();
+    GMLArray* arr = args[0].array;
+    int32_t oldLen = GMLArray_length1D(arr);
+    if (index >= oldLen) {
+        GMLArray_growTo(arr, index + 1);
+        // GMLArray_growTo leaves the freshly added slots undefined; pad the gap with real 0 to match GML array_set semantics.
+        for (int32_t i = oldLen; index > i; i++) {
+            RValue* gap = GMLArray_slot(arr, i);
+            if (gap != nullptr) { RValue_free(gap); *gap = RValue_makeReal(0.0); }
+        }
+    }
+    RValue* slot = GMLArray_slot(arr, index);
+    if (slot == nullptr) return RValue_makeUndefined();
+    RValue_free(slot);
+    *slot = RValue_makeIndependent(args[2]);
+    return RValue_makeUndefined();
+}
+
 // array_push(array, values...) - append one or more values to the end of the array (row 0). BC17+ arrays are mutable references; mutate in place.
 static RValue builtin_array_push(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
@@ -12184,6 +12208,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_length", builtin_array_length_1d); // GM:S 2 alias for array_length_1d
     VM_registerBuiltin(ctx, "array_height_2d", builtin_array_height_2d);
     VM_registerBuiltin(ctx, "array_get", builtin_array_get);
+    VM_registerBuiltin(ctx, "array_set", builtin_array_set);
     VM_registerBuiltin(ctx, "array_push", builtin_array_push);
     VM_registerBuiltin(ctx, "array_resize", builtin_array_resize);
     VM_registerBuiltin(ctx, "array_delete", builtin_array_delete);

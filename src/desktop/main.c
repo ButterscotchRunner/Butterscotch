@@ -758,7 +758,7 @@ int main(int argc, char* argv[]) {
                 .parseGen8 = true,
                 .parseOptn = true,
                 .parseLang = true,
-                .parseExtn = false,
+                .parseExtn = true,
                 .parseSond = true,
                 .parseAgrp = true,
                 .parseSprt = true,
@@ -1448,10 +1448,8 @@ int main(int argc, char* argv[]) {
                 double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
                 double nextFrameTime = lastFrameTime + targetFrameTime;
                 platformSleepUntil(nextFrameTime);
-                lastFrameTime = nextFrameTime;
-            } else {
-                lastFrameTime = platformGetTime();
             }
+            lastFrameTime = platformGetTime();
         }
 
         saveInputRecording();

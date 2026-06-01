@@ -1970,6 +1970,28 @@ void Runner_initFirstRoom(Runner* runner) {
     }
     runner->vmContext->currentInstance = nullptr;
 
+    // Run extension init scripts
+    runner->vmContext->currentInstance = runner->globalScopeInstance;
+    repeat(dataWin->extn.count, e) {
+        Extension* ext = &dataWin->extn.extensions[e];
+        repeat(ext->fileCount, f) {
+            const char* initScript = ext->files[f].initScript;
+            if (initScript == nullptr || initScript[0] == '\0') continue;
+            int32_t scriptIndex = shget(runner->assetsByName, initScript);
+            if (0 > scriptIndex || (uint32_t) scriptIndex >= dataWin->scpt.count) {
+                fprintf(stderr, "Runner: Extension init script '%s' not found, skipping\n", initScript);
+                continue;
+            }
+            int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
+            if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
+                fprintf(stderr, "Runner: Executing extension init script: %s\n", initScript);
+                RValue result = VM_executeCode(runner->vmContext, codeId);
+                RValue_free(&result);
+            }
+        }
+    }
+    runner->vmContext->currentInstance = nullptr;
+
     // Initialize the first room
     initRoom(runner, firstRoomIndex);
 
