@@ -76,7 +76,7 @@ const StickMapping STICK_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, -1, VK_UP    },
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, +1, VK_DOWN  },
 };
-static const int STICK_MAPPING_COUNT = sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]);
+#define STICK_MAPPING_COUNT (sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]))
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
 // ===[ MAIN ]===
