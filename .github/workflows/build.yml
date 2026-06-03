@@ -379,14 +379,15 @@ jobs:
           path: build/butterscotch.elf
 
   build-old-gcc:
-    matrix:
-      include:
-        - name: GCC 3.0
-          compiler: gcc-3.0
-          flags: '-std=gnu99 -w'
-        - name: GCC 2.95
-          compiler: g++-2.95
-          flags: '-fpermissive -w'
+    strategy:
+      matrix:
+        include:
+          - name: GCC 3.0
+            compiler: gcc-3.0
+            flags: '-std=gnu99 -w'
+          - name: GCC 2.95
+            compiler: g++-2.95
+            flags: '-fpermissive -w'
     name: Build (${{ matrix.name }})
     runs-on: ubuntu-latest
     steps:
