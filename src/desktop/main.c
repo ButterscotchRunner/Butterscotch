@@ -324,6 +324,7 @@ static void printUsage(const char *argv0) {
         //"    --eager-room                           - %s\n"
         "    --os-type <os>                         - %s\n"
         "    --window-size <dimentions>             - %s\n"
+        "    --widescreen-hack <aspect ratio>       - %s\n"
         //"    --profile-gml-scripts                  - %s\n"
         "    --save-folder <directory>              - %s\n"
         //"    --game-args                            - %s\n"
@@ -374,7 +375,8 @@ static void printUsage(const char *argv0) {
         getLocStr("Lazily load rooms, increases load times but reduces memory usage", "help.lazy-rooms"),
         //getLocStr("", "help.eager-room"),
         getLocStr("Sets the reported OS type", "help.os-type"),
-        getLocStr("Sets the target window size", "help.window-size"),
+        getLocStr("Sets a custom window size", "help.window-size"),
+        getLocStr("Sets a custom aspect ratio", "help.widescreen-hack"),
         //getLocStr("", "help.profile-gml-scripts"),
         getLocStr("Sets the directory will save files will be stored", "help.save-folder")
         //getLocStr("", "help.game-args")
