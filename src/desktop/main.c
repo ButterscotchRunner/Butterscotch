@@ -308,7 +308,7 @@ static void printUsage(const char *argv0) {
         "    --always-log-unknown-functions         - %s\n"
         "    --always-log-stubbed-functions         - %s\n"
         "    --exit-at-frame <frame>                - %s\n"
-        //"    --trace-bytecode-after-frame <frame>   - %s\n"
+        "    --trace-bytecode-after-frame <frame>   - %s\n"
         //"    --dump-frame <frame>                   - %s\n"
         //"    --dump-frame-json                      - %s\n"
         //"    --dump-frame-json-file                 - %s\n"
@@ -335,8 +335,8 @@ static void printUsage(const char *argv0) {
         argv0,
         getLocStr("Show this message", "help.help"),
         getLocStr("Specify the filename for screenshots", "help.screenshot"),
-        getLocStr("Take a screenshot <frame> frames after startup", "help.screenshot-at-frame"),
-        getLocStr("Take a screenshot of all surfaces <frame> frames after startup", "help.screenshot-surfaces"),
+        getLocStr("Take a screenshot at the specified frame", "help.screenshot-at-frame"),
+        getLocStr("Take a screenshot of all surfaces at the specified frame", "help.screenshot-surfaces"),
         getLocStr("Specify the filename for surface screenshots", "help.screenshot-surfaces-at-frame"),
 #ifndef USE_GLFW2
         getLocStr("Launch without a window", "help.headless"),
@@ -360,7 +360,7 @@ static void printUsage(const char *argv0) {
         getLocStr("Always log unknown function calls instead of once per script", "help.always-log-unknown-functions"),
         getLocStr("Always log stubbed function calls instead of once per script", "help.always-log-stubbed-functions"),
         getLocStr("Exit at the specified frame", "help.exit-at-frame"),
-        //getLocStr("", "help.trace-bytecode-after-frame"),
+        getLocStr("Delay stack and opcode tracing until the specified frame", "help.trace-bytecode-after-frame"),
         //getLocStr("", "help.dump-frame"),
         //getLocStr("", "help.dump-frame-json"),
         //getLocStr("", "help.dump-frame-json-file"),
