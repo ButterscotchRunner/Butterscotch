@@ -1,6 +1,7 @@
 #include "localization.h"
 
 #include <string.h>
+#include <stdarg.h>
 
 const struct localized_string help_strings_sillylang[] = {
     { "help", "im silly :3" },
@@ -37,4 +38,11 @@ const char *getLocStr(const char *fallback, const char *id) {
                     return categories[category].strings[i].string;
 
     return fallback;
+}
+
+void locLog(const char *fallback, const char *id, ...) {
+    va_list ap;
+    va_start(ap, id);
+    vfprintf(stderr, getLocStr(fallback, id), ap);
+    va_end(ap);
 }

@@ -18,4 +18,4 @@ struct string_category {
 };
 
 const char *getLocStr(const char *fallback, const char *id);
-void locLog(const char *fallback, const char *id);
+void locLog(const char *fallback, const char *id, ...);
