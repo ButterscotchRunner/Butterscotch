@@ -282,16 +282,16 @@ static void printUsage(const char *argv0) {
         stderr,
         "Usage: %s <path to data.win or game.unx>\n"
         "    --help                                 - %s\n"
-        //"    --screenshot                           - %s\n"
+        "    --screenshot <filename>                - %s\n"
         "    --screenshot-at-frame <frame>          - %s\n"
-        //"    --screenshot-surfaces                  - %s\n"
-        //"    --screenshot-surfaces-at-frame <frame> - %s\n"
+        "    --screenshot-surfaces <filename>       - %s\n"
+        "    --screenshot-surfaces-at-frame <frame> - %s\n"
 #ifndef USE_GLFW2
         "    --headless                             - %s\n"
 #endif
-        //"    --print-rooms                          - %s\n"
+        "    --print-rooms                          - %s\n"
         //"    --print-objects                        - %s\n"
-        //"    --print-declared-functions             - %s\n"
+        "    --print-declared-functions             - %s\n"
         //"    --print-unknown-functions              - %s\n"
         //"    --trace-variable-reads                 - %s\n"
         //"    --trace-variable-writes                - %s\n"
@@ -315,7 +315,7 @@ static void printUsage(const char *argv0) {
         "    --speed <speed>                        - %s\n"
         "    --fast-forward-speed <speed>           - %s\n"
         "    --seed <seed>                          - %s\n"
-        //"    --debug                                - %s\n"
+        "    --debug                                - %s\n"
         //"    --disassemble                          - %s\n"
         //"    --record-inputs                        - %s\n"
         //"    --playback-inputs                      - %s\n"
@@ -334,16 +334,16 @@ static void printUsage(const char *argv0) {
         ,
         argv0,
         getLocStr("Shows this message", "help.help"),
-        //getLocStr("", "help.screenshot"),
+        getLocStr("Specifies the filename for screenshots", "help.screenshot"),
         getLocStr("Take a screenshot <frame> frames after startup", "help.screenshot-at-frame"),
-        //getLocStr("", "help.screenshot-surfaces"),
-        //getLocStr("", "help.screenshot-surfaces-at-frame"),
+        getLocStr("Take a screenshot of all surfaces <frame> frames after startup", "help.screenshot-surfaces"),
+        getLocStr("Specifies the filename for surface screenshots", "help.screenshot-surfaces-at-frame"),
 #ifndef USE_GLFW2
         getLocStr("Launch without a window", "help.headless"),
 #endif
-        //getLocStr("", "help.print-rooms"),
+        getLocStr("Print all the rooms in the game and exit", "help.print-rooms"),
         //getLocStr("", "help.print-objects"),
-        //getLocStr("", "help.print-declared-functions"),
+        getLocStr("Print all declared functions in the game and exit", "help.print-declared-functions"),
         //getLocStr("", "help.print-unknown-functions"),
         //getLocStr("", "help.trace-variable-reads"),
         //getLocStr("", "help.trace-variable-writes"),
@@ -367,7 +367,7 @@ static void printUsage(const char *argv0) {
         getLocStr("Set a normal speed multiplier", "help.speed"),
         getLocStr("Set a fast-forward speed multiplier", "help.fast-forward-speed"),
         getLocStr("Seed for the random number generator", "help.seed"),
-        //getLocStr("", "help.debug"),
+        getLocStr("Enable debug mode", "help.debug"),
         //getLocStr("", "help.disassemble"),
         //getLocStr("", "help.record-inputs"),
         //getLocStr("", "help.playback-inputs"),
