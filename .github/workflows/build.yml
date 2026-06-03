@@ -377,3 +377,30 @@ jobs:
         with:
           name: butterscotch-ps3
           path: build/butterscotch.elf
+
+  build-old-gcc:
+    matrix:
+      include:
+        - name: GCC 3.0
+          compiler: gcc-3.0
+          flags: '-std=gnu99 -w'
+        - name: GCC 2.95
+          compiler: g++-2.95
+          flags: '-fpermissive -w'
+    name: Build (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Debian Woody chroot
+        id: create-chroot
+        uses: NekoSekaiMoe/debchroot@main
+        with:
+          distro: 'debian'
+          version: 'woody'
+          arch: 'i386'
+          packages: '${{ matrix.compiler }} make libsdl1.2-dev'
+
+      - name: Checkout repo into chroot
+        run: git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ${{ steps.create-chroot.outputs.rootfs }}/butterscotch
+
+      - name: Build
+        run: debsh make -C /butterscotch CC='${{ matrix.compiler }} ${{ matrix.flags }}' DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1
