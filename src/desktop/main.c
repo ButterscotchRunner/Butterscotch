@@ -293,20 +293,20 @@ static void printUsage(const char *argv0) {
         //"    --print-objects                        - %s\n"
         "    --print-declared-functions             - %s\n"
         //"    --print-unknown-functions              - %s\n"
-        //"    --trace-variable-reads                 - %s\n"
-        //"    --trace-variable-writes                - %s\n"
-        //"    --trace-function-calls                 - %s\n"
-        //"    --trace-alarms                         - %s\n"
-        //"    --trace-instance-lifecycles            - %s\n"
-        //"    --trace-events                         - %s\n"
-        //"    --trace-collisions                     - %s\n"
-        //"    --trace-event-inherited                - %s\n"
-        //"    --trace-tiles                          - %s\n"
-        //"    --trace-opcodes                        - %s\n"
-        //"    --trace-stack                          - %s\n"
-        //"    --trace-frames                         - %s\n"
-        //"    --always-log-unknown-functions         - %s\n"
-        //"    --always-log-stubbed-functions         - %s\n"
+        "    --trace-variable-reads                 - %s\n"
+        "    --trace-variable-writes                - %s\n"
+        "    --trace-function-calls                 - %s\n"
+        "    --trace-alarms                         - %s\n"
+        "    --trace-instance-lifecycles            - %s\n"
+        "    --trace-events                         - %s\n"
+        "    --trace-collisions                     - %s\n"
+        "    --trace-event-inherited                - %s\n"
+        "    --trace-tiles                          - %s\n"
+        "    --trace-opcodes                        - %s\n"
+        "    --trace-stack                          - %s\n"
+        "    --trace-frames                         - %s\n"
+        "    --always-log-unknown-functions         - %s\n"
+        "    --always-log-stubbed-functions         - %s\n"
         "    --exit-at-frame <frame>                - %s\n"
         //"    --trace-bytecode-after-frame <frame>   - %s\n"
         //"    --dump-frame <frame>                   - %s\n"
@@ -325,19 +325,19 @@ static void printUsage(const char *argv0) {
         "    --os-type <os>                         - %s\n"
         "    --window-size <dimentions>             - %s\n"
         "    --widescreen-hack <aspect ratio>       - %s\n"
-        //"    --profile-gml-scripts                  - %s\n"
+        "    --profile-gml-scripts                  - %s\n"
         "    --save-folder <directory>              - %s\n"
         //"    --game-args                            - %s\n"
 #ifdef EABLE_VM_OPCODE_PROFILER
-        //"    --profile-opcodes                      - %s\n"
+        "    --profile-opcodes                      - %s\n"
 #endif
         ,
         argv0,
-        getLocStr("Shows this message", "help.help"),
-        getLocStr("Specifies the filename for screenshots", "help.screenshot"),
+        getLocStr("Show this message", "help.help"),
+        getLocStr("Specify the filename for screenshots", "help.screenshot"),
         getLocStr("Take a screenshot <frame> frames after startup", "help.screenshot-at-frame"),
         getLocStr("Take a screenshot of all surfaces <frame> frames after startup", "help.screenshot-surfaces"),
-        getLocStr("Specifies the filename for surface screenshots", "help.screenshot-surfaces-at-frame"),
+        getLocStr("Specify the filename for surface screenshots", "help.screenshot-surfaces-at-frame"),
 #ifndef USE_GLFW2
         getLocStr("Launch without a window", "help.headless"),
 #endif
@@ -345,21 +345,21 @@ static void printUsage(const char *argv0) {
         //getLocStr("", "help.print-objects"),
         getLocStr("Print all declared functions in the game and exit", "help.print-declared-functions"),
         //getLocStr("", "help.print-unknown-functions"),
-        //getLocStr("", "help.trace-variable-reads"),
-        //getLocStr("", "help.trace-variable-writes"),
-        //getLocStr("", "help.trace-function-calls"),
-        //getLocStr("", "help.trace-alarms"),
-        //getLocStr("", "help.trace-instance-lifecycles"),
-        //getLocStr("", "help.trace-events"),
-        //getLocStr("", "help.trace-collisions"),
-        //getLocStr("", "help.trace-event-inherited"),
-        //getLocStr("", "help.trace-tiles"),
-        //getLocStr("", "help.trace-opcodes"),
-        //getLocStr("", "help.trace-stack"),
-        //getLocStr("", "help.trace-frames"),
-        //getLocStr("", "help.always-log-unknown-functions"),
-        //getLocStr("", "help.always-log-stubbed-functions"),
-        getLocStr("Exits at the specified frame", "help.exit-at-frame"),
+        getLocStr("Trace variable reads", "help.trace-variable-reads"),
+        getLocStr("Trace variable writes", "help.trace-variable-writes"),
+        getLocStr("Trace function calls", "help.trace-function-calls"),
+        getLocStr("Trace alarms", "help.trace-alarms"),
+        getLocStr("Trace instance creations and deletions", "help.trace-instance-lifecycles"),
+        getLocStr("Trace events", "help.trace-events"),
+        getLocStr("Trace collisions between instances", "help.trace-collisions"),
+        getLocStr("Trace event inherited calls", "help.trace-event-inherited"),
+        getLocStr("Trace drawn tiles", "help.trace-tiles"),
+        getLocStr("Trace opcodes", "help.trace-opcodes"),
+        getLocStr("Trace stack", "help.trace-stack"),
+        getLocStr("Log frametimes", "help.trace-frames"),
+        getLocStr("Always log unknown function calls instead of once per script", "help.always-log-unknown-functions"),
+        getLocStr("Always log stubbed function calls instead of once per script", "help.always-log-stubbed-functions"),
+        getLocStr("Exit at the specified frame", "help.exit-at-frame"),
         //getLocStr("", "help.trace-bytecode-after-frame"),
         //getLocStr("", "help.dump-frame"),
         //getLocStr("", "help.dump-frame-json"),
@@ -371,17 +371,17 @@ static void printUsage(const char *argv0) {
         //getLocStr("", "help.disassemble"),
         //getLocStr("", "help.record-inputs"),
         //getLocStr("", "help.playback-inputs"),
-        getLocStr("Sets the rendering API", "help.renderer"),
+        getLocStr("Set the rendering API", "help.renderer"),
         getLocStr("Lazily load rooms, increases load times but reduces memory usage", "help.lazy-rooms"),
         //getLocStr("", "help.eager-room"),
-        getLocStr("Sets the reported OS type", "help.os-type"),
-        getLocStr("Sets a custom window size", "help.window-size"),
-        getLocStr("Sets a custom aspect ratio", "help.widescreen-hack"),
-        //getLocStr("", "help.profile-gml-scripts"),
-        getLocStr("Sets the directory will save files will be stored", "help.save-folder")
+        getLocStr("Set the reported OS type", "help.os-type"),
+        getLocStr("Set a custom window size", "help.window-size"),
+        getLocStr("Set a custom aspect ratio", "help.widescreen-hack"),
+        getLocStr("Log which GML scripts are the heaviest in terms of time and executed instructions", "help.profile-gml-scripts"),
+        getLocStr("Set the directory will save files will be stored", "help.save-folder")
         //getLocStr("", "help.game-args")
 #ifdef EABLE_VM_OPCODE_PROFILER
-        //, getLocStr("", "help.profile-opcodes")
+        , getLocStr("Rank which GML opcodes were executed the most", "help.profile-opcodes")
 #endif
     );
 }
