@@ -21,6 +21,7 @@
 #define INSTANCE_LOCAL     (-7)
 #define INSTANCE_STACKTOP  (-9)
 #define INSTANCE_ARG       (-15)
+#define INSTANCE_STATIC    (-16)
 
 // ===[ Variable Types (upper 5 bits of varRef, extracted with (varRef >> 24) & 0xF8) ]===
 #define VARTYPE_ARRAY     0x00
@@ -209,6 +210,8 @@ struct VMContext {
 
     // V17+ extended BREAK opcode state
     bool* staticInitialized; // Per-code-entry flag for isstaticok/setstatic (allocated in VM_create)
+    // Static variables: per-constructor shared static struct.
+    Instance** staticStructs;
     // BC17+: owner token set by BREAK_SETOWNER. Arrays whose .owner mismatches fork on write.
     void* currentArrayOwner;
     // SAVEAREF/RESTOREAREF balance tracker.
@@ -280,6 +283,7 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex);
 RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
 void VM_free(VMContext* ctx);
 bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targetObjectIndex);
+int32_t VM_resolveInstanceTarget(VMContext* ctx, int32_t target);
 void VM_buildCrossReferences(VMContext* ctx);
 void VM_disassemble(VMContext* ctx, int32_t codeIndex);
 #ifdef ENABLE_VM_OPCODE_PROFILER
@@ -295,6 +299,9 @@ void VM_arraySet(VMContext* ctx, RValue* arrayRef, int32_t index, RValue val);
 // Unknown variables are not written to the struct.
 // Takes ownership of "val" and frees it after copying into the struct.
 void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val);
+
+// @@CopyStatic@@: chain the current constructor's static struct to a parent constructor's static struct (static inheritance).
+void VM_copyStatic(VMContext* ctx, RValue* parentRef);
 
 // Look up the varID for a self-scoped variable name, allocating a fresh synthetic ID if absent.
 int32_t VM_getOrAllocateSelfVarID(VMContext* ctx, const char* name);
@@ -330,9 +337,15 @@ static inline char* VM_createDedupKey(const char* callerName, const char* funcNa
  */
 static inline bool VM_shouldTraceVariable(StringBooleanEntry* traceMap, const char* scopeName, const char* altScopeName, const char* varName) {
     if (shlen(traceMap) == 0) return false;
+    // "*" should trace EVERYTHING
     if (shgeti(traceMap, "*") != -1) return true;
+    // "obj_mainchara" should trace EVERY variable read/write to that object
     if (shgeti(traceMap, scopeName) != -1) return true;
+    // "self" should trace EVERY "self" scope variable read/write to ALL objects
     if (altScopeName != nullptr && shgeti(traceMap, altScopeName) != -1) return true;
+    // "hp" should trace EVERY "hp" variable read/write to ALL objects
+    if (shgeti(traceMap, varName) != -1) return true;
+    // "obj_mainchara.hp" should trace EVERY variable read/write to the "hp" variable on the "obj_mainchara" object.
     char formatted[strlen(scopeName) + 1 + strlen(varName) + 1];
     snprintf(formatted, sizeof(formatted), "%s.%s", scopeName, varName);
     if (shgeti(traceMap, formatted) != -1) return true;

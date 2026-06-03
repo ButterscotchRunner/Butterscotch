@@ -300,26 +300,9 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glEnable(GL_SCISSOR_TEST);
     glScissor(portX, glPortY, portW, portH);
 
-    // Build orthographic projection (Y-down for GML coordinate system)
+    // World -> clip transform for this view.
     Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, (float) viewX, (float) (viewX + viewW), (float) (viewY + viewH), (float) viewY, -1.0f, 1.0f);
-
-    if (viewAngle != 0.0f) {
-        // GML view_angle: rotate camera by this angle (degrees, counter-clockwise)
-        // To rotate the camera, we rotate the world in the opposite direction around the view center
-        float cx = (float) viewX + (float) viewW / 2.0f;
-        float cy = (float) viewY + (float) viewH / 2.0f;
-        Matrix4f rot;
-        Matrix4f_identity(&rot);
-        Matrix4f_translate(&rot, cx, cy, 0.0f);
-        float angleRad = viewAngle * (float) M_PI / 180.0f;
-        Matrix4f_rotateZ(&rot, -angleRad);
-        Matrix4f_translate(&rot, -cx, -cy, 0.0f);
-        Matrix4f result;
-        Matrix4f_multiply(&result, &projection, &rot);
-        projection = result;
-    }
+    Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
 
     glUseProgram(gl->shaderProgram);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
@@ -335,6 +318,16 @@ static void glEndView(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     glDisable(GL_SCISSOR_TEST);
+}
+
+// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
+static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    // Flush first so pending quads draw under the projection they were issued with.
+    flushBatch(gl);
+    glUseProgram(gl->shaderProgram);
+    glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, worldToClip->m);
+    renderer->PreviousViewMatrix = *worldToClip;
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
@@ -360,8 +353,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glEnable(GL_SCISSOR_TEST);
 
     Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) guiW, (float) guiH, 0.0f, -1.0f, 1.0f);
+    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
 
     glUseProgram(gl->shaderProgram);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
@@ -421,7 +413,7 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
 
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
-static bool ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
+bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     if (gl->textureLoaded[pageId]) return (gl->textureWidths[pageId] != 0);
 
     gl->textureLoaded[pageId] = true;
@@ -459,7 +451,7 @@ static bool resolveSpriteTexture(GLRenderer* gl, int32_t tpagIndex, TexturePageI
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return false;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
+    if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
     *outTpag = tpag;
     *outTexId = gl->glTextures[pageId];
     *outTexW = gl->textureWidths[pageId];
@@ -546,7 +538,7 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return;
+    if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return;
 
     GLuint texId = gl->glTextures[pageId];
     int32_t texW = gl->textureWidths[pageId];
@@ -872,7 +864,7 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
         state->fontTpag = &dw->tpag.items[fontTpagIndex];
         int16_t pageId = state->fontTpag->texturePageId;
         if (0 > pageId || (uint32_t) pageId >= gl->textureCount) return false;
-        if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
+        if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
 
         state->texId = gl->glTextures[pageId];
         state->texW = gl->textureWidths[pageId];
@@ -898,7 +890,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         TexturePageItem* glyphTpag = &dw->tpag.items[tpagIdx];
         int16_t pid = glyphTpag->texturePageId;
         if (0 > pid || (uint32_t) pid >= gl->textureCount) return false;
-        if (!ensureTextureLoaded(gl, (uint32_t) pid)) return false;
+        if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pid)) return false;
 
         *outTexId = gl->glTextures[pid];
         int32_t tw = gl->textureWidths[pid];
@@ -1671,6 +1663,7 @@ static RendererVtable glVtable = {
     .endFrameEnd = glEndFrameEnd,
     .beginView = glBeginView,
     .endView = glEndView,
+    .applyProjection = glApplyProjection,
     .beginGUI = glBeginGUI,
     .endGUI = glEndGUI,
     .drawSprite = glDrawSprite,
@@ -1722,5 +1715,6 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawHalign = 0;
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
+
     return (Renderer*) gl;
 }

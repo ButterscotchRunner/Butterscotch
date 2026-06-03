@@ -7,6 +7,12 @@
 
 typedef struct FileSystem FileSystem;
 
+// One directory entry returned by FileSystemVtable.listDirectory.
+typedef struct {
+    char* name; // entry name only (no path)
+    bool isDirectory;
+} FileSystemDirEntry;
+
 // Mode values for FileSystemVtable.binaryOpen
 #define GML_FILE_BIN_READ 0
 #define GML_FILE_BIN_WRITE 1 // truncates if the file exists, creates it if not
@@ -47,6 +53,12 @@ typedef struct {
     bool (*createDirectory)(FileSystem* fs, const char* relativePath);
     // Delete a directory, returns true on success
     bool (*deleteDirectory)(FileSystem* fs, const char* relativePath);
+
+    // Enumerate the entries of a directory.
+    // Returns an stb_ds array of FileSystemDirEntry, or nullptr if the directory can't be opened or is empty.
+    // "." and ".." are never included.
+    // The caller owns the result: free each .name, then release the array with arrfree().
+    FileSystemDirEntry* (*listDirectory)(FileSystem* fs, const char* relativeDirPath);
 } FileSystemVtable;
 
 struct FileSystem {

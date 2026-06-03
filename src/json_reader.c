@@ -352,14 +352,15 @@ JsonValue* JsonReader_parse(const char* json) {
     if (json == nullptr) return nullptr;
 
     size_t pos = 0;
-    if (memcmp(json, "\xEF\xBB\xBF", 3) == 0) {
+    int len = strlen(json);
+    if (len >= 3 && memcmp(json, "\xEF\xBB\xBF", 3) == 0) {
         pos = 3;
     }
 
     JsonParser parser = {
         .input = json,
         .position = pos,
-        .length = strlen(json),
+        .length = len,
     };
 
     JsonValue* result = parseValue(&parser);

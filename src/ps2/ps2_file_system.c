@@ -497,6 +497,10 @@ static bool ps2DeleteDirectory(FileSystem* fs, const char* relativePath) {
     return true;
 }
 
+static FileSystemDirEntry* ps2ListDirectory(MAYBE_UNUSED FileSystem* fs, MAYBE_UNUSED const char* relativeDirPath) {
+    return nullptr;
+}
+
 // ===[ Vtable ]===
 
 static FileSystemVtable ps2FileSystemVtable = {
@@ -518,6 +522,7 @@ static FileSystemVtable ps2FileSystemVtable = {
     .directoryExists = ps2DirectoryExists,
     .createDirectory = ps2CreateDirectory,
     .deleteDirectory = ps2DeleteDirectory,
+    .listDirectory = ps2ListDirectory,
 };
 
 // ===[ Lifecycle ]===

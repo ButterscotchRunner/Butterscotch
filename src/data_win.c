@@ -575,6 +575,33 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
 
     if (count == 0) { free(ptrs); s->sounds = nullptr; return; }
 
+    if (DataWin_isVersionAtLeast(dw, 2023, 2, 0, 0) && !DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+        uint32_t soundPtrs[2];
+        uint32_t soundCount = 0;
+        repeat(count, i) {
+            if (ptrs[i] == 0)
+                continue;
+            soundPtrs[soundCount++] = ptrs[i];
+            if (soundCount >= 2)
+                break;
+        }
+
+        if (soundCount >= 2) {
+            if (soundPtrs[0] + (4 * 9) == soundPtrs[1] - 4) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+        } else if (soundCount == 1) {
+            size_t savedPos = BinaryReader_getPosition(reader);
+            size_t probe = (size_t) (soundPtrs[0] + (4 * 9));
+            requireMessageFormatted((probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
+            BinaryReader_seek(reader, probe);
+            if (BinaryReader_readUint32(reader) != 0) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+            BinaryReader_seek(reader, savedPos);
+        }
+    }
+
     s->sounds = safeCalloc(count, sizeof(Sound));
     repeat(count, i) {
         if (ptrs[i] == 0) continue;
@@ -707,6 +734,20 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         // Width in bytes = (spriteWidth + 7) / 8, total = widthInBytes * spriteHeight
         // After all masks, data is padded to 4-byte alignment
         // Zero-dimension sprites (placeholder/empty assets in test files) omit the mask block entirely
+        // GMS 2024.6+ stores collision masks at bounding-box dimensions (marginRight-marginLeft+1 by marginBottom-marginTop+1) instead of the full sprite size.
+        // Pre-2024.6 they cover the full sprite.
+        if (DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+            spr->maskWidth = (uint32_t) (spr->marginRight - spr->marginLeft + 1);
+            spr->maskHeight = (uint32_t) (spr->marginBottom - spr->marginTop + 1);
+            spr->maskOffsetX = spr->marginLeft;
+            spr->maskOffsetY = spr->marginTop;
+        } else {
+            spr->maskWidth = spr->width;
+            spr->maskHeight = spr->height;
+            spr->maskOffsetX = 0;
+            spr->maskOffsetY = 0;
+        }
+
         if (spr->width == 0 || spr->height == 0) {
             spr->maskCount = 0;
             spr->masks = nullptr;
@@ -714,9 +755,9 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         }
         uint32_t maskDataCount = BinaryReader_readUint32(reader);
         spr->maskCount = maskDataCount;
-        if (maskDataCount > 0 && spr->width > 0 && spr->height > 0) {
-            uint32_t bytesPerRow = (spr->width + 7) / 8;
-            uint32_t bytesPerMask = bytesPerRow * spr->height;
+        if (maskDataCount > 0 && spr->maskWidth > 0 && spr->maskHeight > 0) {
+            uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+            uint32_t bytesPerMask = bytesPerRow * spr->maskHeight;
 
             if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
                 spr->masks = safeMalloc(maskDataCount * sizeof(uint8_t*));

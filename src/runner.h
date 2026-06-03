@@ -52,10 +52,15 @@
 #define OTHER_END_OF_PATH    8
 #define OTHER_NO_MORE_HEALTH 9
 #define OTHER_USER0          10
+#define OTHER_ASYNC_DIALOG   63
+#define OTHER_ASYNC_SAVE_LOAD 72
 #define OTHER_ASYNC_SYSTEM   75
 
 #define MAX_VIEWS 8
 #define MAX_SURFACES 16
+#define MAX_DEFAULT_ROOM_CAMERAS MAX_VIEWS
+#define MAX_USER_CAMERAS 56
+#define MAX_CAMERAS (MAX_DEFAULT_ROOM_CAMERAS + MAX_USER_CAMERAS)
 
 // ===[ Operating System Types ]===
 // See GameMaker-HTML5's Globals.js
@@ -95,21 +100,26 @@ typedef enum {
 
 typedef struct {
     bool enabled;
-    int32_t viewX;
-    int32_t viewY;
-    int32_t viewWidth;
-    int32_t viewHeight;
     int32_t portX;
     int32_t portY;
     int32_t portWidth;
     int32_t portHeight;
+    int32_t cameraId;
+} RuntimeView;
+
+typedef struct {
+    bool allocated; // slot in use (default cameras: set when the room enables the view; user cameras: camera_create/destroy)
+    int32_t viewX;
+    int32_t viewY;
+    int32_t viewWidth;
+    int32_t viewHeight;
     uint32_t borderX;
     uint32_t borderY;
     int32_t speedX;
     int32_t speedY;
-    int32_t objectId;
+    int32_t objectId; // follow target (object index), -1 = none
     float viewAngle;
-} RuntimeView;
+} GMLCamera;
 
 typedef struct {
     bool visible;
@@ -118,6 +128,7 @@ typedef struct {
     float x, y;               // float for sub-pixel scrolling accumulation
     bool tileX, tileY;
     float speedX, speedY;
+    float xScale, yScale;     // legacy background_xscale[]/background_yscale[] (default 1.0)
     bool stretch;
     float alpha;
 } RuntimeBackground;
@@ -267,6 +278,24 @@ typedef struct {
     bool isValid;        // false after buffer_delete (tombstone)
 } GmlBuffer;
 
+// ===[ Async buffer save/load ]===
+
+// A single queued buffer load/save operation, accumulated inside an async group.
+typedef struct {
+    int32_t bufferId;  // buffer to read from (save) or write into (load)
+    char* filename;    // owned; raw file name (the group name is applied as a directory prefix when the op is kicked)
+    int32_t offset;    // byte offset within the buffer
+    int32_t size;      // byte count; -1 means "the whole file" for loads
+    bool isSave;       // true = save, false = load
+} AsyncBufferOp;
+
+// A completed buffer save/load request waiting to fire its "Async - Save/Load" event.
+typedef struct {
+    int32_t requestId; // posted to the async_load map as "id"; also returned by buffer_async_group_end
+    int32_t status;    // posted as "status": 1 on success, 0 on failure (matches the native runner)
+    int32_t error;     // posted as "error"; always 0 here (matches the native runner)
+} AsyncSaveLoadCompletion;
+
 // Motion planning grid used by mp_grid_* builtins. Cell value 1 = blocked.
 typedef struct {
     bool inUse;
@@ -310,6 +339,7 @@ typedef struct {
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers
     RuntimeView views[MAX_VIEWS];
+    GMLCamera defaultCameras[MAX_DEFAULT_ROOM_CAMERAS]; // whole-array snapshot of Runner.defaultCameras (room-scoped)
 } SavedRoomState;
 
 // One flattened collision event entry. Mirrors ObjectEvent but adds the resolved codeId and ownerObjectIndex (the ancestor that actually defines the event) so dispatch needs no event-table lookup.
@@ -371,6 +401,8 @@ struct Runner {
     uint32_t nextInstanceId;
     RunnerKeyboardState* keyboard;
     RuntimeView views[MAX_VIEWS];
+    GMLCamera defaultCameras[MAX_DEFAULT_ROOM_CAMERAS];
+    GMLCamera userCameras[MAX_USER_CAMERAS];
     RunnerGamepadState* gamepads;
     RuntimeBackground backgrounds[8];
     uint32_t backgroundColor;      // runtime-mutable (BGR format)
@@ -385,6 +417,8 @@ struct Runner {
     int32_t applicationHeight;
     int32_t oldApplicationWidth;
     int32_t oldApplicationHeight;
+    int32_t widescreenExtraWidth;
+    int32_t widescreenExtraHeight;
     // ID returned by renderer->vtable->ensureApplicationSurface each frame. Real surface ID on GL/GL-legacy,
     // APPLICATION_SURFACE_ID (-1) on PS2. This is what BUILTIN_VAR_APPLICATION_SURFACE returns to GML.
     int32_t applicationSurfaceId;
@@ -418,6 +452,8 @@ struct Runner {
     // Tracked separately so event/step/draw iteration over runner->instances stays clean.
     Instance** structInstances;
     int32_t forcedDepth;
+    // The time between the last frame and the current frame, stored in microseconds.
+    double deltaTime;
 
     // ===[ Builtin function state ]===
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
@@ -449,8 +485,24 @@ struct Runner {
     OpenTextFile openTextFiles[MAX_OPEN_TEXT_FILES];
     OpenBinaryFile openBinaryFiles[MAX_OPEN_BINARY_FILES];
 
+    // Single active file_find_* enumeration session.
+    char** fileFindResults; // stb_ds array of heap-dup'd matched file names (name only, no path)
+    int32_t fileFindPosition; // index of the entry returned by the next file_find_next call
+
     // Async map ID
     int32_t asyncLoadMapId;
+
+    // Async buffer save/load state
+    char* asyncBufferGroupName;                   // current group name (nullptr when no group is open); applied as a directory prefix
+    bool asyncBufferGroupActive;                  // true between buffer_async_group_begin and buffer_async_group_end
+    AsyncBufferOp* asyncBufferGroupOps;           // stb_ds array of ops accumulated in the open group
+    AsyncSaveLoadCompletion* asyncSaveLoadQueue;  // stb_ds array of completions waiting to fire their event
+    int32_t asyncBufferNextRequestId;             // monotonic request id handed out per kicked group/op
+
+    // Pending Xbox One account-picker async result.
+    int32_t xboxAccountPickerPendingId; // -1 when nothing is pending
+    int32_t xboxAccountPickerPadIndex; // pad index reported back in the async map
+    int32_t xboxAsyncIdCounter; // hands out a unique async id per picker call
 
     // Legacy GMS 1.x globals
     GMLReal score;
@@ -506,6 +558,10 @@ void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH);
 void Runner_drawBackgrounds(Runner* runner, bool foreground);
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY);
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);
+// Resolves a camera id (slot index) to its pool entry, or nullptr if out of range / not allocated.
+GMLCamera* Runner_getCameraById(Runner* runner, int32_t id);
+// Resolves the camera assigned to a view, or nullptr if the view index is invalid or has no allocated camera.
+GMLCamera* Runner_getCameraForView(Runner* runner, int32_t viewIndex);
 void Runner_scrollBackgrounds(Runner* runner);
 void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerOffsetX, float layerOffsetY);
 // Allocates a fresh GML struct and registers it in instancesById and structInstances.
@@ -552,3 +608,17 @@ RoomLayer* Runner_findRoomLayerById(Runner* runner, int32_t id);
 RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t elementId, RuntimeLayer** outLayer);
 uint32_t Runner_getNextLayerId(Runner* runner);
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer);
+// Sets the active state of the instance
+static inline void Runner_setActiveState(Runner* runner, Instance* instance, bool active) {
+#ifdef ENABLE_VM_TRACING
+    if (active != instance->active) {
+        GameObject* objDef = &runner->dataWin->objt.objects[instance->objectIndex];
+
+        if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
+            fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
+        }
+    }
+#endif
+
+    instance->active = active;
+}

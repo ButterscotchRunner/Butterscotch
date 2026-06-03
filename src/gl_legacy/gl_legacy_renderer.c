@@ -167,26 +167,9 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     // OpenGL viewport Y is bottom-up, game Y is top-down
     glApplyViewport(gl, portX, portY, portW, portH);
 
-    // Build orthographic projection (Y-down for GML coordinate system)
+    // World -> clip transform for this view.
     Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, (float) viewX, (float) (viewX + viewW), (float) (viewY + viewH), (float) viewY, -1.0f, 1.0f);
-
-    if (viewAngle != 0.0f) {
-        // GML view_angle: rotate camera by this angle (degrees, counter-clockwise)
-        // To rotate the camera, we rotate the world in the opposite direction around the view center
-        float cx = (float) viewX + (float) viewW / 2.0f;
-        float cy = (float) viewY + (float) viewH / 2.0f;
-        Matrix4f rot;
-        Matrix4f_identity(&rot);
-        Matrix4f_translate(&rot, cx, cy, 0.0f);
-        float angleRad = viewAngle * (float) M_PI / 180.0f;
-        Matrix4f_rotateZ(&rot, -angleRad);
-        Matrix4f_translate(&rot, -cx, -cy, 0.0f);
-        Matrix4f result;
-        Matrix4f_multiply(&result, &projection, &rot);
-        projection = result;
-    }
+    Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -199,6 +182,15 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
+}
+
+// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
+static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(worldToClip->m);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    renderer->PreviousViewMatrix = *worldToClip;
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
@@ -217,8 +209,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     }
 
     Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) guiW, (float) guiH, 0.0f, -1.0f, 1.0f);
+    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -267,7 +258,7 @@ static void glClearScreen(MAYBE_UNUSED Renderer* renderer, uint32_t color, float
 
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
-static bool ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId) {
+bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId) {
     if (gl->textureLoaded[pageId]) return (gl->textureWidths[pageId] != 0);
 
     gl->textureLoaded[pageId] = true;
@@ -329,7 +320,7 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return;
 
     GLuint texId = gl->glTextures[pageId];
     int32_t texW = gl->textureWidths[pageId];
@@ -403,7 +394,7 @@ static void glDrawTiled(Renderer* renderer, int32_t tpagIndex, float originX, fl
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return;
 
     GLuint texId = gl->glTextures[pageId];
     int32_t texW = gl->textureWidths[pageId];
@@ -486,7 +477,7 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return;
 
     GLuint texId = gl->glTextures[pageId];
     int32_t texW = gl->textureWidths[pageId];
@@ -528,7 +519,7 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return;
 
     GLuint texId = gl->glTextures[pageId];
     int32_t texW = gl->textureWidths[pageId];
@@ -843,7 +834,7 @@ static bool glResolveFontState(GLLegacyRenderer* gl, DataWin* dw, Font* font, Gl
         state->fontTpag = &dw->tpag.items[fontTpagIndex];
         int16_t pageId = state->fontTpag->texturePageId;
         if (0 > pageId || (uint32_t) pageId >= gl->textureCount) return false;
-        if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
+        if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
 
         state->texId = gl->glTextures[pageId];
         state->texW = gl->textureWidths[pageId];
@@ -869,7 +860,7 @@ static bool glResolveGlyph(GLLegacyRenderer* gl, DataWin* dw, GlFontState* state
         TexturePageItem* glyphTpag = &dw->tpag.items[tpagIdx];
         int16_t pid = glyphTpag->texturePageId;
         if (0 > pid || (uint32_t) pid >= gl->textureCount) return false;
-        if (!ensureTextureLoaded(gl, (uint32_t) pid)) return false;
+        if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pid)) return false;
 
         *outTexId = gl->glTextures[pid];
         *outTpagIdx = tpagIdx;
@@ -1607,6 +1598,7 @@ static RendererVtable glVtable = {
     .endFrameEnd = glEndFrameEnd,
     .beginView = glBeginView,
     .endView = glEndView,
+    .applyProjection = glApplyProjection,
     .beginGUI = glBeginGUI,
     .endGUI = glEndGUI,
     .drawSprite = glDrawSprite,

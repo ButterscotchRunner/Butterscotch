@@ -17,12 +17,12 @@ void platformSetWindowSize(int32_t width, int32_t height);
 void platformSetWindowTitle(const char* title);
 void platformSleepUntil(double time);
 
-enum gfx_api {
+enum GraphicsAPI {
     SOFTWARE,
     MODERN_GL,
     LEGACY_GL
 };
 
-extern enum gfx_api gfx;
+extern enum GraphicsAPI gfx;
 
 extern InputRecording *globalInputRecording;

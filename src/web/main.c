@@ -90,9 +90,13 @@ static int mkdirP(const char* path) {
 }
 
 void* loop() {
-    double lastFrameTimeMs = emscripten_get_now();
+    double lastFrameStartMs = emscripten_get_now(); // for delta_time and frame pacing
 
     while (!gRunner->shouldExit) {
+        double frameStartMs = emscripten_get_now();
+        gRunner->deltaTime = (frameStartMs - lastFrameStartMs) * 1000.0;
+        lastFrameStartMs = frameStartMs;
+
         RunnerKeyboard_beginFrame(gRunner->keyboard);
 
         // Process inputs
@@ -109,8 +113,7 @@ void* loop() {
 
         emscripten_webgl_make_context_current(ctx);
 
-        double nowMs = emscripten_get_now();
-        float audioDt = (float) ((nowMs - lastFrameTimeMs) / 1000.0);
+        float audioDt = (float) (gRunner->deltaTime / 1000000.0);
         if (0.0f > audioDt) audioDt = 0.0f;
         if (audioDt > 0.1f) audioDt = 0.1f;
         gRunner->audioSystem->vtable->update(gRunner->audioSystem, audioDt);
@@ -164,7 +167,7 @@ void* loop() {
         // emscripten_get_now() returns milliseconds (performance.now()) and works in workers.
         if (gRunner->currentRoom != nullptr && gRunner->currentRoom->speed > 0) {
             double targetFrameTimeMs = 1000.0 / (double) gRunner->currentRoom->speed;
-            double nextFrameTimeMs = lastFrameTimeMs + targetFrameTimeMs;
+            double nextFrameTimeMs = lastFrameStartMs + targetFrameTimeMs;
             double remainingMs = nextFrameTimeMs - emscripten_get_now();
             // Sleep for most of the remaining time, then spin-wait for precision.
             if (remainingMs > 2.0) {
@@ -178,7 +181,6 @@ void* loop() {
                 // Spin-wait for the remaining sub-millisecond
             }
         }
-        lastFrameTimeMs = emscripten_get_now();
     }
 
     // Cleanup
