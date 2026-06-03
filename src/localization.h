@@ -3,8 +3,7 @@
 #include <stdio.h>
 
 enum language {
-    BS_LANG_ENGLISH,
-    BS_LANG_SILLY,
+    BS_LANG_ENGLISH
 };
 
 struct localized_string {
