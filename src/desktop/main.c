@@ -24,7 +24,7 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 #include <glad/glad.h>
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
@@ -48,6 +48,7 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "localization.h"
 
 enum GraphicsAPI gfx;
 
@@ -276,10 +277,118 @@ static char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
+static void printUsage(const char *argv0) {
+    fprintf(
+        stderr,
+        "Usage: %s <path to data.win or game.unx>\n"
+        "    --help                                 - %s\n"
+        //"    --screenshot                           - %s\n"
+        "    --screenshot-at-frame <frame>          - %s\n"
+        //"    --screenshot-surfaces                  - %s\n"
+        //"    --screenshot-surfaces-at-frame <frame> - %s\n"
+#ifndef USE_GLFW2
+        "    --headless                             - %s\n"
+#endif
+        //"    --print-rooms                          - %s\n"
+        //"    --print-objects                        - %s\n"
+        //"    --print-declared-functions             - %s\n"
+        //"    --print-unknown-functions              - %s\n"
+        //"    --trace-variable-reads                 - %s\n"
+        //"    --trace-variable-writes                - %s\n"
+        //"    --trace-function-calls                 - %s\n"
+        //"    --trace-alarms                         - %s\n"
+        //"    --trace-instance-lifecycles            - %s\n"
+        //"    --trace-events                         - %s\n"
+        //"    --trace-collisions                     - %s\n"
+        //"    --trace-event-inherited                - %s\n"
+        //"    --trace-tiles                          - %s\n"
+        //"    --trace-opcodes                        - %s\n"
+        //"    --trace-stack                          - %s\n"
+        //"    --trace-frames                         - %s\n"
+        //"    --always-log-unknown-functions         - %s\n"
+        //"    --always-log-stubbed-functions         - %s\n"
+        "    --exit-at-frame <frame>                - %s\n"
+        //"    --trace-bytecode-after-frame <frame>   - %s\n"
+        //"    --dump-frame <frame>                   - %s\n"
+        //"    --dump-frame-json                      - %s\n"
+        //"    --dump-frame-json-file                 - %s\n"
+        "    --speed <speed>                        - %s\n"
+        "    --fast-forward-speed <speed>           - %s\n"
+        "    --seed <seed>                          - %s\n"
+        //"    --debug                                - %s\n"
+        //"    --disassemble                          - %s\n"
+        //"    --record-inputs                        - %s\n"
+        //"    --playback-inputs                      - %s\n"
+        "    --renderer <renderer>                  - %s\n"
+        "    --lazy-rooms                           - %s\n"
+        //"    --eager-room                           - %s\n"
+        "    --os-type <os>                         - %s\n"
+        "    --window-size <dimentions>             - %s\n"
+        //"    --profile-gml-scripts                  - %s\n"
+        "    --save-folder <directory>              - %s\n"
+        //"    --game-args                            - %s\n"
+#ifdef EABLE_VM_OPCODE_PROFILER
+        //"    --profile-opcodes                      - %s\n"
+#endif
+        ,
+        argv0,
+        getLocStr("Shows this message", "help.help"),
+        //getLocStr("", "help.screenshot"),
+        getLocStr("Take a screenshot <frame> frames after startup", "help.screenshot-at-frame"),
+        //getLocStr("", "help.screenshot-surfaces"),
+        //getLocStr("", "help.screenshot-surfaces-at-frame"),
+#ifndef USE_GLFW2
+        getLocStr("Launch without a window", "help.headless"),
+#endif
+        //getLocStr("", "help.print-rooms"),
+        //getLocStr("", "help.print-objects"),
+        //getLocStr("", "help.print-declared-functions"),
+        //getLocStr("", "help.print-unknown-functions"),
+        //getLocStr("", "help.trace-variable-reads"),
+        //getLocStr("", "help.trace-variable-writes"),
+        //getLocStr("", "help.trace-function-calls"),
+        //getLocStr("", "help.trace-alarms"),
+        //getLocStr("", "help.trace-instance-lifecycles"),
+        //getLocStr("", "help.trace-events"),
+        //getLocStr("", "help.trace-collisions"),
+        //getLocStr("", "help.trace-event-inherited"),
+        //getLocStr("", "help.trace-tiles"),
+        //getLocStr("", "help.trace-opcodes"),
+        //getLocStr("", "help.trace-stack"),
+        //getLocStr("", "help.trace-frames"),
+        //getLocStr("", "help.always-log-unknown-functions"),
+        //getLocStr("", "help.always-log-stubbed-functions"),
+        getLocStr("Exits at the specified frame", "help.exit-at-frame"),
+        //getLocStr("", "help.trace-bytecode-after-frame"),
+        //getLocStr("", "help.dump-frame"),
+        //getLocStr("", "help.dump-frame-json"),
+        //getLocStr("", "help.dump-frame-json-file"),
+        getLocStr("Set a normal speed multiplier", "help.speed"),
+        getLocStr("Set a fast-forward speed multiplier", "help.fast-forward-speed"),
+        getLocStr("Seed for the random number generator", "help.seed"),
+        //getLocStr("", "help.debug"),
+        //getLocStr("", "help.disassemble"),
+        //getLocStr("", "help.record-inputs"),
+        //getLocStr("", "help.playback-inputs"),
+        getLocStr("Sets the rendering API", "help.renderer"),
+        getLocStr("Lazily load rooms, increases load times but reduces memory usage", "help.lazy-rooms"),
+        //getLocStr("", "help.eager-room"),
+        getLocStr("Sets the reported OS type", "help.os-type"),
+        getLocStr("Sets the target window size", "help.window-size"),
+        //getLocStr("", "help.profile-gml-scripts"),
+        getLocStr("Sets the directory will save files will be stored", "help.save-folder")
+        //getLocStr("", "help.game-args")
+#ifdef EABLE_VM_OPCODE_PROFILER
+        //, getLocStr("", "help.profile-opcodes")
+#endif
+    );
+}
+
 static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
     memset(args, 0, sizeof(CommandLineArgs));
 
     static struct option longOptions[] = {
+        {"help",          no_argument, nullptr, 'H'},
         {"screenshot",          required_argument, nullptr, 's'},
         {"screenshot-at-frame", required_argument, nullptr, 'f'},
         {"screenshot-surfaces", required_argument, nullptr, 'U'},
@@ -351,6 +460,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     int opt;
     while ((opt = getopt_long(argc, argv, "", longOptions, nullptr)) != -1) {
         switch (opt) {
+            case 'H':
+                printUsage(argv[0]);
+                exit(0);
             case 's':
                 args->screenshotPattern = optarg;
                 break;
@@ -596,7 +708,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             }
             default:
-                fprintf(stderr, "Usage: %s <path to data.win or game.unx>\n", argv[0]);
+                printUsage(argv[0]);
                 exit(1);
         }
     }
