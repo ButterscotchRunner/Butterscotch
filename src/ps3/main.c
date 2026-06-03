@@ -58,7 +58,7 @@ const PadMapping PAD_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_R1,       VK_PAGEUP },
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_L2,       VK_F10 },
 };
-static const int PAD_MAPPING_COUNT = sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]);
+#define PAD_MAPPING_COUNT = (sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]))
 static bool prevState[sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0])] = {0};
 
 #define STICK_CENTER 0x80 // The center of the stick (range 0x00-0xFF)
