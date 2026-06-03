@@ -130,7 +130,7 @@ static int32_t dsListCreate(Runner* runner) {
             return i;
         }
     }
-    DsList newList = { .items = nullptr, .freed = false };
+    DsList newList = {0};
     int32_t id = poolSize;
     arrput(runner->dsListPool, newList);
     return id;
@@ -153,7 +153,7 @@ static int32_t dsQueueCreate(Runner* runner) {
             return i;
         }
     }
-    DsQueue q = { .items = nullptr, .freed = false };
+    DsQueue q = {0};
     int32_t id = poolSize;
     arrput(runner->dsQueuePool, q);
     return id;
@@ -414,7 +414,7 @@ void VMBuiltins_checkIfBuiltinVarTableIsSorted(void) {
     size_t count = sizeof(BUILTIN_VAR_TABLE) / sizeof(BUILTIN_VAR_TABLE[0]);
     for (size_t i = 1; count > i; i++) {
         int cmp = strcmp(BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name);
-        requireMessageFormatted(cmp < 0, "BUILTIN_VAR_TABLE not strictly sorted at index %zu: '%s' vs '%s' (cmp=%d). Re-sort (LC_ALL=C) or remove duplicates!", i, BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name, cmp);
+        requireMessageFormatted(__FILE__, __LINE__, cmp < 0, "BUILTIN_VAR_TABLE not strictly sorted at index %zu: '%s' vs '%s' (cmp=%d). Re-sort (LC_ALL=C) or remove duplicates!", i, BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name, cmp);
     }
 }
 
@@ -4093,7 +4093,11 @@ static RValue builtin_ds_list_read(VMContext* ctx, RValue* args, MAYBE_UNUSED in
         bytes[i] = (uint8_t) ((hi << 4) | lo);
     }
 
-    DsReadStream s = { .data = bytes, .size = byteLen, .pos = 0, .error = false };
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
+    s.pos = 0;
+    s.error = false;
     uint32_t magic = dsStreamReadU32(&s);
     int32_t version;
     // 301 = ~BC13 (REAL/STRING/ARRAY only)
@@ -4365,7 +4369,9 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         bytes[i] = (uint8_t) ((hi << 4) | lo);
     }
 
-    DsReadStream s = { .data = bytes, .size = byteLen, .pos = 0, .error = false };
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
     uint32_t magic = dsStreamReadU32(&s);
     int32_t version;
     if (magic == 202) {
@@ -5676,15 +5682,15 @@ static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t 
         content = safeStrdup("");
     }
 
-    runner->openTextFiles[slot] = (OpenTextFile) {
-        .content = content,
-        .writeBuffer = nullptr,
-        .filePath = nullptr,
-        .readPos = 0,
-        .contentLen = (int32_t) strlen(content),
-        .isWriteMode = false,
-        .isOpen = true,
-    };
+    OpenTextFile file = {0};
+    file.content = content;
+    file.writeBuffer = nullptr;
+    file.filePath = nullptr;
+    file.readPos = 0;
+    file.contentLen = (int32_t) strlen(content);
+    file.isWriteMode = false;
+    file.isOpen = true;
+    runner->openTextFiles[slot] = file;
 
     return RValue_makeReal((GMLReal) slot);
 }
@@ -5700,15 +5706,15 @@ static RValue builtin_file_text_open_write(VMContext* ctx, RValue* args, int32_t
         abort();
     }
 
-    runner->openTextFiles[slot] = (OpenTextFile) {
-        .content = nullptr,
-        .writeBuffer = safeStrdup(""),
-        .filePath = safeStrdup(path),
-        .readPos = 0,
-        .contentLen = 0,
-        .isWriteMode = true,
-        .isOpen = true,
-    };
+    OpenTextFile file = {0};
+    file.content = nullptr;
+    file.writeBuffer = safeStrdup("");
+    file.filePath = safeStrdup(path);
+    file.readPos = 0;
+    file.contentLen = 0;
+    file.isWriteMode = true;
+    file.isOpen = true;
+    runner->openTextFiles[slot] = file;
 
     return RValue_makeReal((GMLReal) slot);
 }
@@ -6013,7 +6019,10 @@ static RValue builtin_file_bin_open(VMContext* ctx, RValue* args, int32_t argCou
     void* handle = fs->vtable->binaryOpen(fs, path, mode);
     if (handle == nullptr) return RValue_makeReal(-1.0);
 
-    runner->openBinaryFiles[slot] = (OpenBinaryFile) { .handle = handle, .isOpen = true };
+    OpenBinaryFile file = {0};
+    file.handle = handle;
+    file.isOpen = true;
+    runner->openBinaryFiles[slot] = file;
     return RValue_makeReal((GMLReal) slot);
 }
 
@@ -7625,7 +7634,9 @@ static int32_t gmlAsyncBufferKick(Runner* runner, AsyncBufferOp* ops, int32_t op
     repeat(opCount, i) {
         if (!gmlAsyncBufferRunOp(runner, &ops[i], groupName)) allOk = false;
     }
-    AsyncSaveLoadCompletion completion = { .requestId = requestId, .status = allOk ? 1 : 0, .error = 0 };
+    AsyncSaveLoadCompletion completion = {0};
+    completion.requestId = requestId;
+    completion.status = allOk ? 1 : 0;
     arrput(runner->asyncSaveLoadQueue, completion);
     return requestId;
 }
@@ -7708,11 +7719,11 @@ static RValue builtin_filename_change_ext(MAYBE_UNUSED VMContext* ctx, MAYBE_UNU
 
     if (last != nullptr && last != 0) {
         long index = last - fname;
-        char* new = safeMalloc(index + strlen(newext) + 1);
-        memcpy(new, fname, (size_t) index);
-        memcpy(new + index, newext, (size_t) strlen(newext));
-        new[index + strlen(newext)] = '\0';
-        RValue result = RValue_makeOwnedString(new);
+        char* new_name = safeMalloc(index + strlen(newext) + 1);
+        memcpy(new_name, fname, (size_t) index);
+        memcpy(new_name + index, newext, (size_t) strlen(newext));
+        new_name[index + strlen(newext)] = '\0';
+        RValue result = RValue_makeOwnedString(new_name);
 
         free(fname);
         free(newext);
@@ -10623,7 +10634,8 @@ static RValue builtin_action_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNU
 static TileLayerState* getOrCreateTileLayer(Runner* runner, int32_t depth) {
     ptrdiff_t idx = hmgeti(runner->tileLayerMap, depth);
     if (0 > idx) {
-        TileLayerState defaultVal = { .visible = true, .offsetX = 0.0f, .offsetY = 0.0f };
+        TileLayerState defaultVal = {0};
+        defaultVal.visible = true;
         hmput(runner->tileLayerMap, depth, defaultVal);
         idx = hmgeti(runner->tileLayerMap, depth);
     }
@@ -11070,16 +11082,12 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
         name = RValue_toString(args[1]);
     }
     uint32_t id = Runner_getNextLayerId(runner);
-    RuntimeLayer runtimeLayer = {
-        .id = id,
-        .depth = depth,
-        .visible = true,
-        .xOffset = 0.0f, .yOffset = 0.0f,
-        .hSpeed = 0.0f, .vSpeed = 0.0f,
-        .dynamic = true,
-        .dynamicName = name, // ownership transferred (nullptr if not provided)
-        .elements = nullptr,
-    };
+    RuntimeLayer runtimeLayer = {0};
+    runtimeLayer.id = id;
+    runtimeLayer.depth = depth;
+    runtimeLayer.visible = true;
+    runtimeLayer.dynamic = true;
+    runtimeLayer.dynamicName = name, // ownership transferred (nullptr if not provided)
     arrput(runner->runtimeLayers, runtimeLayer);
     runner->drawableListStructureDirty = true;
     return RValue_makeReal((GMLReal) id);
@@ -11126,15 +11134,12 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     bg->alpha = 1.0f;
     bg->xOffset = 0.0f;
     bg->yOffset = 0.0f;
-    RuntimeLayerElement el = {
-        .id = Runner_getNextLayerId(runner),
-        .type = RuntimeLayerElementType_Background,
-        .visible = true,
-        .alpha = 1.0f,
-        .backgroundElement = bg,
-        .spriteElement = nullptr,
-        .tileElement = nullptr,
-    };
+    RuntimeLayerElement el = {0};
+    el.id = Runner_getNextLayerId(runner);
+    el.type = RuntimeLayerElementType_Background;
+    el.visible = true;
+    el.alpha = 1.0f;
+    el.backgroundElement = bg;
     arrput(runtimeLayer->elements, el);
     return RValue_makeReal((GMLReal) el.id);
 }

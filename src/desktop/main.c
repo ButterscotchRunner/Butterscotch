@@ -794,37 +794,34 @@ int main(int argc, char* argv[]) {
     while (true) {
         printf("Loading %s...\n", args.dataWinPath);
 
-        DataWin* dataWin = DataWin_parse(
-            currentDataWinPath,
-            (DataWinParserOptions) {
-                .parseGen8 = true,
-                .parseOptn = true,
-                .parseLang = true,
-                .parseExtn = true,
-                .parseSond = true,
-                .parseAgrp = true,
-                .parseSprt = true,
-                .parseBgnd = true,
-                .parsePath = true,
-                .parseScpt = true,
-                .parseGlob = true,
-                .parseShdr = true,
-                .parseFont = true,
-                .parseTmln = true,
-                .parseObjt = true,
-                .parseRoom = true,
-                .parseTpag = true,
-                .parseCode = true,
-                .parseVari = true,
-                .parseFunc = true,
-                .parseStrg = true,
-                .parseTxtr = true,
-                .parseAudo = true,
-                .skipLoadingPreciseMasksForNonPreciseSprites = true,
-                .lazyLoadRooms = args.lazyRooms,
-                .eagerlyLoadedRooms = args.eagerRooms
-            }
-        );
+        DataWinParserOptions options = {0};
+        options.parseGen8 = true;
+        options.parseOptn = true;
+        options.parseLang = true;
+        options.parseExtn = true;
+        options.parseSond = true;
+        options.parseAgrp = true;
+        options.parseSprt = true;
+        options.parseBgnd = true;
+        options.parsePath = true;
+        options.parseScpt = true;
+        options.parseGlob = true;
+        options.parseShdr = true;
+        options.parseFont = true;
+        options.parseTmln = true;
+        options.parseObjt = true;
+        options.parseRoom = true;
+        options.parseTpag = true;
+        options.parseCode = true;
+        options.parseVari = true;
+        options.parseFunc = true;
+        options.parseStrg = true;
+        options.parseTxtr = true;
+        options.parseAudo = true;
+        options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+        options.lazyLoadRooms = args.lazyRooms;
+        options.eagerlyLoadedRooms = args.eagerRooms;
+        DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
         Gen8* gen8 = &dataWin->gen8;
         printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
@@ -1192,7 +1189,8 @@ int main(int argc, char* argv[]) {
         runner->vmContext->traceEventInherited = args.traceEventInherited;
 
 #ifndef _WIN32
-        struct sigaction sa = { .sa_handler = onCrashSignal };
+        struct sigaction sa = {0};
+        sa.sa_handler = onCrashSignal;
         sigemptyset(&sa.sa_mask);
         struct sigaction prev;
         sigaction(SIGABRT, &sa, &prev);

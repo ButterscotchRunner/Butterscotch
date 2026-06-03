@@ -790,10 +790,9 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
             return;
         }
 
-        DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf),
-        (DataWinParserOptions) {
-            .parseAudo = true,
-        });
+        DataWinParserOptions options = {0};
+        options.parseAudo = true;
+        DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }
 }
@@ -864,37 +863,36 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
 // ===[ Vtable ]===
 
-static AudioSystemVtable AlAudioSystemVtable = {
-    .init = maInit,
-    .destroy = maDestroy,
-    .update = maUpdate,
-    .playSound = maPlaySound,
-    .stopSound = maStopSound,
-    .stopAll = maStopAll,
-    .isPlaying = maIsPlaying,
-    .pauseSound = maPauseSound,
-    .resumeSound = maResumeSound,
-    .pauseAll = maPauseAll,
-    .resumeAll = maResumeAll,
-    .setSoundGain = maSetSoundGain,
-    .getSoundGain = maGetSoundGain,
-    .setSoundPitch = maSetSoundPitch,
-    .getSoundPitch = maGetSoundPitch,
-    .getTrackPosition = maGetTrackPosition,
-    .setTrackPosition = maSetTrackPosition,
-    .getSoundLength = maGetSoundLength,
-    .setMasterGain = maSetMasterGain,
-    .setChannelCount = maSetChannelCount,
-    .groupLoad = maGroupLoad,
-    .groupIsLoaded = maGroupIsLoaded,
-    .createStream = maCreateStream,
-    .destroyStream = maDestroyStream,
-};
+static AudioSystemVtable AlAudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
 AlAudioSystem* AlAudioSystem_create(void) {
     AlAudioSystem* ma = safeCalloc(1, sizeof(AlAudioSystem));
+    AlAudioSystemVtable.init = maInit;
+    AlAudioSystemVtable.destroy = maDestroy;
+    AlAudioSystemVtable.update = maUpdate;
+    AlAudioSystemVtable.playSound = maPlaySound;
+    AlAudioSystemVtable.stopSound = maStopSound;
+    AlAudioSystemVtable.stopAll = maStopAll;
+    AlAudioSystemVtable.isPlaying = maIsPlaying;
+    AlAudioSystemVtable.pauseSound = maPauseSound;
+    AlAudioSystemVtable.resumeSound = maResumeSound;
+    AlAudioSystemVtable.pauseAll = maPauseAll;
+    AlAudioSystemVtable.resumeAll = maResumeAll;
+    AlAudioSystemVtable.setSoundGain = maSetSoundGain;
+    AlAudioSystemVtable.getSoundGain = maGetSoundGain;
+    AlAudioSystemVtable.setSoundPitch = maSetSoundPitch;
+    AlAudioSystemVtable.getSoundPitch = maGetSoundPitch;
+    AlAudioSystemVtable.getTrackPosition = maGetTrackPosition;
+    AlAudioSystemVtable.setTrackPosition = maSetTrackPosition;
+    AlAudioSystemVtable.getSoundLength = maGetSoundLength;
+    AlAudioSystemVtable.setMasterGain = maSetMasterGain;
+    AlAudioSystemVtable.setChannelCount = maSetChannelCount;
+    AlAudioSystemVtable.groupLoad = maGroupLoad;
+    AlAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;
+    AlAudioSystemVtable.createStream = maCreateStream;
+    AlAudioSystemVtable.destroyStream = maDestroyStream;
     ma->base.vtable = &AlAudioSystemVtable;
     return ma;
 }

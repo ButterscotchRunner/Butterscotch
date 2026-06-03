@@ -357,11 +357,10 @@ JsonValue* JsonReader_parse(const char* json) {
         pos = 3;
     }
 
-    JsonParser parser = {
-        .input = json,
-        .position = pos,
-        .length = len,
-    };
+    JsonParser parser = {0};
+    parser.input = json;
+    parser.position = pos;
+    parser.length = len;
 
     JsonValue* result = parseValue(&parser);
 
@@ -490,7 +489,7 @@ int JsonReader_objectLength(const JsonValue* value) {
 }
 
 JsonValue* JsonReader_getObject(const JsonValue* value, const char* key) {
-    repeat(value->object.count, i) {
+    for (int i = 0; i < value->object.count; ++i) {
         if (strcmp(value->object.keys[i], key) == 0) {
             return &value->object.values[i];
         }

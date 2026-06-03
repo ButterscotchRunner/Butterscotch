@@ -10,7 +10,7 @@
 // ===[ Internal Helpers ]===
 
 static IniSection* findSection(const IniFile* ini, const char* name) {
-    repeat(ini->count, i) {
+    for (int i = 0; i < ini->count; ++i) {
         if (strcmp(ini->sections[i].name, name) == 0) {
             return &ini->sections[i];
         }
@@ -19,7 +19,7 @@ static IniSection* findSection(const IniFile* ini, const char* name) {
 }
 
 static int findKeyIndex(const IniSection* section, const char* key) {
-    repeat(section->count, i) {
+    for (int i = 0; i < section->count; ++i) {
         if (strcmp(section->keys[i], key) == 0) {
             return i;
         }
@@ -270,7 +270,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
     char* buffer = safeMalloc(capacity);
     buffer[0] = '\0';
 
-    repeat(ini->count, i) {
+    for (int i = 0; i < ini->count; ++i) {
         IniSection* section = &ini->sections[i];
 
         // Blank line before section (unless at start of output)

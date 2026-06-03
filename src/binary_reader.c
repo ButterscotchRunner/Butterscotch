@@ -6,7 +6,10 @@
 #include <string.h>
 
 BinaryReader BinaryReader_create(FILE* file, size_t fileSize) {
-    return (BinaryReader){.file = file, .fileSize = fileSize, .buffer = nullptr, .bufferBase = 0, .bufferSize = 0, .bufferPos = 0};
+    BinaryReader br = {0};
+    br.file = file;
+    br.fileSize = fileSize;
+    return br;
 }
 
 void BinaryReader_setBuffer(BinaryReader* reader, uint8_t* buffer, size_t baseOffset, size_t size) {

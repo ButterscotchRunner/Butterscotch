@@ -69,7 +69,10 @@ static InternalPathPoint* tempIntPoints = nullptr;
 static uint32_t tempIntPointCount = 0;
 
 static void addInternalPoint(float x, float y, float speed) {
-    InternalPathPoint pt = { .x = x, .y = y, .speed = speed, .l = 0.0 };
+    InternalPathPoint pt = {0};
+    pt.x = x;
+    pt.y = y;
+    pt.speed = speed;
     arrput(tempIntPoints, pt);
     tempIntPointCount++;
 }
@@ -170,7 +173,7 @@ void GamePath_computeInternal(GamePath* path) {
 
 // Get interpolated position at t in [0,1] (yyPath.js:362-409)
 PathPositionResult GamePath_getPosition(GamePath* path, float t) {
-    PathPositionResult result = { .x = 0.0f, .y = 0.0f, .speed = 0.0f };
+    PathPositionResult result = {0};
 
     if (path->internalPointCount == 0) return result;
 
@@ -593,7 +596,7 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
         } else if (soundCount == 1) {
             size_t savedPos = BinaryReader_getPosition(reader);
             size_t probe = (size_t) (soundPtrs[0] + (4 * 9));
-            requireMessageFormatted((probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
+            requireMessageFormatted(__FILE__, __LINE__, (probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
             BinaryReader_seek(reader, probe);
             if (BinaryReader_readUint32(reader) != 0) {
                 DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);

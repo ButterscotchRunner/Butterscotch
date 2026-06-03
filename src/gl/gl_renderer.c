@@ -1654,60 +1654,58 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 
 // ===[ Vtable ]===
 
-static RendererVtable glVtable = {
-    .init = glInit,
-    .destroy = glDestroy,
-    .beginFrame = glBeginFrame,
-    .endFrameInit = glEndFrameInit,
-    .endFrameEnd = glEndFrameEnd,
-    .beginView = glBeginView,
-    .endView = glEndView,
-    .applyProjection = glApplyProjection,
-    .beginGUI = glBeginGUI,
-    .endGUI = glEndGUI,
-    .drawSprite = glDrawSprite,
-    .drawSpritePos = glDrawSpritePos,
-    .drawSpritePart = glDrawSpritePart,
-    .drawRectangle = glDrawRectangle,
-    .drawRectangleColor = glDrawRectangleColor,
-    .drawLine = glDrawLine,
-    .drawLineColor = glDrawLineColor,
-    .drawTriangle = glDrawTriangle,
-    .drawText = glDrawText,
-    .drawTextColor = glDrawTextColor,
-    .flush = glRendererFlush,
-    .clearScreen = glClearScreen,
-    .createSpriteFromSurface = glCreateSpriteFromSurface,
-    .deleteSprite = glDeleteSprite,
-    .gpuSetBlendMode = glGpuSetBlendMode,
-    .gpuSetBlendModeExt = glGpuSetBlendModeExt,
-    .gpuSetBlendEnable = glGpuSetBlendEnable,
-    .gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable,
-    .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
-    .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
-    .gpuGetColorWriteEnable = glGpuGetColorWriteEnable,
-    .gpuSetFog = glGpuSetFog,
-    .gpuGetBlendEnable = glGpuGetBlendEnable,
-    .drawTile = nullptr,
-    .createSurface = glCreateSurface,
-    .surfaceExists = glSurfaceExists,
-    .setRenderTarget = glSetRenderTarget,
-    .ensureApplicationSurface = glEnsureApplicationSurface,
-    .surfaceCopy = glSurfaceCopy,
-    .surfaceGetPixels = glSurfaceGetPixels,
-    .getSurfaceWidth = glGetSurfaceWidth,
-    .getSurfaceHeight = glGetSurfaceHeight,
-    .drawSurface = glDrawSurface,
-    .surfaceResize = glSurfaceResize,
-    .surfaceFree = glSurfaceFree,
-
-};
+static RendererVtable glVtable;
 
 // ===[ Public API ]===
 
 Renderer* GLRenderer_create(void) {
     GLRenderer* gl = safeCalloc(1, sizeof(GLRenderer));
     gl->base.vtable = &glVtable;
+    glVtable.init = glInit;
+    glVtable.destroy = glDestroy;
+    glVtable.beginFrame = glBeginFrame;
+    glVtable.endFrameInit = glEndFrameInit;
+    glVtable.endFrameEnd = glEndFrameEnd;
+    glVtable.beginView = glBeginView;
+    glVtable.endView = glEndView;
+    glVtable.applyProjection = glApplyProjection;
+    glVtable.beginGUI = glBeginGUI;
+    glVtable.endGUI = glEndGUI;
+    glVtable.drawSprite = glDrawSprite;
+    glVtable.drawSpritePos = glDrawSpritePos;
+    glVtable.drawSpritePart = glDrawSpritePart;
+    glVtable.drawRectangle = glDrawRectangle;
+    glVtable.drawRectangleColor = glDrawRectangleColor;
+    glVtable.drawLine = glDrawLine;
+    glVtable.drawLineColor = glDrawLineColor;
+    glVtable.drawTriangle = glDrawTriangle;
+    glVtable.drawText = glDrawText;
+    glVtable.drawTextColor = glDrawTextColor;
+    glVtable.flush = glRendererFlush;
+    glVtable.clearScreen = glClearScreen;
+    glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;
+    glVtable.deleteSprite = glDeleteSprite;
+    glVtable.gpuSetBlendMode = glGpuSetBlendMode;
+    glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
+    glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
+    glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
+    glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
+    glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
+    glVtable.gpuSetFog = glGpuSetFog;
+    glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
+    glVtable.drawTile = nullptr;
+    glVtable.createSurface = glCreateSurface;
+    glVtable.surfaceExists = glSurfaceExists;
+    glVtable.setRenderTarget = glSetRenderTarget;
+    glVtable.ensureApplicationSurface = glEnsureApplicationSurface;
+    glVtable.surfaceCopy = glSurfaceCopy;
+    glVtable.surfaceGetPixels = glSurfaceGetPixels;
+    glVtable.getSurfaceWidth = glGetSurfaceWidth;
+    glVtable.getSurfaceHeight = glGetSurfaceHeight;
+    glVtable.drawSurface = glDrawSurface;
+    glVtable.surfaceResize = glSurfaceResize;
+    glVtable.surfaceFree = glSurfaceFree;
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
     gl->base.drawFont = -1;

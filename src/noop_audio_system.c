@@ -71,35 +71,34 @@ static bool noopDestroyStream(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
     return false;
 }
 
-static AudioSystemVtable noopVtable = {
-    .init = noopInit,
-    .destroy = noopDestroy,
-    .update = noopUpdate,
-    .playSound = noopPlaySound,
-    .stopSound = noopStopSound,
-    .stopAll = noopStopAll,
-    .isPlaying = noopIsPlaying,
-    .pauseSound = noopPauseSound,
-    .resumeSound = noopResumeSound,
-    .pauseAll = noopPauseAll,
-    .resumeAll = noopResumeAll,
-    .setSoundGain = noopSetSoundGain,
-    .getSoundGain = noopGetSoundGain,
-    .setSoundPitch = noopSetSoundPitch,
-    .getSoundPitch = noopGetSoundPitch,
-    .getTrackPosition = noopGetTrackPosition,
-    .setTrackPosition = noopSetTrackPosition,
-    .getSoundLength = noopGetSoundLength,
-    .setMasterGain = noopSetMasterGain,
-    .setChannelCount = noopSetChannelCount,
-    .groupLoad = noopGroupLoad,
-    .groupIsLoaded = noopGroupIsLoaded,
-    .createStream = noopCreateStream,
-    .destroyStream = noopDestroyStream,
-};
+static AudioSystemVtable noopVtable;
 
 NoopAudioSystem* NoopAudioSystem_create(void) {
-    NoopAudioSystem* audio = calloc(1, sizeof(NoopAudioSystem));
+    NoopAudioSystem* audio = safeCalloc(1, sizeof(NoopAudioSystem));
+    noopVtable.init = noopInit,
+    noopVtable.destroy = noopDestroy,
+    noopVtable.update = noopUpdate,
+    noopVtable.playSound = noopPlaySound,
+    noopVtable.stopSound = noopStopSound,
+    noopVtable.stopAll = noopStopAll,
+    noopVtable.isPlaying = noopIsPlaying,
+    noopVtable.pauseSound = noopPauseSound,
+    noopVtable.resumeSound = noopResumeSound,
+    noopVtable.pauseAll = noopPauseAll,
+    noopVtable.resumeAll = noopResumeAll,
+    noopVtable.setSoundGain = noopSetSoundGain,
+    noopVtable.getSoundGain = noopGetSoundGain,
+    noopVtable.setSoundPitch = noopSetSoundPitch,
+    noopVtable.getSoundPitch = noopGetSoundPitch,
+    noopVtable.getTrackPosition = noopGetTrackPosition,
+    noopVtable.setTrackPosition = noopSetTrackPosition,
+    noopVtable.getSoundLength = noopGetSoundLength,
+    noopVtable.setMasterGain = noopSetMasterGain,
+    noopVtable.setChannelCount = noopSetChannelCount,
+    noopVtable.groupLoad = noopGroupLoad,
+    noopVtable.groupIsLoaded = noopGroupIsLoaded,
+    noopVtable.createStream = noopCreateStream,
+    noopVtable.destroyStream = noopDestroyStream,
     audio->base.vtable = &noopVtable;
     return audio;
 }
