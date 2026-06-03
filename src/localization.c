@@ -14,7 +14,7 @@ const struct string_category string_categories_sillylang[] = {
 };
 
 enum language getLanguage(void) {
-    return LANG_ENGLISH;
+    return BS_LANG_ENGLISH;
 }
 
 const char *getLocStr(const char *fallback, const char *id) {
@@ -22,7 +22,7 @@ const char *getLocStr(const char *fallback, const char *id) {
         return fallback;
     const struct string_category *categories;
     switch (getLanguage()) {
-        case LANG_SILLY:
+        case BS_LANG_SILLY:
             categories = string_categories_sillylang;
             break;
         default:
