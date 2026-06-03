@@ -174,38 +174,36 @@ int main(int argc, char* argv[]) {
 
     printf("Loading %s...\n", dataWinPath);
 
-    DataWin* dataWin = DataWin_parse(
-        dataWinPath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = true,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
-            .parseTxtr = false,
-            .parseAudo = true,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = true,
-            //.eagerlyLoadedRooms = args.eagerRooms
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
+    options.parseTxtr = false;
+    options.parseAudo = true;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = true;
+    //options.eagerlyLoadedRooms = args.eagerRooms;
+
+    DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
     printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
