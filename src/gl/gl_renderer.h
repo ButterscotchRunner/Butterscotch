@@ -56,4 +56,5 @@ typedef struct {
     uint32_t surfaceCount;
 } GLRenderer;
 
+bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);

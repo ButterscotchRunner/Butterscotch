@@ -1135,6 +1135,10 @@ static void gsEndView(MAYBE_UNUSED Renderer* renderer) {
     // No-op
 }
 
+static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED const Matrix4f* worldToClip) {
+    // No-op
+}
+
 static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH) {
     GsRenderer* gs = (GsRenderer*) renderer;
     gs->viewX = 0;
@@ -2951,6 +2955,7 @@ static RendererVtable gsVtable = {
     .endFrameEnd = gsEndFrameEnd,
     .beginView = gsBeginView,
     .endView = gsEndView,
+    .applyProjection = gsApplyProjection,
     .beginGUI = gsBeginGUI,
     .endGUI = gsEndGUI,
     .drawSprite = gsDrawSprite,

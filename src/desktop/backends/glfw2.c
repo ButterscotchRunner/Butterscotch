@@ -108,7 +108,7 @@ static void GLFWCALL resizeCallback(int width, int height) {
 
 #endif
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless) {
         fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
         return false;

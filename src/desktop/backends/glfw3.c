@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -18,10 +19,11 @@
 static GLFWwindow *window;
 static Runner *g_runner;
 
-// Butterscotch expects framebuffer pixels, but GLFW3 expects logical pixels
+// Butterscotch expects framebuffer pixels, but GLFW3 expects logical pixels.
+// We round the logical size UP (ceil) so the resulting framebuffer is never SMALLER than requested.
 static void framebufferToLogical(float xs, float ys, int fbW, int fbH, int* outW, int* outH) {
-    *outW = (xs > 0.0f) ? (int) ((float) fbW / xs + 0.5f) : fbW;
-    *outH = (ys > 0.0f) ? (int) ((float) fbH / ys + 0.5f) : fbH;
+    *outW = (xs > 0.0f) ? (int) ceilf((float) fbW / xs) : fbW;
+    *outH = (ys > 0.0f) ? (int) ceilf((float) fbH / ys) : fbH;
 }
 
 void platformSetWindowTitle(const char* title) {
@@ -127,7 +129,7 @@ static void resizeCallback(GLFWwindow* window, int width, int height) {
 
 #endif
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {

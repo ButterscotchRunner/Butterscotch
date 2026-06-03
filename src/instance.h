@@ -20,8 +20,16 @@ struct Instance {
     // Reference count for GML structs (objectIndex == STRUCT_OBJECT_INDEX mode). Unused for game-object instances.
     // The runner's structInstances registry holds an implicit +1 ref while the struct is registered, so a refCount of 1 means "only the registry references this"; the per-frame sweep (Runner_sweepDeadStructs) decRefs those to free them. RValues with ownsReference=true on RVALUE_STRUCT contribute one ref each.
     int32_t refCount;
+    // When true, the struct will NOT be garbaged collected.
+    bool pinned;
     // Position of this struct in runner->structInstances (for O(1) swap-remove when freed). -1 when not registered.
     int32_t structRegistryIndex;
+    // Static variables: for a struct created by @@NewGMLObject@@, the code index of the constructor that built it (-1 otherwise).
+    // Member reads that miss the instance fallback to the constructor's shared static struct.
+    int32_t constructorCodeIndex;
+    // Static inheritance: a static struct's parent static struct or nullptr.
+    // The member-read fallback walks this chain so a child instance resolves fields declared static on a parent constructor.
+    struct Instance* staticParent;
     // Native GMS runner stores all instance built-in variables as float (32-bit),
     // even though RValues use double. This matches the native precision model.
     float x, y;

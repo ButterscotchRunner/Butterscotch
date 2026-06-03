@@ -52,18 +52,21 @@ void RunnerKeyboard_onCharacter(RunnerKeyboardState* kb, unsigned int character)
     kb->lastChar[0] = (character >= ' ' && character <= '~') ? (char) character : 0;
 }
 
+bool checkIfAnyKey(const bool* array) {
+    for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
+        if (array[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool RunnerKeyboard_check(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_ANYKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyDown[i]) return true;
-        }
-        return false;
+        return checkIfAnyKey(kb->keyDown);
     }
     if (gmlKeyCode == VK_NOKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyDown[i]) return false;
-        }
-        return true;
+        return !checkIfAnyKey(kb->keyDown);
     }
     if (!isValidKey(gmlKeyCode)) return false;
     return kb->keyDown[gmlKeyCode];
@@ -71,16 +74,10 @@ bool RunnerKeyboard_check(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
 
 bool RunnerKeyboard_checkPressed(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_ANYKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyPressed[i]) return true;
-        }
-        return false;
+        return checkIfAnyKey(kb->keyPressed);
     }
     if (gmlKeyCode == VK_NOKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyPressed[i]) return false;
-        }
-        return true;
+        return !checkIfAnyKey(kb->keyPressed);
     }
     if (!isValidKey(gmlKeyCode)) return false;
     return kb->keyPressed[gmlKeyCode];
@@ -88,16 +85,10 @@ bool RunnerKeyboard_checkPressed(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
 
 bool RunnerKeyboard_checkReleased(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_ANYKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyReleased[i]) return true;
-        }
-        return false;
+        return checkIfAnyKey(kb->keyReleased);
     }
     if (gmlKeyCode == VK_NOKEY) {
-        for (int32_t i = 2; GML_KEY_COUNT > i; i++) {
-            if (kb->keyReleased[i]) return false;
-        }
-        return true;
+        return !checkIfAnyKey(kb->keyReleased);
     }
     if (!isValidKey(gmlKeyCode)) return false;
     return kb->keyReleased[gmlKeyCode];

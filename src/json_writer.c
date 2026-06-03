@@ -107,6 +107,12 @@ void JsonWriter_double(JsonWriter* writer, double value) {
     writer->needsComma = true;
 }
 
+void JsonWriter_rawValue(JsonWriter* writer, const char* formattedValue) {
+    writeCommaIfNeeded(writer);
+    StringBuilder_append(&writer->out, formattedValue);
+    writer->needsComma = true;
+}
+
 void JsonWriter_bool(JsonWriter* writer, bool value) {
     writeCommaIfNeeded(writer);
     StringBuilder_append(&writer->out, value ? "true" : "false");

@@ -58,6 +58,7 @@ typedef struct {
     void (*endFrameEnd)(Renderer* renderer);
     void (*beginView)(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle);
     void (*endView)(Renderer* renderer);
+    void (*applyProjection)(Renderer* renderer, const Matrix4f* worldToClip);
     // GUI pass: coordinates are (0,0)..(guiW,guiH) mapped to the current view's port rect. Called after endView.
     void (*beginGUI)(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH);
     void (*endGUI)(Renderer* renderer);
@@ -526,11 +527,11 @@ static inline void Renderer_drawTiled(Renderer* renderer, int32_t tpagIndex, flo
 }
 
 // Draws a tiled background
-static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpagIndex, float bgX, float bgY, bool tileX, bool tileY, float roomW, float roomH, float alpha) {
+static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpagIndex, float bgX, float bgY, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, float alpha) {
     DataWin* dw = renderer->dataWin;
     if (0 > tpagIndex || (uint32_t) tpagIndex >= dw->tpag.count) return;
 
-    Renderer_drawTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, 1.0f, 1.0f, tileX, tileY, roomW, roomH, 0xFFFFFFu, alpha);
+    Renderer_drawTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, 0xFFFFFFu, alpha);
 }
 
 // Draws a tiled sprite across the room

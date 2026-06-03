@@ -457,9 +457,19 @@ static void parseLANG(BinaryReader* reader, DataWin* dw) {
     }
 }
 
+// Reads a uint32 at an absolute chunk offset (restoring the read cursor afterwards), or returns 0 if the offset would read past the chunk.
+static uint32_t peekUint32At(BinaryReader* reader, size_t absOffset, size_t chunkEnd) {
+    if (absOffset + 4 > chunkEnd) return 0;
+    size_t saved = BinaryReader_getPosition(reader);
+    BinaryReader_seek(reader, absOffset);
+    uint32_t value = BinaryReader_readUint32(reader);
+    BinaryReader_seek(reader, saved);
+    return value;
+}
+
 static void parseEXTN(BinaryReader* reader, DataWin* dw) {
-    // TODO: Update EXTN parser because it is broken for newer GM:S 2 versions
     Extn* e = &dw->extn;
+    size_t chunkEnd = reader->bufferBase + reader->bufferSize;
 
     uint32_t extCount;
     uint32_t* extPtrs = readPointerTable(reader, &extCount);
@@ -467,13 +477,37 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
 
     if (extCount == 0) { free(extPtrs); e->extensions = nullptr; return; }
 
+    int32_t extStringCount = 0;
+    if (dw->gen8.wadVersion >= 17) {
+        uint32_t firstExt = extPtrs[0];
+        // 2022.6: [folder][name][className][filesPtr][optionsPtr][files list...]; filesPtr == firstExt + 3*4 + 2*4
+        if (peekUint32At(reader, firstExt + 12, chunkEnd) == firstExt + 20) {
+            extStringCount = 3;
+
+        // 2023.4+: an extra Version string sits between name and className, shifting everything by 4 bytes
+        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24) {
+            extStringCount = 4;
+        }
+    }
+
     e->extensions = safeMalloc(extCount * sizeof(Extension));
     repeat(extCount, i) {
         BinaryReader_seek(reader, extPtrs[i]);
         Extension* ext = &e->extensions[i];
         ext->folderName = readStringPtr(reader, dw);
         ext->name = readStringPtr(reader, dw);
+        // GM 2023.4+ inserts a Version string here.
+        if (extStringCount >= 4) BinaryReader_readUint32(reader);
         ext->className = readStringPtr(reader, dw);
+
+        // In the new format (GM 2022.6+) the header now holds a Files pointer and an Options pointer.
+        // Seek to the Files pointer to reach the actual list.
+        // In the old format the Files PointerList is inline right here.
+        if (extStringCount > 0) {
+            uint32_t filesPtr = BinaryReader_readUint32(reader);
+            BinaryReader_readUint32(reader); // optionsPtr (Extension options are not used by the runner)
+            BinaryReader_seek(reader, filesPtr);
+        }
 
         // Files PointerList
         uint32_t fileCount;
@@ -529,8 +563,7 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
     }
     free(extPtrs);
 
-    // Product ID data (16 bytes per extension, wadVersion >= 14)
-    // Skipped -- we seek to chunkEnd after parsing
+    // TODO: Product ID data (16 bytes per extension, wadVersion >= 14)
 }
 
 static void parseSOND(BinaryReader* reader, DataWin* dw) {
@@ -541,6 +574,33 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
     s->count = count;
 
     if (count == 0) { free(ptrs); s->sounds = nullptr; return; }
+
+    if (DataWin_isVersionAtLeast(dw, 2023, 2, 0, 0) && !DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+        uint32_t soundPtrs[2];
+        uint32_t soundCount = 0;
+        repeat(count, i) {
+            if (ptrs[i] == 0)
+                continue;
+            soundPtrs[soundCount++] = ptrs[i];
+            if (soundCount >= 2)
+                break;
+        }
+
+        if (soundCount >= 2) {
+            if (soundPtrs[0] + (4 * 9) == soundPtrs[1] - 4) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+        } else if (soundCount == 1) {
+            size_t savedPos = BinaryReader_getPosition(reader);
+            size_t probe = (size_t) (soundPtrs[0] + (4 * 9));
+            requireMessageFormatted((probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
+            BinaryReader_seek(reader, probe);
+            if (BinaryReader_readUint32(reader) != 0) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+            BinaryReader_seek(reader, savedPos);
+        }
+    }
 
     s->sounds = safeCalloc(count, sizeof(Sound));
     repeat(count, i) {
@@ -674,6 +734,20 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         // Width in bytes = (spriteWidth + 7) / 8, total = widthInBytes * spriteHeight
         // After all masks, data is padded to 4-byte alignment
         // Zero-dimension sprites (placeholder/empty assets in test files) omit the mask block entirely
+        // GMS 2024.6+ stores collision masks at bounding-box dimensions (marginRight-marginLeft+1 by marginBottom-marginTop+1) instead of the full sprite size.
+        // Pre-2024.6 they cover the full sprite.
+        if (DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+            spr->maskWidth = (uint32_t) (spr->marginRight - spr->marginLeft + 1);
+            spr->maskHeight = (uint32_t) (spr->marginBottom - spr->marginTop + 1);
+            spr->maskOffsetX = spr->marginLeft;
+            spr->maskOffsetY = spr->marginTop;
+        } else {
+            spr->maskWidth = spr->width;
+            spr->maskHeight = spr->height;
+            spr->maskOffsetX = 0;
+            spr->maskOffsetY = 0;
+        }
+
         if (spr->width == 0 || spr->height == 0) {
             spr->maskCount = 0;
             spr->masks = nullptr;
@@ -681,9 +755,9 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         }
         uint32_t maskDataCount = BinaryReader_readUint32(reader);
         spr->maskCount = maskDataCount;
-        if (maskDataCount > 0 && spr->width > 0 && spr->height > 0) {
-            uint32_t bytesPerRow = (spr->width + 7) / 8;
-            uint32_t bytesPerMask = bytesPerRow * spr->height;
+        if (maskDataCount > 0 && spr->maskWidth > 0 && spr->maskHeight > 0) {
+            uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+            uint32_t bytesPerMask = bytesPerRow * spr->maskHeight;
 
             if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
                 spr->masks = safeMalloc(maskDataCount * sizeof(uint8_t*));

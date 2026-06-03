@@ -225,6 +225,12 @@ typedef struct {
     int32_t* tpagIndices;    // resolved TPAG indices (one per frame); -1 for unresolved
     uint32_t maskCount;       // number of collision masks (one per frame, or 0)
     uint8_t** masks;          // array of maskCount packed bit arrays (nullptr if none)
+    // Collision mask storage dimensions. Pre-2024.6 these equal the full sprite width/height with zero offset.
+    // GMS 2024.6+ stores masks at bounding-box dimensions, so the mask covers only [maskOffsetX, maskOffsetX+maskWidth).
+    uint32_t maskWidth;
+    uint32_t maskHeight;
+    int32_t maskOffsetX;      // sprite-local X of the mask's left edge (marginLeft on 2024.6+, else 0)
+    int32_t maskOffsetY;      // sprite-local Y of the mask's top edge (marginTop on 2024.6+, else 0)
     // Nine-slice (GMS2 sVersion >= 3). Present iff the sprite stored a non-zero nineSliceOffset.
     bool nineSliceEnabled;
     int32_t nsLeft;

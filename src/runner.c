@@ -122,6 +122,13 @@ void Runner_clearAllObjectLists(Runner* runner) {
 int32_t Runner_pushInstancesOfObject(Runner* runner, int32_t targetObjIndex) {
     int32_t base = (int32_t) arrlen(runner->instanceSnapshots);
 
+    if (targetObjIndex == INSTANCE_ALL) {
+        int32_t instanceCount = (int32_t) arrlen(runner->instances);
+        arrsetlen(runner->instanceSnapshots, base + instanceCount);
+        memcpy(&runner->instanceSnapshots[base], runner->instances, (size_t) instanceCount * sizeof(Instance*));
+        return base;
+    }
+
     if (0 > targetObjIndex || (uint32_t) targetObjIndex >= runner->dataWin->objt.count)
         return base;
 
@@ -460,10 +467,10 @@ void Runner_drawBackgrounds(Runner* runner, bool foreground) {
             float yscale = roomH / (float) tpag->boundingHeight;
             runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, bg->alpha);
         } else if (bg->tileX || bg->tileY) {
-            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, bg->x, bg->y, bg->tileX, bg->tileY, roomW, roomH, bg->alpha);
+            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, bg->x, bg->y, bg->xScale, bg->yScale, bg->tileX, bg->tileY, roomW, roomH, bg->alpha);
         } else {
             // Single placement
-            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, bg->x, bg->y, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0xFFFFFF, bg->alpha);
+            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, bg->x, bg->y, 0.0f, 0.0f, bg->xScale, bg->yScale, 0.0f, 0xFFFFFF, bg->alpha);
         }
     }
 }
@@ -757,7 +764,7 @@ void Runner_draw(Runner* runner) {
                             float yscale = roomH / (float) tpag->boundingHeight;
                             runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, bg->blend, bg->alpha);
                         } else if (bg->htiled || bg->vtiled) {
-                            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + bg->xOffset, layerOffsetY + bg->yOffset, bg->htiled, bg->vtiled, roomW, roomH, bg->alpha);
+                            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + bg->xOffset, layerOffsetY + bg->yOffset, bg->xScale, bg->yScale, bg->htiled, bg->vtiled, roomW, roomH, bg->alpha);
                         } else {
                             runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX + bg->xOffset, layerOffsetY + bg->yOffset, 0.0f, 0.0f, bg->xScale, bg->yScale, 0.0f, bg->blend, bg->alpha);
                         }
@@ -865,7 +872,7 @@ void Runner_draw(Runner* runner) {
                     float yscale = roomH / (float) tpag->boundingHeight;
                     runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, 1.0);
                 } else if (data->hTiled || data->vTiled) {
-                    Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, data->hTiled, data->vTiled, roomW, roomH, 1.0);
+                    Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 1.0f, 1.0f, data->hTiled, data->vTiled, roomW, roomH, 1.0);
                 } else {
                     // Single placement
                     runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0);
@@ -946,6 +953,18 @@ void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH
     }
 }
 
+// Widescreen hack: widen one view axis from baseSize to surfaceSize while keeping the same pixels-per-world scale, growing the visible area symmetrically about the view center.
+static void expandViewAxis(int32_t pos, int32_t size, int32_t surfaceSize, int32_t baseSize, int32_t* outPos, int32_t* outSize) {
+    if (surfaceSize <= baseSize || baseSize <= 0) {
+        *outPos = pos;
+        *outSize = size;
+        return;
+    }
+    int32_t center = pos + size / 2;
+    *outSize = (int32_t) ((int64_t) size * surfaceSize / baseSize);
+    *outPos = center - *outSize / 2;
+}
+
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
     Renderer* renderer = runner->renderer;
     Room* activeRoom = runner->currentRoom;
@@ -953,20 +972,25 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displa
 
     bool viewsEnabled = (activeRoom->flags & 1) != 0;
 
+    int32_t widescreenBaseW = gameW - runner->widescreenExtraWidth;
+    int32_t widescreenBaseH = gameH - runner->widescreenExtraHeight;
+
     if (viewsEnabled) {
         repeat(MAX_VIEWS, vi) {
             RuntimeView* view = &runner->views[vi];
             if (!view->enabled) continue;
+            // Geometry comes from the assigned camera (source of truth); the viewport (port) stays on the view.
+            GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) vi);
+            if (camera == nullptr) continue;
 
-            int32_t viewX = view->viewX;
-            int32_t viewY = view->viewY;
-            int32_t viewW = view->viewWidth;
-            int32_t viewH = view->viewHeight;
+            int32_t viewX, viewY, viewW, viewH;
+            expandViewAxis(camera->viewX, camera->viewWidth, gameW, widescreenBaseW, &viewX, &viewW);
+            expandViewAxis(camera->viewY, camera->viewHeight, gameH, widescreenBaseH, &viewY, &viewH);
             int32_t portX = (int32_t) ((float) view->portX * displayScaleX + 0.5f);
             int32_t portY = (int32_t) ((float) view->portY * displayScaleY + 0.5f);
             int32_t portW = (int32_t) ((float) view->portWidth * displayScaleX + 0.5f);
             int32_t portH = (int32_t) ((float) view->portHeight * displayScaleY + 0.5f);
-            float viewAngle = view->viewAngle;
+            float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
@@ -982,9 +1006,12 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displa
     }
 
     if (!anyViewRendered) {
-        // No views enabled: render with default full-screen view
+        // No views enabled: render with default full-screen view.
+        // gameW/gameH already include the widescreen extra, shift the world origin by half of it on each grown axis so the original room stays centered and the revealed area is split evenly between the opposing edges.
         runner->viewCurrent = 0;
-        renderer->vtable->beginView(renderer, 0, 0, gameW, gameH, 0, 0, gameW, gameH, 0.0f);
+        int32_t fullViewX = -(runner->widescreenExtraWidth / 2);
+        int32_t fullViewY = -(runner->widescreenExtraHeight / 2);
+        renderer->vtable->beginView(renderer, fullViewX, fullViewY, gameW, gameH, 0, 0, gameW, gameH, 0.0f);
         Runner_draw(runner);
 
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1091,22 +1118,44 @@ static void returnPersistentInstances(Runner* runner, Instance** carriedPersiste
     arrfree(carriedPersistent);
 }
 
+GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
+    GMLCamera* camera;
+    if (0 > id) return nullptr;
+    else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
+    else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
+    else return nullptr;
+    if (!camera->allocated) return nullptr;
+    return camera;
+}
+
+GMLCamera* Runner_getCameraForView(Runner* runner, int32_t viewIndex) {
+    if (0 > viewIndex || viewIndex >= MAX_VIEWS) return nullptr;
+    return Runner_getCameraById(runner, runner->views[viewIndex].cameraId);
+}
+
+// Populates a default camera (slot == view index) from parsed room view data.
+static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView) {
+    camera->allocated = true;
+    camera->viewX = roomView->viewX;
+    camera->viewY = roomView->viewY;
+    camera->viewWidth = roomView->viewWidth;
+    camera->viewHeight = roomView->viewHeight;
+    camera->borderX = roomView->borderX;
+    camera->borderY = roomView->borderY;
+    camera->speedX = roomView->speedX;
+    camera->speedY = roomView->speedY;
+    camera->objectId = roomView->objectId;
+    camera->viewAngle = 0;
+}
+
+// Copies the viewport (port) properties and enabled flag from parsed room data.
+// Geometry goes to the camera (see initDefaultCameraFromRoomView); cameraId is assigned by the caller, which knows the view index.
 static void copyRoomViewToRuntimeView(RoomView* roomView, RuntimeView* runtimeView) {
     runtimeView->enabled = roomView->enabled;
-    runtimeView->viewX = roomView->viewX;
-    runtimeView->viewY = roomView->viewY;
-    runtimeView->viewWidth = roomView->viewWidth;
-    runtimeView->viewHeight = roomView->viewHeight;
     runtimeView->portX = roomView->portX;
     runtimeView->portY = roomView->portY;
     runtimeView->portWidth = roomView->portWidth;
     runtimeView->portHeight = roomView->portHeight;
-    runtimeView->borderX = roomView->borderX;
-    runtimeView->borderY = roomView->borderY;
-    runtimeView->speedX = roomView->speedX;
-    runtimeView->speedY = roomView->speedY;
-    runtimeView->objectId = roomView->objectId;
-    runtimeView->viewAngle = 0;
 }
 
 static void initRoom(Runner* runner, int32_t roomIndex) {
@@ -1143,6 +1192,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // If this is a persistent room that was previously visited, restore saved state
     if (room->persistent && savedState->initialized) {
         memcpy(runner->views, savedState->views, sizeof(runner->views));
+        // Restore the room-scoped default cameras (whole array); user cameras are global and left untouched.
+        memcpy(runner->defaultCameras, savedState->defaultCameras, sizeof(runner->defaultCameras));
 
         // Restore backgrounds from saved state
         memcpy(runner->backgrounds, savedState->backgrounds, sizeof(runner->backgrounds));
@@ -1180,9 +1231,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     // === Normal room initialization (first visit, or non-persistent room) ===
 
-    // Initialize the views from scratch
+    // Initialize the views and their default cameras from scratch.
     repeat(MAX_VIEWS, vi) {
-        copyRoomViewToRuntimeView(&room->views[vi], &runner->views[vi]);
+        RoomView* roomView = &room->views[vi];
+        copyRoomViewToRuntimeView(roomView, &runner->views[vi]);
+        initDefaultCameraFromRoomView(&runner->defaultCameras[vi], roomView);
+        runner->views[vi].cameraId = (int32_t) vi;
     }
 
     // Reset tile layer state for the new room
@@ -1274,6 +1328,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->tileY = (bool) src->tileY;
         dst->speedX = (float) src->speedX;
         dst->speedY = (float) src->speedY;
+        dst->xScale = 1.0f;
+        dst->yScale = 1.0f;
         dst->stretch = src->stretch;
         dst->alpha = 1.0f;
     }
@@ -1465,6 +1521,18 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->mpGridPool);
     runner->mpGridPool = nullptr;
 
+    // Free pending async buffer save/load state
+    repeat((int32_t) arrlen(runner->asyncBufferGroupOps), i) {
+        free(runner->asyncBufferGroupOps[i].filename);
+    }
+    arrfree(runner->asyncBufferGroupOps);
+    runner->asyncBufferGroupOps = nullptr;
+    arrfree(runner->asyncSaveLoadQueue);
+    runner->asyncSaveLoadQueue = nullptr;
+    free(runner->asyncBufferGroupName);
+    runner->asyncBufferGroupName = nullptr;
+    runner->asyncBufferGroupActive = false;
+
     // Free INI state
     if (runner->currentIni != nullptr) {
         Ini_free(runner->currentIni);
@@ -1500,6 +1568,14 @@ static void cleanupState(Runner* runner) {
         }
     }
 
+    // Free any active file_find_* enumeration session
+    repeat(arrlen(runner->fileFindResults), i) {
+        free(runner->fileFindResults[i]);
+    }
+    arrfree(runner->fileFindResults);
+    runner->fileFindResults = nullptr;
+    runner->fileFindPosition = 0;
+
     if (runner->spatialGrid != nullptr) {
         SpatialGrid_free(runner->spatialGrid);
         runner->spatialGrid = nullptr;
@@ -1517,6 +1593,10 @@ void Runner_reset(Runner* runner) {
 
     runner->pendingRoom = -1;
     runner->asyncLoadMapId = -1;
+    runner->asyncBufferNextRequestId = 1;
+    runner->xboxAccountPickerPendingId = -1;
+    runner->xboxAccountPickerPadIndex = 0;
+    runner->xboxAsyncIdCounter = 1;
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
@@ -1712,6 +1792,8 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->applicationHeight = (int32_t) dataWin->gen8.defaultWindowHeight;
     runner->oldApplicationWidth = runner->applicationWidth;
     runner->oldApplicationHeight = runner->applicationHeight;
+    runner->widescreenExtraWidth = 0;
+    runner->widescreenExtraHeight = 0;
     runner->applicationSurfaceId = APPLICATION_SURFACE_ID;
     renderer->runner = runner;
 
@@ -1912,6 +1994,7 @@ static void Runner_sweepDeadStructs(Runner* runner) {
     for (int32_t i = count - 1; i >= 0; i--) {
         Instance* s = runner->structInstances[i];
         if (s->refCount > 1) continue; // still referenced by user code
+        if (s->pinned) continue; // Don't sweep pinned structs
         require(s->refCount == 1);
 
         // Remove from runner->instancesById so future findInstanceByTarget(id) returns nullptr.
@@ -1966,6 +2049,28 @@ void Runner_initFirstRoom(Runner* runner) {
             fprintf(stderr, "Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
             RValue result = VM_executeCode(runner->vmContext, codeId);
             RValue_free(&result);
+        }
+    }
+    runner->vmContext->currentInstance = nullptr;
+
+    // Run extension init scripts
+    runner->vmContext->currentInstance = runner->globalScopeInstance;
+    repeat(dataWin->extn.count, e) {
+        Extension* ext = &dataWin->extn.extensions[e];
+        repeat(ext->fileCount, f) {
+            const char* initScript = ext->files[f].initScript;
+            if (initScript == nullptr || initScript[0] == '\0') continue;
+            int32_t scriptIndex = shget(runner->assetsByName, initScript);
+            if (0 > scriptIndex || (uint32_t) scriptIndex >= dataWin->scpt.count) {
+                fprintf(stderr, "Runner: Extension init script '%s' not found, skipping\n", initScript);
+                continue;
+            }
+            int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
+            if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
+                fprintf(stderr, "Runner: Executing extension init script: %s\n", initScript);
+                RValue result = VM_executeCode(runner->vmContext, codeId);
+                RValue_free(&result);
+            }
         }
     }
     runner->vmContext->currentInstance = nullptr;
@@ -2373,7 +2478,7 @@ static void dispatchCollisionEvents(Runner* runner) {
 
 // ===[ View Following + Clamping ]===
 // Single-axis follow with border-based scrolling, room clamping, and speed limit.
-static int32_t followAxis(int32_t viewPos, int32_t viewSize, int32_t targetPos, uint32_t border, int32_t speed, int32_t roomSize) {
+static int32_t followAxis(int32_t viewPos, int32_t viewSize, int32_t targetPos, uint32_t border, int32_t speed, int32_t roomSize, int32_t clampMargin) {
     int32_t pos = viewPos;
 
     // Border-based scrolling
@@ -2385,9 +2490,20 @@ static int32_t followAxis(int32_t viewPos, int32_t viewSize, int32_t targetPos, 
         pos = targetPos + (int32_t) border - viewSize;
     }
 
-    // Clamp to room bounds
-    if (0 > pos) pos = 0;
-    if (pos + viewSize > roomSize) pos = roomSize - viewSize;
+    // Clamp to room bounds.
+    if (clampMargin > 0) {
+        // Keep the widened view inside the room; if the room can't contain it, center it (split the spill evenly).
+        int32_t minPos = clampMargin;
+        int32_t maxPos = roomSize - viewSize - clampMargin;
+        if (minPos > maxPos) pos = (roomSize - viewSize) / 2;
+        else {
+            if (minPos > pos) pos = minPos;
+            if (pos > maxPos) pos = maxPos;
+        }
+    } else {
+        if (0 > pos) pos = 0;
+        if (pos + viewSize > roomSize) pos = roomSize - viewSize;
+    }
 
     // Speed limit
     if (speed >= 0) {
@@ -2404,12 +2520,14 @@ static void updateViews(Runner* runner) {
 
     repeat(MAX_VIEWS, vi) {
         RuntimeView* view = &runner->views[vi];
-        if (!view->enabled || 0 > view->objectId) continue;
+        if (!view->enabled) continue;
+        GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) vi);
+        if (camera == nullptr || 0 > camera->objectId) continue;
 
         // Find first active instance of the target object.
         Instance* target = nullptr;
-        if (view->objectId >= 0 && runner->dataWin->objt.count > (uint32_t) view->objectId) {
-            Instance** bucket = runner->instancesByObject[view->objectId];
+        if (camera->objectId >= 0 && runner->dataWin->objt.count > (uint32_t) camera->objectId) {
+            Instance** bucket = runner->instancesByObject[camera->objectId];
             int32_t bucketCount = (int32_t) arrlen(bucket);
             repeat(bucketCount, i) {
                 if (bucket[i]->active) { target = bucket[i]; break; }
@@ -2419,8 +2537,15 @@ static void updateViews(Runner* runner) {
         if (target != nullptr) {
             int32_t ix = (int32_t) GMLReal_floor(target->x);
             int32_t iy = (int32_t) GMLReal_floor(target->y);
-            view->viewX = followAxis(view->viewX, view->viewWidth, ix, view->borderX, view->speedX, (int32_t) room->width);
-            view->viewY = followAxis(view->viewY, view->viewHeight, iy, view->borderY, view->speedY, (int32_t) room->height);
+            // Widescreen hack: the displayed view is widened in Runner_drawViews, revealing clampMargin extra world pixels on each side.
+            // Use the same expandViewAxis math here so the WIDENED view is clamped inside the room.
+            int32_t wideW, wideH, unused;
+            expandViewAxis(0, camera->viewWidth, runner->applicationWidth + runner->widescreenExtraWidth, runner->applicationWidth, &unused, &wideW);
+            expandViewAxis(0, camera->viewHeight, runner->applicationHeight + runner->widescreenExtraHeight, runner->applicationHeight, &unused, &wideH);
+            int32_t clampMarginX = (wideW - camera->viewWidth) / 2;
+            int32_t clampMarginY = (wideH - camera->viewHeight) / 2;
+            camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width, clampMarginX);
+            camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height, clampMarginY);
         }
     }
 }
@@ -2520,6 +2645,8 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
     // Save room visual state
     memcpy(state->backgrounds, runner->backgrounds, sizeof(runner->backgrounds));
     memcpy(state->views, runner->views, sizeof(runner->views));
+    // Snapshot the room-scoped default cameras (whole array); user cameras are global and not snapshotted.
+    memcpy(state->defaultCameras, runner->defaultCameras, sizeof(state->defaultCameras));
     state->backgroundColor = runner->backgroundColor;
     state->drawBackgroundColor = runner->drawBackgroundColor;
 
@@ -2828,6 +2955,14 @@ void Runner_step(Runner* runner) {
         }
     }
 
+    if (RunnerKeyboard_check(kb, VK_ANYKEY)) Runner_executeEventForAll(runner, EVENT_KEYBOARD, VK_ANYKEY);
+    if (RunnerKeyboard_checkPressed(kb, VK_ANYKEY)) Runner_executeEventForAll(runner, EVENT_KEYPRESS, VK_ANYKEY);
+    if (RunnerKeyboard_checkReleased(kb, VK_ANYKEY)) Runner_executeEventForAll(runner, EVENT_KEYRELEASE, VK_ANYKEY);
+
+    if (RunnerKeyboard_check(kb, VK_NOKEY)) Runner_executeEventForAll(runner, EVENT_KEYBOARD, VK_NOKEY);
+    if (RunnerKeyboard_checkPressed(kb, VK_NOKEY)) Runner_executeEventForAll(runner, EVENT_KEYPRESS, VK_NOKEY);
+    if (RunnerKeyboard_checkReleased(kb, VK_NOKEY)) Runner_executeEventForAll(runner, EVENT_KEYRELEASE, VK_NOKEY);
+
     // Tick timelines
     tickTimelines(runner);
 
@@ -2904,6 +3039,69 @@ void Runner_step(Runner* runner) {
             }
             runner->asyncLoadMapId = -1;
         }
+    }
+
+    // Resolve a pending Xbox One account-picker request
+    if (runner->xboxAccountPickerPendingId >= 0) {
+        DsMapEntry* map = nullptr;
+        arrput(runner->dsMapPool, map);
+        int32_t mapId = arrlen(runner->dsMapPool) - 1;
+
+        DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+        shput(*mapPtr, safeStrdup("id"), RValue_makeReal((GMLReal) runner->xboxAccountPickerPendingId));
+        shput(*mapPtr, safeStrdup("user"), RValue_makeReal(1.0));
+        shput(*mapPtr, safeStrdup("pad_index"), RValue_makeReal((GMLReal) runner->xboxAccountPickerPadIndex));
+
+        runner->asyncLoadMapId = mapId;
+        runner->xboxAccountPickerPendingId = -1;
+        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ASYNC_DIALOG);
+
+        // Clean up ds_map
+        mapPtr = &runner->dsMapPool[mapId];
+        if (*mapPtr != nullptr) {
+            repeat(shlen(*mapPtr), j) {
+                free((*mapPtr)[j].key);
+                RValue_free(&(*mapPtr)[j].value);
+            }
+            shfree(*mapPtr);
+            *mapPtr = nullptr;
+        }
+        runner->asyncLoadMapId = -1;
+    }
+
+    // Fire pending async buffer save/load completions.
+    // Copy the queue first so that new async loads aren't done in the list we are currently iterating.
+    if (runner->asyncSaveLoadQueue != nullptr) {
+        AsyncSaveLoadCompletion* pending = runner->asyncSaveLoadQueue;
+        runner->asyncSaveLoadQueue = nullptr;
+        repeat((int32_t) arrlen(pending), idx) {
+            AsyncSaveLoadCompletion completion = pending[idx];
+
+            DsMapEntry* map = nullptr;
+            arrput(runner->dsMapPool, map);
+            int32_t mapId = arrlen(runner->dsMapPool) - 1;
+
+            DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+            shput(*mapPtr, safeStrdup("id"), RValue_makeReal((GMLReal) completion.requestId));
+            shput(*mapPtr, safeStrdup("status"), RValue_makeReal((GMLReal) completion.status));
+            shput(*mapPtr, safeStrdup("error"), RValue_makeReal((GMLReal) completion.error));
+
+            runner->asyncLoadMapId = mapId;
+            Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ASYNC_SAVE_LOAD);
+
+            // Clean up ds_map
+            mapPtr = &runner->dsMapPool[mapId];
+            if (*mapPtr != nullptr) {
+                repeat(shlen(*mapPtr), j) {
+                    free((*mapPtr)[j].key);
+                    RValue_free(&(*mapPtr)[j].value);
+                }
+                shfree(*mapPtr);
+                *mapPtr = nullptr;
+            }
+            runner->asyncLoadMapId = -1;
+        }
+        arrfree(pending);
     }
 
     // Dispatch collision events
@@ -3129,7 +3327,7 @@ static void writeRValueJson(JsonWriter* w, RValue val) {
             if (val.array != nullptr) {
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
-                    writeRValueJson(w, cell != nullptr ? *cell : (RValue){ .type = RVALUE_UNDEFINED });
+                    writeRValueJson(w, cell != nullptr ? *cell : RValue_makeUndefined());
                 }
             }
             JsonWriter_endArray(w);

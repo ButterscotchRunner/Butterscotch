@@ -5,7 +5,7 @@
 #include "runner.h"
 #include "input_recording.h"
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless);
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless);
 void platformInitFunctions(Runner *);
 void platformExit(void);
 void platformSwapBuffers(void);
@@ -17,12 +17,12 @@ void platformSetWindowSize(int32_t width, int32_t height);
 void platformSetWindowTitle(const char* title);
 void platformSleepUntil(double time);
 
-enum gfx_api {
+enum GraphicsAPI {
     SOFTWARE,
     MODERN_GL,
     LEGACY_GL
 };
 
-extern enum gfx_api gfx;
+extern enum GraphicsAPI gfx;
 
 extern InputRecording *globalInputRecording;

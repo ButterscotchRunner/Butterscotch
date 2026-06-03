@@ -43,4 +43,5 @@ typedef struct {
     uint32_t surfaceCount;
 } GLLegacyRenderer;
 
+bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId);
 Renderer* GLLegacyRenderer_create(void);

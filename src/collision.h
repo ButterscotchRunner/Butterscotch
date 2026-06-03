@@ -314,8 +314,13 @@ static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLRea
         // Pick mask for current frame
         uint32_t frameIdx = ((uint32_t) inst->imageIndex) % spr->maskCount;
         uint8_t* mask = spr->masks[frameIdx];
-        uint32_t bytesPerRow = (spr->width + 7) / 8;
-        return (mask[iy * bytesPerRow + (ix >> 3)] & (1 << (7 - (ix & 7)))) != 0;
+        // Masks are stored at maskWidth x maskHeight starting at (maskOffsetX, maskOffsetY) in sprite-local space.
+        // Pre-2024.6 this is the full sprite with zero offset; 2024.6+ it is the bounding box.
+        int32_t mx = ix - spr->maskOffsetX;
+        int32_t my = iy - spr->maskOffsetY;
+        if (0 > mx || 0 > my || mx >= (int32_t) spr->maskWidth || my >= (int32_t) spr->maskHeight) return false;
+        uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+        return (mask[my * bytesPerRow + (mx >> 3)] & (1 << (7 - (mx & 7)))) != 0;
     }
 
     return true;

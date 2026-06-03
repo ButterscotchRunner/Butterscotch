@@ -180,7 +180,7 @@ int main(int argc, char* argv[]) {
             .parseGen8 = true,
             .parseOptn = true,
             .parseLang = true,
-            .parseExtn = false,
+            .parseExtn = true,
             .parseSond = true,
             .parseAgrp = true,
             .parseSprt = true,
@@ -297,7 +297,7 @@ int main(int argc, char* argv[]) {
     // Main loop
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
-    double lastFrameTime = PS3_GET_TIME;
+    double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -366,6 +366,9 @@ int main(int argc, char* argv[]) {
         }
 
         double frameStartTime = PS3_GET_TIME;
+        runner->deltaTime = (frameStartTime - lastFrameStartTime) * 1000000.0;
+        lastFrameStartTime = frameStartTime;
+
         double stepTime = 0.0;
         double audioTime = 0.0;
         if (shouldStep) {
@@ -375,7 +378,7 @@ int main(int argc, char* argv[]) {
             stepTime = PS3_GET_TIME - stepStart;
 
             // Update audio system (gain fading, cleanup ended sounds)
-            float dt = (float) (PS3_GET_TIME - lastFrameTime);
+            float dt = (float) (runner->deltaTime / 1000000.0);
             if (0.0f > dt) dt = 0.0f;
             if (dt > 0.1f) dt = 0.1f; // cap delta to avoid huge fades on lag spikes
             double audioStart = PS3_GET_TIME;
@@ -437,26 +440,15 @@ int main(int argc, char* argv[]) {
         }
         Runner_handlePendingRoomChange(runner);
 
-        double now = PS3_GET_TIME;
-
         // Limit frame rate to room speed
         if (runner->currentRoom->speed > 0) {
             double targetFrameTime = 1.0 / runner->currentRoom->speed;
-            double nextFrameTime = lastFrameTime + targetFrameTime;
-
-            if (now < nextFrameTime) {
-                while (PS3_GET_TIME < nextFrameTime) {
-                    __sync();
-                    sysUtilCheckCallback();
-                    sysUsleep(5);
-                }
-                lastFrameTime = nextFrameTime;
-            } else {
-                // Frame took too long → resync
-                lastFrameTime = now;
+            double nextFrameTime = lastFrameStartTime + targetFrameTime;
+            while (PS3_GET_TIME < nextFrameTime) {
+                __sync();
+                sysUtilCheckCallback();
+                sysUsleep(5);
             }
-        } else {
-            lastFrameTime = now;
         }
     }
 

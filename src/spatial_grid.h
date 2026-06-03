@@ -82,6 +82,7 @@ typedef struct {
     SpatialGridRange range;
     bool filterByObject;
     bool filterByInstanceId;
+    bool matchAll;
     uint32_t queryId;
 } SpatialGridQuery;
 

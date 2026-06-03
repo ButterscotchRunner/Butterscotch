@@ -174,18 +174,18 @@ static inline RValue RValue_makeMethodWeak(GMLMethod* m) {
 }
 #endif
 
-// Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
-// Use this for the freshly-allocated struct returned by @@NewGMLObject@@, after the caller has already accounted for both the registry's implicit ref and the returned-RValue ref.
-static inline RValue RValue_makeStruct(Instance* inst) {
-    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
-    rv.structInst = inst;
-    return rv;
-}
-
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static inline RValue RValue_makeStructWeak(Instance* inst) {
     RValue rv = { .type = RVALUE_STRUCT, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
     rv.structInst = inst;
+    return rv;
+}
+
+// Takes ownership AND bumps the refCount. The returned RValue decRefs on free.
+static inline RValue RValue_makeStructAndIncRef(Instance* inst) {
+    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    rv.structInst = inst;
+    Instance_structIncRef(inst);
     return rv;
 }
 

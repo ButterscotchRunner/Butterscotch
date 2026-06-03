@@ -371,10 +371,9 @@ jobs:
         run: |
           cmake --build build -j$(nproc)
           sprxlinker build/butterscotch.elf
-          make_self build/butterscotch.elf build/butterscotch.self
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-ps3
-          path: build/butterscotch.self
+          path: build/butterscotch.elf
