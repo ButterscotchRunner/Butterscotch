@@ -292,7 +292,7 @@ static void printUsage(const char *argv0) {
         "    --print-rooms                          - %s\n"
         //"    --print-objects                        - %s\n"
         "    --print-declared-functions             - %s\n"
-        //"    --print-unknown-functions              - %s\n"
+        "    --print-unknown-functions              - %s\n"
         "    --trace-variable-reads                 - %s\n"
         "    --trace-variable-writes                - %s\n"
         "    --trace-function-calls                 - %s\n"
@@ -344,7 +344,7 @@ static void printUsage(const char *argv0) {
         getLocStr("Print all the rooms in the game and exit", "help.print-rooms"),
         //getLocStr("", "help.print-objects"),
         getLocStr("Print all declared functions in the game and exit", "help.print-declared-functions"),
-        //getLocStr("", "help.print-unknown-functions"),
+        getLocStr("Print all unknown functions used by the game and exit", "help.print-unknown-functions"),
         getLocStr("Trace variable reads", "help.trace-variable-reads"),
         getLocStr("Trace variable writes", "help.trace-variable-writes"),
         getLocStr("Trace function calls", "help.trace-function-calls"),
