@@ -35,7 +35,8 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     fbWidth = width;
     fbHeight = height;
     SDL_SetWindowSize(window, width, height);
-    scr = SDL_GetWindowSurface(window);
+    if (gfx == SOFTWARE)
+        scr = SDL_GetWindowSurface(window);
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -112,14 +113,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
-    scr = SDL_GetWindowSurface(window);
     if (gfx != SOFTWARE) {
         if (!SDL_GL_CreateContext(window)) {
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
         }
         SDL_GL_SetSwapInterval(0); // disable vsync
-    }
+    } else
+        scr = SDL_GetWindowSurface(window);
 
     return true;
 }
@@ -277,7 +278,8 @@ bool platformHandleEvents(void) {
                     break;
                 fbWidth = e.window.data1;
                 fbHeight = e.window.data2;
-                scr = SDL_GetWindowSurface(window);
+                if (gfx == SOFTWARE)
+                    scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
                 should_exit = true;
