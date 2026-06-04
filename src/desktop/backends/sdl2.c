@@ -39,21 +39,16 @@ static bool platformGetWindowFocus(void) {
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
-    if (headless && !SWRender) {
-        fprintf(stderr, "Headless mode on SDL requires the software renderer!\n");
-        return false;
-    }
-
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
     }
 
-    if (legacyGL) {
+    if (gfx == LEGACY_GL) {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (modernGL) {
+    } else if (gfx == MODERN_GL) {
 #ifdef ENABLE_GLES
 #ifdef SDL_GL_CONTEXT_PROFILE_MASK
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -70,41 +65,47 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #endif
     }
 
-    fbWidth = reqW;
-    fbHeight = reqH;
-    if(!headless) {
-        window = SDL_CreateWindow(
-                title,
-                SDL_WINDOWPOS_UNDEFINED,
-                SDL_WINDOWPOS_UNDEFINED,
-                fbWidth, fbHeight,
-                (SWRender ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE
-        );
-        if (!window && SWRender) {
-            SDL_DisplayMode mode;
-            if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
-                fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
-                        reqW, reqH, mode.w, mode.h, SDL_GetError());
-                fbWidth = mode.w;
-                fbHeight = mode.h;
-                window = SDL_CreateWindow(
-                        title,
-                        SDL_WINDOWPOS_UNDEFINED,
-                        SDL_WINDOWPOS_UNDEFINED,
-                        fbWidth, fbHeight,
-                        (SWRender ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE
-                );
-            }
+    Uint32 flags;
+    if (headless) {
+        fbWidth = 1;
+        fbHeight = 1;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+    } else {
+        fbWidth = reqW;
+        fbHeight = reqH;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+    }
+    window = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            fbWidth, fbHeight,
+            flags
+    );
+    if (!window && gfx == SOFTWARE) {
+        SDL_DisplayMode mode;
+        if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
+            fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                    reqW, reqH, mode.w, mode.h, SDL_GetError());
+            fbWidth = mode.w;
+            fbHeight = mode.h;
+            window = SDL_CreateWindow(
+                    title,
+                    SDL_WINDOWPOS_UNDEFINED,
+                    SDL_WINDOWPOS_UNDEFINED,
+                    fbWidth, fbHeight,
+                    flags
+            );
         }
-        if (!window) {
-            fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
-            return false;
-        }
-        scr = SDL_GetWindowSurface(window);
-        if (!SWRender) {
-            SDL_GL_CreateContext(window);
-            SDL_GL_SetSwapInterval(0); // disable vsync
-        }
+    }
+    if (!window) {
+        fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        return false;
+    }
+    scr = SDL_GetWindowSurface(window);
+    if (gfx != SOFTWARE) {
+        SDL_GL_CreateContext(window);
+        SDL_GL_SetSwapInterval(0); // disable vsync
     }
 
     return true;
