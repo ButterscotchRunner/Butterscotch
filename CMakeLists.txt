@@ -260,6 +260,8 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PUBLIC ${SDL_INCLUDE_DIR})
         set(BACKEND_LIBRARIES ${SDL_LIBRARY})
     elseif(DESKTOP_BACKEND STREQUAL "sdl2")
+        add_compile_definitions(USE_SDL2)
+
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(SDL2 REQUIRED sdl2)
         target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
