@@ -249,6 +249,15 @@ static uint32_t utf8_to_codepoint(const char *s) {
     return 0xFFFD; // replacement character
 }
 
+static int32_t SDLMouseButtonToGml(int sdlButton) {
+    switch (sdlButton) {
+        case SDL_BUTTON_LEFT: return GML_MB_LEFT;
+        case SDL_BUTTON_RIGHT: return GML_MB_RIGHT;
+        case SDL_BUTTON_MIDDLE: return GML_MB_MIDDLE;
+        default: return -1;
+    }
+}
+
 bool platformHandleEvents(void) {
     bool should_exit = false;
     SDL_Event e;
@@ -270,6 +279,21 @@ bool platformHandleEvents(void) {
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
+                break;
+            case SDL_MOUSEBUTTONDOWN: {
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEBUTTONUP: {
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEWHEEL:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                if (e.wheel.y != 0)
+                    RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
             case SDL_WINDOWEVENT:
                 if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
