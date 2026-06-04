@@ -114,7 +114,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
     scr = SDL_GetWindowSurface(window);
     if (gfx != SOFTWARE) {
-        SDL_GL_CreateContext(window);
+        if (!SDL_GL_CreateContext(window)) {
+            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
+            return false;
+        }
         SDL_GL_SetSwapInterval(0); // disable vsync
     }
 
