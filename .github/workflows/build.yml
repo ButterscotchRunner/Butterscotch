@@ -380,6 +380,7 @@ jobs:
 
   build-old-gcc:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: GCC 3.0
