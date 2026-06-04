@@ -127,9 +127,6 @@ void platformExit(void) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
-    runner->setWindowTitle = platformSetWindowTitle;
-    runner->getWindowSize = platformGetWindowSize;
-    runner->setWindowSize = platformSetWindowSize;
     runner->windowHasFocus = platformGetWindowFocus;
 }
 
