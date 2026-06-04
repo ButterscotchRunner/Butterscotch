@@ -249,13 +249,6 @@ if(PLATFORM STREQUAL "desktop")
             target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
             set(BACKEND_LIBRARIES ${GLFW3_LIBRARIES})
         endif()
-
-        #gamecontrollerdb
-        add_custom_command(TARGET butterscotch POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
-                $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-        )
     elseif(DESKTOP_BACKEND STREQUAL "glfw2")
         add_compile_definitions(USE_GLFW2)
 
@@ -301,6 +294,13 @@ if(PLATFORM STREQUAL "desktop")
         target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(butterscotch PRIVATE -fsanitize=address)
     endif()
+
+    #gamecontrollerdb
+    add_custom_command(TARGET butterscotch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
+            $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
+    )
 elseif(PLATFORM STREQUAL "web")
     if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Web requires modern gl!")
