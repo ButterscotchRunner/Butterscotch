@@ -74,7 +74,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbHeight = reqH;
     if(!headless) {
         window = SDL_CreateWindow(
-                "Butterscotch",
+                title,
                 SDL_WINDOWPOS_UNDEFINED,
                 SDL_WINDOWPOS_UNDEFINED,
                 fbWidth, fbHeight,
