@@ -121,6 +121,29 @@ static void GLFWCALL resizeCallback(int width, int height) {
 
 #endif
 
+static int32_t glfwMouseButtonToGml(int glfwButton) {
+    switch (glfwButton) {
+        case GLFW_MOUSE_BUTTON_LEFT: return GML_MB_LEFT;
+        case GLFW_MOUSE_BUTTON_RIGHT: return GML_MB_RIGHT;
+        case GLFW_MOUSE_BUTTON_MIDDLE: return GML_MB_MIDDLE;
+        default: return INT32_MIN; // Unknown
+    }
+}
+
+static void GLFWCALL mouseButtonCallback(int button, int action) {
+    int32_t gmlButton = glfwMouseButtonToGml(button);
+    if (0 > gmlButton) return;
+    if (action == GLFW_PRESS) RunnerMouse_onButtonDown(g_runner->mouse, gmlButton);
+    else if (action == GLFW_RELEASE) RunnerMouse_onButtonUp(g_runner->mouse, gmlButton);
+}
+
+static int g_last_wheel_pos = 0;
+static void GLFWCALL scrollCallback(int pos) {
+    double yoffset = (double)(pos - g_last_wheel_pos);
+    g_last_wheel_pos = pos;
+    if (g_runner) RunnerMouse_onWheel(g_runner->mouse, yoffset);
+}
+
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless) {
         fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
@@ -163,6 +186,10 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     // Set up keyboard input
     glfwSetKeyCallback(keyCallback);
     glfwSetCharCallback(characterCallback);
+    // Set up mouse input
+    glfwSetMouseButtonCallback(mouseButtonCallback);
+    glfwSetMouseWheelCallback(scrollCallback);
+
     return true;
 }
 
@@ -208,8 +235,7 @@ void platformSwapBuffers(void) {
 void *platformGetProcAddress(const char *name) {
 #ifdef _WIN32
     // glfw2's glfwGetProcAddress is broken on Windows.
-    // This just implements it in a way that's fixed
-    // so it can be passed to GLAD.
+    // This just implements it in a way that's fixed so it can be passed to GLAD.
     void *ret = (void *)wglGetProcAddress(name);
     // Fallback for driver-specific error codes and legacy OpenGL core functions.
     if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) {
