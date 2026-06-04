@@ -13039,7 +13039,32 @@ static RValue builtin_shader_current(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeReal(-1);
 }
 
+static RValue builtin_shader_is_compiled(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    if (ctx->runner->renderer->vtable->shaderIsCompiled != nullptr) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->shaderIsCompiled(ctx->runner->renderer, ShaderID));
+    }
 
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_shader_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t shaderIndex = (int32_t) RValue_toReal(args[0]);
+    Shader* shdr = &ctx->dataWin->shdr.shaders[shaderIndex];
+    if (0 > shaderIndex || (uint32_t) shaderIndex >= ctx->dataWin->shdr.count) return RValue_makeString("<undefined>");
+    const char* name = shdr->name;
+    return RValue_makeString(name != nullptr ? name : "<undefined>");
+}
+
+static RValue builtin_shaders_are_supported(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    
+    if (ctx->runner->renderer->vtable->shadersSupported != nullptr) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->shadersSupported(ctx->runner->renderer));
+    }
+
+    return RValue_makeBool(false);
+}
 
 static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
@@ -13113,10 +13138,10 @@ static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     //I think default texture page size is 2048x2048?
     float DivW = 0.00048828125; //1.0/2048.0
     float DivH = 0.00048828125; //1.0/2048.0
-    
+
     if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
-        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
-        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
     }
     
     float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
@@ -13167,8 +13192,8 @@ static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
     float DivH = 0.00048828125; //1.0/2048.0
     
     if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
-        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
-        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId);
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
     }
     
     float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
@@ -13195,14 +13220,14 @@ static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args
 
 static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
-    int16_t TpagIndex = (int16_t) RValue_toReal(args[0]);
-    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId));
+    int16_t texID = (int16_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, texID));
 }
 
 static RValue builtin_texture_get_texel_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
-    int16_t TpagIndex = (int16_t) RValue_toReal(args[0]);
-    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->dataWin->tpag.items[TpagIndex].texturePageId));
+    int16_t texID = (int16_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, texID));
 }
 
 // ===[ REGISTRATION ]===
@@ -14075,6 +14100,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
     VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
     VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
+    VM_registerBuiltin(ctx, "shader_is_compiled", builtin_shader_is_compiled); 
+    VM_registerBuiltin(ctx, "shader_get_name", builtin_shader_get_name);
+    VM_registerBuiltin(ctx, "shaders_are_supported", builtin_shaders_are_supported);  
     VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
     VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
     VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF); 

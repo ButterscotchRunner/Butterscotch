@@ -40,8 +40,8 @@ static const char* vertexShaderSource =
     GLSL_VERSION_DIRECTIVE
     GLSL_VERTEX_PRECISION
     "layout(location = 0) in vec2 aPos;\n"
-    "layout(location = 1) in vec2 aTexCoord;\n"
-    "layout(location = 2) in vec4 aColor;\n"
+    "layout(location = 1) in vec4 aColor;\n"
+    "layout(location = 2) in vec2 aTexCoord;\n"
     "uniform mat4 uProjection;\n"
     "out vec2 vTexCoord;\n"
     "out vec4 vColor;\n"
@@ -57,12 +57,16 @@ static const char* fragmentShaderSource =
     "in vec2 vTexCoord;\n"
     "in vec4 vColor;\n"
     "uniform sampler2D uTexture;\n"
-    "uniform float uAlphaTestRef;\n" // negative = disabled
+    "uniform float uAlphaTestRef;\n"
+    "uniform bool uAlphaTestEnabled;\n"
     "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
-    "    if (uAlphaTestRef >= c.a) discard;\n"
+    "   if (uAlphaTestEnabled)"
+    "   {"
+    "       if (uAlphaTestRef >= c.a) discard;\n"
+    "   }"
     "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
     "    fragColor = c;\n"
     "}\n";
@@ -103,15 +107,16 @@ static GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
     return program;
 }
 
-static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *success2) {
+static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *success2, Shader *shdr) {
     GLuint program = glCreateProgram();
     glAttachShader(program, vertShader);
     glAttachShader(program, fragShader);
 
-    glBindAttribLocation(program, 0, "in_Position");
-    glBindAttribLocation(program, 1, "in_TexCoord");
-    glBindAttribLocation(program, 2, "in_Colour");
-    
+    uint32_t AttributeCount = shdr->vertexAttributeCount;
+    for (uint32_t i = 0; AttributeCount > i; i++) {
+        glBindAttribLocation(program, i, shdr->vertexAttributes[i]);
+    }
+
     glLinkProgram(program);
 
     GLint success;
@@ -119,10 +124,11 @@ static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *succ
     if (!success) {
         char infoLog[512];
         glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
-        fprintf(stderr, "GL: Shader linking failed: %s\n", infoLog);
+        fprintf(stderr, "GL: %s Failed To Link: %s\n", shdr->name, infoLog);
         abort();
     } else {
         *success2 = true;
+        fprintf(stderr, "GL: %s Linked!\n", shdr->name);
     }
     return program;
 }
@@ -193,8 +199,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
     for (uint32_t i = 0; dataWin->shdr.count > i; i++) {
         Shader* shdr = &dataWin->shdr.shaders[i];
-        //fprintf(stderr, "GL: Shader %u %s Type %u\n", i, shdr->name, shdr->type);      
-        //GLuint* GMLShaders;
         fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name); 
         GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, shdr->glsl_Vertex);
         fprintf(stderr, "GL: Compiling %s Fragment Shader\n", shdr->name); 
@@ -202,9 +206,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         gl->GMLShaderCount++;
         gl->GMLShaders = safeRealloc(gl->GMLShaders, gl->GMLShaderCount * sizeof(GLuint));
         gl->Sampler2DLookUpTable = safeRealloc(gl->Sampler2DLookUpTable, gl->GMLShaderCount * sizeof(int32_t*));
-        fprintf(stderr, "GL: Linking %s\n", shdr->name); 
-        bool success = false;
-        gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT, &success);
+        bool success;
+        gl->GMLShaders[i] = linkProgramCompat(vertShaderT, fragShaderT, &success, shdr);
         gl->GMLShaderCompiled[i] = success;
         glDeleteShader(vertShaderT);
         glDeleteShader(fragShaderT);
@@ -218,12 +221,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         GLint LongestUniformName = 0;
         glGetProgramiv(gl->GMLShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
         char *UniformName = safeMalloc(LongestUniformName+1);
-        GLint gm_BaseTexture = glGetUniformLocation(gl->GMLShaders[i], "gm_BaseTexture");
-        if (gm_BaseTexture == -1) //I assume "slot" 1 is always gm_BaseTexture, do tell me if I am wrong
-        {
-            SamplerIndex = 1;
-            fprintf(stderr, "GL: %s does not use gm_BaseTexture\n", shdr->name); 
-        }
+
         for (GLint b = 0; b < UniformCount; b++) {
             
             GLsizei length = 0;
@@ -250,6 +248,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->uProjection = glGetUniformLocation(gl->shaderProgram, "uProjection");
     gl->uTexture = glGetUniformLocation(gl->shaderProgram, "uTexture");
     gl->uAlphaTestRef = glGetUniformLocation(gl->shaderProgram, "uAlphaTestRef");
+    gl->uAlphaTestEnabled = glGetUniformLocation(gl->shaderProgram, "uAlphaTestEnabled");
     gl->uFogColor = glGetUniformLocation(gl->shaderProgram, "uFogColor");
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
@@ -295,9 +294,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
@@ -369,6 +368,8 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");    
     GLint gm_VS_FogEnabled = glGetUniformLocation(Shader, "gm_VS_FogEnabled");
 
+    //Lights are for another time
+
     GLint gm_AlphaTestEnabled = glGetUniformLocation(Shader, "gm_AlphaTestEnabled");
     GLint gm_AlphaRefValue = glGetUniformLocation(Shader, "gm_AlphaRefValue");
 
@@ -406,6 +407,27 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
 
     renderer->CurrentShader = ShaderIndex;
 }
+
+static void glShaderSettingsRefresh(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (renderer->CurrentShader != -1) {
+    glGpuSetShader(renderer, (int32_t) renderer->CurrentShader);
+    } else {
+
+    float FogR = (float) BGR_R(gl->fogColor) / 255.0f;
+    float FoGG = (float) BGR_G(gl->fogColor) / 255.0f;
+    float FogB = (float) BGR_B(gl->fogColor) / 255.0f;
+
+    glUseProgram(gl->shaderProgram);
+    glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION].m);
+    glUniform4f(gl->uFogColor, FogR, FoGG, FogB, gl->fogEnable ? 1.0f : 0.0f);
+    glUniform1f(gl->uAlphaTestRef, gl->alphaTestRef);
+    glUniform1i(gl->uAlphaTestEnabled, gl->alphaTestEnable);   
+    glUniform1i(gl->uTexture, 0);
+    }
+}
+
 
 
 static void glDestroy(Renderer* renderer) {
@@ -483,7 +505,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glUseProgram(gl->shaderProgram);
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glUniform1i(gl->uTexture, 0);
+    glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE0);
 
     glBindVertexArray(gl->vao);
@@ -532,10 +554,8 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     Matrix4f projection;
     Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
 
-    glUseProgram(gl->shaderProgram);
-    glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glUniform1i(gl->uTexture, 0);
+    glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE0);
 
     glBindVertexArray(gl->vao);
@@ -1526,14 +1546,13 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     if (gl->surfaces[surfaceId] == 0) return false;
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
-    glUseProgram(gl->shaderProgram);
-    glUniform1i(gl->uTexture, 0);
+
 
     if (surfaceId == renderer->runner->applicationSurfaceId) {
-        glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->PreviousViewMatrix.m);
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->PreviousViewMatrix;
+        glShaderSettingsRefresh(renderer);
         return true;
     }
 
@@ -1541,18 +1560,11 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     Matrix4f projection;
     Matrix4f_identity(&projection);
     Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], 0.0f, (float) gl->surfaceHeight[surfaceId], -1.0f, 1.0f);
-    glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    if (renderer->CurrentShader != -1)
-    {
-    glGpuSetShader(renderer, (int32_t) renderer->CurrentShader);
-    } else  {
-        glUseProgram(gl->shaderProgram);
-        glUniform1i(gl->uTexture, 0);
-        glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
-    }
+    glShaderSettingsRefresh(renderer);
+
 
     return true;
 }
@@ -1766,8 +1778,7 @@ static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     if (gl->alphaTestEnable == enable) return;
     flushBatch(gl);
     gl->alphaTestEnable = enable;
-    glUseProgram(gl->shaderProgram);
-    glUniform1f(gl->uAlphaTestRef, enable ? gl->alphaTestRef : -1.0f);
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
@@ -1776,10 +1787,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     if (gl->alphaTestRef == refF) return;
     flushBatch(gl);
     gl->alphaTestRef = refF;
-    if (gl->alphaTestEnable) {
-        glUseProgram(gl->shaderProgram);
-        glUniform1f(gl->uAlphaTestRef, refF);
-    }
+    glShaderSettingsRefresh(renderer); 
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
@@ -1806,21 +1814,13 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     flushBatch(gl);
     gl->fogEnable = enable;
     gl->fogColor = color;
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
-    glUseProgram(gl->shaderProgram);
-    glUniform4f(gl->uFogColor, r, g, b, enable ? 1.0f : 0.0f);
+    glShaderSettingsRefresh(renderer);
 }
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (renderer->CurrentShader != -1) {
-    glUseProgram(gl->GMLShaders[renderer->CurrentShader]); //tf you mean this fixed the invalid location thing shouldn't GML code assume the same shader is still bound??? why was it even changed what the fu
-    }
     GLuint Shader = gl->GMLShaders[shaderIndex];
-    //fprintf(stderr, "GL: Uniform Get Location %u\n", glGetUniformLocation(Shader, uniform));
 
     return glGetUniformLocation(Shader, uniform);   
 }
@@ -1846,14 +1846,12 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
     return gl->Sampler2DLookUpTable[shaderIndex][index]; 
 }
 
-
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     int32_t RealCount = count;
     if (renderer->CurrentShader != -1) {
     GLuint Shader = gl->GMLShaders[renderer->CurrentShader];
-    glUseProgram(Shader); //tf you mean this fixed the invalid location thing shouldn't GML code assume the same shader is still bound??? why was it even changed what the fu
 
         GLint UniformCount;
         glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
@@ -1870,19 +1868,13 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
             int32_t location = glGetUniformLocation(Shader, UniformName);
             if (location == handle)
             {
-                //fprintf(stderr, "GL: TF BRO IS RIGHT?\n");
                 if (type == GL_FLOAT) RealCount = 1;
                 if (type == GL_FLOAT_VEC2) RealCount = 2;
                 if (type == GL_FLOAT_VEC3) RealCount = 3;
                 if (type == GL_FLOAT_VEC4) RealCount = 4;
             }
-
-
         }
         free(UniformName);
-
-
-
     }
 
     if (RealCount == 1) {
@@ -1905,7 +1897,6 @@ static int32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
     if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return -1;
 
     return texId;
-    
 }
 
 static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
@@ -1915,29 +1906,59 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
         return;
     }
     if (slot == -1) {
-        fprintf(stderr, "GL: SOMETHING WRONK\n");
+        fprintf(stderr, "GL: Invalid Texture Stage\n");
         return;
     }
     if (slot == 0) {
     gl->currentTextureId = texID;  
     }
-    //return;
+    if (slot > MAX_TEXTURE_STAGES) {
+        fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
+        return;  
+    }
     glActiveTexture(GL_TEXTURE0 + (slot-1));
     glBindTexture(GL_TEXTURE_2D, texID);
     glActiveTexture(GL_TEXTURE0);
 
 }
 
-static float glTextureGetTexelWidth(Renderer* renderer, int16_t pageId) {
+static float glTextureGetTexelWidth(Renderer* renderer, int16_t texID) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 1.0;
-    return (1.0 / (float) gl->textureWidths[pageId]);
+    flushBatch(gl);
+    GLint width = 0;
+    GLint prev;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev);
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+    glBindTexture(GL_TEXTURE_2D, prev);
+
+    if (width == 0) return 1.0;
+    return (1.0 / (float) width);
 }
 
-static float glTextureGetTexelHeight(Renderer* renderer, int16_t pageId) {
+static float glTextureGetTexelHeight(Renderer* renderer, int16_t texID) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (!ensureTextureLoaded(gl, (uint32_t) pageId)) return 1.0;
-    return (1.0 / (float) gl->textureHeights[pageId]);
+    flushBatch(gl);
+    GLint height = 0;
+    GLint prev;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev);
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+    glBindTexture(GL_TEXTURE_2D, prev);
+
+    if (height == 0) return 1.0;
+    return (1.0 / (float) height);
+}
+
+static bool glShaderIsCompiled(Renderer* renderer, int32_t shaderID) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    DataWin* dw = gl->base.dataWin;
+    if (0 > shaderID || shaderID >= dw->shdr.count) return false;
+    return gl->GMLShaderCompiled[shaderID];
+}
+
+static bool glShadersSupported(Renderer* renderer) {
+    return true;
 }
 
 // ===[ Vtable ]===
@@ -2003,6 +2024,8 @@ Renderer* GLRenderer_create(void) {
     glVtable.textureGetTexelHeight = glTextureGetTexelHeight,
     glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex,
     glVtable.textureSetStage = glTextureSetStage,
+    glVtable.shaderIsCompiled = glShaderIsCompiled,
+    glVtable.shadersSupported = glShadersSupported,
 
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;

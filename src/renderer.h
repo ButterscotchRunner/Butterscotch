@@ -37,6 +37,8 @@
 #define	MATRIX_WORLD_VIEW_PROJECTION 	4
 #define	MATRICES_MAX					5
 
+#define MAX_VS_LIGHTS	8
+
 #define MAX_TEXTURE_STAGES 8
 
 // Sentinel returned by ensureApplicationSurface on platforms that don't back the application_surface with a real entry in the renderer's surface table.
@@ -129,6 +131,8 @@ typedef struct {
     float (*textureGetTexelWidth)(Renderer* renderer, int16_t pageId);
     float (*textureGetTexelHeight)(Renderer* renderer, int16_t pageId);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, int32_t texID);
+    bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
+    bool (*shadersSupported)(Renderer* renderer);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===
