@@ -502,8 +502,6 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     Matrix4f projection;
     Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
 
-    glUseProgram(gl->shaderProgram);
-    glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, projection.m);
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE0);
