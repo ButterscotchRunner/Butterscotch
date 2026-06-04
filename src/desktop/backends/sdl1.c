@@ -52,7 +52,7 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless && gfx != SOFTWARE) {
-        fprintf(stderr, "Headless mode on SDL requires the software renderer!\n");
+        fprintf(stderr, "Headless mode on SDL 1.2 requires the software renderer!\n");
         return false;
     }
 
@@ -126,6 +126,8 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
     if(gfx == SOFTWARE) {
+        if (!scr)
+            return;
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
         SDL_Flip(scr);
     }
