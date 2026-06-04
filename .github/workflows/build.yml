@@ -394,7 +394,7 @@ jobs:
       - name: Create Debian Woody chroot
         run: |
           sudo apt-get install --no-install-recommends -y debootstrap
-          sudo debootstrap --arch=i386 woody ~/woody http://archive.debian.org/debian --include='${{ matrix.compiler }},make,libsdl1.2-dev'
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
 
       - name: Checkout repo into chroot
         run: sudo git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ~/woody/butterscotch
