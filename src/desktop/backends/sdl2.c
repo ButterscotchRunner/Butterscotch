@@ -13,7 +13,7 @@ static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
-static void platformSetWindowTitle(const char* title) {
+void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
     SDL_SetWindowTitle(window, windowTitle);
@@ -26,12 +26,24 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static void platformSetWindowSize(int32_t width, int32_t height) {
+bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
+    return platformGetWindowSize(outW, outH);
+}
+
+void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
     SDL_SetWindowSize(window, width, height);
     scr = SDL_GetWindowSurface(window);
+}
+
+void platformGetMousePos(double *xPos, double *yPos) {
+    if (!xPos || !yPos) return;
+    int mx = 0, my = 0;
+    SDL_GetMouseState(&mx, &my);
+    *xPos = (double)mx;
+    *yPos = (double)my;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -66,15 +78,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 
     Uint32 flags;
-    if (headless) {
-        fbWidth = 1;
-        fbHeight = 1;
+    if (headless)
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
-    } else {
-        fbWidth = reqW;
-        fbHeight = reqH;
+    else
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
-    }
+
+    fbWidth = reqW;
+    fbHeight = reqH;
     window = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
@@ -150,13 +160,13 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
-    if(SWRender) {
+    if(gfx == SOFTWARE) {
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
         SDL_UpdateWindowSurface(window);
     }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    if (legacyGL || modernGL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL)
         SDL_GL_SwapWindow(window);
 #endif
 }
