@@ -14,6 +14,7 @@
 #include <math.h>
 
 #include "debug_overlay.h"
+#include "particle_system.h"
 #include "stb_ds.h"
 
 // ===[ Runtime Layer Teardown Helpers ]===
@@ -648,9 +649,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         int32_t instanceCount = (int32_t) arrlen(runner->instances);
         repeat(instanceCount, i) {
             Instance* inst = runner->instances[i];
-            Drawable d = {0};
-            d.type = DRAWABLE_INSTANCE;
-            d.depth = inst->depth;
+            Drawable d = { .type = DRAWABLE_INSTANCE, .depth = inst->depth };
             d.instance = inst;
             arrput(runner->cachedDrawables, d);
         }
@@ -658,9 +657,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
             repeat(room->tileCount, i) {
                 RoomTile* tile = &room->tiles[i];
-                Drawable d = {0};
-                d.type = DRAWABLE_TILE;
-                d.depth = tile->tileDepth;
+                Drawable d = { .type = DRAWABLE_TILE, .depth = tile->tileDepth };
                 d.tileIndex = (int32_t) i;
                 arrput(runner->cachedDrawables, d);
             }
@@ -668,12 +665,19 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             size_t runtimeLayersCount = arrlenu(runner->runtimeLayers);
             repeat(runtimeLayersCount, i) {
                 RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
-                Drawable d = {0};
-                d.type = DRAWABLE_LAYER;
-                d.depth = runtimeLayer->depth;
+                Drawable d = { .type = DRAWABLE_LAYER, .depth = runtimeLayer->depth };
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
+        }
+
+        int32_t psCount = ParticleSystem_getActiveCount();
+        repeat(psCount, k) {
+            int32_t sysIdx, depth;
+            ParticleSystem_getActiveInfo(k, &sysIdx, &depth);
+            Drawable d = { .type = DRAWABLE_PARTICLE_SYSTEM, .depth = depth };
+            d.particleSystemIndex = sysIdx;
+            arrput(runner->cachedDrawables, d);
         }
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
@@ -917,6 +921,8 @@ void Runner_draw(Runner* runner) {
                 if (runner->renderer == nullptr) continue;
                 Runner_drawTileLayer(runner, parsedLayer->tilesData, layerOffsetX, layerOffsetY);
             }
+        } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
+            ParticleSystem_drawByIndex(runner, d->particleSystemIndex);
         }
     }
 
@@ -998,23 +1004,12 @@ static void expandViewAxis(int32_t pos, int32_t size, int32_t surfaceSize, int32
     *outPos = center - *outSize / 2;
 }
 
-// Applies the visual-only free camera (pan + zoom) on top of a view rectangle, in place.
-static void applyFreeCamera(Runner* runner, int32_t* viewX, int32_t* viewY, int32_t* viewW, int32_t* viewH) {
-    float zoom = runner->freeCamZoom;
-    if (0.0f >= zoom) zoom = 1.0f;
-    if (zoom == 1.0f && runner->freeCamPanX == 0.0f && runner->freeCamPanY == 0.0f) return;
-
-    float baseW = (float) *viewW;
-    float baseH = (float) *viewH;
-    float zoomedW = baseW / zoom;
-    float zoomedH = baseH / zoom;
-    float centerX = (float) *viewX + baseW * 0.5f + runner->freeCamPanX * baseW;
-    float centerY = (float) *viewY + baseH * 0.5f + runner->freeCamPanY * baseH;
-
-    *viewW = (int32_t) zoomedW;
-    *viewH = (int32_t) zoomedH;
-    *viewX = (int32_t) (centerX - zoomedW * 0.5f);
-    *viewY = (int32_t) (centerY - zoomedH * 0.5f);
+// Clamp the widened view back inside the room so the extra field-of-view only ever reveals more of the room.
+static int32_t clampExpandedView(int32_t pos, int32_t size, int32_t roomSize) {
+    if (size >= roomSize) return (roomSize - size) / 2; // room can't contain the widened view: center it (split the spill evenly)
+    if (0 > pos) return 0;
+    if (pos + size > roomSize) return roomSize - size;
+    return pos;
 }
 
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
@@ -1038,7 +1033,9 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displa
             int32_t viewX, viewY, viewW, viewH;
             expandViewAxis(camera->viewX, camera->viewWidth, gameW, widescreenBaseW, &viewX, &viewW);
             expandViewAxis(camera->viewY, camera->viewHeight, gameH, widescreenBaseH, &viewY, &viewH);
-            applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
+            // Keep the widened view inside the room (only matters when the axis was actually grown by the widescreen hack).
+            if (runner->widescreenExtraWidth > 0) viewX = clampExpandedView(viewX, viewW, (int32_t) activeRoom->width);
+            if (runner->widescreenExtraHeight > 0) viewY = clampExpandedView(viewY, viewH, (int32_t) activeRoom->height);
             int32_t portX = (int32_t) ((float) view->portX * displayScaleX + 0.5f);
             int32_t portY = (int32_t) ((float) view->portY * displayScaleY + 0.5f);
             int32_t portW = (int32_t) ((float) view->portWidth * displayScaleX + 0.5f);
@@ -1064,10 +1061,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displa
         runner->viewCurrent = 0;
         int32_t fullViewX = -(runner->widescreenExtraWidth / 2);
         int32_t fullViewY = -(runner->widescreenExtraHeight / 2);
-        int32_t fullViewW = gameW;
-        int32_t fullViewH = gameH;
-        applyFreeCamera(runner, &fullViewX, &fullViewY, &fullViewW, &fullViewH);
-        renderer->vtable->beginView(renderer, fullViewX, fullViewY, fullViewW, fullViewH, 0, 0, gameW, gameH, 0.0f);
+        renderer->vtable->beginView(renderer, fullViewX, fullViewY, gameW, gameH, 0, 0, gameW, gameH, 0.0f);
         Runner_draw(runner);
 
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1088,6 +1082,8 @@ static bool isObjectDisabled(Runner* runner, int32_t objectIndex) {
     return shgeti(runner->disabledObjects, name) != -1;
 }
 
+static void createAutoPhysicsBody(Runner* runner, Instance* inst);
+
 static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y) {
     DataWin* dataWin = runner->dataWin;
     require(objectIndex >= 0 && dataWin->objt.count > (uint32_t) objectIndex);
@@ -1103,6 +1099,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
     inst->persistent = objDef->persistent;
     inst->depth = objDef->depth;
     inst->maskIndex = objDef->textureMaskId;
+    inst->phyActive = objDef->usesPhysics;
 
     hmput(runner->instancesById, instanceId, inst);
     arrput(runner->instances, inst);
@@ -1229,6 +1226,14 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     runner->currentRoom = room;
     runner->currentRoomIndex = roomIndex;
+
+    // Create physics world if the room has physics enabled (MUST happen before instance Create events)
+    if (room->world) {
+        if (runner->physicsWorld) PhysicsWorld_destroy(runner->physicsWorld);
+        runner->physicsWorld = PhysicsWorld_create(room->gravityX, room->gravityY);
+    } else {
+        if (runner->physicsWorld) { PhysicsWorld_destroy(runner->physicsWorld); runner->physicsWorld = NULL; }
+    }
     // Tile set, runtime layers, and instance list all change when entering a room.
     runner->drawableListStructureDirty = true;
     // It could be the first time we are initializing the grid
@@ -1305,15 +1310,18 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     uint32_t maxLayerId = 0;
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
-        RuntimeLayer runtimeLayer = {0};
-        runtimeLayer.id = layerSource->id;
-        runtimeLayer.depth = layerSource->depth;
-        runtimeLayer.visible = layerSource->visible;
-        runtimeLayer.xOffset = layerSource->xOffset;
-        runtimeLayer.yOffset = layerSource->yOffset;
-        runtimeLayer.hSpeed = layerSource->hSpeed;
-        runtimeLayer.vSpeed = layerSource->vSpeed;
-        runtimeLayer.dynamic = false;
+        RuntimeLayer runtimeLayer = {
+            .id = layerSource->id,
+            .depth = layerSource->depth,
+            .visible = layerSource->visible,
+            .xOffset = layerSource->xOffset,
+            .yOffset = layerSource->yOffset,
+            .hSpeed = layerSource->hSpeed,
+            .vSpeed = layerSource->vSpeed,
+            .dynamic = false,
+            .dynamicName = nullptr,
+            .elements = nullptr,
+        };
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
     }
@@ -1339,25 +1347,29 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             spriteElement->animationSpeedType = src->animationSpeedType;
             spriteElement->frameIndex = src->frameIndex;
             spriteElement->rotation = src->rotation;
-            RuntimeLayerElement el = {0};
-            el.id = Runner_getNextLayerId(runner);
-            el.type = RuntimeLayerElementType_Sprite;
-            el.visible = true;
-            el.alpha = 1.0f;
-            el.spriteElement = spriteElement;
+            RuntimeLayerElement el = {
+                .id = Runner_getNextLayerId(runner),
+                .type = RuntimeLayerElementType_Sprite,
+                .visible = true,
+                .alpha = 1.0f,
+                .backgroundElement = nullptr,
+                .spriteElement = spriteElement,
+                .tileElement = nullptr,
+            };
             arrput(runtimeLayer->elements, el);
         }
         // Expose legacy tiles as RuntimeLayerElements so GML scripts can find them via layer_get_all_elements and toggle them via layer_tile_visible
         repeat(assets->legacyTileCount, j) {
             RoomTile* tile = &assets->legacyTiles[j];
-            RuntimeLayerElement el = {0};
-            el.id = Runner_getNextLayerId(runner);
-            el.type = RuntimeLayerElementType_Tile;
-            el.visible = true;
-            el.alpha = tile->alpha;
-            el.backgroundElement = nullptr;
-            el.spriteElement = nullptr;
-            el.tileElement = tile;
+            RuntimeLayerElement el = {
+                .id = Runner_getNextLayerId(runner),
+                .type = RuntimeLayerElementType_Tile,
+                .visible = true,
+                .alpha = tile->alpha,
+                .backgroundElement = nullptr,
+                .spriteElement = nullptr,
+                .tileElement = tile,
+            };
             arrput(runtimeLayer->elements, el);
         }
     }
@@ -1448,6 +1460,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (inst->createEventFired) continue;
         inst->createEventFired = true;
 
+        createAutoPhysicsBody(runner, inst);
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
         executeCode(runner, inst, roomObj->preCreateCode);
         Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
@@ -1477,6 +1490,9 @@ static void cleanupState(Runner* runner) {
     if (runner->vmContext != nullptr) {
         VM_reset(runner->vmContext);
     }
+
+    Runner_freeRuntimeTimelines(runner);
+    ParticleSystem_shutdown(runner);
 
     // Free all instances
     repeat(arrlen(runner->instances), i) {
@@ -1529,6 +1545,16 @@ static void cleanupState(Runner* runner) {
     }
     arrfree(runner->dsListPool);
     runner->dsListPool = nullptr;
+
+    repeat((int32_t) arrlen(runner->dsGridPool), i) {
+        DsGrid* grid = &runner->dsGridPool[i];
+        repeat(arrlen(grid->items), j) {
+            RValue_free(&grid->items[j]);
+        }
+        arrfree(grid->items);
+    }
+    arrfree(runner->dsGridPool);
+    runner->dsGridPool = nullptr;
 
     repeat((int32_t) arrlen(runner->dsQueuePool), i) {
         DsQueue* q = &runner->dsQueuePool[i];
@@ -1636,6 +1662,7 @@ static void cleanupState(Runner* runner) {
 void Runner_reset(Runner* runner) {
     // This actually sets the default runner values, used for initialization and restarting
     cleanupState(runner);
+    ParticleSystem_init(runner);
 
     // Reset VM state
     VM_reset(runner->vmContext);
@@ -1701,11 +1728,7 @@ static void flattenCollisionEvents(Runner* runner) {
             repeat(src->eventCount, e) {
                 ObjectEvent* srcEvt = &src->events[e];
                 int32_t srcCodeId = (srcEvt->actionCount > 0) ? srcEvt->actions[0].codeId : -1;
-                FlattenedCollisionEvent fce = {0};
-                fce.targetObjectIndex = srcEvt->eventSubtype;
-                fce.codeId = srcCodeId;
-                fce.ownerObjectIndex = i;
-                dst->events[e] = fce;
+                dst->events[e] = (FlattenedCollisionEvent) { .targetObjectIndex = srcEvt->eventSubtype, .codeId = srcCodeId, .ownerObjectIndex = i };
             }
             dst->eventCount = src->eventCount;
         }
@@ -1728,11 +1751,7 @@ static void flattenCollisionEvents(Runner* runner) {
                 int32_t ancCodeId = (ancEvt->actionCount > 0) ? ancEvt->actions[0].codeId : -1;
                 uint32_t newCount = dst->eventCount + 1;
                 dst->events = safeRealloc(dst->events, newCount * sizeof(FlattenedCollisionEvent));
-                FlattenedCollisionEvent fce = {0};
-                fce.targetObjectIndex = target;
-                fce.codeId = ancCodeId;
-                fce.ownerObjectIndex = ancestor;
-                dst->events[newCount - 1] = fce;
+                dst->events[newCount - 1] = (FlattenedCollisionEvent) { .targetObjectIndex = target, .codeId = ancCodeId, .ownerObjectIndex = ancestor };
                 dst->eventCount = newCount;
             }
             ancestor = anc->parentId;
@@ -1855,17 +1874,22 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->oldApplicationHeight = runner->applicationHeight;
     runner->widescreenExtraWidth = 0;
     runner->widescreenExtraHeight = 0;
-    runner->freeCamPanX = 0.0f;
-    runner->freeCamPanY = 0.0f;
-    runner->freeCamZoom = 1.0f;
     runner->applicationSurfaceId = APPLICATION_SURFACE_ID;
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
 
-    repeat(MAX_SURFACES, i) {
-        runner->surfaceStack[i] = -1;
-    }
+    // Initialize audio listener position
+    runner->audioListenerX = 0.0f;
+    runner->audioListenerY = 0.0f;
+    runner->audioListenerZ = 0.0f;
+    runner->audioFalloffModel = 0;
+
+    ParticleSystem_init(runner);
+
+    runner->physicsWorld = NULL;
+    runner->physicsPaused = false;
+    for (int32_t i = 0; i < MAX_SURFACES; i++) runner->surfaceStack[i] = -1;
 
     // Collision compatibility mode is "enabled" for all pre-GM 2022.1 games AND for any post-GM 2022.1 games that have the bit 27 set
     bool isVersionAtLeastGM_2022_1 = DataWin_isVersionAtLeast(dataWin, 2022, 1, 0, 0);
@@ -1928,7 +1952,62 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     return runner;
 }
 
+static void createAutoPhysicsBody(Runner* runner, Instance* inst) {
+    if (!runner->physicsWorld) return;
+    if (!inst->phyActive) return;
+    // Already has a body (e.g. from a prior call or physics_fixture_bind)
+    if (PhysicsWorld_findBodyByInstance(runner->physicsWorld, inst->instanceId)) return;
+
+    DataWin* dataWin = runner->dataWin;
+    GameObject* objDef = &dataWin->objt.objects[inst->objectIndex];
+    if (!objDef->usesPhysics) return;
+    if (objDef->collisionShape == 4) return; // manual shape
+
+    // Determine shape dimensions from the sprite's collision bounding box
+    float shapeW = 0, shapeH = 0;
+    float verts[PHYSICS_MAX_VERTICES * 2];
+    int vertCount = 0;
+
+    if (objDef->collisionShape == 3) {
+        // Polygon: use stored physics vertices (sprite-local pixels, relative to origin)
+        if (objDef->physicsVertexCount > 0 && objDef->physicsVertices) {
+            vertCount = objDef->physicsVertexCount < PHYSICS_MAX_VERTICES ? objDef->physicsVertexCount : PHYSICS_MAX_VERTICES;
+            for (int vi = 0; vi < vertCount; vi++) {
+                verts[vi * 2 + 0] = objDef->physicsVertices[vi].x;
+                verts[vi * 2 + 1] = objDef->physicsVertices[vi].y;
+            }
+        }
+    } else {
+        Sprite* spr = NULL;
+        if (inst->spriteIndex >= 0 && (uint32_t)inst->spriteIndex < dataWin->sprt.count) {
+            spr = &dataWin->sprt.sprites[inst->spriteIndex];
+        }
+        float bbW = spr ? (float)(spr->marginRight - spr->marginLeft + 1) : 32.0f;
+        float bbH = spr ? (float)(spr->marginBottom - spr->marginTop + 1) : 32.0f;
+        shapeW = bbW;
+        shapeH = bbH;
+    }
+
+    PhysicsWorld_createBodyFromDef(
+        runner->physicsWorld,
+        inst->instanceId,
+        inst->x, inst->y,
+        (int)objDef->collisionShape,
+        shapeW, shapeH,
+        vertCount, verts,
+        objDef->density,
+        objDef->friction,
+        objDef->restitution,
+        objDef->isSensor,
+        (int)objDef->group,
+        objDef->linearDamping,
+        objDef->angularDamping,
+        objDef->kinematic
+    );
+}
+
 static inline void dispatchInstanceCreationEvents(Runner* runner, Instance* inst) {
+    createAutoPhysicsBody(runner, inst);
     inst->createEventFired = true;
     Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
     Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
@@ -1981,6 +2060,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     Instance_copyFields(inst, source);
     inst->createEventFired = true;
     if (performEvent) {
+        createAutoPhysicsBody(runner, inst);
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
         Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
     }
@@ -2243,6 +2323,7 @@ static bool adaptPath(Runner* runner, Instance* inst) {
 
     GamePath* path = &dataWin->path.paths[inst->pathIndex];
     if (0.0 >= path->length) return false;
+    if (inst->pathScale == 0.0f) return false;
 
     bool atPathEnd = false;
 
@@ -2422,6 +2503,8 @@ void Runner_getMouseRoomPosition(Runner* runner, GMLReal* outX, GMLReal* outY) {
         int32_t viewX, viewY, viewW, viewH;
         expandViewAxis(pickedCamera->viewX, pickedCamera->viewWidth, gameW, widescreenBaseW, &viewX, &viewW);
         expandViewAxis(pickedCamera->viewY, pickedCamera->viewHeight, gameH, widescreenBaseH, &viewY, &viewH);
+        if (runner->widescreenExtraWidth > 0) viewX = clampExpandedView(viewX, viewW, (int32_t) runner->currentRoom->width);
+        if (runner->widescreenExtraHeight > 0) viewY = clampExpandedView(viewY, viewH, (int32_t) runner->currentRoom->height);
 
         // Scale the picked view's port into FBO space exactly as Runner_drawViews does.
         int32_t portX = (int32_t) ((float) pickedView->portX * displayScaleX + 0.5f);
@@ -3061,10 +3144,93 @@ static int32_t Timeline_findSmaller(Timeline* timeline, float timeStamp) {
 }
 
 // See GameMaker-HTML5's "HandleTimeLine" for reference
+static void runtimeTimelineSync(RuntimeTimeline* rt) {
+    rt->timeline.present = true;
+    rt->timeline.name = rt->name;
+    rt->timeline.momentCount = (uint32_t) arrlen(rt->moments);
+    rt->timeline.moments = rt->moments;
+}
+
+Timeline* Runner_resolveTimeline(Runner* runner, int32_t timelineIndex) {
+    if (runner == nullptr || 0 > timelineIndex) return nullptr;
+    Tmln* tmln = &runner->dataWin->tmln;
+    if ((uint32_t) timelineIndex < tmln->count) {
+        Timeline* tl = &tmln->timelines[timelineIndex];
+        return tl->present ? tl : nullptr;
+    }
+    int32_t runtimeIndex = timelineIndex - (int32_t) tmln->count;
+    if (runtimeIndex < 0 || (int32_t) arrlen(runner->runtimeTimelines) <= runtimeIndex) return nullptr;
+    RuntimeTimeline* rt = &runner->runtimeTimelines[runtimeIndex];
+    runtimeTimelineSync(rt);
+    return rt->timeline.present ? &rt->timeline : nullptr;
+}
+
+int32_t Runner_runtimeTimelineAdd(Runner* runner, const char* name) {
+    RuntimeTimeline rt = {0};
+    rt.name = safeStrdup(name != nullptr ? name : "");
+    runtimeTimelineSync(&rt);
+    arrput(runner->runtimeTimelines, rt);
+    return (int32_t) runner->dataWin->tmln.count + (int32_t) arrlen(runner->runtimeTimelines) - 1;
+}
+
+bool Runner_runtimeTimelineAddMomentScript(Runner* runner, int32_t timelineIndex, int32_t step, int32_t codeId) {
+    if (runner == nullptr || 0 > codeId) return false;
+    Tmln* tmln = &runner->dataWin->tmln;
+    if ((uint32_t) timelineIndex < tmln->count) return false;
+    int32_t runtimeIndex = timelineIndex - (int32_t) tmln->count;
+    if (runtimeIndex < 0 || (int32_t) arrlen(runner->runtimeTimelines) <= runtimeIndex) return false;
+
+    RuntimeTimeline* rt = &runner->runtimeTimelines[runtimeIndex];
+    int32_t momentIndex = -1;
+    int32_t momentCount = (int32_t) arrlen(rt->moments);
+    repeat(momentCount, i) {
+        if ((int32_t) rt->moments[i].step == step) {
+            momentIndex = (int32_t) i;
+            break;
+        }
+        if ((int32_t) rt->moments[i].step > step) {
+            TimelineMoment moment = {0};
+            moment.step = (uint32_t) step;
+            arrins(rt->moments, i, moment);
+            momentIndex = (int32_t) i;
+            break;
+        }
+    }
+    if (momentIndex < 0) {
+        TimelineMoment moment = {0};
+        moment.step = (uint32_t) step;
+        arrput(rt->moments, moment);
+        momentIndex = momentCount;
+    }
+
+    TimelineMoment* moment = &rt->moments[momentIndex];
+    EventAction action = {0};
+    action.codeId = codeId;
+    moment->actionCount++;
+    moment->actions = safeRealloc(moment->actions, moment->actionCount * sizeof(EventAction));
+    moment->actions[moment->actionCount - 1] = action;
+    runtimeTimelineSync(rt);
+    return true;
+}
+
+void Runner_freeRuntimeTimelines(Runner* runner) {
+    if (runner == nullptr) return;
+    repeat((int32_t) arrlen(runner->runtimeTimelines), i) {
+        RuntimeTimeline* rt = &runner->runtimeTimelines[i];
+        repeat((int32_t) arrlen(rt->moments), j) {
+            free(rt->moments[j].actions);
+        }
+        arrfree(rt->moments);
+        free(rt->name);
+    }
+    arrfree(runner->runtimeTimelines);
+    runner->runtimeTimelines = nullptr;
+}
+
 static void tickTimelines(Runner* runner) {
     Tmln* tmln = &runner->dataWin->tmln;
-    // Fast path: if the data.win doesn't have any timelines, we don't need to snapshot instances
-    if (tmln->count == 0)
+    uint32_t runtimeCount = (uint32_t) arrlen(runner->runtimeTimelines);
+    if (tmln->count == 0 && runtimeCount == 0)
         return;
 
     int32_t n = (int32_t) arrlen(runner->instances);
@@ -3085,14 +3251,11 @@ static void tickTimelines(Runner* runner) {
         if (0 > idx)
             continue;
 
-        if ((uint32_t) idx >= tmln->count)
+        Timeline* timeline = Runner_resolveTimeline(runner, idx);
+        if (timeline == nullptr || timeline->momentCount == 0)
             continue;
 
         if (!inst->timelineRunning)
-            continue;
-
-        Timeline* timeline = &tmln->timelines[idx];
-        if (!timeline->present || timeline->momentCount == 0)
             continue;
 
         float maxMoment = (float) timeline->moments[timeline->momentCount - 1].step;
@@ -3135,9 +3298,23 @@ static void tickTimelines(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapBase);
 }
 
+static void physicsBodySyncCallback(int instanceId, float x, float y, float vx, float vy, float angleDeg, void* userData) {
+    Runner* runner = (Runner*)userData;
+    Instance* inst = hmget(runner->instancesById, instanceId);
+    if (inst != NULL) {
+        inst->x = x;
+        inst->y = y;
+        inst->phyPositionX = x;
+        inst->phyPositionY = y;
+        inst->phySpeedX = vx;
+        inst->phySpeedY = vy;
+        inst->phyRotation = angleDeg;
+    }
+}
+
 void Runner_step(Runner* runner) {
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
-    requireMessageFormatted(__FILE__, __LINE__, arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
+    requireMessageFormatted(arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
 
     // Save xprevious/yprevious and path_positionprevious for all active instances
     int32_t prevCount = (int32_t) arrlen(runner->instances);
@@ -3282,6 +3459,7 @@ void Runner_step(Runner* runner) {
     if (RunnerKeyboard_checkReleased(kb, VK_NOKEY)) Runner_executeEventForAll(runner, EVENT_KEYRELEASE, VK_NOKEY);
 
     // Tick timelines
+    ParticleSystem_step(runner);
     tickTimelines(runner);
 
     dispatchMouseEvents(runner);
@@ -3290,12 +3468,21 @@ void Runner_step(Runner* runner) {
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
 
+    // Step physics world (skip if paused)
+    if (runner->physicsWorld != NULL && !runner->physicsPaused) {
+        PhysicsWorld_step(runner->physicsWorld, 1.0f / 60.0f);
+        PhysicsWorld_syncBodies(runner->physicsWorld, runner, physicsBodySyncCallback);
+    }
+
     // Apply motion: friction, gravity, then x += hspeed, y += vspeed
     int32_t motionCount = (int32_t) arrlen(runner->instances);
     int32_t endOfPathSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, OTHER_END_OF_PATH);
     repeat(motionCount, mi) {
         Instance* inst = runner->instances[mi];
         if (!inst->active) continue;
+
+        // Skip manual motion for physics-controlled instances
+        if (inst->phyActive) continue;
 
         // Friction: reduce speed toward zero (HTML5: AdaptSpeed)
         if (inst->friction != 0.0f) {
@@ -3908,5 +4095,6 @@ void Runner_free(Runner* runner) {
     RunnerGamepad_free(runner->gamepads);
     RunnerMouse_free(runner->mouse);
     Instance_free(runner->globalScopeInstance);
+    if (runner->physicsWorld) PhysicsWorld_destroy(runner->physicsWorld);
     free(runner);
 }

@@ -10,6 +10,7 @@
 #include "renderer.h"
 #include "runner_keyboard.h"
 #include "spatial_grid.h"
+#include "physics.h"
 #include "runner_gamepad.h"
 #include "runner_mouse.h"
 #include "vm.h"
@@ -236,7 +237,7 @@ typedef struct {
 
 // A single entry in the depth-sorted draw list. Cached on Runner and rebuilt lazily based on Runner.drawableListStructureDirty / drawableListSortDirty.
 // Filtering on instance->active/visible and runtimeLayer->visible happens at draw time so toggling those does not require invalidating the cache.
-typedef enum { DRAWABLE_TILE, DRAWABLE_INSTANCE, DRAWABLE_LAYER } DrawableType;
+typedef enum { DRAWABLE_TILE, DRAWABLE_INSTANCE, DRAWABLE_LAYER, DRAWABLE_PARTICLE_SYSTEM } DrawableType;
 
 typedef struct {
     DrawableType type;
@@ -246,6 +247,7 @@ typedef struct {
         int32_t tileIndex;
         // Stored as an ID (resolved via Runner_findRuntimeLayerById) instead of a pointer, because layer_create can call arrput on runner->runtimeLayers mid-draw and realloc the array, invalidating any cached pointers.
         int32_t runtimeLayerId;
+        int32_t particleSystemIndex; // index into gSystems array
     };
 } Drawable;
 
@@ -266,6 +268,14 @@ typedef struct {
     RValue* items; // stb_ds dynamic array of RValues
     bool freed;    // true when the slot is destroyed and available for reuse by ds_queue_create
 } DsQueue;
+
+// ds_grid: 2D grid of RValues
+typedef struct {
+    RValue* items; // stb_ds dynamic array of RValues (flattened 2D grid)
+    int32_t width;
+    int32_t height;
+    bool freed;    // true when the slot is destroyed and available for reuse by ds_grid_create
+} DsGrid;
 
 // ===[ GML Buffer System ]===
 
@@ -381,6 +391,12 @@ typedef struct {
     FlattenedCollisionEvent* events;
 } FlattenedCollisionEventList;
 
+typedef struct {
+    char* name;
+    TimelineMoment* moments;
+    Timeline timeline;
+} RuntimeTimeline;
+
 struct Runner {
     DataWin* dataWin;
     VMContext* vmContext;
@@ -421,6 +437,8 @@ struct Runner {
     // Each call pushes its snapshot (append) and pops on normal loop exit; nesting is safe because pushes/pops are LIFO and outer ranges stay untouched under newer pushes.
     Instance** instanceSnapshots;
     SpatialGrid* spatialGrid;
+    PhysicsWorld* physicsWorld;
+    bool physicsPaused;
     uint32_t collisionQueryCounter;
     int32_t pendingRoom;  // -1 = none
     bool gameStartFired;
@@ -447,7 +465,6 @@ struct Runner {
     int32_t oldApplicationHeight;
     int32_t widescreenExtraWidth;
     int32_t widescreenExtraHeight;
-    float freeCamPanX, freeCamPanY, freeCamZoom; // Visual-only free camera.
     // ID returned by renderer->vtable->ensureApplicationSurface each frame. Real surface ID on GL/GL-legacy,
     // APPLICATION_SURFACE_ID (-1) on PS2. This is what BUILTIN_VAR_APPLICATION_SURFACE returns to GML.
     int32_t applicationSurfaceId;
@@ -495,6 +512,7 @@ struct Runner {
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
+    DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 
@@ -506,6 +524,12 @@ struct Runner {
 
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;
+
+    // Audio listener position (3D audio)
+    float audioListenerX;
+    float audioListenerY;
+    float audioListenerZ;
+    int32_t audioFalloffModel;
 
     // INI file state
     IniFile* currentIni;
@@ -566,6 +590,8 @@ struct Runner {
     // GameMaker launcher parameters
     // Just like the original runner, argv[0] is included in gameArgs
     char** gameArgs;
+
+    RuntimeTimeline* runtimeTimelines;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
@@ -599,6 +625,10 @@ void Runner_updateMousePosition(Runner* runner, int32_t winW, int32_t winH, doub
 void Runner_getMouseRoomPosition(Runner* runner, GMLReal* outX, GMLReal* outY);
 // Resolves a camera id (slot index) to its pool entry, or nullptr if out of range / not allocated.
 GMLCamera* Runner_getCameraById(Runner* runner, int32_t id);
+Timeline* Runner_resolveTimeline(Runner* runner, int32_t timelineIndex);
+int32_t Runner_runtimeTimelineAdd(Runner* runner, const char* name);
+bool Runner_runtimeTimelineAddMomentScript(Runner* runner, int32_t timelineIndex, int32_t step, int32_t codeId);
+void Runner_freeRuntimeTimelines(Runner* runner);
 // Resolves the camera assigned to a view, or nullptr if the view index is invalid or has no allocated camera.
 GMLCamera* Runner_getCameraForView(Runner* runner, int32_t viewIndex);
 void Runner_scrollBackgrounds(Runner* runner);

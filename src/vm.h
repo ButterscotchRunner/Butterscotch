@@ -216,6 +216,8 @@ struct VMContext {
     void* currentArrayOwner;
     // SAVEAREF/RESTOREAREF balance tracker.
     int32_t savearefBalance;
+    // Parallel stack for BREAK array writes: slot that owns the array ref currently on the VM stack.
+    RValue** arrayWriteSlotStack;
 
     // Cold: init-only or rare lookups
     BuiltinEntry* builtinMap;
@@ -239,6 +241,8 @@ struct VMContext {
     StringBooleanEntry* loggedUnknownFuncs;
     // "codeName\tfuncName" -> true, for deduplicating stubbed function warnings
     StringBooleanEntry* loggedStubbedFuncs;
+    // "codeName\tvarName\tobjectName" -> true, for deduplicating "no instance found" warnings
+    StringBooleanEntry* loggedNoInstanceFound;
     // Cross-reference map for disassembler: targetCodeIndex -> stb_ds array of callerCodeIndex
     struct { int32_t key; int32_t* value; }* crossRefMap;
     bool alwaysLogUnknownFunctions;

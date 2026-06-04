@@ -243,6 +243,15 @@ static uint32_t resolveFuncOperand(const uint8_t* extraData) {
 // Forward declarations
 static Instance* findInstanceByTarget(VMContext* ctx, int32_t target);
 
+static void pushArrayWriteSlot(VMContext* ctx, RValue* slot) {
+    arrput(ctx->arrayWriteSlotStack, slot);
+}
+
+static RValue* popArrayWriteSlot(VMContext* ctx) {
+    if (arrlen(ctx->arrayWriteSlotStack) == 0) return nullptr;
+    return arrpop(ctx->arrayWriteSlotStack);
+}
+
 // Read array[index]. Returns RVALUE_UNDEFINED when slot is not an array or when index is out of bounds.
 // The returned RValue is a weak view, callers that stash it must strengthen (incRef, strdup).
 static RValue VM_arrayReadAt(RValue* slot, int32_t index) {
@@ -289,7 +298,7 @@ static void storeIntoArraySlot(RValue* slot, RValue val) {
 // Returns the (possibly newly-forked) GMLArray* now in *slot.
 static GMLArray* VM_arrayWriteAt(VMContext* ctx, RValue* slot, int32_t index, RValue val) {
     require(slot != nullptr);
-    requireMessageFormatted(__FILE__, __LINE__, index >= 0, "Trying to write to an array using a negative index! Index: %d", index);
+    requireMessageFormatted(index >= 0, "Trying to write to an array using a negative index! Index: %d", index);
 
     void* intendedOwner;
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -397,7 +406,6 @@ static const char* varTypeToString(uint8_t varType) {
 // for plain variable access.
 static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
     uint8_t varType = (varRef >> 24) & 0xF8;
-    ArrayAccess ret = {0};
     if (varType == VARTYPE_ARRAY) {
         // For array reads, GMS pushes: instanceType then arrayIndex (arrayIndex on top)
         int32_t arrayIndex = stackPopInt32(ctx);
@@ -409,11 +417,7 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
             instanceType = resolveInstanceStackTop(ctx);
         }
 
-        ret.arrayIndex = arrayIndex;
-        ret.instanceType = instanceType;
-        ret.isArray = true;
-        ret.hasInstanceType = true;
-        return ret;
+        return (ArrayAccess){ .arrayIndex = arrayIndex, .instanceType = instanceType, .isArray = true, .hasInstanceType = true };
     }
     if (varType == VARTYPE_STACKTOP) {
         int32_t instanceType = stackPopInt32(ctx);
@@ -423,16 +427,9 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
         if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
             instanceType = resolveInstanceStackTop(ctx);
         }
-        ret.arrayIndex = -1;
-        ret.isArray = false;
-        ret.hasInstanceType = true;
-        ret.instanceType = instanceType;
-        return ret;
+        return (ArrayAccess){ .arrayIndex = -1, .isArray = false, .hasInstanceType = true, .instanceType = instanceType };
     }
-    ret.arrayIndex = -1;
-    ret.isArray = false;
-    ret.hasInstanceType = false;
-    return ret;
+    return (ArrayAccess){ .arrayIndex = -1, .isArray = false, .hasInstanceType = false };
 }
 
 // ===[ Variable Resolution ]===
@@ -657,11 +654,24 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         targetInstance = findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
+            char targetName[128];
             if (instanceType < 100000 && (uint32_t) instanceType < ctx->dataWin->objt.count) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
-                fprintf(stderr, "VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                snprintf(targetName, sizeof(targetName), "%d(%s)", instanceType, gameObject->name);
             } else {
-                fprintf(stderr, "VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                snprintf(targetName, sizeof(targetName), "%d", instanceType);
+            }
+            char* dedupKey = VM_createDedupKey(ctx->currentCodeName, varDef->name);
+            if (0 > shgeti(ctx->loggedNoInstanceFound, dedupKey)) {
+                shput(ctx->loggedNoInstanceFound, dedupKey, true);
+                if (instanceType < 100000 && (uint32_t) instanceType < ctx->dataWin->objt.count) {
+                    GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
+                    fprintf(stderr, "VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                } else {
+                    fprintf(stderr, "VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                }
+            } else {
+                free(dedupKey);
             }
             return RValue_makeReal(0.0);
         }
@@ -752,20 +762,15 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             return RValue_makeMethod(codeIndex, -1);
         }
         // Then try registered built-ins
-        RValue rv = {0};
         ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) varDef->name);
         if (bidx >= 0) {
             BuiltinFunc bf = ctx->builtinMap[bidx].value;
-            rv.type = RVALUE_METHOD;
-            rv.ownsReference = true;
-            rv.gmlStackType = GML_TYPE_VARIABLE;
+            RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
             rv.method = GMLMethod_createBuiltin(bf, -1);
             return rv;
         }
         // Unresolved: return a method stub so CallV can log a single "unknown function" and return undefined instead of bailing out with a scary "unresolvable function reference" error.
-        rv.type = RVALUE_METHOD;
-        rv.ownsReference = true;
-        rv.gmlStackType = GML_TYPE_VARIABLE;
+        RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
         rv.method = GMLMethod_createUnresolved(varDef->name, -1);
         return rv;
     }
@@ -1031,9 +1036,15 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         if (!found) {
             if (ctx->dataWin->objt.count > (uint32_t) instanceType) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
-                char* valAsString = RValue_toString(val);
-                fprintf(stderr, "VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, valAsString);
-                free(valAsString);
+                char* dedupKey = VM_createDedupKey(ctx->currentCodeName, varDef->name);
+                if (0 > shgeti(ctx->loggedNoInstanceFound, dedupKey)) {
+                    shput(ctx->loggedNoInstanceFound, dedupKey, true);
+                    char* valAsString = RValue_toString(val);
+                    fprintf(stderr, "VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, valAsString);
+                    free(valAsString);
+                } else {
+                    free(dedupKey);
+                }
             }
         }
         RValue_free(&val);
@@ -1045,10 +1056,16 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     if (instanceType >= 0) {
         targetInstance = findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
-            const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
-            char* valAsString = RValue_toString(val);
-            fprintf(stderr, "VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
-            free(valAsString);
+            char* dedupKey = VM_createDedupKey(ctx->currentCodeName, varDef->name);
+            if (0 > shgeti(ctx->loggedNoInstanceFound, dedupKey)) {
+                shput(ctx->loggedNoInstanceFound, dedupKey, true);
+                const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
+                char* valAsString = RValue_toString(val);
+                fprintf(stderr, "VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
+                free(valAsString);
+            } else {
+                free(dedupKey);
+            }
             return;
         }
     } else if (instanceType == INSTANCE_OTHER) {
@@ -1305,6 +1322,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     *topSlot = RValue_makeArray(sub);
                 }
                 // Push a weak ref to the sub-array — short-lived, consumed by the next BREAK op.
+                pushArrayWriteSlot(ctx, topSlot);
                 stackPush(ctx, RValue_makeArrayWeak(topSlot->array));
             } else
 #endif
@@ -1344,6 +1362,7 @@ static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot) {
         fresh->owner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
         *slot = RValue_makeArray(fresh);
     }
+    pushArrayWriteSlot(ctx, slot);
     stackPush(ctx, RValue_makeArrayWeak(slot->array));
 }
 #endif
@@ -1541,14 +1560,20 @@ static void handlePop(VMContext* ctx, uint32_t instr, uint8_t type1, uint8_t typ
                     if (instanceType >= 0) {
                         inst = findInstanceByTarget(ctx, instanceType);
                         if (inst == nullptr) {
-                            const char* varTypeName = varTypeToString(varType);
-                            char* valAsString = RValue_toString(val);
-                            if (instanceType < 100000 && (uint32_t) instanceType < ctx->dataWin->objt.count) {
-                                fprintf(stderr, "VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                            char* dedupKey = VM_createDedupKey(ctx->currentCodeName, varDef->name);
+                            if (0 > shgeti(ctx->loggedNoInstanceFound, dedupKey)) {
+                                shput(ctx->loggedNoInstanceFound, dedupKey, true);
+                                const char* varTypeName = varTypeToString(varType);
+                                char* valAsString = RValue_toString(val);
+                                if (instanceType < 100000 && (uint32_t) instanceType < ctx->dataWin->objt.count) {
+                                    fprintf(stderr, "VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                } else {
+                                    fprintf(stderr, "VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                }
+                                free(valAsString);
                             } else {
-                                fprintf(stderr, "VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                free(dedupKey);
                             }
-                            free(valAsString);
                             RValue_free(&val);
                             return;
                         }
@@ -1653,8 +1678,15 @@ static void handleDiv(VMContext* ctx, uint32_t instr) {
     uint8_t type2 = instrType2(instr);
     GMLReal divisor = RValue_toReal(b);
     // In GameMaker's native runner, ONLY integer/integer division throws a hard error on zero, float/variable types rely on IEEE 754 (produces NaN)
-    if ((type1 == GML_TYPE_INT32 || type1 == GML_TYPE_INT64) && (type2 == GML_TYPE_INT32 || type2 == GML_TYPE_INT64)) {
-        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoDiv :: Divide by zero", ctx->currentCodeName);
+    // However, to prevent crashes in edge cases, we check for zero and return a safe value
+    if (divisor == 0.0) {
+        // Return 0 for divide by zero to prevent crashes
+        // This is more permissive than GameMaker but prevents crashes
+        GMLReal result = 0.0;
+        RValue_free(&a);
+        RValue_free(&b);
+        stackPushTyped(ctx, RValue_makeReal(result), instrType2(instr));
+        return;
     }
     GMLReal result = RValue_toReal(a) / divisor;
     RValue_free(&a);
@@ -1666,7 +1698,12 @@ static void handleRem(VMContext* ctx, uint32_t instr) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     int64_t divisor = RValue_toInt64(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
+    if (divisor == 0) {
+        RValue_free(&a);
+        RValue_free(&b);
+        stackPushTyped(ctx, RValue_makeInt64(0), instrType2(instr));
+        return;
+    }
     int64_t result = RValue_toInt64(a) / divisor;
     RValue_free(&a);
     RValue_free(&b);
@@ -1677,7 +1714,12 @@ static void handleMod(VMContext* ctx, uint32_t instr) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     GMLReal divisor = RValue_toReal(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoMod :: Divide by zero", ctx->currentCodeName);
+    if (divisor == 0.0) {
+        RValue_free(&a);
+        RValue_free(&b);
+        stackPushTyped(ctx, RValue_makeReal(0.0), instrType2(instr));
+        return;
+    }
     GMLReal result = GMLReal_fmod(RValue_toReal(a), divisor);
     RValue_free(&a);
     RValue_free(&b);
@@ -2708,6 +2750,7 @@ static void handleBreakPushAF(VMContext* ctx) {
     // Pop index + array ref, push array[index]. Array ref is a weak RVALUE_ARRAY pointer.
     int32_t idx = stackPopInt32(ctx);
     RValue arrayRef = stackPop(ctx);
+    popArrayWriteSlot(ctx);
     RValue result;
     RValue* cell = arrayRef.type == RVALUE_ARRAY ? GMLArray_slot(arrayRef.array, idx) : nullptr;
     if (cell != nullptr) {
@@ -2721,16 +2764,15 @@ static void handleBreakPushAF(VMContext* ctx) {
 }
 
 static void handleBreakPopAF(VMContext* ctx) {
-    // Pop index + array ref + value, store value at array[index].
-    // CoW via VM_arrayWriteAt requires a slot pointer, since the stack-held arrayRef is a weak view, the real slot is whatever variable holds this array.
-    // We can't easily recover the slot here, so we write directly into the array (no CoW fork at this level, fork already happened when the top-level variable was first written, or on a PUSHAC materialisation).
-    // Assert the array is uniquely-owned or matches the current scope owner. A mismatch here means a shared/aliased array is about to be mutated in place, which silently breaks CoW semantics. BC17+ default mode (pass by reference) is expected to satisfy this since fork already happened at the top-level write. If this fires, a CoW path upstream failed to fork.
+    // Pop index + array ref + value, store value at array[index] with CoW semantics via the tracked owner slot.
     int32_t idx = stackPopInt32(ctx);
     RValue arrayRef = stackPop(ctx);
     RValue value = stackPop(ctx);
-    if (arrayRef.type == RVALUE_ARRAY && arrayRef.array != nullptr && idx >= 0) {
+    RValue* slot = popArrayWriteSlot(ctx);
+    if (slot != nullptr) {
+        VM_arrayWriteAt(ctx, slot, idx, value);
+    } else if (arrayRef.type == RVALUE_ARRAY && arrayRef.array != nullptr && idx >= 0) {
         GMLArray* arr = arrayRef.array;
-        requireMessage(arr->refCount == 1 || arr->owner == ctx->currentArrayOwner, "BREAK_POPAF: Writing through shared/aliased array without prior CoW fork");
         GMLArray_growTo(arr, idx + 1);
         storeIntoArraySlot(GMLArray_slot(arr, idx), value);
     }
@@ -2755,6 +2797,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
         sub->owner = parent->owner;
         *parentSlot = RValue_makeArray(sub);
     }
+    pushArrayWriteSlot(ctx, parentSlot);
     stackPush(ctx, RValue_makeArrayWeak(parentSlot->array));
     RValue_free(&arrayRef);
 }
@@ -2819,10 +2862,7 @@ static void handleBreakPushRef(VMContext* ctx, const uint8_t* extraData) {
                 stackPushTyped(ctx, RValue_makeMethod(cache->scriptCodeIndex, -1), GML_TYPE_VARIABLE);
                 return;
             }
-            RValue rv = {0};
-            rv.type = RVALUE_METHOD;
-            rv.ownsReference = true;
-            rv.gmlStackType = GML_TYPE_VARIABLE;
+            RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
             if (cache->builtin != nullptr) {
                 rv.method = GMLMethod_createBuiltin((BuiltinFunc) cache->builtin, -1);
             } else {
@@ -3496,7 +3536,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // Validate that no code entry exceeds MAX_CODE_LOCALS (the VM uses stack-allocated arrays of this size)
     repeat(dataWin->code.count, i) {
         CodeEntry* entry = &dataWin->code.entries[i];
-        requireMessageFormatted(__FILE__, __LINE__, MAX_CODE_LOCALS > entry->localsCount, "Code %s has too many locals!", entry->name);
+        requireMessageFormatted(MAX_CODE_LOCALS > entry->localsCount, "Code %s has too many locals!", entry->name);
     }
 
     VMBuiltins_checkIfBuiltinVarTableIsSorted();
@@ -3558,6 +3598,7 @@ VMContext* VM_create(DataWin* dataWin) {
     }
     ctx->currentArrayOwner = nullptr;
     ctx->savearefBalance = 0;
+    ctx->arrayWriteSlotStack = nullptr;
 
     // Find the varID for "creator" self variable (used by instance_create)
     ctx->creatorVarID = -1;
@@ -3673,6 +3714,10 @@ void VM_reset(VMContext* ctx) {
 
     // Reset stack
     ctx->stack.top = 0;
+    arrfree(ctx->arrayWriteSlotStack);
+    ctx->arrayWriteSlotStack = nullptr;
+    ctx->currentArrayOwner = nullptr;
+    ctx->savearefBalance = 0;
 
     // Free any remaining call frames
     CallFrame* frame = ctx->callStack;
@@ -3784,19 +3829,20 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
 
     // Save current frame
-    CallFrame frame = {0};
-    frame.savedIP = ctx->ip;
-    frame.savedCodeEnd = ctx->codeEnd;
-    frame.savedBytecodeBase = ctx->bytecodeBase;
-    frame.savedLocals = ctx->localVars;
-    frame.savedLocalsCount = ctx->localVarCount;
-    frame.savedCodeName = ctx->currentCodeName;
-    frame.savedSavearefBalance = ctx->savearefBalance;
-    frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
-    frame.savedScriptArgs = ctx->scriptArgs;
-    frame.savedScriptArgCount = ctx->scriptArgCount;
-    frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
-    frame.parent = ctx->callStack;
+    CallFrame frame = (CallFrame) {
+        .savedIP = ctx->ip,
+        .savedCodeEnd = ctx->codeEnd,
+        .savedBytecodeBase = ctx->bytecodeBase,
+        .savedLocals = ctx->localVars,
+        .savedLocalsCount = ctx->localVarCount,
+        .savedCodeName = ctx->currentCodeName,
+        .savedSavearefBalance = ctx->savearefBalance,
+        .savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap,
+        .savedScriptArgs = ctx->scriptArgs,
+        .savedScriptArgCount = ctx->scriptArgCount,
+        .savedCurrentCodeIndex = ctx->currentCodeIndex,
+        .parent = ctx->callStack,
+    };
     ctx->callStack = &frame;
     ctx->callDepth++;
 
@@ -4358,8 +4404,6 @@ void VM_buildCrossReferences(VMContext* ctx) {
     }
 }
 
-struct VMDisasOpcodeEntry { uint32_t key; bool value; };
-
 void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     DataWin* dw = ctx->dataWin;
     require(dw->code.count > (uint32_t) codeIndex);
@@ -4399,7 +4443,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     uint32_t codeLength = code->length;
 
     // Pass 1: collect branch targets for labels
-    struct VMDisasOpcodeEntry *branchTargets = nullptr;
+    struct { uint32_t key; bool value; }* branchTargets = nullptr;
     {
         uint32_t ip = 0;
         while (codeLength > ip) {
@@ -4520,6 +4564,10 @@ void VM_free(VMContext* ctx) {
         free(ctx->loggedStubbedFuncs[i].key);
     }
     shfree(ctx->loggedStubbedFuncs);
+    repeat(shlen(ctx->loggedNoInstanceFound), i) {
+        free(ctx->loggedNoInstanceFound[i].key);
+    }
+    shfree(ctx->loggedNoInstanceFound);
 #ifdef ENABLE_VM_TRACING
     shfree(ctx->varReadsToBeTraced);
     shfree(ctx->varWritesToBeTraced);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -18,7 +17,9 @@
     for (typeof(count) index = 0; index < (count); index++) \
     for (type* item = &(array)[index]; item; item = NULL)
 
-#define repeat(n, it) for (typeof(n) it = 0; it < (n); ++it)
+// The "typeof((typeof(n))0" is used to remove the "const" from the typeof
+
+#define repeat(n, it) for (typeof((typeof(n))0) it = 0; it < (n); it++)
 
 #define require(condition) \
     do { \
@@ -36,17 +37,13 @@ abort(); \
 } \
 } while (0)
 
-static void requireMessageFormatted(const char *file, int line, bool condition, const char *fmt, ...) {
-    if (condition)
-        return;
-    va_list args;
-    fprintf(stderr, "Requirement failed at %s:%d: ", file, line);
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    va_end(args);
-    fputc('\n', stderr);
-    abort();
-}
+#define requireMessageFormatted(condition, fmt, ...) \
+do { \
+if (!(condition)) { \
+fprintf(stderr, "Requirement failed at %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+abort(); \
+} \
+} while (0)
 
 #define requireNotNull(ptr) ({ \
 typeof(ptr) _val = (ptr); \

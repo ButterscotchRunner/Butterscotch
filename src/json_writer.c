@@ -40,10 +40,10 @@ static void writeEscapedString(JsonWriter* writer, const char* str) {
 // ===[ Lifecycle ]===
 
 JsonWriter JsonWriter_create(void) {
-    JsonWriter ret = {0};
-    ret.out = StringBuilder_create(256);
-    ret.needsComma = false;
-    return ret;
+    return (JsonWriter) {
+        .out = StringBuilder_create(256),
+        .needsComma = false,
+    };
 }
 
 void JsonWriter_free(JsonWriter* writer) {

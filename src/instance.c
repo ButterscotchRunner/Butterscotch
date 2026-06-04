@@ -48,6 +48,12 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
     inst->friction = 0.0f;
     inst->gravity = 0.0f;
     inst->gravityDirection = 270.0f;
+    inst->phyPositionX = (float) x;
+    inst->phyPositionY = (float) y;
+    inst->phySpeedX = 0.0f;
+    inst->phySpeedY = 0.0f;
+    inst->phyRotation = 0.0f;
+    inst->phyActive = false;
     inst->pathIndex = -1;
     inst->pathScale = 1.0f;
     inst->timelineIndex = -1;
@@ -128,6 +134,12 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->friction = source->friction;
     destination->gravity = source->gravity;
     destination->gravityDirection = source->gravityDirection;
+    destination->phyPositionX = source->phyPositionX;
+    destination->phyPositionY = source->phyPositionY;
+    destination->phySpeedX = source->phySpeedX;
+    destination->phySpeedY = source->phySpeedY;
+    destination->phyRotation = source->phyRotation;
+    destination->phyActive = source->phyActive;
     destination->pathIndex = source->pathIndex;
     destination->pathPosition = source->pathPosition;
     destination->pathPositionPrevious = source->pathPositionPrevious;
