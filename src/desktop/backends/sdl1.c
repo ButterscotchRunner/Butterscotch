@@ -193,6 +193,15 @@ static int32_t SDLKeyToGml(int sdlkey) {
     }
 }
 
+static int32_t SDLMouseButtonToGml(int sdlButton) {
+    switch (sdlButton) {
+        case SDL_BUTTON_LEFT: return GML_MB_LEFT;
+        case SDL_BUTTON_RIGHT: return GML_MB_RIGHT;
+        case SDL_BUTTON_MIDDLE: return GML_MB_MIDDLE;
+        default: return -1;
+    }
+}
+
 bool platformHandleEvents(void) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -208,6 +217,24 @@ bool platformHandleEvents(void) {
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                if (e.button.button == SDL_BUTTON_WHEELUP) {
+                    RunnerMouse_onWheel(g_runner->mouse, 1.0);
+                } else if (e.button.button == SDL_BUTTON_WHEELDOWN) {
+                    RunnerMouse_onWheel(g_runner->mouse, -1.0);
+                } else {
+                    int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                    if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
+                }
+                break;
+            case SDL_MOUSEBUTTONUP:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                if (e.button.button != SDL_BUTTON_WHEELUP && e.button.button != SDL_BUTTON_WHEELDOWN) {
+                    int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                    if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
+                }
                 break;
             case SDL_VIDEORESIZE:
                 fbWidth = e.resize.w;
