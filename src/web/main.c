@@ -171,10 +171,9 @@ void* loop() {
             double remainingMs = nextFrameTimeMs - emscripten_get_now();
             // Sleep for most of the remaining time, then spin-wait for precision.
             if (remainingMs > 2.0) {
-                struct timespec ts = {
-                    .tv_sec = 0,
-                    .tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0)
-                };
+                struct timespec ts;
+                ts.tv_sec = 0;
+                ts.tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0);
                 nanosleep(&ts, nullptr);
             }
             while (emscripten_get_now() < nextFrameTimeMs) {
