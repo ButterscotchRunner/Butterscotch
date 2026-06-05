@@ -79,6 +79,12 @@ SDL2_LIBS += $(shell pkg-config --libs sdl2)
 LIBS += $(SDL2_LIBS)
 DEFINES += -DUSE_SDL2
 endif
+ifeq ($(DESKTOP_BACKEND),sdl3)
+SDL3_LIBS += $(shell pkg-config --libs sdl3)
+LIBS += $(SDL3_LIBS)
+DEFINES += -DUSE_SDL3
+endif
+
 
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
 ifndef DISABLE_LEGACY_GL
