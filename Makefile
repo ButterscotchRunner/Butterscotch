@@ -18,10 +18,10 @@ DEFINES := -DENABLE_VM_GML_PROFILER \
 		   -DENABLE_VM_OPCODE_PROFILER \
 		   -DENABLE_VM_STUB_LOGS \
 		   -DENABLE_VM_TRACING
-INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/image -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/md5 -Ivendor/sha1 -Ivendor/base64 -Ivendor/bzip2 -Ivendor/box2d
+INCLUDES := -I. -Isrc -Ivendor/stb/ds -Isrc/image -Ivendor/stb/image -Ivendor/stb/vorbis -Ivendor/md5 -Ivendor/sha1 -Ivendor/base64 -Ivendor/bzip2
 
 HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c $(wildcard vendor/box2d/src/*.c)
+SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 DESKTOP_BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
