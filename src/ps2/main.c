@@ -290,7 +290,8 @@ int main(int argc, char* argv[]) {
     PS2Overlay_drawStatusScreen(nullptr, "Initializing controller...", false);
 
     int ret;
-    ret = 1;//SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
+    ret = SifLoadModule("rom0:SIO2MAN", 0, NULL);
+//SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
     if (0 > ret) {
         printf("Failed to load freesio2: %d\n", ret);
         return 1;
@@ -310,7 +311,7 @@ int main(int argc, char* argv[]) {
         printf("Failed to init libmc: %d\n", ret);
         return 1;
     }
-    ret = 1;//SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
+    ret = SifLoadModule("rom0:PADMAN", 0, NULL);//SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
     if (0 > ret) {
         printf("Failed to load freepad: %d\n", ret);
         return 1;
