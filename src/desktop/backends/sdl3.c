@@ -143,7 +143,7 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
         height,
         SDL_PIXELFORMAT_XRGB8888,
         framebuffer,
-        width * 4,
+        width * 4
     );
 }
 
