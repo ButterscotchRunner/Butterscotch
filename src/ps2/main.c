@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
+#include "iopcontrol.h"
 
 #ifdef GPROF_PROFILING
 #include <ps2prof.h>
@@ -241,8 +242,8 @@ int main(int argc, char* argv[]) {
     sbv_patch_enable_lmb();
 
     // Reset IOP borrowed from uLaunchELF
-    //while (!SifIopReset(NULL, 0)) {};
-    //while (!SifIopSync()) {};
+    while (!SifIopReset(NULL, 0)) {};
+    while (!SifIopSync()) {};
 
     SifInitRpc(0);
 
