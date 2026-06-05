@@ -21,10 +21,8 @@ void PS2Utils_extractDeviceKey(const char* path) {
     result[length] = '\0';
 
     // The "result" is the device key as a string (example: "mass" or "host")
-    deviceKey = (PS2DeviceKey) {
-        .key = result,
-        .usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0,
-    };
+    deviceKey.key = result;
+    deviceKey.usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0;
 
     deviceKeyLoaded = true;
 }
