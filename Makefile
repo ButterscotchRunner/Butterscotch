@@ -3,7 +3,7 @@
 
 CC := cc
 
-CFLAGS := -O2 -DNDEBUG
+CFLAGS := -O2 -DNDEBUG -mno-sse
 
 ifeq ($(OS),Windows_NT)
 OS := Windows
