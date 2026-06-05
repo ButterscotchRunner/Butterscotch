@@ -714,7 +714,7 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
         GameObject* objDef = &runner->dataWin->objt.objects[instance->objectIndex];
 
         if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
-            fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
+            fprintf(stderr, "VM: Instance %s (instanceId=%u,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, (unsigned int)instance->instanceId, (int)instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
         }
     }
 #endif

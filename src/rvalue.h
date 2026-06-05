@@ -283,7 +283,7 @@ static inline char* RValue_toString(RValue val) {
             return safeStrdup(buf);
         }
         case RVALUE_INT32:
-            snprintf(buf, sizeof(buf), "%d", val.int32);
+            snprintf(buf, sizeof(buf), "%d", (int)val.int32);
             return safeStrdup(buf);
 #ifndef NO_RVALUE_INT64
         case RVALUE_INT64:
@@ -301,14 +301,14 @@ static inline char* RValue_toString(RValue val) {
             return safeStrdup(buf);
 #if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
-            snprintf(buf, sizeof(buf), "<method:%d>", val.method->codeIndex);
+            snprintf(buf, sizeof(buf), "<method:%d>", (int)val.method->codeIndex);
             return safeStrdup(buf);
 #endif
         case RVALUE_STRUCT:
-            snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
+            snprintf(buf, sizeof(buf), "<struct:%u>", (unsigned int)(val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0));
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
-            snprintf(buf, sizeof(buf), "%d", val.int32);
+            snprintf(buf, sizeof(buf), "%d", (int)val.int32);
             return safeStrdup(buf);
     }
     return safeStrdup("");
@@ -346,7 +346,7 @@ static inline char* RValue_toStringTyped(RValue val) {
             snprintf(buf, sizeof(buf), "real(%.16g)", (double) val.real);
             return safeStrdup(buf);
         case RVALUE_INT32:
-            snprintf(buf, sizeof(buf), "int32(%d)", val.int32);
+            snprintf(buf, sizeof(buf), "int32(%d)", (int)val.int32);
             return safeStrdup(buf);
 #ifndef NO_RVALUE_INT64
         case RVALUE_INT64:
@@ -369,11 +369,11 @@ static inline char* RValue_toStringTyped(RValue val) {
             return safeStrdup(buf);
 #if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
-            snprintf(buf, sizeof(buf), "method(code=%d, inst=%d)", val.method->codeIndex, val.method->boundInstanceId);
+            snprintf(buf, sizeof(buf), "method(code=%d, inst=%d)", (int)val.method->codeIndex, (int)val.method->boundInstanceId);
             return safeStrdup(buf);
 #endif
         case RVALUE_STRUCT:
-            snprintf(buf, sizeof(buf), "struct(id=%u)", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
+            snprintf(buf, sizeof(buf), "struct(id=%u)", (unsigned int)(val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0));
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
             snprintf(buf, sizeof(buf), "assetref(type=%d, index=%d)", (int)val.assetRefType, (int)val.int32);
