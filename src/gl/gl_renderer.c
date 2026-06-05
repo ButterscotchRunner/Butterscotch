@@ -235,8 +235,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
                 GLint location = glGetUniformLocation(gl->GMLShaders[i], UniformName);
                 glUseProgram(gl->GMLShaders[i]);
                 glUniform1i(location, SamplerIndex);
-                SamplerIndex += 1;
                 gl->Sampler2DLookUpTable[i][b] = SamplerIndex;
+                SamplerIndex += 1;
             }
 
         }
@@ -1905,17 +1905,13 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texID) 
         return;
     }
     if (slot == 0) {
-        fprintf(stderr, "GL: Invalid Texture Stage\n");
-        return;
-    }
-    if (slot == 1) {
     gl->currentTextureId = texID;  
     }
     if (slot > MAX_TEXTURE_STAGES) {
         fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
         return;  
     }
-    glActiveTexture(GL_TEXTURE0 + (slot-1));
+    glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texID);
     glActiveTexture(GL_TEXTURE0);
 
