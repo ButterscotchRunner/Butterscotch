@@ -240,6 +240,12 @@ int main(int argc, char* argv[]) {
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
+    // Reset IOP borrowed from uLaunchELF
+    while (!SifIopReset(NULL, 0)) {};
+    while (!SifIopSync()) {};
+
+    SifInitRpc(0);
+
     // Ask the kernel how much main RAM we actually have.
     MAX_MEMORY_BYTES = (int) GetMemorySize();
 
@@ -290,8 +296,7 @@ int main(int argc, char* argv[]) {
     PS2Overlay_drawStatusScreen(nullptr, "Initializing controller...", false);
 
     int ret;
-    ret = SifLoadModule("rom0:SIO2MAN", 0, NULL);
-//SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
+    ret = SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
     if (0 > ret) {
         printf("Failed to load freesio2: %d\n", ret);
         return 1;
@@ -311,7 +316,7 @@ int main(int argc, char* argv[]) {
         printf("Failed to init libmc: %d\n", ret);
         return 1;
     }
-    ret = SifLoadModule("rom0:PADMAN", 0, NULL);//SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
+    ret = SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
     if (0 > ret) {
         printf("Failed to load freepad: %d\n", ret);
         return 1;
