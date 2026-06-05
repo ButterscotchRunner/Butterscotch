@@ -10,7 +10,33 @@
 #include "renderer.h"
 #include "runner_keyboard.h"
 #include "spatial_grid.h"
-#include "physics.h"
+// Physics stubs (physics.h/c removed)
+#define PHYSICS_MAX_VERTICES 12
+typedef struct PhysicsWorld_ PhysicsWorld;
+typedef struct PhysicsBody_ PhysicsBody;
+typedef void (*PhysicsBodySyncCallback)(int instanceId, float x, float y, float vx, float vy, float angleDeg, void* userData);
+PhysicsWorld* PhysicsWorld_create(float gx, float gy);
+void PhysicsWorld_destroy(PhysicsWorld* world);
+void PhysicsWorld_step(PhysicsWorld* world, float dt);
+PhysicsBody* PhysicsWorld_findBodyByInstance(PhysicsWorld* world, int instanceId);
+PhysicsBody* PhysicsWorld_createBodyFromDef(
+    PhysicsWorld* world,
+    int instanceId,
+    float x, float y,
+    int shapeType,
+    float shapeW, float shapeH,
+    int vertexCount,
+    const float* vertices,
+    float density,
+    float friction,
+    float restitution,
+    bool sensor,
+    int collisionGroup,
+    float linearDamping,
+    float angularDamping,
+    bool kinematic
+);
+void PhysicsWorld_syncBodies(PhysicsWorld* world, void* user, PhysicsBodySyncCallback cb);
 #include "runner_gamepad.h"
 #include "runner_mouse.h"
 #include "vm.h"

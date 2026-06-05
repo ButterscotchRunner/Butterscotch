@@ -417,23 +417,6 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "path_scale", BUILTIN_VAR_PATH_SCALE },
     { "path_speed", BUILTIN_VAR_PATH_SPEED },
     { "persistent", BUILTIN_VAR_PERSISTENT },
-    { "phy_active", BUILTIN_VAR_PHY_ACTIVE },
-    { "phy_angular_damping", BUILTIN_VAR_PHY_ANGULAR_DAMPING },
-    { "phy_collision_group", BUILTIN_VAR_PHY_COLISION_GROUP },
-    { "phy_density", BUILTIN_VAR_PHY_DENSITY },
-    { "phy_fixed_rotation", BUILTIN_VAR_PHY_FIXED_ROTATION },
-    { "phy_friction", BUILTIN_VAR_PHY_FRICTION },
-    { "phy_inertia", BUILTIN_VAR_PHY_INERTIA },
-    { "phy_kinematic", BUILTIN_VAR_PHY_KINEMATIC },
-    { "phy_linear_damping", BUILTIN_VAR_PHY_LINEAR_DAMPING },
-    { "phy_mass", BUILTIN_VAR_PHY_MASS },
-    { "phy_position_x", BUILTIN_VAR_PHY_POSITION_X },
-    { "phy_position_y", BUILTIN_VAR_PHY_POSITION_Y },
-    { "phy_restitution", BUILTIN_VAR_PHY_RESTITUTION },
-    { "phy_rotation", BUILTIN_VAR_PHY_ROTATION },
-    { "phy_sleeping", BUILTIN_VAR_PHY_SLEEPING },
-    { "phy_speed_x", BUILTIN_VAR_PHY_SPEED_X },
-    { "phy_speed_y", BUILTIN_VAR_PHY_SPEED_Y },
     { "pi", BUILTIN_VAR_PI },
     { "room", BUILTIN_VAR_ROOM },
     { "room_first", BUILTIN_VAR_ROOM_FIRST },
@@ -756,25 +739,13 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeReal(-1.0);
         }
 
-        // Physics properties (Box2D). When physics is inactive, phy_position mirrors x/y like GameMaker.
+        // Physics properties (stubbed - return defaults)
         case BUILTIN_VAR_PHY_POSITION_X:
-            if (inst == nullptr) return RValue_makeReal(0.0);
-            return RValue_makeReal(inst->phyActive ? inst->phyPositionX : inst->x);
         case BUILTIN_VAR_PHY_POSITION_Y:
-            if (inst == nullptr) return RValue_makeReal(0.0);
-            return RValue_makeReal(inst->phyActive ? inst->phyPositionY : inst->y);
         case BUILTIN_VAR_PHY_SPEED_X:
-            if (inst == nullptr) return RValue_makeReal(0.0);
-            return RValue_makeReal(inst->phySpeedX);
         case BUILTIN_VAR_PHY_SPEED_Y:
-            if (inst == nullptr) return RValue_makeReal(0.0);
-            return RValue_makeReal(inst->phySpeedY);
         case BUILTIN_VAR_PHY_ROTATION:
-            if (inst == nullptr) return RValue_makeReal(0.0);
-            return RValue_makeReal(inst->phyRotation);
         case BUILTIN_VAR_PHY_ACTIVE:
-            if (inst == nullptr) return RValue_makeBool(false);
-            return RValue_makeBool(inst->phyActive);
         case BUILTIN_VAR_PHY_COLISION_GROUP:
         case BUILTIN_VAR_PHY_MASS:
         case BUILTIN_VAR_PHY_INERTIA:
@@ -786,7 +757,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
         case BUILTIN_VAR_PHY_KINEMATIC:
         case BUILTIN_VAR_PHY_SLEEPING:
         case BUILTIN_VAR_PHY_FIXED_ROTATION:
-            // Physics properties not fully implemented - return defaults
+            // Physics stubbed - return defaults
             if (inst == nullptr) break;
             return RValue_makeReal(0.0);
 
@@ -1420,39 +1391,13 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             return;
         }
 
-        // Physics properties (Box2D)
+        // Physics properties (stubbed - ignore writes)
         case BUILTIN_VAR_PHY_POSITION_X:
-            if (inst == nullptr) return;
-            inst->phyPositionX = (float) RValue_toReal(val);
-            if (!inst->phyActive) {
-                inst->x = inst->phyPositionX;
-                SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
-            }
-            return;
         case BUILTIN_VAR_PHY_POSITION_Y:
-            if (inst == nullptr) return;
-            inst->phyPositionY = (float) RValue_toReal(val);
-            if (!inst->phyActive) {
-                inst->y = inst->phyPositionY;
-                SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
-            }
-            return;
         case BUILTIN_VAR_PHY_SPEED_X:
-            if (inst == nullptr) return;
-            inst->phySpeedX = (float) RValue_toReal(val);
-            return;
         case BUILTIN_VAR_PHY_SPEED_Y:
-            if (inst == nullptr) return;
-            inst->phySpeedY = (float) RValue_toReal(val);
-            return;
         case BUILTIN_VAR_PHY_ROTATION:
-            if (inst == nullptr) return;
-            inst->phyRotation = (float) RValue_toReal(val);
-            return;
         case BUILTIN_VAR_PHY_ACTIVE:
-            if (inst == nullptr) return;
-            inst->phyActive = RValue_toBool(val);
-            return;
         case BUILTIN_VAR_PHY_COLISION_GROUP:
         case BUILTIN_VAR_PHY_MASS:
         case BUILTIN_VAR_PHY_INERTIA:
@@ -1464,7 +1409,7 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_PHY_KINEMATIC:
         case BUILTIN_VAR_PHY_SLEEPING:
         case BUILTIN_VAR_PHY_FIXED_ROTATION:
-            // Physics properties not fully implemented - ignore writes
+            // Physics stubbed - ignore writes
             return;
 
         // Path instance variables (writable)
@@ -14204,182 +14149,33 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeString(ctx->runner->gameArgs[index]);
 }
 
-// ===[ Physics Builtins ]===
+// ===[ Physics Builtins (stubbed) ]===
 
-static RValue builtin_physics_world_create(VMContext* ctx, RValue* args, int32_t argCount) {
-    float gx = 0, gy = 0;
-    if (argCount >= 2) {
-        gx = RValue_toReal(args[0]);
-        gy = RValue_toReal(args[1]);
-    }
-    if (ctx->runner->physicsWorld) PhysicsWorld_destroy(ctx->runner->physicsWorld);
-    ctx->runner->physicsWorld = PhysicsWorld_create(gx, gy);
-    return RValue_makeReal(0); // world id (always 0 for single-world)
-}
-
-static RValue builtin_physics_world_delete(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (ctx->runner->physicsWorld) {
-        PhysicsWorld_destroy(ctx->runner->physicsWorld);
-        ctx->runner->physicsWorld = NULL;
-    }
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_world_gravity(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 3 > argCount) return RValue_makeUndefined();
-    float gx = RValue_toReal(args[1]);
-    float gy = RValue_toReal(args[2]);
-    PhysicsWorld_setGravity(ctx->runner->physicsWorld, gx, gy);
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (!ctx->runner->physicsWorld) return RValue_makeReal(-1);
-    int id = PhysicsFixture_create(ctx->runner->physicsWorld);
-    return RValue_makeReal(id);
-}
-
-static RValue builtin_physics_fixture_delete(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 1 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_delete(ctx->runner->physicsWorld, RValue_toInt32(args[0]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_circle_shape(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setCircle(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_box_shape(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 3 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setBox(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]), RValue_toReal(args[2]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_polygon_shape(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 1 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setPolygon(ctx->runner->physicsWorld, RValue_toInt32(args[0]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_add_point(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 3 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_addPoint(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]), RValue_toReal(args[2]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_sensor(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setSensor(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toBool(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_density(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setDensity(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_friction(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setFriction(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_restitution(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setRestitution(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_linear_damping(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setLinearDamping(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_angular_damping(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setAngularDamping(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_set_collision_group(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    PhysicsFixture_setCollisionGroup(ctx->runner->physicsWorld, RValue_toInt32(args[0]), RValue_toInt32(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_fixture_bind(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeReal(-1);
-    int fixtureId = RValue_toInt32(args[0]);
-    int instanceId = RValue_toInt32(args[1]);
-    Instance* inst = hmget(ctx->runner->instancesById, instanceId);
-    if (!inst) return RValue_makeReal(-1);
-    PhysicsBody* body = PhysicsFixture_bind(ctx->runner->physicsWorld, fixtureId, instanceId, inst->x, inst->y);
-    if (!body) return RValue_makeReal(-1);
-    inst->phyActive = true;
-    return RValue_makeReal(0);
-}
-
-static RValue builtin_physics_apply_force(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 3 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyForce(body, RValue_toReal(args[1]), RValue_toReal(args[2]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_apply_local_force(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 5 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyLocalForce(body, RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), RValue_toReal(args[4]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_apply_impulse(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 3 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyImpulse(body, RValue_toReal(args[1]), RValue_toReal(args[2]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_apply_local_impulse(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 5 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyLocalImpulse(body, RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), RValue_toReal(args[4]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_apply_torque(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyTorque(body, RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_apply_angular_impulse(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (!ctx->runner->physicsWorld || 2 > argCount) return RValue_makeUndefined();
-    int instanceId = RValue_toInt32(args[0]);
-    PhysicsBody* body = PhysicsWorld_findBodyByInstance(ctx->runner->physicsWorld, instanceId);
-    if (body) PhysicsBody_applyAngularImpulse(body, RValue_toReal(args[1]));
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_pause_enable(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    ctx->runner->physicsPaused = true;
-    return RValue_makeUndefined();
-}
-
-static RValue builtin_physics_pause_disable(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    ctx->runner->physicsPaused = false;
-    return RValue_makeUndefined();
-}
+STUB_RETURN_ZERO(physics_world_create)
+STUB_RETURN_UNDEFINED(physics_world_delete)
+STUB_RETURN_UNDEFINED(physics_world_gravity)
+STUB_RETURN_VALUE(physics_fixture_create, -1)
+STUB_RETURN_UNDEFINED(physics_fixture_delete)
+STUB_RETURN_UNDEFINED(physics_fixture_set_circle_shape)
+STUB_RETURN_UNDEFINED(physics_fixture_set_box_shape)
+STUB_RETURN_UNDEFINED(physics_fixture_set_polygon_shape)
+STUB_RETURN_UNDEFINED(physics_fixture_add_point)
+STUB_RETURN_UNDEFINED(physics_fixture_set_sensor)
+STUB_RETURN_UNDEFINED(physics_fixture_set_density)
+STUB_RETURN_UNDEFINED(physics_fixture_set_friction)
+STUB_RETURN_UNDEFINED(physics_fixture_set_restitution)
+STUB_RETURN_UNDEFINED(physics_fixture_set_linear_damping)
+STUB_RETURN_UNDEFINED(physics_fixture_set_angular_damping)
+STUB_RETURN_UNDEFINED(physics_fixture_set_collision_group)
+STUB_RETURN_VALUE(physics_fixture_bind, -1)
+STUB_RETURN_UNDEFINED(physics_apply_force)
+STUB_RETURN_UNDEFINED(physics_apply_local_force)
+STUB_RETURN_UNDEFINED(physics_apply_impulse)
+STUB_RETURN_UNDEFINED(physics_apply_local_impulse)
+STUB_RETURN_UNDEFINED(physics_apply_torque)
+STUB_RETURN_UNDEFINED(physics_apply_angular_impulse)
+STUB_RETURN_UNDEFINED(physics_pause_enable)
+STUB_RETURN_UNDEFINED(physics_pause_disable)
 
 // ===[ REGISTRATION ]===
 
@@ -15374,36 +15170,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_vertex_texture_color", builtin_draw_vertex_texture_color);
     VM_registerBuiltin(ctx, "sprite_get_info", builtin_sprite_get_info);
 
-    // Physics functions
-    VM_registerBuiltin(ctx, "physics_world_create", builtin_physics_world_create);
-    VM_registerBuiltin(ctx, "physics_world_delete", builtin_physics_world_delete);
-    VM_registerBuiltin(ctx, "physics_world_gravity", builtin_physics_world_gravity);
-    VM_registerBuiltin(ctx, "physics_fixture_create", builtin_physics_fixture_create);
-    VM_registerBuiltin(ctx, "physics_fixture_delete", builtin_physics_fixture_delete);
-    VM_registerBuiltin(ctx, "physics_fixture_set_circle_shape", builtin_physics_fixture_set_circle_shape);
-    VM_registerBuiltin(ctx, "physics_fixture_set_box_shape", builtin_physics_fixture_set_box_shape);
-    VM_registerBuiltin(ctx, "physics_fixture_set_polygon_shape", builtin_physics_fixture_set_polygon_shape);
-    VM_registerBuiltin(ctx, "physics_fixture_add_point", builtin_physics_fixture_add_point);
-    VM_registerBuiltin(ctx, "physics_fixture_set_sensor", builtin_physics_fixture_set_sensor);
-    VM_registerBuiltin(ctx, "physics_fixture_set_density", builtin_physics_fixture_set_density);
-    VM_registerBuiltin(ctx, "physics_fixture_set_friction", builtin_physics_fixture_set_friction);
-    VM_registerBuiltin(ctx, "physics_fixture_set_restitution", builtin_physics_fixture_set_restitution);
-    VM_registerBuiltin(ctx, "physics_fixture_set_linear_damping", builtin_physics_fixture_set_linear_damping);
-    VM_registerBuiltin(ctx, "physics_fixture_set_angular_damping", builtin_physics_fixture_set_angular_damping);
-    VM_registerBuiltin(ctx, "physics_fixture_set_collision_group", builtin_physics_fixture_set_collision_group);
-    VM_registerBuiltin(ctx, "physics_fixture_bind", builtin_physics_fixture_bind);
-    VM_registerBuiltin(ctx, "physics_apply_force", builtin_physics_apply_force);
-    VM_registerBuiltin(ctx, "physics_apply_local_force", builtin_physics_apply_local_force);
-    VM_registerBuiltin(ctx, "physics_apply_impulse", builtin_physics_apply_impulse);
-    VM_registerBuiltin(ctx, "physics_apply_local_impulse", builtin_physics_apply_local_impulse);
-    VM_registerBuiltin(ctx, "physics_apply_torque", builtin_physics_apply_torque);
-    VM_registerBuiltin(ctx, "physics_apply_angular_impulse", builtin_physics_apply_angular_impulse);
-    VM_registerBuiltin(ctx, "physics_pause_enable", builtin_physics_pause_enable);
-    VM_registerBuiltin(ctx, "physics_pause_disable", builtin_physics_pause_disable);
 }
 
-// Physics stubs (physics.c excluded from build)
-#include "physics.h"
+// Physics stubs (physics.h/c removed)
+typedef struct PhysicsWorld_ PhysicsWorld;
+typedef struct PhysicsBody_ PhysicsBody;
 #include <stdlib.h>
 
 PhysicsWorld* PhysicsWorld_create(float gx, float gy) {
