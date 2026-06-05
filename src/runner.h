@@ -708,6 +708,7 @@ uint32_t Runner_getNextLayerId(Runner* runner);
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer);
 // Sets the active state of the instance
 static inline void Runner_setActiveState(Runner* runner, Instance* instance, bool active) {
+    (void)runner;
 #ifdef ENABLE_VM_TRACING
     if (active != instance->active) {
         GameObject* objDef = &runner->dataWin->objt.objects[instance->objectIndex];
