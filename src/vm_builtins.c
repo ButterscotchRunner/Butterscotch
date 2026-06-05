@@ -911,6 +911,11 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
 
+        case BUILTIN_VAR_MOUSE_BUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getButton(runner->mouse));
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getLastButton(runner->mouse));
+
         case BUILTIN_VAR_MOUSE_X: {
             GMLReal mouseRoomX, mouseRoomY;
             Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
@@ -1360,6 +1365,10 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             return;
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             runner->keyboard->lastKey = RValue_toInt32(val);
+            return;
+
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            runner->mouse->lastButton = RValue_toInt32(val);
             return;
 
         // View properties
