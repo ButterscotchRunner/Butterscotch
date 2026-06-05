@@ -3868,7 +3868,7 @@ void Runner_dumpState(Runner* runner) {
 static void writeRValueJson(JsonWriter* w, RValue val) {
     switch (val.type) {
         case RVALUE_REAL:
-            JsonWriter_double(w, val.real);
+            JsonWriter_double(w, (double) val.real);
             break;
         case RVALUE_INT32:
             JsonWriter_int(w, val.int32);
@@ -3970,8 +3970,8 @@ char* Runner_dumpStateJson(Runner* runner) {
         JsonWriter_propertyString(&w, "parentObjectName", parentName);
         JsonWriter_propertyInt(&w, "parentObjectIndex", parentId);
 
-        JsonWriter_propertyDouble(&w, "x", inst->x);
-        JsonWriter_propertyDouble(&w, "y", inst->y);
+        JsonWriter_propertyDouble(&w, "x", (double) inst->x);
+        JsonWriter_propertyDouble(&w, "y", (double) inst->y);
         JsonWriter_propertyInt(&w, "depth", inst->depth);
 
         // Sprite
@@ -3979,19 +3979,19 @@ char* Runner_dumpStateJson(Runner* runner) {
         JsonWriter_beginObject(&w);
         JsonWriter_propertyString(&w, "name", spriteName);
         JsonWriter_propertyInt(&w, "index", inst->spriteIndex);
-        JsonWriter_propertyDouble(&w, "imageIndex", inst->imageIndex);
-        JsonWriter_propertyDouble(&w, "imageSpeed", inst->imageSpeed);
+        JsonWriter_propertyDouble(&w, "imageIndex", (double) inst->imageIndex);
+        JsonWriter_propertyDouble(&w, "imageSpeed", (double) inst->imageSpeed);
         JsonWriter_endObject(&w);
 
         // Scale
         JsonWriter_key(&w, "scale");
         JsonWriter_beginObject(&w);
-        JsonWriter_propertyDouble(&w, "x", inst->imageXscale);
-        JsonWriter_propertyDouble(&w, "y", inst->imageYscale);
+        JsonWriter_propertyDouble(&w, "x", (double) inst->imageXscale);
+        JsonWriter_propertyDouble(&w, "y", (double) inst->imageYscale);
         JsonWriter_endObject(&w);
 
-        JsonWriter_propertyDouble(&w, "angle", inst->imageAngle);
-        JsonWriter_propertyDouble(&w, "alpha", inst->imageAlpha);
+        JsonWriter_propertyDouble(&w, "angle", (double) inst->imageAngle);
+        JsonWriter_propertyDouble(&w, "alpha", (double) inst->imageAlpha);
         JsonWriter_propertyInt(&w, "blend", inst->imageBlend);
         JsonWriter_propertyBool(&w, "visible", inst->visible);
         JsonWriter_propertyBool(&w, "active", inst->active);
@@ -4063,8 +4063,8 @@ char* Runner_dumpStateJson(Runner* runner) {
         JsonWriter_propertyInt(&w, "height", tile->height);
         JsonWriter_propertyInt(&w, "depth", tile->tileDepth);
         JsonWriter_propertyInt(&w, "instanceID", tile->instanceID);
-        JsonWriter_propertyDouble(&w, "scaleX", tile->scaleX);
-        JsonWriter_propertyDouble(&w, "scaleY", tile->scaleY);
+        JsonWriter_propertyDouble(&w, "scaleX", (double) tile->scaleX);
+        JsonWriter_propertyDouble(&w, "scaleY", (double) tile->scaleY);
         JsonWriter_propertyInt(&w, "color", tile->color);
 
         ptrdiff_t layerIdx = hmgeti(runner->tileLayerMap, tile->tileDepth);
