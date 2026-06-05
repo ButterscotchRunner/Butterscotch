@@ -3,7 +3,7 @@
 
 CC := cc
 
-CFLAGS := -O2 -DNDEBUG -msse
+CFLAGS := -O2 -DNDEBUG
 
 ifeq ($(OS),Windows_NT)
 OS := Windows
@@ -74,6 +74,11 @@ ifeq ($(DESKTOP_BACKEND),sdl1)
 SDL1_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl)
 LIBS += $(SDL1_LIBS)
 DEFINES += -DUSE_SDL1
+endif
+ifeq ($(DESKTOP_BACKEND),sdl2)
+SDL2_LIBS += $(shell pkg-config --libs sdl2)
+LIBS += $(SDL2_LIBS)
+DEFINES += -DUSE_SDL2
 endif
 
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns

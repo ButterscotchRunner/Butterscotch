@@ -260,6 +260,14 @@ if(PLATFORM STREQUAL "desktop")
         find_package(SDL REQUIRED)
         target_include_directories(butterscotch PUBLIC ${SDL_INCLUDE_DIR})
         set(BACKEND_LIBRARIES ${SDL_LIBRARY})
+    elseif(DESKTOP_BACKEND STREQUAL "sdl2")
+        add_compile_definitions(USE_SDL2)
+
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(SDL2 REQUIRED sdl2)
+        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
     endif()
     target_link_libraries(butterscotch ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
     target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
@@ -385,10 +393,10 @@ elseif(PLATFORM STREQUAL "ps2")
     endif()
 
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
+    # -Werror=double-promotion: Warn when something is being promoted to a double
     # -fomit-frame-pointer: frees a register on a target with tight register pressure
     # -ffast-math: enables aggressive floating point optimizations
-    # -Wno-error: Don't treat warnings as errors (PS2 toolchain has many warnings from vendor code)
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -fomit-frame-pointer -ffast-math -Wno-error)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math)
 
     if(PS2)
         # Compiling on the Docker container
