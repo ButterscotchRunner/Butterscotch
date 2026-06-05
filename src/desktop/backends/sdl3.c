@@ -79,10 +79,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 
     Uint32 flags;
-    if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
-    else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+    flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
 
     fbWidth = reqW;
     fbHeight = reqH;
@@ -94,20 +91,17 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     );
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
-
         const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id);
-
         if (mode != NULL) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode->w, mode->h, SDL_GetError());
             fbWidth = mode->w;
             fbHeight = mode->h;
-
             window = SDL_CreateWindow(
-                    title,
-                    fbWidth,
-                    fbHeight,
-                    flags
+                title,
+                fbWidth,
+                fbHeight,
+                flags
             );
         }
     }
