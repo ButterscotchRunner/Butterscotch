@@ -324,8 +324,12 @@ static void dirListPush(FileSystemDirEntry** list, const char* name, bool isDire
     repeat(arrlen(*list), i) {
         if (strcmp((*list)[i].name, name) == 0) return;
     }
-    FileSystemDirEntry entry = { .name = safeStrdup(name), .isDirectory = isDirectory };
-    arrput(*list, entry);
+    {
+        FileSystemDirEntry entry = {0};
+        entry.name = safeStrdup(name);
+        entry.isDirectory = isDirectory;
+        arrput(*list, entry);
+    }
 }
 
 // Enumerates a single on-disk directory, appending its entries to the list. Missing directories are silently skipped.
@@ -394,25 +398,25 @@ static FileSystemDirEntry* overlayListDirectory(FileSystem* fs, const char* rela
 // ===[ Vtable ]===
 
 static FileSystemVtable overlayFileSystemVtable = {
-    .resolvePath = overlayResolvePath,
-    .fileExists = overlayFileExists,
-    .readFileText = overlayReadFileText,
-    .writeFileText = overlayWriteFileText,
-    .deleteFile = overlayDeleteFile,
-    .readFileBinary = overlayReadFileBinary,
-    .writeFileBinary = overlayWriteFileBinary,
-    .binaryOpen = overlayBinaryOpen,
-    .binaryClose = overlayBinaryClose,
-    .binaryRead = overlayBinaryRead,
-    .binaryWrite = overlayBinaryWrite,
-    .binaryTell = overlayBinaryTell,
-    .binarySeek = overlayBinarySeek,
-    .binarySize = overlayBinarySize,
-    .binaryRewrite = overlayBinaryRewrite,
-    .directoryExists = overlayDirectoryExists,
-    .createDirectory = overlayCreateDirectory,
-    .deleteDirectory = overlayDeleteDirectory,
-    .listDirectory = overlayListDirectory,
+    overlayResolvePath,
+    overlayFileExists,
+    overlayReadFileText,
+    overlayWriteFileText,
+    overlayDeleteFile,
+    overlayReadFileBinary,
+    overlayWriteFileBinary,
+    overlayBinaryOpen,
+    overlayBinaryClose,
+    overlayBinaryRead,
+    overlayBinaryWrite,
+    overlayBinaryTell,
+    overlayBinarySeek,
+    overlayBinarySize,
+    overlayBinaryRewrite,
+    overlayDirectoryExists,
+    overlayCreateDirectory,
+    overlayDeleteDirectory,
+    overlayListDirectory,
 };
 
 // ===[ Lifecycle ]===

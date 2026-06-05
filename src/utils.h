@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <math.h>
 
 #include "real_type.h"
@@ -37,13 +38,17 @@ abort(); \
 } \
 } while (0)
 
-#define requireMessageFormatted(condition, fmt, ...) \
-do { \
-if (!(condition)) { \
-fprintf(stderr, "Requirement failed at %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
-abort(); \
-} \
-} while (0)
+static inline void requireMessageFormatted(bool condition, const char* file, int line, const char* fmt, ...) {
+    if (!condition) {
+        va_list args;
+        va_start(args, fmt);
+        fprintf(stderr, "Requirement failed at %s:%d: ", file, line);
+        vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
+        va_end(args);
+        abort();
+    }
+}
 
 #define requireNotNull(ptr) ({ \
 typeof(ptr) _val = (ptr); \

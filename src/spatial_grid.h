@@ -59,7 +59,14 @@ static inline SpatialGridRange SpatialGrid_computeCellRange(SpatialGrid* grid, G
     if (minGridY > grid->gridHeight - 1) minGridY = grid->gridHeight - 1;
     if (maxGridX > grid->gridWidth - 1) maxGridX = grid->gridWidth - 1;
     if (maxGridY > grid->gridHeight - 1) maxGridY = grid->gridHeight - 1;
-    return (SpatialGridRange){ minGridX, minGridY, maxGridX, maxGridY };
+    {
+        SpatialGridRange _r;
+        _r.minGridX = minGridX;
+        _r.minGridY = minGridY;
+        _r.maxGridX = maxGridX;
+        _r.maxGridY = maxGridY;
+        return _r;
+    }
 }
 
 static inline bool SpatialGrid_instanceOverlapsRange(Instance* instance, SpatialGridRange range) {

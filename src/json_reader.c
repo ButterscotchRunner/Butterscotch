@@ -357,11 +357,10 @@ JsonValue* JsonReader_parse(const char* json) {
         pos = 3;
     }
 
-    JsonParser parser = {
-        .input = json,
-        .position = pos,
-        .length = len,
-    };
+    JsonParser parser;
+    parser.input = json;
+    parser.position = pos;
+    parser.length = len;
 
     JsonValue* result = parseValue(&parser);
 

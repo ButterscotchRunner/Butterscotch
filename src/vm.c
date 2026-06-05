@@ -298,7 +298,7 @@ static void storeIntoArraySlot(RValue* slot, RValue val) {
 // Returns the (possibly newly-forked) GMLArray* now in *slot.
 static GMLArray* VM_arrayWriteAt(VMContext* ctx, RValue* slot, int32_t index, RValue val) {
     require(slot != nullptr);
-    requireMessageFormatted(index >= 0, "Trying to write to an array using a negative index! Index: %d", index);
+    requireMessageFormatted(index >= 0, __FILE__, __LINE__, "Trying to write to an array using a negative index! Index: %d", index);
 
     void* intendedOwner;
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -417,7 +417,14 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
             instanceType = resolveInstanceStackTop(ctx);
         }
 
-        return (ArrayAccess){ .arrayIndex = arrayIndex, .instanceType = instanceType, .isArray = true, .hasInstanceType = true };
+        {
+            ArrayAccess _aa;
+            _aa.arrayIndex = arrayIndex;
+            _aa.instanceType = instanceType;
+            _aa.isArray = 1;
+            _aa.hasInstanceType = 1;
+            return _aa;
+        }
     }
     if (varType == VARTYPE_STACKTOP) {
         int32_t instanceType = stackPopInt32(ctx);
@@ -427,9 +434,22 @@ static ArrayAccess popArrayAccess(VMContext* ctx, uint32_t varRef) {
         if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_STACKTOP) {
             instanceType = resolveInstanceStackTop(ctx);
         }
-        return (ArrayAccess){ .arrayIndex = -1, .isArray = false, .hasInstanceType = true, .instanceType = instanceType };
+        {
+            ArrayAccess _aa;
+            _aa.arrayIndex = -1;
+            _aa.isArray = 0;
+            _aa.hasInstanceType = 1;
+            _aa.instanceType = instanceType;
+            return _aa;
+        }
     }
-    return (ArrayAccess){ .arrayIndex = -1, .isArray = false, .hasInstanceType = false };
+    {
+        ArrayAccess _aa;
+        _aa.arrayIndex = -1;
+        _aa.isArray = 0;
+        _aa.hasInstanceType = 0;
+        return _aa;
+    }
 }
 
 // ===[ Variable Resolution ]===
@@ -765,12 +785,12 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
         ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) varDef->name);
         if (bidx >= 0) {
             BuiltinFunc bf = ctx->builtinMap[bidx].value;
-            RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+            RValue rv = {0}; rv.type = RVALUE_METHOD; rv.ownsReference = true; rv.gmlStackType = GML_TYPE_VARIABLE;
             rv.method = GMLMethod_createBuiltin(bf, -1);
             return rv;
         }
         // Unresolved: return a method stub so CallV can log a single "unknown function" and return undefined instead of bailing out with a scary "unresolvable function reference" error.
-        RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+        RValue rv = {0}; rv.type = RVALUE_METHOD; rv.ownsReference = true; rv.gmlStackType = GML_TYPE_VARIABLE;
         rv.method = GMLMethod_createUnresolved(varDef->name, -1);
         return rv;
     }
@@ -2862,7 +2882,7 @@ static void handleBreakPushRef(VMContext* ctx, const uint8_t* extraData) {
                 stackPushTyped(ctx, RValue_makeMethod(cache->scriptCodeIndex, -1), GML_TYPE_VARIABLE);
                 return;
             }
-            RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+            RValue rv = {0}; rv.type = RVALUE_METHOD; rv.ownsReference = true; rv.gmlStackType = GML_TYPE_VARIABLE;
             if (cache->builtin != nullptr) {
                 rv.method = GMLMethod_createBuiltin((BuiltinFunc) cache->builtin, -1);
             } else {
@@ -3536,7 +3556,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // Validate that no code entry exceeds MAX_CODE_LOCALS (the VM uses stack-allocated arrays of this size)
     repeat(dataWin->code.count, i) {
         CodeEntry* entry = &dataWin->code.entries[i];
-        requireMessageFormatted(MAX_CODE_LOCALS > entry->localsCount, "Code %s has too many locals!", entry->name);
+        requireMessageFormatted(MAX_CODE_LOCALS > entry->localsCount, __FILE__, __LINE__, "Code %s has too many locals!", entry->name);
     }
 
     VMBuiltins_checkIfBuiltinVarTableIsSorted();
@@ -3829,20 +3849,19 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
 
     // Save current frame
-    CallFrame frame = (CallFrame) {
-        .savedIP = ctx->ip,
-        .savedCodeEnd = ctx->codeEnd,
-        .savedBytecodeBase = ctx->bytecodeBase,
-        .savedLocals = ctx->localVars,
-        .savedLocalsCount = ctx->localVarCount,
-        .savedCodeName = ctx->currentCodeName,
-        .savedSavearefBalance = ctx->savearefBalance,
-        .savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap,
-        .savedScriptArgs = ctx->scriptArgs,
-        .savedScriptArgCount = ctx->scriptArgCount,
-        .savedCurrentCodeIndex = ctx->currentCodeIndex,
-        .parent = ctx->callStack,
-    };
+    CallFrame frame;
+    frame.savedIP = ctx->ip;
+    frame.savedCodeEnd = ctx->codeEnd;
+    frame.savedBytecodeBase = ctx->bytecodeBase;
+    frame.savedLocals = ctx->localVars;
+    frame.savedLocalsCount = ctx->localVarCount;
+    frame.savedCodeName = ctx->currentCodeName;
+    frame.savedSavearefBalance = ctx->savearefBalance;
+    frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
+    frame.savedScriptArgs = ctx->scriptArgs;
+    frame.savedScriptArgCount = ctx->scriptArgCount;
+    frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
+    frame.parent = ctx->callStack;
     ctx->callStack = &frame;
     ctx->callDepth++;
 

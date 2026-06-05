@@ -43,7 +43,7 @@ struct PhysicsWorld_ {
 PhysicsWorld* PhysicsWorld_create(float gx, float gy) {
     PhysicsWorld* world = (PhysicsWorld*)calloc(1, sizeof(PhysicsWorld));
     b2WorldDef def = b2DefaultWorldDef();
-    def.gravity = (b2Vec2){ gx * DEFAULT_MPP, gy * DEFAULT_MPP };
+    def.gravity.x = gx * DEFAULT_MPP; def.gravity.y = gy * DEFAULT_MPP;
     world->worldId = b2CreateWorld(&def);
     world->worldValid = true;
     world->metersPerPixel = DEFAULT_MPP;
@@ -63,7 +63,10 @@ void PhysicsWorld_setGravity(PhysicsWorld* world, float gx, float gy) {
     if (!world || !world->worldValid) return;
     world->gravityX = gx;
     world->gravityY = gy;
-    b2World_SetGravity(world->worldId, (b2Vec2){ gx * world->metersPerPixel, gy * world->metersPerPixel });
+    {
+        b2Vec2 _g = { gx * world->metersPerPixel, gy * world->metersPerPixel };
+        b2World_SetGravity(world->worldId, _g);
+    }
 }
 
 void PhysicsWorld_step(PhysicsWorld* world, float dt) {
@@ -199,7 +202,7 @@ PhysicsBody* PhysicsFixture_bind(PhysicsWorld* world, int id, int instanceId, fl
 
     b2BodyDef bodyDef = b2DefaultBodyDef();
     bodyDef.type = (ft->density > 0) ? b2_dynamicBody : b2_staticBody;
-    bodyDef.position = (b2Vec2){ mx, my };
+    bodyDef.position.x = mx; bodyDef.position.y = my;
     bodyDef.linearDamping = ft->linearDamping;
     bodyDef.angularDamping = ft->angularDamping;
     bodyDef.userData = (void*)(intptr_t)instanceId;
@@ -214,7 +217,10 @@ PhysicsBody* PhysicsFixture_bind(PhysicsWorld* world, int id, int instanceId, fl
     shapeDef.filter.groupIndex = ft->collisionGroup;
 
     if (ft->shapeType == 0) {
-        b2Circle circle = { .center = (b2Vec2){ 0, 0 }, .radius = ft->radius * mpp };
+        b2Circle circle;
+        circle.center.x = 0;
+        circle.center.y = 0;
+        circle.radius = ft->radius * mpp;
         b2CreateCircleShape(bodyId, &shapeDef, &circle);
     } else if (ft->shapeType == 1) {
         b2Polygon box = b2MakeBox(ft->w * 0.5f * mpp, ft->h * 0.5f * mpp);
@@ -255,29 +261,43 @@ PhysicsBody* PhysicsWorld_findBodyByInstance(PhysicsWorld* world, int instanceId
 void PhysicsBody_applyForce(PhysicsBody* body, float fx, float fy) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    b2Body_ApplyForceToCenter(be->bodyId, (b2Vec2){ fx, fy }, true);
+    {
+        b2Vec2 _fv = { fx, fy };
+        b2Body_ApplyForceToCenter(be->bodyId, _fv, true);
+    }
 }
 
 void PhysicsBody_applyLocalForce(PhysicsBody* body, float fx, float fy, float lx, float ly) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    b2Vec2 worldForce = b2Body_GetWorldVector(be->bodyId, (b2Vec2){ fx, fy });
-    b2Vec2 worldPoint = b2Body_GetWorldPoint(be->bodyId, (b2Vec2){ lx, ly });
-    b2Body_ApplyForce(be->bodyId, worldForce, worldPoint, true);
+    {
+        b2Vec2 _fa = { fx, fy };
+        b2Vec2 _la = { lx, ly };
+        b2Vec2 worldForce = b2Body_GetWorldVector(be->bodyId, _fa);
+        b2Vec2 worldPoint = b2Body_GetWorldPoint(be->bodyId, _la);
+        b2Body_ApplyForce(be->bodyId, worldForce, worldPoint, true);
+    }
 }
 
 void PhysicsBody_applyImpulse(PhysicsBody* body, float ix, float iy) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    b2Body_ApplyLinearImpulseToCenter(be->bodyId, (b2Vec2){ ix, iy }, true);
+    {
+        b2Vec2 _iv = { ix, iy };
+        b2Body_ApplyLinearImpulseToCenter(be->bodyId, _iv, true);
+    }
 }
 
 void PhysicsBody_applyLocalImpulse(PhysicsBody* body, float ix, float iy, float lx, float ly) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    b2Vec2 worldImpulse = b2Body_GetWorldVector(be->bodyId, (b2Vec2){ ix, iy });
-    b2Vec2 worldPoint = b2Body_GetWorldPoint(be->bodyId, (b2Vec2){ lx, ly });
-    b2Body_ApplyLinearImpulse(be->bodyId, worldImpulse, worldPoint, true);
+    {
+        b2Vec2 _ia = { ix, iy };
+        b2Vec2 _la = { lx, ly };
+        b2Vec2 worldImpulse = b2Body_GetWorldVector(be->bodyId, _ia);
+        b2Vec2 worldPoint = b2Body_GetWorldPoint(be->bodyId, _la);
+        b2Body_ApplyLinearImpulse(be->bodyId, worldImpulse, worldPoint, true);
+    }
 }
 
 void PhysicsBody_applyTorque(PhysicsBody* body, float torque) {
@@ -295,16 +315,22 @@ void PhysicsBody_applyAngularImpulse(PhysicsBody* body, float impulse) {
 void PhysicsBody_setPosition(PhysicsBody* body, float x, float y) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    float mpp = be->metersPerPixel;
-    b2Body_SetTransform(be->bodyId, (b2Vec2){ x * mpp, y * mpp }, b2Body_GetRotation(be->bodyId));
+    {
+        float mpp = be->metersPerPixel;
+        b2Vec2 _p = { x * mpp, y * mpp };
+        b2Body_SetTransform(be->bodyId, _p, b2Body_GetRotation(be->bodyId));
+    }
     b2Body_SetAwake(be->bodyId, true);
 }
 
 void PhysicsBody_setVelocity(PhysicsBody* body, float vx, float vy) {
     BodyEntry* be = decodeBody(body);
     if (!be) return;
-    float mpp = be->metersPerPixel;
-    b2Body_SetLinearVelocity(be->bodyId, (b2Vec2){ vx * mpp, vy * mpp });
+    {
+        float mpp = be->metersPerPixel;
+        b2Vec2 _v = { vx * mpp, vy * mpp };
+        b2Body_SetLinearVelocity(be->bodyId, _v);
+    }
 }
 
 void PhysicsBody_setAngle(PhysicsBody* body, float angle) {
@@ -367,7 +393,7 @@ PhysicsBody* PhysicsWorld_createBodyFromDef(
 
     b2BodyDef bodyDef = b2DefaultBodyDef();
     bodyDef.type = bodyType;
-    bodyDef.position = (b2Vec2){ mx, my };
+    bodyDef.position.x = mx; bodyDef.position.y = my;
     bodyDef.linearDamping = safeLinearDamping;
     bodyDef.angularDamping = safeAngularDamping;
     bodyDef.userData = (void*)(intptr_t)instanceId;
@@ -382,7 +408,10 @@ PhysicsBody* PhysicsWorld_createBodyFromDef(
     shapeDef.filter.groupIndex = safeGroup;
 
     if (shapeType == 0 && shapeW > 0) {
-        b2Circle circle = { .center = (b2Vec2){ 0, 0 }, .radius = shapeW * mpp };
+        b2Circle circle;
+        circle.center.x = 0;
+        circle.center.y = 0;
+        circle.radius = shapeW * mpp;
         b2CreateCircleShape(bodyId, &shapeDef, &circle);
     } else if (shapeType == 1 && shapeW > 0 && shapeH > 0) {
         b2Polygon box = b2MakeBox(shapeW * 0.5f * mpp, shapeH * 0.5f * mpp);

@@ -79,7 +79,8 @@ static inline int32_t TextUtils_utf8AdvanceCodepoints(const char* str, int32_t b
 
 static inline int32_t TextUtils_utf8CodepointCount(const char* str, int32_t byteLen) {
     int32_t count = 0;
-    for (int32_t i = 0; i < byteLen; i++) {
+    int32_t i;
+    for (i = 0; i < byteLen; i++) {
         if (((uint8_t)str[i] & 0xC0) != 0x80) {
             count++;
         }
@@ -169,7 +170,8 @@ static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
     int32_t len = (int32_t) strlen(text);
 
     // Scan until we find a #
-    for (int32_t i = 0; len > i; i++) {
+    int32_t i;
+    for (i = 0; len > i; i++) {
         if (text[i] == '#') {
             // Found one - allocate and process from here
             char* result = safeMalloc(len + 1);
@@ -184,7 +186,8 @@ static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
             }
 
             // Process the rest of the string
-            for (int32_t j = i + 1; len > j; j++) {
+            int32_t j;
+            for (j = i + 1; len > j; j++) {
                 if (text[j] == '#') {
                     if (out > 0 && result[out - 1] == '\\') {
                         result[out - 1] = '#';
@@ -196,18 +199,33 @@ static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
                 }
             }
             result[out] = '\0';
-            return (PreprocessedText){ .text = result, .owning = true };
+            {
+                PreprocessedText _pt;
+                _pt.text = result;
+                _pt.owning = 1;
+                return _pt;
+            }
         }
     }
 
     // No # found, return original pointer without allocating
-    return (PreprocessedText){ .text = text, .owning = false };
+        {
+            PreprocessedText _pt;
+            _pt.text = text;
+            _pt.owning = 0;
+            return _pt;
+        }
 }
 
 // Preprocess GML text ONLY if the runner is not GameMaker: Studio 2
 static inline PreprocessedText TextUtils_preprocessGmlTextIfNeeded(Runner* runner, const char* text) {
     if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0))
-        return (PreprocessedText){ .text = text, .owning = false };
+    {
+        PreprocessedText _pt;
+        _pt.text = text;
+        _pt.owning = 0;
+        return _pt;
+    }
     return TextUtils_preprocessGmlText(text);
 }
 
@@ -224,7 +242,8 @@ static inline bool TextUtils_isWhitespaceChar(char c) {
 // Counts the number of lines in preprocessed text, treating \r\n and \n\r as single breaks
 static inline int32_t TextUtils_countLines(const char* text, int32_t len) {
     int32_t count = 1;
-    for (int32_t i = 0; len > i; i++) {
+    int32_t i;
+    for (i = 0; len > i; i++) {
         if (TextUtils_isNewlineChar(text[i])) {
             count++;
             // Treat \r\n or \n\r as a single line break
@@ -248,10 +267,20 @@ static inline int32_t TextUtils_skipNewline(const char* text, int32_t lineEnd, i
 // Port of yyFontManager.prototype.Split_TextBlock from GameMaker-HTML5 to C.
 // Pass "0 > maxWidth" to disable wrapping (returns the original pointer non-owning).
 static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, int32_t maxWidth) {
-    if (text == nullptr) return (PreprocessedText) { .text = text, .owning = false };
+    if (text == nullptr) {
+        PreprocessedText _pt;
+        _pt.text = text;
+        _pt.owning = 0;
+        return _pt;
+    }
 
     int32_t len = (int32_t) strlen(text);
-    if (0 == len) return (PreprocessedText) { .text = text, .owning = false };
+    if (0 == len) {
+        PreprocessedText _pt;
+        _pt.text = text;
+        _pt.owning = 0;
+        return _pt;
+    }
 
     int32_t linewidth = (0 > maxWidth) ? 10000000 : maxWidth; // means nothing will "wrap"
 
@@ -322,7 +351,12 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
                 // NOT a new line, but we didn't move on... fatal error. Probably a single char doesn't even fit!
                 if (end == start) {
                     out[outLen] = '\0';
-                    return (PreprocessedText){ .text = out, .owning = true };
+                    {
+                        PreprocessedText _pt;
+                        _pt.text = out;
+                        _pt.owning = 1;
+                        return _pt;
+                    }
                 }
 
                 // If we don't END on a "space", OR if the next character isn't a space AS WELL.
@@ -366,7 +400,12 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
         start = ++end;
     }
     out[outLen] = '\0';
-    return (PreprocessedText) { .text = out, .owning = true };
+    {
+        PreprocessedText _pt;
+        _pt.text = out;
+        _pt.owning = 1;
+        return _pt;
+    }
 }
 
 static inline char* TextUtils_trimTrailingWhitespace(char* str) {

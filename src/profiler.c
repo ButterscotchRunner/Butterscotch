@@ -106,7 +106,9 @@ void Profiler_exit(Profiler* p) {
 
     ptrdiff_t i = shgeti(p->entries, f->name);
     if (0 > i) {
-        ProfilerStats stats = { .nanos = selfNanos, .ops = selfOps };
+        ProfilerStats stats = {0};
+        stats.nanos = selfNanos;
+        stats.ops = selfOps;
         shput(p->entries, f->name, stats);
     } else {
         p->entries[i].value.nanos += selfNanos;

@@ -649,7 +649,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         int32_t instanceCount = (int32_t) arrlen(runner->instances);
         repeat(instanceCount, i) {
             Instance* inst = runner->instances[i];
-            Drawable d = { .type = DRAWABLE_INSTANCE, .depth = inst->depth };
+            Drawable d = {0}; d.type = DRAWABLE_INSTANCE; d.depth = inst->depth;
             d.instance = inst;
             arrput(runner->cachedDrawables, d);
         }
@@ -657,7 +657,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
             repeat(room->tileCount, i) {
                 RoomTile* tile = &room->tiles[i];
-                Drawable d = { .type = DRAWABLE_TILE, .depth = tile->tileDepth };
+                Drawable d = {0}; d.type = DRAWABLE_TILE; d.depth = tile->tileDepth;
                 d.tileIndex = (int32_t) i;
                 arrput(runner->cachedDrawables, d);
             }
@@ -665,7 +665,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             size_t runtimeLayersCount = arrlenu(runner->runtimeLayers);
             repeat(runtimeLayersCount, i) {
                 RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
-                Drawable d = { .type = DRAWABLE_LAYER, .depth = runtimeLayer->depth };
+                Drawable d = {0}; d.type = DRAWABLE_LAYER; d.depth = runtimeLayer->depth;
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
@@ -675,7 +675,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         repeat(psCount, k) {
             int32_t sysIdx, depth;
             ParticleSystem_getActiveInfo(k, &sysIdx, &depth);
-            Drawable d = { .type = DRAWABLE_PARTICLE_SYSTEM, .depth = depth };
+            Drawable d = {0}; d.type = DRAWABLE_PARTICLE_SYSTEM; d.depth = depth;
             d.particleSystemIndex = sysIdx;
             arrput(runner->cachedDrawables, d);
         }
@@ -1310,18 +1310,17 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     uint32_t maxLayerId = 0;
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
-        RuntimeLayer runtimeLayer = {
-            .id = layerSource->id,
-            .depth = layerSource->depth,
-            .visible = layerSource->visible,
-            .xOffset = layerSource->xOffset,
-            .yOffset = layerSource->yOffset,
-            .hSpeed = layerSource->hSpeed,
-            .vSpeed = layerSource->vSpeed,
-            .dynamic = false,
-            .dynamicName = nullptr,
-            .elements = nullptr,
-        };
+        RuntimeLayer runtimeLayer;
+        runtimeLayer.id = layerSource->id;
+        runtimeLayer.depth = layerSource->depth;
+        runtimeLayer.visible = layerSource->visible;
+        runtimeLayer.xOffset = layerSource->xOffset;
+        runtimeLayer.yOffset = layerSource->yOffset;
+        runtimeLayer.hSpeed = layerSource->hSpeed;
+        runtimeLayer.vSpeed = layerSource->vSpeed;
+        runtimeLayer.dynamic = 0;
+        runtimeLayer.dynamicName = nullptr;
+        runtimeLayer.elements = nullptr;
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
     }
@@ -1347,29 +1346,27 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             spriteElement->animationSpeedType = src->animationSpeedType;
             spriteElement->frameIndex = src->frameIndex;
             spriteElement->rotation = src->rotation;
-            RuntimeLayerElement el = {
-                .id = Runner_getNextLayerId(runner),
-                .type = RuntimeLayerElementType_Sprite,
-                .visible = true,
-                .alpha = 1.0f,
-                .backgroundElement = nullptr,
-                .spriteElement = spriteElement,
-                .tileElement = nullptr,
-            };
+            RuntimeLayerElement el;
+            el.id = Runner_getNextLayerId(runner);
+            el.type = RuntimeLayerElementType_Sprite;
+            el.visible = 1;
+            el.alpha = 1.0f;
+            el.backgroundElement = nullptr;
+            el.spriteElement = spriteElement;
+            el.tileElement = nullptr;
             arrput(runtimeLayer->elements, el);
         }
         // Expose legacy tiles as RuntimeLayerElements so GML scripts can find them via layer_get_all_elements and toggle them via layer_tile_visible
         repeat(assets->legacyTileCount, j) {
             RoomTile* tile = &assets->legacyTiles[j];
-            RuntimeLayerElement el = {
-                .id = Runner_getNextLayerId(runner),
-                .type = RuntimeLayerElementType_Tile,
-                .visible = true,
-                .alpha = tile->alpha,
-                .backgroundElement = nullptr,
-                .spriteElement = nullptr,
-                .tileElement = tile,
-            };
+            RuntimeLayerElement el;
+            el.id = Runner_getNextLayerId(runner);
+            el.type = RuntimeLayerElementType_Tile;
+            el.visible = 1;
+            el.alpha = tile->alpha;
+            el.backgroundElement = nullptr;
+            el.spriteElement = nullptr;
+            el.tileElement = tile;
             arrput(runtimeLayer->elements, el);
         }
     }
@@ -1641,7 +1638,7 @@ static void cleanupState(Runner* runner) {
             free(file->content);
             free(file->writeBuffer);
             free(file->filePath);
-            *file = (OpenTextFile) {0};
+            memset(file, 0, sizeof(*file));
         }
     }
 
@@ -1651,7 +1648,7 @@ static void cleanupState(Runner* runner) {
         OpenBinaryFile* file = &runner->openBinaryFiles[i];
         if (file->isOpen) {
             runner->fileSystem->vtable->binaryClose(runner->fileSystem, file->handle);
-            *file = (OpenBinaryFile) {0};
+            memset(file, 0, sizeof(*file));
         }
     }
 
@@ -1740,7 +1737,13 @@ static void flattenCollisionEvents(Runner* runner) {
             repeat(src->eventCount, e) {
                 ObjectEvent* srcEvt = &src->events[e];
                 int32_t srcCodeId = (srcEvt->actionCount > 0) ? srcEvt->actions[0].codeId : -1;
-                dst->events[e] = (FlattenedCollisionEvent) { .targetObjectIndex = srcEvt->eventSubtype, .codeId = srcCodeId, .ownerObjectIndex = i };
+                {
+                    FlattenedCollisionEvent _ev;
+                    _ev.targetObjectIndex = srcEvt->eventSubtype;
+                    _ev.codeId = srcCodeId;
+                    _ev.ownerObjectIndex = i;
+                    dst->events[e] = _ev;
+                }
             }
             dst->eventCount = src->eventCount;
         }
@@ -1763,7 +1766,13 @@ static void flattenCollisionEvents(Runner* runner) {
                 int32_t ancCodeId = (ancEvt->actionCount > 0) ? ancEvt->actions[0].codeId : -1;
                 uint32_t newCount = dst->eventCount + 1;
                 dst->events = safeRealloc(dst->events, newCount * sizeof(FlattenedCollisionEvent));
-                dst->events[newCount - 1] = (FlattenedCollisionEvent) { .targetObjectIndex = target, .codeId = ancCodeId, .ownerObjectIndex = ancestor };
+                {
+                    FlattenedCollisionEvent _ev;
+                    _ev.targetObjectIndex = target;
+                    _ev.codeId = ancCodeId;
+                    _ev.ownerObjectIndex = ancestor;
+                    dst->events[newCount - 1] = _ev;
+                }
                 dst->eventCount = newCount;
             }
             ancestor = anc->parentId;
@@ -3363,7 +3372,7 @@ static void physicsBodySyncCallback(int instanceId, float x, float y, float vx, 
 
 void Runner_step(Runner* runner) {
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
-    requireMessageFormatted(arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
+    requireMessageFormatted(arrlen(runner->instanceSnapshots) == 0, __FILE__, __LINE__, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
 
     // Save xprevious/yprevious and path_positionprevious for all active instances
     int32_t prevCount = (int32_t) arrlen(runner->instances);

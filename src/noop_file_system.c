@@ -107,8 +107,12 @@ static bool noopWriteFileBinary(FileSystem* fs, const char* relativePath, const 
     } else {
         uint8_t* copy = safeMalloc((size_t) size);
         memcpy(copy, data, (size_t) size);
-        MemoryBinaryData binaryData = { .data = copy, .size = size };
-        shput(nfs->binaryFiles, relativePath, binaryData);
+        {
+            MemoryBinaryData binaryData = {0};
+            binaryData.data = copy;
+            binaryData.size = size;
+            shput(nfs->binaryFiles, relativePath, binaryData);
+        }
     }
 
     return true;
@@ -165,7 +169,9 @@ static void noopBinaryClose(MAYBE_UNUSED FileSystem* fs, void* handle) {
             h->owner->binaryFiles[idx].value.data = h->buffer;
             h->owner->binaryFiles[idx].value.size = h->size;
         } else {
-            MemoryBinaryData data = { .data = h->buffer, .size = h->size };
+            MemoryBinaryData data = {0};
+            data.data = h->buffer;
+            data.size = h->size;
             shput(h->owner->binaryFiles, h->path, data);
         }
         // Map now owns the buffer
@@ -294,13 +300,28 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
     FileSystemDirEntry* entries = nullptr;
     const char* base;
     repeat(shlen(nfs->files), i) {
-        if (keyInDir(nfs->files[i].key, dir, &base)) arrput(entries, ((FileSystemDirEntry) { .name = safeStrdup(base), .isDirectory = false }));
+        if (keyInDir(nfs->files[i].key, dir, &base)) {
+            FileSystemDirEntry _e;
+            _e.name = safeStrdup(base);
+            _e.isDirectory = 0;
+            arrput(entries, _e);
+        }
     }
     repeat(shlen(nfs->binaryFiles), i) {
-        if (keyInDir(nfs->binaryFiles[i].key, dir, &base)) arrput(entries, ((FileSystemDirEntry) { .name = safeStrdup(base), .isDirectory = false }));
+        if (keyInDir(nfs->binaryFiles[i].key, dir, &base)) {
+            FileSystemDirEntry _e;
+            _e.name = safeStrdup(base);
+            _e.isDirectory = 0;
+            arrput(entries, _e);
+        }
     }
     repeat(shlen(nfs->directories), i) {
-        if (keyInDir(nfs->directories[i].key, dir, &base)) arrput(entries, ((FileSystemDirEntry) { .name = safeStrdup(base), .isDirectory = true }));
+        if (keyInDir(nfs->directories[i].key, dir, &base)) {
+            FileSystemDirEntry _e;
+            _e.name = safeStrdup(base);
+            _e.isDirectory = 1;
+            arrput(entries, _e);
+        }
     }
 
     free(dir);
@@ -310,25 +331,25 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
 // ===[ Vtable ]===
 
 static FileSystemVtable noopFileSystemVtable = {
-    .resolvePath = noopResolvePath,
-    .fileExists = noopFileExists,
-    .readFileText = noopReadFileText,
-    .writeFileText = noopWriteFileText,
-    .deleteFile = noopDeleteFile,
-    .readFileBinary = noopReadFileBinary,
-    .writeFileBinary = noopWriteFileBinary,
-    .binaryOpen = noopBinaryOpen,
-    .binaryClose = noopBinaryClose,
-    .binaryRead = noopBinaryRead,
-    .binaryWrite = noopBinaryWrite,
-    .binaryTell = noopBinaryTell,
-    .binarySeek = noopBinarySeek,
-    .binarySize = noopBinarySize,
-    .binaryRewrite = noopBinaryRewrite,
-    .directoryExists = noopDirectoryExists,
-    .createDirectory = noopCreateDirectory,
-    .deleteDirectory = noopDeleteDirectory,
-    .listDirectory = noopListDirectory,
+    noopResolvePath,
+    noopFileExists,
+    noopReadFileText,
+    noopWriteFileText,
+    noopDeleteFile,
+    noopReadFileBinary,
+    noopWriteFileBinary,
+    noopBinaryOpen,
+    noopBinaryClose,
+    noopBinaryRead,
+    noopBinaryWrite,
+    noopBinaryTell,
+    noopBinarySeek,
+    noopBinarySize,
+    noopBinaryRewrite,
+    noopDirectoryExists,
+    noopCreateDirectory,
+    noopDeleteDirectory,
+    noopListDirectory,
 };
 
 // ===[ Lifecycle ]===

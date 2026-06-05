@@ -10,8 +10,15 @@ static void ensureRowCapacity(GMLArray* arr, int32_t minRows) {
     int32_t newCap = arr->rowCapacity > 0 ? arr->rowCapacity : 4;
     while (minRows > newCap) newCap *= 2;
     arr->rows = safeRealloc(arr->rows, (uint32_t) newCap * sizeof(GMLArrayRow));
-    for (int32_t i = arr->rowCapacity; newCap > i; i++) {
-        arr->rows[i] = (GMLArrayRow){ .length = 0, .capacity = 0, .data = nullptr };
+    {
+        int32_t i;
+        for (i = arr->rowCapacity; newCap > i; i++) {
+            GMLArrayRow _row;
+            _row.length = 0;
+            _row.capacity = 0;
+            _row.data = nullptr;
+            arr->rows[i] = _row;
+        }
     }
     arr->rowCapacity = newCap;
 }

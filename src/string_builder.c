@@ -12,11 +12,13 @@ StringBuilder StringBuilder_create(size_t initialCapacity) {
     if (STRING_BUILDER_MIN_CAPACITY > initialCapacity) initialCapacity = STRING_BUILDER_MIN_CAPACITY;
     char* buffer = safeMalloc(initialCapacity);
     buffer[0] = '\0';
-    return (StringBuilder) {
-        .buffer = buffer,
-        .length = 0,
-        .capacity = initialCapacity,
-    };
+    {
+        StringBuilder _sb;
+        _sb.buffer = buffer;
+        _sb.length = 0;
+        _sb.capacity = initialCapacity;
+        return _sb;
+    }
 }
 
 void StringBuilder_free(StringBuilder* sb) {
