@@ -376,7 +376,7 @@ static inline char* RValue_toStringTyped(RValue val) {
             snprintf(buf, sizeof(buf), "struct(id=%u)", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
-            snprintf(buf, sizeof(buf), "assetref(type=%d, index=%d)", val.assetRefType, val.int32);
+            snprintf(buf, sizeof(buf), "assetref(type=%d, index=%d)", (int)val.assetRefType, (int)val.int32);
             return safeStrdup(buf);
     }
     return safeStrdup("???");
