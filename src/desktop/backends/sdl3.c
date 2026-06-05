@@ -78,16 +78,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #endif
     }
 
-    Uint32 flags;
-    flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
-
+    Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
     window = SDL_CreateWindow(
-            title,
-            fbWidth,
-            fbHeight,
-            flags
+        title,
+        fbWidth,
+        fbHeight,
+        flags
     );
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
