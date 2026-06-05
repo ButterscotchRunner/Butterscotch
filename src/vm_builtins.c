@@ -13220,13 +13220,13 @@ static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args
 
 static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
-    int16_t texID = (int16_t) RValue_toReal(args[0]);
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
     return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, texID));
 }
 
 static RValue builtin_texture_get_texel_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
 
-    int16_t texID = (int16_t) RValue_toReal(args[0]);
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
     return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, texID));
 }
 

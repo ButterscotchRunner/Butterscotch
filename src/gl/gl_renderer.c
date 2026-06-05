@@ -1887,27 +1887,28 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
     
 }
 
-static int32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
+static uint32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
     TexturePageItem* tpag;
     GLuint texId;
     int32_t texW, texH;
-    if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return -1;
+    if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return 0;
 
     return texId;
 }
 
-static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
+static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texID) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     if (slot < 0) {
-        return;
-    }
-    if (slot == -1) {
         fprintf(stderr, "GL: Invalid Texture Stage\n");
         return;
     }
     if (slot == 0) {
+        fprintf(stderr, "GL: Invalid Texture Stage\n");
+        return;
+    }
+    if (slot == 1) {
     gl->currentTextureId = texID;  
     }
     if (slot > MAX_TEXTURE_STAGES) {
@@ -1920,7 +1921,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, int32_t texID) {
 
 }
 
-static float glTextureGetTexelWidth(Renderer* renderer, int16_t texID) {
+static float glTextureGetTexelWidth(Renderer* renderer, uint32_t texID) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     GLint width = 0;
@@ -1934,7 +1935,7 @@ static float glTextureGetTexelWidth(Renderer* renderer, int16_t texID) {
     return (1.0 / (float) width);
 }
 
-static float glTextureGetTexelHeight(Renderer* renderer, int16_t texID) {
+static float glTextureGetTexelHeight(Renderer* renderer, uint32_t texID) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     GLint height = 0;
