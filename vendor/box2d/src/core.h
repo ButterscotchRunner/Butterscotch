@@ -130,7 +130,14 @@
 #define B2_ARRAY_COUNT( A ) (int)( sizeof( A ) / sizeof( A[0] ) )
 
 // Used to prevent the compiler from warning about unused variables
-#define B2_UNUSED( a ) (void)(a)
+#define B2_UNUSED_1(a1) (void)(a1)
+#define B2_UNUSED_2(a1, a2) (void)(a1), (void)(a2)
+#define B2_UNUSED_3(a1, a2, a3) (void)(a1), (void)(a2), (void)(a3)
+#define B2_UNUSED_4(a1, a2, a3, a4) (void)(a1), (void)(a2), (void)(a3), (void)(a4)
+#define B2_UNUSED_5(a1, a2, a3, a4, a5) (void)(a1), (void)(a2), (void)(a3), (void)(a4), (void)(a5)
+#define B2_UNUSED_6(a1, a2, a3, a4, a5, a6) (void)(a1), (void)(a2), (void)(a3), (void)(a4), (void)(a5), (void)(a6)
+#define B2_UNUSED_CHOOSER(_1,_2,_3,_4,_5,_6,NAME,...) NAME
+#define B2_UNUSED(...) B2_UNUSED_CHOOSER(__VA_ARGS__,B2_UNUSED_6,B2_UNUSED_5,B2_UNUSED_4,B2_UNUSED_3,B2_UNUSED_2,B2_UNUSED_1)(__VA_ARGS__)
 
 // Use to validate definitions. Do not take my cookie.
 #define B2_SECRET_COOKIE 1152023

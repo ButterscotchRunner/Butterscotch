@@ -9,6 +9,9 @@
 #include "matrix_math.h"
 #include "utils.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15301,3 +15304,4 @@ PhysicsBody* PhysicsWorld_createBodyFromDef(
 void PhysicsWorld_syncBodies(PhysicsWorld* world, void* user, PhysicsBodySyncCallback cb) {
     (void)world; (void)user; (void)cb;
 }
+#pragma GCC diagnostic pop
