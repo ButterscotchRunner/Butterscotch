@@ -138,6 +138,29 @@ static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *succ
 static void flushBatch(GLRenderer* gl) {
     if (gl->batchCount == 0) return;
 
+    if (gl->base.CurrentShader != -1) {
+        GLuint Shader = gl->GMLShaders[gl->base.CurrentShader];
+
+        GLint UniformCount;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
+
+        const GLchar* name = "gm_BaseTexture";
+        GLuint index;
+
+        glGetUniformIndices(Shader, 1, &name, &index);
+
+        if (index != GL_INVALID_INDEX)
+        {
+            int32_t slot = gl->Sampler2DLookUpTable[gl->base.CurrentShader][index];
+            glActiveTexture(GL_TEXTURE0 + slot);
+                glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
+        }
+        
+    } else {
+        glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
+    }
+
     int32_t singleVertexCount = 0;
     if (gl->batchType == BATCHTYPE_QUAD) {
         singleVertexCount = VERTICES_PER_QUAD;
@@ -157,7 +180,7 @@ static void flushBatch(GLRenderer* gl) {
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
 
-    glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
+
 
     if (gl->batchType == BATCHTYPE_QUAD) {
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
@@ -360,7 +383,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLint gm_Matrices2 = glGetUniformLocation(Shader, "gm_Matrices[2]");
     GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
     GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
-    GLint gm_BaseTexture = glGetUniformLocation(Shader, "gm_BaseTexture");
+
 
     GLint gm_FogStart = glGetUniformLocation(Shader, "gm_FogStart");
     GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");  
@@ -373,9 +396,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLint gm_AlphaTestEnabled = glGetUniformLocation(Shader, "gm_AlphaTestEnabled");
     GLint gm_AlphaRefValue = glGetUniformLocation(Shader, "gm_AlphaRefValue");
 
-    if (gm_BaseTexture != -1) {
-    glUniform1i(gm_BaseTexture, 0);
-    }
+
 
     if (gm_Matrices0 != -1) {
         glUniformMatrix4fv(gm_Matrices0, 1, GL_FALSE, renderer->GML_Matrices[MATRIX_VIEW].m);
@@ -424,7 +445,7 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     glUniform4f(gl->uFogColor, FogR, FoGG, FogB, gl->fogEnable ? 1.0f : 0.0f);
     glUniform1f(gl->uAlphaTestRef, gl->alphaTestRef);
     glUniform1i(gl->uAlphaTestEnabled, gl->alphaTestEnable);   
-    glUniform1i(gl->uTexture, 0);
+    glUniform1i(gl->uTexture, 1);
     }
 }
 
@@ -504,7 +525,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
 
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
 
     glBindVertexArray(gl->vao);
     renderer->PreviousViewMatrix = projection;
@@ -554,7 +575,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
 
     renderer->GML_Matrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
 
     glBindVertexArray(gl->vao);
 }
@@ -1825,7 +1846,6 @@ static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char*
 
 static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
     GLuint Shader = gl->GMLShaders[shaderIndex];
 
     GLint UniformCount;
@@ -1913,7 +1933,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texID) 
     }
     glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texID);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
 
 }
 
