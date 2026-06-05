@@ -60,6 +60,12 @@ struct Instance {
     float friction;
     float gravity, gravityDirection;
 
+    // Physics properties (Box2D integration)
+    float phyPositionX, phyPositionY;
+    float phySpeedX, phySpeedY;
+    float phyRotation;
+    bool phyActive;
+
     // Path following state
     int32_t pathIndex;           // -1 = no path active
     float pathPosition;           // 0.0-1.0

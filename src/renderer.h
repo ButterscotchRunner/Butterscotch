@@ -120,6 +120,7 @@ struct Renderer {
     uint32_t drawColor;  // BGR format, default 0xFFFFFF (white)
     float drawAlpha;     // default 1.0
     int32_t drawFont;    // default -1 (no font)
+    int32_t drawBlendMode; // default 0 (bm_normal)
     int32_t drawHalign;  // 0=left, 1=center, 2=right
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
     int32_t circlePrecision; // segments used by draw_circle/draw_ellipse, clamped to [4, 64] and rounded down to multiple of 4. Default 24.
@@ -556,11 +557,11 @@ static inline void Renderer_drawSelf(Renderer* renderer, Instance* instance) {
         renderer,
         instance->spriteIndex,
         subimg,
-        (float) instance->x,
-        (float) instance->y,
+        (float) (instance->phyActive ? instance->phyPositionX : instance->x),
+        (float) (instance->phyActive ? instance->phyPositionY : instance->y),
         (float) instance->imageXscale,
         (float) instance->imageYscale,
-        (float) instance->imageAngle,
+        (float) (instance->phyActive ? instance->phyRotation : instance->imageAngle),
         instance->imageBlend,
         (float) instance->imageAlpha
     );

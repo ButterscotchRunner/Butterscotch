@@ -47,17 +47,37 @@ static SoundInstance* findFreeSlot(MaAudioSystem* ma) {
             ma_decoder_uninit(&best->decoder);
         }
         best->active = false;
+        return best;
+    }
+
+    // Third pass: evict the lowest-priority sound even if still playing (to ensure new sounds can play)
+    best = nullptr;
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (best == nullptr || best->priority > inst->priority) {
+            best = inst;
+        }
+    }
+
+    if (best != nullptr) {
+        ma_sound_stop(&best->maSound);
+        ma_sound_uninit(&best->maSound);
+        if (best->ownsDecoder) {
+            ma_decoder_uninit(&best->decoder);
+        }
+        best->active = false;
     }
 
     return best;
 }
 
 static SoundInstance* findInstanceById(MaAudioSystem* ma, int32_t instanceId) {
-    int32_t slotIndex = instanceId - SOUND_INSTANCE_ID_BASE;
-    if (0 > slotIndex || slotIndex >= MAX_SOUND_INSTANCES) return nullptr;
-    SoundInstance* inst = &ma->instances[slotIndex];
-    if (!inst->active || inst->instanceId != instanceId) return nullptr;
-    return inst;
+    // Search for the instance by ID (counter-based IDs don't map to slot indices)
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (inst->active && inst->instanceId == instanceId) return inst;
+    }
+    return nullptr;
 }
 
 // Helper: resolve external audio file path from Sound entry
@@ -75,7 +95,8 @@ static char* resolveExternalPath(MaAudioSystem* ma, Sound* sound) {
         snprintf(filename, sizeof(filename), "%s.ogg", file);
     }
 
-    return ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
+    char* resolved = ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
+    return resolved;
 }
 
 // ===[ Vtable Implementations ]===
@@ -138,6 +159,9 @@ static void maUpdate(AudioSystem* audio, float deltaTime) {
         SoundInstance* inst = &ma->instances[i];
         if (!inst->active) continue;
 
+        // Track time since start
+        inst->timeSinceStart += deltaTime;
+
         // Handle gain fading (for cases where we do manual fading)
         if (inst->fadeTimeRemaining > 0.0f) {
             inst->fadeTimeRemaining -= deltaTime;
@@ -151,8 +175,9 @@ static void maUpdate(AudioSystem* audio, float deltaTime) {
             ma_sound_set_volume(&inst->maSound, inst->currentGain);
         }
 
-        // Clean up ended non-looping sounds (ma_sound_at_end avoids reaping still-loading async sounds)
-        if (ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound)) {
+        // Clean up ended non-looping sounds, but only if they've played for at least 100ms
+        // This prevents sounds from being cleaned up too early if ma_sound_at_end returns true incorrectly
+        if (ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound) && inst->timeSinceStart > 0.1f) {
             ma_sound_uninit(&inst->maSound);
             if (inst->ownsDecoder) {
                 ma_decoder_uninit(&inst->decoder);
@@ -188,7 +213,6 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     SoundInstance* slot = findFreeSlot(ma);
     if (slot == nullptr) {
-        fprintf(stderr, "Audio: No free sound slots for sound %d\n", soundIndex);
         return -1;
     }
 
@@ -197,7 +221,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     if (isStream) {
         // Stream audio: load from file path stored in stream entry
-        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
+        result = ma_sound_init_from_file(&ma->engine, streamPath, 0, nullptr, nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
             fprintf(stderr, "Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
@@ -240,7 +264,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                 return -1;
             }
 
-            result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
+            result = ma_sound_init_from_file(&ma->engine, path, 0, nullptr, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
                 fprintf(stderr, "Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
                 free(path);
@@ -263,16 +287,14 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     // Set up instance tracking
     slot->active = true;
     slot->soundIndex = soundIndex;
-    slot->instanceId = SOUND_INSTANCE_ID_BASE + slotIndex;
+    slot->instanceId = SOUND_INSTANCE_ID_BASE + ma->nextInstanceCounter++;
     slot->currentGain = volume;
     slot->targetGain = volume;
     slot->fadeTimeRemaining = 0.0f;
     slot->fadeTotalTime = 0.0f;
     slot->startGain = volume;
     slot->priority = priority;
-
-    // Track unique IDs for disambiguation
-    ma->nextInstanceCounter++;
+    slot->timeSinceStart = 0.0f;
 
     ma_sound_start(&slot->maSound);
 
@@ -286,22 +308,26 @@ static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
         // Stop specific instance
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
-            ma_sound_stop(&inst->maSound);
-            ma_sound_uninit(&inst->maSound);
-            if (inst->ownsDecoder) {
-                ma_decoder_uninit(&inst->decoder);
-            }
-            inst->active = false;
-        }
-    } else {
-        // Stop all instances of this sound resource
-        repeat(MAX_SOUND_INSTANCES, i) {
-            SoundInstance* inst = &ma->instances[i];
-            if (inst->active && inst->soundIndex == soundOrInstance) {
+            if (inst->active) {
                 ma_sound_stop(&inst->maSound);
                 ma_sound_uninit(&inst->maSound);
                 if (inst->ownsDecoder) {
                     ma_decoder_uninit(&inst->decoder);
+                }
+            }
+            inst->active = false;
+        }
+    } else {
+        // Stop all instances of this sound resource (even if not currently active)
+        repeat(MAX_SOUND_INSTANCES, i) {
+            SoundInstance* inst = &ma->instances[i];
+            if (inst->soundIndex == soundOrInstance) {
+                if (inst->active) {
+                    ma_sound_stop(&inst->maSound);
+                    ma_sound_uninit(&inst->maSound);
+                    if (inst->ownsDecoder) {
+                        ma_decoder_uninit(&inst->decoder);
+                    }
                 }
                 inst->active = false;
             }

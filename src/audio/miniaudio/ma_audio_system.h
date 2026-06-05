@@ -4,7 +4,7 @@
 #include "audio_system.h"
 #include "miniaudio.h"
 
-#define MAX_SOUND_INSTANCES 128
+#define MAX_SOUND_INSTANCES 256
 #define SOUND_INSTANCE_ID_BASE 100000
 #define MAX_AUDIO_STREAMS 32
 // This is the index space that the native runner uses
@@ -23,6 +23,7 @@ typedef struct {
     float fadeTotalTime;
     float startGain;
     int32_t priority;
+    float timeSinceStart; // track how long the sound has been playing
 } SoundInstance;
 
 typedef struct {
