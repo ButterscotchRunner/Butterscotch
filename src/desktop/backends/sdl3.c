@@ -134,20 +134,16 @@ static SDL_Surface* nextFb = NULL;
 
 void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
     if (nextFb) {
-        SDL_FreeSurface(nextFb);
+        SDL_DestroySurface(nextFb);
         nextFb = NULL;
     }
 
-    nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer,
+    nextFb = SDL_CreateSurfaceFrom(
         width,
         height,
-        32,
+        SDL_PIXELFORMAT_XRGB8888,
+        framebuffer
         width * 4,
-        0x00ff0000, // Rmask
-        0x0000ff00, // Gmask
-        0x000000ff, // Bmask
-        0x00000000  // Amask
     );
 }
 
