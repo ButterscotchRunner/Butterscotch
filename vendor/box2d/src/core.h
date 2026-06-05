@@ -10,7 +10,11 @@
 #define B2_NULL_INDEX ( -1 )
 
 // for performance comparisons
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #define B2_RESTRICT restrict
+#else
+#define B2_RESTRICT
+#endif
 
 #ifdef NDEBUG
 	#define B2_DEBUG 0
@@ -45,14 +49,23 @@
 #endif
 
 // Define CPU
-#if defined( __x86_64__ ) || defined( _M_X64 ) || defined( __i386__ ) || defined( _M_IX86 )
+#if defined( __x86_64__ ) || defined( _M_X64 )
 	#define B2_CPU_X86_X64
+#elif defined( __i386__ ) || defined( _M_IX86 )
+	#define B2_CPU_X86_X32
 #elif defined( __aarch64__ ) || defined( _M_ARM64 ) || defined( __arm__ ) || defined( _M_ARM )
 	#define B2_CPU_ARM
 #elif defined( __EMSCRIPTEN__ )
 	#define B2_CPU_WASM
 #else
 	#define B2_CPU_UNKNOWN
+#endif
+
+#ifdef __SSE2__
+	#define BOX2D_SSE2
+#endif
+#ifdef __AVX2__
+	#define BOX2D_AVX2
 #endif
 
 // Define SIMD
@@ -69,6 +82,13 @@
 			#define B2_SIMD_SSE2
 			#define B2_SIMD_WIDTH 4
 		#endif
+	#elif defined( B2_CPU_X86_X32 )
+		#if defined( BOX2D_SSE2 )
+			#define B2_SIMD_SSE2
+		#else
+			#define B2_SIMD_NONE
+		#endif
+		#define B2_SIMD_WIDTH 4
 	#elif defined( B2_CPU_ARM )
 		#define B2_SIMD_NEON
 		#define B2_SIMD_WIDTH 4
@@ -110,7 +130,7 @@
 #define B2_ARRAY_COUNT( A ) (int)( sizeof( A ) / sizeof( A[0] ) )
 
 // Used to prevent the compiler from warning about unused variables
-#define B2_UNUSED( ... ) (void)sizeof( ( __VA_ARGS__, 0 ) )
+#define B2_UNUSED( a ) (void)(a)
 
 // Use to validate definitions. Do not take my cookie.
 #define B2_SECRET_COOKIE 1152023
