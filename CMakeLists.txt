@@ -388,8 +388,8 @@ elseif(PLATFORM STREQUAL "ps2")
     # -Werror=double-promotion: Warn when something is being promoted to a double
     # -fomit-frame-pointer: frees a register on a target with tight register pressure
     # -ffast-math: enables aggressive floating point optimizations
-    # -Wno-format: Disable format string warnings (int32_t is long int on PS2, not int)
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
+    # -Wno-error: Don't treat warnings as errors (PS2 toolchain has many warnings from vendor code)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-error)
 
     if(PS2)
         # Compiling on the Docker container
