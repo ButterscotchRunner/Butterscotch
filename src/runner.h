@@ -554,10 +554,16 @@ struct Runner {
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;
 
-    // Audio listener position (3D audio)
+    // Audio listener position and orientation (3D audio)
     float audioListenerX;
     float audioListenerY;
     float audioListenerZ;
+    float audioListenerEyeX;
+    float audioListenerEyeY;
+    float audioListenerEyeZ;
+    float audioListenerUpX;
+    float audioListenerUpY;
+    float audioListenerUpZ;
     int32_t audioFalloffModel;
 
     // INI file state

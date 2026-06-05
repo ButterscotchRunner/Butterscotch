@@ -1900,10 +1900,16 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->viewportW = 1;
     runner->viewportH = 1;
 
-    // Initialize audio listener position
+    // Initialize audio listener position and orientation
     runner->audioListenerX = 0.0f;
     runner->audioListenerY = 0.0f;
     runner->audioListenerZ = 0.0f;
+    runner->audioListenerEyeX = 0.0f;
+    runner->audioListenerEyeY = 0.0f;
+    runner->audioListenerEyeZ = 0.0f;
+    runner->audioListenerUpX = 0.0f;
+    runner->audioListenerUpY = 0.0f;
+    runner->audioListenerUpZ = 0.0f;
     runner->audioFalloffModel = 0;
 
     ParticleSystem_init(runner);

@@ -3360,7 +3360,7 @@ static RValue builtin_ds_grid_create(VMContext* ctx, RValue* args, int32_t argCo
     return RValue_makeReal((GMLReal) dsGridCreate(ctx->runner, w, h));
 }
 
-static RValue builtin_ds_grid_write(VMContext* ctx, RValue* args, int32_t argCount) {
+static RValue builtin_ds_grid_set(VMContext* ctx, RValue* args, int32_t argCount) {
     if (4 > argCount) return RValue_makeUndefined();
     int32_t id = RValue_toInt32(args[0]);
     int32_t x = RValue_toInt32(args[1]);
@@ -3373,6 +3373,22 @@ static RValue builtin_ds_grid_write(VMContext* ctx, RValue* args, int32_t argCou
     RValue_free(&grid->items[index]);
     grid->items[index] = RValue_makeIndependent(val);
     return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_grid_write(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeOwnedString(safeStrdup(""));
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsGrid* grid = dsGridGet(runner, id);
+    if (grid == nullptr) return RValue_makeOwnedString(safeStrdup(""));
+
+    uint8_t* buf = nullptr;
+    int32_t cellCount = grid->width * grid->height;
+    dsStreamAppendU32(&buf, 707); // version tag for ds_grid
+    dsStreamAppendU32(&buf, (uint32_t) grid->width);
+    dsStreamAppendU32(&buf, (uint32_t) grid->height);
+    dsStreamAppendValues(&buf, grid->items, cellCount);
+    return dsStreamFinishToHexString(buf);
 }
 
 static RValue builtin_ds_grid_read(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3778,49 +3794,70 @@ static RValue builtin_part_particles_create(MAYBE_UNUSED VMContext* ctx, RValue*
 // Layer/tile functions
 static RValue builtin_layer_tile_get_x(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
-    // Get the x position of a tile element
-    // Returns 0.0 for now as tile data is not fully implemented in the renderer
-    return RValue_makeReal(0.0);
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, nullptr);
+    if (element == nullptr || element->type != RuntimeLayerElementType_Tile || element->tileElement == nullptr)
+        return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) element->tileElement->x);
 }
 
 static RValue builtin_layer_tile_get_y(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
-    // Get the y position of a tile element
-    // Returns 0.0 for now as tile data is not fully implemented in the renderer
-    return RValue_makeReal(0.0);
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, nullptr);
+    if (element == nullptr || element->type != RuntimeLayerElementType_Tile || element->tileElement == nullptr)
+        return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) element->tileElement->y);
 }
 
 static RValue builtin_layer_tile_get_region(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
-    // Get the texture region for a tile element
-    // Returns default 32x32 region for now
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, nullptr);
+    if (element == nullptr || element->type != RuntimeLayerElementType_Tile || element->tileElement == nullptr) {
+        RValue arr = VM_createArray(ctx);
+        VM_arraySet(ctx, &arr, 0, RValue_makeReal(0.0));
+        VM_arraySet(ctx, &arr, 1, RValue_makeReal(0.0));
+        VM_arraySet(ctx, &arr, 2, RValue_makeReal(32.0));
+        VM_arraySet(ctx, &arr, 3, RValue_makeReal(32.0));
+        return arr;
+    }
+    RoomTile* tile = element->tileElement;
     RValue arr = VM_createArray(ctx);
-    VM_arraySet(ctx, &arr, 0, RValue_makeReal(0.0));  // x
-    VM_arraySet(ctx, &arr, 1, RValue_makeReal(0.0));  // y
-    VM_arraySet(ctx, &arr, 2, RValue_makeReal(32.0)); // width
-    VM_arraySet(ctx, &arr, 3, RValue_makeReal(32.0)); // height
+    VM_arraySet(ctx, &arr, 0, RValue_makeReal((GMLReal) tile->sourceX));
+    VM_arraySet(ctx, &arr, 1, RValue_makeReal((GMLReal) tile->sourceY));
+    VM_arraySet(ctx, &arr, 2, RValue_makeReal((GMLReal) tile->width));
+    VM_arraySet(ctx, &arr, 3, RValue_makeReal((GMLReal) tile->height));
     return arr;
 }
 
 static RValue builtin_layer_tile_x(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
-    // Set the x position of a tile element
-    // No-op for now as tile data is not fully implemented in the renderer
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, nullptr);
+    if (element == nullptr || element->type != RuntimeLayerElementType_Tile || element->tileElement == nullptr)
+        return RValue_makeUndefined();
+    element->tileElement->x = RValue_toInt32(args[1]);
     return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_tile_y(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
-    // Set the y position of a tile element
-    // No-op for now as tile data is not fully implemented in the renderer
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, nullptr);
+    if (element == nullptr || element->type != RuntimeLayerElementType_Tile || element->tileElement == nullptr)
+        return RValue_makeUndefined();
+    element->tileElement->y = RValue_toInt32(args[1]);
     return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_get_element_layer(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1);
-    // Get the layer ID for an element
-    // Returns 0.0 for now as layer system is not fully implemented
-    return RValue_makeReal(0.0);
+    int32_t elementId = RValue_toInt32(args[0]);
+    RuntimeLayer* layer = nullptr;
+    RuntimeLayerElement* element = Runner_findLayerElementById(ctx->runner, elementId, &layer);
+    if (element == nullptr || layer == nullptr) return RValue_makeReal(-1);
+    return RValue_makeReal((GMLReal) layer->depth);
 }
 
 static RValue builtin_layer_sequence_create(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3882,12 +3919,16 @@ static RValue builtin_audio_falloff_set_model(VMContext* ctx, RValue* args, int3
 static RValue builtin_audio_play_sound_at(VMContext* ctx, RValue* args, int32_t argCount) {
     if (7 > argCount) return RValue_makeReal(-1);
     // Play a sound at a specific 3D position
-    // For now, just call the regular audio_play_sound since 3D audio is not fully implemented
+    // 3D audio is not fully implemented, so delegate to standard audio_play_sound
     // args: sound, priority, loop, x, y, z, distance
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr) return RValue_makeReal(-1.0);
     int32_t soundIndex = RValue_toInt32(args[0]);
     if (soundIndex < 0 || (uint32_t) soundIndex >= ctx->dataWin->audo.count) return RValue_makeReal(-1);
-    // Return a sound instance ID
-    return RValue_makeReal(1.0);
+    int32_t priority = RValue_toInt32(args[1]);
+    bool loop = RValue_toBool(args[2]);
+    int32_t instanceId = audio->vtable->playSound(audio, soundIndex, priority, loop);
+    return RValue_makeReal((GMLReal) instanceId);
 }
 
 // Path functions
@@ -4103,8 +4144,17 @@ static RValue makeSpriteCornerUVArray(VMContext* ctx, float u0, float v0, float 
     return arr;
 }
 
-static RValue builtin_audio_listener_orientation(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    // 3D listener orientation is stored for API compatibility; positional audio is not fully implemented yet.
+static RValue builtin_audio_listener_orientation(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (6 > argCount) return RValue_makeUndefined();
+    // Store the 3D listener orientation for potential future use
+    // args: eyeX, eyeY, eyeZ, upX, upY, upZ
+    Runner* runner = ctx->runner;
+    if (argCount > 0) runner->audioListenerEyeX = (float) RValue_toReal(args[0]);
+    if (argCount > 1) runner->audioListenerEyeY = (float) RValue_toReal(args[1]);
+    if (argCount > 2) runner->audioListenerEyeZ = (float) RValue_toReal(args[2]);
+    if (argCount > 3) runner->audioListenerUpX = (float) RValue_toReal(args[3]);
+    if (argCount > 4) runner->audioListenerUpY = (float) RValue_toReal(args[4]);
+    if (argCount > 5) runner->audioListenerUpZ = (float) RValue_toReal(args[5]);
     return RValue_makeUndefined();
 }
 
@@ -14377,6 +14427,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // ds_grid
     VM_registerBuiltin(ctx, "ds_grid_create", builtin_ds_grid_create);
+    VM_registerBuiltin(ctx, "ds_grid_set", builtin_ds_grid_set);
+    VM_registerBuiltin(ctx, "ds_grid_get", builtin_ds_grid_read);
     VM_registerBuiltin(ctx, "ds_grid_write", builtin_ds_grid_write);
     VM_registerBuiltin(ctx, "ds_grid_read", builtin_ds_grid_read);
 
