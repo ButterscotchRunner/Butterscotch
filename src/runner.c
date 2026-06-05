@@ -3308,7 +3308,7 @@ static void tickTimelines(Runner* runner) {
         // Log timeline execution
         static int32_t lastLoggedRunningId = -1;
         if (inst->instanceId != lastLoggedRunningId) {
-            fprintf(stderr, "Timeline: Instance %d (object %d) running timeline %d at position %.2f (speed %.2f)\n", inst->instanceId, inst->objectIndex, idx, inst->timelinePosition, inst->timelineSpeed);
+            fprintf(stderr, "Timeline: Instance %d (object %d) running timeline %d at position %.2f (speed %.2f)\n", inst->instanceId, inst->objectIndex, idx, (double) inst->timelinePosition, (double) inst->timelineSpeed);
             lastLoggedRunningId = inst->instanceId;
         }
 
@@ -3320,7 +3320,7 @@ static void tickTimelines(Runner* runner) {
             inst->timelinePosition += inst->timelineSpeed;
             uint32_t ind2 = Timeline_findLarger(timeline, inst->timelinePosition);
 
-            fprintf(stderr, "Timeline: Instance %d executing moments [%u, %u) at position %.2f\n", inst->instanceId, ind1, ind2, inst->timelinePosition);
+            fprintf(stderr, "Timeline: Instance %d executing moments [%u, %u) at position %.2f\n", inst->instanceId, ind1, ind2, (double) inst->timelinePosition);
             for (uint32_t j = ind1; ind2 > j; j++) {
                 TimelineMoment* moment = &timeline->moments[j];
                 fprintf(stderr, "Timeline: Firing moment %u (step %d) with %d actions\n", j, moment->step, moment->actionCount);
@@ -3338,7 +3338,7 @@ static void tickTimelines(Runner* runner) {
             inst->timelinePosition += inst->timelineSpeed;
             int32_t ind2 = Timeline_findSmaller(timeline, inst->timelinePosition);
 
-            fprintf(stderr, "Timeline: Instance %d executing moments (%d, %d] at position %.2f\n", inst->instanceId, ind1, ind2, inst->timelinePosition);
+            fprintf(stderr, "Timeline: Instance %d executing moments (%d, %d] at position %.2f\n", inst->instanceId, ind1, ind2, (double) inst->timelinePosition);
             for (int32_t j = ind1; j > ind2; j--) {
                 TimelineMoment* moment = &timeline->moments[j];
                 fprintf(stderr, "Timeline: Firing moment %d (step %d) with %d actions\n", j, moment->step, moment->actionCount);
