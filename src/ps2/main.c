@@ -241,8 +241,8 @@ int main(int argc, char* argv[]) {
     sbv_patch_enable_lmb();
 
     // Reset IOP borrowed from uLaunchELF
-    while (!SifIopReset(NULL, 0)) {};
-    while (!SifIopSync()) {};
+    //while (!SifIopReset(NULL, 0)) {};
+    //while (!SifIopSync()) {};
 
     SifInitRpc(0);
 
