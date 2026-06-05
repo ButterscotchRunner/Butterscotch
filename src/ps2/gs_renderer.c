@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <malloc.h>
 #include <kernel.h>
 #include <gsInline.h>
@@ -15,9 +16,16 @@
 #include "matrix_math.h"
 
 #ifdef ENABLE_PS2_RENDERER_LOGS
-#define rendererPrintf(...) fprintf(stderr, __VA_ARGS__)
+static void rendererPrintf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
 #else
-#define rendererPrintf(...) ((void) 0)
+static void rendererPrintf(const char* fmt, ...) {
+    (void)fmt;
+}
 #endif
 
 // ===[ Constants ]===
@@ -149,7 +157,12 @@ static void loadAtlas(GsRenderer* gs) {
     gs->tileEntryMap = nullptr;
     repeat(gs->atlasTileCount, i) {
         AtlasTileEntry* entry = &gs->atlasTileEntries[i];
-        TileLookupKey key = { .bgDef = entry->bgDef, .srcX = entry->srcX, .srcY = entry->srcY, .srcW = entry->srcW, .srcH = entry->srcH };
+        TileLookupKey key = {0};
+        key.bgDef = entry->bgDef;
+        key.srcX = entry->srcX;
+        key.srcY = entry->srcY;
+        key.srcW = entry->srcW;
+        key.srcH = entry->srcH;
         hmput(gs->tileEntryMap, key, entry);
     }
 
@@ -910,7 +923,12 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
 
 // Finds a tile entry by (bgDef, srcX, srcY, srcW, srcH). Returns nullptr if not found.
 static AtlasTileEntry* findTileEntry(GsRenderer* gs, int16_t bgDef, uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH) {
-    TileLookupKey key = { .bgDef = bgDef, .srcX = srcX, .srcY = srcY, .srcW = srcW, .srcH = srcH };
+    TileLookupKey key = {0};
+    key.bgDef = bgDef;
+    key.srcX = srcX;
+    key.srcY = srcY;
+    key.srcW = srcW;
+    key.srcH = srcH;
     ptrdiff_t idx = hmgeti(gs->tileEntryMap, key);
     if (idx == -1) return nullptr;
     return gs->tileEntryMap[idx].value;
@@ -2947,60 +2965,65 @@ static bool gsSurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int
 
 // ===[ Vtable ]===
 
-static RendererVtable gsVtable = {
-    .init = gsInit,
-    .destroy = gsDestroy,
-    .beginFrame = gsBeginFrame,
-    .endFrameInit = gsEndFrameInit,
-    .endFrameEnd = gsEndFrameEnd,
-    .beginView = gsBeginView,
-    .endView = gsEndView,
-    .applyProjection = gsApplyProjection,
-    .beginGUI = gsBeginGUI,
-    .endGUI = gsEndGUI,
-    .drawSprite = gsDrawSprite,
-    .drawSpritePos = gsDrawSpritePos,
-    .drawSpritePart = gsDrawSpritePart,
-    .drawRectangle = gsDrawRectangle,
-    .drawRectangleColor = gsDrawRectangleColor,
-    .drawLine = gsDrawLine,
-    .drawLineColor = gsDrawLineColor,
-    .drawText = gsDrawText,
-    .drawTextColor = gsDrawTextColor,
-    .drawTriangle = gsDrawTriangle,
-    .flush = gsFlush,
-    .clearScreen = gsClearScreen,
-    .createSpriteFromSurface = gsCreateSpriteFromSurface,
-    .deleteSprite = gsDeleteSprite,
-    .gpuSetBlendMode = gsGpuSetBlendMode,
-    .gpuSetBlendModeExt = gsGpuSetBlendModeExt,
-    .gpuSetBlendEnable = gsGpuSetBlendEnable,
-    .gpuGetBlendEnable = gsGpuGetBlendEnable,
-    .gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable,
-    .gpuSetAlphaTestRef = gsGpuSetAlphaTestRef,
-    .gpuSetColorWriteEnable = gsGpuSetColorWriteEnable,
-    .gpuGetColorWriteEnable = gsGpuGetColorWriteEnable,
-    .drawTile = gsDrawTile,
-    .drawTiled = gsDrawTiled,
-    .drawTiledPart = gsDrawTiledPart,
-    .createSurface = gsCreateSurface,
-    .surfaceExists = gsSurfaceExists,
-    .setRenderTarget = gsSetRenderTarget,
-    .ensureApplicationSurface = gsEnsureApplicationSurface,
-    .getSurfaceWidth = gsGetSurfaceWidth,
-    .getSurfaceHeight = gsGetSurfaceHeight,
-    .drawSurface = gsDrawSurface,
-    .surfaceResize = gsSurfaceResize,
-    .surfaceFree = gsSurfaceFree,
-    .surfaceCopy = gsSurfaceCopy,
-    .surfaceGetPixels = gsSurfaceGetPixels,
-};
+static RendererVtable gsVtable;
+static int gsVtableInitDone = 0;
+static void initGsVtable(void) {
+    if (gsVtableInitDone) return;
+    gsVtable.init = gsInit;
+    gsVtable.destroy = gsDestroy;
+    gsVtable.beginFrame = gsBeginFrame;
+    gsVtable.endFrameInit = gsEndFrameInit;
+    gsVtable.endFrameEnd = gsEndFrameEnd;
+    gsVtable.beginView = gsBeginView;
+    gsVtable.endView = gsEndView;
+    gsVtable.applyProjection = gsApplyProjection;
+    gsVtable.beginGUI = gsBeginGUI;
+    gsVtable.endGUI = gsEndGUI;
+    gsVtable.drawSprite = gsDrawSprite;
+    gsVtable.drawSpritePart = gsDrawSpritePart;
+    gsVtable.drawSpritePos = gsDrawSpritePos;
+    gsVtable.drawRectangle = gsDrawRectangle;
+    gsVtable.drawRectangleColor = gsDrawRectangleColor;
+    gsVtable.drawLine = gsDrawLine;
+    gsVtable.drawTriangle = gsDrawTriangle;
+    gsVtable.drawLineColor = gsDrawLineColor;
+    gsVtable.drawText = gsDrawText;
+    gsVtable.drawTextColor = gsDrawTextColor;
+    gsVtable.flush = gsFlush;
+    gsVtable.clearScreen = gsClearScreen;
+    gsVtable.createSpriteFromSurface = gsCreateSpriteFromSurface;
+    gsVtable.deleteSprite = gsDeleteSprite;
+    gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
+    gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
+    gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
+    gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
+    gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
+    gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;
+    gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
+    gsVtable.drawTile = gsDrawTile;
+    gsVtable.drawTiled = gsDrawTiled;
+    gsVtable.drawTiledPart = gsDrawTiledPart;
+    gsVtable.createSurface = gsCreateSurface;
+    gsVtable.surfaceExists = gsSurfaceExists;
+    gsVtable.setRenderTarget = gsSetRenderTarget;
+    gsVtable.ensureApplicationSurface = gsEnsureApplicationSurface;
+    gsVtable.getSurfaceWidth = gsGetSurfaceWidth;
+    gsVtable.getSurfaceHeight = gsGetSurfaceHeight;
+    gsVtable.drawSurface = gsDrawSurface;
+    gsVtable.surfaceResize = gsSurfaceResize;
+    gsVtable.surfaceFree = gsSurfaceFree;
+    gsVtable.surfaceCopy = gsSurfaceCopy;
+    gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
+    gsVtableInitDone = 1;
+}
 
 // ===[ Public API ]===
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     GsRenderer* gs = safeCalloc(1, sizeof(GsRenderer));
     gs->eeAtlasCacheBytes = eeAtlasCacheMiB;
+    initGsVtable();
     gs->base.vtable = &gsVtable;
     gs->gsGlobal = gsGlobal;
     gs->scaleX = 2.0f;
