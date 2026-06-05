@@ -14149,33 +14149,7 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeString(ctx->runner->gameArgs[index]);
 }
 
-// ===[ Physics Builtins (stubbed) ]===
-
-STUB_RETURN_ZERO(physics_world_create)
-STUB_RETURN_UNDEFINED(physics_world_delete)
-STUB_RETURN_UNDEFINED(physics_world_gravity)
-STUB_RETURN_VALUE(physics_fixture_create, -1)
-STUB_RETURN_UNDEFINED(physics_fixture_delete)
-STUB_RETURN_UNDEFINED(physics_fixture_set_circle_shape)
-STUB_RETURN_UNDEFINED(physics_fixture_set_box_shape)
-STUB_RETURN_UNDEFINED(physics_fixture_set_polygon_shape)
-STUB_RETURN_UNDEFINED(physics_fixture_add_point)
-STUB_RETURN_UNDEFINED(physics_fixture_set_sensor)
-STUB_RETURN_UNDEFINED(physics_fixture_set_density)
-STUB_RETURN_UNDEFINED(physics_fixture_set_friction)
-STUB_RETURN_UNDEFINED(physics_fixture_set_restitution)
-STUB_RETURN_UNDEFINED(physics_fixture_set_linear_damping)
-STUB_RETURN_UNDEFINED(physics_fixture_set_angular_damping)
-STUB_RETURN_UNDEFINED(physics_fixture_set_collision_group)
-STUB_RETURN_VALUE(physics_fixture_bind, -1)
-STUB_RETURN_UNDEFINED(physics_apply_force)
-STUB_RETURN_UNDEFINED(physics_apply_local_force)
-STUB_RETURN_UNDEFINED(physics_apply_impulse)
-STUB_RETURN_UNDEFINED(physics_apply_local_impulse)
-STUB_RETURN_UNDEFINED(physics_apply_torque)
-STUB_RETURN_UNDEFINED(physics_apply_angular_impulse)
-STUB_RETURN_UNDEFINED(physics_pause_enable)
-STUB_RETURN_UNDEFINED(physics_pause_disable)
+// Physics builtins removed (previously stubbed, now unregistered)
 
 // ===[ REGISTRATION ]===
 

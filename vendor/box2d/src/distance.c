@@ -420,7 +420,8 @@ static b2Vec2 b2SolveSimplex3( b2Simplex* s )
 // I spent time optimizing this and could find no further significant gains 3/30/2025
 b2DistanceOutput b2ShapeDistance( const b2DistanceInput* input, b2SimplexCache* cache, b2Simplex* simplexes, int simplexCapacity )
 {
-	B2_UNUSED( simplexes, simplexCapacity );
+	B2_UNUSED( simplexes );
+	B2_UNUSED( simplexCapacity );
 	B2_ASSERT( input->proxyA.count > 0 && input->proxyB.count > 0 );
 	B2_ASSERT( input->proxyA.radius >= 0.0f );
 	B2_ASSERT( input->proxyB.radius >= 0.0f );
