@@ -120,8 +120,10 @@ static uint32_t dsStreamReadU32(DsReadStream* s);
 static int dsHexNibble(char c);
 static RValue dsStreamReadValue(DsReadStream* s, int32_t version);
 static void dsStreamAppendU32(uint8_t** buf, uint32_t val);
+static void dsStreamAppendValues(uint8_t** buf, const RValue* items, int32_t len);
 static void dsStreamWriteValue(uint8_t** buf, RValue val);
 static RValue dsStreamFinishToHexString(uint8_t* buf);
+static AudioSystem* getAudioSystem(VMContext* ctx);
 
 // ===[ DS_MAP SYSTEM ]===
 
