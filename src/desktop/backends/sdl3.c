@@ -1,3 +1,4 @@
+#include <SDL3/SDL_timer.h>
 #include <stdio.h>
 
 #include <SDL3/SDL_events.h>
@@ -182,7 +183,8 @@ void *platformGetProcAddress(const char *name) {
 #endif
 
 double platformGetTime(void) {
-    return (double)SDL_GetTicks() / 1000.0;
+    // SDL_GetTicksNS() returns Uint64 nanoseconds
+    return (double)SDL_GetTicksNS() / 1000000000.0;
 }
 
 static int32_t SDLKeyToGml(int sdlkey) {
@@ -317,11 +319,10 @@ bool platformHandleEvents(void) {
 
 void platformSleepUntil(double time) {
     double remaining = time - platformGetTime();
-    if (remaining > 0.002)
-        SDL_Delay((Uint32)((remaining - 0.001) * 1000));
 
-    while (platformGetTime() < time) {
-        // Spin-wait for the remaining sub-millisecond
+    if (remaining > 0.0) {
+        Uint64 remainingNS = (Uint64)(remaining * 1000000000.0);
+        SDL_DelayPrecise(remainingNS);
     }
 }
 
