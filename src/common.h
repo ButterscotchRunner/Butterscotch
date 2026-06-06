@@ -5,6 +5,8 @@
 #define nullptr NULL
 #endif
 
+#include <stdint.h>
+
 #ifndef UINT32_MAX
 #define UINT32_MAX 0xFFFFFFFFU
 #endif
