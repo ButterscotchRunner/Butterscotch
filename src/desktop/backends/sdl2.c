@@ -159,9 +159,40 @@ void platformExit(void) {
     SDL_Quit();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    if (cursorType == -1) {
+        SDL_ShowCursor(SDL_DISABLE);
+        return;
+    }
+    SDL_ShowCursor(SDL_ENABLE);
+
+    SDL_SystemCursor sdlCursor;
+    switch (cursorType) {
+        case  -3: sdlCursor = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
+        case  -4: sdlCursor = SDL_SYSTEM_CURSOR_IBEAM;     break;
+        case  -6: sdlCursor = SDL_SYSTEM_CURSOR_SIZENESW;  break;
+        case  -7: sdlCursor = SDL_SYSTEM_CURSOR_SIZENS;    break;
+        case  -8: sdlCursor = SDL_SYSTEM_CURSOR_SIZENWSE;  break;
+        case  -9: sdlCursor = SDL_SYSTEM_CURSOR_SIZEWE;    break;
+        case -11: sdlCursor = SDL_SYSTEM_CURSOR_WAIT;      break;
+        case -12: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
+        case -19: sdlCursor = SDL_SYSTEM_CURSOR_WAITARROW; break;
+        case -21: sdlCursor = SDL_SYSTEM_CURSOR_HAND;      break;
+        case -22: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
+        default:  sdlCursor = SDL_SYSTEM_CURSOR_ARROW;     break;
+    }
+
+    SDL_Cursor* cursor = SDL_CreateSystemCursor(sdlCursor);
+    if (cursor) {
+        SDL_SetCursor(cursor);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = 0; // cr_default
 }
 
 #ifdef ENABLE_SW_RENDERER

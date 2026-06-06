@@ -101,9 +101,16 @@ void platformExit(void) {
     SDL_Quit();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // SDL1.2 only supports showing/hiding
+    SDL_ShowCursor(cursorType == -1 ? SDL_DISABLE : SDL_ENABLE);
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = 0; // cr_default
 }
 
 #ifdef ENABLE_SW_RENDERER

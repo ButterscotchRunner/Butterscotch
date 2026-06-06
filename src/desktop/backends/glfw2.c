@@ -221,9 +221,20 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // GLFW2 only supports showing/hiding
+    if (cursorType == -1) {
+        glfwDisable(GLFW_MOUSE_CURSOR);
+    } else {
+        glfwEnable(GLFW_MOUSE_CURSOR);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = 0; // cr_default
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(resizeCallback);

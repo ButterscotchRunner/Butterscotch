@@ -7257,6 +7257,24 @@ static RValue builtin_window_has_focus(VMContext* ctx, MAYBE_UNUSED RValue* args
     return RValue_makeBool(true);
 }
 
+static RValue builtin_window_set_cursor(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 1) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    if (runner == nullptr) return RValue_makeUndefined();
+    int32_t cursorType = RValue_toInt32(args[0]);
+    runner->currentCursor = cursorType;
+    if (runner->setCursor != nullptr) {
+        runner->setCursor(cursorType);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_window_get_cursor(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner == nullptr) return RValue_makeReal(0);
+    return RValue_makeReal(runner->currentCursor);
+}
+
 // ===[ Game State Functions ]===
 static RValue builtin_game_restart(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     ctx->runner->pendingRoom = ROOM_RESTARTGAME;
@@ -15108,6 +15126,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_set_size", builtin_window_set_size);
     VM_registerBuiltin(ctx, "window_center", builtin_window_center);
     VM_registerBuiltin(ctx, "window_has_focus", builtin_window_has_focus);
+    VM_registerBuiltin(ctx, "window_set_cursor", builtin_window_set_cursor);
+    VM_registerBuiltin(ctx, "window_get_cursor", builtin_window_get_cursor);
 
     // Game
     VM_registerBuiltin(ctx, "game_restart", builtin_game_restart);

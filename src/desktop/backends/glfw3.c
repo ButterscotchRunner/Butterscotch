@@ -252,9 +252,40 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    if (cursorType == -1) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        return;
+    }
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    int glfwShape;
+    switch (cursorType) {
+        case -3:  glfwShape = GLFW_CROSSHAIR_CURSOR; break;
+        case -4:  glfwShape = GLFW_IBEAM_CURSOR; break;
+        case -7:  glfwShape = GLFW_VRESIZE_CURSOR; break;
+        case -9:  glfwShape = GLFW_HRESIZE_CURSOR; break;
+        case -12: glfwShape = GLFW_HAND_CURSOR; break;
+        case -21: glfwShape = GLFW_HAND_CURSOR; break;
+        #if (GLFW_VERSION_MINOR >= 4)
+        case -22: glfwShape = GLFW_RESIZE_ALL_CURSOR; break;
+        case -8:  glfwShape = GLFW_RESIZE_NWSE_CURSOR; break;
+        case -6:  glfwShape = GLFW_RESIZE_NESW_CURSOR; break;
+        #endif
+        default:  glfwShape = GLFW_ARROW_CURSOR; break;
+    }
+
+    GLFWcursor* cursor = glfwCreateStandardCursor(glfwShape);
+    if (cursor) {
+        glfwSetCursor(window, cursor);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = 0; // cr_default
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
