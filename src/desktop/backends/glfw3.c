@@ -15,6 +15,7 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
 
 static GLFWwindow *window;
 static Runner *g_runner;
@@ -289,10 +290,6 @@ void *platformGetProcAddress(const char *name) {
     return glfwGetProcAddress(name);
 }
 
-double platformGetTime(void) {
-    return glfwGetTime();
-}
-
 enum {
     IDX_LT = 6,
     IDX_RT = 7,
@@ -413,20 +410,20 @@ bool platformHandleEvents(void) {
     return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
-    if (remaining > 0.002) {
+void platformSleepUntil(uint64_t time) {
+    int64_t remaining = time - nowNanos();
+    if (remaining > 2000000) {
+        remaining -= 1000000;
 #ifdef _WIN32
-        Sleep((DWORD) ((remaining - 0.001) * 1000));
+        Sleep(remaining / 1000000);
 #else
-        struct timespec ts = {
-            .tv_sec = 0,
-            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
-        };
+        struct timespec ts;
+        ts.tv_sec  = 0;
+        ts.tv_nsec = remaining;
         nanosleep(&ts, NULL);
 #endif
     }
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
     }
 }
