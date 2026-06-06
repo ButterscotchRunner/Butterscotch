@@ -48,8 +48,8 @@ uint64_t nowNanos(void) {
      * macOS version, maybe even rhapsody. It is also actually accurate to nanosecond precision,
      * unlike clock_gettime(), which secretly truncates down to the nearest multiple of 1000.
      * It is probably also faster than clock_gettime(), since the kernel does all this same
-     * logic, plus some other stuff. The only difference in behavior is that it doesn't count
-     * time spent sleeping, which is probably undesirable for this anyway.
+     * logic behind the scenes, plus some other stuff. The only difference in behavior is that
+     * it doesn't count time spent sleeping, which is probably undesirable for this anyway.
      */
     static double mach_time_factor = 0.0;
     if (mach_time_factor == 0.0) {
