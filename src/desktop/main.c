@@ -1634,8 +1634,8 @@ int main(int argc, char* argv[]) {
                 fastForwardTabPrev = fastForwardTabNow;
                 double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
                 double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
-                double nextFrameTime = lastFrameTime + targetFrameTime;
-                platformSleepUntil(nextFrameTime * 1000000000.0);
+                uint64_t nextFrameTime = (lastFrameTime + targetFrameTime) * 1000000000;
+                platformSleepUntil(nextFrameTime);
             }
             lastFrameTime = getTime();
         }
