@@ -11163,6 +11163,7 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     bg->alpha = 1.0f;
     bg->xOffset = 0.0f;
     bg->yOffset = 0.0f;
+    bg->imageIndex = 0;
     RuntimeLayerElement el = {0};
     el.id = Runner_getNextLayerId(runner);
     el.type = RuntimeLayerElementType_Background;
@@ -11301,6 +11302,24 @@ static RValue builtin_layer_background_get_id(VMContext* ctx, RValue* args, MAYB
     }
 
     return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t background_element_id = RValue_toInt32(args[0]);
+    int32_t index = RValue_toInt32(args[1]);
+
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, background_element_id);
+    if (bg != nullptr) {
+        bg->imageIndex = index;
+    }
+
+    RoomLayer* roomLayer = Runner_findRoomLayerById(runner, background_element_id);
+    if (roomLayer != nullptr && roomLayer->type == RoomLayerType_Background && roomLayer->backgroundData != nullptr) {
+        roomLayer->backgroundData->imageIndex = index;
+    }
+
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -13715,6 +13734,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_sprite", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_change", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
+    VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
 
     // GMS2 internal

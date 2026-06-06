@@ -789,7 +789,7 @@ void Runner_draw(Runner* runner) {
                             runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, bg->blend, bg->alpha, false);
                             continue;
                         }
-                        int32_t tpagIndex = Renderer_resolveSpriteTPAGIndex(dataWin, bg->spriteIndex);
+                        int32_t tpagIndex = Renderer_resolveTPAGIndex(dataWin, bg->spriteIndex, bg->imageIndex);
                         if (0 > tpagIndex) continue;
                         if (bg->stretch) {
                             TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
@@ -895,7 +895,7 @@ void Runner_draw(Runner* runner) {
                     continue;
                 }
 
-                int32_t tpagIndex = Renderer_resolveSpriteTPAGIndex(dataWin, data->spriteIndex);
+                int32_t tpagIndex = Renderer_resolveTPAGIndex(dataWin, data->spriteIndex, data->imageIndex);
                 if (0 > tpagIndex) continue;
 
                 if (data->stretch) {
