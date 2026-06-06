@@ -53,8 +53,6 @@ endif
 SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
-else
-PKG_CONFIG_FLAGS :=
 endif
 INCLUDES += -Isrc/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
@@ -75,7 +73,7 @@ LIBS += $(SDL1_LIBS)
 DEFINES += -DUSE_SDL1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl2)
-SDL2_LIBS += $(shell pkg-config --libs sdl2)
+SDL2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl2)
 LIBS += $(SDL2_LIBS)
 DEFINES += -DUSE_SDL2
 endif
