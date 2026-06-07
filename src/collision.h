@@ -431,15 +431,3 @@ static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a
 
     return false;
 }
-
-#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
-    #include <immintrin.h>
-    #define YIELD() _mm_pause()
-#elif defined(_M_ARM64) || defined(_M_ARM)
-    #include <intrin.h>
-    #define YIELD() __yield()
-#elif defined(__aarch64__) || defined(__arm__) && (__ARM_ARCH >= 7)
-    #define YIELD() __asm__ volatile("yield" ::: "memory")
-#else
-    #define YIELD() ((void)0)
-#endif
