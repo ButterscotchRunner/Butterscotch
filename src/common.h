@@ -37,13 +37,25 @@
 #endif
 
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
-    #include <immintrin.h>
-    #define YIELD() _mm_pause()
+    #if defined(__GNUC__) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 4))
+        #define YIELD() __asm__ volatile("rep; nop" ::: "memory")
+    #else
+        #include <immintrin.h>
+        #define YIELD() _mm_pause()
+    #endif
 #elif defined(_M_ARM64) || defined(_M_ARM)
     #include <intrin.h>
     #define YIELD() __yield()
-#elif defined(__aarch64__) || defined(__arm__) && (__ARM_ARCH >= 7)
-    #define YIELD() __asm__ volatile("yield" ::: "memory")
+#elif defined(__aarch64__) || (defined(__arm__) && defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
+    #if defined(__GNUC__) && (__GNUC__ < 5)
+        #define YIELD() __asm__ volatile("yield" ::: "memory")
+    #else
+        #include <arm_acle.h>
+        #define YIELD() __yield()
+    #endif
+#elif defined(__riscv)
+    #define YIELD() __asm__ volatile("pause" ::: "memory")
 #else
     #define YIELD() ((void)0)
 #endif
+
