@@ -266,6 +266,7 @@ void platformSleepUntil(double time) {
         glfwSleep(remaining - 0.001);
 
     while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
         YIELD();
     }
 }

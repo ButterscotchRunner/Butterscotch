@@ -257,6 +257,7 @@ void platformSleepUntil(double time) {
         SDL_Delay((Uint32)((remaining - 0.001) * 1000));
 
     while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
         YIELD();
     }
 }

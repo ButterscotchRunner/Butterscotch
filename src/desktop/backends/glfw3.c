@@ -427,6 +427,7 @@ void platformSleepUntil(double time) {
 #endif
     }
     while (platformGetTime() < time) {
+        // Spin-wait for the remaining sub-millisecond
         YIELD();
     }
 }
