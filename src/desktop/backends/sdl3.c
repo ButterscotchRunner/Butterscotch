@@ -14,6 +14,7 @@ static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
+static SDL_Gamepad* openControllers[MAX_GAMEPADS];
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -55,9 +56,13 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
+    }
+
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        openControllers[i] = NULL;
     }
 
     if (gfx == LEGACY_GL) {
@@ -251,6 +256,57 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
     }
 }
 
+enum {
+    IDX_LT = 6,
+    IDX_RT = 7,
+};
+
+static void mapSdl3ToGml(SDL_Gamepad* gp, GamepadSlot* slot) {
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH)) slot->buttonDown[0] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_EAST)) slot->buttonDown[1] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_WEST)) slot->buttonDown[2] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_NORTH)) slot->buttonDown[3] = true;
+
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)) slot->buttonDown[4] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)) slot->buttonDown[5] = true;
+
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_LEFT_STICK))  slot->buttonDown[10] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_STICK)) slot->buttonDown[11] = true;
+
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK)) slot->buttonDown[8] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_START)) slot->buttonDown[9] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_GUIDE)) slot->buttonDown[16] = true;
+
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_UP)) slot->buttonDown[12] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_DOWN)) slot->buttonDown[13] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) slot->buttonDown[14] = true;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) slot->buttonDown[15] = true;
+
+    float lt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.0f;
+    float rt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 32767.0f;
+    if (lt < 0.0f) lt = 0.0f;
+    if (rt < 0.0f) rt = 0.0f;
+    slot->buttonValue[IDX_LT] = lt;
+    slot->buttonValue[IDX_RT] = rt;
+    if (lt >= slot->triggerThreshold) slot->buttonDown[IDX_LT] = true;
+    if (rt >= slot->triggerThreshold) slot->buttonDown[IDX_RT] = true;
+
+    float lh = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
+    float lv = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
+    float rh = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
+    float rv = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+
+    slot->axisValue[0] = lh;
+    slot->axisValue[1] = lv;
+    slot->axisValue[2] = rh;
+    slot->axisValue[3] = rv;
+
+    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
+        if (i == IDX_LT || i == IDX_RT) continue;
+        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
+    }
+}
+
 bool platformHandleEvents(void) {
     bool should_exit = false;
     SDL_Event e;
@@ -294,11 +350,85 @@ bool platformHandleEvents(void) {
                 if (gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
+            case SDL_EVENT_GAMEPAD_ADDED: {
+                int device_index = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i] == NULL) {
+                        openControllers[i] = SDL_OpenGamepad(device_index);
+                        break;
+                    }
+                }
+                break;
+            }
+            case SDL_EVENT_GAMEPAD_REMOVED: {
+                int instance_id = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i]) {
+                        SDL_Joystick* joy = SDL_GetGamepadJoystick(openControllers[i]);
+                        if (joy && SDL_GetJoystickID(joy) == instance_id) {
+                            SDL_CloseGamepad(openControllers[i]);
+                            openControllers[i] = NULL;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
             case SDL_EVENT_QUIT:
                 should_exit = true;
                 break;
             default:
                 break;
+        }
+    }
+
+    g_runner->gamepads->connectedCount = 0;
+    for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+        GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
+        SDL_Gamepad* gp = openControllers[slotIdx];
+
+        memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
+        memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
+        memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
+        memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
+        memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
+        memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+        if (gp && SDL_GamepadConnected(gp)) {
+            slot->connected = true;
+            slot->jid = slotIdx;
+
+            const char* name = SDL_GetGamepadName(gp);
+            if (name != NULL) {
+                strncpy(slot->description, name, sizeof(slot->description) - 1);
+                slot->description[sizeof(slot->description) - 1] = '\0';
+            } else {
+                slot->description[0] = '\0';
+            }
+
+            char guidStr[64] = {0};
+            SDL_Joystick* joy = SDL_GetGamepadJoystick(gp);
+            if (joy) {
+                SDL_GUIDToString(SDL_GetJoystickGUID(joy), guidStr, sizeof(guidStr));
+            }
+            strncpy(slot->guid, guidStr, sizeof(slot->guid) - 1);
+            slot->guid[sizeof(slot->guid) - 1] = '\0';
+
+            mapSdl3ToGml(gp, slot);
+
+            for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                bool wasDown = slot->buttonDownPrev[btn];
+                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
+                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+            }
+            g_runner->gamepads->connectedCount++;
+        } else {
+            if (gp) {
+                SDL_CloseGamepad(gp);
+                openControllers[slotIdx] = NULL;
+            }
+            slot->connected = false;
+            slot->guid[0] = '\0';
         }
     }
 
