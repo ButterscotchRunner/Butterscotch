@@ -299,7 +299,7 @@ static void printUsage(const char *argv0) {
         "    --headless                             - %s\n"
 #endif
         "    --print-rooms                          - %s\n"
-        //"    --print-objects                        - %s\n"
+        "    --print-objects                        - %s\n"
         "    --print-declared-functions             - %s\n"
         "    --print-unknown-functions              - %s\n"
         "    --trace-variable-reads                 - %s\n"
@@ -350,8 +350,8 @@ static void printUsage(const char *argv0) {
 #ifndef USE_GLFW2
         getLocStr("Launch without a window", "help.headless"),
 #endif
-        getLocStr("Print all the rooms in the game and exit", "help.print-rooms"),
-        //getLocStr("", "help.print-objects"),
+        getLocStr("Print all rooms in the game and exit", "help.print-rooms"),
+        getLocStr("Print all objects in the game and exit", "help.print-objects"),
         getLocStr("Print all declared functions in the game and exit", "help.print-declared-functions"),
         getLocStr("Print all unknown functions used by the game and exit", "help.print-unknown-functions"),
         getLocStr("Trace variable reads", "help.trace-variable-reads"),
