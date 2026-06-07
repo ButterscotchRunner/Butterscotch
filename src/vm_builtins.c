@@ -10640,6 +10640,24 @@ static RValue builtin_action_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeUndefined();
 }
 
+// action_draw_variable(value, x, y) - draws the value as text at (x, y), respecting the relative flag.
+static RValue builtin_action_draw_variable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    char* str = RValue_toString(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
+    runner->renderer->vtable->drawText(runner->renderer, processedText.text, x, y, 1.0f, 1.0f, 0.0f, -1.0f);
+    PreprocessedText_free(processedText);
+    free(str);
+    return RValue_makeUndefined();
+}
+
 // ===[ Tile Layer Functions ]===
 
 static TileLayerState* getOrCreateTileLayer(Runner* runner, int32_t depth) {
@@ -13787,6 +13805,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_font", builtin_action_font);
         VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
         VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+        VM_registerBuiltin(ctx, "action_draw_variable", builtin_action_draw_variable);
         VM_registerBuiltin(ctx, "action_change_object", builtin_instance_change);
         VM_registerBuiltin(ctx, "action_end_game", builtin_game_end);
         VM_registerBuiltin(ctx, "action_execute_script", builtin_script_execute); //It its right? i think
