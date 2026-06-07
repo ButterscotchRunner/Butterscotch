@@ -15,8 +15,6 @@
 #endif
 #endif
 
-uint64_t game_start_time = 0;
-
 uint64_t nowNanos(void) {
 #if defined(PLATFORM_PS2)
     // kBUSCLK is bus clock ticks per second (~147 MHz).
