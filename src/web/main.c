@@ -12,6 +12,7 @@
 #include "overlay_file_system.h"
 #include "runner.h"
 #include "gl/gl_renderer.h"
+#include "gettime.h"
 
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = 0;
 static Runner* gRunner;
@@ -92,6 +93,7 @@ static int mkdirP(const char* path) {
 void* loop() {
     double lastFrameStartMs = emscripten_get_now(); // for delta_time and frame pacing
 
+    gRunner->gameStartTime = nowNanos();
     while (!gRunner->shouldExit) {
         double frameStartMs = emscripten_get_now();
         gRunner->deltaTime = (frameStartMs - lastFrameStartMs) * 1000.0;
