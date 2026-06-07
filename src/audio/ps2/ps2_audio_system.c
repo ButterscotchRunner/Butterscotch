@@ -1313,37 +1313,36 @@ static bool ps2DestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
 // ===[ Vtable ]===
 
-static AudioSystemVtable ps2AudioSystemVtable = {
-    .init = ps2Init,
-    .destroy = ps2Destroy,
-    .update = ps2Update,
-    .playSound = ps2PlaySound,
-    .stopSound = ps2StopSound,
-    .stopAll = ps2StopAll,
-    .isPlaying = ps2IsPlaying,
-    .pauseSound = ps2PauseSound,
-    .resumeSound = ps2ResumeSound,
-    .pauseAll = ps2PauseAll,
-    .resumeAll = ps2ResumeAll,
-    .setSoundGain = ps2SetSoundGain,
-    .getSoundGain = ps2GetSoundGain,
-    .setSoundPitch = ps2SetSoundPitch,
-    .getSoundPitch = ps2GetSoundPitch,
-    .getTrackPosition = ps2GetTrackPosition,
-    .setTrackPosition = ps2SetTrackPosition,
-    .getSoundLength = ps2GetSoundLength,
-    .setMasterGain = ps2SetMasterGain,
-    .setChannelCount = ps2SetChannelCount,
-    .groupLoad = ps2GroupLoad,
-    .groupIsLoaded = ps2GroupIsLoaded,
-    .createStream = ps2CreateStream,
-    .destroyStream = ps2DestroyStream,
-};
+static AudioSystemVtable ps2AudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
 Ps2AudioSystem* Ps2AudioSystem_create(void) {
     Ps2AudioSystem* ps2 = safeCalloc(1, sizeof(Ps2AudioSystem));
+    ps2AudioSystemVtable.init = ps2Init;
+    ps2AudioSystemVtable.destroy = ps2Destroy;
+    ps2AudioSystemVtable.update = ps2Update;
+    ps2AudioSystemVtable.playSound = ps2PlaySound;
+    ps2AudioSystemVtable.stopSound = ps2StopSound;
+    ps2AudioSystemVtable.stopAll = ps2StopAll;
+    ps2AudioSystemVtable.isPlaying = ps2IsPlaying;
+    ps2AudioSystemVtable.pauseSound = ps2PauseSound;
+    ps2AudioSystemVtable.resumeSound = ps2ResumeSound;
+    ps2AudioSystemVtable.pauseAll = ps2PauseAll;
+    ps2AudioSystemVtable.resumeAll = ps2ResumeAll;
+    ps2AudioSystemVtable.setSoundGain = ps2SetSoundGain;
+    ps2AudioSystemVtable.getSoundGain = ps2GetSoundGain;
+    ps2AudioSystemVtable.setSoundPitch = ps2SetSoundPitch;
+    ps2AudioSystemVtable.getSoundPitch = ps2GetSoundPitch;
+    ps2AudioSystemVtable.getTrackPosition = ps2GetTrackPosition;
+    ps2AudioSystemVtable.setTrackPosition = ps2SetTrackPosition;
+    ps2AudioSystemVtable.getSoundLength = ps2GetSoundLength;
+    ps2AudioSystemVtable.setMasterGain = ps2SetMasterGain;
+    ps2AudioSystemVtable.setChannelCount = ps2SetChannelCount;
+    ps2AudioSystemVtable.groupLoad = ps2GroupLoad;
+    ps2AudioSystemVtable.groupIsLoaded = ps2GroupIsLoaded;
+    ps2AudioSystemVtable.createStream = ps2CreateStream;
+    ps2AudioSystemVtable.destroyStream = ps2DestroyStream;
     ps2->base.vtable = &ps2AudioSystemVtable;
     ps2->masterGain = 1.0f;
     return ps2;

@@ -130,7 +130,7 @@ static int32_t dsListCreate(Runner* runner) {
             return i;
         }
     }
-    DsList newList = { .items = nullptr, .freed = false };
+    DsList newList = {0};
     int32_t id = poolSize;
     arrput(runner->dsListPool, newList);
     return id;
@@ -153,7 +153,7 @@ static int32_t dsQueueCreate(Runner* runner) {
             return i;
         }
     }
-    DsQueue q = { .items = nullptr, .freed = false };
+    DsQueue q = {0};
     int32_t id = poolSize;
     arrput(runner->dsQueuePool, q);
     return id;
@@ -166,24 +166,6 @@ static DsQueue* dsQueueGet(Runner* runner, int32_t id) {
 }
 
 // ===[ BUILT-IN VARIABLE GET/SET ]===
-
-/**
- * Gets the argument number from the name
- *
- * If it returns -1, then the name is not an argument variable
- *
- * @param name The name
- * @return The argument number, -1 if it is not an argument variable
- */
-static int extractArgumentNumber(const char* name) {
-    if (strncmp(name, "argument", 8) == 0) {
-        char* end;
-        long argNumber = strtol(name + 8, &end, 10);
-        if (end == name + 8 || *end != '\0' || 0 > argNumber || argNumber > 15) return -1;
-        return (int) argNumber;
-    }
-    return -1;
-}
 
 static bool isValidAlarmIndex(int alarmIndex) {
     return alarmIndex >= 0 && GML_ALARM_COUNT > alarmIndex;
@@ -307,12 +289,17 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "image_xscale", BUILTIN_VAR_IMAGE_XSCALE },
     { "image_yscale", BUILTIN_VAR_IMAGE_YSCALE },
     { "instance_count", BUILTIN_VAR_INSTANCE_COUNT },
+    { "instance_id", BUILTIN_VAR_INSTANCE_ID },
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
     { "layer", BUILTIN_VAR_LAYER },
     { "lives", BUILTIN_VAR_LIVES },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
+    { "mouse_button", BUILTIN_VAR_MOUSE_BUTTON },
+    { "mouse_lastbutton", BUILTIN_VAR_MOUSE_LASTBUTTON },
+    { "mouse_x", BUILTIN_VAR_MOUSE_X },
+    { "mouse_y", BUILTIN_VAR_MOUSE_Y },
     { "object_index", BUILTIN_VAR_OBJECT_INDEX },
     { "os_3ds", BUILTIN_VAR_OS_3DS },
     { "os_amazon", BUILTIN_VAR_OS_AMAZON },
@@ -384,11 +371,13 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "view_angle", BUILTIN_VAR_VIEW_ANGLE },
     { "view_camera", BUILTIN_VAR_CAMERA_VIEW },
     { "view_current", BUILTIN_VAR_VIEW_CURRENT },
+    { "view_enabled", BUILTIN_VAR_VIEW_ENABLED },
     { "view_hborder", BUILTIN_VAR_VIEW_HBORDER },
     { "view_hport", BUILTIN_VAR_VIEW_HPORT },
     { "view_hspeed", BUILTIN_VAR_VIEW_HSPEED },
     { "view_hview", BUILTIN_VAR_VIEW_HVIEW },
     { "view_object", BUILTIN_VAR_VIEW_OBJECT },
+    { "view_surface_id", BUILTIN_VAR_VIEW_SURFACE_ID },
     { "view_vborder", BUILTIN_VAR_VIEW_VBORDER },
     { "view_visible", BUILTIN_VAR_VIEW_VISIBLE },
     { "view_vspeed", BUILTIN_VAR_VIEW_VSPEED },
@@ -426,7 +415,7 @@ void VMBuiltins_checkIfBuiltinVarTableIsSorted(void) {
     size_t count = sizeof(BUILTIN_VAR_TABLE) / sizeof(BUILTIN_VAR_TABLE[0]);
     for (size_t i = 1; count > i; i++) {
         int cmp = strcmp(BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name);
-        requireMessageFormatted(cmp < 0, "BUILTIN_VAR_TABLE not strictly sorted at index %zu: '%s' vs '%s' (cmp=%d). Re-sort (LC_ALL=C) or remove duplicates!", i, BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name, cmp);
+        requireMessageFormatted(__FILE__, __LINE__, cmp < 0, "BUILTIN_VAR_TABLE not strictly sorted at index %zu: '%s' vs '%s' (cmp=%d). Re-sort (LC_ALL=C) or remove duplicates!", i, BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name, cmp);
     }
 }
 
@@ -737,8 +726,12 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
 
         // View properties
         case BUILTIN_VAR_VIEW_CURRENT:
-        case BUILTIN_VAR_CAMERA_VIEW:
             return RValue_makeReal((GMLReal) runner->viewCurrent);
+        case BUILTIN_VAR_VIEW_ENABLED:
+            return RValue_makeBool(runner->viewsEnabled);
+        case BUILTIN_VAR_CAMERA_VIEW:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) return RValue_makeReal((GMLReal) runner->views[arrayIndex].cameraId);
+            return RValue_makeReal(-1.0);
         case BUILTIN_VAR_VIEW_XVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) return RValue_makeReal((GMLReal) camera->viewX);
@@ -804,6 +797,9 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             if (camera != nullptr) return RValue_makeReal((GMLReal) camera->speedY);
             return RValue_makeReal(0.0);
         }
+        case BUILTIN_VAR_VIEW_SURFACE_ID:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) return RValue_makeReal((GMLReal) runner->viewSurfaceIds[arrayIndex]);
+            return RValue_makeReal(-1.0);
 
         // Background properties
         case BUILTIN_VAR_BACKGROUND_VISIBLE:
@@ -919,6 +915,17 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeString(runner->keyboard->lastChar);
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
+
+        case BUILTIN_VAR_MOUSE_X: {
+            GMLReal mouseRoomX, mouseRoomY;
+            Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
+            return RValue_makeReal(mouseRoomX);
+        }
+        case BUILTIN_VAR_MOUSE_Y: {
+            GMLReal mouseRoomX, mouseRoomY;
+            Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
+            return RValue_makeReal(mouseRoomY);
+        }
 
         // Surfaces
         case BUILTIN_VAR_APPLICATION_SURFACE:
@@ -1043,6 +1050,18 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
                 if (runner->instances[i]->active) count++;
             }
             return RValue_makeReal((GMLReal) count);
+        }
+        case BUILTIN_VAR_INSTANCE_ID: {
+            if (0 > arrayIndex) return RValue_makeReal((GMLReal) INSTANCE_NOONE);
+            int32_t instanceCount = (int32_t) arrlen(runner->instances);
+            int32_t active = 0;
+            repeat(instanceCount, i) {
+                Instance* candidate = runner->instances[i];
+                if (!candidate->active) continue;
+                if (active == arrayIndex) return RValue_makeReal((GMLReal) candidate->instanceId);
+                active++;
+            }
+            return RValue_makeReal((GMLReal) INSTANCE_NOONE);
         }
         case BUILTIN_VAR_FPS:
             return RValue_makeReal(ctx->dataWin->gen8.gms2FPS);
@@ -1384,6 +1403,12 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_VIEW_VISIBLE:
             if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) runner->views[arrayIndex].enabled = RValue_toBool(val);
             return;
+        case BUILTIN_VAR_VIEW_ENABLED:
+            runner->viewsEnabled = RValue_toBool(val);
+            return;
+        case BUILTIN_VAR_CAMERA_VIEW:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) runner->views[arrayIndex].cameraId = RValue_toInt32(val);
+            return;
         case BUILTIN_VAR_VIEW_ANGLE: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) camera->viewAngle = (float) RValue_toReal(val);
@@ -1414,6 +1439,9 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             if (camera != nullptr) camera->speedY = RValue_toInt32(val);
             return;
         }
+        case BUILTIN_VAR_VIEW_SURFACE_ID:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) runner->viewSurfaceIds[arrayIndex] = RValue_toInt32(val);
+            return;
 
         // Background properties
         case BUILTIN_VAR_BACKGROUND_VISIBLE:
@@ -2157,8 +2185,8 @@ static RValue builtin_string_replace(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     int32_t before = (int32_t) (appearance - str);
     char *outputString = safeMalloc(newLen + 1);
 
-    strncpy(outputString, str, before);
-    strncpy(outputString + before, replacement, replacementLen);
+    memcpy(outputString, str, before);
+    memcpy(outputString + before, replacement, replacementLen);
     strcpy(outputString + before + replacementLen, appearance + needleLen);
 
     free(str);
@@ -2852,7 +2880,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
             VM_structSet(ctx, ls, "visible", RValue_makeBool(lay->visible));
 
             if (wantLayerEls) {
-                int32_t elemCount = 0;
                 GMLArray* elements = nullptr;
                 switch ((RoomLayerType) lay->type) {
                     case RoomLayerType_Background: {
@@ -2873,7 +2900,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                             VM_structSet(ctx, es, "speed_type", RValue_makeInt32((int32_t) bg->animSpeedType));
                         }
                         *GMLArray_slot(elements, 0) = RValue_makeStructAndIncRef(es);
-                        elemCount = 1;
                         break;
                     }
                     case RoomLayerType_Instances: {
@@ -2887,7 +2913,6 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                             VM_structSet(ctx, es, "inst_id", RValue_makeInt32((int32_t) id->instanceIds[j]));
                             *GMLArray_slot(elements, j) = RValue_makeStructAndIncRef(es);
                         }
-                        elemCount = ic;
                         break;
                     }
                     case RoomLayerType_Tiles: {
@@ -2913,13 +2938,11 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
                             }
                         }
                         *GMLArray_slot(elements, 0) = RValue_makeStructAndIncRef(es);
-                        elemCount = 1;
                         break;
                     }
                     default:
                         // Asset/Path/Effect layers: emit an empty element list. Filling these out matches the HTML5 runner but isn't required for room_goto navigation.
                         elements = GMLArray_create(1);
-                        elemCount = 0;
                         break;
                 }
                 if (elements != nullptr) VM_structSet(ctx, ls, "elements", RValue_makeArray(elements));
@@ -4081,7 +4104,11 @@ static RValue builtin_ds_list_read(VMContext* ctx, RValue* args, MAYBE_UNUSED in
         bytes[i] = (uint8_t) ((hi << 4) | lo);
     }
 
-    DsReadStream s = { .data = bytes, .size = byteLen, .pos = 0, .error = false };
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
+    s.pos = 0;
+    s.error = false;
     uint32_t magic = dsStreamReadU32(&s);
     int32_t version;
     // 301 = ~BC13 (REAL/STRING/ARRAY only)
@@ -4353,7 +4380,9 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         bytes[i] = (uint8_t) ((hi << 4) | lo);
     }
 
-    DsReadStream s = { .data = bytes, .size = byteLen, .pos = 0, .error = false };
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
     uint32_t magic = dsStreamReadU32(&s);
     int32_t version;
     if (magic == 202) {
@@ -5664,15 +5693,15 @@ static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t 
         content = safeStrdup("");
     }
 
-    runner->openTextFiles[slot] = (OpenTextFile) {
-        .content = content,
-        .writeBuffer = nullptr,
-        .filePath = nullptr,
-        .readPos = 0,
-        .contentLen = (int32_t) strlen(content),
-        .isWriteMode = false,
-        .isOpen = true,
-    };
+    OpenTextFile file = {0};
+    file.content = content;
+    file.writeBuffer = nullptr;
+    file.filePath = nullptr;
+    file.readPos = 0;
+    file.contentLen = (int32_t) strlen(content);
+    file.isWriteMode = false;
+    file.isOpen = true;
+    runner->openTextFiles[slot] = file;
 
     return RValue_makeReal((GMLReal) slot);
 }
@@ -5688,15 +5717,15 @@ static RValue builtin_file_text_open_write(VMContext* ctx, RValue* args, int32_t
         abort();
     }
 
-    runner->openTextFiles[slot] = (OpenTextFile) {
-        .content = nullptr,
-        .writeBuffer = safeStrdup(""),
-        .filePath = safeStrdup(path),
-        .readPos = 0,
-        .contentLen = 0,
-        .isWriteMode = true,
-        .isOpen = true,
-    };
+    OpenTextFile file = {0};
+    file.content = nullptr;
+    file.writeBuffer = safeStrdup("");
+    file.filePath = safeStrdup(path);
+    file.readPos = 0;
+    file.contentLen = 0;
+    file.isWriteMode = true;
+    file.isOpen = true;
+    runner->openTextFiles[slot] = file;
 
     return RValue_makeReal((GMLReal) slot);
 }
@@ -6001,7 +6030,10 @@ static RValue builtin_file_bin_open(VMContext* ctx, RValue* args, int32_t argCou
     void* handle = fs->vtable->binaryOpen(fs, path, mode);
     if (handle == nullptr) return RValue_makeReal(-1.0);
 
-    runner->openBinaryFiles[slot] = (OpenBinaryFile) { .handle = handle, .isOpen = true };
+    OpenBinaryFile file = {0};
+    file.handle = handle;
+    file.isOpen = true;
+    runner->openBinaryFiles[slot] = file;
     return RValue_makeReal((GMLReal) slot);
 }
 
@@ -6143,6 +6175,58 @@ static RValue builtin_keyboard_unset_map(VMContext* ctx, MAYBE_UNUSED RValue* ar
     Runner* runner = ctx->runner;
     RunnerKeyboard_unsetMap(runner->keyboard);
     return RValue_makeUndefined();
+}
+
+// Mouse functions
+static RValue builtinDeviceMouseCheckButton(VMContext* ctx, RValue* args, int32_t argCount) {   
+    if (2 > argCount) return RValue_makeBool(false);
+    Runner* runner = (Runner*) ctx->runner;
+
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeBool(false);
+
+    int32_t button = RValue_toInt32(args[1]);
+    return RValue_makeBool(RunnerMouse_checkButton(runner->mouse, button));
+}
+
+static RValue builtinMouseCheckButton(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t button = RValue_toInt32(args[0]);
+    return RValue_makeBool(RunnerMouse_checkButton(runner->mouse, button));
+}
+
+static RValue builtinMouseCheckButtonPressed(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t button = RValue_toInt32(args[0]);
+    return RValue_makeBool(RunnerMouse_checkButtonPressed(runner->mouse, button));
+}
+
+static RValue builtinMouseCheckButtonReleased(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t button = RValue_toInt32(args[0]);
+    return RValue_makeBool(RunnerMouse_checkButtonReleased(runner->mouse, button));
+}
+
+static RValue builtinMouseClear(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t button = RValue_toInt32(args[0]);
+    RunnerMouse_clear(runner->mouse, button);
+    return RValue_makeUndefined();
+}
+
+static RValue builtinMouseWheelUp(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    return RValue_makeBool(RunnerMouse_getWheelUp(runner->mouse));
+}
+
+static RValue builtinMouseWheelDown(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    return RValue_makeBool(RunnerMouse_getWheelDown(runner->mouse));
 }
 
 // ===[ Joystick Functions ]===
@@ -7561,7 +7645,9 @@ static int32_t gmlAsyncBufferKick(Runner* runner, AsyncBufferOp* ops, int32_t op
     repeat(opCount, i) {
         if (!gmlAsyncBufferRunOp(runner, &ops[i], groupName)) allOk = false;
     }
-    AsyncSaveLoadCompletion completion = { .requestId = requestId, .status = allOk ? 1 : 0, .error = 0 };
+    AsyncSaveLoadCompletion completion = {0};
+    completion.requestId = requestId;
+    completion.status = allOk ? 1 : 0;
     arrput(runner->asyncSaveLoadQueue, completion);
     return requestId;
 }
@@ -7644,11 +7730,11 @@ static RValue builtin_filename_change_ext(MAYBE_UNUSED VMContext* ctx, MAYBE_UNU
 
     if (last != nullptr && last != 0) {
         long index = last - fname;
-        char* new = safeMalloc(index + strlen(newext) + 1);
-        memcpy(new, fname, (size_t) index);
-        memcpy(new + index, newext, (size_t) strlen(newext));
-        new[index + strlen(newext)] = '\0';
-        RValue result = RValue_makeOwnedString(new);
+        char* new_name = safeMalloc(index + strlen(newext) + 1);
+        memcpy(new_name, fname, (size_t) index);
+        memcpy(new_name + index, newext, (size_t) strlen(newext));
+        new_name[index + strlen(newext)] = '\0';
+        RValue result = RValue_makeOwnedString(new_name);
 
         free(fname);
         free(newext);
@@ -7695,7 +7781,7 @@ static RValue builtin_buffer_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* 
     unsigned int inLen = (unsigned int) strlen(input);
     size_t outLen = BASE64_DECODE_OUT_SIZE(inLen);
     uint8_t* out = safeMalloc(outLen);
-    base64_decode((const unsigned char*) input, inLen, out);
+    base64_decode(input, inLen, out);
     free(input);
     int32_t id = gmlBufferCreate(runner, outLen, GML_BUFFER_GROW, 1);
     GmlBuffer* buf = gmlBufferGet(runner, id);
@@ -7747,7 +7833,6 @@ static RValue builtin_buffer_md5(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYB
     MD5Final(digest, &mctx);
 
     char* hex = safeMalloc(33);
-    static const char HEX[] = "0123456789abcdef";
     for (int32_t i = 0; 16 > i; i++) {
         sprintf(&hex[i * 2], "%02x", digest[i]);
     }
@@ -8005,9 +8090,6 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
     float yscale = (float) RValue_toReal(args[9]);
     float rot = (float) RValue_toReal(args[10]);
     uint32_t c1 = (uint32_t) RValue_toInt32(args[11]);
-    uint32_t c2 = (uint32_t) RValue_toInt32(args[12]);
-    uint32_t c3 = (uint32_t) RValue_toInt32(args[13]);
-    uint32_t c4 = (uint32_t) RValue_toInt32(args[14]);
     float alpha = (float) RValue_toReal(args[15]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -8093,8 +8175,6 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     uint32_t minCol = (uint32_t) RValue_toInt32(args[6]);
     uint32_t maxCol = (uint32_t) RValue_toInt32(args[7]);
     uint32_t intermediateColor = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, amount);
-
-    int32_t direction = RValue_toInt32(args[8]);
 
     bool showBack = RValue_toBool(args[9]);
 
@@ -9236,6 +9316,48 @@ static RValue builtin_display_get_gui_width(MAYBE_UNUSED VMContext* ctx, MAYBE_U
 static RValue builtin_display_get_gui_height(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     return RValue_makeInt32(resolveGuiHeight(runner));
+}
+
+static RValue builtinDeviceMouseX(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    Runner* runner = (Runner*) ctx->runner;
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeReal(0.0);
+    GMLReal mouseRoomX, mouseRoomY;
+    Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
+    return RValue_makeReal(mouseRoomX);
+}
+
+static RValue builtinDeviceMouseY(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    Runner* runner = (Runner*) ctx->runner;
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeReal(0.0);
+    GMLReal mouseRoomX, mouseRoomY;
+    Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
+    return RValue_makeReal(mouseRoomY);
+}
+
+static RValue builtinDeviceMouseXToGui(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    Runner* runner = (Runner*) ctx->runner;
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeReal(0.0);
+    int32_t guiWidth = resolveGuiWidth(runner);
+    return RValue_makeReal(runner->mouse->normalizedX * guiWidth);
+}
+
+static RValue builtinDeviceMouseYToGui(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    Runner* runner = (Runner*) ctx->runner;
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeReal(0.0);
+    int32_t guiHeight = resolveGuiHeight(runner);
+    return RValue_makeReal(runner->mouse->normalizedY * guiHeight);
 }
 
 static RValue builtin_display_set_gui_size(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -10518,12 +10640,31 @@ static RValue builtin_action_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeUndefined();
 }
 
+// action_draw_variable(value, x, y) - draws the value as text at (x, y), respecting the relative flag.
+static RValue builtin_action_draw_variable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    char* str = RValue_toString(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
+    runner->renderer->vtable->drawText(runner->renderer, processedText.text, x, y, 1.0f, 1.0f, 0.0f, -1.0f);
+    PreprocessedText_free(processedText);
+    free(str);
+    return RValue_makeUndefined();
+}
+
 // ===[ Tile Layer Functions ]===
 
 static TileLayerState* getOrCreateTileLayer(Runner* runner, int32_t depth) {
     ptrdiff_t idx = hmgeti(runner->tileLayerMap, depth);
     if (0 > idx) {
-        TileLayerState defaultVal = { .visible = true, .offsetX = 0.0f, .offsetY = 0.0f };
+        TileLayerState defaultVal = {0};
+        defaultVal.visible = true;
         hmput(runner->tileLayerMap, depth, defaultVal);
         idx = hmgeti(runner->tileLayerMap, depth);
     }
@@ -10970,16 +11111,12 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
         name = RValue_toString(args[1]);
     }
     uint32_t id = Runner_getNextLayerId(runner);
-    RuntimeLayer runtimeLayer = {
-        .id = id,
-        .depth = depth,
-        .visible = true,
-        .xOffset = 0.0f, .yOffset = 0.0f,
-        .hSpeed = 0.0f, .vSpeed = 0.0f,
-        .dynamic = true,
-        .dynamicName = name, // ownership transferred (nullptr if not provided)
-        .elements = nullptr,
-    };
+    RuntimeLayer runtimeLayer = {0};
+    runtimeLayer.id = id;
+    runtimeLayer.depth = depth;
+    runtimeLayer.visible = true;
+    runtimeLayer.dynamic = true;
+    runtimeLayer.dynamicName = name, // ownership transferred (nullptr if not provided)
     arrput(runner->runtimeLayers, runtimeLayer);
     runner->drawableListStructureDirty = true;
     return RValue_makeReal((GMLReal) id);
@@ -11026,15 +11163,12 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     bg->alpha = 1.0f;
     bg->xOffset = 0.0f;
     bg->yOffset = 0.0f;
-    RuntimeLayerElement el = {
-        .id = Runner_getNextLayerId(runner),
-        .type = RuntimeLayerElementType_Background,
-        .visible = true,
-        .alpha = 1.0f,
-        .backgroundElement = bg,
-        .spriteElement = nullptr,
-        .tileElement = nullptr,
-    };
+    RuntimeLayerElement el = {0};
+    el.id = Runner_getNextLayerId(runner);
+    el.type = RuntimeLayerElementType_Background;
+    el.visible = true;
+    el.alpha = 1.0f;
+    el.backgroundElement = bg;
     arrput(runtimeLayer->elements, el);
     return RValue_makeReal((GMLReal) el.id);
 }
@@ -12004,7 +12138,8 @@ static RValue builtin_mp_grid_add_rectangle(VMContext* ctx, RValue* args, int32_
     int32_t y1 = RValue_toInt32(args[2]);
     int32_t x2 = RValue_toInt32(args[3]);
     int32_t y2 = RValue_toInt32(args[4]);
-    if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0;
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
     if (x2 >= g->hcells) x2 = g->hcells - 1;
     if (y2 >= g->vcells) y2 = g->vcells - 1;
     for (int32_t cx = x1; x2 >= cx; cx++) {
@@ -12024,7 +12159,8 @@ static RValue builtin_mp_grid_clear_rectangle(VMContext* ctx, RValue* args, int3
     int32_t y1 = RValue_toInt32(args[2]);
     int32_t x2 = RValue_toInt32(args[3]);
     int32_t y2 = RValue_toInt32(args[4]);
-    if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0;
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
     if (x2 >= g->hcells) x2 = g->hcells - 1;
     if (y2 >= g->vcells) y2 = g->vcells - 1;
     for (int32_t cx = x1; x2 >= cx; cx++) {
@@ -12528,6 +12664,17 @@ static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(ctx->dataWin->objt.objects[id].spriteId);
 }
 
+static RValue builtin_object_get_parent(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(-1.0);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeReal(-1.0);
+    }
+
+    return RValue_makeReal(ctx->dataWin->objt.objects[id].parentId);
+}
+
 // Shared implementation for font_add_sprite and font_add_sprite_ext
 static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* charCodes, uint32_t charCount, bool proportional, int32_t sep) {
     DataWin* dw = ctx->dataWin;
@@ -12713,7 +12860,6 @@ static RValue builtin_asset_get_index(VMContext* ctx, RValue* args, int32_t argC
     }
 
     char* name = RValue_toString(args[0]);
-    DataWin* dw = ctx->dataWin;
 
     int32_t value = shget(ctx->runner->assetsByName, name);
     free(name);
@@ -13208,6 +13354,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "keyboard_get_map", builtin_keyboard_get_map);
     VM_registerBuiltin(ctx, "keyboard_unset_map", builtin_keyboard_unset_map);
 
+    // Mouse
+    VM_registerBuiltin(ctx, "mouse_check_button", builtinMouseCheckButton);
+    VM_registerBuiltin(ctx, "mouse_check_button_pressed", builtinMouseCheckButtonPressed);
+    VM_registerBuiltin(ctx, "mouse_check_button_released", builtinMouseCheckButtonReleased);
+    VM_registerBuiltin(ctx, "mouse_clear", builtinMouseClear);
+    VM_registerBuiltin(ctx, "mouse_wheel_up", builtinMouseWheelUp);
+    VM_registerBuiltin(ctx, "mouse_wheel_down", builtinMouseWheelDown);
+
     // Joystick
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "joystick_exists", builtin_joystick_exists);
@@ -13458,6 +13612,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "display_set_gui_maximise", builtin_display_set_gui_maximise);
     VM_registerBuiltin(ctx, "display_set_gui_maximize", builtin_display_set_gui_maximise);
 
+    // Devices
+    VM_registerBuiltin(ctx, "device_mouse_check_button", builtinDeviceMouseCheckButton);
+    VM_registerBuiltin(ctx, "device_mouse_x", builtinDeviceMouseX);
+    VM_registerBuiltin(ctx, "device_mouse_y", builtinDeviceMouseY);
+    VM_registerBuiltin(ctx, "device_mouse_x_to_gui", builtinDeviceMouseXToGui);
+    VM_registerBuiltin(ctx, "device_mouse_y_to_gui", builtinDeviceMouseYToGui);
+
     // Collision
     VM_registerBuiltin(ctx, "place_meeting", builtin_place_meeting);
     VM_registerBuiltin(ctx, "collision_rectangle", builtin_collision_rectangle);
@@ -13644,6 +13805,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_font", builtin_action_font);
         VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
         VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+        VM_registerBuiltin(ctx, "action_draw_variable", builtin_action_draw_variable);
         VM_registerBuiltin(ctx, "action_change_object", builtin_instance_change);
         VM_registerBuiltin(ctx, "action_end_game", builtin_game_end);
         VM_registerBuiltin(ctx, "action_execute_script", builtin_script_execute); //It its right? i think
@@ -13664,6 +13826,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);

@@ -10,6 +10,7 @@
 #include <signal.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <mmsystem.h>
 #endif
 #ifdef __GLIBC__
 #include <malloc.h>
@@ -49,6 +50,13 @@
 #include "utils.h"
 #include "profiler.h"
 #include "localization.h"
+
+/* For SDL_main */
+#if defined(USE_SDL1)
+#include <SDL/SDL_main.h>
+#elif defined(USE_SDL2)
+#include <SDL2/SDL_main.h>
+#endif
 
 enum GraphicsAPI gfx;
 
@@ -153,12 +161,13 @@ typedef struct {
     const char* playbackInputsPath;
     const char* renderer;
     YoYoOperatingSystem osType;
-    int windowWidth, windowHeight; // 0 = auto (gen8 default, or the console-native size for console os-types)
+    int32_t windowWidth, windowHeight; // 0 = auto (gen8 default, or the console-native size for console os-types)
     float widescreenAspect; // "widescreen hack" target aspect ratio (width/height), 0 = disabled
     char** gameArgs; // stb_ds array of owned strings, gameArgs[0] = runner executable path
     bool lazyRooms;
     StringBooleanEntry* eagerRooms; // stb_ds string-keyed set of room names
     bool lazyTextures;
+    DataWinLoadType loadType;
     int profilerFramesBetween; // 0 = disabled
 #ifdef ENABLE_VM_OPCODE_PROFILER
     bool opcodeProfiler;
@@ -213,7 +222,7 @@ static void printOsTypeNames(FILE* out) {
 
 // Resolves the window size for the specified operating system.
 // The "--window-size" argument takes precedence over the default resolution for each platform.
-static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, uint32_t gen8Height, int* outW, int* outH) {
+static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, uint32_t gen8Height, int32_t* outW, int32_t* outH) {
     if (args->windowWidth > 0 && args->windowHeight > 0) {
         *outW = args->windowWidth;
         *outH = args->windowHeight;
@@ -237,8 +246,8 @@ static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, u
             *outH = 544;
             break;
         default:
-            *outW = (int) gen8Width;
-            *outH = (int) gen8Height;
+            *outW = (int32_t) gen8Width;
+            *outH = (int32_t) gen8Height;
             break;
     }
 
@@ -436,6 +445,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"save-folder", required_argument, nullptr, 'B'},
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
+        {"load-type", required_argument, nullptr, 999},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -449,9 +459,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->fastForwardSpeed = 0.0;
     args->osType = OS_WINDOWS;
     args->profilerFramesBetween = 0;
+    args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     // TODO: detect available driver features
     // at runtime to improve defaults.
-#if defined(ENABLE_MODERN_GL) && defined(USE_GLFW3)
+#if defined(ENABLE_MODERN_GL) && (defined(USE_GLFW3) || defined(USE_SDL2))
     args->renderer = "modern-gl";
 #elif defined(ENABLE_LEGACY_GL)
     args->renderer = "legacy-gl";
@@ -682,13 +693,24 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             case 'w': {
-                int w = 0, h = 0;
+                int32_t w = 0, h = 0;
                 if (sscanf(optarg, "%dx%d", &w, &h) != 2 || 0 >= w || 0 >= h) {
                     fprintf(stderr, "Error: Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
                     exit(1);
                 }
                 args->windowWidth = w;
                 args->windowHeight = h;
+                break;
+            }
+            case 999: {
+                if (strcmp(optarg, "load-in-memory-ahead-of-time") == 0) {
+                    args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+                } else if (strcmp(optarg, "load-per-chunk") == 0) {
+                    args->loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
+                } else {
+                    fprintf(stderr, "Error: Unknown load type '%s'\n", optarg);
+                    exit(1);
+                }
                 break;
             }
             case 1000: {
@@ -878,7 +900,8 @@ static PreviousSignalActionEntry* previousSignalActions = nullptr;
 static void onCrashSignal(int sig) {
     saveInputRecording();
     // Restore the previous handler (ASAN) and re-raise so it can report the fault
-    sigaction(sig, &previousSignalActions[hmgeti(previousSignalActions, sig)].value, nullptr);
+    ssize_t idx = hmgeti(previousSignalActions, sig);
+    sigaction(sig, &previousSignalActions[idx].value, nullptr);
     raise(sig);
 }
 #endif
@@ -886,6 +909,9 @@ static void onCrashSignal(int sig) {
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
     setbuf(stderr, NULL);
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
 
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
@@ -903,37 +929,35 @@ int main(int argc, char* argv[]) {
     while (true) {
         printf("Loading %s...\n", args.dataWinPath);
 
-        DataWin* dataWin = DataWin_parse(
-            currentDataWinPath,
-            (DataWinParserOptions) {
-                .parseGen8 = true,
-                .parseOptn = true,
-                .parseLang = true,
-                .parseExtn = true,
-                .parseSond = true,
-                .parseAgrp = true,
-                .parseSprt = true,
-                .parseBgnd = true,
-                .parsePath = true,
-                .parseScpt = true,
-                .parseGlob = true,
-                .parseShdr = true,
-                .parseFont = true,
-                .parseTmln = true,
-                .parseObjt = true,
-                .parseRoom = true,
-                .parseTpag = true,
-                .parseCode = true,
-                .parseVari = true,
-                .parseFunc = true,
-                .parseStrg = true,
-                .parseTxtr = true,
-                .parseAudo = true,
-                .skipLoadingPreciseMasksForNonPreciseSprites = true,
-                .lazyLoadRooms = args.lazyRooms,
-                .eagerlyLoadedRooms = args.eagerRooms
-            }
-        );
+        DataWinParserOptions options = {0};
+        options.parseGen8 = true;
+        options.parseOptn = true;
+        options.parseLang = true;
+        options.parseExtn = true;
+        options.parseSond = true;
+        options.parseAgrp = true;
+        options.parseSprt = true;
+        options.parseBgnd = true;
+        options.parsePath = true;
+        options.parseScpt = true;
+        options.parseGlob = true;
+        options.parseShdr = true;
+        options.parseFont = true;
+        options.parseTmln = true;
+        options.parseObjt = true;
+        options.parseRoom = true;
+        options.parseTpag = true;
+        options.parseCode = true;
+        options.parseVari = true;
+        options.parseFunc = true;
+        options.parseStrg = true;
+        options.parseTxtr = true;
+        options.parseAudo = true;
+        options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+        options.loadType = args.loadType;
+        options.lazyLoadRooms = args.lazyRooms;
+        options.eagerlyLoadedRooms = args.eagerRooms;
+        DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
         Gen8* gen8 = &dataWin->gen8;
         printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
@@ -1171,7 +1195,7 @@ int main(int argc, char* argv[]) {
         }
 
 
-        int windowW, windowH;
+        int32_t windowW, windowH;
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
         if (!platformInitialized) {
@@ -1212,7 +1236,7 @@ int main(int argc, char* argv[]) {
         } else {
             // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
             platformSetWindowTitle(gen8->displayName);
-            platformSetWindowSize((int32_t) windowW, (int32_t) windowH);
+            platformSetWindowSize(windowW, windowH);
         }
 
         // Initialize the renderer
@@ -1301,7 +1325,8 @@ int main(int argc, char* argv[]) {
         runner->vmContext->traceEventInherited = args.traceEventInherited;
 
 #ifndef _WIN32
-        struct sigaction sa = { .sa_handler = onCrashSignal };
+        struct sigaction sa = {0};
+        sa.sa_handler = onCrashSignal;
         sigemptyset(&sa.sa_mask);
         struct sigaction prev;
         sigaction(SIGABRT, &sa, &prev);
@@ -1322,6 +1347,7 @@ int main(int argc, char* argv[]) {
         // Main loop
         bool debugPaused = false;
         bool debugShowCollisionMasks = false;
+        bool freeCamActive = false;
         bool actuallyShuttingDown = false;
         double lastFrameTime = platformGetTime();
         double lastFrameStartTime = platformGetTime(); // for delta_time
@@ -1344,6 +1370,7 @@ int main(int argc, char* argv[]) {
             // Clear last frame's pressed/released state, then poll new input events
             RunnerKeyboard_beginFrame(runner->keyboard);
             RunnerGamepad_beginFrame(runner->gamepads);
+            RunnerMouse_beginFrame(runner->mouse);
             if (platformHandleEvents()) {
                 shouldWindowClose = true;
                 continue;
@@ -1433,6 +1460,34 @@ int main(int argc, char* argv[]) {
                     fprintf(stderr, "Debug: Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
                 }
 
+                // Enable free cam
+                if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F3)) {
+                    runner->freeCamPanX = 0.0f;
+                    runner->freeCamPanY = 0.0f;
+                    runner->freeCamZoom = 1.0f;
+
+                    freeCamActive = !freeCamActive;
+                    fprintf(stderr, "Debug: Free cam %s!\n", freeCamActive ? "enabled" : "disabled");
+                }
+
+                if (freeCamActive) {
+                    if (RunnerKeyboard_check(runner->keyboard, VK_UP)) {
+                        runner->freeCamPanY -= (float) (0.000005f * runner->deltaTime);
+                    }
+
+                    if (RunnerKeyboard_check(runner->keyboard, VK_DOWN)) {
+                        runner->freeCamPanY += (float) (0.000005f * runner->deltaTime);
+                    }
+
+                    if (RunnerKeyboard_check(runner->keyboard, VK_LEFT)) {
+                        runner->freeCamPanX -= (float) (0.000005f * runner->deltaTime);
+                    }
+
+                    if (RunnerKeyboard_check(runner->keyboard, VK_RIGHT)) {
+                        runner->freeCamPanX += (float) (0.000005f * runner->deltaTime);
+                    }
+                }
+
                 // Reset global interact state because I HATE when I get stuck while moving through rooms
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
                     int32_t interactVarId = shget(runner->vmContext->globalVarNameMap, "interact");
@@ -1441,8 +1496,33 @@ int main(int argc, char* argv[]) {
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
+                bool* currentKeyDown = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyPressed = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyReleased = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+
+                if (freeCamActive) {
+                    // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
+                    memcpy(currentKeyDown, runner->keyboard->keyDown, sizeof(runner->keyboard->keyDown));
+                    memcpy(currentKeyPressed, runner->keyboard->keyPressed, sizeof(runner->keyboard->keyPressed));
+                    memcpy(currentKeyReleased, runner->keyboard->keyReleased, sizeof(runner->keyboard->keyReleased));
+
+                    memset(runner->keyboard->keyDown, 0, sizeof(runner->keyboard->keyDown));
+                    memset(runner->keyboard->keyPressed, 0, sizeof(runner->keyboard->keyPressed));
+                    memset(runner->keyboard->keyReleased, 0, sizeof(runner->keyboard->keyReleased));
+                }
+
                 // Run one game step (Begin Step, Keyboard, Alarms, Step, End Step, room transitions)
                 Runner_step(runner);
+
+                if (freeCamActive) {
+                    memcpy(runner->keyboard->keyDown, currentKeyDown, sizeof(runner->keyboard->keyDown));
+                    memcpy(runner->keyboard->keyPressed, currentKeyPressed, sizeof(runner->keyboard->keyPressed));
+                    memcpy(runner->keyboard->keyReleased, currentKeyReleased, sizeof(runner->keyboard->keyReleased));
+                }
+
+                free(currentKeyDown);
+                free(currentKeyPressed);
+                free(currentKeyReleased);
 
                 if (args.profilerFramesBetween > 0 && runner->frameCount > 0 && runner->frameCount % args.profilerFramesBetween == 0) {
                     char* profilerReport = Profiler_createReport(vm->profiler, 20, args.profilerFramesBetween);
@@ -1551,6 +1631,28 @@ int main(int argc, char* argv[]) {
 
                 Runner_drawPre(runner, fbWidth, fbHeight);
                 Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
+
+                runner->renderGameW = gameW;
+                runner->renderGameH = gameH;
+
+                // Calculate viewport (letterboxing) in screen coordinates for mouse mapping
+                int32_t winW, winH, scaledW, scaledH;
+                platformGetScaledWindowSize(&winW, &winH);
+                if ((gameW * winH) / gameH < winW) {
+                    scaledW = (gameW * winH) / gameH;
+                    scaledH = winH;
+                } else {
+                    scaledW = winW;
+                    scaledH = (gameH * winW) / gameW;
+                }
+                runner->viewportX = (winW - scaledW) / 2;
+                runner->viewportY = (winH - scaledH) / 2;
+                runner->viewportW = scaledW;
+                runner->viewportH = scaledH;
+
+                double mx, my;
+                platformGetMousePos(&mx, &my);
+                Runner_updateMousePosition(runner, winW, winH, mx, my);
 
                 Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
 
@@ -1765,6 +1867,9 @@ int main(int argc, char* argv[]) {
             arrfree(newArguments);
         }
 
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         printf("Bye! :3\n");
     }
 }

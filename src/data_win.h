@@ -12,6 +12,11 @@
 // Forward declaration for progress callback
 typedef struct DataWin DataWin;
 
+typedef enum {
+    DATAWINLOADTYPE_LOAD_PER_CHUNK,
+    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME
+} DataWinLoadType;
+
 typedef struct {
     bool parseGen8;
     bool parseOptn;
@@ -44,6 +49,8 @@ typedef struct {
 
     // When lazyLoadRooms is true, this list indicates which rooms should be loaded during load time instead of demand. They will also not be freed.
     StringBooleanEntry* eagerlyLoadedRooms;
+
+    DataWinLoadType loadType;
 
     // Optional progress callback, called before each chunk is parsed.
     // chunkName: 4-character chunk name (e.g. "GEN8", "SPRT")

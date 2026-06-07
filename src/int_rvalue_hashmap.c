@@ -81,7 +81,7 @@ RValue* IntRValueHashMap_getOrInsertUndefined(IntRValueHashMap* map, int32_t key
         if (slotKey == key) return &map->entries[idx].value;
         if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) {
             map->entries[idx].key = key;
-            map->entries[idx].value = (RValue){ .type = RVALUE_UNDEFINED };
+            map->entries[idx].value = RValue_makeUndefined();
             map->count++;
             return &map->entries[idx].value;
         }

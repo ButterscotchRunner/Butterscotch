@@ -21,6 +21,7 @@
 // ===[ Constants ]===
 #define MAX_QUADS 4096
 #define FLOATS_PER_VERTEX 8  // x, y, u, v, r, g, b, a
+#define VERTICES_PER_TRIANGLE 3
 #define VERTICES_PER_QUAD 4
 #define INDICES_PER_QUAD 6
 
@@ -105,10 +106,19 @@ static GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
 // ===[ Batch Flush ]===
 
 static void flushBatch(GLRenderer* gl) {
-    if (gl->quadCount == 0) return;
+    if (gl->batchCount == 0) return;
 
-    int32_t vertexCount = gl->quadCount * VERTICES_PER_QUAD;
-    int32_t indexCount = gl->quadCount * INDICES_PER_QUAD;
+    int32_t singleVertexCount = 0;
+    if (gl->batchType == BATCHTYPE_QUAD) {
+        singleVertexCount = VERTICES_PER_QUAD;
+    } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
+        singleVertexCount = VERTICES_PER_TRIANGLE;
+    } else {
+        abort();
+    }
+
+    int32_t vertexCount = gl->batchCount * singleVertexCount;
+    int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
     // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
@@ -118,9 +128,28 @@ static void flushBatch(GLRenderer* gl) {
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
 
     glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
 
-    gl->quadCount = 0;
+    if (gl->batchType == BATCHTYPE_QUAD) {
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+    } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
+        glDrawArrays(GL_TRIANGLES, 0, gl->batchCount * VERTICES_PER_TRIANGLE);
+    } else {
+        abort();
+    }
+
+    gl->batchCount = 0;
+}
+
+static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, GLuint textureId) {
+    if (gl->batchCount != 0) {
+        // TODO: This should be changed down the road from MAX_QUADS to MAX_WHATEVER_BATCH_TYPE_ARE_WE_USING
+        if (gl->batchType != batchType || gl->currentTextureId != textureId || gl->batchCount == MAX_QUADS) {
+            flushBatch(gl);
+        }
+    }
+
+    gl->batchType = batchType;
+    gl->currentTextureId = textureId;
 }
 
 // ===[ Vtable Implementations ]===
@@ -221,7 +250,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    gl->quadCount = 0;
+    gl->batchCount = 0;
     gl->currentTextureId = 0;
 
     // Save original counts so we know which slots are from data.win vs dynamic
@@ -263,7 +292,7 @@ static void glDestroy(Renderer* renderer) {
 static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    gl->quadCount = 0;
+    gl->batchCount = 0;
     gl->currentTextureId = 0;
     gl->windowW = windowW;
     gl->windowH = windowH;
@@ -283,7 +312,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    gl->quadCount = 0;
+    gl->batchCount = 0;
     gl->currentTextureId = 0;
 
     // Set viewport and scissor to the port rectangle within the FBO
@@ -333,7 +362,7 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    gl->quadCount = 0;
+    gl->batchCount = 0;
     gl->currentTextureId = 0;
 
     GLint boundFbo = 0;
@@ -462,11 +491,9 @@ static bool resolveSpriteTexture(GLRenderer* gl, int32_t tpagIndex, TexturePageI
 // Emits a single textured quad into the batch given 4 final screen-space corners (TL, TR, BR, BL), 4 UVs forming a rect (u0,v0)-(u1,v1), and a flat color/alpha.
 // Handles texture rebinding and batch flushing.
 static void emitTexturedQuad(GLRenderer* gl, GLuint texId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float u0, float v0, float u1, float v1, float r, float g, float b, float alpha) {
-    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
-    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-    gl->currentTextureId = texId;
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, texId);
 
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     // Vertex 0: top-left
     verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
@@ -484,7 +511,7 @@ static void emitTexturedQuad(GLRenderer* gl, GLuint texId, float x0, float y0, f
     verts[24] = x3; verts[25] = y3; verts[26] = u0; verts[27] = v1;
     verts[28] = r;  verts[29] = g;  verts[30] = b;  verts[31] = alpha;
 
-    gl->quadCount++;
+    gl->batchCount++;
 }
 
 static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
@@ -597,13 +624,9 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
 
 // Emits a single colored quad into the batch using the white pixel texture
 static void emitColoredQuad(GLRenderer* gl, float x0, float y0, float x1, float y1, float r, float g, float b, float a) {
-    // Flush if texture changed or batch full
-    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) flushBatch(gl);
-    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, gl->whiteTexture);
 
-    gl->currentTextureId = gl->whiteTexture;
-
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     // All UVs point to (0.5, 0.5) center of the 1x1 white texture
     // Vertex 0: top-left
@@ -622,7 +645,7 @@ static void emitColoredQuad(GLRenderer* gl, float x0, float y0, float x1, float 
     verts[24] = x0; verts[25] = y1; verts[26] = 0.5f; verts[27] = 0.5f;
     verts[28] = r;  verts[29] = g;  verts[30] = b;    verts[31] = a;
 
-    gl->quadCount++;
+    gl->batchCount++;
 }
 
 static void glDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline) {
@@ -664,15 +687,9 @@ static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y
     float py = (dx / len) * halfW;
 
     // Emit quad as 4 vertices forming a rectangle along the line
-    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) {
-        flushBatch(gl);
-    }
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
-    }
-    gl->currentTextureId = gl->whiteTexture;
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, gl->whiteTexture);
 
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     // Vertex 0: start + perpendicular
     verts[0] = x1 + px; verts[1] = y1 + py; verts[2] = 0.5f; verts[3] = 0.5f;
@@ -690,7 +707,7 @@ static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y
     verts[24] = x2 + px; verts[25] = y2 + py; verts[26] = 0.5f; verts[27] = 0.5f;
     verts[28] = r; verts[29] = g; verts[30] = b; verts[31] = alpha;
 
-    gl->quadCount++;
+    gl->batchCount++;
 }
 
 static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha) {
@@ -715,15 +732,9 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
     float py = (dx / len) * halfW;
 
     // Emit quad with per-vertex colors (color1 at start, color2 at end)
-    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) {
-        flushBatch(gl);
-    }
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
-    }
-    gl->currentTextureId = gl->whiteTexture;
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, gl->whiteTexture);
 
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     // Vertex 0: start + perpendicular (color1)
     verts[0] = x1 + px; verts[1] = y1 + py; verts[2] = 0.5f; verts[3] = 0.5f;
@@ -741,7 +752,7 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
     verts[24] = x2 + px; verts[25] = y2 + py; verts[26] = 0.5f; verts[27] = 0.5f;
     verts[28] = r2; verts[29] = g2; verts[30] = b2; verts[31] = alpha;
 
-    gl->quadCount++;
+    gl->batchCount++;
 }
 
 static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline) {
@@ -763,14 +774,7 @@ static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x
     float g4 = (float) BGR_G(color4) / 255.0f;
     float b4 = (float) BGR_B(color4) / 255.0f;
 
-
-    if (gl->quadCount > 0 && gl->currentTextureId != gl->whiteTexture) {
-        flushBatch(gl);
-    }
-    if (gl->quadCount >= MAX_QUADS) {
-        flushBatch(gl);
-    }
-    gl->currentTextureId = gl->whiteTexture;
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, gl->whiteTexture);
 
     if (outline) {
         // Draw 4 one-pixel-wide edges: top, bottom, left, right
@@ -781,7 +785,7 @@ static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x
     } else {
         // Filled rectangle: GML adds +1 to width/height for filled rects
 
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     // All UVs point to (0.5, 0.5) center of the 1x1 white texture
     // Vertex 0: top-left
@@ -800,16 +804,14 @@ static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x
     verts[24] = x1; verts[25] = y2+1; verts[26] = 0.5f; verts[27] = 0.5f;
     verts[28] = r4;  verts[29] = g4;  verts[30] = b4;    verts[31] = alpha;
 
-    gl->quadCount++;
+    gl->batchCount++;
 
     }
 }
 
-static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
-{
+static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if(outline)
-    {
+    if (outline) {
         glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
         glDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
         glDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
@@ -818,21 +820,43 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         float g = (float) BGR_G(renderer->drawColor) / 255.0f;
         float b = (float) BGR_B(renderer->drawColor) / 255.0f;
 
-        flushBatch(gl);
+        flushIfNeededAndSetActiveState(gl, BATCHTYPE_TRIANGLE, gl->whiteTexture);
 
-        int i = 0;
-        float verts[24] = {
-            x1, y1, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
-            x2, y2, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
-            x3, y3, 0.0f, 0.0f, r, g, b, renderer->drawAlpha,
-        };
+        // Woo, pointers!
+        // This gets the vertex data for the new triangle batch
+        float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE * FLOATS_PER_VERTEX;
 
-        glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * FLOATS_PER_VERTEX * sizeof(float), verts);
+        // Vertex 0: top-left
+        verts[0] = x1;
+        verts[1] = y1;
+        verts[2] = 0.0f;
+        verts[3] = 0.0f;
+        verts[4] = r;
+        verts[5] = g;
+        verts[6] = b;
+        verts[7] = renderer->drawAlpha;
 
-        glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // Vertex 1: top-right
+        verts[8]  = x2;
+        verts[9]  = y2;
+        verts[10] = 0.0f;
+        verts[11] = 0.0f;
+        verts[12] = r;
+        verts[13] = g;
+        verts[14] = b;
+        verts[15] = renderer->drawAlpha;
+
+        // Vertex 2: bottom-right
+        verts[16] = x3;
+        verts[17] = y3;
+        verts[18] = 0.0f;
+        verts[19] = 0.0f;
+        verts[20] = r;
+        verts[21] = g;
+        verts[22] = b;
+        verts[23] = renderer->drawAlpha;
+
+        gl->batchCount++;
     }
 }
 
@@ -1000,10 +1024,7 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
                     GLuint glyphTexId;
 
                     if (glResolveGlyph(gl, dw, &fontState, glyph, cursorX, cursorY, &glyphTexId, &u0, &v0, &u1, &v1, &localX0, &localY0)) {
-                        // Flush if texture changed or batch full
-                        if (gl->quadCount > 0 && gl->currentTextureId != glyphTexId) flushBatch(gl);
-                        if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-                        gl->currentTextureId = glyphTexId;
+                        flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, glyphTexId);
 
                         float localX1 = localX0 + (float) glyph->sourceWidth;
                         float localY1 = localY0 + (float) glyph->sourceHeight;
@@ -1016,7 +1037,7 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
                         Matrix4f_transformPoint(&transform, localX0, localY1, &px3, &py3);
 
                         // Write 4 vertices
-                        float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+                        float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
                         verts[0] = px0; verts[1] = py0; verts[2] = u0; verts[3] = v0;
                         verts[4] = r;   verts[5] = g;   verts[6] = b;  verts[7] = alpha;
@@ -1030,7 +1051,7 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
                         verts[24] = px3; verts[25] = py3; verts[26] = u0; verts[27] = v1;
                         verts[28] = r;   verts[29] = g;   verts[30] = b;  verts[31] = alpha;
 
-                        gl->quadCount++;
+                        gl->batchCount++;
                         drewSuccessfully = true;
                     }
                 }
@@ -1140,10 +1161,7 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                     GLuint glyphTexId;
 
                     if (glResolveGlyph(gl, dw, &fontState, glyph, cursorX, cursorY, &glyphTexId, &u0, &v0, &u1, &v1, &localX0, &localY0)) {
-                        // Flush if texture changed or batch full
-                        if (gl->quadCount > 0 && gl->currentTextureId != glyphTexId) flushBatch(gl);
-                        if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-                        gl->currentTextureId = glyphTexId;
+                        flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, glyphTexId);
 
                         float localX1 = localX0 + (float) glyph->sourceWidth;
                         float localY1 = localY0 + (float) glyph->sourceHeight;
@@ -1156,7 +1174,7 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                         Matrix4f_transformPoint(&transform, localX0, localY1, &px3, &py3);
 
                         // Write 4 vertices
-                        float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+                        float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
                         // top left
                         verts[0] = px0; verts[1] = py0; verts[2] = u0; verts[3] = v0;
@@ -1174,7 +1192,7 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                         verts[24] = px3; verts[25] = py3; verts[26] = u0; verts[27] = v1;
                         verts[28] = ((float) BGR_R(c4) / 255.0f); verts[29] = ((float) BGR_G(c4) / 255.0f); verts[30] = ((float) BGR_B(c4) / 255.0f); verts[31] = alpha;
 
-                        gl->quadCount++;
+                        gl->batchCount++;
                         drewSuccessfully = true;
                     }
                 }
@@ -1411,10 +1429,7 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
 
     if (0 > srcWidth) { srcLeft = 0; srcTop = 0; srcWidth = texW; srcHeight = texH; }
 
-    // Flush previous batch with the OLD texture before switching, so pending sprite quads aren't redrawn with the surface's pixels.
-    if (gl->quadCount > 0 && gl->currentTextureId != texId) flushBatch(gl);
-    if (gl->quadCount >= MAX_QUADS) flushBatch(gl);
-    gl->currentTextureId = texId;
+    flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, texId);
 
     // Texture is bottom-up in GL; GML src is top-down, so flip V.
     float u0 = (float) srcLeft / (float) texW;
@@ -1440,7 +1455,7 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     float g = (float) BGR_G(color) / 255.0f;
     float b = (float) BGR_B(color) / 255.0f;
 
-    float* verts = gl->vertexData + gl->quadCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
 
     verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
     verts[4] = r;  verts[5] = g;  verts[6] = b;  verts[7] = alpha;
@@ -1454,7 +1469,7 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     verts[24] = x3; verts[25] = y3; verts[26] = u0; verts[27] = v1;
     verts[28] = r;  verts[29] = g;  verts[30] = b;  verts[31] = alpha;
 
-    gl->quadCount++;
+    gl->batchCount++;
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
@@ -1655,60 +1670,58 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 
 // ===[ Vtable ]===
 
-static RendererVtable glVtable = {
-    .init = glInit,
-    .destroy = glDestroy,
-    .beginFrame = glBeginFrame,
-    .endFrameInit = glEndFrameInit,
-    .endFrameEnd = glEndFrameEnd,
-    .beginView = glBeginView,
-    .endView = glEndView,
-    .applyProjection = glApplyProjection,
-    .beginGUI = glBeginGUI,
-    .endGUI = glEndGUI,
-    .drawSprite = glDrawSprite,
-    .drawSpritePos = glDrawSpritePos,
-    .drawSpritePart = glDrawSpritePart,
-    .drawRectangle = glDrawRectangle,
-    .drawRectangleColor = glDrawRectangleColor,
-    .drawLine = glDrawLine,
-    .drawLineColor = glDrawLineColor,
-    .drawTriangle = glDrawTriangle,
-    .drawText = glDrawText,
-    .drawTextColor = glDrawTextColor,
-    .flush = glRendererFlush,
-    .clearScreen = glClearScreen,
-    .createSpriteFromSurface = glCreateSpriteFromSurface,
-    .deleteSprite = glDeleteSprite,
-    .gpuSetBlendMode = glGpuSetBlendMode,
-    .gpuSetBlendModeExt = glGpuSetBlendModeExt,
-    .gpuSetBlendEnable = glGpuSetBlendEnable,
-    .gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable,
-    .gpuSetAlphaTestRef = glGpuSetAlphaTestRef,
-    .gpuSetColorWriteEnable = glGpuSetColorWriteEnable,
-    .gpuGetColorWriteEnable = glGpuGetColorWriteEnable,
-    .gpuSetFog = glGpuSetFog,
-    .gpuGetBlendEnable = glGpuGetBlendEnable,
-    .drawTile = nullptr,
-    .createSurface = glCreateSurface,
-    .surfaceExists = glSurfaceExists,
-    .setRenderTarget = glSetRenderTarget,
-    .ensureApplicationSurface = glEnsureApplicationSurface,
-    .surfaceCopy = glSurfaceCopy,
-    .surfaceGetPixels = glSurfaceGetPixels,
-    .getSurfaceWidth = glGetSurfaceWidth,
-    .getSurfaceHeight = glGetSurfaceHeight,
-    .drawSurface = glDrawSurface,
-    .surfaceResize = glSurfaceResize,
-    .surfaceFree = glSurfaceFree,
-
-};
+static RendererVtable glVtable;
 
 // ===[ Public API ]===
 
 Renderer* GLRenderer_create(void) {
     GLRenderer* gl = safeCalloc(1, sizeof(GLRenderer));
     gl->base.vtable = &glVtable;
+    glVtable.init = glInit;
+    glVtable.destroy = glDestroy;
+    glVtable.beginFrame = glBeginFrame;
+    glVtable.endFrameInit = glEndFrameInit;
+    glVtable.endFrameEnd = glEndFrameEnd;
+    glVtable.beginView = glBeginView;
+    glVtable.endView = glEndView;
+    glVtable.applyProjection = glApplyProjection;
+    glVtable.beginGUI = glBeginGUI;
+    glVtable.endGUI = glEndGUI;
+    glVtable.drawSprite = glDrawSprite;
+    glVtable.drawSpritePos = glDrawSpritePos;
+    glVtable.drawSpritePart = glDrawSpritePart;
+    glVtable.drawRectangle = glDrawRectangle;
+    glVtable.drawRectangleColor = glDrawRectangleColor;
+    glVtable.drawLine = glDrawLine;
+    glVtable.drawLineColor = glDrawLineColor;
+    glVtable.drawTriangle = glDrawTriangle;
+    glVtable.drawText = glDrawText;
+    glVtable.drawTextColor = glDrawTextColor;
+    glVtable.flush = glRendererFlush;
+    glVtable.clearScreen = glClearScreen;
+    glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;
+    glVtable.deleteSprite = glDeleteSprite;
+    glVtable.gpuSetBlendMode = glGpuSetBlendMode;
+    glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
+    glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
+    glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
+    glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
+    glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
+    glVtable.gpuSetFog = glGpuSetFog;
+    glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
+    glVtable.drawTile = nullptr;
+    glVtable.createSurface = glCreateSurface;
+    glVtable.surfaceExists = glSurfaceExists;
+    glVtable.setRenderTarget = glSetRenderTarget;
+    glVtable.ensureApplicationSurface = glEnsureApplicationSurface;
+    glVtable.surfaceCopy = glSurfaceCopy;
+    glVtable.surfaceGetPixels = glSurfaceGetPixels;
+    glVtable.getSurfaceWidth = glGetSurfaceWidth;
+    glVtable.getSurfaceHeight = glGetSurfaceHeight;
+    glVtable.drawSurface = glDrawSurface;
+    glVtable.surfaceResize = glSurfaceResize;
+    glVtable.surfaceFree = glSurfaceFree;
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
     gl->base.drawFont = -1;

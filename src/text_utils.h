@@ -166,6 +166,7 @@ static inline void PreprocessedText_free(PreprocessedText pt) {
 // Preprocesses GML text: converts unescaped # to \n, and \# to literal #.
 // Uses a fused single-pass approach: scans for # and only allocates if one is found.
 static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
+    PreprocessedText ret = {0};
     int32_t len = (int32_t) strlen(text);
 
     // Scan until we find a #
@@ -196,18 +197,26 @@ static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
                 }
             }
             result[out] = '\0';
-            return (PreprocessedText){ .text = result, .owning = true };
+            ret.text = result;
+            ret.owning = true;
+            return ret;
         }
     }
 
     // No # found, return original pointer without allocating
-    return (PreprocessedText){ .text = text, .owning = false };
+    ret.text = text;
+    ret.owning = false;
+    return ret;
 }
 
 // Preprocess GML text ONLY if the runner is not GameMaker: Studio 2
 static inline PreprocessedText TextUtils_preprocessGmlTextIfNeeded(Runner* runner, const char* text) {
-    if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0))
-        return (PreprocessedText){ .text = text, .owning = false };
+    if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
+        PreprocessedText ret = {0};
+        ret.text = text;
+        ret.owning = false;
+        return ret;
+    }
     return TextUtils_preprocessGmlText(text);
 }
 
@@ -248,10 +257,16 @@ static inline int32_t TextUtils_skipNewline(const char* text, int32_t lineEnd, i
 // Port of yyFontManager.prototype.Split_TextBlock from GameMaker-HTML5 to C.
 // Pass "0 > maxWidth" to disable wrapping (returns the original pointer non-owning).
 static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, int32_t maxWidth) {
-    if (text == nullptr) return (PreprocessedText) { .text = text, .owning = false };
+    PreprocessedText ret = {0};
+    int32_t len = 0;
+    if (text != nullptr)
+        len = (int32_t) strlen(text);
 
-    int32_t len = (int32_t) strlen(text);
-    if (0 == len) return (PreprocessedText) { .text = text, .owning = false };
+    if (0 == len) {
+        ret.text = text;
+        ret.owning = false;
+        return ret;
+    }
 
     int32_t linewidth = (0 > maxWidth) ? 10000000 : maxWidth; // means nothing will "wrap"
 
@@ -259,6 +274,9 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
     char* out = safeMalloc((size_t) len * 2 + 1);
     int32_t outLen = 0;
     bool wroteAny = false;
+
+    ret.text = out;
+    ret.owning = true;
 
     // put newlines in
     const char* pNew = text;
@@ -322,7 +340,7 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
                 // NOT a new line, but we didn't move on... fatal error. Probably a single char doesn't even fit!
                 if (end == start) {
                     out[outLen] = '\0';
-                    return (PreprocessedText){ .text = out, .owning = true };
+                    return ret;
                 }
 
                 // If we don't END on a "space", OR if the next character isn't a space AS WELL.
@@ -366,7 +384,7 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
         start = ++end;
     }
     out[outLen] = '\0';
-    return (PreprocessedText) { .text = out, .owning = true };
+    return ret;
 }
 
 static inline char* TextUtils_trimTrailingWhitespace(char* str) {

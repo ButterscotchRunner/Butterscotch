@@ -5,7 +5,14 @@ CC := cc
 
 CFLAGS := -O2 -DNDEBUG
 
+ifeq ($(OS),Windows_NT)
+OS := Windows
+else
 OS := $(shell uname -s)
+ifneq ($(filter MINGW% MSYS% CYGWIN%,$(OS)),)
+OS := Windows
+endif
+endif
 
 DEFINES := -DENABLE_VM_GML_PROFILER \
 		   -DENABLE_VM_OPCODE_PROFILER \
@@ -44,23 +51,33 @@ endif
 
 # TODO: add support for non-desktop backends
 SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
+ifeq ($(OS),Windows)
+PKG_CONFIG_FLAGS := --static
+else
+PKG_CONFIG_FLAGS :=
+endif
 INCLUDES += -Isrc/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell pkg-config --libs glfw3)
+GLFW3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs glfw3)
 LIBS += $(GLFW3_LIBS)
 DEFINES += -DUSE_GLFW3
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),glfw2)
-GLFW2_LIBS += $(shell pkg-config --libs libglfw)
+GLFW2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs libglfw)
 LIBS += $(GLFW2_LIBS)
 DEFINES += -DUSE_GLFW2
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl1)
-SDL1_LIBS += $(shell pkg-config --libs sdl)
+SDL1_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl)
 LIBS += $(SDL1_LIBS)
 DEFINES += -DUSE_SDL1
+endif
+ifeq ($(DESKTOP_BACKEND),sdl2)
+SDL2_LIBS += $(shell pkg-config --libs sdl2)
+LIBS += $(SDL2_LIBS)
+DEFINES += -DUSE_SDL2
 endif
 
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
@@ -143,7 +160,7 @@ endif
 endif
 
 ifeq ($(OS),Windows)
-LIBS += -static
+LIBS += -static -lwinmm
 else
 ifeq ($(OS),Darwin)
 LIBS += -lobjc

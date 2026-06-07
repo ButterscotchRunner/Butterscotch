@@ -33,9 +33,22 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
+    return platformGetWindowSize(outW, outH);
+}
+
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     glfwSetWindowSize(width, height);
+}
+
+void platformGetMousePos(double *xPos, double *yPos) {
+    if (!xPos || !yPos) return;
+    int mx = 0, my = 0;
+    glfwGetMousePos(&mx, &my);
+
+    *xPos = (double)mx;
+    *yPos = (double)my;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -108,7 +121,30 @@ static void GLFWCALL resizeCallback(int width, int height) {
 
 #endif
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+static int32_t glfwMouseButtonToGml(int glfwButton) {
+    switch (glfwButton) {
+        case GLFW_MOUSE_BUTTON_LEFT: return GML_MB_LEFT;
+        case GLFW_MOUSE_BUTTON_RIGHT: return GML_MB_RIGHT;
+        case GLFW_MOUSE_BUTTON_MIDDLE: return GML_MB_MIDDLE;
+        default: return INT32_MIN; // Unknown
+    }
+}
+
+static void GLFWCALL mouseButtonCallback(int button, int action) {
+    int32_t gmlButton = glfwMouseButtonToGml(button);
+    if (0 > gmlButton) return;
+    if (action == GLFW_PRESS) RunnerMouse_onButtonDown(g_runner->mouse, gmlButton);
+    else if (action == GLFW_RELEASE) RunnerMouse_onButtonUp(g_runner->mouse, gmlButton);
+}
+
+static int g_last_wheel_pos = 0;
+static void GLFWCALL scrollCallback(int pos) {
+    double yoffset = (double)(pos - g_last_wheel_pos);
+    g_last_wheel_pos = pos;
+    if (g_runner) RunnerMouse_onWheel(g_runner->mouse, yoffset);
+}
+
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless) {
         fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
         return false;
@@ -143,11 +179,17 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
+    glfwSetWindowTitle(title);
+
     glfwSwapInterval(0); // Disable v-sync, we control timing ourselves
 
     // Set up keyboard input
     glfwSetKeyCallback(keyCallback);
     glfwSetCharCallback(characterCallback);
+    // Set up mouse input
+    glfwSetMouseButtonCallback(mouseButtonCallback);
+    glfwSetMouseWheelCallback(scrollCallback);
+
     return true;
 }
 
@@ -193,10 +235,10 @@ void platformSwapBuffers(void) {
 void *platformGetProcAddress(const char *name) {
 #ifdef _WIN32
     // glfw2's glfwGetProcAddress is broken on Windows.
-    // This just implements it in a way that's fixed
-    // so it can be passed to GLAD.
+    // This just implements it in a way that's fixed so it can be passed to GLAD.
     void *ret = (void *)wglGetProcAddress(name);
-    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) { // ChatGPT says this is needed because some OpenGL drivers do this
+    // Fallback for driver-specific error codes and legacy OpenGL core functions.
+    if (ret == 0 || ret == (void *)1 || ret == (void *)2 || ret == (void *)3 || ret == (void *)-1) {
         HMODULE handle = GetModuleHandle("opengl32.dll");
         if (handle)
             ret = (void *)GetProcAddress(handle, name);
@@ -220,17 +262,9 @@ bool platformHandleEvents(void) {
 
 void platformSleepUntil(double time) {
     double remaining = time - platformGetTime();
-    if (remaining > 0.002) {
-#ifdef _WIN32
-        Sleep((DWORD) ((remaining - 0.001) * 1000));
-#else
-        struct timespec ts = {
-            .tv_sec = 0,
-            .tv_nsec = (long) ((remaining - 0.001) * 1e9)
-        };
-        nanosleep(&ts, NULL);
-#endif
-    }
+    if (remaining > 0.002) // glfwSleep takes seconds as a double
+        glfwSleep(remaining - 0.001);
+
     while (platformGetTime() < time) {
         // Spin-wait for the remaining sub-millisecond
     }

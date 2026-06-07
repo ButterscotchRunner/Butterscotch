@@ -83,28 +83,26 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 
 The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
-* `--debug`: Enables debugging hotkeys
-* `--speed`: Speed multiplier
-* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle)
+* `--debug`: Enables debugging hotkeys.
+* `--speed`: Speed multiplier.
+* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle).
 * `--widescreen-hack`: Forces a game to run in widescreen (example: `--widescreen-hack=16:9`).
 * `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
 * `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
 * `--screenshot-surfaces=file_%d.%d.png`: Screenshots all surfaces (framebuffers), requires `--screenshot-surfaces-at-frame`.
 * `--screenshot-surfaces-at-frame=Frame`: Screenshots all surfaces (framebuffers) at a specific frame. Can be used multiple times.
 * `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
-* `--print-rooms`: Prints all the rooms in the `data.win` file and exits.
-* `--print-declared-functions`: Prints all the declared functions (scripts, object events, etc) in the `data.win` file and exists.
-* `--trace-variable-reads`: Traces variable reads
-* `--trace-variable-writes`: Traces variable writes
-* `--trace-function-calls`: Traces function calls
-* `--trace-alarms`: Traces alarms
-* `--trace-instance-lifecycles`: Traces instance creations and deletions
-* `--trace-events`: Traces events
-* `--trace-event-inherited`: Traces event inherited calls
-* `--trace-tiles`: Traces drawn tiles
-* `--trace-collisions`: Traces collisions between instances
-* `--trace-opcodes`: Traces opcodes
-* `--trace-stack`: Traces stack
+* `--trace-variable-reads`: Traces variable reads.
+* `--trace-variable-writes`: Traces variable writes.
+* `--trace-function-calls`: Traces function calls.
+* `--trace-alarms`: Traces alarms.
+* `--trace-instance-lifecycles`: Traces instance creations and deletions.
+* `--trace-events`: Traces events.
+* `--trace-event-inherited`: Traces event inherited calls.
+* `--trace-tiles`: Traces drawn tiles.
+* `--trace-collisions`: Traces collisions between instances.
+* `--trace-opcodes`: Traces opcodes.
+* `--trace-stack`: Traces stack.
 * `--trace-frames`: Logs when a frame starts and when a frame ends, including how much time it took to process each frame.
 * `--always-log-unknown-functions`: When enabled, Butterscotch will always log unknown functions instead of logging them once per script.
 * `--always-log-stubbed-functions`: When enabled, Butterscotch will always log stubbed functions instead of logging them once per script.
@@ -112,10 +110,11 @@ The GLFW target has a lot of nifty CLI parameters that you can use to trace and 
 * `--exit-at-frame=Frame`: Automatically exit the runner after X frames.
 * `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
 * `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
-* `--print-declared-functions`: Prints all declared GML scripts by the game
-* `--disassemble`: Dissassembles a specific script
-* `--record-inputs`: Records user inputs
-* `--playback-inputs`: Playbacks user inputs
+* `--print-declared-functions`: Prints all declared GML scripts by the game.
+* `--print-objects`: Prints all objects definitions of the game.
+* `--disassemble`: Dissassembles a specific script.
+* `--record-inputs`: Records user inputs.
+* `--playback-inputs`: Playbacks user inputs.
 * `--os-type`: Allows changing the built-in `os_type` value. The default is Windows. Example: When running Undertale Xbox, you would need to set it to `--os-type xboxone`.
 * `--profile-gml-scripts`: Logs which GML scripts are the heaviest in terms of time and executed instructions.
 * `--profile-opcodes`: Ranks which GML opcodes were executed the most.

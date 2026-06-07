@@ -69,7 +69,10 @@ static InternalPathPoint* tempIntPoints = nullptr;
 static uint32_t tempIntPointCount = 0;
 
 static void addInternalPoint(float x, float y, float speed) {
-    InternalPathPoint pt = { .x = x, .y = y, .speed = speed, .l = 0.0 };
+    InternalPathPoint pt = {0};
+    pt.x = x;
+    pt.y = y;
+    pt.speed = speed;
     arrput(tempIntPoints, pt);
     tempIntPointCount++;
 }
@@ -170,7 +173,7 @@ void GamePath_computeInternal(GamePath* path) {
 
 // Get interpolated position at t in [0,1] (yyPath.js:362-409)
 PathPositionResult GamePath_getPosition(GamePath* path, float t) {
-    PathPositionResult result = { .x = 0.0f, .y = 0.0f, .speed = 0.0f };
+    PathPositionResult result = {0};
 
     if (path->internalPointCount == 0) return result;
 
@@ -593,7 +596,7 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
         } else if (soundCount == 1) {
             size_t savedPos = BinaryReader_getPosition(reader);
             size_t probe = (size_t) (soundPtrs[0] + (4 * 9));
-            requireMessageFormatted((probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
+            requireMessageFormatted(__FILE__, __LINE__, (probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
             BinaryReader_seek(reader, probe);
             if (BinaryReader_readUint32(reader) != 0) {
                 DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
@@ -1414,7 +1417,7 @@ static void readRoomBackgrounds(BinaryReader* reader, Room* room) {
     free(bgPtrs);
 }
 
-static void readRoomViews(BinaryReader* reader, DataWin* dw, Room* room) {
+static void readRoomViews(BinaryReader* reader, Room* room) {
     uint32_t viewCount;
     uint32_t* viewPtrsArr = readPointerTable(reader, &viewCount);
     room->views = safeMalloc(8 * sizeof(RoomView));
@@ -1726,7 +1729,7 @@ static void readRoomPayload(BinaryReader* reader, DataWin* dw, Room* room) {
     readRoomBackgrounds(reader, room);
 
     BinaryReader_seek(reader, room->viewsFileOffset);
-    readRoomViews(reader, dw, room);
+    readRoomViews(reader, room);
 
     BinaryReader_seek(reader, room->gameObjectsFileOffset);
     readRoomGameObjects(reader, dw, room);
@@ -1911,35 +1914,94 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
     free(ptrs);
 }
 
+// Parses a TexturePageItem at the current reader position
+// If i = -1, a new item entry will be allocated AND will be marked as a WinPack WAD
+// Returns the index of the TPAG
+static int32_t parseTexturePageItem(BinaryReader* reader, DataWin* dw, int32_t i) {
+    int32_t position = i;
+    if (i == -1) {
+        fprintf(stderr, "DataWin: Allocated new TPAG! Was the WAD built with WinPack? (TranslaTale)\n");
+        uint32_t newCount = dw->tpag.count + 1;
+        TexturePageItem* newItems = safeCalloc(newCount, sizeof(TexturePageItem));
+        memcpy(newItems, dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+        free(dw->tpag.items);
+
+        dw->tpag.count = newCount;
+
+        dw->tpag.items = newItems;
+        position = (int32_t) newCount - 1;
+    }
+
+    TexturePageItem* item = &dw->tpag.items[position];
+    item->present = true;
+    item->sourceX = BinaryReader_readUint16(reader);
+    item->sourceY = BinaryReader_readUint16(reader);
+    item->sourceWidth = BinaryReader_readUint16(reader);
+    item->sourceHeight = BinaryReader_readUint16(reader);
+    item->targetX = BinaryReader_readUint16(reader);
+    item->targetY = BinaryReader_readUint16(reader);
+    item->targetWidth = BinaryReader_readUint16(reader);
+    item->targetHeight = BinaryReader_readUint16(reader);
+    item->boundingWidth = BinaryReader_readUint16(reader);
+    item->boundingHeight = BinaryReader_readUint16(reader);
+    item->texturePageId = BinaryReader_readInt16(reader);
+
+    if (i == -1) {
+        // WinPack texture pages are off by one, because uuhh... it seems that it considers the runner allocated 1x1 white texture for some reason?!
+        item->texturePageId -= 1;
+    }
+
+    return position;
+}
+
 // Sprite/Background/Font initially store an absolute file offset to their TexturePageItem (since SPRT/BGND/FONT are parsed before TPAG).
 // resolveAllTPAGReferences translates those offsets to TPAG indices once the table is known. ptrs[] is the TPAG pointer table in monotonically increasing file order, so we can binary search it.
 // Offsets that don't resolve (or are 0) become -1.
-static int32_t findTPAGIndexByOffset(uint32_t* ptrs, uint32_t count, uint32_t offset) {
-    if (offset == 0) return -1;
+static int32_t findTPAGIndexByOffset(BinaryReader* reader, DataWin* dw, uint32_t* ptrs, uint32_t count, uint32_t offset) {
+    if (offset == 0)
+        return -1;
+
     uint32_t lo = 0, hi = count;
     while (hi > lo) {
         uint32_t mid = (lo + hi) >> 1;
         uint32_t v = ptrs[mid];
-        if (v == offset) return (int32_t) mid;
-        if (offset > v) lo = mid + 1; else hi = mid;
+
+        if (v == offset)
+            return (int32_t) mid;
+
+        if (offset > v)
+            lo = mid + 1;
+        else
+            hi = mid;
     }
+
+    // This is stupidly annoying
+    // WinPack (used by TranslaTale) stores TPAGs OUTSIDE of the IFF chunk and those entries are NOT present in the TPAG list
+    // So we need to manually read it
+    // The offset is an absolute position
+    if (reader->fileSize > offset) {
+        BinaryReader_seek(reader, offset);
+
+        return parseTexturePageItem(reader, dw, -1);
+    }
+
     return -1;
 }
 
-static void resolveAllTPAGReferences(DataWin* dw, uint32_t* ptrs, uint32_t count) {
+static void resolveAllTPAGReferences(BinaryReader* reader, DataWin* dw, uint32_t* ptrs, uint32_t count) {
     repeat(dw->sprt.count, i) {
         Sprite* spr = &dw->sprt.sprites[i];
         repeat(spr->textureCount, j) {
-            spr->tpagIndices[j] = findTPAGIndexByOffset(ptrs, count, (uint32_t) spr->tpagIndices[j]);
+            spr->tpagIndices[j] = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) spr->tpagIndices[j]);
         }
     }
     repeat(dw->bgnd.count, i) {
         Background* bg = &dw->bgnd.backgrounds[i];
-        bg->tpagIndex = findTPAGIndexByOffset(ptrs, count, (uint32_t) bg->tpagIndex);
+        bg->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) bg->tpagIndex);
     }
     repeat(dw->font.count, i) {
         Font* fnt = &dw->font.fonts[i];
-        fnt->tpagIndex = findTPAGIndexByOffset(ptrs, count, (uint32_t) fnt->tpagIndex);
+        fnt->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) fnt->tpagIndex);
     }
 }
 
@@ -1956,22 +2018,10 @@ static void parseTPAG(BinaryReader* reader, DataWin* dw) {
     repeat(count, i) {
         if (ptrs[i] == 0) { t->items[i].texturePageId = -1; continue; }
         BinaryReader_seek(reader, ptrs[i]);
-        TexturePageItem* item = &t->items[i];
-        item->present = true;
-        item->sourceX = BinaryReader_readUint16(reader);
-        item->sourceY = BinaryReader_readUint16(reader);
-        item->sourceWidth = BinaryReader_readUint16(reader);
-        item->sourceHeight = BinaryReader_readUint16(reader);
-        item->targetX = BinaryReader_readUint16(reader);
-        item->targetY = BinaryReader_readUint16(reader);
-        item->targetWidth = BinaryReader_readUint16(reader);
-        item->targetHeight = BinaryReader_readUint16(reader);
-        item->boundingWidth = BinaryReader_readUint16(reader);
-        item->boundingHeight = BinaryReader_readUint16(reader);
-        item->texturePageId = BinaryReader_readInt16(reader);
+        parseTexturePageItem(reader, dw, i);
     }
 
-    resolveAllTPAGReferences(dw, ptrs, count);
+    resolveAllTPAGReferences(reader, dw, ptrs, count);
 
     free(ptrs);
 }
@@ -2114,6 +2164,38 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
         return;
     }
 
+    size_t funcChunkStart = BinaryReader_getPosition(reader);
+    size_t funcChunkEnd = funcChunkStart + chunkLength;
+    if (!DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0) && chunkLength != 0) {
+        uint32_t probeCount = BinaryReader_readUint32(reader);
+        size_t afterFunctions = BinaryReader_getPosition(reader) + (size_t) probeCount * 12;
+        bool is2024_8 = false;
+        if (afterFunctions == funcChunkEnd) {
+            // Reached the chunk end immediately after the function list: code locals are definitely gone.
+            is2024_8 = true;
+        } else if (funcChunkEnd > afterFunctions) {
+            // Otherwise the remainder must be nothing but 16-byte alignment padding to qualify.
+            BinaryReader_seek(reader, afterFunctions);
+            int paddingBytesRead = 0;
+            bool onlyPadding = true;
+            while ((BinaryReader_getPosition(reader) & 15) != 0) {
+                if (BinaryReader_getPosition(reader) >= funcChunkEnd || BinaryReader_readUint8(reader) != 0) {
+                    onlyPadding = false;
+                    break;
+                }
+                paddingBytesRead++;
+            }
+            // <4 padding bytes can't be a real (empty) list header; with >=4 we need a code entry to be sure.
+            if (onlyPadding && BinaryReader_getPosition(reader) == funcChunkEnd && (4 > paddingBytesRead || dw->code.count > 0)) {
+                is2024_8 = true;
+            }
+        }
+        if (is2024_8) {
+            DataWin_bumpVersionTo(dw, 2024, 8, 0, 0);
+        }
+        BinaryReader_seek(reader, funcChunkStart);
+    }
+
     // Part 1: Functions SimpleList
     f->functionCount = BinaryReader_readUint32(reader);
     if (f->functionCount > 0) {
@@ -2133,6 +2215,11 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
     }
 
     // Part 2: Code Locals SimpleList
+    if (DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0)) {
+        f->codeLocalsCount = 0;
+        f->codeLocals = nullptr;
+        return;
+    }
     f->codeLocalsCount = BinaryReader_readUint32(reader);
     if (f->codeLocalsCount > 0) {
         f->codeLocals = safeMalloc(f->codeLocalsCount * sizeof(CodeLocals));
@@ -2313,6 +2400,16 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
     BinaryReader reader = BinaryReader_create(file, (size_t) fileSize);
 
+    // Some WAD files, such as ones made with https://github.com/AlexWaveDiver/TranslaTale (I think?) have pointers inside a chunk pointing to data in OTHER chunks
+    // The original runner doesn't care because it loads the entire file in memory up front, so we do the same if asked
+    // (we don't do that by default because some low end platforms would NOT be able to handle it)
+    uint8_t* wholeFileData = nullptr;
+    if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+        wholeFileData = safeMalloc((size_t) fileSize);
+        fread(wholeFileData, 1, (size_t) fileSize, file);
+        BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
+    }
+
     // Validate FORM header
     char formMagic[4];
     BinaryReader_readBytes(&reader, formMagic, 4);
@@ -2425,7 +2522,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
         // Bulk-read the chunk data into memory for fast parsing
         uint8_t* chunkBuffer = nullptr;
-        if (shouldParse && chunkLength > 0) {
+        if (shouldParse && chunkLength > 0 && options.loadType != DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
             chunkBuffer = safeMalloc(chunkLength);
             size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
             if (read != chunkLength) {
@@ -2511,7 +2608,11 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         }
 
         // Seek to chunk end (skip any unread data or trailing padding)
-        fseek(reader.file, (long) chunkEnd, SEEK_SET);
+        if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+            BinaryReader_seek(&reader, chunkEnd);
+        } else {
+            fseek(reader.file, (long) chunkEnd, SEEK_SET);
+        }
         chunkIndex++;
     }
 
@@ -2535,6 +2636,10 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         dw->lazyLoadFilePath = nullptr;
         dw->fileSize = 0;
         fclose(file);
+    }
+
+    if (wholeFileData != nullptr) {
+        free(wholeFileData);
     }
 
     return dw;

@@ -1,9 +1,8 @@
-#include <string.h>
 #include <stdio.h>
 
-#include <SDL/SDL_events.h>
-#include <SDL/SDL.h>
-#include <SDL/SDL_video.h>
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -12,11 +11,12 @@
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
+static SDL_Window *window;
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
-    SDL_WM_SetCaption(windowTitle, NULL);
+    SDL_SetWindowTitle(window, windowTitle);
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
@@ -34,57 +34,91 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
-    scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+    SDL_SetWindowSize(window, width, height);
+    if (gfx == SOFTWARE)
+        scr = SDL_GetWindowSurface(window);
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
     SDL_GetMouseState(&mx, &my);
-
     *xPos = (double)mx;
     *yPos = (double)my;
 }
 
 static bool platformGetWindowFocus(void) {
-    return SDL_GetAppState() & SDL_APPINPUTFOCUS;
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
-    if (headless && gfx != SOFTWARE) {
-        fprintf(stderr, "Headless mode on SDL 1.2 requires the software renderer!\n");
-        return false;
-    }
-
+bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
     }
 
-    fbWidth = reqW;
-    fbHeight = reqH;
-    if(!headless) {
-        scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
-        if (!scr && gfx == SOFTWARE) {
-            SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
-            if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
-                fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
-                        reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
-                scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
-                fbWidth = modes[0]->w;
-                fbHeight = modes[0]->h;
-            }
-        }
-        if (!scr) {
-            fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
-            return false;
-        }
+    if (gfx == LEGACY_GL) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    } else if (gfx == MODERN_GL) {
+#ifdef ENABLE_GLES
+#ifdef SDL_GL_CONTEXT_PROFILE_MASK
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#endif
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+#endif
     }
 
-    SDL_WM_SetCaption(title, NULL);
+    Uint32 flags;
+    if (headless)
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+    else
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
 
-    SDL_EnableKeyRepeat(0, 0);
+    fbWidth = reqW;
+    fbHeight = reqH;
+    window = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            fbWidth, fbHeight,
+            flags
+    );
+    if (!window && gfx == SOFTWARE) {
+        SDL_DisplayMode mode;
+        if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
+            fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                    reqW, reqH, mode.w, mode.h, SDL_GetError());
+            fbWidth = mode.w;
+            fbHeight = mode.h;
+            window = SDL_CreateWindow(
+                    title,
+                    SDL_WINDOWPOS_UNDEFINED,
+                    SDL_WINDOWPOS_UNDEFINED,
+                    fbWidth, fbHeight,
+                    flags
+            );
+        }
+    }
+    if (!window) {
+        fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        return false;
+    }
+    if (gfx != SOFTWARE) {
+        if (!SDL_GL_CreateContext(window)) {
+            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
+            return false;
+        }
+        SDL_GL_SetSwapInterval(0); // disable vsync
+    } else
+        scr = SDL_GetWindowSurface(window);
 
     return true;
 }
@@ -126,15 +160,13 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
     if(gfx == SOFTWARE) {
-        if (!scr)
-            return;
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
-        SDL_Flip(scr);
+        SDL_UpdateWindowSurface(window);
     }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
     if (gfx == LEGACY_GL || gfx == MODERN_GL)
-        SDL_GL_SwapBuffers();
+        SDL_GL_SwapWindow(window);
 #endif
 }
 
@@ -193,6 +225,30 @@ static int32_t SDLKeyToGml(int sdlkey) {
     }
 }
 
+static uint32_t utf8_to_codepoint(const char *s) {
+    const unsigned char *p = (const unsigned char *)s;
+
+    if (p[0] < 0x80)
+        return p[0];
+
+    if ((p[0] & 0xE0) == 0xC0)
+        return ((p[0] & 0x1F) << 6) |
+               (p[1] & 0x3F);
+
+    if ((p[0] & 0xF0) == 0xE0)
+        return ((p[0] & 0x0F) << 12) |
+               ((p[1] & 0x3F) << 6) |
+               (p[2] & 0x3F);
+
+    if ((p[0] & 0xF8) == 0xF0)
+        return ((p[0] & 0x07) << 18) |
+               ((p[1] & 0x3F) << 12) |
+               ((p[2] & 0x3F) << 6) |
+               (p[3] & 0x3F);
+
+    return 0xFFFD; // replacement character
+}
+
 static int32_t SDLMouseButtonToGml(int sdlButton) {
     switch (sdlButton) {
         case SDL_BUTTON_LEFT: return GML_MB_LEFT;
@@ -203,52 +259,59 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
+    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch(e.type) {
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                if (e.key.repeat != 0)
+                    break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
-                if (e.key.keysym.unicode != 0)
-                    RunnerKeyboard_onCharacter(g_runner->keyboard, e.key.keysym.unicode);
                 break;
             case SDL_KEYUP:
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_TEXTINPUT:
+                // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
-                if (e.button.button == SDL_BUTTON_WHEELUP) {
-                    RunnerMouse_onWheel(g_runner->mouse, 1.0);
-                } else if (e.button.button == SDL_BUTTON_WHEELDOWN) {
-                    RunnerMouse_onWheel(g_runner->mouse, -1.0);
-                } else {
-                    int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
-                    if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
-                }
+                RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
-            case SDL_MOUSEBUTTONUP:
+            case SDL_MOUSEBUTTONDOWN: {
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
-                if (e.button.button != SDL_BUTTON_WHEELUP && e.button.button != SDL_BUTTON_WHEELDOWN) {
-                    int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
-                    if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
-                }
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEBUTTONUP: {
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEWHEEL:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                if (e.wheel.y != 0)
+                    RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
-            case SDL_VIDEORESIZE:
-                fbWidth = e.resize.w;
-                fbHeight = e.resize.h;
-                scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+            case SDL_WINDOWEVENT:
+                if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
+                    break;
+                fbWidth = e.window.data1;
+                fbHeight = e.window.data2;
+                if (gfx == SOFTWARE)
+                    scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
-                return true;
+                should_exit = true;
+                break;
             default:
                 break;
         }
     }
 
-    return false;
+    return should_exit;
 }
 
 void platformSleepUntil(double time) {
@@ -259,4 +322,8 @@ void platformSleepUntil(double time) {
     while (platformGetTime() < time) {
         // Spin-wait for the remaining sub-millisecond
     }
+}
+
+void platformGamepad_poll(RunnerGamepadState* gp) {
+    (void)gp;
 }

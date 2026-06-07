@@ -9,6 +9,11 @@
 #include <glad/glad.h>
 #endif
 
+typedef enum {
+    BATCHTYPE_QUAD,
+    BATCHTYPE_TRIANGLE
+} BatchType;
+
 // ===[ GLRenderer Struct ]===
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
@@ -29,7 +34,8 @@ typedef struct {
     GLuint vao, vbo, ebo;
     float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats
 
-    int32_t quadCount;
+    BatchType batchType;
+    int32_t batchCount;
     GLuint currentTextureId;
 
     GLuint* glTextures;       // one GL texture per TXTR page

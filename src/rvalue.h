@@ -91,69 +91,93 @@ struct RValue {
 } __attribute__((aligned(8)));
 
 static inline RValue RValue_makeReal(GMLReal val) {
-    RValue rv = { .type = RVALUE_REAL, .gmlStackType = GML_TYPE_DOUBLE };
+    RValue rv = {0};
+    rv.type = RVALUE_REAL;
+    rv.gmlStackType = GML_TYPE_DOUBLE;
     rv.real = val;
     return rv;
 }
 
 static inline RValue RValue_makeInt32(int32_t val) {
-    RValue rv = { .type = RVALUE_INT32, .gmlStackType = GML_TYPE_INT32 };
+    RValue rv = {0};
+    rv.type = RVALUE_INT32;
+    rv.gmlStackType = GML_TYPE_INT32;
     rv.int32 = val;
     return rv;
 }
 
 static inline RValue RValue_makeInt64(int64_t val) {
-    RValue rv;
+    RValue rv = {0};
 #ifdef NO_RVALUE_INT64
     // Values that don't fit in int32 get promoted to real instead of clamped, because clamping to INT32_MIN causes arithmetic overflow bugs
     // (example: Undertale's mercymod = -99999999999999 in the Asriel fight)
     if (val > INT32_MAX || INT32_MIN > val) {
-        rv = (RValue){ .type = RVALUE_REAL, .gmlStackType = GML_TYPE_DOUBLE };
+        rv.type = RVALUE_REAL;
+        rv.gmlStackType = GML_TYPE_DOUBLE;
         rv.real = val;
     } else {
-        rv = (RValue){ .type = RVALUE_INT32, .gmlStackType = GML_TYPE_INT32 };
+        rv.type = RVALUE_INT32;
+        rv.gmlStackType = GML_TYPE_INT32;
         rv.int32 = val;
     }
 #else
-    rv = (RValue){ .type = RVALUE_INT64, .gmlStackType = GML_TYPE_INT64 };
+    rv.type = RVALUE_INT64;
+    rv.gmlStackType = GML_TYPE_INT64;
     rv.int64 = val;
 #endif
     return rv;
 }
 
 static inline RValue RValue_makeBool(bool val) {
-    RValue rv = { .type = RVALUE_BOOL, .gmlStackType = GML_TYPE_BOOL };
+    RValue rv = {0};
+    rv.type = RVALUE_BOOL;
+    rv.gmlStackType = GML_TYPE_BOOL;
     rv.int32 = val ? 1 : 0;
     return rv;
 }
 
 static inline RValue RValue_makeString(const char* val) {
-    RValue rv = { .type = RVALUE_STRING, .ownsReference = false, .gmlStackType = GML_TYPE_STRING };
+    RValue rv = {0};
+    rv.type = RVALUE_STRING;
+    rv.ownsReference = false;
+    rv.gmlStackType = GML_TYPE_STRING;
     rv.string = val;
     return rv;
 }
 
 static inline RValue RValue_makeOwnedString(char* val) {
-    RValue rv = { .type = RVALUE_STRING, .ownsReference = true, .gmlStackType = GML_TYPE_STRING };
+    RValue rv = {0};
+    rv.type = RVALUE_STRING;
+    rv.ownsReference = true;
+    rv.gmlStackType = GML_TYPE_STRING;
     rv.string = val;
     return rv;
 }
 
 static inline RValue RValue_makeUndefined(void) {
-    return (RValue){ .type = RVALUE_UNDEFINED, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_UNDEFINED;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
+    return rv;
 }
 
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 // Use this when you have a freshly-allocated array (GMLArray_alloc) or after a GMLArray_incRef.
 static inline RValue RValue_makeArray(GMLArray* arr) {
-    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_ARRAY;
+    rv.ownsReference = true;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.array = arr;
     return rv;
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static inline RValue RValue_makeArrayWeak(GMLArray* arr) {
-    RValue rv = { .type = RVALUE_ARRAY, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_ARRAY;
+    rv.ownsReference = false;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.array = arr;
     return rv;
 }
@@ -161,14 +185,20 @@ static inline RValue RValue_makeArrayWeak(GMLArray* arr) {
 #if IS_WAD17_OR_HIGHER_ENABLED
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
 static inline RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
-    RValue rv = { .type = RVALUE_METHOD, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_METHOD;
+    rv.ownsReference = true;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.method = GMLMethod_create(codeIndex, boundInstanceId);
     return rv;
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static inline RValue RValue_makeMethodWeak(GMLMethod* m) {
-    RValue rv = { .type = RVALUE_METHOD, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_METHOD;
+    rv.ownsReference = false;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.method = m;
     return rv;
 }
@@ -176,21 +206,30 @@ static inline RValue RValue_makeMethodWeak(GMLMethod* m) {
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
 static inline RValue RValue_makeStructWeak(Instance* inst) {
-    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = false, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_STRUCT;
+    rv.ownsReference = false;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.structInst = inst;
     return rv;
 }
 
 // Takes ownership AND bumps the refCount. The returned RValue decRefs on free.
 static inline RValue RValue_makeStructAndIncRef(Instance* inst) {
-    RValue rv = { .type = RVALUE_STRUCT, .ownsReference = true, .gmlStackType = GML_TYPE_VARIABLE };
+    RValue rv = {0};
+    rv.type = RVALUE_STRUCT;
+    rv.ownsReference = true;
+    rv.gmlStackType = GML_TYPE_VARIABLE;
     rv.structInst = inst;
     Instance_structIncRef(inst);
     return rv;
 }
 
 static inline RValue RValue_makeAssetRef(int32_t assetIndex, uint8_t assetType) {
-    RValue rv = { .type = RVALUE_ASSETREF, .assetRefType = assetType, .gmlStackType = GML_TYPE_INT32 };
+    RValue rv = {0};
+    rv.type = RVALUE_ASSETREF;
+    rv.assetRefType = assetType;
+    rv.gmlStackType = GML_TYPE_INT32;
     rv.int32 = assetIndex;
     return rv;
 }
@@ -220,7 +259,7 @@ static inline RValue RValue_makeIndependent(RValue val) {
         val.ownsReference = true;
         return val;
     }
-    requireMessageFormatted(!val.ownsReference, "Trying to make independent a RValue (type=%d) that owns a reference, but we don't handle it yet! Did you add a new refcounted value to Butterscotch without implementing RValue_makeIndependent for it?", val.type);
+    requireMessageFormatted(__FILE__, __LINE__, !val.ownsReference, "Trying to make independent a RValue (type=%d) that owns a reference, but we don't handle it yet! Did you add a new refcounted value to Butterscotch without implementing RValue_makeIndependent for it?", val.type);
     return val;
 }
 
