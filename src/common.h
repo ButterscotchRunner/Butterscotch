@@ -38,7 +38,7 @@
 
 #ifdef __GNUC__
     #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
-        #if defined(__GNUC__) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 4))
+        #if ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 4))
             #define YIELD() __asm__ volatile("rep; nop" ::: "memory")
         #else
             #include <immintrin.h>
@@ -48,7 +48,7 @@
         #include <intrin.h>
         #define YIELD() __yield()
     #elif defined(__aarch64__) || (defined(__arm__) && defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
-        #if defined(__GNUC__) && (__GNUC__ < 5)
+        #if (__GNUC__ < 5)
             #define YIELD() __asm__ volatile("yield" ::: "memory")
         #else
             #include <arm_acle.h>
