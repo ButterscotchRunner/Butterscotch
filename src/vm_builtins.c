@@ -867,7 +867,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             }
         }
         case BUILTIN_VAR_CURRENT_TIME:
-            return RValue_makeReal((nowNanos() - game_start_time) / 1000000.0);
+            return RValue_makeReal((nowNanos() - runner->gameStartTime) / 1000000.0);
 
         // Arguments
         case BUILTIN_VAR_ARGUMENT_COUNT:
