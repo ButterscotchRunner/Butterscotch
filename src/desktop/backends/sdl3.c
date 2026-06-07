@@ -16,6 +16,24 @@ static SDL_Surface* scr;
 static SDL_Window *window;
 static SDL_Gamepad* openControllers[MAX_GAMEPADS];
 
+static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
+    [SDL_GAMEPAD_BUTTON_SOUTH]          = 0,
+    [SDL_GAMEPAD_BUTTON_EAST]           = 1,
+    [SDL_GAMEPAD_BUTTON_WEST]           = 2,
+    [SDL_GAMEPAD_BUTTON_NORTH]          = 3,
+    [SDL_GAMEPAD_BUTTON_BACK]           = 8,
+    [SDL_GAMEPAD_BUTTON_GUIDE]          = 16,
+    [SDL_GAMEPAD_BUTTON_START]          = 9,
+    [SDL_GAMEPAD_BUTTON_LEFT_STICK]     = 10,
+    [SDL_GAMEPAD_BUTTON_RIGHT_STICK]    = 11,
+    [SDL_GAMEPAD_BUTTON_LEFT_SHOULDER]  = 4,
+    [SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 5,
+    [SDL_GAMEPAD_BUTTON_DPAD_UP]        = 12,
+    [SDL_GAMEPAD_BUTTON_DPAD_DOWN]      = 13,
+    [SDL_GAMEPAD_BUTTON_DPAD_LEFT]      = 14,
+    [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
+};
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -262,49 +280,34 @@ enum {
 };
 
 static void mapSdl3ToGml(SDL_Gamepad* gp, GamepadSlot* slot) {
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH)) slot->buttonDown[0] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_EAST)) slot->buttonDown[1] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_WEST)) slot->buttonDown[2] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_NORTH)) slot->buttonDown[3] = true;
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        int gmlIdx = SDL_TO_GML_BUTTON[i];
 
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)) slot->buttonDown[4] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)) slot->buttonDown[5] = true;
+        if (gmlIdx == 0 && i != SDL_GAMEPAD_BUTTON_SOUTH) continue;
 
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_LEFT_STICK))  slot->buttonDown[10] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_STICK)) slot->buttonDown[11] = true;
+        slot->buttonDown[gmlIdx] = SDL_GetGamepadButton(gp, (SDL_GamepadButton)i);
+        slot->buttonValue[gmlIdx] = slot->buttonDown[gmlIdx] ? 1.0f : 0.0f;
+    }
 
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK)) slot->buttonDown[8] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_START)) slot->buttonDown[9] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_GUIDE)) slot->buttonDown[16] = true;
+    const float invMaxAxis = 1.0f / 32767.0f;
 
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_UP)) slot->buttonDown[12] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_DOWN)) slot->buttonDown[13] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) slot->buttonDown[14] = true;
-    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) slot->buttonDown[15] = true;
+    float lt = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) * invMaxAxis;
+    float rt = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) * invMaxAxis;
 
-    float lt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.0f;
-    float rt = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 32767.0f;
-    if (lt < 0.0f) lt = 0.0f;
-    if (rt < 0.0f) rt = 0.0f;
+    lt = SDL_clamp(lt, 0.0f, 1.0f);
+    rt = SDL_clamp(rt, 0.0f, 1.0f);
+
     slot->buttonValue[IDX_LT] = lt;
     slot->buttonValue[IDX_RT] = rt;
-    if (lt >= slot->triggerThreshold) slot->buttonDown[IDX_LT] = true;
-    if (rt >= slot->triggerThreshold) slot->buttonDown[IDX_RT] = true;
 
-    float lh = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
-    float lv = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
-    float rh = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
-    float rv = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+    slot->buttonDown[IDX_LT] = (lt >= slot->triggerThreshold);
+    slot->buttonDown[IDX_RT] = (rt >= slot->triggerThreshold);
 
-    slot->axisValue[0] = lh;
-    slot->axisValue[1] = lv;
-    slot->axisValue[2] = rh;
-    slot->axisValue[3] = rv;
-
-    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
-        if (i == IDX_LT || i == IDX_RT) continue;
-        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
-    }
+    // 4. Process Joysticks
+    slot->axisValue[0] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX) * invMaxAxis;
+    slot->axisValue[1] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY) * invMaxAxis;
+    slot->axisValue[2] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTX) * invMaxAxis;
+    slot->axisValue[3] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTY) * invMaxAxis;
 }
 
 bool platformHandleEvents(void) {
