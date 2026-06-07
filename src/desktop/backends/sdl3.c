@@ -303,7 +303,6 @@ static void mapSdl3ToGml(SDL_Gamepad* gp, GamepadSlot* slot) {
     slot->buttonDown[IDX_LT] = (lt >= slot->triggerThreshold);
     slot->buttonDown[IDX_RT] = (rt >= slot->triggerThreshold);
 
-    // 4. Process Joysticks
     slot->axisValue[0] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX) * invMaxAxis;
     slot->axisValue[1] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY) * invMaxAxis;
     slot->axisValue[2] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTX) * invMaxAxis;
@@ -421,8 +420,8 @@ bool platformHandleEvents(void) {
 
             for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
                 bool wasDown = slot->buttonDownPrev[btn];
-                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
-                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+                slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
+                slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
             }
             g_runner->gamepads->connectedCount++;
         } else {
