@@ -18,9 +18,9 @@
 // All four outputs are pixel coordinates with (0,0) at the bottom-left of the window (OpenGL convention).
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY);
 
-// Blits the given FBO (typically the application_surface) to the default framebuffer with letterboxing.
-void GLCommon_beginLetterboxBlit(GLuint fbo);
-void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+// Blits the given FBO (typically the application_surface) into hostFbo with letterboxing (hostFbo 0 == the window).
+void GLCommon_beginLetterboxBlit(GLuint fbo, GLuint hostFbo);
+void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, GLuint hostFbo);
 
 // ===[ Surface arrays ]===
 

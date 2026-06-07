@@ -149,7 +149,7 @@ static inline Matrix4f* Matrix4f_setTransform2D(Matrix4f* dest, float x, float y
 // Y-down coordinate space, optionally rotated by angleDeg counter-clockwise about the view center (matching GML view_angle).
 static inline Matrix4f* Matrix4f_viewProjection(Matrix4f* dest, float left, float top, float width, float height, float angleDeg) {
     Matrix4f_identity(dest);
-    Matrix4f_ortho(dest, left, left + width, top + height, top, -1.0f, 1.0f);
+    Matrix4f_ortho(dest, left, left + width, top, top + height, -1.0f, 1.0f);
 
     if (angleDeg != 0.0f) {
         // Rotate the world opposite the camera, about the view center, to spin the camera by angleDeg.

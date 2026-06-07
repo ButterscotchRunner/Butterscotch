@@ -564,6 +564,31 @@ static void maResumeAll(AudioSystem* audio) {
     }
 }
 
+static void alSuspend(AudioSystem* audio) {
+    AlAudioSystem* ma = (AlAudioSystem*) audio;
+
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (inst->active && alSourceIsPlaying(inst->alSource)) {
+            alSourcePause(inst->alSource);
+        }
+    }
+}
+
+static void alResume(AudioSystem* audio) {
+    AlAudioSystem* ma = (AlAudioSystem*) audio;
+
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (!inst->active) continue;
+        ALint state = 0;
+        alGetSourcei(inst->alSource, AL_SOURCE_STATE, &state);
+        if (state == AL_PAUSED) {
+            alSourcePlay(inst->alSource);
+        }
+    }
+}
+
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
@@ -880,6 +905,8 @@ AlAudioSystem* AlAudioSystem_create(void) {
     AlAudioSystemVtable.resumeSound = maResumeSound;
     AlAudioSystemVtable.pauseAll = maPauseAll;
     AlAudioSystemVtable.resumeAll = maResumeAll;
+    AlAudioSystemVtable.suspend = alSuspend;
+    AlAudioSystemVtable.resume = alResume;
     AlAudioSystemVtable.setSoundGain = maSetSoundGain;
     AlAudioSystemVtable.getSoundGain = maGetSoundGain;
     AlAudioSystemVtable.setSoundPitch = maSetSoundPitch;

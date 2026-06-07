@@ -30,6 +30,17 @@
 #define bm_inv_dest_color 10
 #define bm_src_alpha_sat 11
 
+#define	MATRIX_VIEW 					0
+#define	MATRIX_PROJECTION 				1
+#define	MATRIX_WORLD 					2
+#define	MATRIX_WORLD_VIEW 				3
+#define	MATRIX_WORLD_VIEW_PROJECTION 	4
+#define	MATRICES_MAX					5
+
+#define MAX_VS_LIGHTS	8
+
+#define MAX_TEXTURE_STAGES 8
+
 // Sentinel returned by ensureApplicationSurface on platforms that don't back the application_surface with a real entry in the renderer's surface table.
 //
 // Also used as the initial value of Runner.applicationSurfaceId before the first ensure call.
@@ -110,6 +121,18 @@ typedef struct {
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).
     void (*drawTiledPart)(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha);
+    // Shader Functions
+    void (*gpuSetShader)(Renderer* renderer, int32_t shaderIndex);
+    void (*gpuResetShader)(Renderer* renderer);
+    int32_t (*shaderGetUniform)(Renderer* renderer, int32_t shaderIndex, char* uniform);
+    int32_t (*shaderGetSamplerIndex)(Renderer* renderer, int32_t shaderIndex, char* uniform);
+    void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4);
+    uint32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);
+    float (*textureGetTexelWidth)(Renderer* renderer, uint32_t texID);
+    float (*textureGetTexelHeight)(Renderer* renderer, uint32_t texID);
+    void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
+    bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
+    bool (*shadersSupported)(Renderer* renderer);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===
@@ -130,6 +153,8 @@ struct Renderer {
     int32_t CPortW;
     int32_t CPortH;
     Runner* runner;
+    Matrix4f GML_Matrices[MATRICES_MAX];
+    int32_t CurrentShader;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===

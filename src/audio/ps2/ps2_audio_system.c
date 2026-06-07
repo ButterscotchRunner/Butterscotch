@@ -1330,6 +1330,8 @@ Ps2AudioSystem* Ps2AudioSystem_create(void) {
     ps2AudioSystemVtable.resumeSound = ps2ResumeSound;
     ps2AudioSystemVtable.pauseAll = ps2PauseAll;
     ps2AudioSystemVtable.resumeAll = ps2ResumeAll;
+    ps2AudioSystemVtable.suspend = ps2PauseAll;
+    ps2AudioSystemVtable.resume = ps2ResumeAll;
     ps2AudioSystemVtable.setSoundGain = ps2SetSoundGain;
     ps2AudioSystemVtable.getSoundGain = ps2GetSoundGain;
     ps2AudioSystemVtable.setSoundPitch = ps2SetSoundPitch;

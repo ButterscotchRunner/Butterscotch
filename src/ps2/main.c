@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
+#include "iopcontrol.h"
 #include "gettime.h"
 
 #ifdef GPROF_PROFILING
@@ -240,6 +241,12 @@ static unsigned int hidUsageToAsciiChar(uint8_t hid, bool shift) {
 int main(int argc, char* argv[]) {
     SifInitRpc(0);
     sbv_patch_enable_lmb();
+
+    // Reset IOP borrowed from uLaunchELF
+    while (!SifIopReset(NULL, 0)) {};
+    while (!SifIopSync()) {};
+
+    SifInitRpc(0);
 
     // Ask the kernel how much main RAM we actually have.
     MAX_MEMORY_BYTES = (int) GetMemorySize();

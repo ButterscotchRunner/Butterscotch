@@ -401,6 +401,16 @@ static void maResumeAll(AudioSystem* audio) {
     }
 }
 
+static void maSuspend(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void maResume(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_start(ma_engine_get_device(&ma->engine));
+}
+
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
@@ -713,6 +723,8 @@ MaAudioSystem* MaAudioSystem_create(void) {
     maAudioSystemVtable.resumeSound = maResumeSound;
     maAudioSystemVtable.pauseAll = maPauseAll;
     maAudioSystemVtable.resumeAll = maResumeAll;
+    maAudioSystemVtable.suspend = maSuspend;
+    maAudioSystemVtable.resume = maResume;
     maAudioSystemVtable.setSoundGain = maSetSoundGain;
     maAudioSystemVtable.getSoundGain = maGetSoundGain;
     maAudioSystemVtable.setSoundPitch = maSetSoundPitch;

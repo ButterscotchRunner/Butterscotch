@@ -180,6 +180,7 @@ typedef struct {
     float alpha;
     float xOffset; // element-local offset (in addition to layer offset)
     float yOffset;
+    int32_t imageIndex;
 } RuntimeBackgroundElement;
 
 // Mutable sprite element on an Assets layer. Populated from RoomLayerAssetsData.sprites at room init, can be removed at runtime via layer_sprite_destroy (used by language variant selection).

@@ -90,6 +90,8 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.resumeSound = noopResumeSound,
     noopVtable.pauseAll = noopPauseAll,
     noopVtable.resumeAll = noopResumeAll,
+    noopVtable.suspend = noopPauseAll,
+    noopVtable.resume = noopResumeAll,
     noopVtable.setSoundGain = noopSetSoundGain,
     noopVtable.getSoundGain = noopGetSoundGain,
     noopVtable.setSoundPitch = noopSetSoundPitch,

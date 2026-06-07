@@ -898,6 +898,11 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
 
+        case BUILTIN_VAR_MOUSE_BUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getButton(runner->mouse));
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getLastButton(runner->mouse));
+
         case BUILTIN_VAR_MOUSE_X: {
             GMLReal mouseRoomX, mouseRoomY;
             Runner_getMouseRoomPosition(runner, &mouseRoomX, &mouseRoomY);
@@ -1347,6 +1352,10 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             return;
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             runner->keyboard->lastKey = RValue_toInt32(val);
+            return;
+
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            runner->mouse->lastButton = RValue_toInt32(val);
             return;
 
         // View properties
@@ -11145,6 +11154,7 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     bg->alpha = 1.0f;
     bg->xOffset = 0.0f;
     bg->yOffset = 0.0f;
+    bg->imageIndex = 0;
     RuntimeLayerElement el = {0};
     el.id = Runner_getNextLayerId(runner);
     el.type = RuntimeLayerElementType_Background;
@@ -11283,6 +11293,24 @@ static RValue builtin_layer_background_get_id(VMContext* ctx, RValue* args, MAYB
     }
 
     return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t background_element_id = RValue_toInt32(args[0]);
+    int32_t index = RValue_toInt32(args[1]);
+
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, background_element_id);
+    if (bg != nullptr) {
+        bg->imageIndex = index;
+    }
+
+    RoomLayer* roomLayer = Runner_findRoomLayerById(runner, background_element_id);
+    if (roomLayer != nullptr && roomLayer->type == RoomLayerType_Background && roomLayer->backgroundData != nullptr) {
+        roomLayer->backgroundData->imageIndex = index;
+    }
+
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -12966,6 +12994,224 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeString(ctx->runner->gameArgs[index]);
 }
 
+static RValue builtin_shader_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    //fprintf(stderr, "Set Shader ID %u\n", ShaderID);
+    //gpuSetShader
+    if (ctx->runner->renderer->vtable->gpuSetShader != nullptr) {
+    ctx->runner->renderer->vtable->gpuSetShader(ctx->runner->renderer, ShaderID);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_reset(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    if (ctx->runner->renderer->vtable->gpuResetShader != nullptr) {
+    ctx->runner->renderer->vtable->gpuResetShader(ctx->runner->renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_current(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    if (ctx->runner->renderer != nullptr) {
+    return RValue_makeReal(ctx->runner->renderer->CurrentShader);
+    }
+    return RValue_makeReal(-1);
+}
+
+static RValue builtin_shader_is_compiled(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    if (ctx->runner->renderer->vtable->shaderIsCompiled != nullptr) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->shaderIsCompiled(ctx->runner->renderer, ShaderID));
+    }
+
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_shader_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t shaderIndex = (int32_t) RValue_toReal(args[0]);
+    Shader* shdr = &ctx->dataWin->shdr.shaders[shaderIndex];
+    if (0 > shaderIndex || (uint32_t) shaderIndex >= ctx->dataWin->shdr.count) return RValue_makeString("<undefined>");
+    const char* name = shdr->name;
+    return RValue_makeString(name != nullptr ? name : "<undefined>");
+}
+
+static RValue builtin_shaders_are_supported(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    
+    if (ctx->runner->renderer->vtable->shadersSupported != nullptr) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->shadersSupported(ctx->runner->renderer));
+    }
+
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    if (ctx->runner->renderer->vtable->shaderGetUniform != nullptr) {
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetUniform(ctx->runner->renderer, ShaderID, uniform));
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_shader_get_sampler_index(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    if (ctx->runner->renderer->vtable->shaderGetSamplerIndex != nullptr) {
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetSamplerIndex(ctx->runner->renderer, ShaderID, uniform));
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_texture_set_stage(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t TextureSlot = (int32_t) RValue_toReal(args[0]);
+    int32_t texID = (int32_t) RValue_toInt32(args[1]);
+    if (ctx->runner->renderer->vtable->textureSetStage != nullptr) {
+    ctx->runner->renderer->vtable->textureSetStage(ctx->runner->renderer, TextureSlot, texID);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t handle = (int32_t) RValue_toReal(args[0]);
+    float value1, value2, value3, value4;
+    //fprintf(stderr, "Set ARG Count %u\n", argCount);
+    if (ctx->runner->renderer->vtable->shaderSetUniformF != nullptr) {
+    //return RValue_makeReal(ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, ShaderID, uniform));
+    if (argCount == 2) {
+        value1 = (float) RValue_toReal(args[1]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 1, value1, 0.0, 0.0, 0.0);
+    } else if (argCount == 3) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 2, value1, value2, 0.0, 0.0);
+    } else if (argCount == 4) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 3, value1, value2, value3, 0.0);
+    } else if (argCount == 5) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
+        value4 = (float) RValue_toReal(args[4]);
+        //fprintf(stderr, "Value4  %.8f\n", value4);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 4, value1, value2, value3, value4);
+    }
+
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+
+    if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    }
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+    float trimmedLeft = (float) ctx->dataWin->tpag.items[TpagIndex].targetX;
+    float trimmedTop = (float) ctx->dataWin->tpag.items[TpagIndex].targetY;
+    float NormWidthS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceWidth / (float) ctx->dataWin->tpag.items[TpagIndex].boundingWidth;
+    float NormHeightS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceHeight / (float) ctx->dataWin->tpag.items[TpagIndex].boundingHeight;
+
+
+    GMLArray* out = GMLArray_create(8);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    *GMLArray_slot(out, 4) = RValue_makeReal(trimmedLeft);
+    *GMLArray_slot(out, 5) = RValue_makeReal(trimmedTop);
+    *GMLArray_slot(out, 6) = RValue_makeReal(NormWidthS);
+    *GMLArray_slot(out, 7) = RValue_makeReal(NormHeightS);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_sprite_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+
+    //if (0 > fontIndex || ctx->dataWin->font.count <= (uint32_t) fontIndex) return;
+
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    
+
+    int32_t TpagIndex = font->tpagIndex;
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+    
+    if (ctx->runner->renderer->vtable->textureGetTexelWidth != nullptr) {
+        DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+        DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    }
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+
+    GMLArray* out = GMLArray_create(4);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    //see if it works
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    int32_t TpagIndex = font->tpagIndex;
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, texID));
+}
+
+static RValue builtin_texture_get_texel_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, texID));
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -13697,6 +13943,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_sprite", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_change", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
+    VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
 
     // GMS2 internal
@@ -13832,4 +14079,19 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "game_change", builtin_game_change);
     VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
     VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
+    VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
+    VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
+    VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
+    VM_registerBuiltin(ctx, "shader_is_compiled", builtin_shader_is_compiled); 
+    VM_registerBuiltin(ctx, "shader_get_name", builtin_shader_get_name);
+    VM_registerBuiltin(ctx, "shaders_are_supported", builtin_shaders_are_supported);  
+    VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
+    VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
+    VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF); 
+    VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
+    VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
+    VM_registerBuiltin(ctx, "font_get_uvs", builtin_font_get_uvs);   
+    VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
+    VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
+    VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
 }
