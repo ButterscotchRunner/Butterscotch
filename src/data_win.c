@@ -922,6 +922,28 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
         return;
     }
 
+    if (!DataWin_isVersionAtLeast(dw, 2, 3, 1, 0)) {
+        size_t saved = BinaryReader_getPosition(reader);
+
+        uint32_t count = BinaryReader_readUint32(reader);
+        if (count == 0) {
+            BinaryReader_seek(reader, saved);
+            return;
+        }
+
+        uint32_t firstPtr = BinaryReader_readUint32(reader);
+        BinaryReader_seek(reader, firstPtr);
+        BinaryReader_skip(reader, 8);
+
+        if (BinaryReader_readUint32(reader) != 0) {
+            DataWin_bumpVersionTo(dw, 2, 3, 1, 0);
+        } else if (BinaryReader_readUint32(reader) == 0) {
+            DataWin_bumpVersionTo(dw, 2, 3, 1, 0);
+        }
+
+        BinaryReader_seek(reader, saved);
+    }
+
     uint32_t count;
     uint32_t* ptrs = readPointerTable(reader, &count);
     a->count = count;
