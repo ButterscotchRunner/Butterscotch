@@ -1629,8 +1629,8 @@ int main(int argc, char* argv[]) {
                 }
                 fastForwardTabPrev = fastForwardTabNow;
                 double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
-                double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
-                uint64_t nextFrameTime = lastFrameTime + targetFrameTime * 1000000000;
+                uint64_t targetFrameTime = 1000000000 / (runner->currentRoom->speed * effectiveSpeed);
+                uint64_t nextFrameTime = lastFrameTime + targetFrameTime;
                 platformSleepUntil(nextFrameTime);
             }
             lastFrameTime = nowNanos();
