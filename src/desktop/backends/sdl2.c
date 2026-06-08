@@ -293,36 +293,36 @@ bool platformHandleEvents(void) {
     bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+            default:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
+            case SDL_WINDOWEVENT:
+            case SDL_QUIT:
+        }
         switch(e.type) {
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.key.repeat != 0)
                     break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_KEYUP:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_TEXTINPUT:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
             case SDL_MOUSEBUTTONDOWN: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEBUTTONUP: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEWHEEL:
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.wheel.y != 0)
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
