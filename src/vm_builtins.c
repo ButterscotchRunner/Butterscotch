@@ -11813,6 +11813,23 @@ static RValue builtin_CopyStatic(VMContext* ctx, RValue* args, int32_t argCount)
     VM_copyStatic(ctx, &args[0]);
     return RValue_makeUndefined();
 }
+
+// @@GetInstance@@(target) - takes an object index and returns the first active instance's ID.
+static RValue builtin_GetInstance(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeInt32(INSTANCE_NOONE);
+
+    Runner* runner = ctx->runner;
+    int32_t target = RValue_toInt32(args[0]);
+
+    if (target >= 0 && (uint32_t) target < ctx->dataWin->objt.count) {
+        Instance** bucket = runner->instancesByObject[target];
+        int32_t bucketCount = (int32_t) arrlen(bucket);
+        for (int32_t i = 0; bucketCount > i; i++) {
+            if (bucket[i]->active) return RValue_makeInt32((int32_t) bucket[i]->instanceId);
+        }
+    }
+    return RValue_makeInt32(INSTANCE_NOONE);
+}
 #endif
 
 // ===[ PATH FUNCTIONS ]===
@@ -14007,6 +14024,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtin_NewGMLObject);
     VM_registerBuiltin(ctx, "@@CopyStatic@@", builtin_CopyStatic);
     VM_registerBuiltin(ctx, "@@SetStatic@@", builtin_SetStatic);
+    VM_registerBuiltin(ctx, "@@GetInstance@@", builtin_GetInstance);
 #endif
 
     // Path
