@@ -333,8 +333,6 @@ bool platformHandleEvents(void) {
             case SDL_QUIT:
                 should_exit = true;
                 break;
-            default:
-                break;
         }
     }
 
