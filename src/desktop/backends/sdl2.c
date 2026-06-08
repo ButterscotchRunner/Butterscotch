@@ -9,7 +9,6 @@
 #include "desktop/platformdefs.h"
 
 static Runner *g_runner;
-static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
@@ -21,20 +20,47 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    *outW = fbWidth;
-    *outH = fbHeight;
+    if (gfx == SOFTWARE) {
+        if (scr->w <= 0 || scr->h <= 0) return false;
+        *outW = scr->w;
+        *outH = scr->h;
+    } else {
+        int w = 0;
+        int h = 0;
+        SDL_GL_GetDrawableSize(window, &w, &h);
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
+    }
     return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
-    return platformGetWindowSize(outW, outH);
+    if (!outW || !outH) return false;
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-    fbWidth = width;
-    fbHeight = height;
-    SDL_SetWindowSize(window, width, height);
+    int32_t draw_w, draw_h;
+    int logical_w, logical_h;
+
+    platformGetWindowSize(&draw_w, &draw_h);
+    SDL_GetWindowSize(window, &logical_w, &logical_h);
+
+    if (draw_w > 0 && draw_h > 0) {
+        int new_logical_w = (int)((float)width * logical_w / draw_w);
+        int new_logical_h = (int)((float)height * logical_h / draw_h);
+        SDL_SetWindowSize(window, new_logical_w, new_logical_h);
+    } else
+        SDL_SetWindowSize(window, width, height);
+
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
@@ -78,17 +104,15 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     Uint32 flags;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_ALLOW_HIGHDPI;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 
-    fbWidth = reqW;
-    fbHeight = reqH;
     window = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
-            fbWidth, fbHeight,
+            reqW, reqH,
             flags
     );
     if (!window && gfx == SOFTWARE) {
@@ -96,13 +120,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
-            fbWidth = mode.w;
-            fbHeight = mode.h;
+            reqW = mode.w;
+            reqH = mode.h;
             window = SDL_CreateWindow(
                     title,
                     SDL_WINDOWPOS_UNDEFINED,
                     SDL_WINDOWPOS_UNDEFINED,
-                    fbWidth, fbHeight,
+                    mode.w, mode.h,
                     flags
             );
         }
@@ -119,6 +143,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else
         scr = SDL_GetWindowSurface(window);
+
+    // If we don't do this, the window will be larger than it should be on HiDPI displays.
+    platformSetWindowSize(reqW, reqH);
 
     return true;
 }
@@ -298,8 +325,6 @@ bool platformHandleEvents(void) {
             case SDL_WINDOWEVENT:
                 if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
                     break;
-                fbWidth = e.window.data1;
-                fbHeight = e.window.data2;
                 if (gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
