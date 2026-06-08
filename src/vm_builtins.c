@@ -13881,6 +13881,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_bbox_right", builtin_sprite_get_bbox_right);
     VM_registerBuiltin(ctx, "sprite_get_bbox_top", builtin_sprite_get_bbox_top);
     VM_registerBuiltin(ctx, "sprite_get_bbox_bottom", builtin_sprite_get_bbox_bottom);
+    VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
+    VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
     VM_registerBuiltin(ctx, "sprite_set_offset", builtin_sprite_set_offset);
     VM_registerBuiltin(ctx, "sprite_create_from_surface", builtin_sprite_create_from_surface);
     VM_registerBuiltin(ctx, "sprite_delete", builtin_sprite_delete);
@@ -14073,6 +14075,39 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "mp_grid_draw", builtin_mp_grid_draw);
     VM_registerBuiltin(ctx, "mp_grid_path", builtin_mp_grid_path);
 
+    // Shader
+    VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
+    VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
+    VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
+    VM_registerBuiltin(ctx, "shader_is_compiled", builtin_shader_is_compiled); 
+    VM_registerBuiltin(ctx, "shader_get_name", builtin_shader_get_name);
+    VM_registerBuiltin(ctx, "shaders_are_supported", builtin_shaders_are_supported);  
+    VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
+    VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
+    VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF);
+    VM_registerBuiltin(ctx, "shader_set_uniform_i", builtin_shader_set_uniformI);
+
+    // GPU
+    VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
+    VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
+    VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
+    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
+    VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
+    VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
+    VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
+    if (!isGMS2) {
+        VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);
+        VM_registerBuiltin(ctx,"draw_set_blend_mode_ext", builtin_gpu_set_blendmode_ext);
+        VM_registerBuiltin(ctx,"d3d_set_fog", builtin_gpu_set_fog);
+        VM_registerBuiltin(ctx, "draw_enable_alphablend", builtin_gpu_set_blendenable);
+        VM_registerBuiltin(ctx, "draw_set_alpha_test", builtin_gpu_set_alphatestenable);
+        VM_registerBuiltin(ctx, "draw_set_alpha_test_ref_value", builtin_gpu_set_alphatestref);
+        VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
+        VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
+    }
+
     // Misc
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
     if (!isGMS2) {
@@ -14136,40 +14171,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
     VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
-    VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
-    VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
-    VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
-    VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
-    VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
-    VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
-    VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
-    VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
-    VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
-    if (!isGMS2) {
-        VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);
-        VM_registerBuiltin(ctx,"draw_set_blend_mode_ext", builtin_gpu_set_blendmode_ext);
-        VM_registerBuiltin(ctx,"d3d_set_fog", builtin_gpu_set_fog);
-        VM_registerBuiltin(ctx, "draw_enable_alphablend", builtin_gpu_set_blendenable);
-        VM_registerBuiltin(ctx, "draw_set_alpha_test", builtin_gpu_set_alphatestenable);
-        VM_registerBuiltin(ctx, "draw_set_alpha_test_ref_value", builtin_gpu_set_alphatestref);
-        VM_registerBuiltin(ctx, "draw_set_color_write_enable", builtin_gpu_set_colorwriteenable);
-        VM_registerBuiltin(ctx, "draw_set_colour_write_enable", builtin_gpu_set_colorwriteenable);
-    }
     VM_registerBuiltin(ctx, "game_change", builtin_game_change);
     VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
     VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
-    VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
-    VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
-    VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
-    VM_registerBuiltin(ctx, "shader_is_compiled", builtin_shader_is_compiled); 
-    VM_registerBuiltin(ctx, "shader_get_name", builtin_shader_get_name);
-    VM_registerBuiltin(ctx, "shaders_are_supported", builtin_shaders_are_supported);  
-    VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
-    VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
-    VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF);
-    VM_registerBuiltin(ctx, "shader_set_uniform_i", builtin_shader_set_uniformI);
-    VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
-    VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
     VM_registerBuiltin(ctx, "font_get_uvs", builtin_font_get_uvs);   
     VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
     VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
