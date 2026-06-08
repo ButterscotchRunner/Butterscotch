@@ -290,7 +290,6 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
-    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
@@ -331,12 +330,11 @@ bool platformHandleEvents(void) {
                     scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
-                should_exit = true;
-                break;
+                return true;
         }
     }
 
-    return should_exit;
+    return false;
 }
 
 void platformSleepUntil(double time) {
