@@ -323,9 +323,7 @@ bool platformHandleEvents(void) {
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
             case SDL_WINDOWEVENT:
-                if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
-                    break;
-                if (gfx == SOFTWARE)
+                if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED && gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
