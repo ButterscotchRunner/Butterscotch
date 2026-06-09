@@ -166,7 +166,7 @@ else
 ifneq ($(filter Linux Haiku %BSD Unix,$(OS)),) # OS is 'Linux', 'Haiku', '*BSD', or 'Unix'
 ifneq ($(OS),Haiku)
 INCLUDES += -I/usr/X11R6/include
-LIBS += -L/usr/X11R6/lib -ldl -lrt
+LIBS += -L/usr/X11R6/lib
 endif
 LIBS += -lm
 else
@@ -177,20 +177,42 @@ endif
 
 OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
 
-ifndef DISABLE_MMD
-DEPFLAGS = -MMD -MP
-endif
-
 all: build/butterscotch
 
 -include $(OBJS:.o=.d)
 
+ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
+
+-include compat/config.mk
+
+ifndef DISABLE_MMD
+DEPFLAGS = -MMD -MP -MF $(@:.o=.d)
+endif
+
+FORCE:
+
+compat/config.mk: compat/configure.sh compat/tmp/cc
+	@$(MAKE) distclean > /dev/null
+	@CC="$(CC)" $(SHELL) compat/configure.sh
+	@$(MAKE)
+	@exit 0
+
+compat/tmp/cc: FORCE
+	@printf '$(CC)' > compat/tmp/cc-new
+	@cmp -s compat/tmp/cc-new compat/tmp/cc || mv compat/tmp/cc-new compat/tmp/cc
+	@rm -f compat/tmp/cc-new
+
+endif
+
 build/butterscotch: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
-build/%.c.o: %.c $(if $(DISABLE_MMD),$(HEADERS))
+build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf build
+
+distclean: clean
+	rm -f compat/config.mk

@@ -5,3 +5,4 @@ build_ps3/
 .cache
 CMakeUserPresets.json
 .devcontainer/
+compat/config.mk
