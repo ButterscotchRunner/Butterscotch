@@ -572,6 +572,8 @@ struct Runner {
     // GameMaker launcher parameters
     // Just like the original runner, argv[0] is included in gameArgs
     char** gameArgs;
+
+    bool drawAutomatic;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);

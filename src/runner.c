@@ -696,6 +696,8 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 }
 
 void Runner_draw(Runner* runner) {
+    if (!runner->drawAutomatic) return;
+
     Room* room = runner->currentRoom;
 
     rebuildDrawableCacheIfDirty(runner);
@@ -927,6 +929,8 @@ void Runner_draw(Runner* runner) {
 }
 
 void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t targetW, int32_t targetH) {
+    if (!runner->drawAutomatic) return;
+    
     rebuildDrawableCacheIfDirty(runner);
     Drawable* drawables = runner->cachedDrawables;
     int32_t drawableCount = (int32_t) arrlen(drawables);
@@ -1017,6 +1021,8 @@ static void applyFreeCamera(Runner* runner, int32_t* viewX, int32_t* viewY, int3
 }
 
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
+    if (!runner->drawAutomatic) return;
+    
     Renderer* renderer = runner->renderer;
     bool anyViewRendered = false;
 
@@ -1863,6 +1869,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->appSurfaceEnabled = true;
     runner->appSurfaceAutoDraw = true;
     runner->usingAppSurface = true;
+    runner->drawAutomatic = true;
     runner->applicationWidth = (int32_t) dataWin->gen8.defaultWindowWidth;
     runner->applicationHeight = (int32_t) dataWin->gen8.defaultWindowHeight;
     runner->oldApplicationWidth = runner->applicationWidth;
