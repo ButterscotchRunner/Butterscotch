@@ -397,8 +397,12 @@ jobs:
           sudo apt-get install --no-install-recommends -y debootstrap
           sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
 
-      - name: Checkout repo into chroot
-        run: sudo git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ~/woody/butterscotch
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: butterscotch
 
       - name: Build
-        run: sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+        run: |
+          sudo mv butterscotch ~/woody
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
