@@ -293,6 +293,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
+    { "keyboard_string", BUILTIN_VAR_KEYBOARD_STRING },
     { "layer", BUILTIN_VAR_LAYER },
     { "lives", BUILTIN_VAR_LIVES },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
@@ -915,6 +916,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeString(runner->keyboard->lastChar);
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
+        case BUILTIN_VAR_KEYBOARD_STRING:
+            return RValue_makeString(runner->keyboard->string);
 
         case BUILTIN_VAR_MOUSE_BUTTON:
             return RValue_makeReal((GMLReal) RunnerMouse_getButton(runner->mouse));
@@ -1371,7 +1374,17 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             runner->keyboard->lastKey = RValue_toInt32(val);
             return;
-
+        case BUILTIN_VAR_KEYBOARD_STRING: {
+            const char* str = RValue_toString(val); 
+            
+            int32_t len = (int32_t)strlen(str);
+            if (len > 1023) len = 1023;
+            
+            memcpy(runner->keyboard->string, str, len);
+            runner->keyboard->string[len] = '\0';
+            runner->keyboard->stringLen = len;
+            return;
+        }
         case BUILTIN_VAR_MOUSE_LASTBUTTON:
             runner->mouse->lastButton = RValue_toInt32(val);
             return;
