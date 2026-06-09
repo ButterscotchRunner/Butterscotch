@@ -19,13 +19,13 @@ config() {
 check() {
     printf 'checking %s: ' "$1"
     shift
-    if $CC tmp/test.c "$@" 2> /dev/null; then
+    if $CC tmp/test.c -o tmp/a.out "$@" 2> /dev/null; then
         printf 'yes\n'
-        rm -f a.out
+        rm -f tmp/a.out
         return 0
     else
         printf 'no\n'
-        rm -f a.out
+        rm -f tmp/a.out
         return 1
     fi
 }

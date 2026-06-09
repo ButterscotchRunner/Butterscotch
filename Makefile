@@ -131,7 +131,9 @@ INCLUDES += -Isrc/audio/miniaudio -Ivendor/miniaudio
 DEFINES += -DUSE_MINIAUDIO
 SRCS += $(wildcard src/audio/miniaudio/*.c)
 HEADERS += $(wildcard src/audio/miniaudio/*.h)
-ifneq ($(OS),Windows)
+ifeq ($(OS),Windows)
+LIBS += -lwinmm
+else
 LIBS += -pthread
 endif
 endif
@@ -158,7 +160,7 @@ endif
 endif
 
 ifeq ($(OS),Windows)
-LIBS += -static -lwinmm
+LIBS += -static
 else
 ifeq ($(OS),Darwin)
 LIBS += -lobjc
