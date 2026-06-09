@@ -166,10 +166,6 @@ ifeq ($(OS),Darwin)
 LIBS += -lobjc
 else
 ifneq ($(filter Linux Haiku %BSD Unix,$(OS)),) # OS is 'Linux', 'Haiku', '*BSD', or 'Unix'
-ifneq ($(OS),Haiku)
-INCLUDES += -I/usr/X11R6/include
-LIBS += -L/usr/X11R6/lib
-endif
 LIBS += -lm
 else
 $(error unknown OS '$(OS)', please manually set the OS variable)

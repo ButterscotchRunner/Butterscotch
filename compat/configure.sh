@@ -19,7 +19,7 @@ config() {
 check() {
     printf 'checking %s: ' "$1"
     shift
-    if $CC tmp/test.c -o tmp/a.out "$@" 2> /dev/null; then
+    if $CC tmp/test.c -o tmp/a.out "$@" > /dev/null 2>&1; then
         printf 'yes\n'
         rm -f tmp/a.out
         return 0
@@ -31,18 +31,18 @@ check() {
 }
 
 printf '%s' "\
-#include <stdbool.h>
 int main(void){return 0;}
 " > tmp/test.c
 
-if ! check 'if stdbool.h works'; then
-    # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
-    config 'INCLUDES += -Icompat/stdbool'
+printf 'checking if we are cross compiling: '
+$CC tmp/test.c -o tmp/a.out > /dev/null 2>&1
+if tmp/a.out; then
+    printf 'no\n'
+else
+    printf 'yes\n'
+    cross_compiling=1
 fi
-
-printf '%s' "\
-int main(void){return 0;}
-" > tmp/test.c
+rm -f tmp/a.out
 
 if check 'for librt' -lrt; then
     # sometimes needed for clock_gettime
@@ -58,5 +58,33 @@ if ! check 'if -MMD -MP -MF test.d works' -MMD -MP -MF tmp/test.d; then
     config 'DISABLE_MMD := 1'
 fi
 rm -f tmp/test.d
+
+if [ -z "$cross_compiling" ]; then
+    printf 'checking if /usr/X11R6/include exists: '
+    if [ -d /usr/X11R6/include ]; then
+        printf 'yes\n'
+        config 'INCLUDES += -I/usr/X11R6/include'
+    else
+        printf 'no\n'
+    fi
+
+    printf 'checking if /usr/X11R6/lib exists: '
+    if [ -d /usr/X11R6/lib ]; then
+        printf 'yes\n'
+        config 'LIBS += -L/usr/X11R6/lib'
+    else
+        printf 'no\n'
+    fi
+fi
+
+printf '%s' "\
+#include <stdbool.h>
+int main(void){return 0;}
+" > tmp/test.c
+
+if ! check 'if stdbool.h works'; then
+    # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
+    config 'INCLUDES += -Icompat/stdbool'
+fi
 
 rm -f tmp/test.c
