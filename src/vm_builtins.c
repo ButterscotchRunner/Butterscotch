@@ -8804,7 +8804,7 @@ static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount)
     
     GMLReal dir = RValue_toReal(args[0]);
     GMLReal spd = RValue_toReal(args[1]);
-    GMLReal rad = dir * (M_PI / 180.0);
+    GMLReal rad = dir * ((float)M_PI / 180.0f);
     
     inst->hspeed += (float)(cos(rad) * spd);
     inst->vspeed += (float)(-sin(rad) * spd);
