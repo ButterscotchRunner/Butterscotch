@@ -7976,11 +7976,6 @@ static RValue builtin_psn_setup_trophies(MAYBE_UNUSED VMContext* ctx, RValue* ar
 #define SECONDS_IN_A_DAY 86400.0
 #define GM_DATE_OFFSET 25569.0
 
-static time_t GMLDateToUnixSeconds(GMLReal gmDate) {
-    GMLReal days_since_1970 = gmDate - GM_DATE_OFFSET;
-    return (time_t)(days_since_1970 * SECONDS_IN_A_DAY);
-}
-
 static RValue builtin_date_current_date(VMContext* ctx, RValue* args, int32_t argCount) {
     GMLReal current_seconds = (GMLReal)time(NULL);
     GMLReal days_since_1970 = GMLReal_floor(current_seconds / SECONDS_IN_A_DAY);
@@ -7997,7 +7992,7 @@ static RValue builtin_date_datetime_string(VMContext* ctx, RValue* args, int32_t
     if (argCount < 1) return RValue_makeUndefined();
     
     GMLReal gmDate = RValue_toReal(args[0]);
-    time_t t = GMLDateToUnixSeconds(gmDate);
+    time_t t = (gmDate - GM_DATE_OFFSET) * SECONDS_IN_A_DAY;
 
     struct tm* timeInfo = localtime(&t);
     
