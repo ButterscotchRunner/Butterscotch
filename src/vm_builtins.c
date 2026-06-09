@@ -7972,6 +7972,47 @@ static RValue builtin_psn_setup_trophies(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeInt32(1);
 }
 
+// Date functions
+#define SECONDS_IN_A_DAY 86400.0
+#define GM_DATE_OFFSET 25569.0
+
+static time_t GMLDateToUnixSeconds(GMLReal gmDate) {
+    GMLReal days_since_1970 = gmDate - GM_DATE_OFFSET;
+    return (time_t)(days_since_1970 * SECONDS_IN_A_DAY);
+}
+
+static RValue builtin_date_current_date(VMContext* ctx, RValue* args, int32_t argCount) {
+    GMLReal current_seconds = (GMLReal)time(NULL);
+    GMLReal days_since_1970 = GMLReal_floor(current_seconds / SECONDS_IN_A_DAY);
+    return RValue_makeReal(days_since_1970 + GM_DATE_OFFSET);
+}
+
+static RValue builtin_date_current_datetime(VMContext* ctx, RValue* args, int32_t argCount) {
+    GMLReal current_seconds = (GMLReal)time(NULL);
+    GMLReal gm_datetime = (current_seconds / SECONDS_IN_A_DAY) + GM_DATE_OFFSET;
+    return RValue_makeReal(gm_datetime);
+}
+
+static RValue builtin_date_datetime_string(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 1) return RValue_makeUndefined();
+    
+    GMLReal gmDate = RValue_toReal(args[0]);
+    time_t t = GMLDateToUnixSeconds(gmDate);
+
+    struct tm* timeInfo = localtime(&t);
+    
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%02d/%02d/%04d %02d:%02d:%02d",
+             timeInfo->tm_mday,          // Day
+             timeInfo->tm_mon + 1,       // Month (0-11, so +1)
+             timeInfo->tm_year + 1900,   // Year (years since 1900)
+             timeInfo->tm_hour,          // Hour
+             timeInfo->tm_min,           // Minute
+             timeInfo->tm_sec);          // Second
+             
+    return RValue_makeString(buffer);
+}
+
 // Draw functions
 static RValue builtin_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -13797,6 +13838,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "psn_default_user", builtin_psn_default_user);
     VM_registerBuiltin(ctx, "psn_get_leaderboard_score", builtin_psn_get_leaderboard_score);
     VM_registerBuiltin(ctx, "psn_setup_trophies", builtin_psn_setup_trophies);
+
+    // Date
+    VM_registerBuiltin(ctx, "date_current_date", builtin_date_current_date);
+    VM_registerBuiltin(ctx, "date_current_datetime", builtin_date_current_datetime);
+    VM_registerBuiltin(ctx, "date_datetime_string", builtin_date_datetime_string);
 
     // Draw
     VM_registerBuiltin(ctx, "draw_sprite", builtin_draw_sprite);
