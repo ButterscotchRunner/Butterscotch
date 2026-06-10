@@ -390,12 +390,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
-static void glGpuResetShader(Renderer* renderer) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-    glUseProgram(gl->shaderProgram);
-    renderer->currentShader = -1;
-}
 
 static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
@@ -474,6 +468,13 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     }
 }
 
+static void glGpuResetShader(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glUseProgram(gl->shaderProgram);
+    renderer->currentShader = -1;
+    glShaderSettingsRefresh(renderer);
+}
 
 
 static void glDestroy(Renderer* renderer) {
