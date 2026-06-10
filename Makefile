@@ -212,4 +212,4 @@ clean:
 	rm -rf build
 
 distclean: clean
-	rm -f compat/config.mk
+	rm -f compat/config.mk compat/tmp/cc
