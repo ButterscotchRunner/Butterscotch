@@ -687,7 +687,7 @@ enum
    STBDS_SH_ARENA
 };
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && (!defined(__GNUC__) || __GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8))
 // in C we use implicit assignment from these void*-returning functions to T*.
 // in C++ these templates make the same code work
 template<class T> static T * stbds_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_cap) {
