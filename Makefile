@@ -191,7 +191,8 @@ ifndef DISABLE_MMD
 DEPFLAGS = -MMD -MP -MF $(@:.o=.d)
 endif
 
-$(shell \
+# trigger configure re-run if $(CC) changes
+_dummy := $(shell \
 	printf '$(CC)' > compat/tmp/cc-new; \
 	cmp -s compat/tmp/cc-new compat/tmp/cc || \
 	mv compat/tmp/cc-new compat/tmp/cc; \
