@@ -193,11 +193,6 @@ void *platformGetProcAddress(const char *name) {
 
 #endif
 
-double platformGetTime(void) {
-    // SDL_GetTicksNS() returns Uint64 nanoseconds
-    return (double)SDL_GetTicksNS() / 1000000000.0;
-}
-
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
     if (sdlkey >= 'a' && sdlkey <= 'z') return toupper(sdlkey);
@@ -447,8 +442,4 @@ void platformSleepUntil(uint64_t time) {
     if (remaining > 0) {
         SDL_DelayPrecise((Uint64)remaining);
     }
-}
-
-void platformGamepad_poll(RunnerGamepadState* gp) {
-    (void)gp;
 }
