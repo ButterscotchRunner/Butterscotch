@@ -49,7 +49,6 @@
 
 #include "utils.h"
 #include "profiler.h"
-#include "localization.h"
 
 /* For SDL_main */
 #if defined(USE_SDL1)
@@ -290,108 +289,57 @@ static void printUsage(const char *argv0) {
     fprintf(
         stderr,
         "Usage: %s <path to data.win or game.unx>\n"
-        "    --help                                 - %s\n"
-        "    --screenshot <filename>                - %s\n"
-        "    --screenshot-at-frame <frame>          - %s\n"
-        "    --screenshot-surfaces <filename>       - %s\n"
-        "    --screenshot-surfaces-at-frame <frame> - %s\n"
+        "    --help                                 - Show this message\n"
+        "    --screenshot <filename>                - Specify the filename for screenshots\n"
+        "    --screenshot-at-frame <frame>          - Take a screenshot at the specified frame\n"
+        "    --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame\n"
+        "    --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots\n"
 #ifndef USE_GLFW2
-        "    --headless                             - %s\n"
+        "    --headless                             - Launch without a window\n"
 #endif
-        "    --print-rooms                          - %s\n"
-        "    --print-objects                        - %s\n"
-        "    --print-declared-functions             - %s\n"
-        "    --print-unknown-functions              - %s\n"
-        "    --trace-variable-reads                 - %s\n"
-        "    --trace-variable-writes                - %s\n"
-        "    --trace-function-calls                 - %s\n"
-        "    --trace-alarms                         - %s\n"
-        "    --trace-instance-lifecycles            - %s\n"
-        "    --trace-events                         - %s\n"
-        "    --trace-collisions                     - %s\n"
-        "    --trace-event-inherited                - %s\n"
-        "    --trace-tiles                          - %s\n"
-        "    --trace-opcodes                        - %s\n"
-        "    --trace-stack                          - %s\n"
-        "    --trace-frames                         - %s\n"
-        "    --always-log-unknown-functions         - %s\n"
-        "    --always-log-stubbed-functions         - %s\n"
-        "    --exit-at-frame <frame>                - %s\n"
-        "    --trace-bytecode-after-frame <frame>   - %s\n"
-        //"    --dump-frame <frame>                   - %s\n"
-        //"    --dump-frame-json                      - %s\n"
-        //"    --dump-frame-json-file                 - %s\n"
-        "    --speed <speed>                        - %s\n"
-        "    --fast-forward-speed <speed>           - %s\n"
-        "    --seed <seed>                          - %s\n"
-        "    --debug                                - %s\n"
-        //"    --disassemble                          - %s\n"
-        //"    --record-inputs                        - %s\n"
-        //"    --playback-inputs                      - %s\n"
-        "    --renderer <renderer>                  - %s\n"
-        "    --lazy-rooms                           - %s\n"
-        //"    --eager-room                           - %s\n"
-        "    --os-type <os>                         - %s\n"
-        "    --window-size <dimentions>             - %s\n"
-        "    --widescreen-hack <aspect ratio>       - %s\n"
-        "    --profile-gml-scripts                  - %s\n"
-        "    --save-folder <directory>              - %s\n"
-        //"    --game-args                            - %s\n"
+        "    --print-rooms                          - Print all rooms in the game and exit\n"
+        "    --print-objects                        - Print all objects in the game and exit\n"
+        "    --print-declared-functions             - Print all declared functions in the game and exit\n"
+        "    --print-unknown-functions              - Print all unknown functions used by the game and exit\n"
+        "    --trace-variable-reads                 - Trace variable reads\n"
+        "    --trace-variable-writes                - Trace variable writes\n"
+        "    --trace-function-calls                 - Trace function calls\n"
+        "    --trace-alarms                         - Trace alarms\n"
+        "    --trace-instance-lifecycles            - Trace instance creations and deletions\n"
+        "    --trace-events                         - Trace events\n"
+        "    --trace-collisions                     - Trace collisions between instances\n"
+        "    --trace-event-inherited                - Trace event inherited calls\n"
+        "    --trace-tiles                          - Trace drawn tiles\n"
+        "    --trace-opcodes                        - Trace opcodes\n"
+        "    --trace-stack                          - Trace stack\n"
+        "    --trace-frames                         - Log frametimes\n"
+        "    --always-log-unknown-functions         - Always log unknown function calls instead of once per script\n"
+        "    --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script\n"
+        "    --exit-at-frame <frame>                - Exit at the specified frame\n"
+        "    --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame\n"
+        //"    --dump-frame <frame>                   - \n"
+        //"    --dump-frame-json                      - \n"
+        //"    --dump-frame-json-file                 - \n"
+        "    --speed <speed>                        - Set a normal speed multiplier\n"
+        "    --fast-forward-speed <speed>           - Set a fast-forward speed multiplier\n"
+        "    --seed <seed>                          - Seed for the random number generator\n"
+        "    --debug                                - Enable debug mode\n"
+        //"    --disassemble                          - \n"
+        //"    --record-inputs                        - \n"
+        //"    --playback-inputs                      - \n"
+        "    --renderer <renderer>                  - Set the rendering API\n"
+        "    --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage\n"
+        //"    --eager-room                           - \n"
+        "    --os-type <os>                         - Set the reported OS type\n"
+        "    --window-size <dimentions>             - Set a custom window size\n"
+        "    --widescreen-hack <aspect ratio>       - Set a custom aspect ratio\n"
+        "    --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions\n"
+        "    --save-folder <directory>              - Set the directory will save files will be stored\n"
+        //"    --game-args                            - \n"
 #ifdef EABLE_VM_OPCODE_PROFILER
-        "    --profile-opcodes                      - %s\n"
+        "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
 #endif
-        ,
-        argv0,
-        getLocStr("Show this message", "help.help"),
-        getLocStr("Specify the filename for screenshots", "help.screenshot"),
-        getLocStr("Take a screenshot at the specified frame", "help.screenshot-at-frame"),
-        getLocStr("Take a screenshot of all surfaces at the specified frame", "help.screenshot-surfaces"),
-        getLocStr("Specify the filename for surface screenshots", "help.screenshot-surfaces-at-frame"),
-#ifndef USE_GLFW2
-        getLocStr("Launch without a window", "help.headless"),
-#endif
-        getLocStr("Print all rooms in the game and exit", "help.print-rooms"),
-        getLocStr("Print all objects in the game and exit", "help.print-objects"),
-        getLocStr("Print all declared functions in the game and exit", "help.print-declared-functions"),
-        getLocStr("Print all unknown functions used by the game and exit", "help.print-unknown-functions"),
-        getLocStr("Trace variable reads", "help.trace-variable-reads"),
-        getLocStr("Trace variable writes", "help.trace-variable-writes"),
-        getLocStr("Trace function calls", "help.trace-function-calls"),
-        getLocStr("Trace alarms", "help.trace-alarms"),
-        getLocStr("Trace instance creations and deletions", "help.trace-instance-lifecycles"),
-        getLocStr("Trace events", "help.trace-events"),
-        getLocStr("Trace collisions between instances", "help.trace-collisions"),
-        getLocStr("Trace event inherited calls", "help.trace-event-inherited"),
-        getLocStr("Trace drawn tiles", "help.trace-tiles"),
-        getLocStr("Trace opcodes", "help.trace-opcodes"),
-        getLocStr("Trace stack", "help.trace-stack"),
-        getLocStr("Log frametimes", "help.trace-frames"),
-        getLocStr("Always log unknown function calls instead of once per script", "help.always-log-unknown-functions"),
-        getLocStr("Always log stubbed function calls instead of once per script", "help.always-log-stubbed-functions"),
-        getLocStr("Exit at the specified frame", "help.exit-at-frame"),
-        getLocStr("Delay stack and opcode tracing until the specified frame", "help.trace-bytecode-after-frame"),
-        //getLocStr("", "help.dump-frame"),
-        //getLocStr("", "help.dump-frame-json"),
-        //getLocStr("", "help.dump-frame-json-file"),
-        getLocStr("Set a normal speed multiplier", "help.speed"),
-        getLocStr("Set a fast-forward speed multiplier", "help.fast-forward-speed"),
-        getLocStr("Seed for the random number generator", "help.seed"),
-        getLocStr("Enable debug mode", "help.debug"),
-        //getLocStr("", "help.disassemble"),
-        //getLocStr("", "help.record-inputs"),
-        //getLocStr("", "help.playback-inputs"),
-        getLocStr("Set the rendering API", "help.renderer"),
-        getLocStr("Lazily load rooms, increases load times but reduces memory usage", "help.lazy-rooms"),
-        //getLocStr("", "help.eager-room"),
-        getLocStr("Set the reported OS type", "help.os-type"),
-        getLocStr("Set a custom window size", "help.window-size"),
-        getLocStr("Set a custom aspect ratio", "help.widescreen-hack"),
-        getLocStr("Log which GML scripts are the heaviest in terms of time and executed instructions", "help.profile-gml-scripts"),
-        getLocStr("Set the directory will save files will be stored", "help.save-folder")
-        //getLocStr("", "help.game-args")
-#ifdef EABLE_VM_OPCODE_PROFILER
-        , getLocStr("Rank which GML opcodes were executed the most", "help.profile-opcodes")
-#endif
+        , argv0
     );
 }
 
