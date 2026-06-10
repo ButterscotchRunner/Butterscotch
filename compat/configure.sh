@@ -92,4 +92,16 @@ if ! check 'if stdbool.h works'; then
     config 'INCLUDES += -Icompat/stdbool'
 fi
 
+printf '%s' "\
+#include <stdio.h>
+int main(void){
+  puts(__func__);
+  return 0;
+}
+" > tmp/test.c
+
+if ! check 'if __func__ works'; then
+    config 'DEFINES += -D__func__=\"unknown\"'
+fi
+
 rm -f tmp/test.c tmp/a.out
