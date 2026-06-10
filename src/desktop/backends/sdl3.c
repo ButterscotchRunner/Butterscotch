@@ -437,12 +437,15 @@ bool platformHandleEvents(void) {
     return should_exit;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
+void platformSleepUntil(uint64_t time) {
+    int64_t remaining = time - nowNanos();
+    if (remaining > 2000000) {
+        SDL_Delay((Uint32)((remaining - 1000000) / 1000000));
+    }
 
-    if (remaining > 0.0) {
-        Uint64 remainingNS = (Uint64)(remaining * 1000000000.0);
-        SDL_DelayPrecise(remainingNS);
+    remaining = time - nowNanos();
+    if (remaining > 0) {
+        SDL_DelayPrecise((Uint64)remaining);
     }
 }
 
