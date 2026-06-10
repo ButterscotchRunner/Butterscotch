@@ -78,7 +78,7 @@ LIBS += $(SDL2_LIBS)
 DEFINES += -DUSE_SDL2
 endif
 ifeq ($(DESKTOP_BACKEND),sdl3)
-SDL3_LIBS += $(shell pkg-config --libs sdl3)
+SDL3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl3)
 LIBS += $(SDL3_LIBS)
 DEFINES += -DUSE_SDL3
 endif
