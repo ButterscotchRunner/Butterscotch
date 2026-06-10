@@ -12815,6 +12815,17 @@ static RValue builtin_object_get_parent(VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(ctx->dataWin->objt.objects[id].parentId);
 }
 
+static RValue builtin_object_set_visible(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    bool visible = RValue_toInt32(args[1]) != 0;
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].visible = visible;
+    }
+    return RValue_makeUndefined();
+}
+
 // Shared implementation for font_add_sprite and font_add_sprite_ext
 static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* charCodes, uint32_t charCount, bool proportional, int32_t sep) {
     DataWin* dw = ctx->dataWin;
@@ -14184,6 +14195,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
     VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
+    VM_registerBuiltin(ctx, "object_set_visible", builtin_object_set_visible);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
