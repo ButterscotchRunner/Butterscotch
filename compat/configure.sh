@@ -55,7 +55,7 @@ if check 'for librt' -lrt; then
 fi
 
 if check 'for libdl' -ldl; then
-    # sometimes needed for glad
+    # sometimes needed for glad or miniaudio
     config 'LIBS += -ldl'
 fi
 
