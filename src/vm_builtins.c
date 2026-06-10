@@ -12819,7 +12819,7 @@ static RValue builtin_object_set_visible(VMContext* ctx, RValue* args, int32_t a
     if (2 > argCount) return RValue_makeUndefined();
 
     int32_t id = RValue_toInt32(args[0]);
-    bool visible = RValue_toInt32(args[1]) != 0;
+    bool visible = RValue_toBool(args[1]);
     if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
         ctx->dataWin->objt.objects[id].visible = visible;
     }
