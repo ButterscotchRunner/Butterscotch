@@ -13,6 +13,7 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
 
 static Runner *g_runner;
 
@@ -271,10 +272,6 @@ void *platformGetProcAddress(const char *name) {
 #endif
 }
 
-double platformGetTime(void) {
-    return glfwGetTime();
-}
-
 bool platformHandleEvents(void) {
     if (!glfwGetWindowParam(GLFW_OPENED))
         return true;
@@ -282,12 +279,12 @@ bool platformHandleEvents(void) {
     return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
+void platformSleepUntil(uint64_t time) {
+    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
     }
 }

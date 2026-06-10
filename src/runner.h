@@ -580,6 +580,9 @@ struct Runner {
     // GameMaker launcher parameters
     // Just like the original runner, argv[0] is included in gameArgs
     char** gameArgs;
+
+    // Offset between game start time and nowNanos()
+    uint64_t gameStartTime;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);

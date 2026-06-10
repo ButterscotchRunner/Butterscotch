@@ -55,6 +55,8 @@ typedef struct RunnerKeyboardState {
     int32_t keyMap[GML_KEY_COUNT];   // keyboard_set_map: incoming key -> reported key (identity by default)
     int32_t lastKey;                 // Last key pressed (for keyboard_key variable)
     char lastChar[2];                // Last character pressed (for keyboard_char variable)
+    char string[1024];               // Accumulated string from keyboard_string variable
+    int32_t stringLen;
 } RunnerKeyboardState;
 
 // Lifecycle

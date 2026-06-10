@@ -3,59 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <sys/time.h>
 
 #include "utils.h"
 #include "stb_ds.h"
 #include "string_builder.h"
-
-#include "clock_gettime_macos.h"
-
-#if defined(PLATFORM_PS2)
-#include <timer.h>
-#elif defined(PLATFORM_PS3)
-#include <sys/systime.h>
-#elif defined(_WIN32)
-#include <windows.h>
-#else
-#include <time.h>
-#endif
-
-static uint64_t nowNanos(void) {
-#if defined(PLATFORM_PS2)
-    // kBUSCLK is bus clock ticks per second (~147 MHz).
-    // Split to avoid u64 overflow in ticks * 1e9.
-    uint64_t t = (uint64_t) GetTimerSystemTime();
-    uint64_t clk = (uint64_t) kBUSCLK;
-    uint64_t sec = t / clk;
-    uint64_t rem = t % clk;
-    return sec * 1000000000ull + (rem * 1000000000ull) / clk;
-#elif defined(PLATFORM_PS3)
-    return ((double)__builtin_ppc_get_timebase()/(double)sysGetTimebaseFrequency());
-#elif defined(_WIN32)
-    static LARGE_INTEGER freq;
-    static bool freqInitialized = false;
-    if (!freqInitialized) {
-        QueryPerformanceFrequency(&freq);
-        freqInitialized = true;
-    }
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    uint64_t t = (uint64_t) now.QuadPart;
-    uint64_t f = (uint64_t) freq.QuadPart;
-    uint64_t sec = t / f;
-    uint64_t rem = t % f;
-    return sec * 1000000000ull + (rem * 1000000000ull) / f;
-#elif defined(CLOCK_MONOTONIC)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
-#else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t) tv.tv_sec * 1000000000ull + (uint64_t) tv.tv_usec * 1000;
-#endif
-}
+#include "gettime.h"
 
 Profiler* Profiler_create(void) {
     Profiler* p = safeMalloc(sizeof(Profiler));

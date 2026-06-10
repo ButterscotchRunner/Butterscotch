@@ -30,8 +30,7 @@
 #include "md5.h"
 #include "sha1.h"
 #include "base64.h"
-
-#include "clock_gettime_macos.h"
+#include "gettime.h"
 
 #define MAX_BACKGROUNDS 8
 
@@ -293,6 +292,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
+    { "keyboard_string", BUILTIN_VAR_KEYBOARD_STRING },
     { "layer", BUILTIN_VAR_LAYER },
     { "lives", BUILTIN_VAR_LIVES },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
@@ -867,25 +867,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
                 case BUILTIN_VAR_CURRENT_YEAR:    return RValue_makeReal(t->tm_year + 1900);
             }
         }
-        case BUILTIN_VAR_CURRENT_TIME: {
-            #ifdef _WIN32
-            LARGE_INTEGER freq, counter;
-            QueryPerformanceFrequency(&freq);
-            QueryPerformanceCounter(&counter);
-            GMLReal ms = (GMLReal) counter.QuadPart / (GMLReal) freq.QuadPart * 1000.0;
-            #elif defined(PLATFORM_PS3)
-            GMLReal ms = (GMLReal) (__builtin_ppc_get_timebase() / sysGetTimebaseFrequency()) / 1000000.0;
-            #elif defined(CLOCK_MONOTONIC)
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            GMLReal ms = (GMLReal) ts.tv_sec * 1000.0 + (GMLReal) ts.tv_nsec / 1000000.0;
-            #else
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-            GMLReal ms = (GMLReal) tv.tv_sec * 1000.0 + (GMLReal) tv.tv_usec / 1000.0;
-            #endif
-            return RValue_makeReal(ms);
-        }
+        case BUILTIN_VAR_CURRENT_TIME:
+            return RValue_makeReal((nowNanos() - runner->gameStartTime) / 1000000.0);
 
         // Arguments
         case BUILTIN_VAR_ARGUMENT_COUNT:
@@ -915,6 +898,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeString(runner->keyboard->lastChar);
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
+        case BUILTIN_VAR_KEYBOARD_STRING:
+            return RValue_makeString(runner->keyboard->string);
 
         case BUILTIN_VAR_MOUSE_BUTTON:
             return RValue_makeReal((GMLReal) RunnerMouse_getButton(runner->mouse));
@@ -1371,7 +1356,17 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             runner->keyboard->lastKey = RValue_toInt32(val);
             return;
-
+        case BUILTIN_VAR_KEYBOARD_STRING: {
+            const char* str = RValue_toString(val); 
+            
+            int32_t len = (int32_t)strlen(str);
+            if (len > 1023) len = 1023;
+            
+            memcpy(runner->keyboard->string, str, len);
+            runner->keyboard->string[len] = '\0';
+            runner->keyboard->stringLen = len;
+            return;
+        }
         case BUILTIN_VAR_MOUSE_LASTBUTTON:
             runner->mouse->lastButton = RValue_toInt32(val);
             return;
@@ -7019,17 +7014,7 @@ static bool bounceTestFree(Runner* runner, Instance* inst, GMLReal testX, GMLRea
     return placeFreeAt(runner, inst, testX, testY);
 }
 
-// action_bounce(adv, against): DnD wrapper around move_bounce_solid / move_bounce_all.
-// * adv (arg[0]): real, treated as bool via the native ">= 0.5" rule.
-// * against (arg[1]): real menu pick: 0 = solid only, 1 = all instances (useall = (against == 1.0)).
-static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
-
-    Runner* runner = ctx->runner;
-    Instance* inst = ctx->currentInstance;
-    bool advanced = RValue_toReal(args[0]) >= 0.5;
-    bool useall = RValue_toReal(args[1]) == 1.0;
-
+static void moveBounceCommon(Runner* runner, Instance* inst, bool advanced, bool useall) {
     bool didBounce = false;
     if (!bounceTestFree(runner, inst, inst->x, inst->y, useall)) {
         inst->x = inst->xprevious;
@@ -7085,6 +7070,30 @@ static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, M
         }
         Instance_computeSpeedFromComponents(inst);
     }
+}
+
+// action_bounce(adv, against): DnD wrapper around move_bounce_solid / move_bounce_all.
+// * adv (arg[0]): real, treated as bool via the native ">= 0.5" rule.
+// * against (arg[1]): real menu pick: 0 = solid only, 1 = all instances (useall = (against == 1.0)).
+static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toReal(args[0]) >= 0.5;
+    bool useall = RValue_toReal(args[1]) == 1.0;
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, useall);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_move_bounce_solid(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount || ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toBool(args[0]);
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, false);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_move_bounce_all(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount || ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toBool(args[0]);
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, true);
     return RValue_makeUndefined();
 }
 
@@ -8780,6 +8789,23 @@ static RValue builtin_draw_get_font(VMContext* ctx, MAYBE_UNUSED RValue* args, M
         return RValue_makeInt32(runner->renderer->drawFont);
     }
     return RValue_makeInt32(-1);
+}
+
+static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    
+    Instance* inst = ctx->currentInstance;
+    if (inst == nullptr) return RValue_makeUndefined();
+    
+    GMLReal dir = RValue_toReal(args[0]);
+    GMLReal spd = RValue_toReal(args[1]);
+    GMLReal rad = dir * (M_PI / 180.0);
+    
+    inst->hspeed += (float)(GMLReal_cos(rad) * spd);
+    inst->vspeed += (float)(-GMLReal_sin(rad) * spd);
+    Instance_computeSpeedFromComponents(inst);
+    
+    return RValue_makeUndefined();
 }
 
 // merge_color(col1, col2, amount) - lerps between two colors
@@ -11524,6 +11550,33 @@ static RValue builtin_layer_sprite_destroy(VMContext* ctx, RValue* args, MAYBE_U
     return RValue_makeUndefined();
 }
 
+static RValue builtin_layer_background_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+
+    RuntimeLayer* owningLayer = nullptr;
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, &owningLayer);
+    if (el == nullptr || owningLayer == nullptr || el->type != RuntimeLayerElementType_Background)
+        return RValue_makeUndefined();
+
+    if (el->backgroundElement != nullptr) {
+        free(el->backgroundElement);
+        el->backgroundElement = nullptr;
+    }
+
+    // Remove the element from the owning layer's element array to keep lookup + iteration tidy.
+    size_t count = arrlenu(owningLayer->elements);
+    repeat(count, i) {
+        if (&owningLayer->elements[i] == el) {
+            arrdel(owningLayer->elements, i);
+            break;
+        }
+    }
+
+    return RValue_makeUndefined();
+}
+
+
 #if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_layer_tilemap_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1.0);
@@ -11812,6 +11865,23 @@ static RValue builtin_CopyStatic(VMContext* ctx, RValue* args, int32_t argCount)
 
     VM_copyStatic(ctx, &args[0]);
     return RValue_makeUndefined();
+}
+
+// @@GetInstance@@(target) - takes an object index and returns the first active instance's ID.
+static RValue builtin_GetInstance(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeInt32(INSTANCE_NOONE);
+
+    Runner* runner = ctx->runner;
+    int32_t target = RValue_toInt32(args[0]);
+
+    if (target >= 0 && (uint32_t) target < ctx->dataWin->objt.count) {
+        Instance** bucket = runner->instancesByObject[target];
+        int32_t bucketCount = (int32_t) arrlen(bucket);
+        for (int32_t i = 0; bucketCount > i; i++) {
+            if (bucket[i]->active) return RValue_makeInt32((int32_t) bucket[i]->instanceId);
+        }
+    }
+    return RValue_makeInt32(INSTANCE_NOONE);
 }
 #endif
 
@@ -13354,6 +13424,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "move_contact_solid", builtin_move_contact_solid);
     VM_registerBuiltin(ctx, "move_outside_solid", builtin_move_outside_solid);
     VM_registerBuiltin(ctx, "move_outside_all", builtin_move_outside_all);
+    VM_registerBuiltin(ctx, "move_bounce_solid", builtin_move_bounce_solid);
+    VM_registerBuiltin(ctx, "move_bounce_all", builtin_move_bounce_all);    
     VM_registerBuiltin(ctx, "lengthdir_x", builtin_lengthdir_x);
     VM_registerBuiltin(ctx, "lengthdir_y", builtin_lengthdir_y);
 
@@ -13823,6 +13895,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_alpha", builtin_draw_get_alpha);
     VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
 
+    // Motion
+    VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
+
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtin_merge_color);
     VM_registerBuiltin(ctx, "merge_colour", builtin_merge_color);
@@ -13996,6 +14071,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
     VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
+    VM_registerBuiltin(ctx, "layer_background_destroy", builtin_layer_background_destroy);
 
     // GMS2 internal
     VM_registerBuiltin(ctx, "@@NewGMLArray@@", builtin_NewGMLArray);
@@ -14007,6 +14083,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtin_NewGMLObject);
     VM_registerBuiltin(ctx, "@@CopyStatic@@", builtin_CopyStatic);
     VM_registerBuiltin(ctx, "@@SetStatic@@", builtin_SetStatic);
+    VM_registerBuiltin(ctx, "@@GetInstance@@", builtin_GetInstance);
 #endif
 
     // Path

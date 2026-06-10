@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
+#include "gettime.h"
 
 #ifdef GPROF_PROFILING
 #include <ps2prof.h>
@@ -486,6 +487,7 @@ int main(int argc, char* argv[]) {
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Creating runner...", true);
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem);
+    runner->gameStartTime = nowNanos();
 
     // Parse disabledObjects from CONFIG.JSN
     JsonValue* disabledObjectsArr = JsonReader_getObject(configRoot, "disabledObjects");

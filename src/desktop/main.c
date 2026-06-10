@@ -49,6 +49,7 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "gettime.h"
 
 /* For SDL_main */
 #if defined(USE_SDL1)
@@ -1235,8 +1236,9 @@ int main(int argc, char* argv[]) {
         bool debugShowCollisionMasks = false;
         bool freeCamActive = false;
         bool actuallyShuttingDown = false;
-        double lastFrameTime = platformGetTime();
-        double lastFrameStartTime = platformGetTime(); // for delta_time
+        uint64_t lastFrameTime = nowNanos();
+        uint64_t lastFrameStartTime = lastFrameTime; // for delta_time
+        runner->gameStartTime = lastFrameTime;
         bool shouldWindowClose = false;
         while (true) {
             if (runner->shouldExit || shouldWindowClose) {
@@ -1249,8 +1251,8 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            double frameStartNow = platformGetTime();
-            runner->deltaTime = (frameStartNow - lastFrameStartTime) * 1000000.0;
+            uint64_t frameStartNow = nowNanos();
+            runner->deltaTime = (frameStartNow - lastFrameStartTime) / 1000;
             lastFrameStartTime = frameStartNow;
 
             // Clear last frame's pressed/released state, then poll new input events
@@ -1278,11 +1280,11 @@ int main(int argc, char* argv[]) {
                 if (shouldStep) fprintf(stderr, "Debug: Frame advance (frame %d)\n", runner->frameCount);
             }
 
-            double frameStartTime = 0;
+            uint64_t frameStartTime = 0;
 
             if (shouldStep) {
                 if (args.traceFrames) {
-                    frameStartTime = platformGetTime();
+                    frameStartTime = nowNanos();
                     fprintf(stderr, "Frame %d (Start)\n", runner->frameCount);
                 }
 
@@ -1606,7 +1608,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (shouldStep && args.traceFrames) {
-                    double frameElapsedMs = (platformGetTime() - frameStartTime) * 1000.0;
+                    double frameElapsedMs = (nowNanos() - frameStartTime) / 1000000.0;
                     fprintf(stderr, "Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
                 }
 
@@ -1623,15 +1625,15 @@ int main(int argc, char* argv[]) {
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, '\t');
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
-                    lastFrameTime = platformGetTime();
+                    lastFrameTime = nowNanos();
                 }
                 fastForwardTabPrev = fastForwardTabNow;
                 double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
-                double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
-                double nextFrameTime = lastFrameTime + targetFrameTime;
+                uint64_t targetFrameTime = 1000000000 / (runner->currentRoom->speed * effectiveSpeed);
+                uint64_t nextFrameTime = lastFrameTime + targetFrameTime;
                 platformSleepUntil(nextFrameTime);
             }
-            lastFrameTime = platformGetTime();
+            lastFrameTime = nowNanos();
         }
 
         saveInputRecording();
