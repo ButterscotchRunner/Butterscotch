@@ -24,12 +24,10 @@ check() {
     if $CC tmp/test.c -o tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printf 'yes\n'
         printf 'result: yes\n' >> tmp/config.log
-        rm -f tmp/a.out
         return 0
     else
         printf 'no\n'
         printf 'result: no\n' >> tmp/config.log
-        rm -f tmp/a.out
         return 1
     fi
 }
@@ -42,7 +40,6 @@ check 'if the C compiler works' || exit 1
 
 printf 'checking if we are cross compiling: '
 printf 'checking if we are cross compiling:\n' >> tmp/config.log
-$CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1
 if tmp/a.out; then
     printf 'no\n'
     printf 'result: no\n' >> tmp/config.log
@@ -51,7 +48,6 @@ else
     printf 'result: yes\n' >> tmp/config.log
     cross_compiling=1
 fi
-rm -f tmp/a.out
 
 if check 'for librt' -lrt; then
     # sometimes needed for clock_gettime
@@ -96,4 +92,4 @@ if ! check 'if stdbool.h works'; then
     config 'INCLUDES += -Icompat/stdbool'
 fi
 
-rm -f tmp/test.c
+rm -f tmp/test.c tmp/a.out
