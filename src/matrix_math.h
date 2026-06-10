@@ -145,11 +145,20 @@ static inline Matrix4f* Matrix4f_setTransform2D(Matrix4f* dest, float x, float y
 
 // ===[ Camera View-Projection ]===
 
+// Mirrors a world -> clip matrix vertically in NDC (negates the clip-space Y row).
+// Renderers whose framebuffer is stored opposite to GameMaker's top-down convention apply this locally before upload.
+static inline void Matrix4f_flipClipY(Matrix4f* m) {
+    m->m[1] = -m->m[1];
+    m->m[5] = -m->m[5];
+    m->m[9] = -m->m[9];
+    m->m[13] = -m->m[13];
+}
+
 // Builds the world -> clip (NDC) transform for a 2D camera that shows the room rectangle [left, left+width] x [top, top+height] in GameMaker's
 // Y-down coordinate space, optionally rotated by angleDeg counter-clockwise about the view center (matching GML view_angle).
 static inline Matrix4f* Matrix4f_viewProjection(Matrix4f* dest, float left, float top, float width, float height, float angleDeg) {
     Matrix4f_identity(dest);
-    Matrix4f_ortho(dest, left, left + width, top, top + height, -1.0f, 1.0f);
+    Matrix4f_ortho(dest, left, left + width, top + height, top, -1.0f, 1.0f);
 
     if (angleDeg != 0.0f) {
         // Rotate the world opposite the camera, about the view center, to spin the camera by angleDeg.

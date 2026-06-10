@@ -127,9 +127,15 @@ typedef struct {
     int32_t (*shaderGetUniform)(Renderer* renderer, int32_t shaderIndex, char* uniform);
     int32_t (*shaderGetSamplerIndex)(Renderer* renderer, int32_t shaderIndex, char* uniform);
     void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4);
+    void (*shaderSetUniformI)(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4);
+    // Returns a texture pointer for a specific sprite, where 0 = "no texture".
     uint32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);
+    // Returns a texture handle for a surface (surface_get_texture), where 0 = "no texture".
+    uint32_t (*surfaceGetTexture)(Renderer* renderer, int32_t surfaceID);
     float (*textureGetTexelWidth)(Renderer* renderer, uint32_t texID);
     float (*textureGetTexelHeight)(Renderer* renderer, uint32_t texID);
+    // Fills outUVs[0..3] with the texture sub-region on its page (left, top, right, bottom). Returns false if the handle can't be resolved.
+    bool (*textureGetUVs)(Renderer* renderer, uint32_t texID, float* outUVs);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
     bool (*shadersSupported)(Renderer* renderer);
@@ -147,14 +153,14 @@ struct Renderer {
     int32_t drawValign;  // 0=top, 1=middle, 2=bottom
     int32_t circlePrecision; // segments used by draw_circle/draw_ellipse, clamped to [4, 64] and rounded down to multiple of 4. Default 24.
     //It's The Simplest Way I Found To Restore Previous Thingies For Rendering SORRY
-    Matrix4f PreviousViewMatrix;
+    Matrix4f previousViewMatrix;
     int32_t CPortX;
     int32_t CPortY;
     int32_t CPortW;
     int32_t CPortH;
     Runner* runner;
-    Matrix4f GML_Matrices[MATRICES_MAX];
-    int32_t CurrentShader;
+    Matrix4f gmlMatrices[MATRICES_MAX];
+    int32_t currentShader;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===

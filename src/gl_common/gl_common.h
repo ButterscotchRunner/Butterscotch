@@ -24,6 +24,10 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 
 // ===[ Surface arrays ]===
 
+// Texture handle flag distinguishing a surface texture (surface_get_texture) from a sprite (tpag+1) handle.
+// Encoded as (GL_SURFACE_TEXTURE_FLAG | surfaceID); tpag counts never approach this, so the two can't collide.
+#define GL_SURFACE_TEXTURE_FLAG 0x40000000u
+
 // Returns a free slot index, growing the surfaces arrays if all slots are in use.
 // The newly returned slot has surfaces[i] == 0 and all dimensions zeroed.
 uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);

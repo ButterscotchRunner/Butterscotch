@@ -170,6 +170,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     // World -> clip transform for this view.
     Matrix4f projection;
     Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
+    Matrix4f_flipClipY(&projection);
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -177,7 +178,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glLoadIdentity();
     glActiveTexture(GL_TEXTURE0);
 
-    renderer->PreviousViewMatrix = projection;
+    renderer->previousViewMatrix = projection;
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
@@ -186,11 +187,13 @@ static void glEndView(MAYBE_UNUSED Renderer* renderer) {
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
 static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
+    Matrix4f projection = *worldToClip;
+    Matrix4f_flipClipY(&projection);
     glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(worldToClip->m);
+    glLoadMatrixf(projection.m);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    renderer->PreviousViewMatrix = *worldToClip;
+    renderer->previousViewMatrix = projection;
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
@@ -1485,7 +1488,7 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     if (surfaceId == renderer->runner->applicationSurfaceId) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glMatrixMode(GL_PROJECTION);
-        glLoadMatrixf(renderer->PreviousViewMatrix.m);
+        glLoadMatrixf(renderer->previousViewMatrix.m);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         glEnable(GL_SCISSOR_TEST);
@@ -1575,6 +1578,96 @@ static bool glLegacySurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint
 
 // ===[ Vtable ]===
 
+// Decode a texture handle produced by glSpriteGetTexture back into its tpag and page dimensions.
+// Returns false for the 0 ("no texture") handle or an unresolvable one.
+static bool glLegacyResolveTextureHandle(GLLegacyRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, int32_t* outW, int32_t* outH) {
+    if (texHandle == 0) return false;
+    if (texHandle & GL_SURFACE_TEXTURE_FLAG) {
+        uint32_t sid = texHandle & ~GL_SURFACE_TEXTURE_FLAG;
+        if (sid >= gl->surfaceCount || gl->surfaceTexture[sid] == 0) return false;
+        if (outTpag) *outTpag = nullptr;
+        *outW = gl->surfaceWidth[sid];
+        *outH = gl->surfaceHeight[sid];
+        return true;
+    }
+    DataWin* dw = gl->base.dataWin;
+    int32_t tpagIndex = (int32_t) texHandle - 1;
+    if (0 > tpagIndex || dw->tpag.count <= (uint32_t) tpagIndex) return false;
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
+    int16_t pageId = tpag->texturePageId;
+    if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return false;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
+    *outTpag = tpag;
+    *outW = gl->textureWidths[pageId];
+    *outH = gl->textureHeights[pageId];
+    return true;
+}
+
+static uint32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    DataWin* dw = renderer->dataWin;
+    if (0 > tpagIndex || dw->tpag.count <= (uint32_t) tpagIndex) return 0;
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
+    int16_t pageId = tpag->texturePageId;
+    if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return 0;
+    if (!GLLegacyRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return 0;
+    return (uint32_t) (tpagIndex + 1);
+}
+
+static uint32_t glSurfaceGetTexture(Renderer* renderer, int32_t surfaceID) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (surfaceID < 0 || (uint32_t) surfaceID >= gl->surfaceCount) return 0;
+    if (gl->surfaceTexture[surfaceID] == 0) return 0;
+    return GL_SURFACE_TEXTURE_FLAG | (uint32_t) surfaceID;
+}
+
+static float glTextureGetTexelWidth(Renderer* renderer, uint32_t texHandle) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    TexturePageItem* tpag;
+    int32_t w = 0, h = 0;
+    if (!glLegacyResolveTextureHandle(gl, texHandle, &tpag, &w, &h) || 0 >= w) return 1.0f;
+    return 1.0f / (float) w;
+}
+
+static float glTextureGetTexelHeight(Renderer* renderer, uint32_t texHandle) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    TexturePageItem* tpag;
+    int32_t w = 0, h = 0;
+    if (!glLegacyResolveTextureHandle(gl, texHandle, &tpag, &w, &h) || 0 >= h) return 1.0f;
+    return 1.0f / (float) h;
+}
+
+static bool glTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUVs) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    TexturePageItem* tpag;
+    int32_t w = 0, h = 0;
+    if (!glLegacyResolveTextureHandle(gl, texHandle, &tpag, &w, &h) || 0 >= w || 0 >= h) return false;
+    // Surface handles cover the whole texture (no tpag sub-region).
+    if (tpag == nullptr) {
+        outUVs[0] = 0.0f; outUVs[1] = 0.0f; outUVs[2] = 1.0f; outUVs[3] = 1.0f;
+        return true;
+    }
+    float divW = 1.0f / (float) w;
+    float divH = 1.0f / (float) h;
+    outUVs[0] = (float) tpag->sourceX * divW;                       // left
+    outUVs[1] = (float) tpag->sourceY * divH;                       // top
+    outUVs[2] = outUVs[0] + (float) tpag->sourceWidth * divW;       // right
+    outUVs[3] = outUVs[1] + (float) tpag->sourceHeight * divH;      // bottom
+    return true;
+}
+
+static void glTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texHandle) {
+}
+
+static void glGpuSetShader(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex) {}
+static void glGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
+static int32_t glShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static int32_t glShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static void glShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void glShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
+static bool glShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
+static bool glShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+
 static RendererVtable glVtable;
 
 // ===[ Public API ]===
@@ -1627,6 +1720,20 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.surfaceFree = glLegacySurfaceFree;
     glVtable.surfaceCopy = glLegacySurfaceCopy;
     glVtable.surfaceGetPixels = glLegacySurfaceGetPixels;
+    glVtable.spriteGetTexture = glSpriteGetTexture;
+    glVtable.surfaceGetTexture = glSurfaceGetTexture;
+    glVtable.textureGetTexelWidth = glTextureGetTexelWidth;
+    glVtable.textureGetTexelHeight = glTextureGetTexelHeight;
+    glVtable.textureGetUVs = glTextureGetUVs;
+    glVtable.textureSetStage = glTextureSetStage;
+    glVtable.gpuSetShader = glGpuSetShader;
+    glVtable.gpuResetShader = glGpuResetShader;
+    glVtable.shaderGetUniform = glShaderGetUniform;
+    glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex;
+    glVtable.shaderSetUniformF = glShaderSetUniformF;
+    glVtable.shaderSetUniformI = glShaderSetUniformI;
+    glVtable.shaderIsCompiled = glShaderIsCompiled;
+    glVtable.shadersSupported = glShadersSupported;
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
     gl->base.drawFont = -1;

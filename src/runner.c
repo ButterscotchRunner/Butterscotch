@@ -315,6 +315,14 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
                 case OTHER_USER0 + 13:      return "UserEvent13";
                 case OTHER_USER0 + 14:      return "UserEvent14";
                 case OTHER_USER0 + 15:      return "UserEvent15";
+                case OTHER_OUTSIDE_VIEW0:   return "OutsideView0";
+                case OTHER_OUTSIDE_VIEW1:   return "OutsideView1";
+                case OTHER_OUTSIDE_VIEW2:   return "OutsideView2";
+                case OTHER_OUTSIDE_VIEW3:   return "OutsideView3";
+                case OTHER_OUTSIDE_VIEW4:   return "OutsideView4";
+                case OTHER_OUTSIDE_VIEW5:   return "OutsideView5";
+                case OTHER_OUTSIDE_VIEW6:   return "OutsideView6";
+                case OTHER_OUTSIDE_VIEW7:   return "OutsideView7";
                 default:                    return "Other";
             }
         case EVENT_KEYPRESS:   return "KeyPress";
@@ -1821,6 +1829,20 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(surfaceFree);
     requireNotNullFunction(surfaceCopy);
     requireNotNullFunction(surfaceGetPixels);
+    requireNotNullFunction(spriteGetTexture);
+    requireNotNullFunction(surfaceGetTexture);
+    requireNotNullFunction(textureGetTexelWidth);
+    requireNotNullFunction(textureGetTexelHeight);
+    requireNotNullFunction(textureGetUVs);
+    requireNotNullFunction(textureSetStage);
+    requireNotNullFunction(gpuSetShader);
+    requireNotNullFunction(gpuResetShader);
+    requireNotNullFunction(shaderGetUniform);
+    requireNotNullFunction(shaderGetSamplerIndex);
+    requireNotNullFunction(shaderSetUniformF);
+    requireNotNullFunction(shaderSetUniformI);
+    requireNotNullFunction(shaderIsCompiled);
+    requireNotNullFunction(shadersSupported);
     #undef requireNotNullFunction
 }
 
@@ -2934,6 +2956,67 @@ static void dispatchOutsideRoomEvents(Runner* runner) {
     }
 }
 
+static void dispatchOutsideViewEvents(Runner* runner, int32_t viewIndex) {
+    int32_t subtype = OTHER_OUTSIDE_VIEW0 + viewIndex; // All subtypes are sequential so we can be quirky with it :3
+    int32_t outsideSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, subtype);
+    if (0 > outsideSlot) return;
+    ResolvedEventTable* table = &runner->eventTable;
+    uint32_t entryCount;
+    SlotResponderEntry* entries = ResolvedEventTable_slotEntries(table, outsideSlot, &entryCount);
+    if (entryCount == 0) return;
+
+    GMLCamera* camera = Runner_getCameraForView(runner, viewIndex);
+    int32_t viewLeft = camera->viewX;
+    int32_t viewTop = camera->viewY;
+    int32_t viewWidth = camera->viewWidth;
+    int32_t viewHeight = camera->viewHeight;
+    int32_t viewRight = viewLeft + viewWidth;
+    int32_t viewBottom = viewTop + viewHeight;
+
+    repeat(entryCount, s) {
+        int32_t objIdx = entries[s].concreteObjectId;
+        Instance** bucket = runner->instancesByExactObject[objIdx];
+        int32_t bucketCount = (int32_t) arrlen(bucket);
+        if (bucketCount == 0) continue;
+
+        // All instances in the bucket share the same exact objectIndex, so the handler resolves to one (codeId, owner).
+        int32_t ownerObjectIndex = -1;
+        int32_t codeId = ResolvedEventTable_lookup(table, objIdx, outsideSlot, &ownerObjectIndex);
+        if (0 > codeId) continue;
+
+        // Snapshot the bucket: an Outside Room handler can spawn/destroy/instance_change.
+        int32_t snapshotBase = (int32_t) arrlen(runner->instanceSnapshots);
+        arrsetlen(runner->instanceSnapshots, snapshotBase + bucketCount);
+        memcpy(&runner->instanceSnapshots[snapshotBase], bucket, (size_t) bucketCount * sizeof(Instance*));
+
+        repeat(bucketCount, i) {
+            Instance* inst = runner->instanceSnapshots[snapshotBase + i];
+            if (!inst->active) continue;
+
+            bool outside;
+            InstanceBBox bbox = Collision_computeBBox(runner, inst);
+
+            if (bbox.valid) {
+                outside = (viewLeft > bbox.right || bbox.left > viewRight || 0 > bbox.bottom || bbox.top > viewBottom);
+            } else {
+                outside = ((float) viewLeft > inst->x || inst->x > (float) viewRight || (float) viewTop > inst->y || inst->y > (float) viewBottom);
+            }
+
+            if (outside && !inst->outsideRoom) {
+                Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
+                if (runner->pendingRoom >= 0) {
+                    arrsetlen(runner->instanceSnapshots, snapshotBase);
+                    return;
+                }
+            }
+
+            inst->outsideRoom = outside;
+        }
+
+        arrsetlen(runner->instanceSnapshots, snapshotBase);
+    }
+}
+
 static void persistRoomState(Runner* runner, int32_t roomIndex) {
     SavedRoomState* state = &runner->savedRoomStates[roomIndex];
 
@@ -3346,6 +3429,9 @@ void Runner_step(Runner* runner) {
 
     // Dispatch outside room events
     dispatchOutsideRoomEvents(runner);
+    repeat(MAX_VIEWS, viewIndex) {
+        dispatchOutsideViewEvents(runner, viewIndex);
+    }
 
     for (int i = 0; MAX_GAMEPADS > i; i++) {
         GamepadSlot* slot = &runner->gamepads->slots[i];

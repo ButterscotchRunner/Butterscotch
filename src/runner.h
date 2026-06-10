@@ -79,6 +79,14 @@
 #define OTHER_END_OF_PATH    8
 #define OTHER_NO_MORE_HEALTH 9
 #define OTHER_USER0          10
+#define OTHER_OUTSIDE_VIEW0  40
+#define OTHER_OUTSIDE_VIEW1  41
+#define OTHER_OUTSIDE_VIEW2  42
+#define OTHER_OUTSIDE_VIEW3  43
+#define OTHER_OUTSIDE_VIEW4  44
+#define OTHER_OUTSIDE_VIEW5  45
+#define OTHER_OUTSIDE_VIEW6  46
+#define OTHER_OUTSIDE_VIEW7  47
 #define OTHER_ASYNC_DIALOG   63
 #define OTHER_ASYNC_SAVE_LOAD 72
 #define OTHER_ASYNC_SYSTEM   75
@@ -146,6 +154,9 @@ typedef struct {
     int32_t speedY;
     int32_t objectId; // follow target (object index), -1 = none
     float viewAngle;
+    // Center derived from camera_set_view_mat; kept so set_view_mat / set_proj_mat (which arrive in either order) can both recompute the top-left viewX/viewY once the size from the proj matrix is known.
+    int32_t viewMatCenterX;
+    int32_t viewMatCenterY;
 } GMLCamera;
 
 typedef struct {
