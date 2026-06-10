@@ -40,7 +40,7 @@ check 'if the C compiler works' || exit 1
 
 printf 'checking if we are cross compiling: '
 printf 'checking if we are cross compiling:\n' >> tmp/config.log
-if tmp/a.out; then
+if tmp/a.out > /dev/null 2>&1; then
     printf 'no\n'
     printf 'result: no\n' >> tmp/config.log
 else
