@@ -25,6 +25,7 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "gettime.h"
 
 // Paletted fragment shader.
 extern unsigned char paletted_fpo[];
@@ -296,6 +297,7 @@ int main(int argc, char* argv[]) {
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
     double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
+    runner->gameStartTime = nowNanos();
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);

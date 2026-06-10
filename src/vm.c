@@ -1277,7 +1277,9 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                         break;
                     }
                     default: {
-                        Instance* inst = findInstanceByTarget(ctx, scope);
+                        // Negative pseudo-scopes not handled above resolve to the current instance, mirroring handlePushBltn.
+                        // Positive scopes are real instance IDs resolved by lookup.
+                        Instance* inst = (0 > scope) ? (Instance*) ctx->currentInstance : findInstanceByTarget(ctx, scope);
                         if (inst == nullptr) {
                             fprintf(stderr, "VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
                             abort();

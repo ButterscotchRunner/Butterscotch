@@ -401,6 +401,16 @@ static void maResumeAll(AudioSystem* audio) {
     }
 }
 
+static void maSuspend(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void maResume(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_start(ma_engine_get_device(&ma->engine));
+}
+
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
@@ -612,8 +622,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
         // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
         FileSystem* fileSystem = ((MaAudioSystem*)audio)->fileSystem;
-        char* resolvedPath = (((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf));
-        if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
+        if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
             fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
             return;
         }
@@ -713,6 +722,8 @@ MaAudioSystem* MaAudioSystem_create(void) {
     maAudioSystemVtable.resumeSound = maResumeSound;
     maAudioSystemVtable.pauseAll = maPauseAll;
     maAudioSystemVtable.resumeAll = maResumeAll;
+    maAudioSystemVtable.suspend = maSuspend;
+    maAudioSystemVtable.resume = maResume;
     maAudioSystemVtable.setSoundGain = maSetSoundGain;
     maAudioSystemVtable.getSoundGain = maGetSoundGain;
     maAudioSystemVtable.setSoundPitch = maSetSoundPitch;

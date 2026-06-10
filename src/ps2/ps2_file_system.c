@@ -503,27 +503,7 @@ static FileSystemDirEntry* ps2ListDirectory(MAYBE_UNUSED FileSystem* fs, MAYBE_U
 
 // ===[ Vtable ]===
 
-static FileSystemVtable ps2FileSystemVtable = {
-    .resolvePath = resolvePath,
-    .fileExists = fileExists,
-    .readFileText = readFileText,
-    .writeFileText = writeFileText,
-    .deleteFile = deleteFile,
-    .readFileBinary = ps2ReadFileBinary,
-    .writeFileBinary = ps2WriteFileBinary,
-    .binaryOpen = ps2BinaryOpen,
-    .binaryClose = ps2BinaryClose,
-    .binaryRead = ps2BinaryRead,
-    .binaryWrite = ps2BinaryWrite,
-    .binaryTell = ps2BinaryTell,
-    .binarySeek = ps2BinarySeek,
-    .binarySize = ps2BinarySize,
-    .binaryRewrite = ps2BinaryRewrite,
-    .directoryExists = ps2DirectoryExists,
-    .createDirectory = ps2CreateDirectory,
-    .deleteDirectory = ps2DeleteDirectory,
-    .listDirectory = ps2ListDirectory,
-};
+static FileSystemVtable ps2FileSystemVtable;
 
 // ===[ Lifecycle ]===
 
@@ -584,6 +564,25 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
 
     Ps2FileSystem* pfs = safeCalloc(1, sizeof(Ps2FileSystem));
     pfs->base.vtable = &ps2FileSystemVtable;
+    ps2FileSystemVtable.resolvePath = resolvePath;
+    ps2FileSystemVtable.fileExists = fileExists;
+    ps2FileSystemVtable.readFileText = readFileText;
+    ps2FileSystemVtable.writeFileText = writeFileText;
+    ps2FileSystemVtable.deleteFile = deleteFile;
+    ps2FileSystemVtable.readFileBinary = ps2ReadFileBinary;
+    ps2FileSystemVtable.writeFileBinary = ps2WriteFileBinary;
+    ps2FileSystemVtable.binaryOpen = ps2BinaryOpen;
+    ps2FileSystemVtable.binaryClose = ps2BinaryClose;
+    ps2FileSystemVtable.binaryRead = ps2BinaryRead;
+    ps2FileSystemVtable.binaryWrite = ps2BinaryWrite;
+    ps2FileSystemVtable.binaryTell = ps2BinaryTell;
+    ps2FileSystemVtable.binarySeek = ps2BinarySeek;
+    ps2FileSystemVtable.binarySize = ps2BinarySize;
+    ps2FileSystemVtable.binaryRewrite = ps2BinaryRewrite;
+    ps2FileSystemVtable.directoryExists = ps2DirectoryExists;
+    ps2FileSystemVtable.createDirectory = ps2CreateDirectory;
+    ps2FileSystemVtable.deleteDirectory = ps2DeleteDirectory;
+    ps2FileSystemVtable.listDirectory = ps2ListDirectory;
     pfs->gameTitle = safeStrdup(gameTitle);
     pfs->saveIconConfig = parseSaveIconConfig(configRoot);
     pfs->mappings = nullptr;

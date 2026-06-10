@@ -377,3 +377,32 @@ jobs:
         with:
           name: butterscotch-ps3
           path: build/butterscotch.elf
+
+  build-old-gcc:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC 3.0
+            compiler: gcc-3.0
+            flags: '-std=gnu99 -w'
+          - name: GCC 2.95
+            compiler: g++-2.95
+            flags: '-fpermissive -w'
+    name: Build (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Debian Woody chroot
+        run: |
+          sudo apt-get install --no-install-recommends -y debootstrap
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: butterscotch
+
+      - name: Build
+        run: |
+          sudo mv butterscotch ~/woody
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'

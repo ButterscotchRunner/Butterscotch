@@ -23,6 +23,8 @@ typedef struct {
     void (*resumeSound)(AudioSystem* audio, int32_t soundOrInstance);
     void (*pauseAll)(AudioSystem* audio);
     void (*resumeAll)(AudioSystem* audio);
+    void (*suspend)(AudioSystem* audio);
+    void (*resume)(AudioSystem* audio);
     void (*setSoundGain)(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs);
     float (*getSoundGain)(AudioSystem* audio, int32_t soundOrInstance);
     void (*setSoundPitch)(AudioSystem* audio, int32_t soundOrInstance, float pitch);

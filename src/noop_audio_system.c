@@ -1,8 +1,12 @@
 #include "noop_audio_system.h"
+#include "data_win.h"
+#include "stb_ds.h"
 
 #include <stdlib.h>
 
-static void noopInit(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNUSED FileSystem* fileSystem) {}
+static void noopInit(AudioSystem* audio, DataWin* dataWin, MAYBE_UNUSED FileSystem* fileSystem) {
+    arrput(audio->audioGroups, dataWin);
+}
 
 static void noopDestroy(AudioSystem* audio) {
     free(audio);
@@ -86,6 +90,8 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.resumeSound = noopResumeSound,
     noopVtable.pauseAll = noopPauseAll,
     noopVtable.resumeAll = noopResumeAll,
+    noopVtable.suspend = noopPauseAll,
+    noopVtable.resume = noopResumeAll,
     noopVtable.setSoundGain = noopSetSoundGain,
     noopVtable.getSoundGain = noopGetSoundGain,
     noopVtable.setSoundPitch = noopSetSoundPitch,

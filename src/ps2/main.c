@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
+#include "gettime.h"
 
 #ifdef GPROF_PROFILING
 #include <ps2prof.h>
@@ -486,6 +487,7 @@ int main(int argc, char* argv[]) {
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Creating runner...", true);
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem);
+    runner->gameStartTime = nowNanos();
 
     // Parse disabledObjects from CONFIG.JSN
     JsonValue* disabledObjectsArr = JsonReader_getObject(configRoot, "disabledObjects");
@@ -651,8 +653,8 @@ int main(int argc, char* argv[]) {
             uint8_t bgR = BGR_R(runner->backgroundColor);
             uint8_t bgG = BGR_G(runner->backgroundColor);
             uint8_t bgB = BGR_B(runner->backgroundColor);
-            uint8_t bgA = BGR_A(runner->backgroundColor);
-            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, bgA, 0x00);
+            // Force opaque for the background to avoid PrimAlphaEnable causing issues.
+            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, 0x80, 0x00);
             gsKit_prim_sprite(gsGlobal, 0, 0, 640, 448, 0, bgColor);
         }
 

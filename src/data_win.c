@@ -2164,6 +2164,38 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
         return;
     }
 
+    size_t funcChunkStart = BinaryReader_getPosition(reader);
+    size_t funcChunkEnd = funcChunkStart + chunkLength;
+    if (!DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0) && chunkLength != 0) {
+        uint32_t probeCount = BinaryReader_readUint32(reader);
+        size_t afterFunctions = BinaryReader_getPosition(reader) + (size_t) probeCount * 12;
+        bool is2024_8 = false;
+        if (afterFunctions == funcChunkEnd) {
+            // Reached the chunk end immediately after the function list: code locals are definitely gone.
+            is2024_8 = true;
+        } else if (funcChunkEnd > afterFunctions) {
+            // Otherwise the remainder must be nothing but 16-byte alignment padding to qualify.
+            BinaryReader_seek(reader, afterFunctions);
+            int paddingBytesRead = 0;
+            bool onlyPadding = true;
+            while ((BinaryReader_getPosition(reader) & 15) != 0) {
+                if (BinaryReader_getPosition(reader) >= funcChunkEnd || BinaryReader_readUint8(reader) != 0) {
+                    onlyPadding = false;
+                    break;
+                }
+                paddingBytesRead++;
+            }
+            // <4 padding bytes can't be a real (empty) list header; with >=4 we need a code entry to be sure.
+            if (onlyPadding && BinaryReader_getPosition(reader) == funcChunkEnd && (4 > paddingBytesRead || dw->code.count > 0)) {
+                is2024_8 = true;
+            }
+        }
+        if (is2024_8) {
+            DataWin_bumpVersionTo(dw, 2024, 8, 0, 0);
+        }
+        BinaryReader_seek(reader, funcChunkStart);
+    }
+
     // Part 1: Functions SimpleList
     f->functionCount = BinaryReader_readUint32(reader);
     if (f->functionCount > 0) {
@@ -2183,6 +2215,11 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
     }
 
     // Part 2: Code Locals SimpleList
+    if (DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0)) {
+        f->codeLocalsCount = 0;
+        f->codeLocals = nullptr;
+        return;
+    }
     f->codeLocalsCount = BinaryReader_readUint32(reader);
     if (f->codeLocalsCount > 0) {
         f->codeLocals = safeMalloc(f->codeLocalsCount * sizeof(CodeLocals));

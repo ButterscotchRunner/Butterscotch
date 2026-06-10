@@ -7,9 +7,9 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
 
 static Runner *g_runner;
-static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
@@ -21,20 +21,49 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    *outW = fbWidth;
-    *outH = fbHeight;
+    if (gfx == SOFTWARE) {
+        if (scr->w <= 0 || scr->h <= 0) return false;
+        *outW = scr->w;
+        *outH = scr->h;
+    } else {
+        int w = 0;
+        int h = 0;
+        SDL_GL_GetDrawableSize(window, &w, &h);
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
+    }
     return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
-    return platformGetWindowSize(outW, outH);
+    if (!outW || !outH) return false;
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+
+static void platformGetWindowScale(float *scale_x, float *scale_y) {
+    if (!scale_x || !scale_y) return;
+    int32_t draw_w, draw_h;
+    int logical_w, logical_h;
+    platformGetWindowSize(&draw_w, &draw_h);
+    SDL_GetWindowSize(window, &logical_w, &logical_h);
+    *scale_x = (logical_w > 0) ? (float)draw_w / logical_w : 1.0f;
+    *scale_y = (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-    fbWidth = width;
-    fbHeight = height;
-    SDL_SetWindowSize(window, width, height);
+
+    float scale_x, scale_y;
+    platformGetWindowScale(&scale_x, &scale_y);
+    SDL_SetWindowSize(window, (int)(width / scale_x), (int)(height / scale_y));
+
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
@@ -43,8 +72,10 @@ void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
     SDL_GetMouseState(&mx, &my);
-    *xPos = (double)mx;
-    *yPos = (double)my;
+    float scale_x, scale_y;
+    platformGetWindowScale(&scale_x, &scale_y);
+    *xPos = (double)mx * scale_x;
+    *yPos = (double)my * scale_y;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -78,17 +109,15 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     Uint32 flags;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_ALLOW_HIGHDPI;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 
-    fbWidth = reqW;
-    fbHeight = reqH;
     window = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
-            fbWidth, fbHeight,
+            reqW, reqH,
             flags
     );
     if (!window && gfx == SOFTWARE) {
@@ -96,13 +125,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
-            fbWidth = mode.w;
-            fbHeight = mode.h;
+            reqW = mode.w;
+            reqH = mode.h;
             window = SDL_CreateWindow(
                     title,
                     SDL_WINDOWPOS_UNDEFINED,
                     SDL_WINDOWPOS_UNDEFINED,
-                    fbWidth, fbHeight,
+                    mode.w, mode.h,
                     flags
             );
         }
@@ -119,6 +148,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else
         scr = SDL_GetWindowSurface(window);
+
+    // If we don't do this, the window will be larger than it should be on HiDPI displays.
+    platformSetWindowSize(reqW, reqH);
 
     return true;
 }
@@ -177,10 +209,6 @@ void *platformGetProcAddress(const char *name) {
 }
 
 #endif
-
-double platformGetTime(void) {
-    return (double)SDL_GetTicks() / 1000.0;
-}
 
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
@@ -259,71 +287,59 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
-    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+            default:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
+            case SDL_WINDOWEVENT:
+            case SDL_QUIT:
+        }
         switch(e.type) {
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.key.repeat != 0)
                     break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_KEYUP:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_TEXTINPUT:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
             case SDL_MOUSEBUTTONDOWN: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEBUTTONUP: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEWHEEL:
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.wheel.y != 0)
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
             case SDL_WINDOWEVENT:
-                if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
-                    break;
-                fbWidth = e.window.data1;
-                fbHeight = e.window.data2;
-                if (gfx == SOFTWARE)
+                if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED && gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
-                should_exit = true;
-                break;
-            default:
-                break;
+                return true;
         }
     }
 
-    return should_exit;
+    return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
-    if (remaining > 0.002)
-        SDL_Delay((Uint32)((remaining - 0.001) * 1000));
+void platformSleepUntil(uint64_t time) {
+    int64_t remaining = time - nowNanos();
+    if (remaining > 2000000)
+        SDL_Delay((remaining - 1000000) / 1000000);
 
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
     }
-}
-
-void platformGamepad_poll(RunnerGamepadState* gp) {
-    (void)gp;
 }

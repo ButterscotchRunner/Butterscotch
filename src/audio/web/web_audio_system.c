@@ -371,6 +371,18 @@ static void webResumeAll(AudioSystem* audio) {
     }
 }
 
+static void webSuspend(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void webResume(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_start(ma_engine_get_device(&ma->engine));
+}
+
 static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
@@ -670,6 +682,8 @@ WebAudioSystem* WebAudioSystem_create(int32_t sampleRate) {
     webAudioSystemVtable.resumeSound = webResumeSound;
     webAudioSystemVtable.pauseAll = webPauseAll;
     webAudioSystemVtable.resumeAll = webResumeAll;
+    webAudioSystemVtable.suspend = webSuspend;
+    webAudioSystemVtable.resume = webResume;
     webAudioSystemVtable.setSoundGain = webSetSoundGain;
     webAudioSystemVtable.getSoundGain = webGetSoundGain;
     webAudioSystemVtable.setSoundPitch = webSetSoundPitch;

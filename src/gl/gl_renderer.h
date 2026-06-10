@@ -24,6 +24,12 @@ typedef struct {
     GLint uTexture;
     GLint uAlphaTestRef;
     GLint uFogColor;
+    GLint uAlphaTestEnabled;
+    GLuint* gmlShaders;
+    bool* gmlShaderCompiled;
+    uint32_t gmlShaderCount;
+    int32_t** sampler2DLookUpTable;
+    GLint** sampler2DLocationLookUpTable;
 
     bool alphaTestEnable;
     float alphaTestRef;
@@ -50,6 +56,8 @@ typedef struct {
     int32_t windowH;
     int32_t gameW; // game width (matches the application_surface size)
     int32_t gameH; // game height (matches the application_surface size)
+
+    GLuint hostFramebuffer; // present target for the composited frame, where 0 == the window
 
     // Original counts from data.win (dynamic slots start at these indices)
     uint32_t originalTexturePageCount;

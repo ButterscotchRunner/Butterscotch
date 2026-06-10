@@ -8,6 +8,14 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
+
+#ifndef SDL_BUTTON_WHEELUP
+#define SDL_BUTTON_WHEELUP 4
+#endif
+#ifndef SDL_BUTTON_WHEELDOWN
+#define SDL_BUTTON_WHEELDOWN 5
+#endif
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
@@ -146,10 +154,6 @@ void *platformGetProcAddress(const char *name) {
 
 #endif
 
-double platformGetTime(void) {
-    return (double)SDL_GetTicks() / 1000.0;
-}
-
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
     if (sdlkey >= 'a' && sdlkey <= 'z') return toupper(sdlkey);
@@ -243,20 +247,18 @@ bool platformHandleEvents(void) {
                 break;
             case SDL_QUIT:
                 return true;
-            default:
-                break;
         }
     }
 
     return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
-    if (remaining > 0.002)
-        SDL_Delay((Uint32)((remaining - 0.001) * 1000));
+void platformSleepUntil(uint64_t time) {
+    int64_t remaining = time - nowNanos();
+    if (remaining > 2000000)
+        SDL_Delay((remaining - 1000000) / 1000000);
 
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
     }
 }

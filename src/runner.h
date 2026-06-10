@@ -79,6 +79,14 @@
 #define OTHER_END_OF_PATH    8
 #define OTHER_NO_MORE_HEALTH 9
 #define OTHER_USER0          10
+#define OTHER_OUTSIDE_VIEW0  40
+#define OTHER_OUTSIDE_VIEW1  41
+#define OTHER_OUTSIDE_VIEW2  42
+#define OTHER_OUTSIDE_VIEW3  43
+#define OTHER_OUTSIDE_VIEW4  44
+#define OTHER_OUTSIDE_VIEW5  45
+#define OTHER_OUTSIDE_VIEW6  46
+#define OTHER_OUTSIDE_VIEW7  47
 #define OTHER_ASYNC_DIALOG   63
 #define OTHER_ASYNC_SAVE_LOAD 72
 #define OTHER_ASYNC_SYSTEM   75
@@ -146,6 +154,9 @@ typedef struct {
     int32_t speedY;
     int32_t objectId; // follow target (object index), -1 = none
     float viewAngle;
+    // Center derived from camera_set_view_mat; kept so set_view_mat / set_proj_mat (which arrive in either order) can both recompute the top-left viewX/viewY once the size from the proj matrix is known.
+    int32_t viewMatCenterX;
+    int32_t viewMatCenterY;
 } GMLCamera;
 
 typedef struct {
@@ -180,6 +191,7 @@ typedef struct {
     float alpha;
     float xOffset; // element-local offset (in addition to layer offset)
     float yOffset;
+    int32_t imageIndex;
 } RuntimeBackgroundElement;
 
 // Mutable sprite element on an Assets layer. Populated from RoomLayerAssetsData.sprites at room init, can be removed at runtime via layer_sprite_destroy (used by language variant selection).
@@ -366,6 +378,7 @@ typedef struct {
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers
     RuntimeView views[MAX_VIEWS];
+    bool viewsEnabled;
     GMLCamera defaultCameras[MAX_DEFAULT_ROOM_CAMERAS]; // whole-array snapshot of Runner.defaultCameras (room-scoped)
 } SavedRoomState;
 
@@ -460,6 +473,7 @@ struct Runner {
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
     SavedRoomState* savedRoomStates; // array of size dataWin->room.count, for persistent room support
     int32_t viewCurrent; // index of the view currently being drawn (for view_current)
+    bool viewsEnabled;   // runtime-mutable global view system toggle (view_enabled); seeded from room->flags & 1 on room enter
     int32_t renderGameW; // FBO width used by the last frame (= max port bound), 0 if not yet rendered
     int32_t renderGameH; // FBO height used by the last frame (= max port bound), 0 if not yet rendered
     int32_t viewportX;   // X offset in window (letterboxing)
@@ -566,6 +580,9 @@ struct Runner {
     // GameMaker launcher parameters
     // Just like the original runner, argv[0] is included in gameArgs
     char** gameArgs;
+
+    // Offset between game start time and nowNanos()
+    uint64_t gameStartTime;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
@@ -594,7 +611,7 @@ void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH);
 void Runner_drawBackgrounds(Runner* runner, bool foreground);
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY);
 void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);
-void Runner_updateMousePosition(Runner* runner, int32_t winW, int32_t winH, double mx, double my);
+void Runner_updateMousePosition(Runner* runner, int32_t windowWidth, int32_t windowHeight, double mouseXInWindow, double mouseYInWindow);
 // Converts the cached screen-space cursor (RunnerMouseState.screenX/screenY) to room/world coordinates using the LIVE camera/view state.
 void Runner_getMouseRoomPosition(Runner* runner, GMLReal* outX, GMLReal* outY);
 // Resolves a camera id (slot index) to its pool entry, or nullptr if out of range / not allocated.

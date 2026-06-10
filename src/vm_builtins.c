@@ -30,8 +30,7 @@
 #include "md5.h"
 #include "sha1.h"
 #include "base64.h"
-
-#include "clock_gettime_macos.h"
+#include "gettime.h"
 
 #define MAX_BACKGROUNDS 8
 
@@ -293,6 +292,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
     { "keyboard_lastchar", BUILTIN_VAR_KEYBOARD_LASTCHAR },
     { "keyboard_lastkey", BUILTIN_VAR_KEYBOARD_LASTKEY },
+    { "keyboard_string", BUILTIN_VAR_KEYBOARD_STRING },
     { "layer", BUILTIN_VAR_LAYER },
     { "lives", BUILTIN_VAR_LIVES },
     { "mask_index", BUILTIN_VAR_MASK_INDEX },
@@ -371,6 +371,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "view_angle", BUILTIN_VAR_VIEW_ANGLE },
     { "view_camera", BUILTIN_VAR_CAMERA_VIEW },
     { "view_current", BUILTIN_VAR_VIEW_CURRENT },
+    { "view_enabled", BUILTIN_VAR_VIEW_ENABLED },
     { "view_hborder", BUILTIN_VAR_VIEW_HBORDER },
     { "view_hport", BUILTIN_VAR_VIEW_HPORT },
     { "view_hspeed", BUILTIN_VAR_VIEW_HSPEED },
@@ -725,8 +726,12 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
 
         // View properties
         case BUILTIN_VAR_VIEW_CURRENT:
-        case BUILTIN_VAR_CAMERA_VIEW:
             return RValue_makeReal((GMLReal) runner->viewCurrent);
+        case BUILTIN_VAR_VIEW_ENABLED:
+            return RValue_makeBool(runner->viewsEnabled);
+        case BUILTIN_VAR_CAMERA_VIEW:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) return RValue_makeReal((GMLReal) runner->views[arrayIndex].cameraId);
+            return RValue_makeReal(-1.0);
         case BUILTIN_VAR_VIEW_XVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) return RValue_makeReal((GMLReal) camera->viewX);
@@ -862,25 +867,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
                 case BUILTIN_VAR_CURRENT_YEAR:    return RValue_makeReal(t->tm_year + 1900);
             }
         }
-        case BUILTIN_VAR_CURRENT_TIME: {
-            #ifdef _WIN32
-            LARGE_INTEGER freq, counter;
-            QueryPerformanceFrequency(&freq);
-            QueryPerformanceCounter(&counter);
-            GMLReal ms = (GMLReal) counter.QuadPart / (GMLReal) freq.QuadPart * 1000.0;
-            #elif defined(PLATFORM_PS3)
-            GMLReal ms = (GMLReal) (__builtin_ppc_get_timebase() / sysGetTimebaseFrequency()) / 1000000.0;
-            #elif defined(CLOCK_MONOTONIC)
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            GMLReal ms = (GMLReal) ts.tv_sec * 1000.0 + (GMLReal) ts.tv_nsec / 1000000.0;
-            #else
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-            GMLReal ms = (GMLReal) tv.tv_sec * 1000.0 + (GMLReal) tv.tv_usec / 1000.0;
-            #endif
-            return RValue_makeReal(ms);
-        }
+        case BUILTIN_VAR_CURRENT_TIME:
+            return RValue_makeReal((nowNanos() - runner->gameStartTime) / 1000000.0);
 
         // Arguments
         case BUILTIN_VAR_ARGUMENT_COUNT:
@@ -910,6 +898,13 @@ RValue VMBuiltins_getVariable(VMContext* ctx, int16_t builtinVarId, const char* 
             return RValue_makeString(runner->keyboard->lastChar);
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             return RValue_makeReal((GMLReal) runner->keyboard->lastKey);
+        case BUILTIN_VAR_KEYBOARD_STRING:
+            return RValue_makeString(runner->keyboard->string);
+
+        case BUILTIN_VAR_MOUSE_BUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getButton(runner->mouse));
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            return RValue_makeReal((GMLReal) RunnerMouse_getLastButton(runner->mouse));
 
         case BUILTIN_VAR_MOUSE_X: {
             GMLReal mouseRoomX, mouseRoomY;
@@ -1361,6 +1356,20 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
         case BUILTIN_VAR_KEYBOARD_LASTKEY:
             runner->keyboard->lastKey = RValue_toInt32(val);
             return;
+        case BUILTIN_VAR_KEYBOARD_STRING: {
+            const char* str = RValue_toString(val); 
+            
+            int32_t len = (int32_t)strlen(str);
+            if (len > 1023) len = 1023;
+            
+            memcpy(runner->keyboard->string, str, len);
+            runner->keyboard->string[len] = '\0';
+            runner->keyboard->stringLen = len;
+            return;
+        }
+        case BUILTIN_VAR_MOUSE_LASTBUTTON:
+            runner->mouse->lastButton = RValue_toInt32(val);
+            return;
 
         // View properties
         case BUILTIN_VAR_VIEW_XVIEW: {
@@ -1397,6 +1406,12 @@ void VMBuiltins_setVariable(VMContext* ctx, int16_t builtinVarId, const char* na
             return;
         case BUILTIN_VAR_VIEW_VISIBLE:
             if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) runner->views[arrayIndex].enabled = RValue_toBool(val);
+            return;
+        case BUILTIN_VAR_VIEW_ENABLED:
+            runner->viewsEnabled = RValue_toBool(val);
+            return;
+        case BUILTIN_VAR_CAMERA_VIEW:
+            if (arrayIndex >= 0 && MAX_VIEWS > arrayIndex) runner->views[arrayIndex].cameraId = RValue_toInt32(val);
             return;
         case BUILTIN_VAR_VIEW_ANGLE: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
@@ -3069,6 +3084,39 @@ static RValue builtin_camera_set_view_pos(VMContext* ctx, RValue* args, int32_t 
         camera->viewX = RValue_toInt32(args[1]);
         camera->viewY = RValue_toInt32(args[2]);
     }
+    return RValue_makeUndefined();
+}
+
+// TODO: We don't support the full matrix-based render pipeline yet, update this later!
+static RValue builtin_camera_set_view_mat(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
+    if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
+    Matrix4f m;
+    matrixFromGml(&m, args[1].array);
+    // For an axis-aligned 2D camera the view-matrix translation encodes -(camera center).
+    camera->viewMatCenterX = (int32_t) lround(-m.m[Matrix_getIndex(3, 0)]);
+    camera->viewMatCenterY = (int32_t) lround(-m.m[Matrix_getIndex(3, 1)]);
+    camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
+    camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
+    if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
+    Matrix4f m;
+    matrixFromGml(&m, args[1].array);
+    // Orthographic projection: m[0,0] = 2/width, m[1,1] = 2/height.
+    GMLReal m00 = m.m[Matrix_getIndex(0, 0)];
+    GMLReal m11 = m.m[Matrix_getIndex(1, 1)];
+    if (m00 != 0.0) camera->viewWidth = (int32_t) lround(GMLReal_fabs(2.0 / m00));
+    if (m11 != 0.0) camera->viewHeight = (int32_t) lround(GMLReal_fabs(2.0 / m11));
+    camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
+    camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
     return RValue_makeUndefined();
 }
 
@@ -6966,17 +7014,7 @@ static bool bounceTestFree(Runner* runner, Instance* inst, GMLReal testX, GMLRea
     return placeFreeAt(runner, inst, testX, testY);
 }
 
-// action_bounce(adv, against): DnD wrapper around move_bounce_solid / move_bounce_all.
-// * adv (arg[0]): real, treated as bool via the native ">= 0.5" rule.
-// * against (arg[1]): real menu pick: 0 = solid only, 1 = all instances (useall = (against == 1.0)).
-static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
-
-    Runner* runner = ctx->runner;
-    Instance* inst = ctx->currentInstance;
-    bool advanced = RValue_toReal(args[0]) >= 0.5;
-    bool useall = RValue_toReal(args[1]) == 1.0;
-
+static void moveBounceCommon(Runner* runner, Instance* inst, bool advanced, bool useall) {
     bool didBounce = false;
     if (!bounceTestFree(runner, inst, inst->x, inst->y, useall)) {
         inst->x = inst->xprevious;
@@ -7032,6 +7070,30 @@ static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, M
         }
         Instance_computeSpeedFromComponents(inst);
     }
+}
+
+// action_bounce(adv, against): DnD wrapper around move_bounce_solid / move_bounce_all.
+// * adv (arg[0]): real, treated as bool via the native ">= 0.5" rule.
+// * against (arg[1]): real menu pick: 0 = solid only, 1 = all instances (useall = (against == 1.0)).
+static RValue builtin_action_bounce(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toReal(args[0]) >= 0.5;
+    bool useall = RValue_toReal(args[1]) == 1.0;
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, useall);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_move_bounce_solid(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount || ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toBool(args[0]);
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, false);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_move_bounce_all(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount || ctx->currentInstance == nullptr) return RValue_makeUndefined();
+    bool advanced = RValue_toBool(args[0]);
+    moveBounceCommon(ctx->runner, ctx->currentInstance, advanced, true);
     return RValue_makeUndefined();
 }
 
@@ -8729,6 +8791,23 @@ static RValue builtin_draw_get_font(VMContext* ctx, MAYBE_UNUSED RValue* args, M
     return RValue_makeInt32(-1);
 }
 
+static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    
+    Instance* inst = ctx->currentInstance;
+    if (inst == nullptr) return RValue_makeUndefined();
+    
+    GMLReal dir = RValue_toReal(args[0]);
+    GMLReal spd = RValue_toReal(args[1]);
+    GMLReal rad = dir * (M_PI / 180.0);
+    
+    inst->hspeed += (float)(GMLReal_cos(rad) * spd);
+    inst->vspeed += (float)(-GMLReal_sin(rad) * spd);
+    Instance_computeSpeedFromComponents(inst);
+    
+    return RValue_makeUndefined();
+}
+
 // merge_color(col1, col2, amount) - lerps between two colors
 static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t col1 = RValue_toInt32(args[0]);
@@ -8949,6 +9028,15 @@ static RValue builtin_surface_get_height(VMContext* ctx, RValue* args, MAYBE_UNU
         return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
     }
     return RValue_makeReal(Renderer_getSurfaceHeight(runner->renderer, surfaceId));
+}
+
+static RValue builtin_surface_get_texture(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->renderer != nullptr && runner->renderer->vtable->surfaceGetTexture != nullptr) {
+        return RValue_makeInt32((int32_t) runner->renderer->vtable->surfaceGetTexture(runner->renderer, surfaceId));
+    }
+    return RValue_makeInt32(-1);
 }
 
 // Sprite functions
@@ -10629,6 +10717,24 @@ static RValue builtin_action_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeUndefined();
 }
 
+// action_draw_variable(value, x, y) - draws the value as text at (x, y), respecting the relative flag.
+static RValue builtin_action_draw_variable(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    char* str = RValue_toString(args[0]);
+    float x = (float) RValue_toReal(args[1]);
+    float y = (float) RValue_toReal(args[2]);
+
+    applyActionRelativeOffset(ctx, &x, &y);
+
+    PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
+    runner->renderer->vtable->drawText(runner->renderer, processedText.text, x, y, 1.0f, 1.0f, 0.0f, -1.0f);
+    PreprocessedText_free(processedText);
+    free(str);
+    return RValue_makeUndefined();
+}
+
 // ===[ Tile Layer Functions ]===
 
 static TileLayerState* getOrCreateTileLayer(Runner* runner, int32_t depth) {
@@ -11134,6 +11240,7 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     bg->alpha = 1.0f;
     bg->xOffset = 0.0f;
     bg->yOffset = 0.0f;
+    bg->imageIndex = 0;
     RuntimeLayerElement el = {0};
     el.id = Runner_getNextLayerId(runner);
     el.type = RuntimeLayerElementType_Background;
@@ -11272,6 +11379,24 @@ static RValue builtin_layer_background_get_id(VMContext* ctx, RValue* args, MAYB
     }
 
     return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t background_element_id = RValue_toInt32(args[0]);
+    int32_t index = RValue_toInt32(args[1]);
+
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, background_element_id);
+    if (bg != nullptr) {
+        bg->imageIndex = index;
+    }
+
+    RoomLayer* roomLayer = Runner_findRoomLayerById(runner, background_element_id);
+    if (roomLayer != nullptr && roomLayer->type == RoomLayerType_Background && roomLayer->backgroundData != nullptr) {
+        roomLayer->backgroundData->imageIndex = index;
+    }
+
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -11424,6 +11549,33 @@ static RValue builtin_layer_sprite_destroy(VMContext* ctx, RValue* args, MAYBE_U
 
     return RValue_makeUndefined();
 }
+
+static RValue builtin_layer_background_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+
+    RuntimeLayer* owningLayer = nullptr;
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, &owningLayer);
+    if (el == nullptr || owningLayer == nullptr || el->type != RuntimeLayerElementType_Background)
+        return RValue_makeUndefined();
+
+    if (el->backgroundElement != nullptr) {
+        free(el->backgroundElement);
+        el->backgroundElement = nullptr;
+    }
+
+    // Remove the element from the owning layer's element array to keep lookup + iteration tidy.
+    size_t count = arrlenu(owningLayer->elements);
+    repeat(count, i) {
+        if (&owningLayer->elements[i] == el) {
+            arrdel(owningLayer->elements, i);
+            break;
+        }
+    }
+
+    return RValue_makeUndefined();
+}
+
 
 #if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_layer_tilemap_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -11713,6 +11865,23 @@ static RValue builtin_CopyStatic(VMContext* ctx, RValue* args, int32_t argCount)
 
     VM_copyStatic(ctx, &args[0]);
     return RValue_makeUndefined();
+}
+
+// @@GetInstance@@(target) - takes an object index and returns the first active instance's ID.
+static RValue builtin_GetInstance(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeInt32(INSTANCE_NOONE);
+
+    Runner* runner = ctx->runner;
+    int32_t target = RValue_toInt32(args[0]);
+
+    if (target >= 0 && (uint32_t) target < ctx->dataWin->objt.count) {
+        Instance** bucket = runner->instancesByObject[target];
+        int32_t bucketCount = (int32_t) arrlen(bucket);
+        for (int32_t i = 0; bucketCount > i; i++) {
+            if (bucket[i]->active) return RValue_makeInt32((int32_t) bucket[i]->instanceId);
+        }
+    }
+    return RValue_makeInt32(INSTANCE_NOONE);
 }
 #endif
 
@@ -12635,6 +12804,17 @@ static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(ctx->dataWin->objt.objects[id].spriteId);
 }
 
+static RValue builtin_object_get_parent(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(-1.0);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeReal(-1.0);
+    }
+
+    return RValue_makeReal(ctx->dataWin->objt.objects[id].parentId);
+}
+
 // Shared implementation for font_add_sprite and font_add_sprite_ext
 static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* charCodes, uint32_t charCount, bool proportional, int32_t sep) {
     DataWin* dw = ctx->dataWin;
@@ -12944,6 +13124,212 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeString(ctx->runner->gameArgs[index]);
 }
 
+static RValue builtin_shader_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    //fprintf(stderr, "Set Shader ID %u\n", ShaderID);
+    //gpuSetShader
+    ctx->runner->renderer->vtable->gpuSetShader(ctx->runner->renderer, ShaderID);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_reset(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ctx->runner->renderer->vtable->gpuResetShader(ctx->runner->renderer);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_current(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->runner->renderer != nullptr) {
+        return RValue_makeReal(ctx->runner->renderer->currentShader);
+    }
+    return RValue_makeReal(-1);
+}
+
+static RValue builtin_shader_is_compiled(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    return RValue_makeBool(ctx->runner->renderer->vtable->shaderIsCompiled(ctx->runner->renderer, ShaderID));
+}
+
+static RValue builtin_shader_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t shaderIndex = (int32_t) RValue_toReal(args[0]);
+    Shader* shdr = &ctx->dataWin->shdr.shaders[shaderIndex];
+    if (0 > shaderIndex || (uint32_t) shaderIndex >= ctx->dataWin->shdr.count) return RValue_makeString("<undefined>");
+    const char* name = shdr->name;
+    return RValue_makeString(name != nullptr ? name : "<undefined>");
+}
+
+static RValue builtin_shaders_are_supported(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->shadersSupported(ctx->runner->renderer));
+}
+
+static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetUniform(ctx->runner->renderer, ShaderID, uniform));
+}
+
+static RValue builtin_shader_get_sampler_index(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
+    char* uniform = RValue_toString(args[1]);
+    return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetSamplerIndex(ctx->runner->renderer, ShaderID, uniform));
+}
+
+static RValue builtin_texture_set_stage(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t TextureSlot = (int32_t) RValue_toReal(args[0]);
+    int32_t texID = (int32_t) RValue_toInt32(args[1]);
+    ctx->runner->renderer->vtable->textureSetStage(ctx->runner->renderer, TextureSlot, texID);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t handle = (int32_t) RValue_toReal(args[0]);
+    float value1, value2, value3, value4;
+    //fprintf(stderr, "Set ARG Count %u\n", argCount);
+    if (argCount == 2) {
+        value1 = (float) RValue_toReal(args[1]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 1, value1, 0.0, 0.0, 0.0);
+    } else if (argCount == 3) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 2, value1, value2, 0.0, 0.0);
+    } else if (argCount == 4) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 3, value1, value2, value3, 0.0);
+    } else if (argCount == 5) {
+        value1 = (float) RValue_toReal(args[1]);
+        value2 = (float) RValue_toReal(args[2]);
+        value3 = (float) RValue_toReal(args[3]);
+        value4 = (float) RValue_toReal(args[4]);
+        //fprintf(stderr, "Value4  %.8f\n", value4);
+        ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 4, value1, value2, value3, value4);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_shader_set_uniformI(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t handle = (int32_t) RValue_toReal(args[0]);
+    int32_t value1 = 0, value2 = 0, value3 = 0, value4 = 0;
+    int32_t count = argCount - 1;
+    if (count >= 1) value1 = (int32_t) RValue_toReal(args[1]);
+    if (count >= 2) value2 = (int32_t) RValue_toReal(args[2]);
+    if (count >= 3) value3 = (int32_t) RValue_toReal(args[3]);
+    if (count >= 4) value4 = (int32_t) RValue_toReal(args[4]);
+    ctx->runner->renderer->vtable->shaderSetUniformI(ctx->runner->renderer, handle, count, value1, value2, value3, value4);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_sprite_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+
+    DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+    float trimmedLeft = (float) ctx->dataWin->tpag.items[TpagIndex].targetX;
+    float trimmedTop = (float) ctx->dataWin->tpag.items[TpagIndex].targetY;
+    float NormWidthS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceWidth / (float) ctx->dataWin->tpag.items[TpagIndex].boundingWidth;
+    float NormHeightS = (float) ctx->dataWin->tpag.items[TpagIndex].sourceHeight / (float) ctx->dataWin->tpag.items[TpagIndex].boundingHeight;
+
+
+    GMLArray* out = GMLArray_create(8);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    *GMLArray_slot(out, 4) = RValue_makeReal(trimmedLeft);
+    *GMLArray_slot(out, 5) = RValue_makeReal(trimmedTop);
+    *GMLArray_slot(out, 6) = RValue_makeReal(NormWidthS);
+    *GMLArray_slot(out, 7) = RValue_makeReal(NormHeightS);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_sprite_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    int32_t subimg = RValue_toInt32(args[1]);
+    if (0 > subimg && ctx->currentInstance != nullptr) {
+        subimg = (int32_t) ctx->currentInstance->imageIndex;
+    }  
+    int32_t TpagIndex = Renderer_resolveTPAGIndex(ctx->dataWin, spriteIndex, subimg);
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+
+    //if (0 > fontIndex || ctx->dataWin->font.count <= (uint32_t) fontIndex) return;
+
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    
+
+    int32_t TpagIndex = font->tpagIndex;
+    //I think default texture page size is 2048x2048?
+    float DivW = 0.00048828125; //1.0/2048.0
+    float DivH = 0.00048828125; //1.0/2048.0
+    
+    DivW = ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    DivH = ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+    
+    float left = (float) ctx->dataWin->tpag.items[TpagIndex].sourceX * DivW;
+    float top = (float) ctx->dataWin->tpag.items[TpagIndex].sourceY * DivH;
+    float right = (float)  left + (ctx->dataWin->tpag.items[TpagIndex].sourceWidth * DivW);
+    float bottom = (float) top + (ctx->dataWin->tpag.items[TpagIndex].sourceHeight * DivH);
+
+    GMLArray* out = GMLArray_create(4);
+    *GMLArray_slot(out, 0) = RValue_makeReal(left);
+    *GMLArray_slot(out, 1) = RValue_makeReal(top);
+    *GMLArray_slot(out, 2) = RValue_makeReal(right);
+    *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    //see if it works
+    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
+    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
+    int32_t TpagIndex = font->tpagIndex;
+
+    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
+}
+
+static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelWidth(ctx->runner->renderer, texID));
+}
+
+static RValue builtin_texture_get_texel_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
+    return RValue_makeReal(ctx->runner->renderer->vtable->textureGetTexelHeight(ctx->runner->renderer, texID));
+}
+
+static RValue builtin_texture_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    uint32_t texID = (uint32_t) RValue_toReal(args[0]);
+    // Default to the full page (0,0,1,1) if the renderer can't resolve the handle.
+    float uvs[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    ctx->runner->renderer->vtable->textureGetUVs(ctx->runner->renderer, texID, uvs);
+    GMLArray* out = GMLArray_create(4);
+    *GMLArray_slot(out, 0) = RValue_makeReal(uvs[0]);
+    *GMLArray_slot(out, 1) = RValue_makeReal(uvs[1]);
+    *GMLArray_slot(out, 2) = RValue_makeReal(uvs[2]);
+    *GMLArray_slot(out, 3) = RValue_makeReal(uvs[3]);
+    return RValue_makeArray(out);
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -13038,6 +13424,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "move_contact_solid", builtin_move_contact_solid);
     VM_registerBuiltin(ctx, "move_outside_solid", builtin_move_outside_solid);
     VM_registerBuiltin(ctx, "move_outside_all", builtin_move_outside_all);
+    VM_registerBuiltin(ctx, "move_bounce_solid", builtin_move_bounce_solid);
+    VM_registerBuiltin(ctx, "move_bounce_all", builtin_move_bounce_all);    
     VM_registerBuiltin(ctx, "lengthdir_x", builtin_lengthdir_x);
     VM_registerBuiltin(ctx, "lengthdir_y", builtin_lengthdir_y);
 
@@ -13078,6 +13466,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "camera_get_view_width", builtin_camera_get_view_width);
     VM_registerBuiltin(ctx, "camera_get_view_height", builtin_camera_get_view_height);
     VM_registerBuiltin(ctx, "camera_set_view_pos", builtin_camera_set_view_pos);
+    VM_registerBuiltin(ctx, "camera_set_view_mat", builtin_camera_set_view_mat);
+    VM_registerBuiltin(ctx, "camera_set_proj_mat", builtin_camera_set_proj_mat);
     VM_registerBuiltin(ctx, "camera_get_view_target", builtin_camera_get_view_target);
     VM_registerBuiltin(ctx, "camera_set_view_target", builtin_camera_set_view_target);
     VM_registerBuiltin(ctx, "camera_get_view_border_x", builtin_camera_get_view_border_x);
@@ -13505,6 +13895,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_alpha", builtin_draw_get_alpha);
     VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
 
+    // Motion
+    VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
+
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtin_merge_color);
     VM_registerBuiltin(ctx, "merge_colour", builtin_merge_color);
@@ -13518,6 +13911,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "surface_exists", builtin_surface_exists);
     VM_registerBuiltin(ctx, "surface_get_width", builtin_surface_get_width);
     VM_registerBuiltin(ctx, "surface_get_height", builtin_surface_get_height);
+    VM_registerBuiltin(ctx, "surface_get_texture", builtin_surface_get_texture);
     VM_registerBuiltin(ctx, "surface_resize", builtin_surface_resize);
     VM_registerBuiltin(ctx, "surface_copy", builtin_surface_copy);
     VM_registerBuiltin(ctx, "surface_copy_part", builtin_surface_copy_part);
@@ -13675,7 +14069,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_sprite", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_change", builtin_layer_background_sprite);
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
+    VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
+    VM_registerBuiltin(ctx, "layer_background_destroy", builtin_layer_background_destroy);
 
     // GMS2 internal
     VM_registerBuiltin(ctx, "@@NewGMLArray@@", builtin_NewGMLArray);
@@ -13687,6 +14083,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "@@NewGMLObject@@", builtin_NewGMLObject);
     VM_registerBuiltin(ctx, "@@CopyStatic@@", builtin_CopyStatic);
     VM_registerBuiltin(ctx, "@@SetStatic@@", builtin_SetStatic);
+    VM_registerBuiltin(ctx, "@@GetInstance@@", builtin_GetInstance);
 #endif
 
     // Path
@@ -13765,6 +14162,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "action_font", builtin_action_font);
         VM_registerBuiltin(ctx, "action_draw_text", builtin_action_draw_text);
         VM_registerBuiltin(ctx, "action_draw_sprite", builtin_action_draw_sprite);
+        VM_registerBuiltin(ctx, "action_draw_variable", builtin_action_draw_variable);
         VM_registerBuiltin(ctx, "action_change_object", builtin_instance_change);
         VM_registerBuiltin(ctx, "action_end_game", builtin_game_end);
         VM_registerBuiltin(ctx, "action_execute_script", builtin_script_execute); //It its right? i think
@@ -13785,6 +14183,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
@@ -13808,4 +14207,21 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "game_change", builtin_game_change);
     VM_registerBuiltin(ctx, "parameter_count", builtin_parameter_count);
     VM_registerBuiltin(ctx, "parameter_string", builtin_parameter_string);
+    VM_registerBuiltin(ctx, "shader_set", builtin_shader_set);
+    VM_registerBuiltin(ctx, "shader_reset", builtin_shader_reset);
+    VM_registerBuiltin(ctx, "shader_current", builtin_shader_current);
+    VM_registerBuiltin(ctx, "shader_is_compiled", builtin_shader_is_compiled); 
+    VM_registerBuiltin(ctx, "shader_get_name", builtin_shader_get_name);
+    VM_registerBuiltin(ctx, "shaders_are_supported", builtin_shaders_are_supported);  
+    VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
+    VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
+    VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF);
+    VM_registerBuiltin(ctx, "shader_set_uniform_i", builtin_shader_set_uniformI);
+    VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
+    VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
+    VM_registerBuiltin(ctx, "font_get_uvs", builtin_font_get_uvs);   
+    VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
+    VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
+    VM_registerBuiltin(ctx, "texture_get_uvs", builtin_texture_get_uvs);
+    VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
 }
