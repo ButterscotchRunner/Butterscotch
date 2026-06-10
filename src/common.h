@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+/* on some platforms, stdint.h exists but is incomplete */
 #ifndef UINT32_MAX
 #define UINT32_MAX 0xFFFFFFFFU
 #endif
