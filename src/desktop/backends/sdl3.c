@@ -8,6 +8,7 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
 #include <ctype.h>
 
 static Runner *g_runner;
@@ -434,11 +435,6 @@ bool platformHandleEvents(void) {
 
 void platformSleepUntil(uint64_t time) {
     int64_t remaining = time - nowNanos();
-    if (remaining > 2000000) {
-        SDL_Delay((Uint32)((remaining - 1000000) / 1000000));
-    }
-
-    remaining = time - nowNanos();
     if (remaining > 0) {
         SDL_DelayPrecise((Uint64)remaining);
     }
