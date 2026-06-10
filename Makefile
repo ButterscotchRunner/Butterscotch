@@ -185,28 +185,21 @@ all: build/butterscotch
 
 -include $(OBJS:.o=.d)
 
-ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
-
 -include compat/config.mk
 
 ifndef DISABLE_MMD
 DEPFLAGS = -MMD -MP -MF $(@:.o=.d)
 endif
 
-FORCE:
+$(shell \
+	printf '$(CC)' > compat/tmp/cc-new; \
+	cmp -s compat/tmp/cc-new compat/tmp/cc || \
+	mv compat/tmp/cc-new compat/tmp/cc; \
+	rm -f compat/tmp/cc-new \
+)
 
 compat/config.mk: compat/configure.sh compat/tmp/cc
-	@$(MAKE) distclean > /dev/null
 	@CC="$(CC)" $(SHELL) compat/configure.sh
-	@$(MAKE)
-	@exit 0
-
-compat/tmp/cc: FORCE
-	@printf '$(CC)' > compat/tmp/cc-new
-	@cmp -s compat/tmp/cc-new compat/tmp/cc || mv compat/tmp/cc-new compat/tmp/cc
-	@rm -f compat/tmp/cc-new
-
-endif
 
 build/butterscotch: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
