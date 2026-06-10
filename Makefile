@@ -185,6 +185,8 @@ all: build/butterscotch
 
 -include $(OBJS:.o=.d)
 
+ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
+
 -include compat/config.mk
 
 ifndef DISABLE_MMD
@@ -201,6 +203,8 @@ _dummy := $(shell \
 
 compat/config.mk: compat/configure.sh compat/tmp/cc
 	@CC="$(CC)" $(SHELL) compat/configure.sh
+
+endif
 
 build/butterscotch: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
