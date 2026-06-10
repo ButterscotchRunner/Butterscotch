@@ -127,7 +127,7 @@ static GLuint linkProgramCompat(GLuint vertShader, GLuint fragShader, bool *succ
         char infoLog[512];
         glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
         fprintf(stderr, "GL: %s Failed To Link: %s\n", shdr->name, infoLog);
-        success2 = false;
+        *success2 = false;
     } else {
         *success2 = true;
         fprintf(stderr, "GL: %s Linked!\n", shdr->name);
