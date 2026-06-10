@@ -11,6 +11,7 @@ fi
 cd "$scriptroot"
 
 : > config.mk
+: > tmp/config.log
 
 config() {
     printf '%s\n' "$1" >> config.mk
@@ -18,13 +19,16 @@ config() {
 
 check() {
     printf 'checking %s: ' "$1"
+    printf 'checking %s:\n' "$1" >> tmp/config.log
     shift
-    if $CC tmp/test.c -o tmp/a.out "$@" > /dev/null 2>&1; then
+    if $CC tmp/test.c -o tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printf 'yes\n'
+        printf 'result: yes\n' >> tmp/config.log
         rm -f tmp/a.out
         return 0
     else
         printf 'no\n'
+        printf 'result: no\n' >> tmp/config.log
         rm -f tmp/a.out
         return 1
     fi
@@ -34,12 +38,17 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
 
+check 'if the C compiler works' || exit 1
+
 printf 'checking if we are cross compiling: '
-$CC tmp/test.c -o tmp/a.out > /dev/null 2>&1
+printf 'checking if we are cross compiling:\n' >> tmp/config.log
+$CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1
 if tmp/a.out; then
     printf 'no\n'
+    printf 'result: no\n' >> tmp/config.log
 else
     printf 'yes\n'
+    printf 'result: yes\n' >> tmp/config.log
     cross_compiling=1
 fi
 rm -f tmp/a.out
