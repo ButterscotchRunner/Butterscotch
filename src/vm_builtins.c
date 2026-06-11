@@ -12913,6 +12913,28 @@ static RValue builtin_object_exists(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeBool(exists);
 }
 
+static RValue builtin_object_get_persistent(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeBool(false);
+    }
+
+    return RValue_makeBool(ctx->dataWin->objt.objects[id].persistent);
+}
+
+static RValue builtin_object_get_solid(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeBool(false);
+    }
+
+    return RValue_makeBool(ctx->dataWin->objt.objects[id].solid);
+}
+
 static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         fprintf(stderr, "[object_get_sprite] Expected at least 1 argument\n");
@@ -12922,6 +12944,39 @@ static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t ar
     int32_t id = RValue_toInt32(args[0]);
 
     return RValue_makeReal(ctx->dataWin->objt.objects[id].spriteId);
+}
+
+static RValue builtin_object_get_visible(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeBool(false);
+    }
+
+    return RValue_makeBool(ctx->dataWin->objt.objects[id].visible);
+}
+
+static RValue builtin_object_get_depth(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeReal(0.0);
+    }
+
+    return RValue_makeReal(ctx->dataWin->objt.objects[id].depth);
+}
+
+static RValue builtin_object_name(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeString("");
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeString("");
+    }
+
+    return RValue_makeString(ctx->dataWin->objt.objects[id].name);
 }
 
 static RValue builtin_object_get_parent(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -12935,6 +12990,61 @@ static RValue builtin_object_get_parent(VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(ctx->dataWin->objt.objects[id].parentId);
 }
 
+static RValue builtin_object_set_depth(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    GMLReal depth = RValue_toReal(args[1]);
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].depth = depth;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_parent(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t parentId = RValue_toInt32(args[1]);
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].parentId = parentId;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_persistent(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    bool persistent = RValue_toBool(args[1]);
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].persistent = persistent;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_solid(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    bool solid = RValue_toBool(args[1]);
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].solid = solid;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t spriteIndex = RValue_toReal(args[1]);
+    if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
+        ctx->dataWin->objt.objects[id].spriteId = spriteIndex;
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_object_set_visible(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
 
@@ -12944,6 +13054,22 @@ static RValue builtin_object_set_visible(VMContext* ctx, RValue* args, int32_t a
         ctx->dataWin->objt.objects[id].visible = visible;
     }
     return RValue_makeUndefined();
+}
+
+static RValue builtin_object_is_ancestor(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t ancestorId = RValue_toInt32(args[1]);
+
+    int32_t parentId = ctx->dataWin->objt.objects[id].parentId;
+    if (parentId == -1) return RValue_makeBool(false);
+
+    while (parentId != -1) {
+        if (parentId == ancestorId) return RValue_makeBool(true);
+        parentId = ctx->dataWin->objt.objects[parentId].parentId;
+    }
+    return RValue_makeBool(false);
 }
 
 // Shared implementation for font_add_sprite and font_add_sprite_ext
@@ -14325,9 +14451,20 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
+    VM_registerBuiltin(ctx, "object_get_depth", builtin_object_get_depth);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_name", builtin_object_name);
     VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
+    VM_registerBuiltin(ctx, "object_get_persistent", builtin_object_get_persistent);
+    VM_registerBuiltin(ctx, "object_get_solid", builtin_object_get_solid);
+    VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_set_depth", builtin_object_set_depth);
+    VM_registerBuiltin(ctx, "object_set_parent", builtin_object_set_parent);
+    VM_registerBuiltin(ctx, "object_set_persistent", builtin_object_set_persistent);
+    VM_registerBuiltin(ctx, "object_set_solid", builtin_object_set_solid);
+    VM_registerBuiltin(ctx, "object_set_sprite", builtin_object_set_sprite);
     VM_registerBuiltin(ctx, "object_set_visible", builtin_object_set_visible);
+    VM_registerBuiltin(ctx, "object_is_ancestor", builtin_object_is_ancestor);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
