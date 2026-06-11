@@ -164,6 +164,29 @@ static DsQueue* dsQueueGet(Runner* runner, int32_t id) {
     return &runner->dsQueuePool[id];
 }
 
+// ===[ DS_STACK SYSTEM ]===
+
+static int32_t dsStackCreate(Runner* runner) {
+    int32_t poolSize = (int32_t) arrlen(runner->dsStackPool);
+    repeat(poolSize, i) {
+        if (runner->dsStackPool[i].freed) {
+            runner->dsStackPool[i].freed = false;
+            runner->dsStackPool[i].items = nullptr;
+            return i;
+        }
+    }
+    DsStack s = {0};
+    int32_t id = poolSize;
+    arrput(runner->dsStackPool, s);
+    return id;
+}
+
+static DsStack* dsStackGet(Runner* runner, int32_t id) {
+    if (0 > id || id >= (int32_t) arrlen(runner->dsStackPool)) return nullptr;
+    if (runner->dsStackPool[id].freed) return nullptr;
+    return &runner->dsStackPool[id];
+}
+
 // ===[ BUILT-IN VARIABLE GET/SET ]===
 
 static bool isValidAlarmIndex(int alarmIndex) {
@@ -4402,6 +4425,179 @@ static RValue builtin_ds_list_write(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     dsStreamAppendU32(&buf, (uint32_t) len);
     dsStreamAppendValues(&buf, list->items, len);
     return dsStreamFinishToHexString(buf);
+}
+
+// ===[ DS_STACK FUNCTIONS ]===
+
+static RValue builtin_ds_stack_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal((GMLReal) dsStackCreate(ctx->runner));
+}
+
+static RValue builtin_ds_stack_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeUndefined();
+    repeat(arrlen(s->items), i) {
+        RValue_free(&s->items[i]);
+    }
+    arrfree(s->items);
+    s->items = nullptr;
+    s->freed = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_stack_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeUndefined();
+    repeat(arrlen(s->items), i) {
+        RValue_free(&s->items[i]);
+    }
+    arrfree(s->items);
+    s->items = nullptr;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_stack_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t destId = RValue_toInt32(args[0]);
+    int32_t srcId = RValue_toInt32(args[1]);
+    DsStack* dest = dsStackGet(ctx->runner, destId);
+    DsStack* src = dsStackGet(ctx->runner, srcId);
+    if (dest == nullptr || src == nullptr) return RValue_makeUndefined();
+    arrfree(dest->items);
+    dest->items = nullptr;
+    repeat(arrlen(src->items), i) {
+        arrput(dest->items, RValue_makeIndependent(src->items[i]));
+    }
+    dest->freed = false;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_stack_size(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeUndefined();
+    return RValue_makeReal((GMLReal) arrlen(s->items));
+}
+
+static RValue builtin_ds_stack_empty(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeBool(true);
+    return RValue_makeBool(arrlen(s->items) == 0);
+}
+
+static RValue builtin_ds_stack_push(VMContext* ctx, RValue* args, int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeUndefined();
+    
+    for (int32_t i = argCount - 1; i >= 1; --i) {
+        arrput(s->items, RValue_makeIndependent(args[i]));
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_stack_pop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    
+    if (s == nullptr || arrlen(s->items) == 0) return RValue_makeReal(0.0);
+    
+    int32_t lastIdx = arrlen(s->items) - 1;
+    RValue head = s->items[lastIdx];
+    arrdel(s->items, lastIdx); 
+    
+    return head;
+}
+
+static RValue builtin_ds_stack_top(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr || arrlen(s->items) == 0) return RValue_makeReal(0.0);
+    return RValue_makeIndependent(s->items[arrlen(s->items) - 1]);
+}
+
+static RValue builtin_ds_stack_write(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsStack* s = dsStackGet(ctx->runner, id);
+    if (s == nullptr) return RValue_makeUndefined();
+
+    uint8_t* buf = nullptr;
+    int32_t len = (int32_t) arrlen(s->items);
+    // Wire format mirrors GameMaker-HTML5 ds_stack.js
+    dsStreamAppendU32(&buf, 103);
+    dsStreamAppendU32(&buf, (uint32_t) len);
+    dsStreamAppendValues(&buf, s->items, len);
+    return dsStreamFinishToHexString(buf);
+}
+
+static RValue builtin_ds_stack_read(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    
+    if (args[1].type != RVALUE_STRING || args[1].string == nullptr || args[1].string[0] == '\0') {
+        return RValue_makeBool(false);
+    }
+    
+    DsStack* st = dsStackGet(ctx->runner, id);
+    if (st == nullptr) return RValue_makeBool(false);
+
+    const char* hex = args[1].string;
+    int32_t hexLen = (int32_t) strlen(hex);
+    if (2 > hexLen || (hexLen & 1) != 0) return RValue_makeBool(false);
+
+    int32_t byteLen = hexLen / 2;
+    uint8_t* bytes = safeMalloc((size_t) byteLen);
+    repeat(byteLen, i) {
+        int hi = dsHexNibble(hex[i * 2]);
+        int lo = dsHexNibble(hex[i * 2 + 1]);
+        if (hi < 0 || lo < 0) { 
+            free(bytes); 
+            return RValue_makeBool(false); 
+        }
+        bytes[i] = (uint8_t) ((hi << 4) | lo);
+    }
+
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
+    
+    uint32_t magic = dsStreamReadU32(&s);
+    int32_t version;
+    if (magic == 102) {
+        version = 3;
+    } else if (magic == 103) {
+        version = 0;
+    } else {
+        free(bytes);
+        return RValue_makeBool(false);
+    }
+
+    int32_t len = dsStreamReadS32(&s);
+    if (s.error || 0 > len) { 
+        free(bytes); 
+        return RValue_makeBool(false); 
+    }
+
+    // Replace stack contents
+    repeat(arrlen(st->items), i) {
+        RValue_free(&st->items[i]);
+    }
+    arrfree(st->items);
+    st->items = nullptr;
+
+    repeat(len, i) {
+        RValue v = dsStreamReadValue(&s, version);
+        if (s.error) { 
+            RValue_free(&v); 
+            free(bytes); 
+            return RValue_makeBool(false); 
+        }
+        arrput(st->items, v);
+    }
+
+    free(bytes);
+    return RValue_makeBool(true);
 }
 
 // ===[ DS_QUEUE FUNCTIONS ]===
@@ -13798,6 +13994,19 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_clear", builtin_ds_list_clear);
     VM_registerBuiltin(ctx, "ds_list_write", builtin_ds_list_write);
     VM_registerBuiltin(ctx, "ds_list_read", builtin_ds_list_read);
+
+    // ds_stack
+    VM_registerBuiltin(ctx, "ds_stack_create", builtin_ds_stack_create);
+    VM_registerBuiltin(ctx, "ds_stack_destroy", builtin_ds_stack_destroy);
+    VM_registerBuiltin(ctx, "ds_stack_clear", builtin_ds_stack_clear);
+    VM_registerBuiltin(ctx, "ds_stack_copy", builtin_ds_stack_copy);
+    VM_registerBuiltin(ctx, "ds_stack_size", builtin_ds_stack_size);
+    VM_registerBuiltin(ctx, "ds_stack_empty", builtin_ds_stack_empty);
+    VM_registerBuiltin(ctx, "ds_stack_push", builtin_ds_stack_push);
+    VM_registerBuiltin(ctx, "ds_stack_pop", builtin_ds_stack_pop);
+    VM_registerBuiltin(ctx, "ds_stack_top", builtin_ds_stack_top);
+    VM_registerBuiltin(ctx, "ds_stack_write", builtin_ds_stack_write);
+    VM_registerBuiltin(ctx, "ds_stack_read", builtin_ds_stack_read);
 
     // ds_queue
     VM_registerBuiltin(ctx, "ds_queue_create", builtin_ds_queue_create);

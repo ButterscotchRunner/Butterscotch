@@ -281,6 +281,11 @@ typedef struct {
     bool freed;    // true when the slot is destroyed and available for reuse by ds_queue_create
 } DsQueue;
 
+typedef struct {
+    RValue* items; // stb_ds dynamic array of RValues
+    bool freed;    // true when the slot is destroyed and available for reuse by ds_stack_create
+} DsStack;
+
 // ===[ GML Buffer System ]===
 
 // Buffer type constants (matching GML)
@@ -510,6 +515,7 @@ struct Runner {
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
+    DsStack* dsStackPool; // stb_ds array of DsStack    
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 
