@@ -159,6 +159,8 @@ typedef struct {
     // Center derived from camera_set_view_mat; kept so set_view_mat / set_proj_mat (which arrive in either order) can both recompute the top-left viewX/viewY once the size from the proj matrix is known.
     int32_t viewMatCenterX;
     int32_t viewMatCenterY;
+    Matrix4f ViewMatrix;
+    Matrix4f ProjectionMatrix;
 } GMLCamera;
 
 typedef struct {

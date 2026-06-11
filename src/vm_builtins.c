@@ -3020,20 +3020,20 @@ static RValue builtin_matrix_build_lookat(MAYBE_UNUSED VMContext *ctx, RValue *a
     Matrix4f_identity(&matrix);
 
     matrix.m[Matrix_getIndex(0, 0)] = xRight;
-    matrix.m[Matrix_getIndex(0, 1)] = xUp;
-    matrix.m[Matrix_getIndex(0, 2)] = xLook;
+    matrix.m[Matrix_getIndex(1, 0)] = xUp;
+    matrix.m[Matrix_getIndex(2, 0)] = xLook;
 
-    matrix.m[Matrix_getIndex(1, 0)] = yRight;
+    matrix.m[Matrix_getIndex(0, 1)] = yRight;
     matrix.m[Matrix_getIndex(1, 1)] = yUp;
-    matrix.m[Matrix_getIndex(1, 2)] = yLook;
+    matrix.m[Matrix_getIndex(2, 1)] = yLook;
 
-    matrix.m[Matrix_getIndex(2, 0)] = zRight;
-    matrix.m[Matrix_getIndex(2, 1)] = zUp;
+    matrix.m[Matrix_getIndex(0, 2)] = zRight;
+    matrix.m[Matrix_getIndex(1, 2)] = zUp;
     matrix.m[Matrix_getIndex(2, 2)] = zLook;
 
-    matrix.m[Matrix_getIndex(3, 0)] = -x;
-    matrix.m[Matrix_getIndex(3, 1)] = -y;
-    matrix.m[Matrix_getIndex(3, 2)] = -z;
+    matrix.m[Matrix_getIndex(0, 3)] = -x;
+    matrix.m[Matrix_getIndex(1, 3)] = -y;
+    matrix.m[Matrix_getIndex(2, 3)] = -z;
 
     bool toPrevMatrix = argCount == 10;
     GMLArray *destArray = toPrevMatrix ? args[9].array : nullptr;
@@ -3555,7 +3555,22 @@ static RValue builtin_camera_set_view_mat(VMContext* ctx, RValue* args, int32_t 
     camera->viewMatCenterY = (int32_t) lround(-m.m[Matrix_getIndex(3, 1)]);
     camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
     camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
+    camera->ViewMatrix = m;
     return RValue_makeUndefined();
+}
+
+static RValue builtin_camera_get_view_mat(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
+    if (camera == nullptr) return RValue_makeUndefined();
+    return RValue_makeArray(matrixToGml(&camera->ViewMatrix));
+}
+
+static RValue builtin_camera_get_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
+    if (camera == nullptr) return RValue_makeUndefined();
+    return RValue_makeArray(matrixToGml(&camera->ProjectionMatrix));
 }
 
 static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3572,6 +3587,8 @@ static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t 
     if (m11 != 0.0) camera->viewHeight = (int32_t) lround(GMLReal_fabs(2.0 / m11));
     camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
     camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
+    camera->ProjectionMatrix = m;
+    camera->ProjectionMatrix.m[Matrix_getIndex(1, 1)] = -m.m[Matrix_getIndex(1, 1)];
     return RValue_makeUndefined();
 }
 
@@ -3759,9 +3776,14 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera != nullptr) {
-        Matrix4f worldToClip;
-        Matrix4f_viewProjection(&worldToClip, (float) camera->viewX, (float) camera->viewY, (float) camera->viewWidth, (float) camera->viewHeight, camera->viewAngle);
-        runner->renderer->vtable->applyProjection(runner->renderer, &worldToClip);
+  
+        Matrix4f ViewMatrix = camera->ViewMatrix;
+        Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
+        Matrix4f FinalProjection;
+        Matrix4f_multiply(&FinalProjection, &ProjectionMatrix, &ViewMatrix);
+  
+        runner->renderer->vtable->applyProjection(runner->renderer, &FinalProjection);
+
     }
     return RValue_makeUndefined();
 }
@@ -16288,7 +16310,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "camera_get_view_height", builtin_camera_get_view_height);
     VM_registerBuiltin(ctx, "camera_set_view_pos", builtin_camera_set_view_pos);
     VM_registerBuiltin(ctx, "camera_set_view_mat", builtin_camera_set_view_mat);
+    VM_registerBuiltin(ctx, "camera_get_view_mat", builtin_camera_get_view_mat);
     VM_registerBuiltin(ctx, "camera_set_proj_mat", builtin_camera_set_proj_mat);
+    VM_registerBuiltin(ctx, "camera_get_proj_mat", builtin_camera_get_proj_mat);
     VM_registerBuiltin(ctx, "camera_get_view_target", builtin_camera_get_view_target);
     VM_registerBuiltin(ctx, "camera_set_view_target", builtin_camera_set_view_target);
     VM_registerBuiltin(ctx, "camera_get_view_border_x", builtin_camera_get_view_border_x);

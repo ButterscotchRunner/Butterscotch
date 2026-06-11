@@ -663,6 +663,7 @@ static void glEndView(Renderer* renderer) {
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
 static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
     Matrix4f projection = *worldToClip;
@@ -670,6 +671,7 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     renderer->previousViewMatrix = projection;
+    
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
