@@ -45,6 +45,8 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
+    elseif(PLATFORM STREQUAL "libretro")
+        set(AUDIO_BACKEND "none")
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -104,6 +106,8 @@ file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
 if(PLATFORM STREQUAL "android")
     add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+elseif(PLATFORM STREQUAL "libretro")
+    add_library(butterscotch MODULE ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
@@ -684,6 +688,44 @@ elseif(PLATFORM STREQUAL "ps3")
     # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
     target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
+elseif(PLATFORM STREQUAL "libretro")
+    # bzip2 needs -fPIC for linking into shared library
+    set_target_properties(bzip2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    # SW renderer, image decoder, stb image loader
+    target_sources(butterscotch PRIVATE
+        src/sw/sw_renderer.c
+        src/image/image_decoder.c
+        src/desktop/stb_impl.c
+    )
+    target_include_directories(butterscotch PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/sw
+        ${CMAKE_SOURCE_DIR}/src/image
+        ${CMAKE_SOURCE_DIR}/src/desktop
+        ${CMAKE_SOURCE_DIR}/src/libretro
+        vendor/stb/image
+    )
+
+    # Rename output to butterscotch_libretro.so
+    set_target_properties(butterscotch PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "butterscotch_libretro"
+    )
+
+    # Version script for symbol visibility
+    target_link_options(butterscotch PRIVATE
+        -Wl,--version-script=${CMAKE_SOURCE_DIR}/src/libretro/link.T
+        -Wl,--no-undefined
+    )
+
+    # Libraries
+    find_library(DL_LIB dl)
+    target_link_libraries(butterscotch PRIVATE bzip2 m ${DL_LIB})
+
+    target_compile_definitions(butterscotch PRIVATE
+        _GNU_SOURCE
+        _FILE_OFFSET_BITS=64
+    )
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()
