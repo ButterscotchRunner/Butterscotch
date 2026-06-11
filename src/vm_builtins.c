@@ -12968,7 +12968,7 @@ static RValue builtin_object_get_depth(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(ctx->dataWin->objt.objects[id].depth);
 }
 
-static RValue builtin_object_name(VMContext* ctx, RValue* args, int32_t argCount) {
+static RValue builtin_object_get_name(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeString("");
 
     int32_t id = RValue_toInt32(args[0]);
@@ -14453,7 +14453,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_depth", builtin_object_get_depth);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
-    VM_registerBuiltin(ctx, "object_name", builtin_object_name);
+    VM_registerBuiltin(ctx, "object_get_name", builtin_object_get_name);
+    VM_registerBuiltin(ctx, "object_name", builtin_object_get_name); // alias for pre-GMS 2.3
     VM_registerBuiltin(ctx, "object_get_parent", builtin_object_get_parent);
     VM_registerBuiltin(ctx, "object_get_persistent", builtin_object_get_persistent);
     VM_registerBuiltin(ctx, "object_get_solid", builtin_object_get_solid);
