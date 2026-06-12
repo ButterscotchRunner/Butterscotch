@@ -130,6 +130,7 @@ typedef struct {
     int32_t (*shaderGetUniform)(Renderer* renderer, int32_t shaderIndex, char* uniform);
     int32_t (*shaderGetSamplerIndex)(Renderer* renderer, int32_t shaderIndex, char* uniform);
     void (*shaderSetUniformF)(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4);
+    void (*shaderSetUniformFArray)(Renderer* renderer, int32_t handle, float* values, uint32_t count);
     void (*shaderSetUniformI)(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4);
     // Returns a texture pointer for a specific sprite, where 0 = "no texture".
     uint32_t (*spriteGetTexture)(Renderer* renderer, int32_t tpagIndex);

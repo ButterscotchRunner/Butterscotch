@@ -1663,6 +1663,7 @@ static void glGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
 static int32_t glShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static int32_t glShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static void glShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void glShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void glShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool glShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
 static bool glShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
@@ -1730,6 +1731,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.shaderGetUniform = glShaderGetUniform;
     glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex;
     glVtable.shaderSetUniformF = glShaderSetUniformF;
+    glVtable.shaderSetUniformFArray = glShaderSetUniformFArray;
     glVtable.shaderSetUniformI = glShaderSetUniformI;
     glVtable.shaderIsCompiled = glShaderIsCompiled;
     glVtable.shadersSupported = glShadersSupported;

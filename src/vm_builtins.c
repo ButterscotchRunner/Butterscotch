@@ -14132,6 +14132,31 @@ static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* a
     return RValue_makeUndefined();
 }
 
+static RValue builtin_shader_set_uniform_f_array(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (argCount < 2) return RValue_makeUndefined();
+    
+    int32_t handle = (int32_t) RValue_toReal(args[0]);
+    if (args[1].type != RVALUE_ARRAY || args[1].array == nullptr) {
+        return RValue_makeUndefined();
+    }
+    
+    GMLArray* arr = args[1].array;
+    uint32_t count = GMLArray_length1D(arr);
+    if (count == 0) return RValue_makeUndefined();
+    
+    float* values = safeMalloc(count * sizeof(float));
+    for (uint32_t i = 0; i < count; i++) {
+        values[i] = (float) RValue_toReal(*GMLArray_slot(arr, i));
+    }
+    
+    if (ctx->runner->renderer->vtable->shaderSetUniformFArray != nullptr) {
+        ctx->runner->renderer->vtable->shaderSetUniformFArray(ctx->runner->renderer, handle, values, count);
+    }
+    
+    free(values);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_shader_set_uniformI(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t handle = (int32_t) RValue_toReal(args[0]);
     int32_t value1 = 0, value2 = 0, value3 = 0, value4 = 0;
@@ -15211,6 +15236,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "shader_get_uniform", builtin_shader_get_uniform);
     VM_registerBuiltin(ctx, "shader_get_sampler_index", builtin_shader_get_sampler_index);
     VM_registerBuiltin(ctx, "shader_set_uniform_f", builtin_shader_set_uniformF);
+    VM_registerBuiltin(ctx, "shader_set_uniform_f_array", builtin_shader_set_uniform_f_array);
     VM_registerBuiltin(ctx, "shader_set_uniform_i", builtin_shader_set_uniformI);
     VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
     VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);

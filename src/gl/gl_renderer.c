@@ -2034,6 +2034,42 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
 
 }
 
+static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    
+    if (renderer->currentShader != -1) {
+        GLuint Shader = gl->gmlShaders[renderer->currentShader];
+        GLint UniformCount;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
+        GLint LongestUniformName = 0;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
+        char *UniformName = safeMalloc(LongestUniformName);
+
+        GLenum actualType = GL_FLOAT;
+        for (GLint b = 0; b < UniformCount; b++) {
+            GLsizei length = 0;
+            GLint size = 0;
+            GLenum type = 0;
+            glGetActiveUniform(Shader, b, LongestUniformName, &length, &size, &type, UniformName);
+            int32_t location = glGetUniformLocation(Shader, UniformName);
+            if (location == handle) {
+                actualType = type;
+                break;
+            }
+        }
+        free(UniformName);
+
+        if (actualType == GL_FLOAT) glUniform1fv(handle, count, values);
+        else if (actualType == GL_FLOAT_VEC2) glUniform2fv(handle, count / 2, values);
+        else if (actualType == GL_FLOAT_VEC3) glUniform3fv(handle, count / 3, values);
+        else if (actualType == GL_FLOAT_VEC4) glUniform4fv(handle, count / 4, values);
+        else if (actualType == GL_FLOAT_MAT4) glUniformMatrix4fv(handle, count / 16, GL_FALSE, values);
+        else if (actualType == GL_FLOAT_MAT3) glUniformMatrix3fv(handle, count / 9, GL_FALSE, values);
+        else if (actualType == GL_FLOAT_MAT2) glUniformMatrix2fv(handle, count / 4, GL_FALSE, values);
+    }
+}
+
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
@@ -2235,6 +2271,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuResetShader = glGpuResetShader,
     glVtable.shaderGetUniform = glShaderGetUniform,
     glVtable.shaderSetUniformF = glShaderSetUniformF,
+    glVtable.shaderSetUniformFArray = glShaderSetUniformFArray,
     glVtable.shaderSetUniformI = glShaderSetUniformI,
     glVtable.spriteGetTexture = glSpriteGetTexture,
     glVtable.surfaceGetTexture = glSurfaceGetTexture,
