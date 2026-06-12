@@ -302,13 +302,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name);
         bool vertexShaderOK = false;
         bool fragmentShaderOK = false;
-#ifdef ENABLE_GLES
+#if defined(ENABLE_GLES2) || defined(ENABLE_GLES)
         GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, shdr->glslES_Vertex, &vertexShaderOK);
 #else
         GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, shdr->glsl_Vertex, &vertexShaderOK);
 #endif
         fprintf(stderr, "GL: Compiling %s Fragment Shader\n", shdr->name);
-#ifdef ENABLE_GLES
+#if defined(ENABLE_GLES2) || defined(ENABLE_GLES)
         GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, shdr->glslES_Fragment, &fragmentShaderOK);
 #else
         GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, shdr->glsl_Fragment, &fragmentShaderOK);
