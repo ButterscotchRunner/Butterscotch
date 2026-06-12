@@ -93,11 +93,15 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
     } else if (gfx == MODERN_GL) {
-#ifdef ENABLE_GLES
+#if defined(ENABLE_GLES2) || defined(ENABLE_GLES)
 #ifdef SDL_GL_CONTEXT_PROFILE_MASK
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
+#if defined(ENABLE_GLES2)
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+#elif defined(ENABLE_GLES)
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+#endif
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 #else
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);

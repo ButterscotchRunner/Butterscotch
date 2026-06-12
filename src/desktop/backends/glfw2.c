@@ -159,13 +159,15 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
     } else {
-#ifdef ENABLE_GLES
+#if defined(ENABLE_GLES2) || defined(ENABLE_GLES)
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+#ifdef ENABLE_GLES2
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 2);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
 #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+#endif
         glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);

@@ -93,6 +93,12 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
+# OpenGL ES 2.0 / WebGL2 compatibility
+option(ENABLE_GLES2 "Build the gl_renderer against OpenGL ES 2.0 / WebGL 1.0 instead of desktop GL 4.1 Core" OFF)
+if (ENABLE_GLES2 AND ENABLE_LEGACY_GL)
+    set(ENABLE_LEGACY_GL OFF)
+endif()
+
 # OpenGL ES 3.0 / WebGL2 compatibility
 option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
 if (ENABLE_GLES AND ENABLE_LEGACY_GL)

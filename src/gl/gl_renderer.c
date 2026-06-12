@@ -2,7 +2,11 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 
-#ifdef __EMSCRIPTEN__
+#ifdef ENABLE_GLES2
+    #ifdef __EMSCRIPTEN__
+    #include <GLES2/gl2.h>
+    #endif
+#elif defined(__EMSCRIPTEN__)
 #include <GLES3/gl3.h>
 #else
 #include <glad/glad.h>
@@ -26,25 +30,50 @@
 #define INDICES_PER_QUAD 6
 
 // ===[ Shader Sources ]===
-#ifdef ENABLE_GLES
+#ifdef ENABLE_GLES2
+    #define GLSL_VERSION_DIRECTIVE "#version 100\n"
+    #define GLSL_VERTEX_PRECISION  "precision highp float;\n"
+    #define GLSL_FRAGMENT_PRECISION "precision mediump float;\n"
+    #define LAYOUT_LOC(x) ""
+    #define VTX_IN "attribute "
+    #define VTX_OUT "varying "
+    #define FRAG_IN "varying "
+    #define TEXTURE_SAMPLE "texture2D"
+    #define FRAG_COLOR_DECL ""
+    #define FRAG_COLOR "gl_FragColor"
+#elif defined(ENABLE_GLES)
     #define GLSL_VERSION_DIRECTIVE "#version 300 es\n"
     #define GLSL_VERTEX_PRECISION  "precision highp float;\n"
     #define GLSL_FRAGMENT_PRECISION "precision mediump float;\n"
+    #define LAYOUT_LOC(x) "layout(location = " #x ") "
+    #define VTX_IN "in "
+    #define VTX_OUT "out "
+    #define FRAG_IN "in "
+    #define TEXTURE_SAMPLE "texture"
+    #define FRAG_COLOR_DECL "out vec4 fragColor;\n"
+    #define FRAG_COLOR "fragColor"
 #else
     #define GLSL_VERSION_DIRECTIVE "#version 410 core\n"
     #define GLSL_VERTEX_PRECISION  ""
     #define GLSL_FRAGMENT_PRECISION ""
+    #define LAYOUT_LOC(x) "layout(location = " #x ") "
+    #define VTX_IN "in "
+    #define VTX_OUT "out "
+    #define FRAG_IN "in "
+    #define TEXTURE_SAMPLE "texture"
+    #define FRAG_COLOR_DECL "out vec4 fragColor;\n"
+    #define FRAG_COLOR "fragColor"
 #endif
 
 static const char* vertexShaderSource =
     GLSL_VERSION_DIRECTIVE
     GLSL_VERTEX_PRECISION
-    "layout(location = 0) in vec2 aPos;\n"
-    "layout(location = 1) in vec4 aColor;\n"
-    "layout(location = 2) in vec2 aTexCoord;\n"
+    LAYOUT_LOC(0) VTX_IN "vec2 aPos;\n"
+    LAYOUT_LOC(1) VTX_IN "vec4 aColor;\n"
+    LAYOUT_LOC(2) VTX_IN "vec2 aTexCoord;\n"
     "uniform mat4 uProjection;\n"
-    "out vec2 vTexCoord;\n"
-    "out vec4 vColor;\n"
+    VTX_OUT "vec2 vTexCoord;\n"
+    VTX_OUT "vec4 vColor;\n"
     "void main() {\n"
     "    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);\n"
     "    vTexCoord = aTexCoord;\n"
@@ -54,21 +83,21 @@ static const char* vertexShaderSource =
 static const char* fragmentShaderSource =
     GLSL_VERSION_DIRECTIVE
     GLSL_FRAGMENT_PRECISION
-    "in vec2 vTexCoord;\n"
-    "in vec4 vColor;\n"
+    FRAG_IN "vec2 vTexCoord;\n"
+    FRAG_IN "vec4 vColor;\n"
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n"
     "uniform bool uAlphaTestEnabled;\n"
-    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
-    "out vec4 fragColor;\n"
+    "uniform vec4 uFogColor;\n"
+    FRAG_COLOR_DECL
     "void main() {\n"
-    "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
+    "    vec4 c = " TEXTURE_SAMPLE "(uTexture, vTexCoord) * vColor;\n"
     "   if (uAlphaTestEnabled)"
     "   {"
     "       if (uAlphaTestRef >= c.a) discard;\n"
     "   }"
     "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
-    "    fragColor = c;\n"
+    "    " FRAG_COLOR " = c;\n"
     "}\n";
 
 
@@ -96,6 +125,13 @@ static GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
     GLuint program = glCreateProgram();
     glAttachShader(program, vertShader);
     glAttachShader(program, fragShader);
+
+#ifdef ENABLE_GLES2
+    glBindAttribLocation(program, 0, "aPos");
+    glBindAttribLocation(program, 1, "aColor");
+    glBindAttribLocation(program, 2, "aTexCoord");
+#endif
+
     glLinkProgram(program);
 
     GLint success;
@@ -149,7 +185,17 @@ static void flushBatch(GLRenderer* gl) {
         const GLchar* name = "gm_BaseTexture";
         GLuint index;
 
-        glGetUniformIndices(Shader, 1, &name, &index);
+        if (gl->base.currentShader != -1) {
+            int32_t index = gl->gmBaseTextureIndex[gl->base.currentShader];
+            if (index != -1) {
+                int32_t slot = gl->sampler2DLookUpTable[gl->base.currentShader][index];
+                glActiveTexture(GL_TEXTURE0 + slot);
+                glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
+            }
+        } else {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
+        }
 
         if (index != GL_INVALID_INDEX)
         {
@@ -175,17 +221,28 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
-    // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
-    glBindVertexArray(gl->vao);
+#ifdef ENABLE_GLES2
+        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
-
-
+        int32_t stride = FLOATS_PER_VERTEX * sizeof(float);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+#else
+        // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
+        // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
+        glBindVertexArray(gl->vao);
+        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+#endif
 
     if (gl->batchType == BATCHTYPE_QUAD) {
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, nullptr);
     } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
         glDrawArrays(GL_TRIANGLES, 0, gl->batchCount * VERTICES_PER_TRIANGLE);
     } else {
@@ -263,20 +320,23 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         int32_t SamplerIndex = 0;
         GLint UniformCount;
         glGetProgramiv(gl->gmlShaders[i], GL_ACTIVE_UNIFORMS, &UniformCount);
-        
+
         //I know it looks baddd.... butttt it works
         gl->sampler2DLookUpTable[i] = safeMalloc(UniformCount * sizeof(int32_t));
+        gl->gmBaseTextureIndex = safeRealloc(gl->gmBaseTextureIndex, gl->gmlShaderCount * sizeof(int32_t));
+        gl->gmBaseTextureIndex[i] = -1; // Default state
+
         GLint LongestUniformName = 0;
         glGetProgramiv(gl->gmlShaders[i], GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
         char *UniformName = safeMalloc(LongestUniformName+1);
 
         for (GLint b = 0; b < UniformCount; b++) {
-            
+
             GLsizei length = 0;
             GLint size = 0;
             GLenum type = 0;
             glGetActiveUniform(gl->gmlShaders[i], b, LongestUniformName, &length, &size, &type, UniformName);
-            
+
             gl->sampler2DLookUpTable[i][b] = -1;
             if (type == GL_SAMPLER_2D)
             {
@@ -287,6 +347,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
                 SamplerIndex += 1;
             }
 
+            if (strcmp(UniformName, "gm_BaseTexture") == 0) {
+                gl->gmBaseTextureIndex[i] = b;
+            }
         }
 
         free(UniformName);
@@ -310,23 +373,25 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUniform1f(gl->uAlphaTestRef, -1.0f);
     glUniform4f(gl->uFogColor, 0.0f, 0.0f, 0.0f, 0.0f);
 
-    // Create VAO/VBO/EBO
+// Create VAO/VBO/EBO
+#ifndef ENABLE_GLES2
     glGenVertexArrays(1, &gl->vao);
+    glBindVertexArray(gl->vao);
+#endif
+
     glGenBuffers(1, &gl->vbo);
     glGenBuffers(1, &gl->ebo);
-
-    glBindVertexArray(gl->vao);
 
     // VBO: sized for max quads
     int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * (int32_t) sizeof(float);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 
-    // EBO: pre-fill with quad index pattern (0,1,2,2,3,0 repeated)
-    int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * (int32_t) sizeof(uint32_t);
-    uint32_t* indices = safeMalloc(eboSize);
+    // EBO: pre-fill with quad index pattern using 16-bit indices (globally optimized)
+    int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * (int32_t) sizeof(uint16_t);
+    uint16_t* indices = safeMalloc(eboSize);
     for (int32_t i = 0; MAX_QUADS > i; i++) {
-        uint32_t base = (uint32_t) i * 4;
+        uint16_t base = (uint16_t) i * 4;
         indices[i * 6 + 0] = base + 0;
         indices[i * 6 + 1] = base + 1;
         indices[i * 6 + 2] = base + 2;
@@ -340,6 +405,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     // Vertex attributes: pos(2f), texcoord(2f), color(4f)
     int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
+#ifndef ENABLE_GLES2
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
@@ -348,6 +414,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
+#endif
 
     // Allocate CPU-side vertex buffer
     gl->vertexData = safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * sizeof(float));
@@ -405,9 +472,9 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
 
 
     GLint gm_FogStart = glGetUniformLocation(Shader, "gm_FogStart");
-    GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");  
+    GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");
     GLint gm_PS_FogEnabled = glGetUniformLocation(Shader, "gm_PS_FogEnabled");
-    GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");    
+    GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");
     GLint gm_VS_FogEnabled = glGetUniformLocation(Shader, "gm_VS_FogEnabled");
 
     //Lights are for another time
@@ -463,7 +530,7 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     glUniformMatrix4fv(gl->uProjection, 1, GL_FALSE, renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION].m);
     glUniform4f(gl->uFogColor, FogR, FoGG, FogB, gl->fogEnable ? 1.0f : 0.0f);
     glUniform1f(gl->uAlphaTestRef, gl->alphaTestRef);
-    glUniform1i(gl->uAlphaTestEnabled, gl->alphaTestEnable);   
+    glUniform1i(gl->uAlphaTestEnabled, gl->alphaTestEnable);
     glUniform1i(gl->uTexture, 1);
     }
 }
@@ -493,7 +560,9 @@ static void glDestroy(Renderer* renderer) {
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
     glDeleteProgram(gl->shaderProgram);
+#ifndef ENABLE_GLES2
     glDeleteVertexArrays(1, &gl->vao);
+#endif
     glDeleteBuffers(1, &gl->vbo);
     glDeleteBuffers(1, &gl->ebo);
 
@@ -553,8 +622,9 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
-
+#ifndef ENABLE_GLES2
     glBindVertexArray(gl->vao);
+#endif
     renderer->previousViewMatrix = projection;
 
 }
@@ -605,8 +675,9 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
-
+#ifndef ENABLE_GLES2
     glBindVertexArray(gl->vao);
+#endif
 }
 
 static void glEndGUI(Renderer* renderer) {
@@ -617,8 +688,9 @@ static void glEndGUI(Renderer* renderer) {
 
 static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
+#ifndef ENABLE_GLES2
     glBindVertexArray(0);
-
+#endif
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
@@ -1832,7 +1904,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     if (gl->alphaTestRef == refF) return;
     flushBatch(gl);
     gl->alphaTestRef = refF;
-    glShaderSettingsRefresh(renderer); 
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
@@ -1867,7 +1939,7 @@ static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char*
     flushBatch(gl);
     GLuint Shader = gl->gmlShaders[shaderIndex];
 
-    return glGetUniformLocation(Shader, uniform);   
+    return glGetUniformLocation(Shader, uniform);
 }
 
 static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
