@@ -146,7 +146,7 @@ typedef struct {
     bool (*textureGetUVs)(Renderer* renderer, uint32_t texID, float* outUVs);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
-    bool (*shadersSupported)(Renderer* renderer);
+    bool (*shadersSupported)(void);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===

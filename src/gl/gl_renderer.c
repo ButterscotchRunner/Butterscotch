@@ -403,12 +403,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
     GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
 
-
-    GLint gm_FogStart = glGetUniformLocation(Shader, "gm_FogStart");
-    GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");  
-    GLint gm_PS_FogEnabled = glGetUniformLocation(Shader, "gm_PS_FogEnabled");
     GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");    
-    GLint gm_VS_FogEnabled = glGetUniformLocation(Shader, "gm_VS_FogEnabled");
 
     //Lights are for another time
 
@@ -1803,6 +1798,9 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    // TODO: implement these
+    (void)smooth;
+    (void)removeback;
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1927,7 +1925,7 @@ static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-
+    (void)renderer;
     return glIsEnabled(GL_BLEND);
 }
 
@@ -2220,7 +2218,7 @@ static bool glShaderIsCompiled(Renderer* renderer, int32_t shaderID) {
     return gl->gmlShaderCompiled[shaderID];
 }
 
-static bool glShadersSupported(Renderer* renderer) {
+static bool glShadersSupported(void) {
     return true;
 }
 

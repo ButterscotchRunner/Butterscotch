@@ -1,11 +1,15 @@
 #include "gs_renderer.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <gsInline.h>
+#pragma GCC diagnostic pop
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <kernel.h>
-#include <gsInline.h>
 
 #include "binary_reader.h"
 #include "binary_utils.h"
@@ -2877,7 +2881,11 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     // Restore default REPEAT so subsequent atlas draws aren't stuck on this region.
     gsKit_set_clamp(gs->gsGlobal, GS_CMODE_REPEAT);
 }
-static void gsSurfaceResize(MAYBE_UNUSED Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+static void gsSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+    (void)renderer;
+    (void)surfaceID;
+    (void)width;
+    (void)height;
     // No-op: PS2 doesn't actually resize anything
 }
 
@@ -3052,7 +3060,7 @@ static void gsShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED in
 static void gsShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void gsShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool gsShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool gsShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool gsShadersSupported(void) { return false; }
 
 static RendererVtable gsVtable;
 

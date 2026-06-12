@@ -32,6 +32,8 @@
 #include "base64.h"
 #include "gettime.h"
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 #define MAX_BACKGROUNDS 8
 
 // See GameMaker-HTML's Function_Layers.js
@@ -11182,9 +11184,9 @@ static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args
 
     if (ctx->currentInstance != nullptr) {
         Instance* inst = ctx->currentInstance;
-        Runner* runner = ctx->runner;
 
 #ifdef ENABLE_VM_TRACING
+        Runner* runner = ctx->runner;
         if (shgeti(ctx->alarmsToBeTraced, "*") != -1 || shgeti(ctx->alarmsToBeTraced, runner->dataWin->objt.objects[inst->objectIndex].name) != -1) {
             fprintf(stderr, "VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, alarmIndex, steps, inst->instanceId);
         }
@@ -12268,6 +12270,8 @@ static RuntimeBackgroundElement* findBackgroundElement(Runner* runner, int32_t e
     return el->backgroundElement;
 }
 
+#if IS_WAD17_OR_HIGHER_ENABLED
+
 // Resolves a tilemap element id to its tiles data + owning runtime layer.
 static RoomLayerTilesData* findTilemapData(Runner* runner, int32_t elementId, RuntimeLayer** outLayer) {
     if (outLayer != nullptr) *outLayer = nullptr;
@@ -12278,6 +12282,8 @@ static RoomLayerTilesData* findTilemapData(Runner* runner, int32_t elementId, Ru
     if (outLayer != nullptr) *outLayer = owner;
     return el->tilemapData;
 }
+
+#endif
 
 #define setBackgroundLayerField(id, value, targetParameter) \
     RuntimeBackgroundElement* bg = findBackgroundElement(runner, id); \
@@ -13998,7 +14004,7 @@ static RValue builtin_json_encode(VMContext* ctx, RValue* args, int32_t argCount
     Runner* runner = ctx->runner;
     int32_t mapIndex = RValue_toInt32(args[0]);
     // TODO: Implement prettify!
-    bool prettify = argCount == 2 ? RValue_toBool(args[1]) : false;
+    //bool prettify = argCount == 2 ? RValue_toBool(args[1]) : false;
     DsMapEntry** mapPtr = dsMapGet(runner, mapIndex);
     bool useFloatMarkers = DataWin_isVersionAtLeast(ctx->dataWin, 2023, 2, 0, 0);
 
@@ -14088,17 +14094,6 @@ static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t ar
     int32_t id = RValue_toInt32(args[0]);
 
     return RValue_makeReal(ctx->dataWin->objt.objects[id].spriteId);
-}
-
-static RValue builtin_object_get_visible(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (1 > argCount) return RValue_makeBool(false);
-
-    int32_t id = RValue_toInt32(args[0]);
-    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
-        return RValue_makeBool(false);
-    }
-
-    return RValue_makeBool(ctx->dataWin->objt.objects[id].visible);
 }
 
 static RValue builtin_object_get_depth(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -14605,7 +14600,7 @@ static RValue builtin_shader_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED
 }
 
 static RValue builtin_shaders_are_supported(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    return RValue_makeBool(ctx->runner->renderer->vtable->shadersSupported(ctx->runner->renderer));
+    return RValue_makeBool(ctx->runner->renderer->vtable->shadersSupported());
 }
 
 static RValue builtin_shader_get_uniform(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -14773,15 +14768,6 @@ static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MA
     *GMLArray_slot(out, 2) = RValue_makeReal(right);
     *GMLArray_slot(out, 3) = RValue_makeReal(bottom);
     return RValue_makeArray(out);
-}
-
-static RValue builtin_font_get_texture(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    //see if it works
-    int32_t fontIndex = (int32_t) RValue_toReal(args[0]);
-    Font* font = &ctx->runner->dataWin->font.fonts[fontIndex];
-    int32_t TpagIndex = font->tpagIndex;
-
-    return RValue_makeInt32(ctx->runner->renderer->vtable->spriteGetTexture(ctx->runner->renderer, TpagIndex));
 }
 
 static RValue builtin_texture_get_texel_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {

@@ -712,6 +712,8 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
             fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
         }
     }
+#else
+    (void)runner;
 #endif
 
     instance->active = active;

@@ -9,7 +9,10 @@
 #include "stb_vorbis.c"
 
 #define MINIAUDIO_IMPLEMENTATION
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 #include "miniaudio.h"
+#pragma GCC diagnostic pop
 
 #include "ma_audio_system.h"
 #include "data_win.h"

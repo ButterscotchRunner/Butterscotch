@@ -1226,6 +1226,9 @@ static uint32_t findOrAllocTpagSlot(DataWin* dw, uint32_t originalTpagCount) {
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    // TODO: implement these
+    (void)smooth;
+    (void)removeback;
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1340,7 +1343,8 @@ static void glGpuSetBlendModeExt(MAYBE_UNUSED Renderer* renderer, int32_t sfacto
     glBlendFunc(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor));
 }
 
-static void glGpuSetBlendEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
+    (void)renderer;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 }
 
@@ -1680,7 +1684,7 @@ static void glShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED in
 static void glShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void glShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool glShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool glShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool glShadersSupported(void) { return false; }
 
 static RendererVtable glVtable;
 

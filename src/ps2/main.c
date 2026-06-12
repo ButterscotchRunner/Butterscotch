@@ -238,6 +238,7 @@ static unsigned int hidUsageToAsciiChar(uint8_t hid, bool shift) {
 
 
 int main(int argc, char* argv[]) {
+    (void)argc;
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
@@ -552,7 +553,6 @@ int main(int argc, char* argv[]) {
     // ===[ Main Loop ]===
     bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getObject(configRoot, "debugOverlayEnabled"));
     PS2Overlay_setDebugOverlayState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
-    uint16_t prevOverlayPadButtons = 0xFFFF;
 
     u64 lastFrameStartTime = GetTimerSystemTime(); // for delta_time
     while (!runner->shouldExit) {
