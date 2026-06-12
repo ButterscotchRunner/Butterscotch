@@ -270,7 +270,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+#ifdef __EMSCRIPTEN__
+    gl->hasVAOs = true;
+#else
     gl->hasVAOs = (glBindVertexArray != NULL && glGenVertexArrays != NULL);
+#endif
 
     //compile shaders
     // If the default shaders fail we have bigger issues
