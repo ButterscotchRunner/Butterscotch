@@ -3513,8 +3513,6 @@ static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t 
     GMLReal m11 = m.m[Matrix_getIndex(1, 1)];
     if (m00 != 0.0) camera->viewWidth = (int32_t) lround(GMLReal_fabs(2.0 / m00));
     if (m11 != 0.0) camera->viewHeight = (int32_t) lround(GMLReal_fabs(2.0 / m11));
-    camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
-    camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
     camera->ProjectionMatrix = m;
     camera->ProjectionMatrix.m[Matrix_getIndex(1, 1)] = -m.m[Matrix_getIndex(1, 1)];
     return RValue_makeUndefined();
