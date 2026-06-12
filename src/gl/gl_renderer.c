@@ -221,7 +221,13 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-#ifdef ENABLE_GLES2
+    if (gl->hasVAOs) {
+        // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
+        // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
+        glBindVertexArray(gl->vao);
+        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+    } else {
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
@@ -233,13 +239,7 @@ static void flushBatch(GLRenderer* gl) {
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
         glEnableVertexAttribArray(2);
-#else
-        // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
-        // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
-        glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
-#endif
+    }
 
     if (gl->batchType == BATCHTYPE_QUAD) {
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, nullptr);
@@ -269,6 +269,8 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
 static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
+
+    gl->hasVAOs = (glBindVertexArray != NULL && glGenVertexArrays != NULL);
 
     //compile shaders
     // If the default shaders fail we have bigger issues
@@ -374,10 +376,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUniform4f(gl->uFogColor, 0.0f, 0.0f, 0.0f, 0.0f);
 
 // Create VAO/VBO/EBO
-#ifndef ENABLE_GLES2
-    glGenVertexArrays(1, &gl->vao);
-    glBindVertexArray(gl->vao);
-#endif
+    if (gl->hasVAOs) {
+        glGenVertexArrays(1, &gl->vao);
+        glBindVertexArray(gl->vao);
+    }
 
     glGenBuffers(1, &gl->vbo);
     glGenBuffers(1, &gl->ebo);
@@ -560,9 +562,9 @@ static void glDestroy(Renderer* renderer) {
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
     glDeleteProgram(gl->shaderProgram);
-#ifndef ENABLE_GLES2
-    glDeleteVertexArrays(1, &gl->vao);
-#endif
+    if (gl->hasVAOs) {
+        glDeleteVertexArrays(1, &gl->vao);
+    }
     glDeleteBuffers(1, &gl->vbo);
     glDeleteBuffers(1, &gl->ebo);
 
@@ -622,9 +624,9 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
-#ifndef ENABLE_GLES2
-    glBindVertexArray(gl->vao);
-#endif
+    if (gl->hasVAOs) {
+        glBindVertexArray(gl->vao);
+    }
     renderer->previousViewMatrix = projection;
 
 }

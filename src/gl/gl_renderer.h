@@ -70,6 +70,7 @@ typedef struct {
     uint32_t surfaceCount;
 
     int32_t* gmBaseTextureIndex;
+    bool hasVAOs; // does the GL implementation support VAOs?
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
