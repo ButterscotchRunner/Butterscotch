@@ -1165,9 +1165,11 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
 
-                Matrix4f proj;
-                Matrix4f_viewProjection(&proj, (float) camera->viewX, (float) camera->viewY, (float) camera->viewWidth, (float) camera->viewHeight, camera->viewAngle);
-                renderer->vtable->applyProjection(renderer, &proj);
+                Matrix4f ViewMatrix = camera->ViewMatrix;
+                Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
+        
+                runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+
 
                 runner->viewCurrent = (int32_t) vi;
                 Runner_draw(runner);
