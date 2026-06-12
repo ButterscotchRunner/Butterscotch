@@ -42,11 +42,11 @@ static const char* defaultVertexShaderSource =
     "layout(location = 0) in vec2 aPos;\n"
     "layout(location = 1) in vec4 aColor;\n"
     "layout(location = 2) in vec2 aTexCoord;\n"
-    "uniform mat4 uProjection;\n"
+    "uniform mat4 uWorldViewProjection;\n"
     "out vec2 vTexCoord;\n"
     "out vec4 vColor;\n"
     "void main() {\n"
-    "    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);\n"
+    "    gl_Position = uWorldViewProjection * vec4(aPos, 0.0, 1.0);\n"
     "    vTexCoord = aTexCoord;\n"
     "    vColor = aColor;\n"
     "}\n";
@@ -59,7 +59,7 @@ static const char* defaultFragmentShaderSource =
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n"
     "uniform bool uAlphaTestEnabled;\n"
-    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
+"uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
@@ -538,7 +538,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     // World -> clip transform for this view.
     Matrix4f projection;
     Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
-    Matrix4f_flipClipY(&projection);
+
 
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
@@ -556,16 +556,30 @@ static void glEndView(Renderer* renderer) {
 }
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
+static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,const Matrix4f* ProjectionMatrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
     
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
-    Matrix4f projection = *worldToClip;
-    Matrix4f_flipClipY(&projection);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+
+    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f View = *ViewMatrix;
+    Matrix4f Projection = *ProjectionMatrix;
+
+    Matrix4f WorldView;
+    Matrix4f_multiply(&WorldView, &View, &World);
+
+    Matrix4f WorldViewProjection;
+    Matrix4f_multiply(&WorldViewProjection, &View, &World);
+    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
+  
+    renderer->gmlMatrices[MATRIX_VIEW] = View;   
+    renderer->gmlMatrices[MATRIX_PROJECTION] = Projection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
+    //oh my I hope it's good enough.
     glShaderSettingsRefresh(renderer);
-    renderer->previousViewMatrix = projection;
+    renderer->previousViewMatrix = WorldViewProjection;
     
 }
 
@@ -592,7 +606,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
 
     Matrix4f projection;
     Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
-
+    Matrix4f_flipClipY(&projection);
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
@@ -1990,7 +2004,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     // Normal surface bind: surface-local ortho covering the whole surface, no scissor.
     Matrix4f projection;
     Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], 0.0f, (float) gl->surfaceHeight[surfaceId], -1.0f, 1.0f);
+    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
@@ -2482,6 +2496,13 @@ static bool glShadersSupported(void) {
     return true;
 }
 
+static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    renderer->gmlMatrices[MatrixType] = Matrix;
+    glShaderSettingsRefresh(renderer);
+}
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;
@@ -2554,6 +2575,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.textureSetStage = glTextureSetStage,
     glVtable.shaderIsCompiled = glShaderIsCompiled,
     glVtable.shadersSupported = glShadersSupported,
+    glVtable.setMatrix = glSetMatrix,
 
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;

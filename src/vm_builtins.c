@@ -2898,6 +2898,23 @@ static RValue builtin_matrix_build_projection_perspective_fov(MAYBE_UNUSED VMCon
         return RValue_makeArrayWeak(destArray);
     }
 }
+static RValue builtin_matrix_get(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    int32_t Matrix = RValue_toInt32(args[0]);
+    return RValue_makeArray(matrixToGml(&ctx->runner->renderer->gmlMatrices[Matrix]));
+}
+
+static RValue builtin_matrix_set(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
+    int32_t Matrix = RValue_toInt32(args[0]);
+    Matrix4f m;
+    matrixFromGml(&m, args[1].array);
+    //return RValue_makeArray(matrixToGml(&ctx->runner->renderer->gmlMatrices[Matrix]));
+    if (ctx->runner->renderer != nullptr) {
+        ctx->runner->renderer->vtable->setMatrix(ctx->runner->renderer, Matrix, m);
+    }
+
+    return RValue_makeUndefined();
+}
+
 
 static RValue builtin_matrix_build_lookat(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     if (argCount < 9 || argCount > 10) return RValue_makeUndefined();
@@ -3650,6 +3667,90 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
     if (argCount > 7) camera->speedY = RValue_toInt32(args[7]);
     if (argCount > 8) camera->borderX = (uint32_t) RValue_toInt32(args[8]);
     if (argCount > 9) camera->borderY = (uint32_t) RValue_toInt32(args[9]);
+
+    //what have I done.
+    Matrix4f Projection;
+
+    memset(Projection.m, 0, sizeof(Projection.m));
+    Projection.m[Matrix_getIndex(0,0)] = 2.0f / RValue_toReal(args[2]);
+    Projection.m[Matrix_getIndex(1,1)] = 2.0f / RValue_toReal(args[3]);
+    Projection.m[Matrix_getIndex(2,2)] = 1.0f / (32000.0 - 0.0);
+    Projection.m[Matrix_getIndex(3,3)] = 1.0f;
+    Projection.m[Matrix_getIndex(2,3)] = 0.0 / (0.0 - 32000.0);
+    camera->ProjectionMatrix = Projection;
+
+
+    GMLReal xFrom = RValue_toReal(args[0]) + RValue_toReal(args[2])/2.0f;
+    GMLReal yFrom = RValue_toReal(args[1]) + RValue_toReal(args[3])/2.0f;
+    GMLReal zFrom = -16000.0;
+
+    GMLReal xTo = RValue_toReal(args[0]) + RValue_toReal(args[2])/2.0f;
+    GMLReal yTo = RValue_toReal(args[1]) + RValue_toReal(args[3])/2.0f;
+    GMLReal zTo = 16000.0;
+
+    GMLReal xUp = 0.0;
+    GMLReal yUp = 1.0;
+    GMLReal zUp = 0.0;
+    GMLReal magUp = GMLReal_sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    GMLReal xLook = xTo - xFrom;
+    GMLReal yLook = yTo - yFrom;
+    GMLReal zLook = zTo - zFrom;
+    GMLReal magLook = GMLReal_sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
+    xLook /= magLook;
+    yLook /= magLook;
+    zLook /= magLook;
+
+    // normalised cross product between Up and Look
+    GMLReal xRight = yUp * zLook - zUp * yLook;
+    GMLReal yRight = zUp * xLook - xUp * zLook;
+    GMLReal zRight = xUp * yLook - yUp * xLook;
+    GMLReal magRight = GMLReal_sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
+    xRight /= magRight;
+    yRight /= magRight;
+    zRight /= magRight;
+
+    // normalised cross product between Look and Right
+    xUp = yLook * zRight - zLook * yRight;
+    yUp = zLook * xRight - xLook * zRight;
+    zUp = xLook * yRight - yLook * xRight;
+    magUp = GMLReal_sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    GMLReal x, y, z;
+    x = xFrom * xRight + yFrom * yRight + zFrom * zRight;
+    y = xFrom * xUp + yFrom * yUp + zFrom * zUp;
+    z = xFrom * xLook + yFrom * yLook + zFrom * zLook;
+
+    Matrix4f ViewMatrix;
+    Matrix4f_identity(&ViewMatrix);
+
+    ViewMatrix.m[Matrix_getIndex(0, 0)] = xRight;
+    ViewMatrix.m[Matrix_getIndex(1, 0)] = xUp;
+    ViewMatrix.m[Matrix_getIndex(2, 0)] = xLook;
+
+    ViewMatrix.m[Matrix_getIndex(0, 1)] = yRight;
+    ViewMatrix.m[Matrix_getIndex(1, 1)] = yUp;
+    ViewMatrix.m[Matrix_getIndex(2, 1)] = yLook;
+
+    ViewMatrix.m[Matrix_getIndex(0, 2)] = zRight;
+    ViewMatrix.m[Matrix_getIndex(1, 2)] = zUp;
+    ViewMatrix.m[Matrix_getIndex(2, 2)] = zLook;
+
+    ViewMatrix.m[Matrix_getIndex(0, 3)] = -x;
+    ViewMatrix.m[Matrix_getIndex(1, 3)] = -y;
+    ViewMatrix.m[Matrix_getIndex(2, 3)] = -z;
+    camera->ViewMatrix = ViewMatrix;
+    
+    //builtin_matrix_build_lookat(ctx,args[0],args[1],RValue_makeReal(-16000.0),args[0],args[1],RValue_makeReal(16000.0), RValue_makeReal(0.0),RValue_makeReal(1.0),RValue_makeReal(0.0))
+    //builtin_matrix_build_projection_ortho(ctx,args[2], args[3], RValue_makeReal(0.0), RValue_makeReal(32000.0));
+
+
     return RValue_makeReal(id);
 }
 
@@ -3705,10 +3806,8 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
   
         Matrix4f ViewMatrix = camera->ViewMatrix;
         Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-        Matrix4f FinalProjection;
-        Matrix4f_multiply(&FinalProjection, &ProjectionMatrix, &ViewMatrix);
-  
-        runner->renderer->vtable->applyProjection(runner->renderer, &FinalProjection);
+        
+        runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
 
     }
     return RValue_makeUndefined();
@@ -15489,7 +15588,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "matrix_build_lookat", builtin_matrix_build_lookat);
     VM_registerBuiltin(ctx, "matrix_build_projection_ortho", builtin_matrix_build_projection_ortho);
     VM_registerBuiltin(ctx, "matrix_build_projection_perspective_fov", builtin_matrix_build_projection_perspective_fov);
-
+    VM_registerBuiltin(ctx, "matrix_get", builtin_matrix_get);
+    VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);    
     // Random
     VM_registerBuiltin(ctx, "random", builtin_random);
     VM_registerBuiltin(ctx, "random_range", builtin_random_range);
