@@ -4773,6 +4773,365 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     return RValue_makeBool(true);
 }
 
+// ===[ DS_PRIORITY FUNCTIONS ]===
+
+static int32_t dsPriorityCreate(Runner* runner) {
+    int32_t poolSize = (int32_t) arrlen(runner->dsPriorityPool);
+    repeat(poolSize, i) {
+        if (runner->dsPriorityPool[i].freed) {
+            runner->dsPriorityPool[i].freed = false;
+            return i;
+        }
+    }
+    DsPriority p = {0};
+    int32_t id = poolSize;
+    arrput(runner->dsPriorityPool, p);
+    return id;
+}
+
+static DsPriority* dsPriorityGet(Runner* runner, int32_t id) {
+    if (0 > id || id >= (int32_t) arrlen(runner->dsPriorityPool)) return nullptr;
+    if (runner->dsPriorityPool[id].freed) return nullptr;
+    return &runner->dsPriorityPool[id];
+}
+
+static RValue builtin_ds_priority_create(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal((GMLReal) dsPriorityCreate(ctx->runner));
+}
+
+static RValue builtin_ds_priority_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    repeat(arrlen(pQueue->items), i) {
+        RValue_free(&pQueue->items[i].item);
+        pQueue->items[i].depth = 0;
+    }
+    arrfree(pQueue->items);
+    pQueue->items = nullptr;
+    pQueue->freed = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    repeat(arrlen(pQueue->items), i) {
+        RValue_free(&pQueue->items[i].item);
+        pQueue->items[i].depth = 0;
+    }
+    arrfree(pQueue->items);
+    pQueue->items = nullptr;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t destId = RValue_toInt32(args[0]);
+    int32_t srcId = RValue_toInt32(args[1]);
+    DsPriority* dest = dsPriorityGet(runner, destId);
+    DsPriority* src = dsPriorityGet(runner, srcId);
+    if (dest == nullptr || src == nullptr) return RValue_makeUndefined();
+    repeat(arrlen(dest->items), i) {
+        RValue_free(&dest->items[i].item);
+        dest->items[i].depth = 0;
+    }
+    arrfree(dest->items);
+    dest->items = nullptr;
+    repeat(arrlen(src->items), i) {
+        DsPriorityItem item;
+        item.item = RValue_makeIndependent(src->items[i].item);
+        item.depth = src->items[i].depth;
+        arrput(dest->items, item);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_size(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) arrlen(pQueue->items));
+}
+
+static RValue builtin_ds_priority_empty(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeBool(true);
+    return RValue_makeBool(arrlen(pQueue->items) == 0);
+}
+
+static RValue builtin_ds_priority_add(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t prio = RValue_toInt32(args[2]);
+
+    DsPriorityItem item;
+    item.depth = prio;
+    item.item = RValue_makeIndependent(args[1]);
+
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    arrput(pQueue->items, item);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_change_priority(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    RValue val = args[1];
+    int32_t prio = RValue_toInt32(args[2]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (&item->item == &val) {
+            arrdel(pQueue->items, i);
+            item->depth = prio;
+            arrput(pQueue->items, *item);
+            break;
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_find_priority(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    RValue value = RValue_makeIndependent(args[1]);
+    for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->item.type == RVALUE_REAL && value.type == RVALUE_REAL) {
+            if (GML_MATH_EPSILON > GMLReal_fabs(item->item.real - value.real)) {
+                return RValue_makeReal((GMLReal) item->depth);
+            }
+        } else if (memcmp(&item->item, &value, sizeof(RValue)) == 0) {
+            return RValue_makeReal((GMLReal) item->depth);
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_delete_value(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    RValue value = RValue_makeIndependent(args[1]);
+    for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->item.type == RVALUE_REAL && value.type == RVALUE_REAL) {
+            if (GML_MATH_EPSILON > GMLReal_fabs(item->item.real - value.real)) {
+                arrdel(pQueue->items, i);
+                return RValue_makeUndefined();
+            }
+        } else if (memcmp(&item->item, &value, sizeof(RValue)) == 0) {
+            arrdel(pQueue->items, i);
+            return RValue_makeUndefined();
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_priority_delete_min(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = (int32_t) RValue_toReal(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
+    GMLReal minDepth = (GMLReal) INT32_MAX;
+    DsPriorityItem* minNode = nullptr;
+    int32_t minIndex = -1;
+    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->depth < minDepth) {
+            minDepth = (GMLReal) item->depth;
+            minNode = item;
+            minIndex = i;
+        }
+    }
+    RValue result = RValue_makeIndependent(minNode->item);
+    arrdel(pQueue->items, minIndex);
+    return result;
+}
+
+static RValue builtin_ds_priority_find_min(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = (int32_t) RValue_toReal(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
+    GMLReal minDepth = (GMLReal) INT32_MAX;
+    DsPriorityItem* minNode = nullptr;
+    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->depth < minDepth) {
+            minDepth = (GMLReal) item->depth;
+            minNode = item;
+        }
+    }
+    return RValue_makeIndependent(minNode->item);
+}
+
+static RValue builtin_ds_priority_delete_max(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = (int32_t) RValue_toReal(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
+    GMLReal maxDepth = (GMLReal) INT32_MIN;
+    DsPriorityItem* maxNode = nullptr;
+    int32_t maxIndex = -1;
+    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->depth > maxDepth) {
+            maxDepth = (GMLReal) item->depth;
+            maxNode = item;
+            maxIndex = i;
+        }
+    }
+    RValue result = RValue_makeIndependent(maxNode->item);
+    arrdel(pQueue->items, maxIndex);
+    return result;
+}
+
+static RValue builtin_ds_priority_find_max(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = (int32_t) RValue_toReal(args[0]);
+    DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
+    if (pQueue == nullptr) return RValue_makeUndefined();
+    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
+    GMLReal maxDepth = (GMLReal) INT32_MIN;
+    DsPriorityItem* maxNode = nullptr;
+    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+        DsPriorityItem* item = &pQueue->items[i];
+        if (item->depth > maxDepth) {
+            maxDepth = (GMLReal) item->depth;
+            maxNode = item;
+        }
+    }
+    return RValue_makeIndependent(maxNode->item);
+}
+
+static RValue builtin_ds_priority_write(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    DsPriority* q = dsPriorityGet(ctx->runner, id);
+    if (q == nullptr) return RValue_makeOwnedString(safeStrdup(""));
+
+    uint8_t* buf = nullptr;
+    int32_t len = (int32_t) arrlen(q->items);
+    
+    dsStreamAppendU32(&buf, 503);
+    dsStreamAppendU32(&buf, (uint32_t) len);
+
+    if (len > 0) {
+        RValue* priArr = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
+        RValue* valArr = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
+
+        repeat(len, i) {
+            priArr[i] = RValue_makeReal((double) q->items[i].depth);
+            valArr[i] = q->items[i].item;
+        }
+
+        dsStreamAppendValues(&buf, priArr, len);
+        dsStreamAppendValues(&buf, valArr, len);
+
+        free(priArr);
+        free(valArr);
+    }
+    return dsStreamFinishToHexString(buf);
+}
+
+static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t id = RValue_toInt32(args[0]);
+    
+    if (args[1].type != RVALUE_STRING || args[1].string == nullptr || args[1].string[0] == '\0') {
+        return RValue_makeBool(false);
+    }
+    
+    DsPriority* q = dsPriorityGet(ctx->runner, id);
+    if (q == nullptr) return RValue_makeBool(false);
+
+    const char* hex = args[1].string;
+    int32_t hexLen = (int32_t) strlen(hex);
+    if (2 > hexLen || (hexLen & 1) != 0) return RValue_makeBool(false);
+
+    int32_t byteLen = hexLen / 2;
+    uint8_t* bytes = (uint8_t*) safeMalloc((size_t) byteLen);
+    repeat(byteLen, i) {
+        int hi = dsHexNibble(hex[i * 2]);
+        int lo = dsHexNibble(hex[i * 2 + 1]);
+        if (hi < 0 || lo < 0) { 
+            free(bytes); 
+            return RValue_makeBool(false); 
+        }
+        bytes[i] = (uint8_t) ((hi << 4) | lo);
+    }
+
+    DsReadStream s = {0};
+    s.data = bytes;
+    s.size = byteLen;
+    
+    uint32_t magic = dsStreamReadU32(&s);
+    int32_t version;
+    if (magic == 502) {
+        version = 3;
+    } else if (magic == 503) {
+        version = 0; 
+    } else {
+        free(bytes);
+        return RValue_makeBool(false);
+    }
+
+    int32_t len = dsStreamReadS32(&s);
+    if (s.error || 0 > len) { 
+        free(bytes); 
+        return RValue_makeBool(false); 
+    }
+
+    int32_t* tempPri = (int32_t*) safeMalloc((size_t) len * sizeof(int32_t));
+    RValue* tempVal = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
+
+    repeat(len, i) {
+        RValue p = dsStreamReadValue(&s, version);
+        if (s.error) {
+            RValue_free(&p);
+            free(tempPri);
+            free(tempVal);
+            free(bytes);
+            return RValue_makeBool(false);
+        }
+        tempPri[i] = RValue_toInt32(p);
+        RValue_free(&p);
+    }
+
+    repeat(len, i) {
+        RValue v = dsStreamReadValue(&s, version);
+        if (s.error) {
+            RValue_free(&v);
+            repeat(i, j) RValue_free(&tempVal[j]); 
+            free(tempPri);
+            free(tempVal);
+            free(bytes);
+            return RValue_makeBool(false);
+        }
+        tempVal[i] = v;
+    }
+
+    repeat((int32_t) arrlen(q->items), i) {
+        RValue_free(&q->items[i].item);
+    }
+    arrfree(q->items);
+    q->items = nullptr;
+
+    repeat(len, i) {
+        DsPriorityItem pitem;
+        pitem.depth = tempPri[i];
+        pitem.item = tempVal[i];
+        arrput(q->items, pitem);
+    }
+
+    free(tempPri);
+    free(tempVal);
+    free(bytes);
+    return RValue_makeBool(true);
+}
+
 // ===[ ARRAY FUNCTIONS ]===
 
 static RValue builtin_array_length_1d(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -14264,6 +14623,23 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_queue_tail", builtin_ds_queue_tail);
     VM_registerBuiltin(ctx, "ds_queue_write", builtin_ds_queue_write);
     VM_registerBuiltin(ctx, "ds_queue_read", builtin_ds_queue_read);
+
+    // ds_priority
+    VM_registerBuiltin(ctx, "ds_priority_clear", builtin_ds_priority_clear);
+    VM_registerBuiltin(ctx, "ds_priority_copy", builtin_ds_priority_copy);
+    VM_registerBuiltin(ctx, "ds_priority_destroy", builtin_ds_priority_destroy);
+    VM_registerBuiltin(ctx, "ds_priority_size", builtin_ds_priority_size);
+    VM_registerBuiltin(ctx, "ds_priority_empty", builtin_ds_priority_empty);
+    VM_registerBuiltin(ctx, "ds_priority_add", builtin_ds_priority_add);
+    VM_registerBuiltin(ctx, "ds_priority_delete_value", builtin_ds_priority_delete_value);
+    VM_registerBuiltin(ctx, "ds_priority_change_priority", builtin_ds_priority_change_priority);
+    VM_registerBuiltin(ctx, "ds_priority_find_priority", builtin_ds_priority_find_priority);
+    VM_registerBuiltin(ctx, "ds_priority_delete_min", builtin_ds_priority_delete_min);
+    VM_registerBuiltin(ctx, "ds_priority_delete_max", builtin_ds_priority_delete_max);
+    VM_registerBuiltin(ctx, "ds_priority_find_min", builtin_ds_priority_find_min);
+    VM_registerBuiltin(ctx, "ds_priority_find_max", builtin_ds_priority_find_max);
+    VM_registerBuiltin(ctx, "ds_priority_write", builtin_ds_priority_write);
+    VM_registerBuiltin(ctx, "ds_priority_read", builtin_ds_priority_read);
 
     // Array
 

@@ -1655,6 +1655,16 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsQueuePool);
     runner->dsQueuePool = nullptr;
 
+    repeat((int32_t) arrlen(runner->dsPriorityPool), i) {
+        DsPriority* p = &runner->dsPriorityPool[i];
+        repeat(arrlen(p->items), j) {
+            RValue_free(&p->items[j].item);
+        }
+        arrfree(p->items);
+    }
+    arrfree(runner->dsPriorityPool);
+    runner->dsPriorityPool = nullptr;
+
     repeat((int32_t) arrlen(runner->dsStackPool), i) {
         DsStack* s = &runner->dsStackPool[i];
         repeat(arrlen(s->items), j) {

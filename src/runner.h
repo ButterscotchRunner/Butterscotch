@@ -274,6 +274,12 @@ typedef struct {
     RValue value;
 } DsMapEntry;
 
+// ds_priority queue item
+typedef struct {
+    int32_t depth;
+    RValue item;
+} DsPriorityItem;
+
 // ds_list: dynamic array of RValues
 typedef struct {
     RValue* items; // stb_ds dynamic array of RValues
@@ -290,6 +296,11 @@ typedef struct {
     RValue* items; // stb_ds dynamic array of RValues
     bool freed;    // true when the slot is destroyed and available for reuse by ds_stack_create
 } DsStack;
+
+typedef struct {
+    DsPriorityItem* items; // stb_ds dynamic array of DsPriorityItems
+    bool freed;    // true when the slot is destroyed and available for reuse by ds_priority_queue_create
+} DsPriority;
 
 // ===[ GML Buffer System ]===
 
@@ -521,6 +532,7 @@ struct Runner {
     DsList* dsListPool; // stb_ds array of DsList
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
     DsStack* dsStackPool; // stb_ds array of DsStack    
+    DsPriority* dsPriorityPool; // stb_ds array of DsPriority
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 
