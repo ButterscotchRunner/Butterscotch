@@ -183,7 +183,7 @@ static void flushBatch(GLRenderer* gl) {
         glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
 
         const GLchar* name = "gm_BaseTexture";
-        GLuint index;
+        GLuint index = GL_INVALID_INDEX;
 
         if (gl->base.currentShader != -1) {
             int32_t index = gl->gmBaseTextureIndex[gl->base.currentShader];
