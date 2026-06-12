@@ -3550,11 +3550,6 @@ static RValue builtin_camera_set_view_mat(VMContext* ctx, RValue* args, int32_t 
     if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
-    // For an axis-aligned 2D camera the view-matrix translation encodes -(camera center).
-    camera->viewMatCenterX = (int32_t) lround(-m.m[Matrix_getIndex(3, 0)]);
-    camera->viewMatCenterY = (int32_t) lround(-m.m[Matrix_getIndex(3, 1)]);
-    camera->viewX = camera->viewMatCenterX - camera->viewWidth / 2;
-    camera->viewY = camera->viewMatCenterY - camera->viewHeight / 2;
     camera->ViewMatrix = m;
     return RValue_makeUndefined();
 }
