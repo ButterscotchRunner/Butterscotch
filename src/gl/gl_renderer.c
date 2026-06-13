@@ -524,29 +524,21 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     // Set viewport and scissor to the port rectangle within the FBO
     // FBO uses game resolution, port coordinates are in game space
     // OpenGL viewport Y is bottom-up, game Y is top-down
-    int32_t glPortY = gl->gameH - portY - portH;
-    glViewport(portX, glPortY, portW, portH);
+
+    glViewport(portX, portY, portW, portH);
 
     gl->base.CPortX = portX;
-    gl->base.CPortY = glPortY;
+    gl->base.CPortY = portY;
     gl->base.CPortW = portW;
     gl->base.CPortH = portH;
 
     glEnable(GL_SCISSOR_TEST);
-    glScissor(portX, glPortY, portW, portH);
+    glScissor(portX, portY, portW, portH);
 
-    // World -> clip transform for this view.
-    Matrix4f projection;
-    Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
-
-
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
     glBindVertexArray(gl->vao);
-    renderer->previousViewMatrix = projection;
-
 }
 
 static void glEndView(Renderer* renderer) {
@@ -2500,6 +2492,23 @@ static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix)
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     renderer->gmlMatrices[MatrixType] = Matrix;
+    //yeah just recalculate everything when we change a matrix
+    //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
+    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f View = renderer->gmlMatrices[MATRIX_VIEW];
+    Matrix4f Projection = renderer->gmlMatrices[MATRIX_PROJECTION];
+
+    Matrix4f WorldView;
+    Matrix4f_multiply(&WorldView, &View, &World);
+
+    Matrix4f WorldViewProjection;
+    Matrix4f_multiply(&WorldViewProjection, &View, &World);
+    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
+  
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
+
+
     glShaderSettingsRefresh(renderer);
 }
 

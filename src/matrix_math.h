@@ -51,6 +51,87 @@ static inline Matrix4f* Matrix4f_multiply(Matrix4f* dest, const Matrix4f* a, con
     return dest;
 }
 
+static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float x_from, float y_from, float z_from, float x_to, float y_to, float z_to, float x_up, float y_up, float z_up) {
+
+    double xFrom = x_from;
+    double yFrom = y_from;
+    double zFrom = z_from;
+
+    double xTo = x_to;
+    double yTo = y_to;
+    double zTo = z_to;
+
+    double xUp = x_up;
+    double yUp = y_up;
+    double zUp = z_up;
+    double magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    double xLook = xTo - xFrom;
+    double yLook = yTo - yFrom;
+    double zLook = zTo - zFrom;
+    double magLook = sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
+    xLook /= magLook;
+    yLook /= magLook;
+    zLook /= magLook;
+
+    // normalised cross product between Up and Look
+    double xRight = yUp * zLook - zUp * yLook;
+    double yRight = zUp * xLook - xUp * zLook;
+    double zRight = xUp * yLook - yUp * xLook;
+    double magRight = sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
+    xRight /= magRight;
+    yRight /= magRight;
+    zRight /= magRight;
+
+    // normalised cross product between Look and Right
+    xUp = yLook * zRight - zLook * yRight;
+    yUp = zLook * xRight - xLook * zRight;
+    zUp = xLook * yRight - yLook * xRight;
+    magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    double x, y, z;
+    x = xFrom * xRight + yFrom * yRight + zFrom * zRight;
+    y = xFrom * xUp + yFrom * yUp + zFrom * zUp;
+    z = xFrom * xLook + yFrom * yLook + zFrom * zLook;
+
+    dest->m[Matrix_getIndex(0, 0)] = xRight;
+    dest->m[Matrix_getIndex(1, 0)] = xUp;
+    dest->m[Matrix_getIndex(2, 0)] = xLook;
+
+    dest->m[Matrix_getIndex(0, 1)] = yRight;
+    dest->m[Matrix_getIndex(1, 1)] = yUp;
+    dest->m[Matrix_getIndex(2, 1)] = yLook;
+
+    dest->m[Matrix_getIndex(0, 2)] = zRight;
+    dest->m[Matrix_getIndex(1, 2)] = zUp;
+    dest->m[Matrix_getIndex(2, 2)] = zLook;
+
+    dest->m[Matrix_getIndex(0, 3)] = -x;
+    dest->m[Matrix_getIndex(1, 3)] = -y;
+    dest->m[Matrix_getIndex(2, 3)] = -z;
+
+    return dest;
+}
+
+static inline Matrix4f* Matrix4f_Orthographic(Matrix4f* dest, float width, float height, float zfar, float znear) {
+
+    memset(dest->m, 0, sizeof(dest->m));
+    dest->m[Matrix_getIndex(0,0)] = 2.0f / width;
+    dest->m[Matrix_getIndex(1,1)] = 2.0f / height;
+    dest->m[Matrix_getIndex(2,2)] = 1.0f / (zfar - znear);
+    dest->m[Matrix_getIndex(3,3)] = 1.0f;
+
+    dest->m[Matrix_getIndex(2,3)] = znear / (znear - zfar);
+
+    return dest;
+}
+
 // ===[ Orthographic Projection ]===
 
 // Post-multiply orthographic projection onto dest: dest = dest * ortho(l, r, b, t, n, f)

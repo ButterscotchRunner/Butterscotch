@@ -145,8 +145,8 @@ typedef struct {
 
 typedef struct {
     bool allocated; // slot in use (default cameras: set when the room enables the view; user cameras: camera_create/destroy)
-    int32_t viewX;
-    int32_t viewY;
+    float viewX;
+    float viewY;
     int32_t viewWidth;
     int32_t viewHeight;
     uint32_t borderX;
