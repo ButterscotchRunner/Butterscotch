@@ -408,8 +408,8 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 
 bool platformHandleEvents(void) {
     static double lastJoyCheck = 0;
-    if (platformGetTime() - lastJoyCheck > 2.0) {
-        lastJoyCheck = platformGetTime();
+    if (nowNanos() - lastJoyCheck > 2.0) {
+        lastJoyCheck = nowNanos();
         
         char oldNames[MAX_GAMEPADS][256] = {0};
         for (int i = 0; i < MAX_GAMEPADS; i++) {
