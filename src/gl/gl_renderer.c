@@ -59,7 +59,7 @@ static const char* defaultFragmentShaderSource =
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n"
     "uniform bool uAlphaTestEnabled;\n"
-"uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
+    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
