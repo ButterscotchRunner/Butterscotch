@@ -1051,6 +1051,19 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     int32_t guiW = runner->guiWidth > 0 ? runner->guiWidth : targetW;
     int32_t guiH = runner->guiHeight > 0 ? runner->guiHeight : targetH;
     beginGuiPass(runner, guiW, guiH, windowW, windowH, RENDER_TARGET_HOST_FRAMEBUFFER);
+    
+    //make default projection
+    Matrix4f Projection;
+    Matrix4f_Orthographic(&Projection, (float) guiW, (float) guiH, 32000.0, 0.0);
+
+    Matrix4f View;
+    float x = (float) guiW / 2;
+    float y = (float) guiH / 2;
+    Matrix4f_identity(&View);
+    Matrix4f_LookAt(&View, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    
+    runner->renderer->vtable->applyProjection(runner->renderer, &View, &Projection);
+
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
@@ -1194,6 +1207,11 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             runner->viewCurrent = (int32_t) vi;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
+            Matrix4f ViewMatrix = camera->ViewMatrix;
+            Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
+            //what am I even doing.
+            runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+
             Runner_draw(runner);
 
             if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1212,6 +1230,18 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
+        
+        //make default projection
+        Matrix4f Projection;
+        Matrix4f_Orthographic(&Projection, (float) gameW, (float) -gameH, 32000.0, 0.0);
+
+        Matrix4f View;
+        float x = (float) gameW /2;
+        float y = (float) gameH /2;
+        Matrix4f_identity(&View);
+        Matrix4f_LookAt(&View, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+        
+        runner->renderer->vtable->applyProjection(runner->renderer, &View, &Projection);
         Runner_draw(runner);
 
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1346,6 +1376,23 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->speedY = roomView->speedY;
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
+    //make default projection
+    Matrix4f Projection;
+    Matrix4f_Orthographic(&Projection, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
+    
+    Matrix4f View;
+    float x = camera->viewX + camera->viewWidth/2;
+    float y = camera->viewY + camera->viewHeight/2;
+    Matrix4f_identity(&View);
+    Matrix4f_LookAt(&View, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&View, x, y, 0.0f);
+    Matrix4f_rotateZ(&View, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&View, -x, -y, 0.0f);
+
+
+
+    camera->ProjectionMatrix = Projection;
+    camera->ViewMatrix = View;
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
