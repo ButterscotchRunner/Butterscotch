@@ -12,7 +12,7 @@
 #include "runner_mouse.h"
 #include "runner_gamepad.h"
 #include "sw_renderer.h"
-#include "noop_audio_system.h"
+#include "ma_audio_system.h"
 #include "overlay_file_system.h"
 #include "desktop/platformdefs.h"
 #include "utils.h"
@@ -417,7 +417,8 @@ bool retro_load_game(const struct retro_game_info *game)
     return false;
   }
 
-  AudioSystem* audio = (AudioSystem*)NoopAudioSystem_create();
+  MaAudioSystem* maAudio = MaAudioSystem_create();
+  AudioSystem* audio = (AudioSystem*)maAudio;
 
   g_runner = Runner_create(g_dataWin, g_vm, g_renderer, (FileSystem*)g_overlayFs, audio);
   g_runner->osType = OS_WINDOWS;
@@ -512,6 +513,31 @@ void retro_run(void)
   if (dt < 0.0f) dt = 0.0f;
   if (dt > 0.1f) dt = 0.1f;
   g_runner->audioSystem->vtable->update(g_runner->audioSystem, dt);
+
+  // Read mixed PCM frames from miniaudio engine and push to libretro
+  static float  mixFloat[8192 * 2];
+  static int16_t mixInt16[8192 * 2];
+  ma_engine* engine = &((MaAudioSystem*)g_runner->audioSystem)->engine;
+  if (engine)
+  {
+    ma_uint64 frames = (ma_uint64)(44100.0f * dt);
+    if (frames == 0) frames = 1;
+    if (frames > 8192) frames = 8192;
+    ma_uint64 read = 0;
+    ma_engine_read_pcm_frames(engine, mixFloat, frames, &read);
+    if (read > 0)
+    {
+      ma_uint64 total = read * 2;
+      for (ma_uint64 s = 0; s < total; s++)
+      {
+        float f = mixFloat[s];
+        if (f < -1.0f) f = -1.0f;
+        if (f >  1.0f) f =  1.0f;
+        mixInt16[s] = (int16_t)(f * 32767.0f);
+      }
+      audio_batch_cb(mixInt16, (size_t)read);
+    }
+  }
 
   int32_t gameW, gameH;
   if (g_runner->appSurfaceEnabled)

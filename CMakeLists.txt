@@ -46,7 +46,7 @@ if(AUDIO_BACKEND STREQUAL "")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
     elseif(PLATFORM STREQUAL "libretro")
-        set(AUDIO_BACKEND "none")
+        set(AUDIO_BACKEND "miniaudio")
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -704,6 +704,7 @@ elseif(PLATFORM STREQUAL "libretro")
         ${CMAKE_SOURCE_DIR}/src/desktop
         ${CMAKE_SOURCE_DIR}/src/libretro
         vendor/stb/image
+        vendor/stb/vorbis
     )
 
     # Rename output to butterscotch_libretro.so
@@ -720,11 +721,12 @@ elseif(PLATFORM STREQUAL "libretro")
 
     # Libraries
     find_library(DL_LIB dl)
-    target_link_libraries(butterscotch PRIVATE bzip2 m ${DL_LIB})
+    target_link_libraries(butterscotch PRIVATE bzip2 m ${DL_LIB} ${AUDIO_LIBRARIES})
 
     target_compile_definitions(butterscotch PRIVATE
         _GNU_SOURCE
         _FILE_OFFSET_BITS=64
+        HAVE_LIBRETRO
     )
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
