@@ -8,6 +8,7 @@
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
 #include "gettime.h"
+#include "runner_mouse.h"
 
 static Runner *g_runner;
 static SDL_Surface* scr;
@@ -160,7 +161,7 @@ void platformExit(void) {
 }
 
 static void platformSetCursor(int32_t cursorType) {
-    if (cursorType == -1) {
+    if (cursorType == GML_CR_NONE) {
         SDL_ShowCursor(SDL_DISABLE);
         return;
     }
@@ -168,17 +169,17 @@ static void platformSetCursor(int32_t cursorType) {
 
     SDL_SystemCursor sdlCursor;
     switch (cursorType) {
-        case  -3: sdlCursor = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
-        case  -4: sdlCursor = SDL_SYSTEM_CURSOR_IBEAM;     break;
-        case  -6: sdlCursor = SDL_SYSTEM_CURSOR_SIZENESW;  break;
-        case  -7: sdlCursor = SDL_SYSTEM_CURSOR_SIZENS;    break;
-        case  -8: sdlCursor = SDL_SYSTEM_CURSOR_SIZENWSE;  break;
-        case  -9: sdlCursor = SDL_SYSTEM_CURSOR_SIZEWE;    break;
-        case -11: sdlCursor = SDL_SYSTEM_CURSOR_WAIT;      break;
-        case -12: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
-        case -19: sdlCursor = SDL_SYSTEM_CURSOR_WAITARROW; break;
-        case -21: sdlCursor = SDL_SYSTEM_CURSOR_HAND;      break;
-        case -22: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
+        case GML_CR_CROSS: sdlCursor = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
+        case GML_CR_BEAM: sdlCursor = SDL_SYSTEM_CURSOR_IBEAM;     break;
+        case GML_CR_SIZE_NESW: sdlCursor = SDL_SYSTEM_CURSOR_SIZENESW;  break;
+        case GML_CR_SIZE_NS: sdlCursor = SDL_SYSTEM_CURSOR_SIZENS;    break;
+        case GML_CR_SIZE_NWSE: sdlCursor = SDL_SYSTEM_CURSOR_SIZENWSE;  break;
+        case GML_CR_SIZE_WE: sdlCursor = SDL_SYSTEM_CURSOR_SIZEWE;    break;
+        case GML_CR_HOURGLASS: sdlCursor = SDL_SYSTEM_CURSOR_WAIT;      break;
+        case GML_CR_DRAG: sdlCursor = SDL_SYSTEM_CURSOR_HAND;   break;
+        case GML_CR_APPSTART: sdlCursor = SDL_SYSTEM_CURSOR_WAITARROW; break;
+        case GML_CR_HANDPOINT: sdlCursor = SDL_SYSTEM_CURSOR_HAND;      break;
+        case GML_CR_SIZE_ALL: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
         default:  sdlCursor = SDL_SYSTEM_CURSOR_ARROW;     break;
     }
 
@@ -192,7 +193,7 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
-    runner->currentCursor = 0; // cr_default
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 #ifdef ENABLE_SW_RENDERER

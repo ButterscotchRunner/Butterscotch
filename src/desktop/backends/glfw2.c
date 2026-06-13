@@ -14,6 +14,7 @@
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
 #include "gettime.h"
+#include "runner_mouse.h"
 
 static Runner *g_runner;
 
@@ -223,7 +224,7 @@ void platformExit(void) {
 
 static void platformSetCursor(int32_t cursorType) {
     // GLFW2 only supports showing/hiding
-    if (cursorType == -1) {
+    if (cursorType == GML_CR_NONE) {
         glfwDisable(GLFW_MOUSE_CURSOR);
     } else {
         glfwEnable(GLFW_MOUSE_CURSOR);
@@ -234,7 +235,7 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
-    runner->currentCursor = 0; // cr_default
+    runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(resizeCallback);
