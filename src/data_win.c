@@ -488,7 +488,8 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
             extStringCount = 3;
 
         // 2023.4+: an extra Version string sits between name and className, shifting everything by 4 bytes
-        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24) {
+        // We also verify that firstExt + 12 is >= 0x1000 to avoid a false positive with old extensions that have exactly 2 files (where firstExt + 12 is fileCount = 2).
+        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24 && peekUint32At(reader, firstExt + 12, chunkEnd) >= 0x1000) {
             extStringCount = 4;
         }
     }
