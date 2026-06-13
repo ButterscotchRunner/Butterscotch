@@ -3528,15 +3528,7 @@ static RValue builtin_camera_set_view_pos(VMContext* ctx, RValue* args, int32_t 
     if (camera != nullptr) {
         camera->viewX = RValue_toReal(args[1]);
         camera->viewY = RValue_toReal(args[2]);
-        float x = camera->viewX + camera->viewWidth/2;
-        float y = camera->viewY + camera->viewHeight/2;
-        Matrix4f ViewMatrix;
-        Matrix4f_identity(&ViewMatrix);
-        Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-        Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-        Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-        Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
-        camera->ViewMatrix = ViewMatrix;
+        UpdateCamera(camera);
     }
     return RValue_makeUndefined();
 }
@@ -3658,13 +3650,7 @@ static RValue builtin_camera_set_view_angle(VMContext* ctx, RValue* args, int32_
     camera->viewAngle = (float) RValue_toReal(args[1]);
     float x = camera->viewX + camera->viewWidth/2;
     float y = camera->viewY + camera->viewHeight/2;
-    Matrix4f ViewMatrix;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
-    camera->ViewMatrix = ViewMatrix;
+    UpdateCamera(camera);
     }
     return RValue_makeUndefined();
 }
@@ -3740,14 +3726,9 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
 
     Matrix4f ViewMatrix;
     Matrix4f_identity(&ViewMatrix);
-
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     camera->ViewMatrix = ViewMatrix;
     
-    //builtin_matrix_build_lookat(ctx,args[0],args[1],RValue_makeReal(-16000.0),args[0],args[1],RValue_makeReal(16000.0), RValue_makeReal(0.0),RValue_makeReal(1.0),RValue_makeReal(0.0))
-    //builtin_matrix_build_projection_ortho(ctx,args[2], args[3], RValue_makeReal(0.0), RValue_makeReal(32000.0));
-
-
     return RValue_makeReal(id);
 }
 

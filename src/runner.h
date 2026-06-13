@@ -156,7 +156,6 @@ typedef struct {
     int32_t speedY;
     int32_t objectId; // follow target (object index), -1 = none
     float viewAngle;
-
     Matrix4f ViewMatrix;
     Matrix4f ProjectionMatrix;
 } GMLCamera;
