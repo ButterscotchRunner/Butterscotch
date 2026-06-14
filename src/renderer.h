@@ -9,6 +9,7 @@
 #include "data_win.h"
 #include "instance.h"
 
+
 // GameMaker Blend Modes
 #define bm_complex -1
 
@@ -183,6 +184,7 @@ struct Renderer {
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
     BlendFactors blendFactors;
+    int32_t V_SurfaceID;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
