@@ -49,8 +49,6 @@ typedef struct {
     bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
     bool fogEnable;
     uint32_t fogColor; // BGR
-    float fogStart;
-    float fogEnd;
 
     GLuint vao, vbo, ebo;
     Vertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices

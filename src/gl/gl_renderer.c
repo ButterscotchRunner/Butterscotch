@@ -793,11 +793,10 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     float b = (float) BGR_B(color) / 255.0f;
 
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
-    //GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-    //if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+    //No it doesn't?
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
-    //if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
