@@ -3505,11 +3505,6 @@ static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t 
     if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
-    // Orthographic projection: m[0,0] = 2/width, m[1,1] = 2/height.
-    GMLReal m00 = m.m[Matrix_getIndex(0, 0)];
-    GMLReal m11 = m.m[Matrix_getIndex(1, 1)];
-    if (m00 != 0.0) camera->viewWidth = (int32_t) lround(GMLReal_fabs(2.0 / m00));
-    if (m11 != 0.0) camera->viewHeight = (int32_t) lround(GMLReal_fabs(2.0 / m11));
     camera->ProjectionMatrix = m;
     camera->ProjectionMatrix.m[Matrix_getIndex(1, 1)] = -m.m[Matrix_getIndex(1, 1)];
     return RValue_makeUndefined();
@@ -3587,8 +3582,6 @@ static RValue builtin_camera_set_view_angle(VMContext* ctx, RValue* args, int32_
     if (camera != nullptr)
     { 
     camera->viewAngle = (float) RValue_toReal(args[1]);
-    float x = camera->viewX + camera->viewWidth/2;
-    float y = camera->viewY + camera->viewHeight/2;
     UpdateCamera(camera);
     }
     return RValue_makeUndefined();
@@ -3709,13 +3702,8 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
-    if (camera != nullptr) {
-  
-        Matrix4f ViewMatrix = camera->ViewMatrix;
-        Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-        
-        runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
-
+    if (camera != nullptr) {  
+        runner->renderer->vtable->applyProjection(runner->renderer, &camera->ViewMatrix, &camera->ProjectionMatrix);
     }
     return RValue_makeUndefined();
 }

@@ -1162,7 +1162,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
 
                 runner->viewCurrent = (int32_t) vi;
-                runner->renderer->CameraCurrent = runner->viewCurrent;
+                runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
                 Runner_draw(runner);
 
                 renderer->vtable->flush(renderer);
@@ -1183,7 +1183,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
-            runner->renderer->CameraCurrent = runner->viewCurrent;
+            runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Matrix4f ViewMatrix = camera->ViewMatrix;
@@ -1240,7 +1240,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
-    runner->renderer->CameraCurrent = runner->viewCurrent;
+    runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
 }
 
 // ===[ Instance Creation Helper ]===

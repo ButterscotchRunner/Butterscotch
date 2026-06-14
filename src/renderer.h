@@ -8,7 +8,6 @@
 #include "data_win.h"
 #include "instance.h"
 
-
 // GameMaker Blend Modes
 #define bm_complex -1
 
