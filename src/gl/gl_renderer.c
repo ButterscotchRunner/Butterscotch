@@ -1983,16 +1983,10 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
         return true;
     }
 
-    // Normal surface bind: surface-local ortho covering the whole surface, no scissor.
-    //Matrix4f projection;
-    //Matrix4f_identity(&projection);
-    //Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
-    //glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    //glDisable(GL_SCISSOR_TEST);
-    //renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    if (surfaceId == renderer->V_SurfaceID) {
-    glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
 
+    if (surfaceId == renderer->V_SurfaceID) {
+    //we go back to the camera's settings for this
+    glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
     } else {
     Matrix4f ProjectionMatrix;
     Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
