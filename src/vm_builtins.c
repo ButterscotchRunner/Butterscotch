@@ -9798,7 +9798,7 @@ static RValue builtin_draw_surface(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     float y = (float) RValue_toReal(args[2]);
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, 0, 0, -1, -1, x, y, 1.0, 1.0, 0.0, runner->renderer->drawColor, runner->renderer->drawAlpha);
+        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, 0, 0, -1, -1, x, y, 1.0, 1.0, 0.0, 0xFFFFFFFF, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
 }
@@ -9836,7 +9836,7 @@ static RValue builtin_draw_surface_part(VMContext* ctx, RValue* args, MAYBE_UNUS
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
 
-        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, (int32_t) left, (int32_t) top, (int32_t) w, (int32_t) h, x, y, 1.0, 1.0, 0.0, runner->renderer->drawColor, runner->renderer->drawAlpha);
+        runner->renderer->vtable->drawSurface(runner->renderer, surfaceId, (int32_t) left, (int32_t) top, (int32_t) w, (int32_t) h, x, y, 1.0, 1.0, 0.0, 0xFFFFFFFF, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
 }
