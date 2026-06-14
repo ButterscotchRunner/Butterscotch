@@ -42,6 +42,8 @@
 
 #define MAX_TEXTURE_STAGES 8
 
+#define SURFACE_CAMERA 8192
+
 // Sentinel returned by ensureApplicationSurface on platforms that don't back the application_surface with a real entry in the renderer's surface table.
 //
 // Also used as the initial value of Runner.applicationSurfaceId before the first ensure call.
@@ -176,6 +178,7 @@ struct Renderer {
     Matrix4f V_ViewMatrix;
     Matrix4f V_ProjectionMatrix;
     int32_t V_SurfaceID;
+    int32_t CameraCurrent;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===

@@ -1987,6 +1987,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
+        gl->base.CameraCurrent = renderer->runner->viewCurrent;
         glShaderSettingsRefresh(renderer);
         return true;
     }
@@ -1995,6 +1996,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (surfaceId == renderer->V_SurfaceID) {
     //we go back to the camera's settings for this
     glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
+    gl->base.CameraCurrent = renderer->runner->viewCurrent;
     } else {
     Matrix4f ProjectionMatrix;
     Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
@@ -2005,6 +2007,24 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     Matrix4f_identity(&ViewMatrix);
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     glApplyProjection(renderer, &ViewMatrix,&ProjectionMatrix);
+    gl->base.CameraCurrent = SURFACE_CAMERA;
+
+    GMLCamera* camera =  &renderer->runner->surfaceCamera;
+
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = gl->surfaceWidth[surfaceId];
+    camera->viewHeight = gl->surfaceHeight[surfaceId];
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+
+    camera->ProjectionMatrix = ProjectionMatrix;
+    camera->ViewMatrix = ViewMatrix;
     }
 
 
@@ -2603,5 +2623,7 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
     gl->base.currentShader = -1;
+    gl->base.V_SurfaceID = -1;
+    gl->base.CameraCurrent = 0;
     return (Renderer*) gl;
 }

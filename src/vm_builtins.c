@@ -226,7 +226,13 @@ static void UpdateCamera(GMLCamera* camera) {
     Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
     Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
     Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
+
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
+    
+
     camera->ViewMatrix = ViewMatrix;
+    camera->ProjectionMatrix = ProjectionMatrix;
 
 }
 
@@ -3685,7 +3691,8 @@ static RValue builtin_view_set_camera(VMContext* ctx, RValue* args, int32_t argC
 static RValue builtin_camera_get_active(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->viewCurrent >= 0 && MAX_VIEWS > runner->viewCurrent) {
-        return RValue_makeReal(runner->views[runner->viewCurrent].cameraId);
+        //return RValue_makeReal(runner->views[runner->viewCurrent].cameraId);
+        return RValue_makeReal(runner->renderer->CameraCurrent);
     }
     return RValue_makeReal(-1);
 }
