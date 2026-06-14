@@ -570,9 +570,7 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,con
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
     //oh my I hope it's good enough.
-    glShaderSettingsRefresh(renderer);
-    renderer->previousViewMatrix = WorldViewProjection;
-    
+    glShaderSettingsRefresh(renderer);    
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
@@ -596,10 +594,10 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
 
     glEnable(GL_SCISSOR_TEST);
 
-    Matrix4f projection;
-    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
-    Matrix4f_flipClipY(&projection);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+    //Matrix4f projection;
+    //Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+    //Matrix4f_flipClipY(&projection);
+    //renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
@@ -660,11 +658,11 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     float b = (float) BGR_B(color) / 255.0f;
 
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
-    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-    if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+    //GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    //if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
-    if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+    //if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -1988,18 +1986,36 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
-        renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->previousViewMatrix;
+        glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
         glShaderSettingsRefresh(renderer);
         return true;
     }
 
     // Normal surface bind: surface-local ortho covering the whole surface, no scissor.
-    Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
+    //Matrix4f projection;
+    //Matrix4f_identity(&projection);
+    //Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], (float) gl->surfaceHeight[surfaceId], 0.0f, -1.0f, 1.0f);
+    //glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    //glDisable(GL_SCISSOR_TEST);
+    //renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+    if (surfaceId == renderer->V_SurfaceID) {
+    glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
+
+    } else {
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
+
+    Matrix4f ViewMatrix;
+    float x = (float) gl->surfaceWidth[surfaceId] /2;
+    float y = (float) gl->surfaceHeight[surfaceId] /2;
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    glApplyProjection(renderer, &ViewMatrix,&ProjectionMatrix);
+    }
+
+
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
 
     return true;

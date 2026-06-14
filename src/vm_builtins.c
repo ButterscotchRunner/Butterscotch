@@ -3649,18 +3649,7 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
     if (argCount > 9) camera->borderY = (uint32_t) RValue_toInt32(args[9]);
 
 
-    Matrix4f Projection;
-    Matrix4f_Orthographic(&Projection, camera->viewWidth, -camera->viewHeight, 32000.0, 0.0);
-    camera->ProjectionMatrix = Projection;
-    //we will look at the center, okay?
-    float x = RValue_toReal(args[0]) + RValue_toReal(args[2])/2;
-    float y = RValue_toReal(args[1]) + RValue_toReal(args[3])/2;
-
-
-    Matrix4f ViewMatrix;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    camera->ViewMatrix = ViewMatrix;
+    UpdateCamera(camera);
     
     return RValue_makeReal(id);
 }
