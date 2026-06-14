@@ -1190,6 +1190,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
 
                 runner->viewCurrent = (int32_t) vi;
+                runner->renderer->CameraCurrent = runner->viewCurrent;
                 Runner_draw(runner);
 
                 renderer->vtable->flush(renderer);
@@ -1210,6 +1211,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
+            runner->renderer->CameraCurrent = runner->viewCurrent;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Matrix4f ViewMatrix = camera->ViewMatrix;
@@ -1266,6 +1268,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
+    runner->renderer->CameraCurrent = runner->viewCurrent;
 }
 
 // ===[ Instance Creation Helper ]===
@@ -1367,6 +1370,7 @@ GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
     if (0 > id) return nullptr;
     else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
     else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
+    else if (id == 8192) camera = &runner->surfaceCamera;
     else return nullptr;
     if (!camera->allocated) return nullptr;
     return camera;
