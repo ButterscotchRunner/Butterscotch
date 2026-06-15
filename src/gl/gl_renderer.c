@@ -1968,6 +1968,15 @@ static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* o
 
 static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    int32_t ViewCurrent = 0;
+    if (renderer->runner->viewsEnabled) {
+    ViewCurrent = renderer->runner->viewCurrent;
+    }
+    RuntimeView* view = &renderer->runner->views[ViewCurrent];
+    gl->base.CameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
@@ -1977,17 +1986,19 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
-        glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
-        gl->base.CameraCurrent = renderer->runner->viewCurrent;
-        glShaderSettingsRefresh(renderer);
+
+        glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+
         return true;
     }
 
 
-    if (surfaceId == renderer->V_SurfaceID) {
-    //we go back to the camera's settings for this
-    glApplyProjection(renderer, &renderer->V_ViewMatrix,&renderer->V_ProjectionMatrix);
-    gl->base.CameraCurrent = renderer->runner->viewCurrent;
+    if (surfaceId == view->surfaceId) {
+    //the surface belongs to the view we are rending, we use the view's camera.
+    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glDisable(GL_SCISSOR_TEST);
+    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+    return true;
     } else {
     Matrix4f ProjectionMatrix;
     Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
@@ -1997,7 +2008,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     float y = (float) gl->surfaceHeight[surfaceId] /2;
     Matrix4f_identity(&ViewMatrix);
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    glApplyProjection(renderer, &ViewMatrix,&ProjectionMatrix);
     gl->base.CameraCurrent = SURFACE_CAMERA;
 
     GMLCamera* camera =  &renderer->runner->surfaceCamera;
@@ -2016,12 +2026,15 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
 
     camera->ProjectionMatrix = ProjectionMatrix;
     camera->ViewMatrix = ViewMatrix;
+    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glDisable(GL_SCISSOR_TEST);
+    glApplyProjection(renderer, &ViewMatrix,&ProjectionMatrix);
+    return true;
     }
 
 
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    glShaderSettingsRefresh(renderer);
 
     return true;
 }
@@ -2680,7 +2693,6 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
     gl->base.currentShader = -1;
-    gl->base.V_SurfaceID = -1;
     gl->base.CameraCurrent = 0;
     return (Renderer*) gl;
 }

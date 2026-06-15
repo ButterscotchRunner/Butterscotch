@@ -1063,9 +1063,6 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     
     runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
-    runner->renderer->V_ViewMatrix = ViewMatrix;
-    runner->renderer->V_ProjectionMatrix = ProjectionMatrix;
-    runner->renderer->V_SurfaceID = -1;
 
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
@@ -1183,9 +1180,6 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
                 Matrix4f ViewMatrix = camera->ViewMatrix;
                 Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-                renderer->V_ViewMatrix = ViewMatrix;
-                renderer->V_ProjectionMatrix = ProjectionMatrix;
-                renderer->V_SurfaceID = view->surfaceId;
                 runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
 
 
@@ -1216,9 +1210,6 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
             Matrix4f ViewMatrix = camera->ViewMatrix;
             Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-            renderer->V_ViewMatrix = ViewMatrix;
-            renderer->V_ProjectionMatrix = ProjectionMatrix;
-            renderer->V_SurfaceID = -1;
             runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
 
             Runner_draw(runner);
@@ -1249,14 +1240,11 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         float y = (float) gameH /2;
         Matrix4f_identity(&ViewMatrix);
         Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-        renderer->V_ViewMatrix = ViewMatrix;
-        renderer->V_ProjectionMatrix = ProjectionMatrix;
         if (camera != nullptr) {
             camera->ViewMatrix = ViewMatrix;
             camera->ProjectionMatrix = ProjectionMatrix;
         }
 
-        renderer->V_SurfaceID = -1;
         runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
         Runner_draw(runner);
 
@@ -1370,7 +1358,7 @@ GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
     if (0 > id) return nullptr;
     else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
     else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
-    else if (id == 8192) camera = &runner->surfaceCamera;
+    else if (id == SURFACE_CAMERA) camera = &runner->surfaceCamera;
     else return nullptr;
     if (!camera->allocated) return nullptr;
     return camera;
@@ -1395,22 +1383,22 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
     //make default projection
-    Matrix4f Projection;
-    Matrix4f_Orthographic(&Projection, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
     
-    Matrix4f View;
+    Matrix4f ViewMatrix;
     float x = camera->viewX + camera->viewWidth/2;
     float y = camera->viewY + camera->viewHeight/2;
-    Matrix4f_identity(&View);
-    Matrix4f_LookAt(&View, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&View, x, y, 0.0f);
-    Matrix4f_rotateZ(&View, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&View, -x, -y, 0.0f);
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
 
 
 
-    camera->ProjectionMatrix = Projection;
-    camera->ViewMatrix = View;
+    camera->ProjectionMatrix = ProjectionMatrix;
+    camera->ViewMatrix = ViewMatrix;
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
@@ -3985,9 +3973,6 @@ bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
 
     runner->surfaceStack[slot] = surfaceID;
     runner->renderer->vtable->flush(runner->renderer);
-    GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
-    runner->renderer->V_ProjectionMatrix = camera->ProjectionMatrix;
-    runner->renderer->V_ViewMatrix = camera->ViewMatrix;   
     return runner->renderer->vtable->setRenderTarget(runner->renderer, surfaceID, false);
 }
 
@@ -4002,9 +3987,6 @@ bool Runner_surfaceResetTarget(Runner* runner) {
 
     int32_t newTop = findStackTop(runner);
     int32_t newTarget = newTop == -1 ? runner->applicationSurfaceId : runner->surfaceStack[newTop];
-    GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
-    runner->renderer->V_ProjectionMatrix = camera->ProjectionMatrix;
-    runner->renderer->V_ViewMatrix = camera->ViewMatrix;  
     runner->renderer->vtable->setRenderTarget(runner->renderer, newTarget, newTop == -1);
     if (newTop == -1 && runner->inGuiPass) {
         // Inside Pre Draw / Post Draw / Draw GUI the base target is the GUI pass target with the GUI projection, not the room view.
