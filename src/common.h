@@ -40,10 +40,12 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-    #if defined(__x86_64__) || defined(__i386__) || defined(__riscv)
+    #if defined(__x86_64__) || defined(__i386__)
         #define YIELD() __asm__ volatile("rep; nop" : : : "memory")
     #elif defined(__aarch64__) || (defined(__arm__) && defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
         #define YIELD() __asm__ volatile("yield" : : : "memory")
+    #elif defined(__riscv)
+        #define YIELD() __asm__ volatile("pause" : : : "memory")
     #else
         #define YIELD() ((void)0)
     #endif
