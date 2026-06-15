@@ -174,9 +174,6 @@ struct Renderer {
     Runner* runner;
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
-    Matrix4f V_ViewMatrix;
-    Matrix4f V_ProjectionMatrix;
-    int32_t V_SurfaceID;
     int32_t CameraCurrent;
 };
 
