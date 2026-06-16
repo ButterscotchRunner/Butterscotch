@@ -42,6 +42,14 @@
     #define ALIGN(x)
 #endif
 
+#if defined(__GNUC__) || defined(__TINYC__)
+    #define NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER) && _MSC_VER >= 1400 // VS2005 or later
+    #define NOINLINE __declspec(noinline)
+#else
+    #define NOINLINE
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
     #if defined(__x86_64__) || defined(__i386__)
         #define YIELD() __asm__ volatile("rep; nop" : : : "memory")
