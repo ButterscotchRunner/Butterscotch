@@ -40,6 +40,12 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
+    #define ALIGN(x) __attribute__((aligned(x)));
+#else
+    #define ALIGN(x)
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
     #if defined(__x86_64__) || defined(__i386__)
         #define YIELD() __asm__ volatile("rep; nop" : : : "memory")
     #elif defined(__aarch64__) || (defined(__arm__) && defined(__ARM_ARCH) && (__ARM_ARCH >= 7))

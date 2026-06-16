@@ -83,7 +83,6 @@ struct RValue {
         GMLMethod* method;
 #endif
         Instance* structInst;
-        double _alignment_dont_use;
     };
     // We use uint8_t for the type instead of RValueType because a enum value occupies 4 bytes, while uint8_t occupies 1 byte
     uint8_t type;
@@ -93,7 +92,7 @@ struct RValue {
     bool ownsReference;
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
     uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
-};
+} ALIGN(8);
 
 static inline RValue RValue_makeReal(GMLReal val) {
     RValue rv = {0};
