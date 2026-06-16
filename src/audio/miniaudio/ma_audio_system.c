@@ -401,6 +401,16 @@ static void maResumeAll(AudioSystem* audio) {
     }
 }
 
+static void maSuspend(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void maResume(AudioSystem* audio) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    ma_device_start(ma_engine_get_device(&ma->engine));
+}
+
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
@@ -609,10 +619,17 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
         char buf[sz + 1];
         snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
-        DataWin *audioGroup = DataWin_parse(((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf),
-        (DataWinParserOptions) {
-            .parseAudo = true,
-        });
+
+        // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
+        FileSystem* fileSystem = ((MaAudioSystem*)audio)->fileSystem;
+        if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
+            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+            return;
+        }
+
+        DataWinParserOptions options = {0};
+        options.parseAudo = true;
+        DataWin *audioGroup = DataWin_parse(((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }
 }
@@ -688,37 +705,38 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
 // ===[ Vtable ]===
 
-static AudioSystemVtable maAudioSystemVtable = {
-    .init = maInit,
-    .destroy = maDestroy,
-    .update = maUpdate,
-    .playSound = maPlaySound,
-    .stopSound = maStopSound,
-    .stopAll = maStopAll,
-    .isPlaying = maIsPlaying,
-    .pauseSound = maPauseSound,
-    .resumeSound = maResumeSound,
-    .pauseAll = maPauseAll,
-    .resumeAll = maResumeAll,
-    .setSoundGain = maSetSoundGain,
-    .getSoundGain = maGetSoundGain,
-    .setSoundPitch = maSetSoundPitch,
-    .getSoundPitch = maGetSoundPitch,
-    .getTrackPosition = maGetTrackPosition,
-    .setTrackPosition = maSetTrackPosition,
-    .getSoundLength = maGetSoundLength,
-    .setMasterGain = maSetMasterGain,
-    .setChannelCount = maSetChannelCount,
-    .groupLoad = maGroupLoad,
-    .groupIsLoaded = maGroupIsLoaded,
-    .createStream = maCreateStream,
-    .destroyStream = maDestroyStream,
-};
+static AudioSystemVtable maAudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
 MaAudioSystem* MaAudioSystem_create(void) {
     MaAudioSystem* ma = safeCalloc(1, sizeof(MaAudioSystem));
+    maAudioSystemVtable.init = maInit;
+    maAudioSystemVtable.destroy = maDestroy;
+    maAudioSystemVtable.update = maUpdate;
+    maAudioSystemVtable.playSound = maPlaySound;
+    maAudioSystemVtable.stopSound = maStopSound;
+    maAudioSystemVtable.stopAll = maStopAll;
+    maAudioSystemVtable.isPlaying = maIsPlaying;
+    maAudioSystemVtable.pauseSound = maPauseSound;
+    maAudioSystemVtable.resumeSound = maResumeSound;
+    maAudioSystemVtable.pauseAll = maPauseAll;
+    maAudioSystemVtable.resumeAll = maResumeAll;
+    maAudioSystemVtable.suspend = maSuspend;
+    maAudioSystemVtable.resume = maResume;
+    maAudioSystemVtable.setSoundGain = maSetSoundGain;
+    maAudioSystemVtable.getSoundGain = maGetSoundGain;
+    maAudioSystemVtable.setSoundPitch = maSetSoundPitch;
+    maAudioSystemVtable.getSoundPitch = maGetSoundPitch;
+    maAudioSystemVtable.getTrackPosition = maGetTrackPosition;
+    maAudioSystemVtable.setTrackPosition = maSetTrackPosition;
+    maAudioSystemVtable.getSoundLength = maGetSoundLength;
+    maAudioSystemVtable.setMasterGain = maSetMasterGain;
+    maAudioSystemVtable.setChannelCount = maSetChannelCount;
+    maAudioSystemVtable.groupLoad = maGroupLoad;
+    maAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;
+    maAudioSystemVtable.createStream = maCreateStream;
+    maAudioSystemVtable.destroyStream = maDestroyStream;
     ma->base.vtable = &maAudioSystemVtable;
     return ma;
 }

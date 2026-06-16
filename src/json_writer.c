@@ -40,10 +40,10 @@ static void writeEscapedString(JsonWriter* writer, const char* str) {
 // ===[ Lifecycle ]===
 
 JsonWriter JsonWriter_create(void) {
-    return (JsonWriter) {
-        .out = StringBuilder_create(256),
-        .needsComma = false,
-    };
+    JsonWriter ret = {0};
+    ret.out = StringBuilder_create(256);
+    ret.needsComma = false;
+    return ret;
 }
 
 void JsonWriter_free(JsonWriter* writer) {
@@ -104,6 +104,12 @@ void JsonWriter_int(JsonWriter* writer, int64_t value) {
 void JsonWriter_double(JsonWriter* writer, double value) {
     writeCommaIfNeeded(writer);
     StringBuilder_appendFormat(&writer->out, "%.17g", value);
+    writer->needsComma = true;
+}
+
+void JsonWriter_rawValue(JsonWriter* writer, const char* formattedValue) {
+    writeCommaIfNeeded(writer);
+    StringBuilder_append(&writer->out, formattedValue);
     writer->needsComma = true;
 }
 

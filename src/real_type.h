@@ -12,6 +12,7 @@ typedef float GMLReal;
 #define GMLReal_sin sinf
 #define GMLReal_cos cosf
 #define GMLReal_tan tanf
+#define GMLReal_acos acosf
 #define GMLReal_asin asinf
 #define GMLReal_atan atanf
 #define GMLReal_atan2 atan2f
@@ -35,6 +36,7 @@ typedef double GMLReal;
 #define GMLReal_sin sin
 #define GMLReal_cos cos
 #define GMLReal_tan tan
+#define GMLReal_acos acos
 #define GMLReal_asin asin
 #define GMLReal_atan atan
 #define GMLReal_atan2 atan2

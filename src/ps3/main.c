@@ -25,6 +25,7 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "gettime.h"
 
 // Paletted fragment shader.
 extern unsigned char paletted_fpo[];
@@ -58,7 +59,7 @@ const PadMapping PAD_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_R1,       VK_PAGEUP },
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_L2,       VK_F10 },
 };
-static const int PAD_MAPPING_COUNT = sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]);
+#define PAD_MAPPING_COUNT (sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]))
 static bool prevState[sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0])] = {0};
 
 #define STICK_CENTER 0x80 // The center of the stick (range 0x00-0xFF)
@@ -76,7 +77,7 @@ const StickMapping STICK_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, -1, VK_UP    },
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, +1, VK_DOWN  },
 };
-static const int STICK_MAPPING_COUNT = sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]);
+#define STICK_MAPPING_COUNT (sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]))
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
 // ===[ MAIN ]===
@@ -174,41 +175,39 @@ int main(int argc, char* argv[]) {
 
     printf("Loading %s...\n", dataWinPath);
 
-    DataWin* dataWin = DataWin_parse(
-        dataWinPath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = false,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
-            .parseTxtr = false,
-            .parseAudo = true,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = true,
-            //.eagerlyLoadedRooms = args.eagerRooms
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
+    options.parseTxtr = false;
+    options.parseAudo = true;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = true;
+    //options.eagerlyLoadedRooms = args.eagerRooms;
+
+    DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-    printf("Loaded \"%s\" (%d) successfully! [Bytecode Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->bytecodeVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+    printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -297,7 +296,8 @@ int main(int argc, char* argv[]) {
     // Main loop
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
-    double lastFrameTime = PS3_GET_TIME;
+    double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
+    runner->gameStartTime = nowNanos();
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -366,6 +366,9 @@ int main(int argc, char* argv[]) {
         }
 
         double frameStartTime = PS3_GET_TIME;
+        runner->deltaTime = (frameStartTime - lastFrameStartTime) * 1000000.0;
+        lastFrameStartTime = frameStartTime;
+
         double stepTime = 0.0;
         double audioTime = 0.0;
         if (shouldStep) {
@@ -375,7 +378,7 @@ int main(int argc, char* argv[]) {
             stepTime = PS3_GET_TIME - stepStart;
 
             // Update audio system (gain fading, cleanup ended sounds)
-            float dt = (float) (PS3_GET_TIME - lastFrameTime);
+            float dt = (float) (runner->deltaTime / 1000000.0);
             if (0.0f > dt) dt = 0.0f;
             if (dt > 0.1f) dt = 0.1f; // cap delta to avoid huge fades on lag spikes
             double audioStart = PS3_GET_TIME;
@@ -437,26 +440,15 @@ int main(int argc, char* argv[]) {
         }
         Runner_handlePendingRoomChange(runner);
 
-        double now = PS3_GET_TIME;
-
         // Limit frame rate to room speed
         if (runner->currentRoom->speed > 0) {
             double targetFrameTime = 1.0 / runner->currentRoom->speed;
-            double nextFrameTime = lastFrameTime + targetFrameTime;
-
-            if (now < nextFrameTime) {
-                while (PS3_GET_TIME < nextFrameTime) {
-                    __sync();
-                    sysUtilCheckCallback();
-                    sysUsleep(5);
-                }
-                lastFrameTime = nextFrameTime;
-            } else {
-                // Frame took too long → resync
-                lastFrameTime = now;
+            double nextFrameTime = lastFrameStartTime + targetFrameTime;
+            while (PS3_GET_TIME < nextFrameTime) {
+                __sync();
+                sysUtilCheckCallback();
+                sysUsleep(5);
             }
-        } else {
-            lastFrameTime = now;
         }
     }
 

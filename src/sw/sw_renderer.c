@@ -1643,8 +1643,8 @@ static void swrDrawText(SWRenderer* swr, const char* text, float x, float y, flo
 						
 						// TODO: at 640x480, for some reason, without this fixup the
 						// letters in the "Name the fallen human." screen don't shake
-						dx = round(dx * 2) / 2;
-						dy = round(dy * 2) / 2;
+						dx = roundf(dx * 2) / 2;
+						dy = roundf(dy * 2) / 2;
 						
 						SWTexture* texture = swr->textures[pageId];
 						
@@ -2097,55 +2097,7 @@ static int32_t SWRenderer_ensureApplicationSurface(Renderer* renderer, int32_t w
 	return -1;
 }
 
-static RendererVtable swrVtable =
-{
-	.init                     = SWRenderer_init,
-	.destroy                  = SWRenderer_destroy,
-	.beginFrame               = SWRenderer_beginFrame,
-	.endFrameInit             = SWRenderer_endFrameInit,
-	.endFrameEnd              = SWRenderer_endFrameEnd,
-	.beginView                = SWRenderer_beginView,
-	.endView                  = SWRenderer_endView,
-	.beginGUI                 = SWRenderer_beginGUI,
-	.endGUI                   = SWRenderer_endGUI,
-	.drawSprite               = SWRenderer_drawSprite,
-	.drawSpritePart           = SWRenderer_drawSpritePart,
-	.drawSpritePos            = SWRenderer_drawSpritePos,
-	.drawRectangle            = SWRenderer_drawRectangle,
-	.drawRectangleColor       = SWRenderer_drawRectangleColor,
-	.drawLine                 = SWRenderer_drawLine,
-	.drawTriangle             = SWRenderer_drawTriangle,
-	.drawLineColor            = SWRenderer_drawLineColor,
-	.drawText                 = SWRenderer_drawText,
-	.drawTextColor            = SWRenderer_drawTextColor,
-	.flush                    = SWRenderer_flush,
-	.clearScreen              = SWRenderer_clearScreen,
-	.createSpriteFromSurface  = SWRenderer_createSpriteFromSurface,
-	.deleteSprite             = SWRenderer_deleteSprite,
-	.gpuSetBlendMode          = SWRenderer_gpuSetBlendMode,
-	.gpuSetBlendModeExt       = SWRenderer_gpuSetBlendModeExt,
-	.gpuSetBlendEnable        = SWRenderer_gpuSetBlendEnable,
-	.gpuSetAlphaTestEnable    = SWRenderer_gpuSetAlphaTestEnable,
-	.gpuSetAlphaTestRef       = SWRenderer_gpuSetAlphaTestRef,
-	.gpuSetColorWriteEnable   = SWRenderer_gpuSetColorWriteEnable,
-	.gpuGetColorWriteEnable   = SWRenderer_gpuGetColorWriteEnable,
-	.gpuGetBlendEnable        = SWRenderer_gpuGetBlendEnable,
-	.gpuSetFog                = SWRenderer_gpuSetFog,
-	.drawTile                 = NULL,
-	.drawTiled                = SWRenderer_drawTiled,
-	.createSurface            = SWRenderer_createSurface,
-	.surfaceExists            = SWRenderer_surfaceExists,
-	.setRenderTarget          = SWRenderer_setRenderTarget,
-	.ensureApplicationSurface = SWRenderer_ensureApplicationSurface,
-	.getSurfaceWidth          = SWRenderer_getSurfaceWidth,
-	.getSurfaceHeight         = SWRenderer_getSurfaceHeight,
-	.drawSurface              = SWRenderer_drawSurface,
-	.surfaceResize            = SWRenderer_surfaceResize,
-	.surfaceFree              = SWRenderer_surfaceFree,
-	.surfaceCopy              = SWRenderer_surfaceCopy,
-	.surfaceGetPixels         = SWRenderer_surfaceGetPixels,
-	.drawTiledPart            = SWRenderer_drawTiledPart,
-};
+static RendererVtable swrVtable;
 
 void SWRenderer_clearFrameBuffer(Renderer* renderer, uint32_t color)
 {
@@ -2165,6 +2117,52 @@ Renderer* SWRenderer_create(void)
 {
 	SWRenderer* swr = safeCalloc(1, sizeof(SWRenderer));
 	swr->base.vtable = &swrVtable;
+	swrVtable.init                     = SWRenderer_init;
+	swrVtable.destroy                  = SWRenderer_destroy;
+	swrVtable.beginFrame               = SWRenderer_beginFrame;
+	swrVtable.endFrameInit             = SWRenderer_endFrameInit;
+	swrVtable.endFrameEnd              = SWRenderer_endFrameEnd;
+	swrVtable.beginView                = SWRenderer_beginView;
+	swrVtable.endView                  = SWRenderer_endView;
+	swrVtable.beginGUI                 = SWRenderer_beginGUI;
+	swrVtable.endGUI                   = SWRenderer_endGUI;
+	swrVtable.drawSprite               = SWRenderer_drawSprite;
+	swrVtable.drawSpritePart           = SWRenderer_drawSpritePart;
+	swrVtable.drawSpritePos            = SWRenderer_drawSpritePos;
+	swrVtable.drawRectangle            = SWRenderer_drawRectangle;
+	swrVtable.drawRectangleColor       = SWRenderer_drawRectangleColor;
+	swrVtable.drawLine                 = SWRenderer_drawLine;
+	swrVtable.drawTriangle             = SWRenderer_drawTriangle;
+	swrVtable.drawLineColor            = SWRenderer_drawLineColor;
+	swrVtable.drawText                 = SWRenderer_drawText;
+	swrVtable.drawTextColor            = SWRenderer_drawTextColor;
+	swrVtable.flush                    = SWRenderer_flush;
+	swrVtable.clearScreen              = SWRenderer_clearScreen;
+	swrVtable.createSpriteFromSurface  = SWRenderer_createSpriteFromSurface;
+	swrVtable.deleteSprite             = SWRenderer_deleteSprite;
+	swrVtable.gpuSetBlendMode          = SWRenderer_gpuSetBlendMode;
+	swrVtable.gpuSetBlendModeExt       = SWRenderer_gpuSetBlendModeExt;
+	swrVtable.gpuSetBlendEnable        = SWRenderer_gpuSetBlendEnable;
+	swrVtable.gpuSetAlphaTestEnable    = SWRenderer_gpuSetAlphaTestEnable;
+	swrVtable.gpuSetAlphaTestRef       = SWRenderer_gpuSetAlphaTestRef;
+	swrVtable.gpuSetColorWriteEnable   = SWRenderer_gpuSetColorWriteEnable;
+	swrVtable.gpuGetColorWriteEnable   = SWRenderer_gpuGetColorWriteEnable;
+	swrVtable.gpuGetBlendEnable        = SWRenderer_gpuGetBlendEnable;
+	swrVtable.gpuSetFog                = SWRenderer_gpuSetFog;
+	swrVtable.drawTile                 = NULL;
+	swrVtable.drawTiled                = SWRenderer_drawTiled;
+	swrVtable.createSurface            = SWRenderer_createSurface;
+	swrVtable.surfaceExists            = SWRenderer_surfaceExists;
+	swrVtable.setRenderTarget          = SWRenderer_setRenderTarget;
+	swrVtable.ensureApplicationSurface = SWRenderer_ensureApplicationSurface;
+	swrVtable.getSurfaceWidth          = SWRenderer_getSurfaceWidth;
+	swrVtable.getSurfaceHeight         = SWRenderer_getSurfaceHeight;
+	swrVtable.drawSurface              = SWRenderer_drawSurface;
+	swrVtable.surfaceResize            = SWRenderer_surfaceResize;
+	swrVtable.surfaceFree              = SWRenderer_surfaceFree;
+	swrVtable.surfaceCopy              = SWRenderer_surfaceCopy;
+	swrVtable.surfaceGetPixels         = SWRenderer_surfaceGetPixels;
+	swrVtable.drawTiledPart            = SWRenderer_drawTiledPart;
 	swr->base.drawColor = 0xFFFFFF;
 	swr->base.drawAlpha = 1.0f;
 	swr->base.drawFont = -1;

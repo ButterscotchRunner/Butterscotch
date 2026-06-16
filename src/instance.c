@@ -13,7 +13,10 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
     inst->instanceId = instanceId;
     inst->objectIndex = objectIndex;
     inst->refCount = 0;
+    inst->pinned = false;
     inst->structRegistryIndex = -1;
+    inst->constructorCodeIndex = -1;
+    inst->staticParent = nullptr;
     inst->x = (float) x;
     inst->y = (float) y;
     inst->xprevious = (float) x;
@@ -63,11 +66,13 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
 
 void Instance_structIncRef(Instance* inst) {
     if (inst == nullptr) return;
+    if (inst->pinned) return;
     inst->refCount++;
 }
 
 void Instance_structDecRef(Instance* inst) {
     if (inst == nullptr) return;
+    if (inst->pinned) return;
     require(inst->refCount > 0);
     inst->refCount--;
     // Never free here. The runner-side sweep reaps structs whose refCount has dropped to 1. (that is: when only the structInstances holds it)

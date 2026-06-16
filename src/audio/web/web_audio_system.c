@@ -371,6 +371,18 @@ static void webResumeAll(AudioSystem* audio) {
     }
 }
 
+static void webSuspend(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void webResume(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_start(ma_engine_get_device(&ma->engine));
+}
+
 static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
@@ -571,10 +583,18 @@ static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
         char buf[sz + 1];
         snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
-        DataWin* audioGroup = DataWin_parse(
-            ma->fileSystem->vtable->resolvePath(ma->fileSystem, buf),
-            (DataWinParserOptions) { .parseAudo = true }
-        );
+
+        // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
+        FileSystem* fileSystem = ((WebAudioSystem*)audio)->fileSystem;
+        char* resolvedPath = (((WebAudioSystem*)audio)->fileSystem->vtable->resolvePath(((WebAudioSystem*)audio)->fileSystem, buf));
+        if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
+            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+            return;
+        }
+
+        DataWinParserOptions options = {0};
+        options.parseAudo = true;
+        DataWin* audioGroup = DataWin_parse(ma->fileSystem->vtable->resolvePath(ma->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }
 }
@@ -645,37 +665,38 @@ static bool webDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
 // ===[ Vtable ]===
 
-static AudioSystemVtable webAudioSystemVtable = {
-    .init = webInit,
-    .destroy = webDestroy,
-    .update = webUpdate,
-    .playSound = webPlaySound,
-    .stopSound = webStopSound,
-    .stopAll = webStopAll,
-    .isPlaying = webIsPlaying,
-    .pauseSound = webPauseSound,
-    .resumeSound = webResumeSound,
-    .pauseAll = webPauseAll,
-    .resumeAll = webResumeAll,
-    .setSoundGain = webSetSoundGain,
-    .getSoundGain = webGetSoundGain,
-    .setSoundPitch = webSetSoundPitch,
-    .getSoundPitch = webGetSoundPitch,
-    .getTrackPosition = webGetTrackPosition,
-    .setTrackPosition = webSetTrackPosition,
-    .getSoundLength = webGetSoundLength,
-    .setMasterGain = webSetMasterGain,
-    .setChannelCount = webSetChannelCount,
-    .groupLoad = webGroupLoad,
-    .groupIsLoaded = webGroupIsLoaded,
-    .createStream = webCreateStream,
-    .destroyStream = webDestroyStream,
-};
+static AudioSystemVtable webAudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
 WebAudioSystem* WebAudioSystem_create(int32_t sampleRate) {
     WebAudioSystem* ma = safeCalloc(1, sizeof(WebAudioSystem));
+    webAudioSystemVtable.init = webInit;
+    webAudioSystemVtable.destroy = webDestroy;
+    webAudioSystemVtable.update = webUpdate;
+    webAudioSystemVtable.playSound = webPlaySound;
+    webAudioSystemVtable.stopSound = webStopSound;
+    webAudioSystemVtable.stopAll = webStopAll;
+    webAudioSystemVtable.isPlaying = webIsPlaying;
+    webAudioSystemVtable.pauseSound = webPauseSound;
+    webAudioSystemVtable.resumeSound = webResumeSound;
+    webAudioSystemVtable.pauseAll = webPauseAll;
+    webAudioSystemVtable.resumeAll = webResumeAll;
+    webAudioSystemVtable.suspend = webSuspend;
+    webAudioSystemVtable.resume = webResume;
+    webAudioSystemVtable.setSoundGain = webSetSoundGain;
+    webAudioSystemVtable.getSoundGain = webGetSoundGain;
+    webAudioSystemVtable.setSoundPitch = webSetSoundPitch;
+    webAudioSystemVtable.getSoundPitch = webGetSoundPitch;
+    webAudioSystemVtable.getTrackPosition = webGetTrackPosition;
+    webAudioSystemVtable.setTrackPosition = webSetTrackPosition;
+    webAudioSystemVtable.getSoundLength = webGetSoundLength;
+    webAudioSystemVtable.setMasterGain = webSetMasterGain;
+    webAudioSystemVtable.setChannelCount = webSetChannelCount;
+    webAudioSystemVtable.groupLoad = webGroupLoad;
+    webAudioSystemVtable.groupIsLoaded = webGroupIsLoaded;
+    webAudioSystemVtable.createStream = webCreateStream;
+    webAudioSystemVtable.destroyStream = webDestroyStream;
     ma->base.vtable = &webAudioSystemVtable;
     ma->sampleRate = sampleRate > 0 ? sampleRate : 48000;
     return ma;

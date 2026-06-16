@@ -5,6 +5,22 @@
 #define nullptr NULL
 #endif
 
+#include <stdint.h>
+
+/* on some platforms, stdint.h exists but is incomplete */
+#ifndef UINT32_MAX
+#define UINT32_MAX 0xFFFFFFFFU
+#endif
+#ifndef INT32_MAX
+#define INT32_MAX 0x7FFFFFFF
+#endif
+#ifndef INT32_MIN
+#define INT32_MIN (-INT32_MAX - 1)
+#endif
+#ifndef INFINITY
+#define INFINITY (1.0f / 0.0f)
+#endif
+
 #if (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)) || defined(__BIG_ENDIAN__)
 #define IS_BIG_ENDIAN
 #endif

@@ -9,6 +9,11 @@
 #include <glad/glad.h>
 #endif
 
+typedef enum {
+    BATCHTYPE_QUAD,
+    BATCHTYPE_TRIANGLE
+} BatchType;
+
 // ===[ GLRenderer Struct ]===
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
@@ -19,6 +24,12 @@ typedef struct {
     GLint uTexture;
     GLint uAlphaTestRef;
     GLint uFogColor;
+    GLint uAlphaTestEnabled;
+    GLuint* gmlShaders;
+    bool* gmlShaderCompiled;
+    uint32_t gmlShaderCount;
+    int32_t** sampler2DLookUpTable;
+    GLint** sampler2DLocationLookUpTable;
 
     bool alphaTestEnable;
     float alphaTestRef;
@@ -29,7 +40,8 @@ typedef struct {
     GLuint vao, vbo, ebo;
     float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats
 
-    int32_t quadCount;
+    BatchType batchType;
+    int32_t batchCount;
     GLuint currentTextureId;
 
     GLuint* glTextures;       // one GL texture per TXTR page
@@ -45,6 +57,8 @@ typedef struct {
     int32_t gameW; // game width (matches the application_surface size)
     int32_t gameH; // game height (matches the application_surface size)
 
+    GLuint hostFramebuffer; // present target for the composited frame, where 0 == the window
+
     // Original counts from data.win (dynamic slots start at these indices)
     uint32_t originalTexturePageCount;
     uint32_t originalTpagCount;
@@ -56,4 +70,5 @@ typedef struct {
     uint32_t surfaceCount;
 } GLRenderer;
 
+bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);

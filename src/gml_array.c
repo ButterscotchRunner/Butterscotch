@@ -10,9 +10,7 @@ static void ensureRowCapacity(GMLArray* arr, int32_t minRows) {
     int32_t newCap = arr->rowCapacity > 0 ? arr->rowCapacity : 4;
     while (minRows > newCap) newCap *= 2;
     arr->rows = safeRealloc(arr->rows, (uint32_t) newCap * sizeof(GMLArrayRow));
-    for (int32_t i = arr->rowCapacity; newCap > i; i++) {
-        arr->rows[i] = (GMLArrayRow){ .length = 0, .capacity = 0, .data = nullptr };
-    }
+    memset(arr->rows + arr->rowCapacity, 0, (newCap - arr->rowCapacity) * sizeof(GMLArrayRow));
     arr->rowCapacity = newCap;
 }
 
@@ -89,7 +87,7 @@ GMLArray* GMLArray_clone(GMLArray* src, void* newOwner) {
                     GMLArray_incRef(srcVal.array);
                     dstRow->data[c] = srcVal;
                     dstRow->data[c].ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
+#if IS_WAD17_OR_HIGHER_ENABLED
                 } else if (srcVal.type == RVALUE_METHOD && srcVal.method != nullptr) {
                     GMLMethod_incRef(srcVal.method);
                     dstRow->data[c] = srcVal;

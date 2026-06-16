@@ -12,6 +12,7 @@
 #include "overlay_file_system.h"
 #include "runner.h"
 #include "gl/gl_renderer.h"
+#include "gettime.h"
 
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = 0;
 static Runner* gRunner;
@@ -90,9 +91,14 @@ static int mkdirP(const char* path) {
 }
 
 void* loop() {
-    double lastFrameTimeMs = emscripten_get_now();
+    double lastFrameStartMs = emscripten_get_now(); // for delta_time and frame pacing
 
+    gRunner->gameStartTime = nowNanos();
     while (!gRunner->shouldExit) {
+        double frameStartMs = emscripten_get_now();
+        gRunner->deltaTime = (frameStartMs - lastFrameStartMs) * 1000.0;
+        lastFrameStartMs = frameStartMs;
+
         RunnerKeyboard_beginFrame(gRunner->keyboard);
 
         // Process inputs
@@ -109,8 +115,7 @@ void* loop() {
 
         emscripten_webgl_make_context_current(ctx);
 
-        double nowMs = emscripten_get_now();
-        float audioDt = (float) ((nowMs - lastFrameTimeMs) / 1000.0);
+        float audioDt = (float) (gRunner->deltaTime / 1000000.0);
         if (0.0f > audioDt) audioDt = 0.0f;
         if (audioDt > 0.1f) audioDt = 0.1f;
         gRunner->audioSystem->vtable->update(gRunner->audioSystem, audioDt);
@@ -164,22 +169,18 @@ void* loop() {
         // emscripten_get_now() returns milliseconds (performance.now()) and works in workers.
         if (gRunner->currentRoom != nullptr && gRunner->currentRoom->speed > 0) {
             double targetFrameTimeMs = 1000.0 / (double) gRunner->currentRoom->speed;
-            double nextFrameTimeMs = lastFrameTimeMs + targetFrameTimeMs;
+            double nextFrameTimeMs = lastFrameStartMs + targetFrameTimeMs;
             double remainingMs = nextFrameTimeMs - emscripten_get_now();
             // Sleep for most of the remaining time, then spin-wait for precision.
             if (remainingMs > 2.0) {
-                struct timespec ts = {
-                    .tv_sec = 0,
-                    .tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0)
-                };
+                struct timespec ts;
+                ts.tv_sec = 0;
+                ts.tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0);
                 nanosleep(&ts, nullptr);
             }
             while (emscripten_get_now() < nextFrameTimeMs) {
                 // Spin-wait for the remaining sub-millisecond
             }
-            lastFrameTimeMs = nextFrameTimeMs;
-        } else {
-            lastFrameTimeMs = emscripten_get_now();
         }
     }
 
@@ -203,7 +204,7 @@ void* loop() {
     return nullptr;
 }
 
-void setWindowTitle(MAYBE_UNUSED void* nativeWindow, const char* title) {
+void setWindowTitle(const char* title) {
     MAIN_THREAD_EM_ASM({ postMessage({ type: 'windowTitle', title: UTF8ToString($0) }); }, title);
 }
 
@@ -243,37 +244,34 @@ void startRunner(const char* gamePath, const char* savesPath) {
         }
     }
 
-    DataWin* dataWin = DataWin_parse(
-        gamePath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = false,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            .parseTxtr = true,
-            .parseAudo = true,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = false,
-            .eagerlyLoadedRooms = nullptr
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    options.parseTxtr = true;
+    options.parseAudo = true;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = false;
+    options.eagerlyLoadedRooms = nullptr;
+    DataWin* dataWin = DataWin_parse(gamePath, options);
 
     // return strdup(dataWin->gen8.name);
 
@@ -302,11 +300,10 @@ void startRunner(const char* gamePath, const char* savesPath) {
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
-    runner->nativeWindow = nullptr;
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 
-    setWindowTitle(nullptr, dataWin->gen8.name);
+    setWindowTitle(dataWin->gen8.name);
 
     gRunner = runner;
 

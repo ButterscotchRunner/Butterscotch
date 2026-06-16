@@ -69,7 +69,10 @@ static InternalPathPoint* tempIntPoints = nullptr;
 static uint32_t tempIntPointCount = 0;
 
 static void addInternalPoint(float x, float y, float speed) {
-    InternalPathPoint pt = { .x = x, .y = y, .speed = speed, .l = 0.0 };
+    InternalPathPoint pt = {0};
+    pt.x = x;
+    pt.y = y;
+    pt.speed = speed;
     arrput(tempIntPoints, pt);
     tempIntPointCount++;
 }
@@ -170,7 +173,7 @@ void GamePath_computeInternal(GamePath* path) {
 
 // Get interpolated position at t in [0,1] (yyPath.js:362-409)
 PathPositionResult GamePath_getPosition(GamePath* path, float t) {
-    PathPositionResult result = { .x = 0.0f, .y = 0.0f, .speed = 0.0f };
+    PathPositionResult result = {0};
 
     if (path->internalPointCount == 0) return result;
 
@@ -219,8 +222,50 @@ PathPositionResult GamePath_getPosition(GamePath* path, float t) {
 static void parseGEN8(BinaryReader* reader, DataWin* dw) {
     Gen8* g = &dw->gen8;
     g->isDebuggerDisabled = BinaryReader_readUint8(reader);
-    g->bytecodeVersion = BinaryReader_readUint8(reader);
+    g->wadVersion = BinaryReader_readUint8(reader);
     BinaryReader_skip(reader, 2); // padding
+
+    // WAD8 has TWO known GEN8 layouts that share the same version:
+    // Around GMS 1.0.198: 84 bytes
+    // Around GMS 1.0.469: Same shape as WAD10's GEN8 except that the displayName is still absent
+    bool isCompactWad8 = 8 >= g->wadVersion && 108 > reader->bufferSize;
+    if (isCompactWad8) {
+        g->fileName = readStringPtr(reader, dw);
+        g->config = nullptr;
+        g->lastObj = BinaryReader_readUint32(reader);
+        g->lastTile = BinaryReader_readUint32(reader);
+        g->gameID = BinaryReader_readUint32(reader);
+        BinaryReader_readBytes(reader, g->directPlayGuid, 16);
+        g->name = nullptr;
+        g->major = 1;
+        g->minor = 0;
+        g->release = 0;
+        g->build = 198;
+        g->defaultWindowWidth = BinaryReader_readUint32(reader);
+        g->defaultWindowHeight = BinaryReader_readUint32(reader);
+        g->info = BinaryReader_readUint32(reader);
+        g->licenseCRC32 = BinaryReader_readUint32(reader);
+        BinaryReader_readBytes(reader, g->licenseMD5, 16);
+        g->timestamp = (uint64_t) BinaryReader_readUint32(reader); // WAD8 stores a signed int32 timestamp (FILETIME-derived), sign-extended at use sites
+        BinaryReader_skip(reader, 4); // unread 4-byte gap at offset 72
+        g->displayName = nullptr;
+        g->activeTargets = 0;
+        g->functionClassifications = 0;
+        g->steamAppID = 0;
+        g->debuggerPort = 0;
+        g->roomOrderCount = BinaryReader_readUint32(reader);
+        if (g->roomOrderCount > 0) {
+            g->roomOrder = safeMalloc(g->roomOrderCount * sizeof(int32_t));
+            repeat(g->roomOrderCount, i) {
+                g->roomOrder[i] = BinaryReader_readInt32(reader);
+            }
+        } else {
+            g->roomOrder = nullptr;
+        }
+        DataWin_bumpVersionTo(dw, g->major, g->minor, g->release, g->build);
+        return;
+    }
+
     g->fileName = readStringPtr(reader, dw);
     g->config = readStringPtr(reader, dw);
     g->lastObj = BinaryReader_readUint32(reader);
@@ -237,12 +282,39 @@ static void parseGEN8(BinaryReader* reader, DataWin* dw) {
     g->info = BinaryReader_readUint32(reader);
     g->licenseCRC32 = BinaryReader_readUint32(reader);
     BinaryReader_readBytes(reader, g->licenseMD5, 16);
+    if (12 >= g->wadVersion) {
+        int32_t ts = BinaryReader_readInt32(reader); // int32 timestamp (FILETIME-derived)
+        g->timestamp = (uint64_t) (int64_t) ts;
+        BinaryReader_skip(reader, 4); // unread padding at body+0x60
+        // If it is expanded but WAD8 or WAD9, then we won't have the displayName here
+        if (9 >= g->wadVersion) {
+            g->displayName = nullptr;
+        } else {
+            g->displayName = readStringPtr(reader, dw);
+        }
+        g->activeTargets = (g->wadVersion >= 11) ? BinaryReader_readUint64(reader) : 0;
+        g->functionClassifications = (g->wadVersion >= 12) ? BinaryReader_readUint64(reader) : 0;
+        g->roomOrderCount = BinaryReader_readUint32(reader);
+        if (g->roomOrderCount > 0) {
+            g->roomOrder = safeMalloc(g->roomOrderCount * sizeof(int32_t));
+            repeat(g->roomOrderCount, i) {
+                g->roomOrder[i] = BinaryReader_readInt32(reader);
+            }
+        } else {
+            g->roomOrder = nullptr;
+        }
+        g->steamAppID = 0;
+        g->debuggerPort = 0;
+        DataWin_bumpVersionTo(dw, g->major, g->minor, g->release, g->build);
+        return;
+    }
+
     g->timestamp = BinaryReader_readUint64(reader);
     g->displayName = readStringPtr(reader, dw);
     g->activeTargets = BinaryReader_readUint64(reader);
     g->functionClassifications = BinaryReader_readUint64(reader);
     g->steamAppID = BinaryReader_readInt32(reader);
-    if (g->bytecodeVersion >= 14) {
+    if (g->wadVersion >= 14) {
         g->debuggerPort = BinaryReader_readUint32(reader);
     }
 
@@ -333,7 +405,12 @@ static void parseOPTN(BinaryReader* reader, DataWin* dw) {
         if (BinaryReader_readBool32(reader)) o->info |= (uint64_t) 0x800000; // CreationEventOrder
     }
 
-    // Constants SimpleList
+    // Constants SimpleList (absent on WAD8)
+    if (8 >= dw->gen8.wadVersion) {
+        o->constantCount = 0;
+        o->constants = nullptr;
+        return;
+    }
     o->constantCount = BinaryReader_readUint32(reader);
     if (o->constantCount > 0) {
         o->constants = safeMalloc(o->constantCount * sizeof(OptnConstant));
@@ -383,9 +460,19 @@ static void parseLANG(BinaryReader* reader, DataWin* dw) {
     }
 }
 
+// Reads a uint32 at an absolute chunk offset (restoring the read cursor afterwards), or returns 0 if the offset would read past the chunk.
+static uint32_t peekUint32At(BinaryReader* reader, size_t absOffset, size_t chunkEnd) {
+    if (absOffset + 4 > chunkEnd) return 0;
+    size_t saved = BinaryReader_getPosition(reader);
+    BinaryReader_seek(reader, absOffset);
+    uint32_t value = BinaryReader_readUint32(reader);
+    BinaryReader_seek(reader, saved);
+    return value;
+}
+
 static void parseEXTN(BinaryReader* reader, DataWin* dw) {
-    // TODO: Update EXTN parser because it is broken for newer GM:S 2 versions
     Extn* e = &dw->extn;
+    size_t chunkEnd = reader->bufferBase + reader->bufferSize;
 
     uint32_t extCount;
     uint32_t* extPtrs = readPointerTable(reader, &extCount);
@@ -393,13 +480,37 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
 
     if (extCount == 0) { free(extPtrs); e->extensions = nullptr; return; }
 
+    int32_t extStringCount = 0;
+    if (dw->gen8.wadVersion >= 17) {
+        uint32_t firstExt = extPtrs[0];
+        // 2022.6: [folder][name][className][filesPtr][optionsPtr][files list...]; filesPtr == firstExt + 3*4 + 2*4
+        if (peekUint32At(reader, firstExt + 12, chunkEnd) == firstExt + 20) {
+            extStringCount = 3;
+
+        // 2023.4+: an extra Version string sits between name and className, shifting everything by 4 bytes
+        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24) {
+            extStringCount = 4;
+        }
+    }
+
     e->extensions = safeMalloc(extCount * sizeof(Extension));
     repeat(extCount, i) {
         BinaryReader_seek(reader, extPtrs[i]);
         Extension* ext = &e->extensions[i];
         ext->folderName = readStringPtr(reader, dw);
         ext->name = readStringPtr(reader, dw);
+        // GM 2023.4+ inserts a Version string here.
+        if (extStringCount >= 4) BinaryReader_readUint32(reader);
         ext->className = readStringPtr(reader, dw);
+
+        // In the new format (GM 2022.6+) the header now holds a Files pointer and an Options pointer.
+        // Seek to the Files pointer to reach the actual list.
+        // In the old format the Files PointerList is inline right here.
+        if (extStringCount > 0) {
+            uint32_t filesPtr = BinaryReader_readUint32(reader);
+            BinaryReader_readUint32(reader); // optionsPtr (Extension options are not used by the runner)
+            BinaryReader_seek(reader, filesPtr);
+        }
 
         // Files PointerList
         uint32_t fileCount;
@@ -455,8 +566,7 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
     }
     free(extPtrs);
 
-    // Product ID data (16 bytes per extension, bytecodeVersion >= 14)
-    // Skipped -- we seek to chunkEnd after parsing
+    // TODO: Product ID data (16 bytes per extension, wadVersion >= 14)
 }
 
 static void parseSOND(BinaryReader* reader, DataWin* dw) {
@@ -467,6 +577,33 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
     s->count = count;
 
     if (count == 0) { free(ptrs); s->sounds = nullptr; return; }
+
+    if (DataWin_isVersionAtLeast(dw, 2023, 2, 0, 0) && !DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+        uint32_t soundPtrs[2];
+        uint32_t soundCount = 0;
+        repeat(count, i) {
+            if (ptrs[i] == 0)
+                continue;
+            soundPtrs[soundCount++] = ptrs[i];
+            if (soundCount >= 2)
+                break;
+        }
+
+        if (soundCount >= 2) {
+            if (soundPtrs[0] + (4 * 9) == soundPtrs[1] - 4) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+        } else if (soundCount == 1) {
+            size_t savedPos = BinaryReader_getPosition(reader);
+            size_t probe = (size_t) (soundPtrs[0] + (4 * 9));
+            requireMessageFormatted(__FILE__, __LINE__, (probe % 16) != 4, "parseSOND: unexpected SOND alignment at 0x%zx");
+            BinaryReader_seek(reader, probe);
+            if (BinaryReader_readUint32(reader) != 0) {
+                DataWin_bumpVersionTo(dw, 2024, 6, 0, 0);
+            }
+            BinaryReader_seek(reader, savedPos);
+        }
+    }
 
     s->sounds = safeCalloc(count, sizeof(Sound));
     repeat(count, i) {
@@ -480,11 +617,25 @@ static void parseSOND(BinaryReader* reader, DataWin* dw) {
         snd->file = readStringPtr(reader, dw);
         snd->effects = BinaryReader_readUint32(reader);
         snd->volume = BinaryReader_readFloat32(reader);
+        if (12 >= dw->gen8.wadVersion) {
+            // Pre-WAD13 games store pan instead of pitch, and stores the embedded flag as a separate boolean.
+            snd->pan = BinaryReader_readFloat32(reader);
+
+            bool embedded = BinaryReader_readBool32(reader);
+            if (embedded)
+                snd->flags |= AUDIO_ENTRY_FLAG_IS_EMBEDDED;
+
+            snd->pitch = 1.0f;
+            snd->audioGroup = 0;
+            snd->audioFile = BinaryReader_readInt32(reader);
+            continue;
+        }
+        snd->pan = 0.0f;
         snd->pitch = BinaryReader_readFloat32(reader);
 
         // AudioGroup or preload field at offset +28
-        // For GMS 1.4.x (bytecodeVersion >= 14) with Regular flag: resource_id
-        if ((snd->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR && dw->gen8.bytecodeVersion >= 14) {
+        // For GMS 1.4.x (wadVersion >= 14) with Regular flag: resource_id
+        if ((snd->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR && dw->gen8.wadVersion >= 14) {
             snd->audioGroup = BinaryReader_readInt32(reader);
         } else {
             int32_t preload = BinaryReader_readInt32(reader);
@@ -585,11 +736,31 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         // Mask format: each bit = 1 pixel, MSB first, row-major
         // Width in bytes = (spriteWidth + 7) / 8, total = widthInBytes * spriteHeight
         // After all masks, data is padded to 4-byte alignment
+        // Zero-dimension sprites (placeholder/empty assets in test files) omit the mask block entirely
+        // GMS 2024.6+ stores collision masks at bounding-box dimensions (marginRight-marginLeft+1 by marginBottom-marginTop+1) instead of the full sprite size.
+        // Pre-2024.6 they cover the full sprite.
+        if (DataWin_isVersionAtLeast(dw, 2024, 6, 0, 0)) {
+            spr->maskWidth = (uint32_t) (spr->marginRight - spr->marginLeft + 1);
+            spr->maskHeight = (uint32_t) (spr->marginBottom - spr->marginTop + 1);
+            spr->maskOffsetX = spr->marginLeft;
+            spr->maskOffsetY = spr->marginTop;
+        } else {
+            spr->maskWidth = spr->width;
+            spr->maskHeight = spr->height;
+            spr->maskOffsetX = 0;
+            spr->maskOffsetY = 0;
+        }
+
+        if (spr->width == 0 || spr->height == 0) {
+            spr->maskCount = 0;
+            spr->masks = nullptr;
+            continue;
+        }
         uint32_t maskDataCount = BinaryReader_readUint32(reader);
         spr->maskCount = maskDataCount;
-        if (maskDataCount > 0 && spr->width > 0 && spr->height > 0) {
-            uint32_t bytesPerRow = (spr->width + 7) / 8;
-            uint32_t bytesPerMask = bytesPerRow * spr->height;
+        if (maskDataCount > 0 && spr->maskWidth > 0 && spr->maskHeight > 0) {
+            uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+            uint32_t bytesPerMask = bytesPerRow * spr->maskHeight;
 
             if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
                 spr->masks = safeMalloc(maskDataCount * sizeof(uint8_t*));
@@ -876,8 +1047,8 @@ static void parseSHDR(BinaryReader* reader, DataWin* dw) {
             sh->vertexAttributes = nullptr;
         }
 
-        // Version field and console shader variants only exist on bytecodeVersion > 13.
-        if (dw->gen8.bytecodeVersion > 13) {
+        // Version field and console shader variants only exist on wadVersion > 13.
+        if (dw->gen8.wadVersion > 13) {
             sh->version = BinaryReader_readInt32(reader);
 
             sh->pssl_VertexOffset = BinaryReader_readUint32(reader);
@@ -931,7 +1102,7 @@ static void parseFONT(BinaryReader* reader, DataWin* dw) {
     if (count == 0) { free(ptrs); f->fonts = nullptr; return; }
 
     // We need to figure out how many uint32 fields are between here and the PointerList
-    uint32_t fontOptionalCount = (dw->gen8.bytecodeVersion >= 17) ? 1u : 0u;
+    uint32_t fontOptionalCount = (dw->gen8.wadVersion >= 17) ? 1u : 0u;
     {
         size_t baseAfterScaleY = (size_t) ptrs[0] + 40;
         for (uint32_t trial = fontOptionalCount; 4 >= trial; trial++) {
@@ -967,7 +1138,7 @@ static void parseFONT(BinaryReader* reader, DataWin* dw) {
         font->tpagIndex = (int32_t) BinaryReader_readUint32(reader);
         font->scaleX = BinaryReader_readFloat32(reader);
         font->scaleY = BinaryReader_readFloat32(reader);
-        // Optional fields appear in this order when present: AscenderOffset (BC17+),
+        // Optional fields appear in this order when present: AscenderOffset (WAD17+),
         // Ascender, SDFSpread, LineHeight. `fontOptionalCount` says how many are actually on disk.
         font->ascenderOffset = 0;
         font->ascender = 0;
@@ -977,7 +1148,7 @@ static void parseFONT(BinaryReader* reader, DataWin* dw) {
         font->hasSDFSpread = false;
         font->hasLineHeight = false;
         uint32_t readSoFar = 0;
-        if (dw->gen8.bytecodeVersion >= 17 && fontOptionalCount > readSoFar) {
+        if (dw->gen8.wadVersion >= 17 && fontOptionalCount > readSoFar) {
             font->ascenderOffset = BinaryReader_readInt32(reader);
             readSoFar++;
         }
@@ -1154,9 +1325,16 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
         obj->linearDamping = BinaryReader_readFloat32(reader);
         obj->angularDamping = BinaryReader_readFloat32(reader);
         obj->physicsVertexCount = BinaryReader_readInt32(reader);
-        obj->friction = BinaryReader_readFloat32(reader);
-        obj->awake = BinaryReader_readBool32(reader);
-        obj->kinematic = BinaryReader_readBool32(reader);
+        // WAD8 object records end at physicsVertexCount (no friction/awake/kinematic before the events list)
+        if (8 >= dw->gen8.wadVersion) {
+            obj->friction = 0;
+            obj->awake = false;
+            obj->kinematic = false;
+        } else {
+            obj->friction = BinaryReader_readFloat32(reader);
+            obj->awake = BinaryReader_readBool32(reader);
+            obj->kinematic = BinaryReader_readBool32(reader);
+        }
 
         // Physics vertices
         if (obj->physicsVertexCount > 0) {
@@ -1292,7 +1470,7 @@ static void readRoomGameObjects(BinaryReader* reader, DataWin* dw, Room* room) {
             }
             go->color = BinaryReader_readUint32(reader);
             go->rotation = BinaryReader_readFloat32(reader);
-            if (dw->gen8.bytecodeVersion >= 16) {
+            if (dw->gen8.wadVersion >= 16) {
                 go->preCreateCode = BinaryReader_readInt32(reader);
             } else {
                 go->preCreateCode = -1;
@@ -1736,35 +1914,94 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
     free(ptrs);
 }
 
+// Parses a TexturePageItem at the current reader position
+// If i = -1, a new item entry will be allocated AND will be marked as a WinPack WAD
+// Returns the index of the TPAG
+static int32_t parseTexturePageItem(BinaryReader* reader, DataWin* dw, int32_t i) {
+    int32_t position = i;
+    if (i == -1) {
+        fprintf(stderr, "DataWin: Allocated new TPAG! Was the WAD built with WinPack? (TranslaTale)\n");
+        uint32_t newCount = dw->tpag.count + 1;
+        TexturePageItem* newItems = safeCalloc(newCount, sizeof(TexturePageItem));
+        memcpy(newItems, dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+        free(dw->tpag.items);
+
+        dw->tpag.count = newCount;
+
+        dw->tpag.items = newItems;
+        position = (int32_t) newCount - 1;
+    }
+
+    TexturePageItem* item = &dw->tpag.items[position];
+    item->present = true;
+    item->sourceX = BinaryReader_readUint16(reader);
+    item->sourceY = BinaryReader_readUint16(reader);
+    item->sourceWidth = BinaryReader_readUint16(reader);
+    item->sourceHeight = BinaryReader_readUint16(reader);
+    item->targetX = BinaryReader_readUint16(reader);
+    item->targetY = BinaryReader_readUint16(reader);
+    item->targetWidth = BinaryReader_readUint16(reader);
+    item->targetHeight = BinaryReader_readUint16(reader);
+    item->boundingWidth = BinaryReader_readUint16(reader);
+    item->boundingHeight = BinaryReader_readUint16(reader);
+    item->texturePageId = BinaryReader_readInt16(reader);
+
+    if (i == -1) {
+        // WinPack texture pages are off by one, because uuhh... it seems that it considers the runner allocated 1x1 white texture for some reason?!
+        item->texturePageId -= 1;
+    }
+
+    return position;
+}
+
 // Sprite/Background/Font initially store an absolute file offset to their TexturePageItem (since SPRT/BGND/FONT are parsed before TPAG).
 // resolveAllTPAGReferences translates those offsets to TPAG indices once the table is known. ptrs[] is the TPAG pointer table in monotonically increasing file order, so we can binary search it.
 // Offsets that don't resolve (or are 0) become -1.
-static int32_t findTPAGIndexByOffset(uint32_t* ptrs, uint32_t count, uint32_t offset) {
-    if (offset == 0) return -1;
+static int32_t findTPAGIndexByOffset(BinaryReader* reader, DataWin* dw, uint32_t* ptrs, uint32_t count, uint32_t offset) {
+    if (offset == 0)
+        return -1;
+
     uint32_t lo = 0, hi = count;
     while (hi > lo) {
         uint32_t mid = (lo + hi) >> 1;
         uint32_t v = ptrs[mid];
-        if (v == offset) return (int32_t) mid;
-        if (offset > v) lo = mid + 1; else hi = mid;
+
+        if (v == offset)
+            return (int32_t) mid;
+
+        if (offset > v)
+            lo = mid + 1;
+        else
+            hi = mid;
     }
+
+    // This is stupidly annoying
+    // WinPack (used by TranslaTale) stores TPAGs OUTSIDE of the IFF chunk and those entries are NOT present in the TPAG list
+    // So we need to manually read it
+    // The offset is an absolute position
+    if (reader->fileSize > offset) {
+        BinaryReader_seek(reader, offset);
+
+        return parseTexturePageItem(reader, dw, -1);
+    }
+
     return -1;
 }
 
-static void resolveAllTPAGReferences(DataWin* dw, uint32_t* ptrs, uint32_t count) {
+static void resolveAllTPAGReferences(BinaryReader* reader, DataWin* dw, uint32_t* ptrs, uint32_t count) {
     repeat(dw->sprt.count, i) {
         Sprite* spr = &dw->sprt.sprites[i];
         repeat(spr->textureCount, j) {
-            spr->tpagIndices[j] = findTPAGIndexByOffset(ptrs, count, (uint32_t) spr->tpagIndices[j]);
+            spr->tpagIndices[j] = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) spr->tpagIndices[j]);
         }
     }
     repeat(dw->bgnd.count, i) {
         Background* bg = &dw->bgnd.backgrounds[i];
-        bg->tpagIndex = findTPAGIndexByOffset(ptrs, count, (uint32_t) bg->tpagIndex);
+        bg->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) bg->tpagIndex);
     }
     repeat(dw->font.count, i) {
         Font* fnt = &dw->font.fonts[i];
-        fnt->tpagIndex = findTPAGIndexByOffset(ptrs, count, (uint32_t) fnt->tpagIndex);
+        fnt->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) fnt->tpagIndex);
     }
 }
 
@@ -1781,22 +2018,10 @@ static void parseTPAG(BinaryReader* reader, DataWin* dw) {
     repeat(count, i) {
         if (ptrs[i] == 0) { t->items[i].texturePageId = -1; continue; }
         BinaryReader_seek(reader, ptrs[i]);
-        TexturePageItem* item = &t->items[i];
-        item->present = true;
-        item->sourceX = BinaryReader_readUint16(reader);
-        item->sourceY = BinaryReader_readUint16(reader);
-        item->sourceWidth = BinaryReader_readUint16(reader);
-        item->sourceHeight = BinaryReader_readUint16(reader);
-        item->targetX = BinaryReader_readUint16(reader);
-        item->targetY = BinaryReader_readUint16(reader);
-        item->targetWidth = BinaryReader_readUint16(reader);
-        item->targetHeight = BinaryReader_readUint16(reader);
-        item->boundingWidth = BinaryReader_readUint16(reader);
-        item->boundingHeight = BinaryReader_readUint16(reader);
-        item->texturePageId = BinaryReader_readInt16(reader);
+        parseTexturePageItem(reader, dw, i);
     }
 
-    resolveAllTPAGReferences(dw, ptrs, count);
+    resolveAllTPAGReferences(reader, dw, ptrs, count);
 
     free(ptrs);
 }
@@ -1820,7 +2045,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
 
     if (codeCount == 0) { free(codePtrs); c->entries = nullptr; return; }
 
-    bool oldFormat = 14 >= dw->gen8.bytecodeVersion;
+    bool oldFormat = 14 >= dw->gen8.wadVersion;
 
     c->entries = safeCalloc(codeCount, sizeof(CodeEntry));
     repeat(codeCount, i) {
@@ -1884,7 +2109,7 @@ static void parseVARI(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
 
     // BC<=14 has no header (varCount1/varCount2/maxLocalVarCount) and 12-byte entries (no instanceType/varID).
     // BC>=15 has a 12-byte header and 20-byte entries.
-    bool oldFormat = dw->gen8.bytecodeVersion <= 14;
+    bool oldFormat = dw->gen8.wadVersion <= 14;
 
     if (oldFormat) {
         v->varCount1 = 0;
@@ -1922,7 +2147,7 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
     Func* f = &dw->func;
 
     // BC<=14 packs functions as a flat 12-byte-per-entry array (no SimpleList count prefix) and has no CodeLocals section.
-    if (dw->gen8.bytecodeVersion <= 14) {
+    if (dw->gen8.wadVersion <= 14) {
         f->functionCount = chunkLength / 12;
         if (f->functionCount > 0) {
             f->functions = safeMalloc(f->functionCount * sizeof(Function));
@@ -1937,6 +2162,38 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
         f->codeLocalsCount = 0;
         f->codeLocals = nullptr;
         return;
+    }
+
+    size_t funcChunkStart = BinaryReader_getPosition(reader);
+    size_t funcChunkEnd = funcChunkStart + chunkLength;
+    if (!DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0) && chunkLength != 0) {
+        uint32_t probeCount = BinaryReader_readUint32(reader);
+        size_t afterFunctions = BinaryReader_getPosition(reader) + (size_t) probeCount * 12;
+        bool is2024_8 = false;
+        if (afterFunctions == funcChunkEnd) {
+            // Reached the chunk end immediately after the function list: code locals are definitely gone.
+            is2024_8 = true;
+        } else if (funcChunkEnd > afterFunctions) {
+            // Otherwise the remainder must be nothing but 16-byte alignment padding to qualify.
+            BinaryReader_seek(reader, afterFunctions);
+            int paddingBytesRead = 0;
+            bool onlyPadding = true;
+            while ((BinaryReader_getPosition(reader) & 15) != 0) {
+                if (BinaryReader_getPosition(reader) >= funcChunkEnd || BinaryReader_readUint8(reader) != 0) {
+                    onlyPadding = false;
+                    break;
+                }
+                paddingBytesRead++;
+            }
+            // <4 padding bytes can't be a real (empty) list header; with >=4 we need a code entry to be sure.
+            if (onlyPadding && BinaryReader_getPosition(reader) == funcChunkEnd && (4 > paddingBytesRead || dw->code.count > 0)) {
+                is2024_8 = true;
+            }
+        }
+        if (is2024_8) {
+            DataWin_bumpVersionTo(dw, 2024, 8, 0, 0);
+        }
+        BinaryReader_seek(reader, funcChunkStart);
     }
 
     // Part 1: Functions SimpleList
@@ -1958,6 +2215,11 @@ static void parseFUNC(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
     }
 
     // Part 2: Code Locals SimpleList
+    if (DataWin_isVersionAtLeast(dw, 2024, 8, 0, 0)) {
+        f->codeLocalsCount = 0;
+        f->codeLocals = nullptr;
+        return;
+    }
     f->codeLocalsCount = BinaryReader_readUint32(reader);
     if (f->codeLocalsCount > 0) {
         f->codeLocals = safeMalloc(f->codeLocalsCount * sizeof(CodeLocals));
@@ -2124,7 +2386,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     setvbuf(file, nullptr, _IOFBF, 128 * 1024);
 
     fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
+    size_t fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
 
     if (fileSize <= 0) {
@@ -2138,14 +2400,23 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
     BinaryReader reader = BinaryReader_create(file, (size_t) fileSize);
 
+    // Some WAD files, such as ones made with https://github.com/AlexWaveDiver/TranslaTale (I think?) have pointers inside a chunk pointing to data in OTHER chunks
+    // The original runner doesn't care because it loads the entire file in memory up front, so we do the same if asked
+    // (we don't do that by default because some low end platforms would NOT be able to handle it)
+    uint8_t* wholeFileData = nullptr;
+    if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+        wholeFileData = safeMalloc((size_t) fileSize);
+        fread(wholeFileData, 1, (size_t) fileSize, file);
+        BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
+    }
+
     // Validate FORM header
     char formMagic[4];
     BinaryReader_readBytes(&reader, formMagic, 4);
+    // Some games may purposely corrupt the magic value so that UndertaleModTool doesn't open it
+    // The native runner does not care about verifying the magic value, so we'll validate it and warn, but we won't exit
     if (memcmp(formMagic, "FORM", 4) != 0) {
-        fprintf(stderr, "Invalid file: expected FORM magic, got '%.4s'\n", formMagic);
-        free(dw);
-        fclose(file);
-        exit(1);
+        fprintf(stderr, "The file does not have the expected FORM magic, got '%.4s'. The file may not be a WAD or it may have been tampered with!\n", formMagic);
     }
 
     uint32_t formLength = BinaryReader_readUint32(&reader);
@@ -2186,6 +2457,11 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             DataWin_bumpVersionTo(dw, 2024, 13, 0, 0);
         } else if (memcmp(chunkName, "PSEM", 4) == 0 || memcmp(chunkName, "PSYS", 4) == 0) {
             DataWin_bumpVersionTo(dw, 2023, 2, 0, 0);
+        }
+
+        if (chunkDataStart + chunkLength > fileSize) {
+            fprintf(stderr, "Chunk data extends beyond file size: chunkDataStart=%zu, chunkLength=%u, fileSize=%zu! Are you running a GameMaker Raspberry Pi game? Skipping bytes out of bounds...\n", chunkDataStart, chunkLength, fileSize);
+            break;
         }
 
         BinaryReader_seek(&reader, chunkDataStart + chunkLength);
@@ -2246,7 +2522,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
         // Bulk-read the chunk data into memory for fast parsing
         uint8_t* chunkBuffer = nullptr;
-        if (shouldParse && chunkLength > 0) {
+        if (shouldParse && chunkLength > 0 && options.loadType != DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
             chunkBuffer = safeMalloc(chunkLength);
             size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
             if (read != chunkLength) {
@@ -2293,7 +2569,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (memcmp(chunkName, "EMBI", 4) == 0) {
             // Embedded Images chunk
         } else if (memcmp(chunkName, "TGIN", 4) == 0) {
-            // Texture Group Info chunk (bytecodeVersion >= 17)
+            // Texture Group Info chunk (wadVersion >= 17)
         } else if (memcmp(chunkName, "ACRV", 4) == 0) {
             // Animation Curves chunk (GMS 2.3+)
             DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
@@ -2332,7 +2608,11 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         }
 
         // Seek to chunk end (skip any unread data or trailing padding)
-        fseek(reader.file, (long) chunkEnd, SEEK_SET);
+        if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+            BinaryReader_seek(&reader, chunkEnd);
+        } else {
+            fseek(reader.file, (long) chunkEnd, SEEK_SET);
+        }
         chunkIndex++;
     }
 
@@ -2356,6 +2636,10 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         dw->lazyLoadFilePath = nullptr;
         dw->fileSize = 0;
         fclose(file);
+    }
+
+    if (wholeFileData != nullptr) {
+        free(wholeFileData);
     }
 
     return dw;

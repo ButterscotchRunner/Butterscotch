@@ -2,7 +2,10 @@
 #include <stdint.h>
 
 // Forward declarations
+#ifndef RUNNER_DEFINED
+#define RUNNER_DEFINED
 typedef struct Runner Runner;
+#endif
 
 #include "instance.h"
 #include "real_type.h"
@@ -79,6 +82,7 @@ typedef struct {
     SpatialGridRange range;
     bool filterByObject;
     bool filterByInstanceId;
+    bool matchAll;
     uint32_t queryId;
 } SpatialGridQuery;
 

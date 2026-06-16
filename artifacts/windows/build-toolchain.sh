@@ -165,17 +165,6 @@ make -j"$ncpus" install-strip
 cd ../..
 rm -rf "gcc-$gcc_version" &
 
-bzip2_version='1.0.8'
-rm -rf bzip2-*
-wget -O- "https://sourceware.org/pub/bzip2/bzip2-$bzip2_version.tar.gz" | tar -xz
-
-cd "bzip2-$bzip2_version"
-make libbz2.a CC="$target-gcc" AR="$target-ar" RANLIB="$target-ranlib" -j"$ncpus"
-cp libbz2.a "$workdir/toolchain-$arch/$target/lib"
-cp bzlib.h "$workdir/toolchain-$arch/$target/include"
-cd ..
-rm -rf "bzip2-$bzip2_version" &
-
 glfw2_version='2.7.9'
 rm -rf glfw-*
 wget -O- "https://github.com/glfw/glfw-legacy/archive/refs/tags/$glfw2_version.tar.gz" | tar -xz

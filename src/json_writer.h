@@ -33,6 +33,9 @@ void JsonWriter_key(JsonWriter* writer, const char* key);
 void JsonWriter_string(JsonWriter* writer, const char* value);
 void JsonWriter_int(JsonWriter* writer, int64_t value);
 void JsonWriter_double(JsonWriter* writer, double value);
+// Writes an already-formatted JSON value verbatim, with no quoting or escaping.
+// The caller is responsible for it being a valid, self-contained JSON value (example: a number literal, escaped and quoted string value, "true"/"false"/"null", or a complete object/array).
+void JsonWriter_rawValue(JsonWriter* writer, const char* formattedValue);
 void JsonWriter_bool(JsonWriter* writer, bool value);
 void JsonWriter_null(JsonWriter* writer);
 

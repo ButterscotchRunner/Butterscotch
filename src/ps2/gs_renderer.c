@@ -15,9 +15,17 @@
 #include "matrix_math.h"
 
 #ifdef ENABLE_PS2_RENDERER_LOGS
-#define rendererPrintf(...) fprintf(stderr, __VA_ARGS__)
+static void rendererPrintf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
 #else
-#define rendererPrintf(...) ((void) 0)
+static void _rendererPrintf(const char* fmt, ...) {
+    (void)fmt;
+}
+#define rendererPrintf if (0) _rendererPrintf
 #endif
 
 // ===[ Constants ]===
@@ -149,7 +157,12 @@ static void loadAtlas(GsRenderer* gs) {
     gs->tileEntryMap = nullptr;
     repeat(gs->atlasTileCount, i) {
         AtlasTileEntry* entry = &gs->atlasTileEntries[i];
-        TileLookupKey key = { .bgDef = entry->bgDef, .srcX = entry->srcX, .srcY = entry->srcY, .srcW = entry->srcW, .srcH = entry->srcH };
+        TileLookupKey key = {0};
+        key.bgDef = entry->bgDef;
+        key.srcX = entry->srcX;
+        key.srcY = entry->srcY;
+        key.srcW = entry->srcW;
+        key.srcH = entry->srcH;
         hmput(gs->tileEntryMap, key, entry);
     }
 
@@ -910,7 +923,12 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
 
 // Finds a tile entry by (bgDef, srcX, srcY, srcW, srcH). Returns nullptr if not found.
 static AtlasTileEntry* findTileEntry(GsRenderer* gs, int16_t bgDef, uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH) {
-    TileLookupKey key = { .bgDef = bgDef, .srcX = srcX, .srcY = srcY, .srcW = srcW, .srcH = srcH };
+    TileLookupKey key = {0};
+    key.bgDef = bgDef;
+    key.srcX = srcX;
+    key.srcY = srcY;
+    key.srcW = srcW;
+    key.srcH = srcH;
     ptrdiff_t idx = hmgeti(gs->tileEntryMap, key);
     if (idx == -1) return nullptr;
     return gs->tileEntryMap[idx].value;
@@ -1132,6 +1150,10 @@ static void gsBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
 }
 
 static void gsEndView(MAYBE_UNUSED Renderer* renderer) {
+    // No-op
+}
+
+static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED const Matrix4f* worldToClip) {
     // No-op
 }
 
@@ -2943,53 +2965,89 @@ static bool gsSurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int
 
 // ===[ Vtable ]===
 
-static RendererVtable gsVtable = {
-    .init = gsInit,
-    .destroy = gsDestroy,
-    .beginFrame = gsBeginFrame,
-    .endFrameInit = gsEndFrameInit,
-    .endFrameEnd = gsEndFrameEnd,
-    .beginView = gsBeginView,
-    .endView = gsEndView,
-    .beginGUI = gsBeginGUI,
-    .endGUI = gsEndGUI,
-    .drawSprite = gsDrawSprite,
-    .drawSpritePos = gsDrawSpritePos,
-    .drawSpritePart = gsDrawSpritePart,
-    .drawRectangle = gsDrawRectangle,
-    .drawRectangleColor = gsDrawRectangleColor,
-    .drawLine = gsDrawLine,
-    .drawLineColor = gsDrawLineColor,
-    .drawText = gsDrawText,
-    .drawTextColor = gsDrawTextColor,
-    .drawTriangle = gsDrawTriangle,
-    .flush = gsFlush,
-    .clearScreen = gsClearScreen,
-    .createSpriteFromSurface = gsCreateSpriteFromSurface,
-    .deleteSprite = gsDeleteSprite,
-    .gpuSetBlendMode = gsGpuSetBlendMode,
-    .gpuSetBlendModeExt = gsGpuSetBlendModeExt,
-    .gpuSetBlendEnable = gsGpuSetBlendEnable,
-    .gpuGetBlendEnable = gsGpuGetBlendEnable,
-    .gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable,
-    .gpuSetAlphaTestRef = gsGpuSetAlphaTestRef,
-    .gpuSetColorWriteEnable = gsGpuSetColorWriteEnable,
-    .gpuGetColorWriteEnable = gsGpuGetColorWriteEnable,
-    .drawTile = gsDrawTile,
-    .drawTiled = gsDrawTiled,
-    .drawTiledPart = gsDrawTiledPart,
-    .createSurface = gsCreateSurface,
-    .surfaceExists = gsSurfaceExists,
-    .setRenderTarget = gsSetRenderTarget,
-    .ensureApplicationSurface = gsEnsureApplicationSurface,
-    .getSurfaceWidth = gsGetSurfaceWidth,
-    .getSurfaceHeight = gsGetSurfaceHeight,
-    .drawSurface = gsDrawSurface,
-    .surfaceResize = gsSurfaceResize,
-    .surfaceFree = gsSurfaceFree,
-    .surfaceCopy = gsSurfaceCopy,
-    .surfaceGetPixels = gsSurfaceGetPixels,
-};
+// Decode a texture handle produced by gsSpriteGetTexture back into its page dimensions and sub-rect (in texels).
+// Returns false for the 0 ("no texture") handle or an unresolvable one.
+static bool gsResolveTextureHandle(GsRenderer* gs, uint32_t texHandle, uint16_t* outPageW, uint16_t* outPageH, uint16_t* outSubX, uint16_t* outSubY, uint16_t* outSubW, uint16_t* outSubH) {
+    if (texHandle == 0) return false;
+    int32_t tpagIndex = (int32_t) texHandle - 1;
+    if (tpagIndex < 0) return false;
+
+    int32_t snapshotIdx = tpagSnapshotIndex(gs, tpagIndex);
+    if (snapshotIdx >= 0) {
+        SnapshotChunk* chunk = &gs->snapshotChunks[snapshotIdx];
+        *outPageW = chunk->width;
+        *outPageH = chunk->height;
+        *outSubX = 0;
+        *outSubY = 0;
+        *outSubW = chunk->width;
+        *outSubH = chunk->height;
+        return true;
+    }
+
+    if ((uint32_t) tpagIndex >= gs->atlasTPAGCount) return false;
+    AtlasTPAGEntry* entry = &gs->atlasTPAGEntries[tpagIndex];
+    if (entry->atlasId == 0xFFFF) return false;
+    *outPageW = gs->atlasWidth[entry->atlasId];
+    *outPageH = gs->atlasHeight[entry->atlasId];
+    *outSubX = entry->atlasX;
+    *outSubY = entry->atlasY;
+    *outSubW = entry->width;
+    *outSubH = entry->height;
+    return true;
+}
+
+static uint32_t gsSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    if (tpagIndex < 0) return 0;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, (uint32_t) (tpagIndex + 1), &pw, &ph, &sx, &sy, &sw, &sh)) return 0;
+    return (uint32_t) (tpagIndex + 1);
+}
+
+static uint32_t gsSurfaceGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) {
+    return 0;
+}
+
+static float gsTextureGetTexelWidth(Renderer* renderer, uint32_t texHandle) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || pw == 0) return 1.0f;
+    return 1.0f / (float) pw;
+}
+
+static float gsTextureGetTexelHeight(Renderer* renderer, uint32_t texHandle) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || ph == 0) return 1.0f;
+    return 1.0f / (float) ph;
+}
+
+static bool gsTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUVs) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || pw == 0 || ph == 0) return false;
+    float divW = 1.0f / (float) pw;
+    float divH = 1.0f / (float) ph;
+    outUVs[0] = (float) sx * divW;              // left
+    outUVs[1] = (float) sy * divH;              // top
+    outUVs[2] = (float) (sx + sw) * divW;       // right
+    outUVs[3] = (float) (sy + sh) * divH;       // bottom
+    return true;
+}
+
+static void gsTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texHandle) {
+}
+
+static void gsGpuSetShader(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex) {}
+static void gsGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
+static int32_t gsShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static int32_t gsShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static void gsShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void gsShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
+static bool gsShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
+static bool gsShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+
+static RendererVtable gsVtable;
 
 // ===[ Public API ]===
 
@@ -2997,6 +3055,66 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     GsRenderer* gs = safeCalloc(1, sizeof(GsRenderer));
     gs->eeAtlasCacheBytes = eeAtlasCacheMiB;
     gs->base.vtable = &gsVtable;
+    gsVtable.init = gsInit;
+    gsVtable.destroy = gsDestroy;
+    gsVtable.beginFrame = gsBeginFrame;
+    gsVtable.endFrameInit = gsEndFrameInit;
+    gsVtable.endFrameEnd = gsEndFrameEnd;
+    gsVtable.beginView = gsBeginView;
+    gsVtable.endView = gsEndView;
+    gsVtable.applyProjection = gsApplyProjection;
+    gsVtable.beginGUI = gsBeginGUI;
+    gsVtable.endGUI = gsEndGUI;
+    gsVtable.drawSprite = gsDrawSprite;
+    gsVtable.drawSpritePos = gsDrawSpritePos;
+    gsVtable.drawSpritePart = gsDrawSpritePart;
+    gsVtable.drawRectangle = gsDrawRectangle;
+    gsVtable.drawRectangleColor = gsDrawRectangleColor;
+    gsVtable.drawLine = gsDrawLine;
+    gsVtable.drawLineColor = gsDrawLineColor;
+    gsVtable.drawText = gsDrawText;
+    gsVtable.drawTextColor = gsDrawTextColor;
+    gsVtable.drawTriangle = gsDrawTriangle;
+    gsVtable.flush = gsFlush;
+    gsVtable.clearScreen = gsClearScreen;
+    gsVtable.createSpriteFromSurface = gsCreateSpriteFromSurface;
+    gsVtable.deleteSprite = gsDeleteSprite;
+    gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
+    gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
+    gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
+    gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
+    gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
+    gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
+    gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;
+    gsVtable.drawTile = gsDrawTile;
+    gsVtable.drawTiled = gsDrawTiled;
+    gsVtable.drawTiledPart = gsDrawTiledPart;
+    gsVtable.createSurface = gsCreateSurface;
+    gsVtable.surfaceExists = gsSurfaceExists;
+    gsVtable.setRenderTarget = gsSetRenderTarget;
+    gsVtable.ensureApplicationSurface = gsEnsureApplicationSurface;
+    gsVtable.getSurfaceWidth = gsGetSurfaceWidth;
+    gsVtable.getSurfaceHeight = gsGetSurfaceHeight;
+    gsVtable.drawSurface = gsDrawSurface;
+    gsVtable.surfaceResize = gsSurfaceResize;
+    gsVtable.surfaceFree = gsSurfaceFree;
+    gsVtable.surfaceCopy = gsSurfaceCopy;
+    gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
+    gsVtable.spriteGetTexture = gsSpriteGetTexture;
+    gsVtable.surfaceGetTexture = gsSurfaceGetTexture;
+    gsVtable.textureGetTexelWidth = gsTextureGetTexelWidth;
+    gsVtable.textureGetTexelHeight = gsTextureGetTexelHeight;
+    gsVtable.textureGetUVs = gsTextureGetUVs;
+    gsVtable.textureSetStage = gsTextureSetStage;
+    gsVtable.gpuSetShader = gsGpuSetShader;
+    gsVtable.gpuResetShader = gsGpuResetShader;
+    gsVtable.shaderGetUniform = gsShaderGetUniform;
+    gsVtable.shaderGetSamplerIndex = gsShaderGetSamplerIndex;
+    gsVtable.shaderSetUniformF = gsShaderSetUniformF;
+    gsVtable.shaderSetUniformI = gsShaderSetUniformI;
+    gsVtable.shaderIsCompiled = gsShaderIsCompiled;
+    gsVtable.shadersSupported = gsShadersSupported;
     gs->gsGlobal = gsGlobal;
     gs->scaleX = 2.0f;
     gs->scaleY = 2.0f;
