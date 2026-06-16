@@ -1582,7 +1582,7 @@ static void swrDrawText(SWRenderer* swr, const char* text, float x, float y, flo
 {
 	Renderer* renderer = &swr->base;
 	DataWin* dwin = renderer->dataWin;
-
+	
 	int32_t fontIndex = renderer->drawFont;
 	if (0 > fontIndex || dwin->font.count <= (uint32_t) fontIndex) return;
 
@@ -1674,8 +1674,12 @@ static void swrDrawText(SWRenderer* swr, const char* text, float x, float y, flo
 						
 						if (UNLIKELY(mustRotate))
 						{
+							dx -= x;
+							dy -= y;
 							float ndx = cosA * dx - sinA * dy;
 							float ndy = sinA * dx + cosA * dy;
+							ndx += x;
+							ndy += y;
 							swrDrawSpriteRotated(renderer, ndx, ndy, dw, dh, texture, sx, sy, sw, sh, color, alpha, angleDeg, 0.0f, 0.0f);
 						}
 						else
