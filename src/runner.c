@@ -18,10 +18,8 @@
 
 // ===[ Runtime Layer Teardown Helpers ]===
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
-    if (runtimeLayer->dynamicName != nullptr) {
-        free(runtimeLayer->dynamicName);
-        runtimeLayer->dynamicName = nullptr;
-    }
+    free(runtimeLayer->dynamicName);
+    runtimeLayer->dynamicName = nullptr;
     size_t elementCount = arrlenu(runtimeLayer->elements);
     repeat(elementCount, i) {
         RuntimeLayerElement* el = &runtimeLayer->elements[i];
@@ -359,7 +357,9 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
     int32_t savedEventType = vm->currentEventType;
     int32_t savedEventSubtype = vm->currentEventSubtype;
     int32_t savedEventObjectIndex = vm->currentEventObjectIndex;
+    bool savedActionRelativeFlag = vm->actionRelativeFlag;
 
+    vm->actionRelativeFlag = false;
     vm->currentEventType = eventType;
     vm->currentEventSubtype = eventSubtype;
     vm->currentEventObjectIndex = ownerObjectIndex;
@@ -386,6 +386,7 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
     vm->currentEventType = savedEventType;
     vm->currentEventSubtype = savedEventSubtype;
     vm->currentEventObjectIndex = savedEventObjectIndex;
+    vm->actionRelativeFlag = savedActionRelativeFlag;
 }
 
 void Runner_executeEventFromObject(Runner* runner, Instance* instance, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype) {
@@ -481,7 +482,55 @@ void Runner_scrollBackgrounds(Runner* runner) {
     }
 }
 
-void Runner_drawBackgrounds(Runner* runner, bool foreground) {
+static void drawBackground(
+    Runner* runner,
+    int32_t tpagIndex,
+    bool stretch,
+    float roomW,
+    float roomH,
+    bool tileX,
+    bool tileY,
+    float backgroundX,
+    float backgroundY,
+    float layerOffsetX,
+    float layerOffsetY,
+    float xScale,
+    float yScale,
+    uint32_t blend,
+    float alpha
+) {
+    if (0 > tpagIndex)
+        return;
+
+    if (stretch) {
+        // Stretch to fill room dimensions
+        TexturePageItem* tpag = &runner->dataWin->tpag.items[tpagIndex];
+        float xscale = roomW / (float) tpag->boundingWidth;
+        float yscale = roomH / (float) tpag->boundingHeight;
+        runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, blend, alpha);
+    } else if (tileX || tileY) {
+        Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, xScale, yScale, tileX, tileY, roomW, roomH, alpha);
+    } else {
+        // Single placement
+        runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, 0.0f, 0.0f, xScale, yScale, 0.0f, blend, alpha);
+    }
+}
+
+// Renders a single GM:S 2 background layer element
+static void renderBackgroundElement(Runner* runner, RuntimeBackgroundElement* bg, float roomW, float roomH, float layerOffsetX, float layerOffsetY) {
+    if (bg == nullptr || !bg->visible) return;
+    if (0 > bg->spriteIndex) {
+        // Spriteless background element: draw as a colored rectangle filling the room
+        // TODO: Match GMS's rendering more closely (see PR #120)
+        runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, bg->blend, bg->alpha, false);
+        return;
+    }
+    int32_t tpagIndex = Renderer_resolveTPAGIndex(runner->dataWin, bg->spriteIndex, bg->imageIndex);
+    drawBackground(runner, tpagIndex, bg->stretch, roomW, roomH, bg->hTiled, bg->vTiled, bg->xOffset, bg->yOffset, layerOffsetX, layerOffsetY, bg->xScale, bg->yScale, bg->blend, bg->alpha);
+}
+
+// Legacy GameMaker: Studio 1.x backgrounds
+static void drawGMS1Backgrounds(Runner* runner, bool foreground) {
     if (runner->renderer == nullptr) return;
     DataWin* dataWin = runner->dataWin;
     float roomW = (float) runner->currentRoom->width;
@@ -493,50 +542,65 @@ void Runner_drawBackgrounds(Runner* runner, bool foreground) {
         if (0 > bg->backgroundIndex) continue;
 
         int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(dataWin, bg->backgroundIndex);
-        if (0 > tpagIndex) continue;
 
-        if (bg->stretch) {
-            // Stretch to fill room dimensions
-            TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-            float xscale = roomW / (float) tpag->boundingWidth;
-            float yscale = roomH / (float) tpag->boundingHeight;
-            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, bg->alpha);
-        } else if (bg->tileX || bg->tileY) {
-            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, bg->x, bg->y, bg->xScale, bg->yScale, bg->tileX, bg->tileY, roomW, roomH, bg->alpha);
-        } else {
-            // Single placement
-            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, bg->x, bg->y, 0.0f, 0.0f, bg->xScale, bg->yScale, 0.0f, 0xFFFFFF, bg->alpha);
-        }
+        drawBackground(
+            runner,
+            tpagIndex,
+            bg->stretch,
+            roomW,
+            roomH,
+            bg->tileX,
+            bg->tileY,
+            bg->x,
+            bg->y,
+            0.0f,
+            0.0f,
+            bg->xScale,
+            bg->yScale,
+            0xFFFFFF,
+            bg->alpha
+        );
     }
 }
 
 // ===[ Draw ]===
 
-static int compareDrawableDepth(const void* a, const void* b) {
-    const Drawable* da = (const Drawable*) a;
-    const Drawable* db = (const Drawable*) b;
-    // Higher depth draws first (behind), lower depth draws last (in front)
-    if (da->depth > db->depth) return -1;
-    if (db->depth > da->depth) return 1;
-    // At same depth, tiles before instances (tiles are background)
-    if (da->type < db->type) return -1;
-    if (db->type < da->type) return 1;
-    // At same depth and type, preserve original room order (higher index draws later = in front)
-    if (da->type == DRAWABLE_TILE) {
-        if (db->tileIndex > da->tileIndex) return -1;
-        if (da->tileIndex > db->tileIndex) return 1;
+typedef struct {
+    int32_t depth;
+    int32_t type;
+    int32_t order;
+} DrawKey;
+
+static DrawKey drawableKey(const Drawable* d) {
+    DrawKey k = { d->depth, d->type, 0 };
+    switch (d->type) {
+        case DRAWABLE_TILE: k.order = d->tileIndex; break;
+        case DRAWABLE_INSTANCE: k.order = (int32_t) d->instance->instanceId;  break;
+        case DRAWABLE_LAYER: k.order = d->runtimeLayerId; break;
     }
-    // At same depth, newer instances (higher instanceId) draw FIRST (behind), older draw LAST (front).
-    if (da->type == DRAWABLE_INSTANCE && db->type == DRAWABLE_INSTANCE) {
-        if (db->instance->instanceId > da->instance->instanceId) return 1;
-        if (da->instance->instanceId > db->instance->instanceId) return -1;
-    }
-    // At same depth, layers with higher ID draw FIRST (behind).
-    if (da->type == DRAWABLE_LAYER && db->type == DRAWABLE_LAYER) {
-        if (db->runtimeLayerId > da->runtimeLayerId) return 1;
-        if (da->runtimeLayerId > db->runtimeLayerId) return -1;
-    }
-    return 0;
+    return k;
+}
+
+static int compareDrawKeys(const DrawKey* a, const DrawKey* b) {
+    if (a->depth != b->depth)
+        return a->depth > b->depth ? -1 : 1; // higher depth first
+
+    if (a->type  != b->type)
+        return a->type  < b->type  ? -1 : 1; // tiles before instances
+
+    if (a->type == DRAWABLE_TILE)
+        return (a->order > b->order) - (a->order < b->order); // tiles: higher index later
+
+    return (a->order < b->order) - (a->order > b->order); // instance/layer: higher first
+}
+
+static int compareDrawables(const void* a, const void* b) {
+    Drawable* drawableA = (Drawable*) a;
+    Drawable* drawableB = (Drawable*) b;
+    DrawKey drawKeyA = drawableKey(drawableA);
+    DrawKey drawKeyB = drawableKey(drawableB);
+
+    return compareDrawKeys(&drawKeyA, &drawKeyB);
 }
 
 static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawableCount, int32_t subtype) {
@@ -622,7 +686,10 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
 // Returns true if "drawables" is already in compareDrawableDepth order. Used by the sort-dirty path to skip qsort when small depth perturbations didn't actually cross any neighbor.
 static bool isDrawableArraySorted(Drawable* drawables, int32_t count) {
     for (int32_t i = 1; count > i; i++) {
-        if (compareDrawableDepth(&drawables[i - 1], &drawables[i]) > 0) return false;
+        DrawKey drawKey1 = drawableKey(&drawables[i - 1]);
+        DrawKey drawKey2 = drawableKey(&drawables[i]);
+
+        if (compareDrawKeys(&drawKey1, &drawKey2) > 0) return false;
     }
     return true;
 }
@@ -686,7 +753,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
         if (count > 1) {
-            qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawableDepth);
+            qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawables);
         }
         runner->drawableListStructureDirty = false;
         runner->drawableListSortDirty = false;
@@ -697,7 +764,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
         refreshDrawableDepths(runner, runner->cachedDrawables, count);
         if (count > 1 && !isDrawableArraySorted(runner->cachedDrawables, count)) {
-            qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawableDepth);
+            qsort(runner->cachedDrawables, count, sizeof(Drawable), compareDrawables);
         }
         runner->drawableListSortDirty = false;
     }
@@ -708,17 +775,63 @@ void Runner_draw(Runner* runner) {
 
     rebuildDrawableCacheIfDirty(runner);
     int32_t drawableCount = (int32_t) arrlen(runner->cachedDrawables);
-    Drawable* drawables = runner->cachedDrawables;
 
     // Draw non-foreground backgrounds (behind everything)
     if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0))
-        Runner_drawBackgrounds(runner, false);
+        drawGMS1Backgrounds(runner, false);
 
-    fireDrawSubtype(runner, drawables, drawableCount, DRAW_BEGIN);
+    fireDrawSubtype(runner, runner->cachedDrawables, drawableCount, DRAW_BEGIN);
 
     // Draw interleaved tiles and instances
-    repeat(drawableCount, i) {
-        Drawable* d = &drawables[i];
+    int32_t i = 0;
+    DrawKey lastProcessedDrawKey;
+
+    while (true) {
+        if (runner->drawableListSortDirty || runner->drawableListStructureDirty) {
+            rebuildDrawableCacheIfDirty(runner);
+
+            if (i != 0) {
+                // Something created things during draw events! Figure out the new cursor position...
+                // lastProcessedDrawKey WILL already be set here, because this code will ONLY execute if we have at least processed at least ONE drawable
+                bool foundSomething = false;
+
+                repeat(arrlen(runner->cachedDrawables), j) {
+                    Drawable* drawable = &runner->cachedDrawables[j];
+
+                    DrawKey drawKey = drawableKey(drawable);
+
+                    int result = compareDrawKeys(&drawKey, &lastProcessedDrawKey);
+
+                    if (result == 0) {
+                        // Found exact match
+                        i = (int32_t) j + 1; // Skip one because we DON'T WANT to redraw something that was already drawn
+                        foundSomething = true;
+                        break;
+                    }
+
+                    if (result == 1) {
+                        // New key order is HIGHER than the current one, so we want to continue processing from here
+                        i = (int32_t) j;
+                        foundSomething = true;
+                        break;
+                    }
+                }
+
+                if (!foundSomething) {
+                    // We haven't found anything, we don't have anything more to draw, so bail!
+                    break;
+                }
+            }
+
+            drawableCount = arrlen(runner->cachedDrawables);
+        }
+
+        if (i >= drawableCount)
+            break;
+
+        Drawable* d = &runner->cachedDrawables[i++];
+        lastProcessedDrawKey = drawableKey(d);
+
         if (d->type == DRAWABLE_TILE) {
             if (runner->renderer != nullptr) {
                 RoomTile* tile = &room->tiles[d->tileIndex];
@@ -770,52 +883,28 @@ void Runner_draw(Runner* runner) {
             } else if (runner->renderer != nullptr) {
                 Renderer_drawSelf(runner->renderer, inst);
             }
-        } else if (d->type == DRAWABLE_LAYER)
-        {
+        } else if (d->type == DRAWABLE_LAYER) {
             // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
             RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
 
-            // Dynamic layers created via layer_create have no parsed RoomLayer, render their runtime elements instead (backgrounds, in the future sprites/tilemaps).
-            if (runtimeLayer->dynamic) {
-                if (runner->renderer == nullptr) continue;
-
-                DataWin* dataWin = runner->dataWin;
+            // Handle layer elements
+            if (runner->renderer != nullptr) {
                 float roomW = (float) runner->currentRoom->width;
                 float roomH = (float) runner->currentRoom->height;
-
                 size_t elementCount = arrlenu(runtimeLayer->elements);
                 repeat(elementCount, j) {
                     RuntimeLayerElement* layerElement = &runtimeLayer->elements[j];
                     if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
-                        RuntimeBackgroundElement* bg = layerElement->backgroundElement;
-                        if (!bg->visible) continue;
-                        if (0 > bg->spriteIndex) {
-                            // Spriteless background element: draw as a colored rectangle
-                            runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, bg->blend, bg->alpha, false);
-                            continue;
-                        }
-                        int32_t tpagIndex = Renderer_resolveTPAGIndex(dataWin, bg->spriteIndex, bg->imageIndex);
-                        if (0 > tpagIndex) continue;
-                        if (bg->stretch) {
-                            TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                            float xscale = roomW / (float) tpag->boundingWidth;
-                            float yscale = roomH / (float) tpag->boundingHeight;
-                            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, bg->blend, bg->alpha);
-                        } else if (bg->htiled || bg->vtiled) {
-                            Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + bg->xOffset, layerOffsetY + bg->yOffset, bg->xScale, bg->yScale, bg->htiled, bg->vtiled, roomW, roomH, bg->alpha);
-                        } else {
-                            runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX + bg->xOffset, layerOffsetY + bg->yOffset, 0.0f, 0.0f, bg->xScale, bg->yScale, 0.0f, bg->blend, bg->alpha);
-                        }
+                        renderBackgroundElement(runner, layerElement->backgroundElement, roomW, roomH, layerOffsetX, layerOffsetY);
                     }
                 }
-                continue;
             }
 
-            // Parsed layer: look up the RoomLayer by ID and render its data-driven content.
-            RoomLayer* parsedLayer = Runner_findRoomLayerById(runner, (int32_t) runtimeLayer->id);
+            // Everything after this point is static/parsed layers from the Room itself
+            RoomLayer* parsedLayer = Runner_findRoomLayerById(runner->currentRoom, (int32_t) runtimeLayer->id);
             if (parsedLayer == nullptr) continue;
             if (parsedLayer->type == RoomLayerType_Assets) {
                 RoomLayerAssetsData* data = parsedLayer->assetsData;
@@ -885,53 +974,44 @@ void Runner_draw(Runner* runner) {
                     Renderer_drawSpriteExt(
                         runner->renderer, spr->spriteIndex, (int32_t) spr->frameIndex,
                         (float) spr->x + layerOffsetX, (float) spr->y + layerOffsetY, spr->scaleX,
-                        spr->scaleY, spr->rotation, spr->color,
-                        1.0);
+                        spr->scaleY, spr->rotation, el->blend,
+                        el->alpha);
                 }
-            } else if(parsedLayer->type == RoomLayerType_Background) {
-                if (runner->renderer == nullptr) return;
-                DataWin* dataWin = runner->dataWin;
-                float roomW = (float) runner->currentRoom->width;
-                float roomH = (float) runner->currentRoom->height;
-                RoomLayerBackgroundData* data = parsedLayer->backgroundData;
-
-                if (0 > data->spriteIndex) {
-                    // Spriteless background layer: draw as a colored rectangle with the layer's color/alpha
-                    // TODO: Match GMS's renering more closely (see PR #120)
-                    float alpha = (float) BGR_A(data->color) / 255.0f;
-                    runner->renderer->vtable->drawRectangle(runner->renderer, 0.0f, 0.0f, roomW, roomH, data->color, alpha, false);
-                    continue;
-                }
-
-                int32_t tpagIndex = Renderer_resolveTPAGIndex(dataWin, data->spriteIndex, data->imageIndex);
-                if (0 > tpagIndex) continue;
-
-                if (data->stretch) {
-                    // Stretch to fill room dimensions
-                    TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                    float xscale = roomW / (float) tpag->boundingWidth;
-                    float yscale = roomH / (float) tpag->boundingHeight;
-                    runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, 0xFFFFFF, 1.0);
-                } else if (data->hTiled || data->vTiled) {
-                    Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 1.0f, 1.0f, data->hTiled, data->vTiled, roomW, roomH, 1.0);
-                } else {
-                    // Single placement
-                    runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX, layerOffsetY, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0);
-                }
-            } else if(parsedLayer->type == RoomLayerType_Instances) {
-                // Instance depth is assigned from layers during room init (initRoom).
-                // Nothing to do here - instances are drawn from the DRAWABLE_INSTANCE path.
-            } else if(parsedLayer->type == RoomLayerType_Tiles) {
+            } else if (parsedLayer->type == RoomLayerType_Tiles) {
                 if (runner->renderer == nullptr) continue;
                 Runner_drawTileLayer(runner, parsedLayer->tilesData, layerOffsetX, layerOffsetY);
+            } else if (parsedLayer->type == RoomLayerType_Background) {
+                // Nothing to render here: handled above
+            } else if (parsedLayer->type == RoomLayerType_Instances) {
+                // Nothing to render here: handled above on the DRAWABLE_INSTANCE path
+            } else if (parsedLayer->type == RoomLayerType_Path || parsedLayer->type == RoomLayerType_Path2) {
+                // Nothing to render: not used for rendering purposes
+            } else if (parsedLayer->type == RoomLayerType_Effect) {
+                // TODO: Implement post-processing effect layers!
             }
         }
     }
 
-    fireDrawSubtype(runner, drawables, drawableCount, DRAW_END);
+    fireDrawSubtype(runner, runner->cachedDrawables, drawableCount, DRAW_END);
 
     // Draw foreground backgrounds (in front of instances, behind GUI)
-    Runner_drawBackgrounds(runner, true);
+    drawGMS1Backgrounds(runner, true);
+}
+
+// Open a GUI-space draw pass and remember its parameters so surface_reset_target can restore the GUI target + projection when the surface stack pops back to empty mid-pass.
+static void beginGuiPass(Runner* runner, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
+    runner->inGuiPass = true;
+    runner->guiPassW = guiW;
+    runner->guiPassH = guiH;
+    runner->guiPassPortW = portW;
+    runner->guiPassPortH = portH;
+    runner->guiPassTarget = targetSurfaceId;
+    runner->renderer->vtable->beginGUI(runner->renderer, guiW, guiH, 0, 0, portW, portH, targetSurfaceId);
+}
+
+static void endGuiPass(Runner* runner) {
+    runner->renderer->vtable->endGUI(runner->renderer);
+    runner->inGuiPass = false;
 }
 
 void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t targetW, int32_t targetH) {
@@ -941,11 +1021,11 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
 
     int32_t guiW = runner->guiWidth > 0 ? runner->guiWidth : targetW;
     int32_t guiH = runner->guiHeight > 0 ? runner->guiHeight : targetH;
-    runner->renderer->vtable->beginGUI(runner->renderer, guiW, guiH, 0, 0, windowW, windowH);
+    beginGuiPass(runner, guiW, guiH, windowW, windowH, RENDER_TARGET_HOST_FRAMEBUFFER);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
-    runner->renderer->vtable->endGUI(runner->renderer);
+    endGuiPass(runner);
 }
 
 void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH) {
@@ -953,9 +1033,10 @@ void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH) {
     Drawable* drawables = runner->cachedDrawables;
     int32_t drawableCount = (int32_t) arrlen(drawables);
 
-    runner->renderer->vtable->beginGUI(runner->renderer, windowW, windowH, 0, 0, windowW, windowH);
+    // Pre Draw runs before the app-surface blit, so it targets the application surface.
+    beginGuiPass(runner, windowW, windowH, windowW, windowH, runner->applicationSurfaceId);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_PRE);
-    runner->renderer->vtable->endGUI(runner->renderer);
+    endGuiPass(runner);
 }
 
 void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH) {
@@ -963,9 +1044,9 @@ void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH) {
     Drawable* drawables = runner->cachedDrawables;
     int32_t drawableCount = (int32_t) arrlen(drawables);
 
-    runner->renderer->vtable->beginGUI(runner->renderer, windowW, windowH, 0, 0, windowW, windowH);
+    beginGuiPass(runner, windowW, windowH, windowW, windowH, RENDER_TARGET_HOST_FRAMEBUFFER);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_POST);
-    runner->renderer->vtable->endGUI(runner->renderer);
+    endGuiPass(runner);
 }
 
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY) {
@@ -1024,7 +1105,7 @@ static void applyFreeCamera(Runner* runner, int32_t* viewX, int32_t* viewY, int3
     *viewY = (int32_t) (centerY - zoomedH * 0.5f);
 }
 
-void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks) {
+void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugShowCollisionMasks) {
     Renderer* renderer = runner->renderer;
     bool anyViewRendered = false;
 
@@ -1041,14 +1122,37 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displa
             GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) vi);
             if (camera == nullptr) continue;
 
+            bool toSurface = view->surfaceId != -1;
+
+            if (toSurface) {
+                // The surface is GONE, skip it!
+                if (!renderer->vtable->surfaceExists(renderer, view->surfaceId))
+                    continue;
+
+                Runner_surfaceSetTarget(runner, view->surfaceId);
+
+                Matrix4f proj;
+                Matrix4f_viewProjection(&proj, (float) camera->viewX, (float) camera->viewY, (float) camera->viewWidth, (float) camera->viewHeight, camera->viewAngle);
+                renderer->vtable->applyProjection(renderer, &proj);
+
+                runner->viewCurrent = (int32_t) vi;
+                Runner_draw(runner);
+
+                renderer->vtable->flush(renderer);
+
+                Runner_surfaceResetTarget(runner);
+                anyViewRendered = true;
+                continue;
+            }
+
             int32_t viewX, viewY, viewW, viewH;
             expandViewAxis(camera->viewX, camera->viewWidth, gameW, widescreenBaseW, &viewX, &viewW);
             expandViewAxis(camera->viewY, camera->viewHeight, gameH, widescreenBaseH, &viewY, &viewH);
             applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
-            int32_t portX = (int32_t) ((float) view->portX * displayScaleX + 0.5f);
-            int32_t portY = (int32_t) ((float) view->portY * displayScaleY + 0.5f);
-            int32_t portW = (int32_t) ((float) view->portWidth * displayScaleX + 0.5f);
-            int32_t portH = (int32_t) ((float) view->portHeight * displayScaleY + 0.5f);
+            int32_t portX = (int32_t) ((float) view->portX * runner->displayScaleX + 0.5f);
+            int32_t portY = (int32_t) ((float) view->portY * runner->displayScaleY + 0.5f);
+            int32_t portW = (int32_t) ((float) view->portWidth * runner->displayScaleX + 0.5f);
+            int32_t portH = (int32_t) ((float) view->portHeight * runner->displayScaleY + 0.5f);
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
@@ -1233,6 +1337,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     SavedRoomState* savedState = &runner->savedRoomStates[roomIndex];
 
+    // Kept so carried persistent instances can be re-homed onto the new room's layer with the same name.
+    Room* previousRoom = runner->currentRoom;
+
     runner->currentRoom = room;
     runner->currentRoomIndex = roomIndex;
     runner->viewsEnabled = (room->flags & 1) != 0;
@@ -1301,6 +1408,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         copyRoomViewToRuntimeView(roomView, &runner->views[vi]);
         initDefaultCameraFromRoomView(&runner->defaultCameras[vi], roomView);
         runner->views[vi].cameraId = (int32_t) vi;
+        runner->views[vi].surfaceId = -1;
     }
 
     // Reset tile layer state for the new room
@@ -1328,9 +1436,45 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Watermark: ensure runtime-allocated IDs (layers + elements) stay above parsed IDs.
     if (maxLayerId >= runner->nextLayerId) runner->nextLayerId = maxLayerId + 1;
 
-    // Populate runtime sprite elements for Assets layers, so they can be queried and destroyed via layer_sprite_get_sprite/layer_sprite_destroy
+    // Convert room layers into runtime elements
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
+        if (layerSource->type == RoomLayerType_Background && layerSource->backgroundData != nullptr) {
+            RoomLayerBackgroundData* src = layerSource->backgroundData;
+            RuntimeBackgroundElement* bg = safeMalloc(sizeof(RuntimeBackgroundElement));
+            bg->spriteIndex = src->spriteIndex;
+            bg->visible = src->visible;
+            bg->hTiled = src->hTiled;
+            bg->vTiled = src->vTiled;
+            bg->stretch = src->stretch;
+            bg->xScale = 1.0f;
+            bg->yScale = 1.0f;
+            bg->blend = src->color & 0xFFFFFFu;
+            bg->alpha = (float) BGR_A(src->color) / 255.0f;
+            bg->xOffset = 0.0f;
+            bg->yOffset = 0.0f;
+            bg->imageIndex = src->imageIndex;
+            RuntimeLayerElement el = {0};
+            el.id = Runner_getNextLayerId(runner);
+            el.type = RuntimeLayerElementType_Background;
+            el.visible = true;
+            el.alpha = bg->alpha;
+            el.blend = bg->blend;
+            el.backgroundElement = bg;
+            arrput(runner->runtimeLayers[i].elements, el);
+            continue;
+        }
+        if (layerSource->type == RoomLayerType_Tiles && layerSource->tilesData != nullptr) {
+            RuntimeLayerElement el = {0};
+            el.id = Runner_getNextLayerId(runner);
+            el.type = RuntimeLayerElementType_Tilemap;
+            el.visible = true;
+            el.alpha = 1.0f;
+            el.blend = 0xFFFFFFu;
+            el.tilemapData = layerSource->tilesData;
+            arrput(runner->runtimeLayers[i].elements, el);
+            continue;
+        }
         if (layerSource->type != RoomLayerType_Assets || layerSource->assetsData == nullptr) continue;
         RoomLayerAssetsData* assets = layerSource->assetsData;
         RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
@@ -1351,7 +1495,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             el.id = Runner_getNextLayerId(runner);
             el.type = RuntimeLayerElementType_Sprite;
             el.visible = true;
-            el.alpha = 1.0f;
+            el.alpha = (float) BGR_A(spriteElement->color) / 255.0f;
+            el.blend = spriteElement->color & 0xFFFFFFu;
             el.spriteElement = spriteElement;
             arrput(runtimeLayer->elements, el);
         }
@@ -1363,6 +1508,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             el.type = RuntimeLayerElementType_Tile;
             el.visible = true;
             el.alpha = tile->alpha;
+            el.blend = tile->color & 0xFFFFFFu;
             el.backgroundElement = nullptr;
             el.spriteElement = nullptr;
             el.tileElement = tile;
@@ -1392,6 +1538,54 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     }
 
     Instance** carriedPersistent = takePersistentInstances(runner);
+
+    // Re-home carried persistent instances onto the new room's layer with the same name as their old layer (native runner behavior).
+    // Layer IDs are unique per room, so the old ID never matches a new-room layer directly.
+    repeat(arrlen(carriedPersistent), ci) {
+        Instance* inst = carriedPersistent[ci];
+        if (0 > inst->layer || previousRoom == nullptr) continue;
+        RoomLayer* oldLayer = Runner_findRoomLayerById(previousRoom, inst->layer);
+        int32_t newLayerId = -1;
+        int32_t newLayerDepth = inst->depth;
+        if (oldLayer != nullptr) {
+            const char* oldLayerName = oldLayer->name;
+            // Search both the new room's parsed layers and any dynamic layers already created.
+            size_t runtimeCount = arrlenu(runner->runtimeLayers);
+            repeat(runtimeCount, li) {
+                RuntimeLayer* runtimeLayer = &runner->runtimeLayers[li];
+                const char* runtimeLayerName = runtimeLayer->dynamicName;
+
+                // Get the ORIGINAL name of the layer if available, not the one that may have been changed during runtime
+                RoomLayer* roomLayer = Runner_findRoomLayerById(room, (int32_t) runtimeLayer->id);
+                if (roomLayer != nullptr)
+                    runtimeLayerName = roomLayer->name;
+
+                if (strcmp(runtimeLayerName, oldLayerName) == 0) {
+                    newLayerId = (int32_t) runtimeLayer->id;
+                    newLayerDepth = runtimeLayer->depth;
+                    break;
+                }
+            }
+
+            if (0 > newLayerId) {
+                // No layer with that name in the new room: create one at the instance's depth.
+                RuntimeLayer runtimeLayer = {0};
+                runtimeLayer.id = Runner_getNextLayerId(runner);
+                runtimeLayer.depth = inst->depth;
+                runtimeLayer.visible = true;
+                runtimeLayer.dynamic = true;
+                runtimeLayer.dynamicName = safeStrdup(oldLayerName);
+                arrput(runner->runtimeLayers, runtimeLayer);
+                newLayerId = (int32_t) runtimeLayer.id;
+                newLayerDepth = runtimeLayer.depth;
+            }
+        }
+        inst->layer = newLayerId;
+        if (newLayerId >= 0) {
+            inst->depth = newLayerDepth;
+            Runner_addInstanceLayerElement(runner, newLayerId, inst->instanceId);
+        }
+    }
 
     // Two-pass instance creation (matches HTML5 runner behavior):
     // Pass 1: Create all instance objects so they exist for cross-references
@@ -1435,6 +1629,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 if (inst != nullptr) {
                     inst->depth = layer->depth;
                     inst->layer = (int32_t) layer->id;
+                    Runner_addInstanceLayerElement(runner, (int32_t) layer->id, inst->instanceId);
                 }
             }
         }
@@ -1456,9 +1651,14 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (inst->createEventFired) continue;
         inst->createEventFired = true;
 
+        // An earlier instance's Create event may have destroyed this one, skip it!
+        if (inst->destroyed) continue;
+
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
         executeCode(runner, inst, roomObj->preCreateCode);
+        if (inst->destroyed) continue;
         Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
+        if (inst->destroyed) continue;
         executeCode(runner, inst, roomObj->creationCode);
     }
 
@@ -1547,6 +1747,26 @@ static void cleanupState(Runner* runner) {
     }
     arrfree(runner->dsQueuePool);
     runner->dsQueuePool = nullptr;
+
+    repeat((int32_t) arrlen(runner->dsPriorityPool), i) {
+        DsPriority* p = &runner->dsPriorityPool[i];
+        repeat(arrlen(p->items), j) {
+            RValue_free(&p->items[j].item);
+        }
+        arrfree(p->items);
+    }
+    arrfree(runner->dsPriorityPool);
+    runner->dsPriorityPool = nullptr;
+
+    repeat((int32_t) arrlen(runner->dsStackPool), i) {
+        DsStack* s = &runner->dsStackPool[i];
+        repeat(arrlen(s->items), j) {
+            RValue_free(&s->items[j]);
+        }
+        arrfree(s->items);
+    }
+    arrfree(runner->dsStackPool);
+    runner->dsStackPool = nullptr;
 
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
@@ -1690,6 +1910,16 @@ void Runner_reset(Runner* runner) {
     runner->drawableListSortDirty = false;
 }
 
+static int compareTargetObjectIndexAscending(const void *a, const void *b) {
+    FlattenedCollisionEvent* flat1 = (FlattenedCollisionEvent*) a;
+    FlattenedCollisionEvent* flat2 = (FlattenedCollisionEvent*) b;
+    if (flat1->targetObjectIndex > flat2->targetObjectIndex)
+        return 1;
+    else if (flat2->targetObjectIndex > flat1->targetObjectIndex)
+        return -1;
+    else return 0;
+}
+
 // Flattens collision-event inheritance into one list per object: Child-defined collision events override the parent's events
 //
 // (The YoYo Runner calls it "ExpandCollisionEvents")
@@ -1746,6 +1976,8 @@ static void flattenCollisionEvents(Runner* runner) {
             ancestor = anc->parentId;
             depth++;
         }
+
+        qsort(dst->events, dst->eventCount, sizeof(FlattenedCollisionEvent), compareTargetObjectIndexAscending);
     }
 }
 
@@ -1795,6 +2027,7 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(beginView);
     requireNotNullFunction(endView);
     requireNotNullFunction(beginGUI);
+    requireNotNullFunction(setGuiProjection);
     requireNotNullFunction(endGUI);
     requireNotNullFunction(drawSprite);
     requireNotNullFunction(drawSpritePart);
@@ -1806,6 +2039,7 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(drawLineColor);
     requireNotNullFunction(drawText);
     requireNotNullFunction(drawTextColor);
+    requireNotNullFunction(drawTiled);
     requireNotNullFunction(flush);
     requireNotNullFunction(clearScreen);
     requireNotNullFunction(createSpriteFromSurface);
@@ -1865,10 +2099,8 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
     runner->mouse = RunnerMouse_create();
-    repeat(8, i) {
-        runner->viewSurfaceIds[i] = -1;
-    }
     runner->appSurfaceEnabled = true;
+    runner->windowTitle = dataWin->gen8.displayName ? strdup(dataWin->gen8.displayName) : nullptr;
     runner->appSurfaceAutoDraw = true;
     runner->usingAppSurface = true;
     runner->applicationWidth = (int32_t) dataWin->gen8.defaultWindowWidth;
@@ -1937,6 +2169,13 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
         shput(runner->assetsByName, dataWin->room.rooms[i].name, i);
     }
 
+    repeat(shlen(vm->builtinMap), i) {
+        bool isRegistered = shgeti(vm->codeIndexByName, vm->builtinMap[i].key) != -1;
+        if (isRegistered) {
+            fprintf(stderr, "Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
+        }
+    }
+
     Runner_reset(runner);
 
     populateObjectsWithAnyEventOfType(runner);
@@ -1991,6 +2230,7 @@ Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, i
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
     inst->layer = layerId;
     inst->depth = rl->depth;
+    Runner_addInstanceLayerElement(runner, layerId, inst->instanceId);
     dispatchInstanceCreationEvents(runner, inst);
     return inst;
 }
@@ -2045,10 +2285,10 @@ RuntimeLayer* Runner_findRuntimeLayerById(Runner* runner, int32_t id) {
     return nullptr;
 }
 
-RoomLayer* Runner_findRoomLayerById(Runner* runner, int32_t id) {
-    if (runner->currentRoom == nullptr) return nullptr;
-    repeat(runner->currentRoom->layerCount, i) {
-        if ((int32_t) runner->currentRoom->layers[i].id == id) return &runner->currentRoom->layers[i];
+RoomLayer* Runner_findRoomLayerById(Room* room, int32_t id) {
+    requireNotNull(room);
+    repeat(room->layerCount, i) {
+        if ((int32_t) room->layers[i].id == id) return &room->layers[i];
     }
     return nullptr;
 }
@@ -2073,6 +2313,34 @@ RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t element
 
 uint32_t Runner_getNextLayerId(Runner* runner) {
     return runner->nextLayerId++;
+}
+
+void Runner_addInstanceLayerElement(Runner* runner, int32_t layerId, int32_t instanceId) {
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, layerId);
+    if (runtimeLayer == nullptr) return;
+    RuntimeLayerElement el = {0};
+    el.id = Runner_getNextLayerId(runner);
+    el.type = RuntimeLayerElementType_Instance;
+    el.visible = true;
+    el.alpha = 1.0f;
+    el.blend = 0xFFFFFF;
+    el.instanceId = instanceId;
+    arrput(runtimeLayer->elements, el);
+}
+
+void Runner_removeInstanceLayerElement(Runner* runner, int32_t instanceId) {
+    size_t layerCount = arrlenu(runner->runtimeLayers);
+    repeat(layerCount, i) {
+        RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
+        size_t elementCount = arrlenu(runtimeLayer->elements);
+        repeat(elementCount, j) {
+            RuntimeLayerElement* el = &runtimeLayer->elements[j];
+            if (el->type == RuntimeLayerElementType_Instance && el->instanceId == instanceId) {
+                arrdel(runtimeLayer->elements, j);
+                return;
+            }
+        }
+    }
 }
 
 // Reaps GML structs whose only remaining ref is the structInstances registry's implicit +1.
@@ -2113,6 +2381,7 @@ void Runner_cleanupDestroyedInstances(Runner* runner) {
         } else {
             Runner_removeInstanceFromObjectLists(runner, inst);
             SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
+            Runner_removeInstanceLayerElement(runner, inst->instanceId);
             hmdel(runner->instancesById, inst->instanceId);
             Instance_free(inst);
             // Cached drawables hold raw Instance* that we just freed; force a rebuild before the next draw.
@@ -2127,9 +2396,6 @@ void Runner_initFirstRoom(Runner* runner) {
     require(dataWin->gen8.roomOrderCount > 0);
 
     int32_t firstRoomIndex = dataWin->gen8.roomOrder[0];
-
-    // Initialize the first room
-    initRoom(runner, firstRoomIndex);
 
     // Run global init scripts with the global scope instance as "self"
     // In GMS 2.3+ (BC17), GLOB scripts store function declarations on "self" via Pop.v.v
@@ -2165,7 +2431,10 @@ void Runner_initFirstRoom(Runner* runner) {
         }
     }
     runner->vmContext->currentInstance = nullptr;
-    
+
+    // Initialize the first room
+    initRoom(runner, firstRoomIndex);
+
     // Fire Game Start for all instances
     Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_GAME_START);
     runner->gameStartFired = true;
@@ -2374,8 +2643,8 @@ static bool adaptPath(Runner* runner, Instance* inst) {
 void Runner_updateMousePosition(Runner* runner, int32_t windowWidth, int32_t windowHeight, double mouseXInWindow, double mouseYInWindow) {
     if (windowWidth <= 0 || windowHeight <= 0 || runner->currentRoom == nullptr) return;
 
-    int32_t gameW = runner->renderGameW > 0 ? runner->renderGameW : runner->currentRoom->width;
-    int32_t gameH = runner->renderGameH > 0 ? runner->renderGameH : runner->currentRoom->height;
+    uint32_t gameW = runner->renderGameW > 0 ? runner->renderGameW : runner->currentRoom->width;
+    uint32_t gameH = runner->renderGameH > 0 ? runner->renderGameH : runner->currentRoom->height;
 
     double fboX = ((mouseXInWindow - runner->viewportX) / runner->viewportW) * gameW;
     double fboY = ((mouseYInWindow - runner->viewportY) / runner->viewportH) * gameH;
@@ -2418,7 +2687,7 @@ void Runner_getMouseRoomPosition(Runner* runner, GMLReal* outX, GMLReal* outY) {
     if (viewsEnabled) {
         repeat(MAX_VIEWS, vi) {
             RuntimeView* v = &runner->views[vi];
-            if (!v->enabled || runner->viewSurfaceIds[vi] != -1) continue;
+            if (!v->enabled || v->surfaceId != -1) continue;
             screenViewCount++;
             lastScreenViewIndex = (int32_t) vi;
             int32_t portX = (int32_t) ((float) v->portX * displayScaleX + 0.5f);
@@ -2641,6 +2910,15 @@ static void dispatchMouseEvents(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapshotBase);
 }
 
+static int sortInstancesByObjectIndexThenInstanceIdAscending(const void* element1, const void* element2) {
+    Instance* instance1 = *(Instance**) element1;
+    Instance* instance2 = *(Instance**) element2;
+
+    if (instance1->objectIndex != instance2->objectIndex) return instance1->objectIndex > instance2->objectIndex ? 1 : -1;
+    if (instance1->instanceId != instance2->instanceId) return instance1->instanceId > instance2->instanceId ? 1 : -1;
+    return 0;
+}
+
 static void dispatchCollisionEvents(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     // Iterate only the objects that have any collision event in their parent chain.
@@ -2677,12 +2955,12 @@ static void dispatchCollisionEvents(Runner* runner) {
 
                 // Iterate only the descendant-inclusive list for the target object via a snapshot, so nested user code (collision handlers calling instance_exists, with (...), etc.) can push/pop their own snapshots above ours without corrupting this iteration.
                 int32_t snapBase = Runner_pushInstancesOfObject(runner, targetObjIndex);
-                int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
-                // TODO: This is a STUPID HACKY HACK to fix phasing through the pillar in the long corridor section in Undertale
-                //  I DO NOT THINK THAT THIS IS CORRECT, and this CAN and WILL cause iteration order issues in the future
-                //  But at the same time I couldn't figure out HOW the YoYo collision iteration order works to NOT have this issue
-                //  (The stupid hack is iterating in reverse order)
-                for (int32_t snapIdx = snapEnd - 1; snapIdx >= snapBase; snapIdx--) {
+                int32_t snapEnd = (int32_t) arrlen(runner->instanceSnapshots);
+
+                // The YoYo Runner sorts it by the object index THEN by the instanceId
+                qsort(runner->instanceSnapshots + snapBase, snapEnd - snapBase, sizeof(Instance*), sortInstancesByObjectIndexThenInstanceIdAscending);
+
+                for (int32_t snapIdx = snapBase; snapEnd > snapIdx; snapIdx++) {
                     Instance* other = runner->instanceSnapshots[snapIdx];
                     if (!other->active) continue;
                     if (other == self) continue;
@@ -2760,7 +3038,8 @@ static void dispatchCollisionEvents(Runner* runner) {
                     // Because if we don't, the OTHER collision may never happen again because
                     // * GML code may have pushed it away
                     // * Solid collision resolution may have also pushed it away
-                    if (other->active && self->active) {
+                    // This ONLY happens if one of them was solid
+                    if (hadSolid && other->active && self->active) {
                         FlattenedCollisionEvent* reverseEvt = findSymmetricCollisionEvent(runner, other, self);
 #ifdef ENABLE_VM_TRACING
                         if (traceThisPair) {
@@ -3559,6 +3838,17 @@ static int32_t findStackTop(Runner* runner) {
     return -1;
 }
 
+void Runner_guiSizeChanged(Runner* runner) {
+    if (!runner->inGuiPass || runner->renderer == nullptr) return;
+    int32_t guiW = runner->guiWidth > 0 ? runner->guiWidth : runner->guiPassPortW;
+    int32_t guiH = runner->guiHeight > 0 ? runner->guiHeight : runner->guiPassPortH;
+    runner->guiPassW = guiW;
+    runner->guiPassH = guiH;
+    int32_t top = findStackTop(runner);
+    bool renderingToUserSurface = (top != -1 && runner->surfaceStack[top] != runner->applicationSurfaceId);
+    runner->renderer->vtable->setGuiProjection(runner->renderer, guiW, guiH, runner->guiPassPortW, runner->guiPassPortH, renderingToUserSurface);
+}
+
 bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
     if (runner->renderer == nullptr) return false;
 
@@ -3567,7 +3857,7 @@ bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
 
     runner->surfaceStack[slot] = surfaceID;
     runner->renderer->vtable->flush(runner->renderer);
-    return runner->renderer->vtable->setRenderTarget(runner->renderer, surfaceID);
+    return runner->renderer->vtable->setRenderTarget(runner->renderer, surfaceID, false);
 }
 
 bool Runner_surfaceResetTarget(Runner* runner) {
@@ -3581,7 +3871,12 @@ bool Runner_surfaceResetTarget(Runner* runner) {
 
     int32_t newTop = findStackTop(runner);
     int32_t newTarget = newTop == -1 ? runner->applicationSurfaceId : runner->surfaceStack[newTop];
-    runner->renderer->vtable->setRenderTarget(runner->renderer, newTarget);
+    runner->renderer->vtable->setRenderTarget(runner->renderer, newTarget, newTop == -1);
+    if (newTop == -1 && runner->inGuiPass) {
+        // Inside Pre Draw / Post Draw / Draw GUI the base target is the GUI pass target with the GUI projection, not the room view.
+        // (See GameMaker-HTML5's g_InGUI_Zone)
+        runner->renderer->vtable->beginGUI(runner->renderer, runner->guiPassW, runner->guiPassH, 0, 0, runner->guiPassPortW, runner->guiPassPortH, runner->guiPassTarget);
+    }
     return true;
 }
 
@@ -3591,10 +3886,43 @@ int32_t Runner_surfaceGetTarget(Runner* runner) {
     return runner->surfaceStack[top];
 }
 
-void Runner_beginFrame(Runner* runner, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
+void Runner_beginFrame(
+    Runner* runner,
+    int32_t gameW,
+    int32_t gameH,
+    int32_t windowW,
+    int32_t windowH,
+    int32_t framebufferW,
+    int32_t framebufferH
+) {
     Renderer* renderer = runner->renderer;
+
+    // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
+    // It is a bit hard to understand, but here's how it works:
+    // The Port X/Port Y controls the position of the game viewport within the application surface.
+    // The Port W/Port H controls the size of the game viewport within the application surface.
+    // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
+    // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
+    Runner_computeViewDisplayScale(runner, gameW, gameH, &runner->displayScaleX, &runner->displayScaleY);
+
+    // Calculate viewport (letterboxing) in screen coordinates for mouse mapping
+    int32_t scaledW, scaledH;
+    if ((gameW * windowH) / gameH < windowW) {
+        scaledW = (gameW * windowH) / gameH;
+        scaledH = windowH;
+    } else {
+        scaledW = windowW;
+        scaledH = (gameH * windowW) / gameW;
+    }
+
+    runner->viewportX = (windowW - scaledW) / 2;
+    runner->viewportY = (windowH - scaledH) / 2;
+    runner->viewportW = scaledW;
+    runner->viewportH = scaledH;
+    runner->renderGameW = gameW;
+    runner->renderGameH = gameH;
     runner->applicationSurfaceId = renderer->vtable->ensureApplicationSurface(renderer, gameW, gameH);
-    renderer->vtable->beginFrame(renderer, gameW, gameH, windowW, windowH);
+    renderer->vtable->beginFrame(renderer, gameW, gameH, framebufferW, framebufferH);
 }
 
 // ===[ State Dump ]===

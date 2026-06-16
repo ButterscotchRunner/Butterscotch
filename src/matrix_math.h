@@ -207,6 +207,13 @@ static inline void Matrix4f_transformPoint(const Matrix4f* mat, float x, float y
     *outY = mat->m[1] * x + mat->m[5] * y + mat->m[13];
 }
 
+// Returns true if the matrix is a 2D affinte transformation in the xy plane.
+static inline bool Matrix4f_isAffine2D(const Matrix4f* mat) {
+    const float eps = 1e-6f;
+    return eps > fabsf(mat->m[3]) && eps > fabsf(mat->m[7]) && eps > fabsf(mat->m[11]) && eps > fabsf(mat->m[15] - 1.0f) // no perspective row
+        && eps > fabsf(mat->m[8]) && eps > fabsf(mat->m[9]); // no z coupling into x/y
+}
+
 
 // Helper function for a 3x3 determinant. You SHOULDN'T be using this.
 static inline float Matrix3f_determinant(const Matrix4f *mat) {

@@ -79,28 +79,7 @@ GMLArray* GMLArray_clone(GMLArray* src, void* newOwner) {
             growRow(dstRow, srcRow->length);
             repeat(srcRow->length, c) {
                 RValue srcVal = srcRow->data[c];
-                // Duplicate owned strings: for nested arrays, share the inner array (bump refCount).
-                // Inner arrays get their own CoW check on first write through the new outer slot.
-                if (srcVal.type == RVALUE_STRING && srcVal.ownsReference && srcVal.string != nullptr) {
-                    dstRow->data[c] = RValue_makeOwnedString(safeStrdup(srcVal.string));
-                } else if (srcVal.type == RVALUE_ARRAY && srcVal.array != nullptr) {
-                    GMLArray_incRef(srcVal.array);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-#if IS_WAD17_OR_HIGHER_ENABLED
-                } else if (srcVal.type == RVALUE_METHOD && srcVal.method != nullptr) {
-                    GMLMethod_incRef(srcVal.method);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-#endif
-                } else if (srcVal.type == RVALUE_STRUCT && srcVal.structInst != nullptr) {
-                    Instance_structIncRef(srcVal.structInst);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-                } else {
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = false;
-                }
+                dstRow->data[c] = RValue_makeIndependent(srcVal);
             }
         }
     }
@@ -116,4 +95,3 @@ void GMLArray_growTo(GMLArray* arr, int32_t minLength) {
     if (row + 1 > arr->rowCount) arr->rowCount = row + 1;
     growRow(&arr->rows[row], col + 1);
 }
-

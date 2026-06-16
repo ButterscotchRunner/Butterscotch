@@ -196,18 +196,20 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
     renderer->previousViewMatrix = projection;
 }
 
-static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    GLint boundFbo = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &boundFbo);
-    if (boundFbo == 0) {
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, portW, portH);
         glEnable(GL_SCISSOR_TEST);
         glScissor(0, 0, portW, portH);
     } else {
+        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
+        require(gl->surfaces[targetSurfaceId] != 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         glApplyViewport(gl, portX, portY, portW, portH);
     }
 
@@ -219,6 +221,18 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glActiveTexture(GL_TEXTURE0);
+}
+
+static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
+    Matrix4f projection;
+    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+    // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
+    // Flip the projection when we are rendering to a user surface so it comes back upright.
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projection);
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(projection.m);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 }
 
 static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
@@ -241,6 +255,7 @@ static void glEndFrameEnd(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
+    GLCommon_beginLetterboxBlit(gl->surfaces[appId], 0);
     GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, 0);
 }
 
@@ -775,33 +790,29 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
     glEnd();
 }
 
-static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
+static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline)
 {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     if(outline)
     {
-        glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
+        glDrawLineColor(renderer, x1, y1, x2, y2, 1, color1, color2, alpha);
+        glDrawLineColor(renderer, x2, y2, x3, y3, 1, color2, color3, alpha);
+        glDrawLineColor(renderer, x3, y3, x1, y1, 1, color3, color1, alpha);
     } else {
-        float r = (float) BGR_R(renderer->drawColor) / 255.0f;
-        float g = (float) BGR_G(renderer->drawColor) / 255.0f;
-        float b = (float) BGR_B(renderer->drawColor) / 255.0f;
-
         glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
 
         glBegin(GL_TRIANGLES);
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color1) / 255.0f, (float) BGR_G(color1) / 255.0f, (float) BGR_B(color1) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x1 , y1); 
+            glVertex2f(x1 , y1);
 
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color2) / 255.0f, (float) BGR_G(color2) / 255.0f, (float) BGR_B(color2) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x2, y2); 
+            glVertex2f(x2, y2);
 
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color3) / 255.0f, (float) BGR_G(color3) / 255.0f, (float) BGR_B(color3) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x3, y3); 
+            glVertex2f(x3, y3);
         glEnd();
     }
 }
@@ -875,8 +886,10 @@ static bool glResolveGlyph(GLLegacyRenderer* gl, DataWin* dw, GlFontState* state
         *outU1 = (float) (glyphTpag->sourceX + glyphTpag->sourceWidth) / (float) tw;
         *outV1 = (float) (glyphTpag->sourceY + glyphTpag->sourceHeight) / (float) th;
 
+        // Sprite-font glyphs sit at the cell offset. GM 2023.2+ subtracts the sprite origin, pre-2023.2 it cancels.
+        // (See GameMaker-HTML5's commit a7c5b909209d5a28602fedfe2031965386a99921)
         *outLocalX0 = cursorX + (float) glyph->offset;
-        *outLocalY0 = cursorY + (float) ((int32_t) glyphTpag->targetY - sprite->originY);
+        *outLocalY0 = cursorY + (float) (int32_t) glyphTpag->targetY - (float) font->spriteOriginYAdjust;
     } else {
         *outTexId = state->texId;
         *outTpagIdx = state->fontTpagIndex;
@@ -1213,6 +1226,9 @@ static uint32_t findOrAllocTpagSlot(DataWin* dw, uint32_t originalTpagCount) {
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    // TODO: implement these
+    (void)smooth;
+    (void)removeback;
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1327,7 +1343,8 @@ static void glGpuSetBlendModeExt(MAYBE_UNUSED Renderer* renderer, int32_t sfacto
     glBlendFunc(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor));
 }
 
-static void glGpuSetBlendEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
+    (void)renderer;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 }
 
@@ -1477,7 +1494,7 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     fprintf(stderr, "GL: Freed Surface %d\n", surfaceId);
 }
 
-static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
+static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
@@ -1485,7 +1502,7 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
-    if (surfaceId == renderer->runner->applicationSurfaceId) {
+    if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glMatrixMode(GL_PROJECTION);
         glLoadMatrixf(renderer->previousViewMatrix.m);
@@ -1664,9 +1681,10 @@ static void glGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
 static int32_t glShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static int32_t glShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static void glShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void glShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void glShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool glShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool glShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool glShadersSupported(void) { return false; }
 
 static RendererVtable glVtable;
 
@@ -1684,6 +1702,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.endView = glEndView;
     glVtable.applyProjection = glApplyProjection;
     glVtable.beginGUI = glBeginGUI;
+    glVtable.setGuiProjection = glSetGuiProjection;
     glVtable.endGUI = glEndGUI;
     glVtable.drawSprite = glDrawSprite;
     glVtable.drawSpritePos = glDrawSpritePos;
@@ -1731,6 +1750,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.shaderGetUniform = glShaderGetUniform;
     glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex;
     glVtable.shaderSetUniformF = glShaderSetUniformF;
+    glVtable.shaderSetUniformFArray = glShaderSetUniformFArray;
     glVtable.shaderSetUniformI = glShaderSetUniformI;
     glVtable.shaderIsCompiled = glShaderIsCompiled;
     glVtable.shadersSupported = glShadersSupported;

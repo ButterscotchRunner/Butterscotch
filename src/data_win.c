@@ -488,7 +488,8 @@ static void parseEXTN(BinaryReader* reader, DataWin* dw) {
             extStringCount = 3;
 
         // 2023.4+: an extra Version string sits between name and className, shifting everything by 4 bytes
-        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24) {
+        // We also verify that firstExt + 12 is >= 0x1000 to avoid a false positive with old extensions that have exactly 2 files (where firstExt + 12 is fileCount = 2).
+        } else if (peekUint32At(reader, firstExt + 16, chunkEnd) == firstExt + 24 && peekUint32At(reader, firstExt + 12, chunkEnd) >= 0x1000) {
             extStringCount = 4;
         }
     }
@@ -658,11 +659,37 @@ static void parseAGRP(BinaryReader* reader, DataWin* dw) {
     if (count == 0) { free(ptrs); a->audioGroups = nullptr; return; }
 
     a->audioGroups = safeCalloc(count, sizeof(AudioGroup));
+
+    // GM 2024.14+ added a "path" parameter for each AudioGroup
+    // To detect it, we'll check if the difference between two pointers is 8 (two int32)
+    // We CAN'T figure out if there aren't at least two AudioGroups, but for any meaningful purposes any game that has external AudioGroups WILL have
+    // at least two entries, one for the default AudioGroup and another for the external AudioGroup
+    if (count >= 2) {
+        uint32_t diff = ptrs[1] - ptrs[0];
+
+        if (diff >= 8) {
+            DataWin_bumpVersionTo(dw, 2024, 14, 0, 0);
+        }
+    } else if (count == 1) {
+        // If there's only one entry, we CAN'T figure out easily based on the pointer diffs
+        // But here's the trick: We can read it twice, if the path is null for the FIRST audiogroup, then it is NOT 2024.14
+        BinaryReader_seek(reader, ptrs[0]);
+        const char* name = readStringPtr(reader, dw);
+        const char* path = readStringPtr(reader, dw);
+
+        if (strcmp(name, "audiogroup_default") == 0 && path != nullptr) {
+            DataWin_bumpVersionTo(dw, 2024, 14, 0, 0);
+        }
+    }
+
     repeat(count, i) {
         if (ptrs[i] == 0) continue;
         BinaryReader_seek(reader, ptrs[i]);
         a->audioGroups[i].present = true;
         a->audioGroups[i].name = readStringPtr(reader, dw);
+        if (DataWin_isVersionAtLeast(dw, 2024, 14, 0, 0)) {
+            a->audioGroups[i].path = readStringPtr(reader, dw);
+        }
     }
     free(ptrs);
 }
@@ -704,16 +731,29 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
             spr->specialType = true;
             spr->sVersion = BinaryReader_readUint32(reader);
             spr->sSpriteType = BinaryReader_readUint32(reader);
-            if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {
-                spr->gms2PlaybackSpeed = BinaryReader_readFloat32(reader);
-                spr->gms2PlaybackSpeedType = BinaryReader_readUint32(reader);
-                if (spr->sVersion >= 2) {
-                    BinaryReader_skip(reader, 4); //sequenceOffset;
-                    if (spr->sVersion >= 3) {
-                       nineSliceOffset = BinaryReader_readUint32(reader);
-                    }
+            if (spr->sSpriteType == 0) {
+                // Normal "special" sprite, technically only used for GameMaker: Studio 2+, but some modding tools (like UndertaleModTool) may inject special sprite types,
+                // even though the data.win is NOT GM:S 2+
+                if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {
+                    spr->gms2PlaybackSpeed = BinaryReader_readFloat32(reader);
+                    spr->gms2PlaybackSpeedType = BinaryReader_readUint32(reader);
+                    if (spr->sVersion >= 2) {
+                        BinaryReader_skip(reader, 4); //sequenceOffset;
+                        if (spr->sVersion >= 3) {
+                            nineSliceOffset = BinaryReader_readUint32(reader);
+                        }
+                    } check = BinaryReader_readUint32(reader);
+                } else {
+                    // Technically should NEVER happen on legit data.wins
+                    check = 0;
                 }
-                check = BinaryReader_readUint32(reader);
+            } else {
+                fprintf(stderr, "DataWin: Detected special sprite type %u (%s), but we don't support it yet!\n", spr->sSpriteType, spr->sSpriteType == 2 ? "Spine" : spr->sSpriteType == 1 ? "SWF" : "Unknown");
+                spr->textureCount = 0;
+                spr->tpagIndices = nullptr;
+                spr->maskCount = 0;
+                spr->masks = nullptr;
+                continue;
             }
         }
 
@@ -920,6 +960,28 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
     if (version != 1) {
         fprintf(stderr, "ACRV: unexpected version %u (expected 1)\n", version);
         return;
+    }
+
+    if (!DataWin_isVersionAtLeast(dw, 2, 3, 1, 0)) {
+        size_t saved = BinaryReader_getPosition(reader);
+
+        uint32_t count = BinaryReader_readUint32(reader);
+        if (count == 0) {
+            BinaryReader_seek(reader, saved);
+            return;
+        }
+
+        uint32_t firstPtr = BinaryReader_readUint32(reader);
+        BinaryReader_seek(reader, firstPtr);
+        BinaryReader_skip(reader, 8);
+
+        if (BinaryReader_readUint32(reader) != 0) {
+            DataWin_bumpVersionTo(dw, 2, 3, 1, 0);
+        } else if (BinaryReader_readUint32(reader) == 0) {
+            DataWin_bumpVersionTo(dw, 2, 3, 1, 0);
+        }
+
+        BinaryReader_seek(reader, saved);
     }
 
     uint32_t count;
@@ -1169,6 +1231,7 @@ static void parseFONT(BinaryReader* reader, DataWin* dw) {
         }
         font->isSpriteFont = false;
         font->spriteIndex = -1;
+        font->spriteOriginYAdjust = 0;
 
         // Glyphs PointerList
         uint32_t glyphCount;
@@ -2386,14 +2449,15 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     setvbuf(file, nullptr, _IOFBF, 128 * 1024);
 
     fseek(file, 0, SEEK_END);
-    size_t fileSize = ftell(file);
+    long fileSizeRaw = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    if (fileSize <= 0) {
-        fprintf(stderr, "Invalid file size: %ld\n", fileSize);
+    if (0 >= fileSizeRaw) {
+        fprintf(stderr, "Invalid file size: %ld\n", fileSizeRaw);
         fclose(file);
         exit(1);
     }
+    size_t fileSize = (size_t) fileSizeRaw;
 
     // Allocate and zero-initialize DataWin
     DataWin* dw = safeCalloc(1, sizeof(DataWin));
@@ -2406,7 +2470,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     uint8_t* wholeFileData = nullptr;
     if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
         wholeFileData = safeMalloc((size_t) fileSize);
-        fread(wholeFileData, 1, (size_t) fileSize, file);
+        safeFread(wholeFileData, fileSize, file, filePath);
         BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
     }
 

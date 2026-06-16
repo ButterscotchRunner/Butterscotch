@@ -1,11 +1,15 @@
 #include "gs_renderer.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <gsInline.h>
+#pragma GCC diagnostic pop
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <kernel.h>
-#include <gsInline.h>
 
 #include "binary_reader.h"
 #include "binary_utils.h"
@@ -1157,11 +1161,8 @@ static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED cons
     // No-op
 }
 
-static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH) {
+static void gsSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
     GsRenderer* gs = (GsRenderer*) renderer;
-    gs->viewX = 0;
-    gs->viewY = 0;
-
     if (guiW > 0 && guiH > 0) {
         gs->scaleX = 640.0f / (float) guiW;
         gs->scaleY = gs->scaleX;
@@ -1173,6 +1174,14 @@ static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNU
     float renderedH = (float) guiH * gs->scaleY;
     gs->offsetX = 0.0f;
     gs->offsetY = (448.0f - renderedH) / 2.0f;
+}
+
+// targetSurfaceId is unused here because the renderer always draws to the screen buffer here
+static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED int32_t targetSurfaceId) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    gs->viewX = 0;
+    gs->viewY = 0;
+    gsSetGuiProjection(renderer, guiW, guiH, portW, portH, false);
 }
 
 static void gsEndGUI(MAYBE_UNUSED Renderer* renderer) {
@@ -1857,8 +1866,10 @@ static bool gsResolveGlyph(GsRenderer* gs, DataWin* dw, GsFontState* state, Font
         *outU1 = *outU0 + (float) glyph->sourceWidth * gRatioX;
         *outV1 = *outV0 + (float) glyph->sourceHeight * gRatioY;
 
+        // Sprite-font glyphs sit at the cell offset; GM 2023.2+ subtracts the sprite origin, pre-2023.2 it cancels.
+        // (See GameMaker-HTML5's commit a7c5b909209d5a28602fedfe2031965386a99921)
         *outLocalX0 = cursorX + (float) glyph->offset;
-        *outLocalY0 = cursorY + (float) ((int32_t) glyphTpag->targetY - sprite->originY);
+        *outLocalY0 = cursorY + (float) (int32_t) glyphTpag->targetY - (float) font->spriteOriginYAdjust;
     } else {
         *outTex = state->tex;
 
@@ -2123,14 +2134,14 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
     }
 }
 
-static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
+static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline)
 {
     GsRenderer* gs = (GsRenderer*) renderer;
     if(outline)
     {
-        gsDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        gsDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
-        gsDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
+        gsDrawLine(renderer, x1, y1, x2, y2, 1, color1, alpha);
+        gsDrawLine(renderer, x2, y2, x3, y3, 1, color2, alpha);
+        gsDrawLine(renderer, x3, y3, x1, y1, 1, color3, alpha);
     } else {
         float sx1 = (x1 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
         float sy1 = (y1 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
@@ -2139,12 +2150,11 @@ static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         float sx3 = (x3 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
         float sy3 = (y3 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
 
-        float r = (float) BGR_R(renderer->drawColor);
-        float g = (float) BGR_G(renderer->drawColor);
-        float b = (float) BGR_B(renderer->drawColor);
-
-        u64 triColor = GS_SETREG_RGBAQ(r, g, b, alphaToGS(renderer->drawAlpha), 0x00);
-        gsKit_prim_triangle_gouraud_3d(gs->gsGlobal, sx1, sy1, 0,sx2, sy2, 0,sx3, sy3, 0,triColor, triColor, triColor);
+        uint8_t a = alphaToGS(alpha);
+        u64 triColor1 = GS_SETREG_RGBAQ(BGR_R(color1), BGR_G(color1), BGR_B(color1), a, 0x00);
+        u64 triColor2 = GS_SETREG_RGBAQ(BGR_R(color2), BGR_G(color2), BGR_B(color2), a, 0x00);
+        u64 triColor3 = GS_SETREG_RGBAQ(BGR_R(color3), BGR_G(color3), BGR_B(color3), a, 0x00);
+        gsKit_prim_triangle_gouraud_3d(gs->gsGlobal, sx1, sy1, 0,sx2, sy2, 0,sx3, sy3, 0,triColor1, triColor2, triColor3);
     }
 }
 
@@ -2686,10 +2696,10 @@ static int32_t gsEnsureApplicationSurface(MAYBE_UNUSED Renderer* renderer, MAYBE
     return APPLICATION_SURFACE_ID;
 }
 
-static bool gsSetRenderTarget(Renderer* renderer, int32_t surfaceID) {
+static bool gsSetRenderTarget(Renderer* renderer, int32_t surfaceID, bool implicitApplicationSurface) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
-    if (surfaceID == APPLICATION_SURFACE_ID) {
+    if (surfaceID == APPLICATION_SURFACE_ID && implicitApplicationSurface) {
         if (gs->currentSurface == -1) return true; // already on the main FB
         bool wasPhantom = gs->surfaces[gs->currentSurface].chunkCount == 0;
         if (wasPhantom) {
@@ -2871,7 +2881,11 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     // Restore default REPEAT so subsequent atlas draws aren't stuck on this region.
     gsKit_set_clamp(gs->gsGlobal, GS_CMODE_REPEAT);
 }
-static void gsSurfaceResize(MAYBE_UNUSED Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+static void gsSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+    (void)renderer;
+    (void)surfaceID;
+    (void)width;
+    (void)height;
     // No-op: PS2 doesn't actually resize anything
 }
 
@@ -2881,7 +2895,7 @@ static void gsSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     if (gs->currentSurface == surfaceID) {
         // Caller is freeing the surface while it's still bound as target. Pop back to the main FB first to keep gsGlobal coherent.
         rendererPrintf("GsRenderer: surface_free %d while bound; auto-popping to main FB\n", surfaceID);
-        gsSetRenderTarget(renderer, APPLICATION_SURFACE_ID);
+        gsSetRenderTarget(renderer, APPLICATION_SURFACE_ID, true);
     }
 
     Surface* s = &gs->surfaces[surfaceID];
@@ -3043,9 +3057,10 @@ static void gsGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
 static int32_t gsShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static int32_t gsShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static void gsShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void gsShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void gsShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool gsShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool gsShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool gsShadersSupported(void) { return false; }
 
 static RendererVtable gsVtable;
 
@@ -3064,6 +3079,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.endView = gsEndView;
     gsVtable.applyProjection = gsApplyProjection;
     gsVtable.beginGUI = gsBeginGUI;
+    gsVtable.setGuiProjection = gsSetGuiProjection;
     gsVtable.endGUI = gsEndGUI;
     gsVtable.drawSprite = gsDrawSprite;
     gsVtable.drawSpritePos = gsDrawSpritePos;
@@ -3112,6 +3128,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.shaderGetUniform = gsShaderGetUniform;
     gsVtable.shaderGetSamplerIndex = gsShaderGetSamplerIndex;
     gsVtable.shaderSetUniformF = gsShaderSetUniformF;
+    gsVtable.shaderSetUniformFArray = gsShaderSetUniformFArray;
     gsVtable.shaderSetUniformI = gsShaderSetUniformI;
     gsVtable.shaderIsCompiled = gsShaderIsCompiled;
     gsVtable.shadersSupported = gsShadersSupported;

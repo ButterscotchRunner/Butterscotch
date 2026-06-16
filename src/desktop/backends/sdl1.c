@@ -16,6 +16,7 @@
 #ifndef SDL_BUTTON_WHEELDOWN
 #define SDL_BUTTON_WHEELDOWN 5
 #endif
+#include "runner_mouse.h"
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
@@ -101,9 +102,16 @@ void platformExit(void) {
     SDL_Quit();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // SDL1.2 only supports showing/hiding
+    SDL_ShowCursor(cursorType == GML_CR_NONE ? SDL_DISABLE : SDL_ENABLE);
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 #ifdef ENABLE_SW_RENDERER
@@ -260,5 +268,6 @@ void platformSleepUntil(uint64_t time) {
 
     while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
+        YIELD();
     }
 }

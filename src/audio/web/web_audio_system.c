@@ -578,23 +578,32 @@ static void webSetMasterGain(AudioSystem* audio, float gain) {
 static void webSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
 static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
-    if (groupIndex > 0) {
-        WebAudioSystem* ma = (WebAudioSystem*) audio;
-        int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-        char buf[sz + 1];
-        snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
+    if (groupIndex > 0 && audio->dw->agrp.count > (uint32_t) groupIndex) {
+        AudioGroup* audioGroupEntry = &audio->dw->agrp.audioGroups[groupIndex];
+
+        char* buf;
+        if (audioGroupEntry->path == nullptr) {
+            int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
+            buf = safeMalloc(sz + 1);
+            snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
+        } else {
+            size_t length = strlen(audioGroupEntry->path);
+            buf = safeMalloc(length + 1);
+            memcpy(buf, audioGroupEntry->path, length);
+            buf[length] = '\0';
+        }
 
         // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
         FileSystem* fileSystem = ((WebAudioSystem*)audio)->fileSystem;
-        char* resolvedPath = (((WebAudioSystem*)audio)->fileSystem->vtable->resolvePath(((WebAudioSystem*)audio)->fileSystem, buf));
-        if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
-            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+        if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
+            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
+            free(buf);
             return;
         }
 
         DataWinParserOptions options = {0};
         options.parseAudo = true;
-        DataWin* audioGroup = DataWin_parse(ma->fileSystem->vtable->resolvePath(ma->fileSystem, buf), options);
+        DataWin *audioGroup = DataWin_parse(((WebAudioSystem*)audio)->fileSystem->vtable->resolvePath(((WebAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }
 }
@@ -669,7 +678,7 @@ static AudioSystemVtable webAudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
-WebAudioSystem* WebAudioSystem_create(int32_t sampleRate) {
+WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate) {
     WebAudioSystem* ma = safeCalloc(1, sizeof(WebAudioSystem));
     webAudioSystemVtable.init = webInit;
     webAudioSystemVtable.destroy = webDestroy;
@@ -697,6 +706,7 @@ WebAudioSystem* WebAudioSystem_create(int32_t sampleRate) {
     webAudioSystemVtable.groupIsLoaded = webGroupIsLoaded;
     webAudioSystemVtable.createStream = webCreateStream;
     webAudioSystemVtable.destroyStream = webDestroyStream;
+    ma->base.dw = dataWin;
     ma->base.vtable = &webAudioSystemVtable;
     ma->sampleRate = sampleRate > 0 ? sampleRate : 48000;
     return ma;

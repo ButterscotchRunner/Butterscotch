@@ -88,6 +88,8 @@ bool shouldExit = false;
 // ===[ MAIN ]===
 
 static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
+    (void)param;
+    (void)userdata;
     switch (status) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
@@ -156,7 +158,8 @@ char *str_replace(char *orig, char *rep, char *with) {
 static char buffer[9999];
 int main(int argc, char* argv[]) {
     printf("%s\n", argv[0]);
-    strcpy(buffer, argv[0]);
+    if (argc > 0)
+        strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
 	char* tmp2 = str_replace(tmp, "butterscotch.self", "");
     char* tmp3 = str_replace(tmp2, "EBOOT.BIN", "");
@@ -395,19 +398,9 @@ int main(int argc, char* argv[]) {
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
         int32_t gameH = (int32_t) gen8->defaultWindowHeight;
 
-        // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-        // It is a bit hard to understand, but here's how it works:
-        // The Port X/Port Y controls the position of the game viewport within the application surface.
-        // The Port W/Port H controls the size of the game viewport within the application surface.
-        // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-        // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-        float displayScaleX;
-        float displayScaleY;
-
         Runner_drawPre(runner, fbWidth, fbHeight);
-        Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
-        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
+        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
 
         // Clear FBO with room background color
         if (runner->drawBackgroundColor) {
@@ -422,7 +415,7 @@ int main(int argc, char* argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         double drawStart = PS3_GET_TIME;
-        Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+        Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight);
         renderer->vtable->endFrameEnd(renderer);

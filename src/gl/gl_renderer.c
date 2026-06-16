@@ -390,12 +390,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
-static void glGpuResetShader(Renderer* renderer) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-    glUseProgram(gl->shaderProgram);
-    renderer->currentShader = -1;
-}
 
 static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
@@ -409,12 +403,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t ShaderIndex) {
     GLint gm_Matrices3 = glGetUniformLocation(Shader, "gm_Matrices[3]");
     GLint gm_Matrices4 = glGetUniformLocation(Shader, "gm_Matrices[4]");
 
-
-    GLint gm_FogStart = glGetUniformLocation(Shader, "gm_FogStart");
-    GLint gm_RcpFogRange = glGetUniformLocation(Shader, "gm_RcpFogRange");  
-    GLint gm_PS_FogEnabled = glGetUniformLocation(Shader, "gm_PS_FogEnabled");
     GLint gm_FogColour = glGetUniformLocation(Shader, "gm_FogColour");    
-    GLint gm_VS_FogEnabled = glGetUniformLocation(Shader, "gm_VS_FogEnabled");
 
     //Lights are for another time
 
@@ -474,6 +463,13 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     }
 }
 
+static void glGpuResetShader(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glUseProgram(gl->shaderProgram);
+    renderer->currentShader = -1;
+    glShaderSettingsRefresh(renderer);
+}
 
 
 static void glDestroy(Renderer* renderer) {
@@ -576,22 +572,21 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
     renderer->previousViewMatrix = projection;
 }
 
-static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
     gl->currentTextureId = 0;
 
-    GLint boundFbo = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &boundFbo);
-
-    int32_t glPortY;
-    if ((GLint) gl->hostFramebuffer == boundFbo) {
-        glPortY = 0;
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
         glViewport(0, 0, portW, portH);
         glScissor(0, 0, portW, portH);
     } else {
-        glPortY = gl->gameH - portY - portH;
+        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
+        require(gl->surfaces[targetSurfaceId] != 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        int32_t glPortY = gl->gameH - portY - portH;
         glViewport(portX, glPortY, portW, portH);
         glScissor(portX, glPortY, portW, portH);
     }
@@ -606,6 +601,18 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glActiveTexture(GL_TEXTURE1);
 
     glBindVertexArray(gl->vao);
+}
+
+static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    Matrix4f projection;
+    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+    // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
+    // Flip the projection when we are rendering to a user surface so it comes back upright.
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projection);
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glEndGUI(Renderer* renderer) {
@@ -633,6 +640,7 @@ static void glEndFrameEnd(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
+    GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
     GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
 }
 
@@ -770,6 +778,107 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     float b = (float) BGR_B(color) / 255.0f;
 
     emitTexturedQuad(gl, texId, x0, y0, x1, y1, x2, y2, x3, y3, u0, v0, u1, v1, r, g, b, alpha);
+}
+
+static void glDrawTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    TexturePageItem* tpag;
+    GLuint texId;
+    int32_t texW, texH;
+    if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return;
+
+    float axScale = fabsf(xscale);
+    float ayScale = fabsf(yscale);
+    float tileW = (float) tpag->boundingWidth * axScale;
+    float tileH = (float) tpag->boundingHeight * ayScale;
+    if (0 >= tileW || 0 >= tileH) return;
+
+    float startX, endX, startY, endY;
+    if (tileX) {
+        startX = fmodf(x - originX * axScale, tileW);
+        if (startX > 0) startX -= tileW;
+        endX = roomW;
+    } else {
+        startX = x - originX * axScale;
+        endX = startX + tileW;
+    }
+    if (tileY) {
+        startY = fmodf(y - originY * ayScale, tileH);
+        if (startY > 0) startY -= tileH;
+        endY = roomH;
+    } else {
+        startY = y - originY * ayScale;
+        endY = startY + tileH;
+    }
+
+    // Optimization for 2D affine projects: Clip the tiled extent to the world-space AABB of what the active projection can see.
+    const Matrix4f* projection = &renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
+    Matrix4f invProjection;
+    if (Matrix4f_isAffine2D(projection) && Matrix4f_inverse(&invProjection, projection)) {
+        // The borders of the screen
+        static const float ndcCorners[4][2] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {-1.0f, 1.0f}, {1.0f, 1.0f}};
+        float visMinX = 0.0f, visMinY = 0.0f, visMaxX = 0.0f, visMaxY = 0.0f;
+        // For each point, get the borders of it in world-space.
+        repeat(4, i) {
+            float wx, wy;
+            Matrix4f_transformPoint(&invProjection, ndcCorners[i][0], ndcCorners[i][1], &wx, &wy);
+            if (i == 0 || wx < visMinX) visMinX = wx;
+            if (i == 0 || wx > visMaxX) visMaxX = wx;
+            if (i == 0 || wy < visMinY) visMinY = wy;
+            if (i == 0 || wy > visMaxY) visMaxY = wy;
+        }
+        if (tileX) {
+            // Snap start forward by whole tiles so the tile containing visMinX is kept
+            if (visMinX > startX) startX += floorf((visMinX - startX) / tileW) * tileW;
+            if (visMaxX < endX) endX = visMaxX;
+        }
+        if (tileY) {
+            if (visMinY > startY) startY += floorf((visMinY - startY) / tileH) * tileH;
+            if (visMaxY < endY) endY = visMaxY;
+        }
+    }
+    if (startX >= endX || startY >= endY) return;
+
+    float u0 = (float) tpag->sourceX / (float) texW;
+    float v0 = (float) tpag->sourceY / (float) texH;
+    float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
+    float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+
+    // Use targetWidth/Height (draw size in bounding rect), not sourceWidth/Height (texture sample size).
+    // They differ when the texture was auto-downscaled by GMS to fit a texture page.
+    float localX0 = (float) tpag->targetX - originX;
+    float localY0 = (float) tpag->targetY - originY;
+    float localX1 = localX0 + (float) tpag->targetWidth;
+    float localY1 = localY0 + (float) tpag->targetHeight;
+    float sx0 = xscale * localX0;
+    float sy0 = yscale * localY0;
+    float sx1 = xscale * localX1;
+    float sy1 = yscale * localY1;
+
+    float r = (float) BGR_R(color) / 255.0f;
+    float g = (float) BGR_G(color) / 255.0f;
+    float b = (float) BGR_B(color) / 255.0f;
+
+    // Integer tile counts avoid FP-comparison drift; the inner break handles overshoot at the boundary
+    int32_t tilesX = (int32_t) ((endX - startX) / tileW) + 1;
+    int32_t tilesY = (int32_t) ((endY - startY) / tileH) + 1;
+    if (0 >= tilesX || 0 >= tilesY) return;
+
+    repeat(tilesY, iy) {
+        float dy = startY + (float) iy * tileH;
+        if (dy >= endY) break;
+        float cy = dy + originY * ayScale;
+        float vy0 = cy + sy0;
+        float vy1 = cy + sy1;
+        repeat(tilesX, ix) {
+            float dx = startX + (float) ix * tileW;
+            if (dx >= endX) break;
+            float cx = dx + originX * axScale;
+            float vx0 = cx + sx0;
+            float vx1 = cx + sx1;
+            emitTexturedQuad(gl, texId, vx0, vy0, vx1, vy0, vx1, vy1, vx0, vy1, u0, v0, u1, v1, r, g, b, alpha);
+        }
+    }
 }
 
 static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
@@ -1025,52 +1134,45 @@ static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x
     }
 }
 
-static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline) {
+static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline) {
     GLRenderer* gl = (GLRenderer*) renderer;
     if (outline) {
-        glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
+        glDrawLineColor(renderer, x1, y1, x2, y2, 1, color1, color2, alpha);
+        glDrawLineColor(renderer, x2, y2, x3, y3, 1, color2, color3, alpha);
+        glDrawLineColor(renderer, x3, y3, x1, y1, 1, color3, color1, alpha);
     } else {
-        float r = (float) BGR_R(renderer->drawColor) / 255.0f;
-        float g = (float) BGR_G(renderer->drawColor) / 255.0f;
-        float b = (float) BGR_B(renderer->drawColor) / 255.0f;
-
         flushIfNeededAndSetActiveState(gl, BATCHTYPE_TRIANGLE, gl->whiteTexture);
 
         // Woo, pointers!
         // This gets the vertex data for the new triangle batch
         float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE * FLOATS_PER_VERTEX;
 
-        // Vertex 0: top-left
         verts[0] = x1;
         verts[1] = y1;
         verts[2] = 0.0f;
         verts[3] = 0.0f;
-        verts[4] = r;
-        verts[5] = g;
-        verts[6] = b;
-        verts[7] = renderer->drawAlpha;
+        verts[4] = (float) BGR_R(color1) / 255.0f;
+        verts[5] = (float) BGR_G(color1) / 255.0f;
+        verts[6] = (float) BGR_B(color1) / 255.0f;
+        verts[7] = alpha;
 
-        // Vertex 1: top-right
         verts[8]  = x2;
         verts[9]  = y2;
         verts[10] = 0.0f;
         verts[11] = 0.0f;
-        verts[12] = r;
-        verts[13] = g;
-        verts[14] = b;
-        verts[15] = renderer->drawAlpha;
+        verts[12] = (float) BGR_R(color2) / 255.0f;
+        verts[13] = (float) BGR_G(color2) / 255.0f;
+        verts[14] = (float) BGR_B(color2) / 255.0f;
+        verts[15] = alpha;
 
-        // Vertex 2: bottom-right
         verts[16] = x3;
         verts[17] = y3;
         verts[18] = 0.0f;
         verts[19] = 0.0f;
-        verts[20] = r;
-        verts[21] = g;
-        verts[22] = b;
-        verts[23] = renderer->drawAlpha;
+        verts[20] = (float) BGR_R(color3) / 255.0f;
+        verts[21] = (float) BGR_G(color3) / 255.0f;
+        verts[22] = (float) BGR_B(color3) / 255.0f;
+        verts[23] = alpha;
 
         gl->batchCount++;
     }
@@ -1141,8 +1243,10 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outU1 = (float) (glyphTpag->sourceX + glyphTpag->sourceWidth) / (float) tw;
         *outV1 = (float) (glyphTpag->sourceY + glyphTpag->sourceHeight) / (float) th;
 
+        // Sprite-font glyphs sit at the cell offset. GM 2023.2+ subtracts the sprite origin, pre-2023.2 it cancels.
+        // (See GameMaker-HTML5's commit a7c5b909209d5a28602fedfe2031965386a99921)
         *outLocalX0 = cursorX + (float) glyph->offset;
-        *outLocalY0 = cursorY + (float) ((int32_t) glyphTpag->targetY - sprite->originY);
+        *outLocalY0 = cursorY + (float) (int32_t) glyphTpag->targetY - (float) font->spriteOriginYAdjust;
     } else {
         *outTexId = state->texId;
         *outU0 = (float) (state->fontTpag->sourceX + glyph->sourceX) / (float) state->texW;
@@ -1590,7 +1694,7 @@ static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* o
     return GLCommon_surfaceGetPixels(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, surfaceId, outRGBA);
 }
 
-static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
+static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
@@ -1598,8 +1702,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
-
-    if (surfaceId == renderer->runner->applicationSurfaceId) {
+    if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->previousViewMatrix;
@@ -1615,7 +1718,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId) {
     glDisable(GL_SCISSOR_TEST);
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
-
 
     return true;
 }
@@ -1696,6 +1798,9 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    // TODO: implement these
+    (void)smooth;
+    (void)removeback;
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1820,7 +1925,7 @@ static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-
+    (void)renderer;
     return glIsEnabled(GL_BLEND);
 }
 
@@ -1937,6 +2042,42 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
     glUniform4f(handle, value1, value2, value3, value4);
     }
 
+}
+
+static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    
+    if (renderer->currentShader != -1) {
+        GLuint Shader = gl->gmlShaders[renderer->currentShader];
+        GLint UniformCount;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORMS, &UniformCount);
+        GLint LongestUniformName = 0;
+        glGetProgramiv(Shader, GL_ACTIVE_UNIFORM_MAX_LENGTH, &LongestUniformName);
+        char *UniformName = safeMalloc(LongestUniformName);
+
+        GLenum actualType = GL_FLOAT;
+        for (GLint b = 0; b < UniformCount; b++) {
+            GLsizei length = 0;
+            GLint size = 0;
+            GLenum type = 0;
+            glGetActiveUniform(Shader, b, LongestUniformName, &length, &size, &type, UniformName);
+            int32_t location = glGetUniformLocation(Shader, UniformName);
+            if (location == handle) {
+                actualType = type;
+                break;
+            }
+        }
+        free(UniformName);
+
+        if (actualType == GL_FLOAT) glUniform1fv(handle, count, values);
+        else if (actualType == GL_FLOAT_VEC2) glUniform2fv(handle, count / 2, values);
+        else if (actualType == GL_FLOAT_VEC3) glUniform3fv(handle, count / 3, values);
+        else if (actualType == GL_FLOAT_VEC4) glUniform4fv(handle, count / 4, values);
+        else if (actualType == GL_FLOAT_MAT4) glUniformMatrix4fv(handle, count / 16, GL_FALSE, values);
+        else if (actualType == GL_FLOAT_MAT3) glUniformMatrix3fv(handle, count / 9, GL_FALSE, values);
+        else if (actualType == GL_FLOAT_MAT2) glUniformMatrix2fv(handle, count / 4, GL_FALSE, values);
+    }
 }
 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
@@ -2073,11 +2214,11 @@ static bool glTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUV
 static bool glShaderIsCompiled(Renderer* renderer, int32_t shaderID) {
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = gl->base.dataWin;
-    if (0 > shaderID || shaderID >= dw->shdr.count) return false;
+    if (0 > shaderID || (uint32_t) shaderID >= dw->shdr.count) return false;
     return gl->gmlShaderCompiled[shaderID];
 }
 
-static bool glShadersSupported(Renderer* renderer) {
+static bool glShadersSupported(void) {
     return true;
 }
 
@@ -2099,6 +2240,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.endView = glEndView;
     glVtable.applyProjection = glApplyProjection;
     glVtable.beginGUI = glBeginGUI;
+    glVtable.setGuiProjection = glSetGuiProjection;
     glVtable.endGUI = glEndGUI;
     glVtable.drawSprite = glDrawSprite;
     glVtable.drawSpritePos = glDrawSpritePos;
@@ -2124,6 +2266,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuSetFog = glGpuSetFog;
     glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
     glVtable.drawTile = nullptr;
+    glVtable.drawTiled = glDrawTiled;
     glVtable.createSurface = glCreateSurface;
     glVtable.surfaceExists = glSurfaceExists;
     glVtable.setRenderTarget = glSetRenderTarget;
@@ -2139,6 +2282,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuResetShader = glGpuResetShader,
     glVtable.shaderGetUniform = glShaderGetUniform,
     glVtable.shaderSetUniformF = glShaderSetUniformF,
+    glVtable.shaderSetUniformFArray = glShaderSetUniformFArray,
     glVtable.shaderSetUniformI = glShaderSetUniformI,
     glVtable.spriteGetTexture = glSpriteGetTexture,
     glVtable.surfaceGetTexture = glSurfaceGetTexture,

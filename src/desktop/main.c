@@ -56,6 +56,8 @@
 #include <SDL/SDL_main.h>
 #elif defined(USE_SDL2)
 #include <SDL2/SDL_main.h>
+#elif defined(USE_SDL3)
+#include <SDL3/SDL_main.h>
 #endif
 
 enum GraphicsAPI gfx;
@@ -411,7 +413,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     // TODO: detect available driver features
     // at runtime to improve defaults.
-#if defined(ENABLE_MODERN_GL) && (defined(USE_GLFW3) || defined(USE_SDL2))
+#if defined(ENABLE_MODERN_GL) && (defined(USE_GLFW3) || defined(USE_SDL2) || defined(USE_SDL3))
     args->renderer = "modern-gl";
 #elif defined(ENABLE_LEGACY_GL)
     args->renderer = "legacy-gl";
@@ -733,7 +735,8 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
+// When flipY is true, the image will be flipped vertically.
+static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque, bool flipY) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
@@ -750,19 +753,22 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
         repeat(totalPixels, i) pixels[i * 4 + 3] = 255;
     }
 
-    // OpenGL reads bottom-to-top, but PNG is top-to-bottom.
-    // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
-    unsigned char* lastRow = pixels + (height - 1) * stride;
-    stbi_write_png(filename, width, height, 4, lastRow, -stride);
+    if (flipY) {
+        // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
+        unsigned char* lastRow = pixels + (height - 1) * stride;
+        stbi_write_png(filename, width, height, 4, lastRow, -stride);
+    } else {
+        stbi_write_png(filename, width, height, 4, pixels, stride);
+    }
 
     free(pixels);
     printf("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
 }
 
-static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height) {
+static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height, bool flipY) {
     char filename[512];
     snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
-    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true);
+    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true, flipY);
 }
 
 // Dumps every live surface in the GL renderer as a PNG.
@@ -778,7 +784,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
         char filename[512];
         snprintf(filename, sizeof(filename), filenamePattern, frameNumber, (int) surfaceId);
-        writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false);
+        writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false, false);
     }
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -1218,7 +1224,7 @@ int main(int argc, char* argv[]) {
 #if defined(USE_OPENAL)
             audioSystem = (AudioSystem*) AlAudioSystem_create();
 #elif defined(USE_MINIAUDIO)
-            audioSystem = (AudioSystem*) MaAudioSystem_create();
+            audioSystem = (AudioSystem*) MaAudioSystem_create(dataWin);
 #else
             audioSystem = (AudioSystem*) NoopAudioSystem_create();
 #endif
@@ -1570,41 +1576,17 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-                // It is a bit hard to understand, but here's how it works:
-                // The Port X/Port Y controls the position of the game viewport within the application surface.
-                // The Port W/Port H controls the size of the game viewport within the application surface.
-                // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-                // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-                float displayScaleX;
-                float displayScaleY;
-
                 Runner_drawPre(runner, fbWidth, fbHeight);
-                Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
-
-                runner->renderGameW = gameW;
-                runner->renderGameH = gameH;
 
                 // Calculate viewport (letterboxing) in screen coordinates for mouse mapping
-                int32_t winW, winH, scaledW, scaledH;
+                int32_t winW, winH;
                 platformGetScaledWindowSize(&winW, &winH);
-                if ((gameW * winH) / gameH < winW) {
-                    scaledW = (gameW * winH) / gameH;
-                    scaledH = winH;
-                } else {
-                    scaledW = winW;
-                    scaledH = (gameH * winW) / gameW;
-                }
-                runner->viewportX = (winW - scaledW) / 2;
-                runner->viewportY = (winH - scaledH) / 2;
-                runner->viewportW = scaledW;
-                runner->viewportH = scaledH;
+
+                Runner_beginFrame(runner, gameW, gameH, winW, winH, fbWidth, fbHeight);
 
                 double mx, my;
                 platformGetMousePos(&mx, &my);
                 Runner_updateMousePosition(runner, winW, winH, mx, my);
-
-                Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
 
                 // Clear FBO with room background color
 #ifdef ENABLE_SW_RENDERER
@@ -1629,7 +1611,7 @@ int main(int argc, char* argv[]) {
                 }
 #endif
 
-                Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+                Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
                 renderer->vtable->endFrameInit(renderer);
                 Runner_drawPost(runner, fbWidth, fbHeight);
                 renderer->vtable->endFrameEnd(renderer);
@@ -1639,25 +1621,15 @@ int main(int argc, char* argv[]) {
                 // Capture screenshot if this frame matches a requested frame
                 bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
-                if (shouldScreenshot) {
-                    int32_t appId = runner->applicationSurfaceId;
-                    GLuint readFbo;
-#ifdef ENABLE_LEGACY_GL
-                    if (gfx == LEGACY_GL) {
-                        readFbo = ((GLLegacyRenderer*) renderer)->surfaces[appId];
-                    } else
-#endif
-                    {
-                        readFbo = ((GLRenderer*) renderer)->surfaces[appId];
-                    }
-                    captureScreenshot(readFbo, args.screenshotPattern, runner->frameCount, gameW, gameH);
+                if (shouldScreenshot || RunnerKeyboard_checkPressed(runner->keyboard, VK_F5)) {
+                    captureScreenshot(0, args.screenshotPattern, runner->frameCount, fbWidth, fbHeight, true);
                     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
                 }
 
                 // Dump all surfaces if this frame matches a requested frame
                 bool shouldDumpSurfaces = hmget(args.screenshotSurfacesFrames, runner->frameCount);
 
-                if (shouldDumpSurfaces) {
+                if (shouldDumpSurfaces || RunnerKeyboard_checkPressed(runner->keyboard, VK_F6)) {
                     GLRenderer* gl = (GLRenderer*) renderer;
                     dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
                     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);

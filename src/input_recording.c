@@ -30,7 +30,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     fseek(f, 0, SEEK_SET);
 
     char* contents = safeMalloc(fileSize + 1);
-    fread(contents, 1, fileSize, f);
+    safeFread(contents, fileSize, f, playbackFilePath);
     contents[fileSize] = '\0';
     fclose(f);
 

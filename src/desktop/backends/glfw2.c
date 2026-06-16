@@ -14,6 +14,7 @@
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
 #include "gettime.h"
+#include "runner_mouse.h"
 
 static Runner *g_runner;
 
@@ -221,9 +222,20 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // GLFW2 only supports showing/hiding
+    if (cursorType == GML_CR_NONE) {
+        glfwDisable(GLFW_MOUSE_CURSOR);
+    } else {
+        glfwEnable(GLFW_MOUSE_CURSOR);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(resizeCallback);
@@ -286,5 +298,6 @@ void platformSleepUntil(uint64_t time) {
 
     while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
+        YIELD();
     }
 }

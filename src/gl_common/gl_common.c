@@ -82,6 +82,14 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
     if (!resolveSurfaceFBO(surfaces, surfaceWidth, surfaceHeight, count, dstId, &dstFbo, &dstFboW, &dstFboH))
         return;
 
+    int originalFramebufferBinding;
+
+    // Yes, in OpenGL you need to use _BINDING to query things
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &originalFramebufferBinding);
+
+    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+
     glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstFbo);
 
@@ -92,6 +100,9 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
     } else {
         glBlitFramebuffer(0, 0, srcFboW, srcFboH, dstX, dstY, dstX + srcFboW, dstY + srcFboH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, originalFramebufferBinding);
+    if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
 
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA) {
@@ -134,6 +145,7 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
 GLenum GLCommon_blendFactorToGL(int factor) {
     switch (factor) {
         case bm_zero:           return GL_ZERO;
+        default:
         case bm_one:            return GL_ONE;
         case bm_src_color:      return GL_SRC_COLOR;
         case bm_inv_src_color:  return GL_ONE_MINUS_SRC_COLOR;
@@ -144,42 +156,41 @@ GLenum GLCommon_blendFactorToGL(int factor) {
         case bm_dest_color:     return GL_DST_COLOR;
         case bm_inv_dest_color: return GL_ONE_MINUS_DST_COLOR;
         case bm_src_alpha_sat:  return GL_SRC_ALPHA_SATURATE;
-        default:                return GL_ONE;
     }
 }
 
 GLenum GLCommon_blendModeToEquation(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_FUNC_ADD;
         case bm_add:              return GL_FUNC_ADD;
         case bm_subtract:         return GL_FUNC_ADD;
         case bm_reverse_subtract: return GL_FUNC_REVERSE_SUBTRACT;
         case bm_min:              return GL_MIN;
         case bm_max:              return GL_FUNC_ADD;
-        default:                  return GL_FUNC_ADD;
     }
 }
 
 GLenum GLCommon_blendModeToSFactor(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_SRC_ALPHA;
         case bm_add:              return GL_SRC_ALPHA;
         case bm_subtract:         return GL_ZERO;
         case bm_reverse_subtract: return GL_SRC_ALPHA;
         case bm_min:              return GL_ONE;
         case bm_max:              return GL_SRC_ALPHA;
-        default:                  return GLCommon_blendFactorToGL(mode);
     }
 }
 
 GLenum GLCommon_blendModeToDFactor(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_ONE_MINUS_SRC_ALPHA;
         case bm_add:              return GL_ONE;
         case bm_subtract:         return GL_ONE_MINUS_SRC_COLOR;
         case bm_reverse_subtract: return GL_ONE;
         case bm_min:              return GL_ONE;
         case bm_max:              return GL_ONE_MINUS_SRC_COLOR;
-        default:                  return GLCommon_blendFactorToGL(mode);
     }
 }

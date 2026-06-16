@@ -793,7 +793,7 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
 }
 
 static void maSetMasterGain(AudioSystem* audio, float gain) {
-    AlAudioSystem* ma = (AlAudioSystem*) audio;
+    (void)audio;
     alListenerf(AL_GAIN, gain);
 }
 

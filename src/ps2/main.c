@@ -238,6 +238,7 @@ static unsigned int hidUsageToAsciiChar(uint8_t hid, bool shift) {
 
 
 int main(int argc, char* argv[]) {
+    (void)argc;
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
@@ -258,7 +259,7 @@ int main(int argc, char* argv[]) {
 
     fprintf(stderr, "Loaded FS drivers!\n");
 
-    const char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
+    char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
 
     printf("Butterscotch PS2 - Loading %s\n", dataWinPath);
 
@@ -552,7 +553,6 @@ int main(int argc, char* argv[]) {
     // ===[ Main Loop ]===
     bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getObject(configRoot, "debugOverlayEnabled"));
     PS2Overlay_setDebugOverlayState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
-    uint16_t prevOverlayPadButtons = 0xFFFF;
 
     u64 lastFrameStartTime = GetTimerSystemTime(); // for delta_time
     while (!runner->shouldExit) {
@@ -646,7 +646,7 @@ int main(int argc, char* argv[]) {
         gsKit_clear(gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
 
         Runner_drawPre(runner, 640, 448);
-        Runner_beginFrame(runner, gameW, gameH, 640, 448);
+        Runner_beginFrame(runner, gameW, gameH, 640, 448, 640, 448);
 
         // Clear with room background color
         if (runner->drawBackgroundColor) {
@@ -660,7 +660,7 @@ int main(int argc, char* argv[]) {
 
         // Render views
         u64 drawStartTime = GetTimerSystemTime();
-        Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
+        Runner_drawViews(runner, gameW, gameH, false);
         runner->viewCurrent = 0;
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, 640, 448);

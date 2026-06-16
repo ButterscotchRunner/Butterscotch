@@ -16,6 +16,7 @@
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
 #include "gettime.h"
+#include "runner_mouse.h"
 
 static GLFWwindow *window;
 static Runner *g_runner;
@@ -205,9 +206,9 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         fseek(f, 0, SEEK_SET);
         char* buffer = (char*) malloc(len + 1);
         if (buffer != NULL) {
-            fread(buffer, 1, len, f);
+            safeFread(buffer, len, f, dbPath);
             buffer[len] = '\0';
-            if (buffer != NULL && buffer[0] != '\0') {
+            if (buffer[0] != '\0') {
                 if (glfwUpdateGamepadMappings(buffer)) {
                     fprintf(stderr, "Gamepad: Loaded SDL gamecontroller mappings successfully\n");
                 } else {
@@ -252,9 +253,40 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    if (cursorType == GML_CR_NONE) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        return;
+    }
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    int glfwShape;
+    switch (cursorType) {
+        case GML_CR_CROSS:  glfwShape = GLFW_CROSSHAIR_CURSOR; break;
+        case GML_CR_BEAM:  glfwShape = GLFW_IBEAM_CURSOR; break;
+        case GML_CR_SIZE_NS:  glfwShape = GLFW_VRESIZE_CURSOR; break;
+        case GML_CR_SIZE_WE:  glfwShape = GLFW_HRESIZE_CURSOR; break;
+        case GML_CR_DRAG: glfwShape = GLFW_HAND_CURSOR; break;
+        case GML_CR_HANDPOINT: glfwShape = GLFW_HAND_CURSOR; break;
+        #if (GLFW_VERSION_MINOR >= 4)
+        case GML_CR_SIZE_ALL: glfwShape = GLFW_RESIZE_ALL_CURSOR; break;
+        case GML_CR_SIZE_NWSE:  glfwShape = GLFW_RESIZE_NWSE_CURSOR; break;
+        case GML_CR_SIZE_NESW:  glfwShape = GLFW_RESIZE_NESW_CURSOR; break;
+        #endif
+        default:  glfwShape = GLFW_ARROW_CURSOR; break;
+    }
+
+    GLFWcursor* cursor = glfwCreateStandardCursor(glfwShape);
+    if (cursor) {
+        glfwSetCursor(window, cursor);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
@@ -425,5 +457,6 @@ void platformSleepUntil(uint64_t time) {
     }
     while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
+        YIELD();
     }
 }

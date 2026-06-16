@@ -102,28 +102,15 @@ static inline RValue Instance_getSelfVar(Instance* inst, int32_t varID) {
 }
 
 // Set a self variable by varID. Frees the old value if present (decRefs owned arrays).
-// Always takes an independent reference: strings are strdup'd, arrays are incRef'd, regardless of whether the caller's RValue was owning.
+// Always takes an independent reference with RValue_makeIndependent.
 // The caller retains ownership of their original `val` and remains responsible for freeing it (via RValue_free) when done.
 static inline void Instance_setSelfVar(Instance* inst, int32_t varID, RValue val) {
     requireNotNull(inst);
     // One lookup: returns the existing slot, or inserts UNDEFINED and returns the new slot.
-    RValue* slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varID);
-    if (val.type == RVALUE_STRING && val.string != nullptr) {
-        val = RValue_makeOwnedString(safeStrdup(val.string));
-    } else if (val.type == RVALUE_ARRAY && val.array != nullptr) {
-        GMLArray_incRef(val.array);
-        val.ownsReference = true;
-#if IS_WAD17_OR_HIGHER_ENABLED
-    } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
-        GMLMethod_incRef(val.method);
-        val.ownsReference = true;
-#endif
-    } else if (val.type == RVALUE_STRUCT && val.structInst != nullptr) {
-        Instance_structIncRef(val.structInst);
-        val.ownsReference = true;
-    }
-    RValue_free(slot);
-    *slot = val;
+    RValue* pointerToSlot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varID);
+    RValue independentVal = RValue_makeIndependent(val);
+    RValue_free(pointerToSlot);
+    *pointerToSlot = independentVal;
 }
 
 // Recompute speed/direction from hspeed/vspeed (called when hspeed or vspeed is set)

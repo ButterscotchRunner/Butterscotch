@@ -45,6 +45,7 @@
 #endif
 
 // GMS 1.4 supports up to 16 arguments per script call
+// Newer GM versions do NOT have an argument limit however, but the limit is still used for the old classic style "argumentX" access
 #define GML_MAX_ARGUMENTS 16
 
 // ===[ Comparison Kinds ]===
@@ -292,13 +293,11 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx);
 #endif
 void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func);
 BuiltinFunc VM_findBuiltin(VMContext* ctx, const char* name);
-RValue VM_createArray(VMContext* ctx);
-void VM_arraySet(VMContext* ctx, RValue* arrayRef, int32_t index, RValue val);
 
-// Set a named field on a freshly-built GML struct, handles built-in vars and self-vars.
-// Unknown variables are not written to the struct.
-// Takes ownership of "val" and frees it after copying into the struct.
-void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val);
+RValue VM_structGet(VMContext* ctx, Instance* structInst, const char* name, int32_t arrayIndex);
+// Set a named field on a freshly-built GML struct.
+void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
+void VM_structSetAndFreeVal(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
 
 // @@CopyStatic@@: chain the current constructor's static struct to a parent constructor's static struct (static inheritance).
 void VM_copyStatic(VMContext* ctx, RValue* parentRef);

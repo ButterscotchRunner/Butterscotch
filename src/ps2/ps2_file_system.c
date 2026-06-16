@@ -486,18 +486,26 @@ static void ps2BinaryRewrite(MAYBE_UNUSED FileSystem* fs, void* handle) {
 
 //Directory, pretty much stubbed
 static bool ps2DirectoryExists(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
 }
 
 static bool ps2CreateDirectory(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
 }
 
 static bool ps2DeleteDirectory(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
 }
 
-static FileSystemDirEntry* ps2ListDirectory(MAYBE_UNUSED FileSystem* fs, MAYBE_UNUSED const char* relativeDirPath) {
+static FileSystemDirEntry* ps2ListDirectory(FileSystem* fs, const char* relativeDirPath) {
+    (void)fs;
+    (void)relativeDirPath;
     return nullptr;
 }
 

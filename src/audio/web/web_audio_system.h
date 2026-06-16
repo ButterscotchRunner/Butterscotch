@@ -42,7 +42,7 @@ typedef struct {
 
 // Creates a no-device miniaudio engine that mixes into a buffer when WebAudioSystem_pullFrames is called.
 // sampleRate must match the AudioContext's sampleRate on the JS side.
-WebAudioSystem* WebAudioSystem_create(int32_t sampleRate);
+WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate);
 
 // Pulls frameCount interleaved-stereo float32 frames into out.
 // out must have at least frameCount * 2 floats of space. Underruns are zero-filled by miniaudio.
