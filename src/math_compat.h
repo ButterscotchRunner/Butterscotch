@@ -104,3 +104,7 @@ static float roundf(float x) {
 }
 
 #endif
+
+#ifndef INFINITY
+#define INFINITY (1.0f / 0.0f)
+#endif

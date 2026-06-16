@@ -6,7 +6,6 @@
 #endif
 
 #include <stdint.h>
-#include "math_compat.h"
 
 /* on some platforms, stdint.h exists but is incomplete */
 #ifndef UINT32_MAX
@@ -17,9 +16,6 @@
 #endif
 #ifndef INT32_MIN
 #define INT32_MIN (-INT32_MAX - 1)
-#endif
-#ifndef INFINITY
-#define INFINITY (1.0f / 0.0f)
 #endif
 
 #if (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)) || defined(__BIG_ENDIAN__)
