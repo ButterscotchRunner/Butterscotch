@@ -2138,6 +2138,117 @@ void SWRenderer_clearFrameBuffer(Renderer* renderer, uint32_t color)
 	}
 }
 
+static uint32_t SWRenderer_spriteGetTexture(Renderer* renderer, int32_t tpagIndex)
+{
+	(void) renderer;
+
+	return (uint32_t) tpagIndex + 1;
+}
+
+static uint32_t SWRenderer_surfaceGetTexture(Renderer* renderer, int32_t surfaceID)
+{
+	(void) renderer;
+	(void) surfaceID;
+
+	return (uint32_t) -1;
+}
+
+static float SWRenderer_textureGetTexelWidth(Renderer* renderer, uint32_t texID)
+{
+	(void) renderer;
+	(void) texID;
+	
+	return 1.0f;
+}
+
+static float SWRenderer_textureGetTexelHeight(Renderer* renderer, uint32_t texID)
+{
+	(void) renderer;
+	(void) texID;
+	
+	return 1.0f;
+}
+
+static bool SWRenderer_textureGetUVs(Renderer* renderer, uint32_t texID, float* outUVs)
+{
+	(void) renderer;
+	(void) texID;
+	(void) outUVs;
+	
+	return false;
+}
+
+static void SWRenderer_textureSetStage(Renderer* renderer, int32_t slot, uint32_t texID)
+{
+	(void) renderer;
+	(void) slot;
+	(void) texID;
+}
+
+static bool SWRenderer_shaderIsCompiled(Renderer* renderer, int32_t shader)
+{
+	(void) renderer;
+	(void) shader;
+	
+	return false;
+}
+
+static bool SWRenderer_shadersSupported(void)
+{
+	return false;
+}
+
+static void SWRenderer_gpuSetShader(Renderer* renderer, int32_t shaderIndex)
+{
+	(void) renderer;
+	(void) shaderIndex;
+}
+
+static void SWRenderer_gpuResetShader(Renderer* renderer)
+{
+	(void) renderer;
+}
+
+static int32_t SWRenderer_shaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform)
+{
+	(void) renderer;
+	(void) shaderIndex;
+	(void) uniform;
+	
+	return 0;
+}
+
+static int32_t SWRenderer_shaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform)
+{
+	(void) renderer;
+	(void) shaderIndex;
+	(void) uniform;
+	
+	return 0;
+}
+
+static void SWRenderer_shaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4)
+{
+	(void) renderer;
+	(void) handle;
+	(void) count;
+	(void) value1;
+	(void) value2;
+	(void) value3;
+	(void) value4;
+}
+
+static void SWRenderer_shaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4)
+{
+	(void) renderer;
+	(void) handle;
+	(void) count;
+	(void) value1;
+	(void) value2;
+	(void) value3;
+	(void) value4;
+}
+
 Renderer* SWRenderer_create(void)
 {
 	SWRenderer* swr = safeCalloc(1, sizeof(SWRenderer));
@@ -2189,6 +2300,20 @@ Renderer* SWRenderer_create(void)
 	swrVtable.surfaceCopy              = SWRenderer_surfaceCopy;
 	swrVtable.surfaceGetPixels         = SWRenderer_surfaceGetPixels;
 	swrVtable.drawTiledPart            = SWRenderer_drawTiledPart;
+	swrVtable.spriteGetTexture         = SWRenderer_spriteGetTexture;
+	swrVtable.surfaceGetTexture        = SWRenderer_surfaceGetTexture;
+	swrVtable.textureGetTexelWidth     = SWRenderer_textureGetTexelWidth;
+	swrVtable.textureGetTexelHeight    = SWRenderer_textureGetTexelHeight;
+	swrVtable.textureGetUVs            = SWRenderer_textureGetUVs;
+	swrVtable.textureSetStage          = SWRenderer_textureSetStage;
+	swrVtable.gpuSetShader             = SWRenderer_gpuSetShader;
+	swrVtable.gpuResetShader           = SWRenderer_gpuResetShader;
+	swrVtable.shaderGetUniform         = SWRenderer_shaderGetUniform;
+	swrVtable.shaderGetSamplerIndex    = SWRenderer_shaderGetSamplerIndex;
+	swrVtable.shaderSetUniformF        = SWRenderer_shaderSetUniformF;
+	swrVtable.shaderSetUniformI        = SWRenderer_shaderSetUniformI;
+	swrVtable.shaderIsCompiled         = SWRenderer_shaderIsCompiled;
+	swrVtable.shadersSupported         = SWRenderer_shadersSupported;
 	swr->base.drawColor = 0xFFFFFF;
 	swr->base.drawAlpha = 1.0f;
 	swr->base.drawFont = -1;
