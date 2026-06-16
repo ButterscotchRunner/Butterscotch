@@ -487,11 +487,21 @@ static void SWRenderer_endView(Renderer* renderer)
 }
 
 static void SWRenderer_beginGUI(Renderer* renderer, int32_t guiW, int32_t guiH,
-								int32_t portX, int32_t portY, int32_t portW, int32_t portH)
+								int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId)
 {
 	(void)renderer; (void)guiW; (void)guiH;
 	(void)portX; (void)portY; (void)portW; (void)portH;
+	(void)targetSurfaceId;
 	UNIMP2();
+}
+
+static void SWRenderer_setGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface)
+{
+	(void) renderer;
+	(void) guiW; (void) guiH;
+	(void) portW; (void) portH;
+	(void) renderingToUserSurface;
+	UNIMP();
 }
 
 static void SWRenderer_endGUI(Renderer* renderer)
@@ -740,7 +750,7 @@ static void swrDrawRectangleColor(Renderer* renderer, float x1, float y1, float 
 	swrDrawVLine(renderer, x2, y1, (y2 - y1) + 1, color2, color4, alpha);
 }
 
-static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, int width, uintpixel_t color1, uintpixel_t color2, int alpha)
+static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, MAYBE_UNUSED int width, uintpixel_t color1, uintpixel_t color2, int alpha)
 {
 	if (x1 == x2)
 	{
@@ -1343,8 +1353,12 @@ static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2
 	swrDrawLine(renderer, x1, y1, x2, y2, width, colorCvt, colorCvt, alpha);
 }
 
-static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uint32_t color, int alpha)
+static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uint32_t color1, uint32_t color2, uint32_t color3, int alpha)
 {
+	// TODO: update this
+	(void) color2;
+	(void) color3;
+	
 	// Figure out the maximum Y extent of the triangle.
 	// (Note that we know yup is the minimum.)
 	int xmid, ymid, xmid2 = xup, xmax, ymax;
@@ -1399,14 +1413,15 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
 		
 		uintpixel_t* line = &swr->fb[y * swr->width];
 		for (int x = x1; x <= x2; x++) {
-			alphaBlend(&line[x], color, alpha);
+			alphaBlend(&line[x], color1, alpha);
 		}
 	}
 }
 
-static void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color, float alpha)
+static void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha)
 {
 	float xup, yup, xleft, yleft, xright, yright;
+	uint32_t colorup, colorleft, colorright;
 	
 	SWRenderer* swr = (SWRenderer*) renderer;
 	swrTransformPosIfNeeded(swr, &x1, &y1);
@@ -1414,18 +1429,18 @@ static void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, fl
 	swrTransformPosIfNeeded(swr, &x3, &y3);
 	
 	//which vertex is higher?
-	xup = x1, yup = y1;
-	xleft = x2, yleft = y2;
-	xright = x3, yright = y3;
+	xup = x1, yup = y1; colorup = color1;
+	xleft = x2, yleft = y2; colorleft = color2;
+	xright = x3, yright = y3; colorright = color3;
 	if (yup > y2) {
-		xup = x2, yup = y2;
-		xleft = x1, yleft = y1;
+		xup = x2, yup = y2, colorup = color2;
+		xleft = x1, yleft = y1, colorleft = color1;
 		//xright = x3, yright = y3;
 	}
 	if (yup > y3) {
-		xup = x3, yup = y3;
-		xleft = x1, yleft = y1;
-		xright = x2, yright = y2;
+		xup = x3, yup = y3, colorup = color3;
+		xleft = x1, yleft = y1, colorleft = color1;
+		xright = x2, yright = y2, colorright = color2;
 	}
 	
 	if (xleft > xright) {
@@ -1435,6 +1450,9 @@ static void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, fl
 		tmp = yleft;
 		yleft = yright;
 		yright = tmp;
+		uint32_t tmp2 = colorleft;
+		colorleft = colorright;
+		colorright = tmp2;
 	}
 	
 	swrDrawTriangleInternal(
@@ -1442,29 +1460,35 @@ static void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, fl
 		swrFloor(xup), swrFloor(yup),
 		swrFloor(xleft), swrCeiling(yleft),
 		swrFloor(xright), swrCeiling(yright),
-		swrConvertPixel(color),
+		swrConvertPixel(colorup),
+		swrConvertPixel(colorleft),
+		swrConvertPixel(colorright),
 		swrIntAlpha(alpha)
 	);
 }
 
-static void SWRenderer_drawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2,
-									float x3, float y3, bool outline)
+static void SWRenderer_drawTriangle(Renderer* renderer,
+                                    float x1, float y1, float x2, float y2, float x3, float y3,
+                                    uint32_t color1, uint32_t color2, uint32_t color3,
+                                    float alpha, bool outline)
 {
 	if (outline)
 	{
-		uintpixel_t drawColorCvt = swrConvertPixel(renderer->drawColor);
-		swrDrawLine(renderer, x1, y1, x2, y2, 1, drawColorCvt, drawColorCvt, renderer->drawAlpha);
-		swrDrawLine(renderer, x1, y1, x3, y3, 1, drawColorCvt, drawColorCvt, renderer->drawAlpha);
-		swrDrawLine(renderer, x2, y2, x3, y3, 1, drawColorCvt, drawColorCvt, renderer->drawAlpha);
+		uintpixel_t color1cvt = swrConvertPixel(color1);
+		uintpixel_t color2cvt = swrConvertPixel(color2);
+		uintpixel_t color3cvt = swrConvertPixel(color3);
+		swrDrawLine(renderer, x1, y1, x2, y2, 1, color1cvt, color2cvt, renderer->drawAlpha);
+		swrDrawLine(renderer, x1, y1, x3, y3, 1, color1cvt, color3cvt, renderer->drawAlpha);
+		swrDrawLine(renderer, x2, y2, x3, y3, 1, color3cvt, color3cvt, renderer->drawAlpha);
 	}
 	else
 	{
-		swrDrawTriangle(renderer, x1, y1, x2, y2, x3, y3, renderer->drawColor, renderer->drawAlpha);
+		swrDrawTriangle(renderer, x1, y1, x2, y2, x3, y3, color1, color2, color3, alpha);
 	}
 }
 
 static void SWRenderer_drawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2,
-									 float width, uint32_t color1, uint32_t color2, float alpha)
+                                     float width, uint32_t color1, uint32_t color2, float alpha)
 {
 	swrDrawLine(renderer, x1, y1, x2, y2, width, swrConvertPixel(color1), swrConvertPixel(color2), alpha);
 }
@@ -1692,7 +1716,7 @@ static void SWRenderer_drawText(Renderer* renderer, const char* text, float x, f
 
 static void SWRenderer_drawTextColor(Renderer* renderer, const char* text, float x, float y,
 									 float xscale, float yscale, float angleDeg,
-									 int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha,
+									 int32_t c1, int32_t c2, int32_t c3, int32_t c4, MAYBE_UNUSED float alpha,
 									 float lineSeparation)
 {
 	SWRenderer* swr = (SWRenderer*) renderer;
@@ -1860,10 +1884,11 @@ static bool SWRenderer_surfaceExists(Renderer* renderer, int32_t surfaceID)
 	return false;
 }
 
-static bool SWRenderer_setRenderTarget(Renderer* renderer, int32_t surfaceID)
+static bool SWRenderer_setRenderTarget(Renderer* renderer, int32_t surfaceID, bool implicitApplicationSurface)
 {
 	UNIMP();
 	(void)renderer; (void)surfaceID;
+	(void)implicitApplicationSurface;
 	return false;
 }
 
@@ -2125,6 +2150,7 @@ Renderer* SWRenderer_create(void)
 	swrVtable.beginView                = SWRenderer_beginView;
 	swrVtable.endView                  = SWRenderer_endView;
 	swrVtable.beginGUI                 = SWRenderer_beginGUI;
+	swrVtable.setGuiProjection         = SWRenderer_setGuiProjection;
 	swrVtable.endGUI                   = SWRenderer_endGUI;
 	swrVtable.drawSprite               = SWRenderer_drawSprite;
 	swrVtable.drawSpritePart           = SWRenderer_drawSpritePart;
