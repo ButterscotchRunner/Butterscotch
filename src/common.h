@@ -6,6 +6,7 @@
 #endif
 
 #include <stdint.h>
+#include "math_compat.h"
 
 /* on some platforms, stdint.h exists but is incomplete */
 #ifndef UINT32_MAX
