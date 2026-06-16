@@ -6,13 +6,14 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include "math_compat.h"
 
 #include "real_type.h"
 
 #if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)) \
     || defined(__GNUC__) || defined(__clang__) || defined(__TINYC__)
-    #define TYPEOF(x) typeof(x)
+    #define TYPEOF(x) __typeof__(x)
 #else
     #define TYPEOF(x) long long
 #endif
