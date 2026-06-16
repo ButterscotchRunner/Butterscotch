@@ -3701,8 +3701,9 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
-    if (camera != nullptr) {  
+    if (camera != nullptr) {
         runner->renderer->vtable->applyProjection(runner->renderer, &camera->ViewMatrix, &camera->ProjectionMatrix);
+        runner->renderer->CameraCurrent = RValue_toInt32(args[0]);
     }
     return RValue_makeUndefined();
 }

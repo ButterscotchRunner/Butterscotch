@@ -1180,10 +1180,6 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
-            Matrix4f ViewMatrix = camera->ViewMatrix;
-            Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-            runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
-
             Runner_draw(runner);
 
             if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1213,6 +1209,11 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         Matrix4f_identity(&ViewMatrix);
         Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
         if (camera != nullptr) {
+            camera->viewX = 0;
+            camera->viewY = 0;
+            camera->viewWidth = gameW;
+            camera->viewHeight = gameH;
+            camera->viewAngle = 0.0;
             camera->ViewMatrix = ViewMatrix;
             camera->ProjectionMatrix = ProjectionMatrix;
         }
@@ -3924,7 +3925,20 @@ void Runner_guiSizeChanged(Runner* runner) {
     runner->guiPassH = guiH;
     int32_t top = findStackTop(runner);
     bool renderingToUserSurface = (top != -1 && runner->surfaceStack[top] != runner->applicationSurfaceId);
-    runner->renderer->vtable->setGuiProjection(runner->renderer, guiW, guiH, runner->guiPassPortW, runner->guiPassPortH, renderingToUserSurface);
+    float MULT = 1.0;
+    if (renderingToUserSurface == true) {
+        MULT = -1.0;
+    }
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) runner->guiPassW, (float) runner->guiPassH*MULT, 32000.0, 0.0);
+
+    Matrix4f ViewMatrix;
+    float x = (float) runner->guiPassW /2;
+    float y = (float) runner->guiPassH /2;
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+
+    runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
 }
 
 bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
