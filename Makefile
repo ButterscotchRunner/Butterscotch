@@ -5,13 +5,9 @@ CC := cc
 
 CFLAGS := -O2 -DNDEBUG
 
-ifeq ($(OS),Windows_NT)
-OS := Windows
-else
 OS := $(shell uname -s)
-ifneq ($(filter MINGW% MSYS% CYGWIN%,$(OS)),)
+ifneq ($(filter Windows_NT MINGW% MSYS% CYGWIN%,$(OS)),)
 OS := Windows
-endif
 endif
 
 DEFINES := -DENABLE_VM_GML_PROFILER \
