@@ -547,6 +547,32 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     }
 }
 
+// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
+static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,const Matrix4f* ProjectionMatrix) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    
+    // Flush first so pending quads draw under the projection they were issued with.
+    flushBatch(gl);
+
+    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f View = *ViewMatrix;
+    Matrix4f Projection = *ProjectionMatrix;
+
+    Matrix4f WorldView;
+    Matrix4f_multiply(&WorldView, &View, &World);
+
+    Matrix4f WorldViewProjection;
+    Matrix4f_multiply(&WorldViewProjection, &View, &World);
+    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
+  
+    renderer->gmlMatrices[MATRIX_VIEW] = View;   
+    renderer->gmlMatrices[MATRIX_PROJECTION] = Projection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
+    //oh my I hope it's good enough.
+    glShaderSettingsRefresh(renderer);    
+}
+
 static void glGpuResetShader(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
@@ -620,7 +646,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     gl->base.CPortH = gameH;
 }
 
-static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {
+static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
@@ -640,6 +666,20 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glEnable(GL_SCISSOR_TEST);
     glScissor(portX, portY, portW, portH);
 
+    int32_t ViewCurrent = 0;
+    if (renderer->runner->viewsEnabled) {
+    ViewCurrent = renderer->runner->viewCurrent;
+    }
+    RuntimeView* view = &renderer->runner->views[ViewCurrent];
+    gl->base.CameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
+    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+
+    //Matrix4f ViewMatrix = camera->ViewMatrix;
+    //Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
+    //runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+
+
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
@@ -653,33 +693,7 @@ static void glEndView(Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,const Matrix4f* ProjectionMatrix) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    
-    // Flush first so pending quads draw under the projection they were issued with.
-    flushBatch(gl);
-
-    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f View = *ViewMatrix;
-    Matrix4f Projection = *ProjectionMatrix;
-
-    Matrix4f WorldView;
-    Matrix4f_multiply(&WorldView, &View, &World);
-
-    Matrix4f WorldViewProjection;
-    Matrix4f_multiply(&WorldViewProjection, &View, &World);
-    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
-  
-    renderer->gmlMatrices[MATRIX_VIEW] = View;   
-    renderer->gmlMatrices[MATRIX_PROJECTION] = Projection;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
-    //oh my I hope it's good enough.
-    glShaderSettingsRefresh(renderer);    
-}
-
-static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
+static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
