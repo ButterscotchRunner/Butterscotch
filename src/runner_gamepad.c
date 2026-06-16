@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include "math_compat.h"
 
 //DELTARUNE HACK
 int RawToGPDelta(int32_t gmlButton) {

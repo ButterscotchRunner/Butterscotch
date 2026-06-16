@@ -3,7 +3,7 @@
 #include "common.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <math.h>
+#include "math_compat.h"
 #include "matrix_math.h"
 #include "data_win.h"
 #include "instance.h"

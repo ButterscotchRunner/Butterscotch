@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include "math_compat.h"
 
 #include "stb_ds.h"
 #include "utils.h"

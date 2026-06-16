@@ -6,7 +6,7 @@
 #include "runner.h"
 #include "vm.h"
 
-#include <math.h>
+#include "math_compat.h"
 
 // Checks if an instance matches a collision target.
 // target >= 100000: instance ID (match specific instance)

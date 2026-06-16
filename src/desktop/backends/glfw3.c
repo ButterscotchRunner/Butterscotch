@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include <math.h>
+#include "math_compat.h"
 
 #ifdef _WIN32
 #include <windows.h>

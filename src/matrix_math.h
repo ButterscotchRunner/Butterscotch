@@ -1,6 +1,6 @@
 #pragma once
 #include "common.h"
-#include <math.h>
+#include "math_compat.h"
 #include <string.h>
 
 // ===[ Matrix4f Type ]===
