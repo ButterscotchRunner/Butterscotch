@@ -55,16 +55,15 @@ static inline void requireMessageFormatted(const char *file, int line, bool cond
     abort();
 }
 
-#define requireNotNullMessage(ptr, msg) ({ \
-const void *_val = (ptr); \
-if (_val == NULL) { \
-fprintf(stderr, "%s:%d: requireNotNull failed: %s\n", __FILE__, __LINE__, (msg)); \
-abort(); \
-} \
-_val; \
-})
-
-#define requireNotNull(ptr) requireNotNullMessage(ptr, #ptr)
+static inline void* requireNotNullFunction(void* ptr, char* file, int line, char* name) {
+    if (ptr == nullptr) {
+        fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", file, line, name);
+        abort();
+    }
+    return ptr;
+}
+#define requireNotNull(ptr) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, #ptr)
+#define requireNotNullMessage(ptr, msg) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, msg)
 
 // Safe allocation macros - check for nullptr and abort with file/line info
 #define safeMalloc(size) ({ \
