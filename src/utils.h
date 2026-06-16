@@ -56,7 +56,7 @@ static inline void requireMessageFormatted(const char *file, int line, bool cond
 }
 
 #define requireNotNullMessage(ptr, msg) ({ \
-void *_val = (ptr); \
+const void *_val = (ptr); \
 if (_val == NULL) { \
 fprintf(stderr, "%s:%d: requireNotNull failed: %s\n", __FILE__, __LINE__, (msg)); \
 abort(); \
