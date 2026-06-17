@@ -17,18 +17,34 @@ config() {
     printf '%s\n' "$1" >> config.mk
 }
 
+printyes() {
+    if [ -z "$NO_COLOR" ]; then
+        printf '\033[1;32myes\033[0m\n'
+    else
+        printf 'yes\n'
+    fi
+    printf 'result: yes\n' >> tmp/config.log
+}
+
+printno() {
+    if [ -z "$NO_COLOR" ]; then
+        printf '\033[1;31mno\033[0m\n'
+    else
+        printf 'no\n'
+    fi
+    printf 'result: no\n' >> tmp/config.log
+}
+
 check() {
     printf 'checking %s: ' "$1"
     printf 'checking %s:\n' "$1" >> tmp/config.log
     shift
     printf 'cmd: %s\n' "$CC $cflags tmp/test.c -o tmp/a.out $*" >> tmp/config.log
     if $CC $cflags tmp/test.c -o tmp/a.out "$@" >> tmp/config.log 2>&1; then
-        printf 'yes\n'
-        printf 'result: yes\n' >> tmp/config.log
+        printyes
         return 0
     else
-        printf 'no\n'
-        printf 'result: no\n' >> tmp/config.log
+        printno
         return 1
     fi
 }
@@ -42,11 +58,9 @@ check 'if the C compiler works' || exit 1
 printf 'checking if we are cross compiling: '
 printf 'checking if we are cross compiling:\n' >> tmp/config.log
 if tmp/a.out > /dev/null 2>&1; then
-    printf 'no\n'
-    printf 'result: no\n' >> tmp/config.log
+    printno
 else
-    printf 'yes\n'
-    printf 'result: yes\n' >> tmp/config.log
+    printyes
     cross_compiling=1
 fi
 
@@ -72,19 +86,21 @@ fi
 
 if [ -z "$cross_compiling" ]; then
     printf 'checking if /usr/X11R6/include exists: '
+    printf 'checking if /usr/X11R6/include exists:\n' >> tmp/config.log
     if [ -d /usr/X11R6/include ]; then
-        printf 'yes\n'
+        printyes
         config 'INCLUDES += -I/usr/X11R6/include'
     else
-        printf 'no\n'
+        printno
     fi
 
     printf 'checking if /usr/X11R6/lib exists: '
+    printf 'checking if /usr/X11R6/lib exists:\n' >> tmp/config.log
     if [ -d /usr/X11R6/lib ]; then
-        printf 'yes\n'
+        printyes
         config 'LIBS += -L/usr/X11R6/lib'
     else
-        printf 'no\n'
+        printno
     fi
 fi
 

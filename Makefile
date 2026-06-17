@@ -173,6 +173,10 @@ endif
 endif
 endif
 
+ifndef VERBOSE
+V := @
+endif
+
 OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
 
 all: build/butterscotch
@@ -201,11 +205,13 @@ compat/config.mk: compat/configure.sh compat/tmp/cc
 endif
 
 build/butterscotch: $(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
+	@[ -z "$(NO_COLOR)" ] && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
+	$(V)$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
 build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
-	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	@[ -z "$(NO_COLOR)" ] && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
+	$(V)$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf build
