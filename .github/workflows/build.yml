@@ -163,6 +163,8 @@ jobs:
       - name: Build
         run: |
           PATH="$PWD/artifacts/windows/build/toolchain-i486/bin:$PATH" make \
+              NO_COLOR=1 \
+              VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
               OS=Windows \
               DESKTOP_BACKEND=glfw2 \
@@ -405,4 +407,4 @@ jobs:
       - name: Build
         run: |
           sudo mv butterscotch ~/woody
-          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
