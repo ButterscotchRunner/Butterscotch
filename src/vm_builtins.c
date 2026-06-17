@@ -4109,6 +4109,22 @@ static RValue builtin_ds_map_add(VMContext* ctx, RValue* args, int32_t argCount)
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_map_clear(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** mapPtr = dsMapGet(runner, id);
+    if (mapPtr == nullptr || *mapPtr == nullptr) return RValue_makeUndefined();
+    ptrdiff_t len = shlen(*mapPtr);
+    for (ptrdiff_t i = 0; i < len; i++) {
+        RValue_free(&(*mapPtr)[i].value);
+        free((*mapPtr)[i].key);
+    }
+    shfree(*mapPtr);
+    *mapPtr = nullptr;
+    return RValue_makeUndefined();
+}
+
 static RValue dsMapSetCommon(VMContext* ctx, RValue* args, int32_t argCount, bool returnPassedValue, bool returnCurrentOrNewValue) {
     if (3 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
@@ -15185,6 +15201,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_create", builtin_ds_map_create);
     VM_registerBuiltin(ctx, "ds_map_delete", builtin_ds_map_delete);
     VM_registerBuiltin(ctx, "ds_map_add", builtin_ds_map_add);
+    VM_registerBuiltin(ctx, "ds_map_clear", builtin_ds_map_clear);
     VM_registerBuiltin(ctx, "ds_map_set", builtin_ds_map_set);
     VM_registerBuiltin(ctx, "ds_map_set_pre", builtin_ds_map_set_pre);
     VM_registerBuiltin(ctx, "ds_map_set_post", builtin_ds_map_set_post);
