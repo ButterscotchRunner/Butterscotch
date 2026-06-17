@@ -205,7 +205,7 @@ compat/config.mk: compat/configure.sh compat/tmp/cc
 endif
 
 build/butterscotch: $(OBJS)
-	@[ -z "$(NO_COLOR)" ] && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
+	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
 	$(V)$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
 build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
