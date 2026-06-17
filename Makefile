@@ -210,7 +210,7 @@ build/butterscotch: $(OBJS)
 
 build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
-	@[ -z "$(NO_COLOR)" ] && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
+	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
 	$(V)$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:

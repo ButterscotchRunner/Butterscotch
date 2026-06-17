@@ -18,7 +18,7 @@ config() {
 }
 
 printyes() {
-    if [ -z "$NO_COLOR" ]; then
+    if [ -z "$NO_COLOR" ] && [ -t 1 ]; then
         printf '\033[1;32myes\033[0m\n'
     else
         printf 'yes\n'
