@@ -250,6 +250,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+    Matrix4f World;
+    Matrix4f_identity(&World);
+    renderer->gmlMatrices[MATRIX_WORLD] = World;
+
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     bool success = compileProgram(defaultShader, "default", defaultVertexShaderSource, defaultFragmentShaderSource, 0, nullptr);
     if (!success) {
@@ -400,8 +404,14 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
     GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
 
+        Matrix4f FlippedClip[MATRICES_MAX];
+        for (int32_t i = 0; i < MATRICES_MAX; i++) {
+            FlippedClip[i] = renderer->gmlMatrices[i];
+            Matrix4f_flipClipY(&FlippedClip[i]);
+        }
+
     if (gmMatricesUniform != nullptr) {
-        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, renderer->gmlMatrices[0].m);
+        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, FlippedClip[0].m);
     }
     if (gmFogColourUniform != nullptr) {
         glUniform1i(gmFogColourUniform->location, gl->fogColor);
@@ -428,13 +438,18 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
 
         glUseProgram(gl->defaultShaderProgram->shaderId);
 
-        GLShaderUniform* uProjection = findShaderUniformByName(gl->defaultShaderProgram, "uProjection");
+        GLShaderUniform* uWorldViewProjection = findShaderUniformByName(gl->defaultShaderProgram, "uWorldViewProjection");
         GLShaderUniform* uFogColor = findShaderUniformByName(gl->defaultShaderProgram, "uFogColor");
         GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
         GLShaderUniform* uAlphaTestEnabled = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestEnabled");
         GLShaderUniform* uTexture = findShaderUniformByName(gl->defaultShaderProgram, "uTexture");
+        Matrix4f FlippedClip[MATRICES_MAX];
+        for (int32_t i = 0; i < MATRICES_MAX; i++) {
+            FlippedClip[i] = renderer->gmlMatrices[i];
+            Matrix4f_flipClipY(&FlippedClip[i]);
+        }
 
-        glUniformMatrix4fv(uProjection->location, 1, GL_FALSE, renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION].m);
+        glUniformMatrix4fv(uWorldViewProjection->location, 1, GL_FALSE, FlippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
         glUniform4f(uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
         glUniform1f(uAlphaTestRef->location, gl->alphaTestRef);
         glUniform1i(uAlphaTestEnabled->location, gl->alphaTestEnable);
@@ -457,8 +472,7 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,con
     Matrix4f_multiply(&WorldView, &View, &World);
 
     Matrix4f WorldViewProjection;
-    Matrix4f_multiply(&WorldViewProjection, &View, &World);
-    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
+    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldView);
   
     renderer->gmlMatrices[MATRIX_VIEW] = View;   
     renderer->gmlMatrices[MATRIX_PROJECTION] = Projection;
@@ -569,11 +583,6 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     gl->base.CameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
     glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
-
-    //Matrix4f ViewMatrix = camera->ViewMatrix;
-    //Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-    //runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
-
 
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
@@ -2022,6 +2031,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
     return true;
     } else {
+    //camera will use full surface.
     Matrix4f ProjectionMatrix;
     Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
 
@@ -2558,8 +2568,7 @@ static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix)
     Matrix4f_multiply(&WorldView, &View, &World);
 
     Matrix4f WorldViewProjection;
-    Matrix4f_multiply(&WorldViewProjection, &View, &World);
-    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldViewProjection);
+    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldView);
   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
