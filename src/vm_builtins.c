@@ -2929,14 +2929,26 @@ static RValue builtin_matrix_build_projection_perspective_fov(MAYBE_UNUSED VMCon
 }
 static RValue builtin_matrix_get(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     int32_t Matrix = RValue_toInt32(args[0]);
-    return RValue_makeArray(matrixToGml(&ctx->runner->renderer->gmlMatrices[Matrix]));
+    if (Matrix < 0 || Matrix > 2) return RValue_makeUndefined();
+    bool toPrevMatrix = argCount == 2;
+    GMLArray *destArray = toPrevMatrix ? args[1].array : nullptr;
+    if (toPrevMatrix && !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
+
+    if (!toPrevMatrix) {
+        return RValue_makeArray(matrixToGml(&ctx->runner->renderer->gmlMatrices[Matrix]));
+    } else {
+        repeat (16, i) {
+            *GMLArray_slot(destArray, i) = RValue_makeReal(ctx->runner->renderer->gmlMatrices[Matrix].m[i]);
+        }
+        return RValue_makeArrayWeak(destArray);
+    }
 }
 
 static RValue builtin_matrix_set(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     int32_t Matrix = RValue_toInt32(args[0]);
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
-    //add safe guards or whatever itis
+    if (Matrix < 0 || Matrix > 2) return RValue_makeUndefined();
     if (ctx->runner->renderer != nullptr) {
         ctx->runner->renderer->vtable->setMatrix(ctx->runner->renderer, Matrix, m);
     }

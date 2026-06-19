@@ -1023,19 +1023,6 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     int32_t guiW = runner->guiWidth > 0 ? runner->guiWidth : targetW;
     int32_t guiH = runner->guiHeight > 0 ? runner->guiHeight : targetH;
     beginGuiPass(runner, guiW, guiH, windowW, windowH, RENDER_TARGET_HOST_FRAMEBUFFER);
-    
-    //make default projection
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
-
-    Matrix4f ViewMatrix;
-    float x = (float) guiW / 2;
-    float y = (float) guiH / 2;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    
-    runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
-
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
@@ -1157,6 +1144,9 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
                 runner->viewCurrent = (int32_t) vi;
                 runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+                runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+
+
                 Runner_draw(runner);
 
                 renderer->vtable->flush(renderer);
@@ -3926,20 +3916,7 @@ void Runner_guiSizeChanged(Runner* runner) {
     runner->guiPassH = guiH;
     int32_t top = findStackTop(runner);
     bool renderingToUserSurface = (top != -1 && runner->surfaceStack[top] != runner->applicationSurfaceId);
-    float MULT = 1.0;
-    if (renderingToUserSurface == true) {
-        MULT = -1.0;
-    }
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) runner->guiPassW, (float) runner->guiPassH*MULT, 32000.0, 0.0);
-
-    Matrix4f ViewMatrix;
-    float x = (float) runner->guiPassW /2;
-    float y = (float) runner->guiPassH /2;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-
-    runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+    runner->renderer->vtable->setGuiProjection(runner->renderer, guiW, guiH, runner->guiPassPortW, runner->guiPassPortH, renderingToUserSurface);
 }
 
 bool Runner_surfaceSetTarget(Runner* runner, int32_t surfaceID) {
