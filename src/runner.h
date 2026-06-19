@@ -473,6 +473,7 @@ struct Runner {
     GMLCamera defaultCameras[MAX_DEFAULT_ROOM_CAMERAS];
     GMLCamera userCameras[MAX_USER_CAMERAS];
     GMLCamera surfaceCamera;
+    GMLCamera guiCamera;
     RunnerGamepadState* gamepads;
     RuntimeBackground backgrounds[8];
     uint32_t backgroundColor;      // runtime-mutable (BGR format)

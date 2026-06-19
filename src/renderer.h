@@ -40,7 +40,8 @@
 #define MAX_VS_LIGHTS	8
 
 #define MAX_TEXTURE_STAGES 8
-
+//these 2 IDs are just IDs I simply made up, replace them with proper ones eventually oki?
+#define GUI_CAMERA 4096
 #define SURFACE_CAMERA 8192
 
 // Sentinel returned by ensureApplicationSurface on platforms that don't back the application_surface with a real entry in the renderer's surface table.
