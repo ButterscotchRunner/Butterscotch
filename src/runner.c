@@ -1351,6 +1351,7 @@ GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
     else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
     else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
     else if (id == SURFACE_CAMERA) camera = &runner->surfaceCamera;
+    else if (id == GUI_CAMERA) camera = &runner->guiCamera;
     else return nullptr;
     if (!camera->allocated) return nullptr;
     return camera;
