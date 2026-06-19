@@ -706,7 +706,7 @@ static void glEndView(Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
+static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, MAYBE_UNUSED int32_t portH, int32_t targetSurfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
@@ -727,25 +727,43 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
 
     glEnable(GL_SCISSOR_TEST);
 
-    //Matrix4f projection;
-    //Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
-    //Matrix4f_flipClipY(&projection);
-    //renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glShaderSettingsRefresh(renderer);
+    gl->base.CameraCurrent = 0; //replace this number with whatver camera ID is used for the GUI. maybe some special ID? I have no idea how it should be
+    //GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent); use this or something later
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+
+    Matrix4f ViewMatrix;
+    float x = (float) guiW /2;
+    float y = (float) guiH /2;
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+
+    glApplyProjection(renderer,&ViewMatrix,&ProjectionMatrix);
+
+
     glActiveTexture(GL_TEXTURE1);
 
     if (hasVAO()) glBindVertexArray(gl->vao);
 }
 
-static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
+static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    Matrix4f projection;
-    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+
     // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
-    // Flip the projection when we are rendering to a user surface so it comes back upright.
-    if (renderingToUserSurface) Matrix4f_flipClipY(&projection);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
+    gl->base.CameraCurrent = 0; //replace this number with whatver camera ID is used for the GUI. maybe some special ID? I have no idea how it should be
+    //GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent); use this or something later
+    //yeah no I have no idea how to do the GUI
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+    if (renderingToUserSurface) Matrix4f_flipClipY(&ProjectionMatrix);
+    Matrix4f ViewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+
+    glApplyProjection(renderer,&ViewMatrix,&ProjectionMatrix);
     glShaderSettingsRefresh(renderer);
 }
 
