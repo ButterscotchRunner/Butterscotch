@@ -1181,28 +1181,31 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     }
 
     if (!anyViewRendered) {
-        // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
-        // When views aren't used, the room width/height is used
-        int32_t viewX, viewY, viewW, viewH;
-        expandViewAxis(0, (int32_t) runner->currentRoom->width, gameW, widescreenBaseW, &viewX, &viewW);
-        expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
-        applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
-        renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
-        
+        // No views enabled: render with default full-screen view.
+        // gameW/gameH already include the widescreen extra, shift the world origin by half of it on each grown axis so the original room stays centered and the revealed area is split evenly between the opposing edges.
+        runner->viewCurrent = 0;
+        GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
+        runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+        int32_t fullViewX = -(runner->widescreenExtraWidth / 2);
+        int32_t fullViewY = -(runner->widescreenExtraHeight / 2);
+        int32_t fullViewW = gameW;
+        int32_t fullViewH = gameH;
+        applyFreeCamera(runner, &fullViewX, &fullViewY, &fullViewW, &fullViewH);
+
         //make default projection
         Matrix4f ProjectionMatrix;
-        Matrix4f_Orthographic(&ProjectionMatrix, (float) gameW, (float) -gameH, 32000.0, 0.0);
+        Matrix4f_Orthographic(&ProjectionMatrix, (float) runner->currentRoom->width, -((float) runner->currentRoom->height), 32000.0, 0.0);
 
         Matrix4f ViewMatrix;
-        float x = (float) gameW /2;
-        float y = (float) gameH /2;
+        float x = (float) runner->currentRoom->width * 0.5f;
+        float y = (float) runner->currentRoom->height * 0.5f;
         Matrix4f_identity(&ViewMatrix);
         Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
         if (camera != nullptr) {
             camera->viewX = 0;
             camera->viewY = 0;
-            camera->viewWidth = gameW;
-            camera->viewHeight = gameH;
+            camera->viewWidth = runner->currentRoom->width;
+            camera->viewHeight = runner->currentRoom->height;
             camera->viewAngle = 0.0;
             camera->ViewMatrix = ViewMatrix;
             camera->ProjectionMatrix = ProjectionMatrix;
@@ -1349,11 +1352,11 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->viewAngle = 0;
     //make default projection
     Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
     Matrix4f ViewMatrix;
-    float x = camera->viewX + camera->viewWidth/2;
-    float y = camera->viewY + camera->viewHeight/2;
+    float x = camera->viewX + camera->viewWidth * 0.5f;
+    float y = camera->viewY + camera->viewHeight * 0.5f;
     Matrix4f_identity(&ViewMatrix);
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     Matrix4f_translate(&ViewMatrix, x, y, 0.0f);

@@ -635,8 +635,8 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
 
     Matrix4f ViewMatrix;
-    float x = (float) guiW /2;
-    float y = (float) guiH /2;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
     Matrix4f_identity(&ViewMatrix);
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     camera->ViewMatrix = ViewMatrix;
@@ -2076,11 +2076,11 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     } else {
     //camera will use full surface.
     Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], (float) -gl->surfaceHeight[surfaceId], 32000.0, 0.0);
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], -((float) gl->surfaceHeight[surfaceId]), 32000.0, 0.0);
 
     Matrix4f ViewMatrix;
-    float x = (float) gl->surfaceWidth[surfaceId] /2;
-    float y = (float) gl->surfaceHeight[surfaceId] /2;
+    float x = (float) gl->surfaceWidth[surfaceId] * 0.5f;
+    float y = (float) gl->surfaceHeight[surfaceId] * 0.5f;
     Matrix4f_identity(&ViewMatrix);
     Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     gl->base.CameraCurrent = SURFACE_CAMERA;
