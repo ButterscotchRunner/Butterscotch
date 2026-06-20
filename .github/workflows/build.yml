@@ -9,7 +9,7 @@ on:
 jobs:
   build-glfw-linux-x86_64:
     name: Build (GLFW/Linux x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +36,7 @@ jobs:
 
   build-glfw-windows-x86_64:
     name: Build (GLFW/Windows x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -84,7 +84,7 @@ jobs:
 
   build-glfw-linux-x86:
     name: Build (GLFW/Linux x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -127,7 +127,7 @@ jobs:
 
   build-glfw-windows-x86:
     name: Build (GLFW/Windows x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -183,7 +183,7 @@ jobs:
 
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ps2dev/ps2dev:latest
     strategy:
@@ -312,7 +312,7 @@ jobs:
 
   build-web:
     name: Build (Web)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -353,7 +353,7 @@ jobs:
 
   build-ps3:
     name: Build (PS3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: scummvm/dockerized-toolchains:ps3
     steps:
       - uses: actions/checkout@v4
@@ -392,7 +392,7 @@ jobs:
             compiler: g++-2.95
             flags: '-fpermissive -w'
     name: Build (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Create Debian Woody chroot
         run: |
