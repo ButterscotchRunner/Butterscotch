@@ -61,15 +61,29 @@ Of course, there are exceptions that break game compatibility altogether:
 
 ## Supported Platforms
 
-* Linux (GLFW, OpenGL)
-* macOS (GLFW, OpenGL)
-* Windows (GLFW, OpenGL, MinGW)
-* Android (Kotlin, OpenGL ES, Jetpack Compose)
-* Web (WASM, Emscripten, WebGL2)
-* PlayStation 2 (ps2sdk, gsKit)
-* PlayStation 3 (PSL1GHT, PS3GL)
-* Haiku (GLFW)
+* Windows
+* Android
+* Web
+* PlayStation 2
+* PlayStation 3
 * ...and maybe more in the future!
+
+* Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
+* Linux with glibc as old as about ~1996
+* FreeBSD as old as 2.2.8
+* Haiku
+
+* The following backends are available for desktop platforms (Windows and POSIX systems).
+* GLFW 2
+* GLFW 3
+* SDL 1.2
+* SDL 2
+* SDL 3
+
+* The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+* GCC 2.7 through 2.95 in C++ mode, and 3.0 and up in C99 mode
+* Clang 1.1 and up
+* TinyCC
 
 ## Community Ports
 
