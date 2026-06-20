@@ -230,7 +230,7 @@ static void UpdateCameraViewSimple(GMLCamera* camera) {
     Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
 
     Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, (float) -camera->viewHeight, 32000.0, 0.0);
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
 
     camera->ViewMatrix = ViewMatrix;
