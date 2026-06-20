@@ -8,7 +8,10 @@ project(butterscotch C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra -Werror)
+add_compile_options(-Wall -Wextra)
+if(WERROR)
+    add_compile_options(-Werror)
+endif()
 
 set(PLATFORM "desktop" CACHE STRING "Platform backend")
 set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
