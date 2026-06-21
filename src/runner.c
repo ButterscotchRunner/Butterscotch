@@ -1137,14 +1137,14 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
 
-                Matrix4f ViewMatrix = camera->ViewMatrix;
-                Matrix4f ProjectionMatrix = camera->ProjectionMatrix;
-                runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+                Matrix4f viewMatrix = camera->viewMatrix;
+                Matrix4f projectionMatrix = camera->projectionMatrix;
+                runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
 
 
                 runner->viewCurrent = (int32_t) vi;
-                runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
-                runner->renderer->vtable->applyProjection(runner->renderer, &ViewMatrix, &ProjectionMatrix);
+                runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
+                runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
 
 
                 Runner_draw(runner);
@@ -1167,7 +1167,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
-            runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+            runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Runner_draw(runner);
@@ -1183,7 +1183,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     if (!anyViewRendered) {
         runner->viewCurrent = 0;
         GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
-        runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+        runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
         // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
         // When views aren't used, the room width/height is used
         int32_t viewX, viewY, viewW, viewH;
@@ -1192,22 +1192,22 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
         //whenever somebody feels like it, do make that free cam thingy work with this
         //make default projection
-        Matrix4f ProjectionMatrix;
-        Matrix4f_Orthographic(&ProjectionMatrix, (float) runner->currentRoom->width, -((float) runner->currentRoom->height), 32000.0, 0.0);
+        Matrix4f projectionMatrix;
+        Matrix4f_orthographic(&projectionMatrix, (float) runner->currentRoom->width, -((float) runner->currentRoom->height), 32000.0, 0.0);
 
-        Matrix4f ViewMatrix;
+        Matrix4f viewMatrix;
         float x = (float) runner->currentRoom->width * 0.5f;
         float y = (float) runner->currentRoom->height * 0.5f;
-        Matrix4f_identity(&ViewMatrix);
-        Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+        Matrix4f_identity(&viewMatrix);
+        Matrix4f_lookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
         if (camera != nullptr) {
             camera->viewX = 0;
             camera->viewY = 0;
             camera->viewWidth = runner->currentRoom->width;
             camera->viewHeight = runner->currentRoom->height;
             camera->viewAngle = 0.0;
-            camera->ViewMatrix = ViewMatrix;
-            camera->ProjectionMatrix = ProjectionMatrix;
+            camera->viewMatrix = viewMatrix;
+            camera->projectionMatrix = projectionMatrix;
         }
 
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
@@ -1222,7 +1222,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
-    runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+    runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
 }
 
 // ===[ Instance Creation Helper ]===
@@ -1350,22 +1350,22 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
     //make default projection
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    Matrix4f projectionMatrix;
+    Matrix4f_orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
-    Matrix4f ViewMatrix;
+    Matrix4f viewMatrix;
     float x = camera->viewX + camera->viewWidth * 0.5f;
     float y = camera->viewY + camera->viewHeight * 0.5f;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_lookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
 
 
 
-    camera->ProjectionMatrix = ProjectionMatrix;
-    camera->ViewMatrix = ViewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    camera->viewMatrix = viewMatrix;
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
@@ -2339,23 +2339,22 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
 #endif
 }
 
-void UpdateCameraViewSimple(GMLCamera* camera) {
+void Runner_updateCameraViewSimple(GMLCamera* camera) {
 
     float x = camera->viewX + camera->viewWidth/2;
     float y = camera->viewY + camera->viewHeight/2;
-    Matrix4f ViewMatrix;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
+    Matrix4f viewMatrix;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_lookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
 
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    Matrix4f projectionMatrix;
+    Matrix4f_orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
-
-    camera->ViewMatrix = ViewMatrix;
-    camera->ProjectionMatrix = ProjectionMatrix;
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
 
 }
 
@@ -3272,7 +3271,7 @@ static void updateViews(Runner* runner) {
             int32_t iy = (int32_t) GMLReal_floor(target->y);
             camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width);
             camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height);
-            UpdateCameraViewSimple(camera);
+            Runner_updateCameraViewSimple(camera);
         }
     }
 }

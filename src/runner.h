@@ -155,8 +155,8 @@ typedef struct {
     int32_t speedY;
     int32_t objectId; // follow target (object index), -1 = none
     float viewAngle;
-    Matrix4f ViewMatrix;
-    Matrix4f ProjectionMatrix;
+    Matrix4f viewMatrix;
+    Matrix4f projectionMatrix;
 } GMLCamera;
 
 typedef struct {
@@ -674,8 +674,7 @@ void Runner_removeInstanceFromObjectLists(Runner* runner, Instance* inst);
 void Runner_clearAllObjectLists(Runner* runner);
 
 // Update the Camera with simple things!
-void UpdateCameraViewSimple(GMLCamera* camera);
-
+void Runner_updateCameraViewSimple(GMLCamera* camera);
 
 // Push a snapshot of instancesByObject[targetObjIndex] onto runner->instanceSnapshots. Returns the base offset where this snapshot begins.
 // The length is arrlen(runner->instanceSnapshots) - base.

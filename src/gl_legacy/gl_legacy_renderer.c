@@ -186,8 +186,8 @@ static void glEndView(MAYBE_UNUSED Renderer* renderer) {
 }
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, MAYBE_UNUSED const Matrix4f* ViewMatrix, MAYBE_UNUSED const Matrix4f* ProjectionMatrix) {
-    Matrix4f projection = *ProjectionMatrix; //fix it later
+static void glApplyProjection(Renderer* renderer, MAYBE_UNUSED const Matrix4f* viewMatrix, MAYBE_UNUSED const Matrix4f* projectionMatrix) {
+    Matrix4f projection = *projectionMatrix; //fix it later
     Matrix4f_flipClipY(&projection);
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
