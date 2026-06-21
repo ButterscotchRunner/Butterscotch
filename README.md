@@ -80,7 +80,7 @@ The following backends are available for desktop platforms (Windows and POSIX sy
 * SDL 2
 * SDL 3
 
-* The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
 * GCC 2.7 through 2.95 in C++ mode, and 3.0 and up in C99 mode
 * Clang 1.1 and up
 * TinyCC 0.9.27 and up
