@@ -1209,17 +1209,16 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     }
 
     if (!anyViewRendered) {
-        // No views enabled: render with default full-screen view.
-        // gameW/gameH already include the widescreen extra, shift the world origin by half of it on each grown axis so the original room stays centered and the revealed area is split evenly between the opposing edges.
         runner->viewCurrent = 0;
         GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
         runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
-        int32_t fullViewX = -(runner->widescreenExtraWidth / 2);
-        int32_t fullViewY = -(runner->widescreenExtraHeight / 2);
-        int32_t fullViewW = gameW;
-        int32_t fullViewH = gameH;
-        applyFreeCamera(runner, &fullViewX, &fullViewY, &fullViewW, &fullViewH);
-
+        // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
+        // When views aren't used, the room width/height is used
+        int32_t viewX, viewY, viewW, viewH;
+        expandViewAxis(0, (int32_t) runner->currentRoom->width, gameW, widescreenBaseW, &viewX, &viewW);
+        expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
+        applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
+        //whenever somebody feels like it, do make that free cam thingy work with this
         //make default projection
         Matrix4f ProjectionMatrix;
         Matrix4f_Orthographic(&ProjectionMatrix, (float) runner->currentRoom->width, -((float) runner->currentRoom->height), 32000.0, 0.0);
@@ -1239,7 +1238,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             camera->ProjectionMatrix = ProjectionMatrix;
         }
 
-        renderer->vtable->beginView(renderer, fullViewX, fullViewY, fullViewW, fullViewH, 0, 0, gameW, gameH, 0.0f);
+        renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
 
         Runner_draw(runner);
 
