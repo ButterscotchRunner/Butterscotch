@@ -68,20 +68,17 @@ Of course, there are exceptions that break game compatibility altogether:
 * PlayStation 3
 * ...and maybe more in the future!
 
-
-* Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
+Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
 * Linux with glibc as old as about ~1996
 * FreeBSD as old as 2.2.8
 * Haiku
 
-
-* The following backends are available for desktop platforms (Windows and POSIX systems).
+The following backends are available for desktop platforms (Windows and POSIX systems).
 * GLFW 2
 * GLFW 3
 * SDL 1.2
 * SDL 2
 * SDL 3
-
 
 * The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
 * GCC 2.7 through 2.95 in C++ mode, and 3.0 and up in C99 mode
