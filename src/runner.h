@@ -673,6 +673,10 @@ void Runner_removeInstanceFromObjectLists(Runner* runner, Instance* inst);
 // Reset every per-object list to length 0 without releasing the backing arrays.
 void Runner_clearAllObjectLists(Runner* runner);
 
+// Update the Camera with simple things!
+void UpdateCameraViewSimple(GMLCamera* camera);
+
+
 // Push a snapshot of instancesByObject[targetObjIndex] onto runner->instanceSnapshots. Returns the base offset where this snapshot begins.
 // The length is arrlen(runner->instanceSnapshots) - base.
 // Invalid indices or empty buckets push zero entries (base == current arena length).

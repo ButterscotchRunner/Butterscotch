@@ -216,27 +216,6 @@ static DsStack* dsStackGet(Runner* runner, int32_t id) {
     return &runner->dsStackPool[id];
 }
 
-static void UpdateCameraViewSimple(GMLCamera* camera) {
-
-    float x = camera->viewX + camera->viewWidth/2;
-    float y = camera->viewY + camera->viewHeight/2;
-    Matrix4f ViewMatrix;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
-
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
-    
-
-    camera->ViewMatrix = ViewMatrix;
-    camera->ProjectionMatrix = ProjectionMatrix;
-
-}
-
-
 // ===[ BUILT-IN VARIABLE GET/SET ]===
 
 static bool isValidAlarmIndex(int alarmIndex) {

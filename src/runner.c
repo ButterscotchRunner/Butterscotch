@@ -2339,6 +2339,28 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
 #endif
 }
 
+void UpdateCameraViewSimple(GMLCamera* camera) {
+
+    float x = camera->viewX + camera->viewWidth/2;
+    float y = camera->viewY + camera->viewHeight/2;
+    Matrix4f ViewMatrix;
+    Matrix4f_identity(&ViewMatrix);
+    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
+
+    Matrix4f ProjectionMatrix;
+    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    
+
+    camera->ViewMatrix = ViewMatrix;
+    camera->ProjectionMatrix = ProjectionMatrix;
+
+}
+
+
+
 RuntimeLayer* Runner_findRuntimeLayerByName(Runner* runner, char* name) {
     size_t count = arrlenu(runner->runtimeLayers);
     repeat(count, i) {
@@ -3250,6 +3272,7 @@ static void updateViews(Runner* runner) {
             int32_t iy = (int32_t) GMLReal_floor(target->y);
             camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width);
             camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height);
+            UpdateCameraViewSimple(camera);
         }
     }
 }
