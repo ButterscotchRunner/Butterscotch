@@ -3572,6 +3572,7 @@ static RValue builtin_camera_set_view_size(VMContext* ctx, RValue* args, int32_t
     if (camera != nullptr) {
         camera->viewWidth = RValue_toInt32(args[1]);
         camera->viewHeight = RValue_toInt32(args[2]);
+        UpdateCameraViewSimple(camera);
     }
     return RValue_makeUndefined();
 }
