@@ -2914,7 +2914,7 @@ static RValue builtin_matrix_get(MAYBE_UNUSED VMContext *ctx, RValue *args, int3
     if (toPrevMatrix && !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
 
     if (!toPrevMatrix) {
-        return RValue_makeArray(matrixToGml(&ctx->runner->renderer->gmlMatrices[Matrix]));
+        return RValue_makeArray(matrixToGml(ctx->dataWin->gen8.wadVersion, &ctx->runner->renderer->gmlMatrices[Matrix]));
     } else {
         repeat (16, i) {
             *GMLArray_slot(destArray, i) = RValue_makeReal(ctx->runner->renderer->gmlMatrices[Matrix].m[i]);
@@ -3479,14 +3479,14 @@ static RValue builtin_camera_get_view_mat(VMContext* ctx, RValue* args, int32_t 
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera == nullptr) return RValue_makeUndefined();
-    return RValue_makeArray(matrixToGml(&camera->ViewMatrix));
+    return RValue_makeArray(matrixToGml(ctx->dataWin->gen8.wadVersion, &camera->ViewMatrix));
 }
 
 static RValue builtin_camera_get_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera == nullptr) return RValue_makeUndefined();
-    return RValue_makeArray(matrixToGml(&camera->ProjectionMatrix));
+    return RValue_makeArray(matrixToGml(ctx->dataWin->gen8.wadVersion, &camera->ProjectionMatrix));
 }
 
 static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
