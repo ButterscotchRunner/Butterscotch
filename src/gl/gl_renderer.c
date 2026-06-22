@@ -598,7 +598,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
-    glBindVertexArray(gl->vao);
+    if (gl->hasVAO) glBindVertexArray(gl->vao);
     renderer->previousViewMatrix = projection;
 
 }
@@ -649,7 +649,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
-    glBindVertexArray(gl->vao);
+    if (gl->hasVAO) glBindVertexArray(gl->vao);
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
@@ -672,7 +672,7 @@ static void glEndGUI(Renderer* renderer) {
 
 static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    glBindVertexArray(0);
+    if (gl->hasVAO) glBindVertexArray(0);
 
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
