@@ -98,8 +98,20 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #ifdef SDL_GL_CONTEXT_PROFILE_MASK
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        bool forceGLES2 = false;
+        const char* envGles = getenv("BUTTERSCOTCH_FORCE_GLES2");
+        if (envGles && envGles[0] == '1') {
+            forceGLES2 = true;
+            fprintf(stderr, "GL: Forcing GLES 2.0 via environment variable.\n");
+        }
+        
+        if (forceGLES2) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        } else {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        }
 #else
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);

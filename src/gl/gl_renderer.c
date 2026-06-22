@@ -36,39 +36,26 @@
     #define GLSL_FRAGMENT_PRECISION ""
 #endif
 
-static const char* defaultVertexShaderSource =
-    GLSL_VERSION_DIRECTIVE
-    GLSL_VERTEX_PRECISION
-    "layout(location = 0) in vec2 aPos;\n"
-    "layout(location = 1) in vec4 aColor;\n"
-    "layout(location = 2) in vec2 aTexCoord;\n"
+static const char* baseVertexShader =
     "uniform mat4 uProjection;\n"
-    "out vec2 vTexCoord;\n"
-    "out vec4 vColor;\n"
     "void main() {\n"
     "    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);\n"
     "    vTexCoord = aTexCoord;\n"
     "    vColor = aColor;\n"
     "}\n";
 
-static const char* defaultFragmentShaderSource =
-    GLSL_VERSION_DIRECTIVE
-    GLSL_FRAGMENT_PRECISION
-    "in vec2 vTexCoord;\n"
-    "in vec4 vColor;\n"
+static const char* baseFragmentShader =
     "uniform sampler2D uTexture;\n"
     "uniform float uAlphaTestRef;\n"
     "uniform bool uAlphaTestEnabled;\n"
-    "uniform vec4 uFogColor;\n" // rgb = fog color, a = enable flag (0 or 1)
-    "out vec4 fragColor;\n"
+    "uniform vec4 uFogColor;\n"
     "void main() {\n"
-    "    vec4 c = texture(uTexture, vTexCoord) * vColor;\n"
-    "   if (uAlphaTestEnabled)"
-    "   {"
-    "       if (uAlphaTestRef >= c.a) discard;\n"
-    "   }"
+    "    vec4 c = TEXTURE_2D(uTexture, vTexCoord) * vColor;\n"
+    "    if (uAlphaTestEnabled) {\n"
+    "        if (uAlphaTestRef >= c.a) discard;\n"
+    "    }\n"
     "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
-    "    fragColor = c;\n"
+    "    FRAG_COLOR = c;\n"
     "}\n";
 
 
@@ -144,31 +131,39 @@ static void flushBatch(GLRenderer* gl) {
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
-    int32_t singleVertexCount = 0;
-    if (gl->batchType == BATCHTYPE_QUAD) {
-        singleVertexCount = VERTICES_PER_QUAD;
-    } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
-        singleVertexCount = VERTICES_PER_TRIANGLE;
-    } else {
-        abort();
-    }
-
+    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    // Bind the VAO so the EBO binding it carries is what glDrawElements uses.
-    // Without this, glDrawElements would treat the nullptr indices arg as a literal pointer to client memory and SEGV inside the driver during async upload.
-    glBindVertexArray(gl->vao);
+    if (gl->hasVAO) {
+        glBindVertexArray(gl->vao);
+        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+    } else {
+        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+        int32_t stride = FLOATS_PER_VERTEX * sizeof(float);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+    }
 
     if (gl->batchType == BATCHTYPE_QUAD) {
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+        GLenum indexType = gl->isGLES3 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
+        glDrawElements(GL_TRIANGLES, indexCount, indexType, nullptr);
     } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
         glDrawArrays(GL_TRIANGLES, 0, gl->batchCount * VERTICES_PER_TRIANGLE);
-    } else {
-        abort();
+    }
+
+    if (!gl->hasVAO) {
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
     }
 
     gl->batchCount = 0;
@@ -251,7 +246,56 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     renderer->dataWin = dataWin;
 
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
-    bool success = compileProgram(defaultShader, "default", defaultVertexShaderSource, defaultFragmentShaderSource, 0, nullptr);
+    const char* versionStr = (const char*) glGetString(GL_VERSION);
+    printf("GL: versionStr=%s\n", versionStr);
+    gl->isGLES3 = false;
+
+    #ifdef ENABLE_GLES
+        if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
+            gl->isGLES3 = true;
+        }
+    #else
+        gl->isGLES3 = true; // Desktop Core OpenGL is generally treated as GLES3 equivalent here
+    #endif
+
+    // VAOs are core in GLES 3.0, but might be available as an extension in GLES 2.0
+    const char* extStr = (const char*) glGetString(GL_EXTENSIONS);
+    gl->hasVAO = gl->isGLES3 || (extStr && strstr(extStr, "GL_OES_vertex_array_object"));
+    fprintf(stderr, "GL: Hardware Capabilities -> GLES3: %d, VAO: %d\n", gl->isGLES3, gl->hasVAO);
+
+    if (getenv("BUTTERSCOTCH_FORCE_GLES2") != NULL) {
+        printf("GL: Strict GLES 2.0 mode active. Stripping GLES3 capabilities.\n");
+        gl->isGLES3 = false;
+        gl->hasVAO = false; // Vertex Array Objects are an ES 3.0 feature / 2.0 extension
+    }
+
+    char vertSrc[1024];
+    char fragSrc[1024];
+
+    if (gl->isGLES3) {
+        snprintf(vertSrc, sizeof(vertSrc),
+            "#version 300 es\nprecision highp float;\n"
+            "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
+            "out vec2 vTexCoord;\nout vec4 vColor;\n%s", baseVertexShader);
+
+        snprintf(fragSrc, sizeof(fragSrc),
+            "#version 300 es\nprecision mediump float;\n"
+            "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
+            "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", baseFragmentShader);
+    } else {
+        snprintf(vertSrc, sizeof(vertSrc),
+            "#version 100\nprecision highp float;\n"
+            "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", baseVertexShader);
+
+        snprintf(fragSrc, sizeof(fragSrc),
+            "#version 100\nprecision mediump float;\n"
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
+            "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", baseFragmentShader);
+    }
+
+    const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };
+    bool success = compileProgram(defaultShader, "default", vertSrc, fragSrc, 3, defaultAttributes);
     if (!success) {
         fprintf(stderr, "GL: Failed to compile default shaders! Bailing...");
         abort();
@@ -306,43 +350,53 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUniform4f(uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
 
     // Create VAO/VBO/EBO
-    glGenVertexArrays(1, &gl->vao);
+    if (gl->hasVAO) {
+        glGenVertexArrays(1, &gl->vao);
+        glBindVertexArray(gl->vao);
+    }
     glGenBuffers(1, &gl->vbo);
     glGenBuffers(1, &gl->ebo);
-
-    glBindVertexArray(gl->vao);
 
     // VBO: sized for max quads
     int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * (int32_t) sizeof(float);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 
-    // EBO: pre-fill with quad index pattern (0,1,2,2,3,0 repeated)
-    int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * (int32_t) sizeof(uint32_t);
-    uint32_t* indices = safeMalloc(eboSize);
-    for (int32_t i = 0; MAX_QUADS > i; i++) {
-        uint32_t base = (uint32_t) i * 4;
-        indices[i * 6 + 0] = base + 0;
-        indices[i * 6 + 1] = base + 1;
-        indices[i * 6 + 2] = base + 2;
-        indices[i * 6 + 3] = base + 2;
-        indices[i * 6 + 4] = base + 3;
-        indices[i * 6 + 5] = base + 0;
+    if (gl->isGLES3) {
+        int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint32_t);
+        uint32_t* indices = safeMalloc(eboSize);
+        for (int32_t i = 0; MAX_QUADS > i; i++) {
+            uint32_t base = i * 4;
+            indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
+            indices[i*6+3] = base+2; indices[i*6+4] = base+3; indices[i*6+5] = base+0;
+        }
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
+        free(indices);
+    } else {
+        int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
+        uint16_t* indices = safeMalloc(eboSize);
+        for (int32_t i = 0; MAX_QUADS > i; i++) {
+            uint16_t base = i * 4;
+            indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
+            indices[i*6+3] = base+2; indices[i*6+4] = base+3; indices[i*6+5] = base+0;
+        }
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
+        free(indices);
     }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
-    free(indices);
 
-    // Vertex attributes: pos(2f), texcoord(2f), color(4f)
-    int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-
-    glBindVertexArray(0);
+    if (gl->hasVAO) {
+        // Vertex attributes: pos(2f), texcoord(2f), color(4f)
+        int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glBindVertexArray(0);
+    }
 
     // Allocate CPU-side vertex buffer
     gl->vertexData = safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * sizeof(float));
@@ -635,8 +689,34 @@ static void glEndFrameEnd(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
-    GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
+
+    if (gl->isGLES3) {
+        GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
+        GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
+    } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
+        GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+        if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glViewport(0, 0, gl->windowW, gl->windowH);
+
+        renderer->vtable->setGuiProjection(renderer, gl->windowW, gl->windowH, gl->windowW, gl->windowH, false);
+        glDisable(GL_BLEND);
+
+        int32_t sx, sy, ex, ey;
+        GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
+        float scaleX = (float)(ex - sx) / (float)gl->gameW;
+        float scaleY = (float)(ey - sy) / (float)gl->gameH;
+
+        renderer->vtable->drawSurface(renderer, appId, 0, 0, gl->gameW, gl->gameH, (float)sx, (float)sy, scaleX, scaleY, 0.0f, 0xFFFFFF, 1.0f);
+        flushBatch(gl);
+
+        glEnable(GL_BLEND);
+        if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+    }
 }
 
 static void glRendererFlush(Renderer* renderer) {
@@ -2000,7 +2080,40 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
 static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
+
+    if (0 > srcSurfaceID || (uint32_t) srcSurfaceID >= gl->surfaceCount || gl->surfaces[srcSurfaceID] == 0) return;
+    if (0 > destSurfaceID || (uint32_t) destSurfaceID >= gl->surfaceCount || gl->surfaces[destSurfaceID] == 0) return;
+
+    if (gl->isGLES3) {
+        GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
+    } else {
+        GLint prevBinding = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+        Matrix4f prevProj = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
+        bool prevBlend = glIsEnabled(GL_BLEND);
+        GLint prevViewport[4];
+        glGetIntegerv(GL_VIEWPORT, prevViewport);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[destSurfaceID]);
+        glViewport(0, 0, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID]);
+        glDisable(GL_BLEND);
+
+        renderer->vtable->setGuiProjection(renderer, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], true);
+
+        int32_t sX = part ? srcX : 0;
+        int32_t sY = part ? srcY : 0;
+        int32_t sW = part ? srcW : gl->surfaceWidth[srcSurfaceID];
+        int32_t sH = part ? srcH : gl->surfaceHeight[srcSurfaceID];
+
+        renderer->vtable->drawSurface(renderer, srcSurfaceID, sX, sY, sW, sH, (float)destX, (float)destY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
+        flushBatch(gl);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+        renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = prevProj;
+        glShaderSettingsRefresh(renderer);
+        if (prevBlend) glEnable(GL_BLEND);
+        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+    }
 }
 
 static float glGetSurfaceWidth(Renderer* renderer, int32_t surfaceId) {
@@ -2109,7 +2222,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     // Flush any pending draws before reading pixels
     flushBatch(gl);
 
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
+    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
     uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
@@ -2241,7 +2354,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     if (gl->alphaTestRef == refF) return;
     flushBatch(gl);
     gl->alphaTestRef = refF;
-    glShaderSettingsRefresh(renderer); 
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {

@@ -161,9 +161,22 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
     } else {
 #ifdef ENABLE_GLES
+        bool forceGLES2 = false;
+        const char* envGles = getenv("BUTTERSCOTCH_FORCE_GLES2");
+        if (envGles && envGles[0] == '1') {
+            forceGLES2 = true;
+            fprintf(stderr, "GL: Forcing GLES 2.0 via environment variable.\n");
+        }
+        
+        if (forceGLES2) {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 2);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
+        }
+        
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
 #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);

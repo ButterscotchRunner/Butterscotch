@@ -29,9 +29,16 @@ typedef struct {
     GLShaderUniform* uniforms;
 } GMLShader;
 
+typedef enum {
+    GL_FLAVOR_GLES2,          // GLES 2.0
+    GL_FLAVOR_GLES3,          // GLES 3.0 / WebGL 2.0
+    GL_FLAVOR_DESKTOP_CORE    // GLSL 330+ (Core Profile)
+} GLFlavor;
+
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
+    GLFlavor flavor; 
 
     GMLShader* defaultShaderProgram;
     GMLShader* gmlShaders;
@@ -74,6 +81,9 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+
+    bool isGLES3; // TRUE if running on OpenGL ES 3.0+ or Desktop GL
+    bool hasVAO;  // TRUE if VAOs are natively supported or available via extension
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
