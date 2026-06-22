@@ -265,7 +265,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     for (int i = 0; i < num_extensions; i++) {
         const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
         if (ext) {
-            if (strcmp(ext, "GL_ARB_vertex_array_object") == 0) {
+            if (strcmp(ext, "GL_ARB_vertex_array_object") == 0 || strcmp(ext, "GL_OES_vertex_array_object") == 0) {
                 gl->hasVAO = true;
                 break;
             }
