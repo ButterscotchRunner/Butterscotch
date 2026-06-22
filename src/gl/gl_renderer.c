@@ -251,7 +251,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->isGLES3 = false;
 
     #ifdef ENABLE_GLES
-        if (versionStr && strstr(versionStr, "3.0")) {
+        if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
             gl->isGLES3 = true;
         }
     #else
@@ -268,12 +268,20 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     if (gl->isGLES3) {
         snprintf(vertSrc, sizeof(vertSrc),
+#ifdef ENABLE_GLES
             "#version 300 es\nprecision highp float;\n"
+#else
+            "#version 410\n"
+#endif
             "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
             "out vec2 vTexCoord;\nout vec4 vColor;\n%s", baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
+#ifdef ENABLE_GLES
             "#version 300 es\nprecision mediump float;\n"
+#else
+            "#version 410\n"
+#endif
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", baseFragmentShader);
     } else {
