@@ -404,11 +404,11 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
     GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
 
-        Matrix4f flippedClip[MATRICES_MAX];
-        for (int32_t i = 0; i < MATRICES_MAX; i++) {
-            flippedClip[i] = renderer->gmlMatrices[i];
-            Matrix4f_flipClipY(&flippedClip[i]);
-        }
+    Matrix4f flippedClip[MATRICES_MAX];
+    for (int32_t i = 0; i < MATRICES_MAX; i++) {
+        flippedClip[i] = renderer->gmlMatrices[i];
+        Matrix4f_flipClipY(&flippedClip[i]);
+    }
 
     if (gmMatricesUniform != nullptr) {
         glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, flippedClip[0].m);
@@ -583,10 +583,8 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
-
     glBindVertexArray(gl->vao);
 }
 
@@ -642,10 +640,7 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     camera->viewMatrix = viewMatrix;
     camera->projectionMatrix = projectionMatrix;
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
-
     glActiveTexture(GL_TEXTURE1);
-
     glBindVertexArray(gl->vao);
 }
 
@@ -727,7 +722,6 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     //No it doesn't?
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
-
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -2060,12 +2054,10 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
-
         glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
         return true;
     }
-
 
     if (surfaceId == view->surfaceId) {
     //the surface belongs to the view we are rending, we use the view's camera.
@@ -2084,7 +2076,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     Matrix4f_identity(&viewMatrix);
     Matrix4f_lookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     gl->base.cameraCurrent = SURFACE_CAMERA;
-
     GMLCamera* camera =  &renderer->runner->surfaceCamera;
 
     camera->allocated = true;
@@ -2106,7 +2097,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glApplyProjection(renderer, &viewMatrix,&projectionMatrix);
     return true;
     }
-
 
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
@@ -2606,16 +2596,12 @@ static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix)
     Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
     Matrix4f view = renderer->gmlMatrices[MATRIX_VIEW];
     Matrix4f projection = renderer->gmlMatrices[MATRIX_PROJECTION];
-
     Matrix4f worldView;
     Matrix4f_multiply(&worldView, &view, &world);
-
     Matrix4f worldViewProjection;
     Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
-  
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
-
 
     glShaderSettingsRefresh(renderer);
 }

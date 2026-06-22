@@ -1141,11 +1141,9 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 Matrix4f projectionMatrix = camera->projectionMatrix;
                 runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
 
-
                 runner->viewCurrent = (int32_t) vi;
                 runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
                 runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
-
 
                 Runner_draw(runner);
 
@@ -1352,7 +1350,6 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     //make default projection
     Matrix4f projectionMatrix;
     Matrix4f_orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
-    
     Matrix4f viewMatrix;
     float x = camera->viewX + camera->viewWidth * 0.5f;
     float y = camera->viewY + camera->viewHeight * 0.5f;
@@ -1361,8 +1358,6 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     Matrix4f_translate(&viewMatrix, x, y, 0.0f);
     Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
     Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
-
-
 
     camera->projectionMatrix = projectionMatrix;
     camera->viewMatrix = viewMatrix;
@@ -2340,7 +2335,6 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
 }
 
 void Runner_updateCameraViewSimple(GMLCamera* camera) {
-
     float x = camera->viewX + camera->viewWidth/2;
     float y = camera->viewY + camera->viewHeight/2;
     Matrix4f viewMatrix;
@@ -2349,16 +2343,12 @@ void Runner_updateCameraViewSimple(GMLCamera* camera) {
     Matrix4f_translate(&viewMatrix, x, y, 0.0f);
     Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
     Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
-
     Matrix4f projectionMatrix;
     Matrix4f_orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
     camera->viewMatrix = viewMatrix;
     camera->projectionMatrix = projectionMatrix;
-
 }
-
-
 
 RuntimeLayer* Runner_findRuntimeLayerByName(Runner* runner, char* name) {
     size_t count = arrlenu(runner->runtimeLayers);

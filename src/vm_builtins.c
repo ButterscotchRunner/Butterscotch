@@ -2906,6 +2906,7 @@ static RValue builtin_matrix_build_projection_perspective_fov(MAYBE_UNUSED VMCon
         return RValue_makeArrayWeak(destArray);
     }
 }
+
 static RValue builtin_matrix_get(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     int32_t matrix = RValue_toInt32(args[0]);
     if (matrix < 0 || matrix > 2) return RValue_makeUndefined();
@@ -3638,7 +3639,6 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
     if (argCount > 7) camera->speedY = RValue_toInt32(args[7]);
     if (argCount > 8) camera->borderX = (uint32_t) RValue_toInt32(args[8]);
     if (argCount > 9) camera->borderY = (uint32_t) RValue_toInt32(args[9]);
-
 
     Runner_updateCameraViewSimple(camera);
     
@@ -15476,7 +15476,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "matrix_build_projection_ortho", builtin_matrix_build_projection_ortho);
     VM_registerBuiltin(ctx, "matrix_build_projection_perspective_fov", builtin_matrix_build_projection_perspective_fov);
     VM_registerBuiltin(ctx, "matrix_get", builtin_matrix_get);
-    VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);    
+    VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);
+      
     // Random
     VM_registerBuiltin(ctx, "random", builtin_random);
     VM_registerBuiltin(ctx, "random_range", builtin_random_range);
