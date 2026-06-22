@@ -227,7 +227,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
     if (!window) {
 #ifdef ENABLE_GLES
-        printf("Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
+        fprintf(stderr, "Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
         
         glfwDefaultWindowHints(); 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);

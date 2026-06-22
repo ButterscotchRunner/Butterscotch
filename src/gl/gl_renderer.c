@@ -247,7 +247,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
-    printf("GL: versionStr=%s\n", versionStr);
+    fprintf(stderr, "GL: versionStr=%s\n", versionStr);
     gl->isGLES3 = false;
 
     #ifdef ENABLE_GLES

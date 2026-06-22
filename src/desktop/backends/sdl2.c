@@ -144,7 +144,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     if (gfx != SOFTWARE) {
         if (!SDL_GL_CreateContext(window)) {
 #ifdef ENABLE_GLES
-            printf("Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
+            fprintf(stderr, "Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
             if (window) SDL_DestroyWindow(window);
