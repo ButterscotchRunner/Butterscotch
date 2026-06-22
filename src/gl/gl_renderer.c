@@ -531,7 +531,7 @@ static void glDestroy(Renderer* renderer) {
     freeShader(gl->defaultShaderProgram);
     free(gl->defaultShaderProgram);
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
-    glDeleteVertexArrays(1, &gl->vao);
+    if (gl->hasVAO) glDeleteVertexArrays(1, &gl->vao);
     glDeleteBuffers(1, &gl->vbo);
     glDeleteBuffers(1, &gl->ebo);
 
