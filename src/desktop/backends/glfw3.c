@@ -185,26 +185,9 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     } else {
 #ifdef ENABLE_GLES
-        bool forceGLES2 = false;
-        const char* envGles = getenv("BUTTERSCOTCH_FORCE_GLES2");
-        if (envGles && envGles[0] == '1') {
-            forceGLES2 = true;
-            fprintf(stderr, "GL: Forcing GLES 2.0 via environment variable.\n");
-        }
-
-        if (forceGLES2) {
-            glfwDefaultWindowHints();
-
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-
-            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-        } else {
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        }
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 #else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
@@ -243,9 +226,26 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 
     window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
     if (!window) {
+#ifdef ENABLE_GLES
+        printf("Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
+        
+        glfwDefaultWindowHints(); 
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        
+        window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+        
+        if (!window) {
+            fprintf(stderr, "Failed to create GLFW window )\n");
+            glfwTerminate();
+            return false;
+        }
+#else
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;
+#endif
     }
 
     glfwMakeContextCurrent(window);

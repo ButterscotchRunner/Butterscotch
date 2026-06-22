@@ -98,20 +98,8 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #ifdef SDL_GL_CONTEXT_PROFILE_MASK
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
-        bool forceGLES2 = false;
-        const char* envGles = getenv("BUTTERSCOTCH_FORCE_GLES2");
-        if (envGles && envGles[0] == '1') {
-            forceGLES2 = true;
-            fprintf(stderr, "GL: Forcing GLES 2.0 via environment variable.\n");
-        }
-        
-        if (forceGLES2) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        }
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 #else
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
@@ -155,8 +143,20 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
     if (gfx != SOFTWARE) {
         if (!SDL_GL_CreateContext(window)) {
+#ifdef ENABLE_GLES
+            printf("Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+            if (window) SDL_DestroyWindow(window);
+            window = SDL_CreateWindow("Butterscotch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, reqW, reqH, flags);
+            if (!SDL_GL_CreateContext(window)) {
+                fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
+                return false;
+            }
+#else
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
+#endif
         }
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else

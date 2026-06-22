@@ -251,7 +251,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->isGLES3 = false;
 
     #ifdef ENABLE_GLES
-        if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
+        if (versionStr && strstr(versionStr, "3.0")) {
             gl->isGLES3 = true;
         }
     #else
@@ -262,12 +262,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* extStr = (const char*) glGetString(GL_EXTENSIONS);
     gl->hasVAO = gl->isGLES3 || (extStr && strstr(extStr, "GL_OES_vertex_array_object"));
     fprintf(stderr, "GL: Hardware Capabilities -> GLES3: %d, VAO: %d\n", gl->isGLES3, gl->hasVAO);
-
-    if (getenv("BUTTERSCOTCH_FORCE_GLES2") != NULL) {
-        printf("GL: Strict GLES 2.0 mode active. Stripping GLES3 capabilities.\n");
-        gl->isGLES3 = false;
-        gl->hasVAO = false; // Vertex Array Objects are an ES 3.0 feature / 2.0 extension
-    }
 
     char vertSrc[1024];
     char fragSrc[1024];
