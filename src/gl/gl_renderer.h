@@ -29,16 +29,9 @@ typedef struct {
     GLShaderUniform* uniforms;
 } GMLShader;
 
-typedef enum {
-    GL_FLAVOR_GLES2,          // GLES 2.0
-    GL_FLAVOR_GLES3,          // GLES 3.0 / WebGL 2.0
-    GL_FLAVOR_DESKTOP_CORE    // GLSL 330+ (Core Profile)
-} GLFlavor;
-
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
-    GLFlavor flavor; 
 
     GMLShader* defaultShaderProgram;
     GMLShader* gmlShaders;
