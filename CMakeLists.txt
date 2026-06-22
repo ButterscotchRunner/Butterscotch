@@ -721,7 +721,7 @@ elseif(PLATFORM STREQUAL "libretro")
 
     # Libraries
     find_library(DL_LIB dl)
-    target_link_libraries(butterscotch PRIVATE bzip2 m ${DL_LIB} ${AUDIO_LIBRARIES})
+    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 m ${DL_LIB} ${AUDIO_LIBRARIES})
 
     target_compile_definitions(butterscotch PRIVATE
         _GNU_SOURCE

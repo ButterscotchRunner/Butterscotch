@@ -24,18 +24,6 @@ static retro_input_state_t         input_state_cb;
 static retro_audio_sample_batch_t  audio_batch_cb;
 static retro_environment_t         environ_cb;
 
-static const char fallback_log_fmt[] = "libretro: ";
-
-static void fallback_log(enum retro_log_level level, const char *fmt, ...)
-{
-  (void)level;
-  va_list va;
-  fprintf(stderr, "%s", fallback_log_fmt);
-  va_start(va, fmt);
-  vfprintf(stderr, fmt, va);
-  va_end(va);
-}
-
 static Runner*            g_runner   = nullptr;
 static Renderer*          g_renderer = nullptr;
 static OverlayFileSystem* g_overlayFs = nullptr;
@@ -417,7 +405,7 @@ bool retro_load_game(const struct retro_game_info *game)
     return false;
   }
 
-  MaAudioSystem* maAudio = MaAudioSystem_create();
+  MaAudioSystem* maAudio = MaAudioSystem_create(g_dataWin);
   AudioSystem* audio = (AudioSystem*)maAudio;
 
   g_runner = Runner_create(g_dataWin, g_vm, g_renderer, (FileSystem*)g_overlayFs, audio);
@@ -591,13 +579,13 @@ void retro_run(void)
   Runner_computeViewDisplayScale(g_runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
   Runner_drawPre(g_runner, fbWidth, fbHeight);
-  Runner_beginFrame(g_runner, gameW, gameH, fbWidth, fbHeight);
+  Runner_beginFrame(g_runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
   if (g_runner->drawBackgroundColor)
     SWRenderer_clearFrameBuffer(g_renderer, g_runner->backgroundColor);
   else
     SWRenderer_clearFrameBuffer(g_renderer, 0);
 
-  Runner_drawViews(g_runner, gameW, gameH, displayScaleX, displayScaleY, false);
+  Runner_drawViews(g_runner, gameW, gameH, false);
   g_renderer->vtable->endFrameInit(g_renderer);
   Runner_drawPost(g_runner, fbWidth, fbHeight);
   g_renderer->vtable->endFrameEnd(g_renderer);
