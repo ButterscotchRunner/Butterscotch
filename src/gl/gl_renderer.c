@@ -286,7 +286,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     fprintf(stderr, "GL: versionStr=%s\n", versionStr);
     gl->isGLES3 = false;
 
-    #ifdef ENABLE_GLES
+    #if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
         if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
             gl->isGLES3 = true;
         }
