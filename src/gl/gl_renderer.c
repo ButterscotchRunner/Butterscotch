@@ -58,6 +58,75 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
+#ifndef glBindVertexArrayOES
+static void (*glBindVertexArrayOES_ptr)(GLuint) = NULL;
+#define glBindVertexArrayOES glBindVertexArrayOES_ptr
+#endif
+
+#ifndef glGenVertexArraysOES
+static void (*glGenVertexArraysOES_ptr)(GLsizei, GLuint*) = NULL;
+#define glGenVertexArraysOES glGenVertexArraysOES_ptr
+#endif
+
+#ifndef glDeleteVertexArraysOES
+static void (*glDeleteVertexArraysOES_ptr)(GLsizei, const GLuint*) = NULL;
+#define glDeleteVertexArraysOES glDeleteVertexArraysOES_ptr
+#endif
+
+#ifndef glIsVertexArrayOES
+static GLboolean (*glIsVertexArrayOES_ptr)(GLuint) = NULL;
+#define glIsVertexArrayOES glIsVertexArrayOES_ptr
+#endif
+
+// 2. Safe wrapper functions
+static void __bs_glBindVertexArray(GLuint vao) {
+    if (glBindVertexArray) {
+        glBindVertexArray(vao);
+        return;
+    }
+    if (glBindVertexArrayOES) {
+        glBindVertexArrayOES(vao);
+    }
+}
+#undef glBindVertexArray
+#define glBindVertexArray __bs_glBindVertexArray
+
+static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
+    if (glGenVertexArrays) {
+        glGenVertexArrays(n, arrays);
+        return;
+    }
+    if (glGenVertexArraysOES) {
+        glGenVertexArraysOES(n, arrays);
+    }
+}
+#undef glGenVertexArrays
+#define glGenVertexArrays __bs_glGenVertexArrays
+
+static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
+    if (glDeleteVertexArrays) {
+        glDeleteVertexArrays(n, arrays);
+        return;
+    }
+    if (glDeleteVertexArraysOES) {
+        glDeleteVertexArraysOES(n, arrays);
+    }
+}
+#undef glDeleteVertexArrays
+#define glDeleteVertexArrays __bs_glDeleteVertexArrays
+
+static GLboolean __bs_glIsVertexArray(GLuint array) {
+    if (glIsVertexArray) {
+        return glIsVertexArray(array);
+    }
+    if (glIsVertexArrayOES) {
+        return glIsVertexArrayOES(array);
+    }
+    return GL_FALSE;
+}
+#undef glIsVertexArray
+#define glIsVertexArray __bs_glIsVertexArray
+
 
 // ===[ Shader Compilation ]===
 
@@ -255,9 +324,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         }
     #else
         gl->isGLES3 = true; // Desktop Core OpenGL is generally treated as GLES3 equivalent here
-        gl->hasVAO = true;
     #endif
-    gl->hasVAO = gl->isGLES3;
+
+    if (gl->isGLES3) {
+        gl->hasVAO = true
+    } else {
+        const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
+        gl->hasVAO = extensions && (strstr(extensions, "GL_ARB_vertex_array_object") || strstr(extensions, "GL_OES_vertex_array_object"));
+    }
 
     char vertSrc[1024];
     char fragSrc[1024];
