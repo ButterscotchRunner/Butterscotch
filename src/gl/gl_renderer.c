@@ -318,37 +318,32 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->gmlShaders = safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
     fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
 
-    if (gl->isGLES3) {
-        repeat(dataWin->shdr.count, i) {
-            Shader* shdr = &dataWin->shdr.shaders[i];
-            GMLShader* gmlShader = &gl->gmlShaders[i];
-    
-            if (!shdr->present) {
-                gl->gmlShaderCount++;
-                fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", i);
-                continue;
-            }
-    
-            fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name);
-            compileProgram(
-                gmlShader,
-                shdr->name,
-    #ifdef ENABLE_GLES
-                shdr->glslES_Vertex,
-                shdr->glslES_Fragment,
-    #else
-                shdr->glsl_Vertex,
-                shdr->glsl_Fragment,
-    #endif
-                shdr->vertexAttributeCount,
-                shdr->vertexAttributes
-            );
-    
+    repeat(dataWin->shdr.count, i) {
+        Shader* shdr = &dataWin->shdr.shaders[i];
+        GMLShader* gmlShader = &gl->gmlShaders[i];
+
+        if (!shdr->present) {
             gl->gmlShaderCount++;
+            fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", i);
+            continue;
         }
-    } else {
-        fprintf(stderr, "GL: not GLES3, skipping shader compilation!\n");
-        gl->gmlShaderCount = dataWin->shdr.count;
+
+        fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name);
+        compileProgram(
+            gmlShader,
+            shdr->name,
+#ifdef ENABLE_GLES
+            shdr->glslES_Vertex,
+            shdr->glslES_Fragment,
+#else
+            shdr->glsl_Vertex,
+            shdr->glsl_Fragment,
+#endif
+            shdr->vertexAttributeCount,
+            shdr->vertexAttributes
+        );
+
+        gl->gmlShaderCount++;
     }
     GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
     GLShaderUniform* uFogColor = findShaderUniformByName(gl->defaultShaderProgram, "uFogColor");
@@ -378,29 +373,16 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 
-    if (gl->isGLES3) {
-        int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint32_t);
-        uint32_t* indices = safeMalloc(eboSize);
-        for (int32_t i = 0; MAX_QUADS > i; i++) {
-            uint32_t base = i * 4;
-            indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
-            indices[i*6+3] = base+2; indices[i*6+4] = base+3; indices[i*6+5] = base+0;
-        }
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
-        free(indices);
-    } else {
-        int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
-        uint16_t* indices = safeMalloc(eboSize);
-        for (int32_t i = 0; MAX_QUADS > i; i++) {
-            uint16_t base = i * 4;
-            indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
-            indices[i*6+3] = base+2; indices[i*6+4] = base+3; indices[i*6+5] = base+0;
-        }
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
-        free(indices);
+    int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
+    uint16_t* indices = safeMalloc(eboSize);
+    for (int32_t i = 0; MAX_QUADS > i; i++) {
+        uint16_t base = i * 4;
+        indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
+        indices[i*6+3] = base+2; indices[i*6+4] = base+3; indices[i*6+5] = base+0;
     }
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
+    free(indices);
 
     if (gl->hasVAO) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
@@ -458,7 +440,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (!gl->isGLES3) return;
     GMLShader* gmlShader = &gl->gmlShaders[shaderIndex];
 
     glUseProgram(gmlShader->shaderId);
@@ -490,7 +471,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
 static void glShaderSettingsRefresh(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (gl->isGLES3 && renderer->currentShader != -1) {
+    if (renderer->currentShader != -1) {
         glGpuSetShader(renderer, (int32_t) renderer->currentShader);
     } else {
         float fogR = (float) BGR_R(gl->fogColor) / 255.0f;
@@ -516,7 +497,6 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
 static void glGpuResetShader(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (!gl->isGLES3) return;
     glUseProgram(gl->defaultShaderProgram->shaderId);
     renderer->currentShader = -1;
     glShaderSettingsRefresh(renderer);
@@ -696,8 +676,10 @@ static void glEndFrameInit(Renderer* renderer) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
     }
-    int32_t appId = gl->base.runner->applicationSurfaceId;
-    GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
+    if (gl->isGLES3) {
+        int32_t appId = gl->base.runner->applicationSurfaceId;
+        GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
+    }
 }
 
 static void glEndFrameEnd(Renderer* renderer) {
@@ -2404,7 +2386,6 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (!gl->isGLES3) return -1;
     if (shaderIndex < 0 || (uint32_t) shaderIndex >= gl->gmlShaderCount) return -1;
     GMLShader* shader = &gl->gmlShaders[shaderIndex];
     repeat(shader->uniformCount, b) {
@@ -2415,7 +2396,6 @@ static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char*
 
 static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (!gl->isGLES3) return -1;
     GMLShader* shader = &gl->gmlShaders[shaderIndex];
 
     repeat(shader->uniformCount, b) {
@@ -2431,7 +2411,6 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, float value1, float value2, float value3, float value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (!gl->isGLES3) return;
 
     if (handle != -1 && renderer->currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
@@ -2452,7 +2431,6 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, MAYBE_UNUSED
 static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (!gl->isGLES3) return;
 
     if (handle != -1 && renderer->currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
@@ -2471,7 +2449,6 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    if (!gl->isGLES3) return;
 
     if (handle != -1 && renderer->currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
@@ -2603,7 +2580,6 @@ static bool glTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUV
 
 static bool glShaderIsCompiled(Renderer* renderer, int32_t shaderID) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (!gl->isGLES3) return false;
     DataWin* dw = gl->base.dataWin;
     if (0 > shaderID || (uint32_t) shaderID >= dw->shdr.count) return false;
     return gl->gmlShaders[shaderID].compiled;
