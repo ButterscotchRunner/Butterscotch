@@ -60,11 +60,10 @@ static const char* baseFragmentShader =
 
 #ifdef ENABLE_GLES
 static void __bs_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray) {
+    if (glBindVertexArray != nullptr) {
         glBindVertexArray(vao);
         return;
-    }
-    if (glBindVertexArrayOES) {
+    } else if (glBindVertexArrayOES != nullptr) {
         glBindVertexArrayOES(vao);
     }
 }
@@ -72,11 +71,10 @@ static void __bs_glBindVertexArray(GLuint vao) {
 #define glBindVertexArray __bs_glBindVertexArray
 
 static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays) {
+    if (glGenVertexArrays != nullptr) {
         glGenVertexArrays(n, arrays);
         return;
-    }
-    if (glGenVertexArraysOES) {
+    } else if (glGenVertexArraysOES != nullptr) {
         glGenVertexArraysOES(n, arrays);
     }
 }
@@ -84,11 +82,10 @@ static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
 #define glGenVertexArrays __bs_glGenVertexArrays
 
 static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glDeleteVertexArrays) {
+    if (glDeleteVertexArrays != nullptr) {
         glDeleteVertexArrays(n, arrays);
         return;
-    }
-    if (glDeleteVertexArraysOES) {
+    } else if (glDeleteVertexArraysOES != nullptr) {
         glDeleteVertexArraysOES(n, arrays);
     }
 }
@@ -96,10 +93,9 @@ static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
 #define glDeleteVertexArrays __bs_glDeleteVertexArrays
 
 static GLboolean __bs_glIsVertexArray(GLuint array) {
-    if (glIsVertexArray) {
+    if (glIsVertexArray != nullptr) {
         return glIsVertexArray(array);
-    }
-    if (glIsVertexArrayOES) {
+    } else if (glIsVertexArrayOES != nullptr) {
         return glIsVertexArrayOES(array);
     }
     return GL_FALSE;
@@ -302,16 +298,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
             gl->isGLES3 = true;
         }
+        gl->hasVAO = (glGenVertexArrays != nullptr || glGenVertexArraysOES != nullptr);
     #else
         gl->isGLES3 = true; // Desktop Core OpenGL is generally treated as GLES3 equivalent here
-    #endif
-
-    if (gl->isGLES3) {
         gl->hasVAO = true;
-    } else {
-        const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
-        gl->hasVAO = extensions && (strstr(extensions, "GL_ARB_vertex_array_object") || strstr(extensions, "GL_OES_vertex_array_object"));
-    }
+    #endif
 
     char vertSrc[1024];
     char fragSrc[1024];
