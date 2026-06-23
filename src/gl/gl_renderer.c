@@ -327,7 +327,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     #endif
 
     if (gl->isGLES3) {
-        gl->hasVAO = true
+        gl->hasVAO = true;
     } else {
         const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
         gl->hasVAO = extensions && (strstr(extensions, "GL_ARB_vertex_array_object") || strstr(extensions, "GL_OES_vertex_array_object"));
