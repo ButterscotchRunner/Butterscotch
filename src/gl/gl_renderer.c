@@ -58,27 +58,7 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
-#ifndef glBindVertexArrayOES
-static void (*glBindVertexArrayOES_ptr)(GLuint) = NULL;
-#define glBindVertexArrayOES glBindVertexArrayOES_ptr
-#endif
-
-#ifndef glGenVertexArraysOES
-static void (*glGenVertexArraysOES_ptr)(GLsizei, GLuint*) = NULL;
-#define glGenVertexArraysOES glGenVertexArraysOES_ptr
-#endif
-
-#ifndef glDeleteVertexArraysOES
-static void (*glDeleteVertexArraysOES_ptr)(GLsizei, const GLuint*) = NULL;
-#define glDeleteVertexArraysOES glDeleteVertexArraysOES_ptr
-#endif
-
-#ifndef glIsVertexArrayOES
-static GLboolean (*glIsVertexArrayOES_ptr)(GLuint) = NULL;
-#define glIsVertexArrayOES glIsVertexArrayOES_ptr
-#endif
-
-// 2. Safe wrapper functions
+#ifdef ENABLE_GLES
 static void __bs_glBindVertexArray(GLuint vao) {
     if (glBindVertexArray) {
         glBindVertexArray(vao);
@@ -126,7 +106,7 @@ static GLboolean __bs_glIsVertexArray(GLuint array) {
 }
 #undef glIsVertexArray
 #define glIsVertexArray __bs_glIsVertexArray
-
+#endif
 
 // ===[ Shader Compilation ]===
 
