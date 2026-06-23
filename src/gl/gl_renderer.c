@@ -4,6 +4,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -60,7 +61,7 @@ static const char* baseFragmentShader =
 
 #ifdef ENABLE_GLES
 static void __bs_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray)
+    if (glBindVertexArray != nullptr)
         glBindVertexArray(vao);
     else
         glBindVertexArrayOES(vao);
@@ -69,7 +70,7 @@ static void __bs_glBindVertexArray(GLuint vao) {
 #define glBindVertexArray __bs_glBindVertexArray
 
 static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays)
+    if (glGenVertexArrays != nullptr)
         glGenVertexArrays(n, arrays);
     else
         glGenVertexArraysOES(n, arrays);
@@ -78,7 +79,7 @@ static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
 #define glGenVertexArrays __bs_glGenVertexArrays
 
 static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glDeleteVertexArrays)
+    if (glDeleteVertexArrays != nullptr)
         glDeleteVertexArrays(n, arrays);
     else
         glDeleteVertexArraysOES(n, arrays);
@@ -87,7 +88,7 @@ static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
 #define glDeleteVertexArrays __bs_glDeleteVertexArrays
 
 static GLboolean __bs_glIsVertexArray(GLuint array) {
-    if (glIsVertexArray)
+    if (glIsVertexArray != nullptr)
         return glIsVertexArray(array);
     else
         return glIsVertexArrayOES(array);
