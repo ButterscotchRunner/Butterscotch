@@ -35,9 +35,13 @@ printno() {
     printf 'result: no\n' >> tmp/config.log
 }
 
+configlog() {
+    printf "%s: " "$1"
+    printf "%s:\n" "$1" >> tmp/config.log
+}
+
 check() {
-    printf 'checking %s: ' "$1"
-    printf 'checking %s:\n' "$1" >> tmp/config.log
+    configlog "checking $1"
     shift
     printf 'cmd: %s\n' "$CC $cflags tmp/test.c -o tmp/a.out $*" >> tmp/config.log
     if $CC $cflags tmp/test.c -o tmp/a.out "$@" >> tmp/config.log 2>&1; then
@@ -55,8 +59,7 @@ int main(void){return 0;}
 
 check 'if the C compiler works' || exit 1
 
-printf 'checking if we are cross compiling: '
-printf 'checking if we are cross compiling:\n' >> tmp/config.log
+configlog 'checking if we are cross compiling'
 if tmp/a.out > /dev/null 2>&1; then
     printno
 else
@@ -85,8 +88,7 @@ if check 'for libdl' -ldl; then
 fi
 
 if [ -z "$cross_compiling" ]; then
-    printf 'checking if /usr/X11R6/include exists: '
-    printf 'checking if /usr/X11R6/include exists:\n' >> tmp/config.log
+    configlog 'checking if /usr/X11R6/include exists'
     if [ -d /usr/X11R6/include ]; then
         printyes
         config 'INCLUDES += -I/usr/X11R6/include'
@@ -94,8 +96,7 @@ if [ -z "$cross_compiling" ]; then
         printno
     fi
 
-    printf 'checking if /usr/X11R6/lib exists: '
-    printf 'checking if /usr/X11R6/lib exists:\n' >> tmp/config.log
+    configlog 'checking if /usr/X11R6/lib exists'
     if [ -d /usr/X11R6/lib ]; then
         printyes
         config 'LIBS += -L/usr/X11R6/lib'
