@@ -154,8 +154,7 @@ static void flushBatch(GLRenderer* gl) {
     }
 
     if (gl->batchType == BATCHTYPE_QUAD) {
-        GLenum indexType = gl->isGLES3 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
-        glDrawElements(GL_TRIANGLES, indexCount, indexType, nullptr);
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, nullptr);
     } else if (gl->batchType == BATCHTYPE_TRIANGLE) {
         glDrawArrays(GL_TRIANGLES, 0, gl->batchCount * VERTICES_PER_TRIANGLE);
     }
@@ -676,10 +675,8 @@ static void glEndFrameInit(Renderer* renderer) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
     }
-    if (gl->isGLES3) {
-        int32_t appId = gl->base.runner->applicationSurfaceId;
-        GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
-    }
+    int32_t appId = gl->base.runner->applicationSurfaceId;
+    GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
 }
 
 static void glEndFrameEnd(Renderer* renderer) {
