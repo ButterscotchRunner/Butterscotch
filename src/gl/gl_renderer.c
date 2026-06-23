@@ -60,45 +60,37 @@ static const char* baseFragmentShader =
 
 #ifdef ENABLE_GLES
 static void __bs_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray != nullptr) {
+    if (glBindVertexArray)
         glBindVertexArray(vao);
-        return;
-    } else if (glBindVertexArrayOES != nullptr) {
+    else
         glBindVertexArrayOES(vao);
-    }
 }
 #undef glBindVertexArray
 #define glBindVertexArray __bs_glBindVertexArray
 
 static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays != nullptr) {
+    if (glGenVertexArrays)
         glGenVertexArrays(n, arrays);
-        return;
-    } else if (glGenVertexArraysOES != nullptr) {
+    else
         glGenVertexArraysOES(n, arrays);
-    }
 }
 #undef glGenVertexArrays
 #define glGenVertexArrays __bs_glGenVertexArrays
 
 static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glDeleteVertexArrays != nullptr) {
+    if (glDeleteVertexArrays)
         glDeleteVertexArrays(n, arrays);
-        return;
-    } else if (glDeleteVertexArraysOES != nullptr) {
+    else
         glDeleteVertexArraysOES(n, arrays);
-    }
 }
 #undef glDeleteVertexArrays
 #define glDeleteVertexArrays __bs_glDeleteVertexArrays
 
 static GLboolean __bs_glIsVertexArray(GLuint array) {
-    if (glIsVertexArray != nullptr) {
+    if (glIsVertexArray)
         return glIsVertexArray(array);
-    } else if (glIsVertexArrayOES != nullptr) {
+    else
         return glIsVertexArrayOES(array);
-    }
-    return GL_FALSE;
 }
 #undef glIsVertexArray
 #define glIsVertexArray __bs_glIsVertexArray
