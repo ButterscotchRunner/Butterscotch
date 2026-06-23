@@ -4,7 +4,6 @@
 
 #ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
-#include <GLES2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -59,7 +58,7 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
-#ifdef ENABLE_GLES
+#if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
 static void __bs_glBindVertexArray(GLuint vao) {
     if (glBindVertexArray != nullptr)
         glBindVertexArray(vao);
