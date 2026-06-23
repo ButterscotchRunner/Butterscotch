@@ -46,7 +46,7 @@ DEFINES += -DENABLE_WAD17
 endif
 
 # TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
+SRCS += $(wildcard src/desktop/*.c) src/desktop/backends/$(DESKTOP_BACKEND).c
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
