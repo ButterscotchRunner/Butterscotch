@@ -119,6 +119,20 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
             reqW, reqH,
             flags
     );
+#ifdef ENABLE_GLES
+    if (!window && gfx == MODERN_GL) {
+        fprintf(stderr, "Warning: Could not create window with GLES 3.0 attributes (%s), retrying with GLES 2.0...\n", SDL_GetError());
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        window = SDL_CreateWindow(
+                title,
+                SDL_WINDOWPOS_UNDEFINED,
+                SDL_WINDOWPOS_UNDEFINED,
+                reqW, reqH,
+                flags
+        );
+    }
+#endif
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
@@ -141,20 +155,8 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
     if (gfx != SOFTWARE) {
         if (!SDL_GL_CreateContext(window)) {
-#ifdef ENABLE_GLES
-            fprintf(stderr, "Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-            if (window) SDL_DestroyWindow(window);
-            window = SDL_CreateWindow("Butterscotch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, reqW, reqH, flags);
-            if (!SDL_GL_CreateContext(window)) {
-                fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-                return false;
-            }
-#else
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
-#endif
         }
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else

@@ -250,27 +250,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->isGLES3 = false;
 
     #ifdef ENABLE_GLES
-        if (versionStr && strstr(versionStr, "3")) {
+        if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
             gl->isGLES3 = true;
         }
     #else
         gl->isGLES3 = true; // Desktop Core OpenGL is generally treated as GLES3 equivalent here
+        gl->hasVAO = true;
     #endif
-
-    // VAOs are core in GLES 3.0, but might be available as an extension in GLES 2.0
-    GLint num_extensions = 0;
-    glGetIntegerv(GL_NUM_EXTENSIONS, &num_extensions);
-    
-    for (int i = 0; i < num_extensions; i++) {
-        const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
-        if (ext) {
-            if (strcmp(ext, "GL_ARB_vertex_array_object") == 0 || strcmp(ext, "GL_OES_vertex_array_object") == 0) {
-                gl->hasVAO = true;
-                break;
-            }
-        }
-    }
-    fprintf(stderr, "GL: Hardware Capabilities -> GLES3: %d, VAO: %d\n", gl->isGLES3, gl->hasVAO);
+    gl->hasVAO = gl->isGLES3;
 
     char vertSrc[1024];
     char fragSrc[1024];
