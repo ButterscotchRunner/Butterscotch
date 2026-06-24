@@ -467,7 +467,7 @@ static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
     // Grow this frame's localVars window to cover `slot` whether the entry is pre-existing or freshly allocated.
     // Pre-existing entries can still be past ctx->localVarCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
     if (slot >= ctx->localVarCount) {
-        RValue* resizedLocalVars = safeCalloc(slot + 1, sizeof(RValue));
+        RValue* resizedLocalVars = (RValue *)safeCalloc(slot + 1, sizeof(RValue));
         memcpy(resizedLocalVars, ctx->localVars, sizeof(RValue) * ctx->localVarCount);
         free(ctx->localVars);
         ctx->localVars = resizedLocalVars;
@@ -642,7 +642,7 @@ void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
     // You CAN write to the builtin argumentX variables even though the function does not "have" it as a function argument
     // So we'll need to check if we need to resize the scriptArgs manually...
     if (writeIndex >= ctx->scriptArgCount) {
-        RValue* newScriptArgs = safeCalloc(writeIndex + 1, sizeof(RValue));
+        RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
         if (ctx->scriptArgCount > 0) {
             memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
             free(ctx->scriptArgs);
@@ -1476,7 +1476,7 @@ static void handleAddString(VMContext* ctx, RValue a, RValue b, uint8_t resultTy
         const char* sb = b.string != nullptr ? b.string : "";
         size_t lenA = strlen(sa);
         size_t lenB = strlen(sb);
-        char* result = safeMalloc(lenA + lenB + 1);
+        char* result = (char *)safeMalloc(lenA + lenB + 1);
         memcpy(result, sa, lenA);
         memcpy(result + lenA, sb, lenB + 1);
         RValue_free(&a);
@@ -1520,7 +1520,7 @@ static void handleMulString(VMContext* ctx, RValue a, RValue b, uint8_t resultTy
         RValue_free(&b);
         stackPushTyped(ctx, RValue_makeOwnedString(safeStrdup("")), resultType);
     } else {
-        char* result = safeMalloc(len * count + 1);
+        char* result = (char *)safeMalloc(len * count + 1);
         repeat(count, i) {
             memcpy(result + i * len, str, len);
         }
@@ -1933,7 +1933,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
     // Pop arguments from stack (args pushed right-to-left, so first arg is on top)
     RValue* args = nullptr;
     if (argCount > 0) {
-        args = safeCalloc(argCount, sizeof(RValue));
+        args = (RValue *)safeCalloc(argCount, sizeof(RValue));
         repeat(argCount, i) {
             args[i] = stackPop(ctx);
         }
@@ -1949,7 +1949,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             char* display = RValue_toStringFancy(args[i]);
 
             if (i > 0) {
-                char* tmp = safeMalloc(strlen(functionArgumentList) + 2 + strlen(display) + 1);
+                char* tmp = (char *)safeMalloc(strlen(functionArgumentList) + 2 + strlen(display) + 1);
                 sprintf(tmp, "%s, %s", functionArgumentList, display);
                 free(functionArgumentList);
                 functionArgumentList = tmp;
@@ -2062,7 +2062,7 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
 
     RValue* args = nullptr;
     if (argCount > 0) {
-        args = safeCalloc(argCount, sizeof(RValue));
+        args = (RValue *)safeCalloc(argCount, sizeof(RValue));
         repeat(argCount, i) {
             args[i] = stackPop(ctx);
         }
@@ -2123,7 +2123,7 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
     } else {
         fprintf(stderr, "VM: [%s] CALLV with unresolvable function reference (type=%d, codeIndex=%d)\n", ctx->currentCodeName, function.type, codeIndex);
 #ifdef ENABLE_WAD17
-        VMException* exception = safeCalloc(1, sizeof(VMException));
+        VMException* exception = (VMException *)safeCalloc(1, sizeof(VMException));
         exception->message = safeStrdup("CALLV with unresolvable function reference");
         ctx->exception = exception;
         result = RValue_makeUndefined();
@@ -2195,7 +2195,7 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
     }
 
     // Create env frame, save current context
-    EnvFrame* frame = safeMalloc(sizeof(EnvFrame));
+    EnvFrame* frame = (EnvFrame *)safeMalloc(sizeof(EnvFrame));
     frame->savedInstance = (Instance*) ctx->currentInstance;
     frame->savedOtherInstance = (Instance*) ctx->otherInstance;
     frame->instanceList = nullptr;
@@ -3416,7 +3416,7 @@ VMContext* VM_create(DataWin* dataWin) {
     VMContext* ctx = (VMContext*) 0x70000000;
     memset(ctx, 0, sizeof(VMContext));
 #else
-    VMContext* ctx = safeCalloc(1, sizeof(VMContext));
+    VMContext* ctx = (VMContext *)safeCalloc(1, sizeof(VMContext));
 #endif
     ctx->dataWin = dataWin;
     ctx->stack.top = 0;
@@ -3477,8 +3477,8 @@ VMContext* VM_create(DataWin* dataWin) {
 
     // V17+ static initialization tracking
     if (dataWin->gen8.wadVersion >= 17) {
-        ctx->staticInitialized = safeCalloc(dataWin->code.count, sizeof(bool));
-        ctx->staticStructs = safeCalloc(dataWin->code.count, sizeof(Instance*));
+        ctx->staticInitialized = (bool *)safeCalloc(dataWin->code.count, sizeof(bool));
+        ctx->staticStructs = (Instance **)safeCalloc(dataWin->code.count, sizeof(Instance*));
     } else {
         ctx->staticInitialized = nullptr;
         ctx->staticStructs = nullptr;
@@ -3554,7 +3554,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // BC13/BC14 NEEDS the per-code map because BC<=14 has no CodeLocals chunk at all, so slots are allocated on first reference.
     ctx->codeLocalsSlotMaps = nullptr;
     if (dataWin->gen8.wadVersion >= 17 || 14 >= dataWin->gen8.wadVersion) {
-        ctx->codeLocalsSlotMaps = safeCalloc(dataWin->code.count, sizeof(*ctx->codeLocalsSlotMaps));
+        ctx->codeLocalsSlotMaps = (IntIntHashMap *)safeCalloc(dataWin->code.count, sizeof(*ctx->codeLocalsSlotMaps));
     }
 
     // Register built-in functions
@@ -3563,7 +3563,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // Pre-resolve all FUNC entries to cached builtin pointers or script code indices.
     // This eliminates per-call string hash lookups in handleCall.
     ctx->funcCallCacheCount = dataWin->func.functionCount;
-    ctx->funcCallCache = safeMalloc(dataWin->func.functionCount * sizeof(FuncCallCache));
+    ctx->funcCallCache = (FuncCallCache *)safeMalloc(dataWin->func.functionCount * sizeof(FuncCallCache));
     repeat(dataWin->func.functionCount, i) {
         const char* name = dataWin->func.functions[i].name;
         BuiltinFunc builtin = VM_findBuiltin(ctx, name);
@@ -3624,8 +3624,8 @@ void VM_reset(VMContext* ctx) {
     if (ctx->dataWin->gen8.wadVersion >= 17) {
         free(ctx->staticInitialized);
         free(ctx->staticStructs);
-        ctx->staticInitialized = safeCalloc(ctx->dataWin->code.count, sizeof(bool));
-        ctx->staticStructs = safeCalloc(ctx->dataWin->code.count, sizeof(Instance*));
+        ctx->staticInitialized = (bool *)safeCalloc(ctx->dataWin->code.count, sizeof(bool));
+        ctx->staticStructs = (Instance **)safeCalloc(ctx->dataWin->code.count, sizeof(Instance*));
     }
 
     // Create the instance used for "self" in GLOB scripts
@@ -3680,7 +3680,7 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
     setCurrentCodeLocalsSlotMap(ctx);
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = safeCalloc(localsCount, sizeof(RValue));
+    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
     ctx->localVars = localVars;
     ctx->localVarCount = localsCount;
 
@@ -3752,7 +3752,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     setCurrentCodeLocalsSlotMap(ctx);
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = safeCalloc(localsCount, sizeof(RValue));
+    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
     ctx->localVars = localVars;
     ctx->localVarCount = localsCount;
 
@@ -3761,7 +3761,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     // the caller's original args remain valid and owner-tracked by the caller.
     RValue* scriptArgs = nullptr;
     if (argCount > 0 && args != nullptr) {
-        scriptArgs = safeCalloc(argCount, sizeof(RValue));
+        scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));
         repeat(argCount, argIdx) {
             RValue argCopy = RValue_makeIndependent(args[argIdx]);
             scriptArgs[argIdx] = argCopy;

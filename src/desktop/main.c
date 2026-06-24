@@ -763,7 +763,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
-    unsigned char* pixels = safeMalloc(stride * height);
+    unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
         fprintf(stderr, "Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
@@ -890,7 +890,7 @@ char* collapseNewlines(const char *input) {
     }
 
     size_t len = strlen(input);
-    char *result = malloc(len + 1);
+    char *result = (char *)malloc(len + 1);
     if (result == nullptr) {
         return nullptr;
     }
@@ -990,8 +990,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
         vm->opcodeProfilerEnabled = args.opcodeProfiler;
         if (vm->opcodeProfilerEnabled) {
-            vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-            vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
 
@@ -1186,7 +1186,7 @@ int main(int argc, char* argv[]) {
                 lastSlash = lastBackslash;
             if (lastSlash != nullptr) {
                 size_t len = (size_t) (lastSlash - args.dataWinPath + 1);
-                dataWinDir = safeMalloc(len + 1);
+                dataWinDir = (char *)safeMalloc(len + 1);
                 memcpy(dataWinDir, args.dataWinPath, len);
                 dataWinDir[len] = '\0';
             } else {
@@ -1534,9 +1534,9 @@ int main(int argc, char* argv[]) {
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
-                bool* currentKeyDown = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyPressed = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyReleased = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyDown = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyPressed = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyReleased = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
 
                 if (freeCamActive) {
                     // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
@@ -1823,7 +1823,7 @@ int main(int argc, char* argv[]) {
             // The pendingWorkingDirectory contains a slash at the beginning of it (example: /chapter3)
             // The parentDir does NOT have a trailing slash, so we don't need to bother with it
             size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-            char* newPath = safeMalloc(newPathLen);
+            char* newPath = (char *)safeMalloc(newPathLen);
             snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDirectory, dataWinFilename);
 
             free(parentDir);

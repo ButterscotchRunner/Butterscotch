@@ -97,12 +97,12 @@ static void loadAtlas(GsRenderer* gs) {
     gs->atlasCount = BinaryReader_readUint16(&reader);
 
     // Parse atlas table
-    gs->atlasOffsets = safeMalloc(gs->atlasCount * sizeof(uint32_t));
-    gs->atlasWidth = safeMalloc(gs->atlasCount * sizeof(uint16_t));
-    gs->atlasHeight = safeMalloc(gs->atlasCount * sizeof(uint16_t));
-    gs->atlasBpp = safeMalloc(gs->atlasCount * sizeof(uint8_t));
-    gs->atlasDataSizes = safeMalloc(gs->atlasCount * sizeof(uint32_t));
-    gs->atlasCompressionType = safeMalloc(gs->atlasCount * sizeof(uint8_t));
+    gs->atlasOffsets = (uint32_t *)safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasWidth = (uint16_t *)safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasHeight = (uint16_t *)safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasBpp = (uint8_t *)safeMalloc(gs->atlasCount * sizeof(uint8_t));
+    gs->atlasDataSizes = (uint32_t *)safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasCompressionType = (uint8_t *)safeMalloc(gs->atlasCount * sizeof(uint8_t));
     repeat(gs->atlasCount, i) {
         gs->atlasOffsets[i] = BinaryReader_readUint32(&reader);
         gs->atlasWidth[i] = BinaryReader_readUint16(&reader);
@@ -117,7 +117,7 @@ static void loadAtlas(GsRenderer* gs) {
     }
 
     // Parse TPAG entries
-    gs->atlasTPAGEntries = safeMalloc(gs->atlasTPAGCount * sizeof(AtlasTPAGEntry));
+    gs->atlasTPAGEntries = (AtlasTPAGEntry *)safeMalloc(gs->atlasTPAGCount * sizeof(AtlasTPAGEntry));
 
     repeat(gs->atlasTPAGCount, i) {
         AtlasTPAGEntry* entry = &gs->atlasTPAGEntries[i];
@@ -134,7 +134,7 @@ static void loadAtlas(GsRenderer* gs) {
     }
 
     // Parse tile entries
-    gs->atlasTileEntries = safeMalloc(gs->atlasTileCount * sizeof(AtlasTileEntry));
+    gs->atlasTileEntries = (AtlasTileEntry *)safeMalloc(gs->atlasTileCount * sizeof(AtlasTileEntry));
 
     repeat(gs->atlasTileCount, i) {
         AtlasTileEntry* entry = &gs->atlasTileEntries[i];
@@ -170,7 +170,7 @@ static void loadAtlas(GsRenderer* gs) {
         hmput(gs->tileEntryMap, key, entry);
     }
 
-    gs->atlasToChunk = safeMalloc(gs->atlasCount * sizeof(int16_t));
+    gs->atlasToChunk = (int16_t *)safeMalloc(gs->atlasCount * sizeof(int16_t));
     repeat(gs->atlasCount, i) {
         gs->atlasToChunk[i] = -1;
     }
@@ -199,7 +199,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         gs->clut4Count = clut4FileSize / CLUT4_ENTRY_SIZE;
         fprintf(stderr, "GsRenderer: CLUT4.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut4Count, clut4FileSize);
 
-        gs->clut4VramAddrs = safeMalloc(gs->clut4Count * sizeof(uint32_t));
+        gs->clut4VramAddrs = (uint32_t *)safeMalloc(gs->clut4Count * sizeof(uint32_t));
 
         repeat(gs->clut4Count, i) {
             // gsKit uploads 4bpp CLUTs as 8x2 CT32 (16 entries in 8-wide, 2-tall grid)
@@ -227,7 +227,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         gs->clut8Count = clut8FileSize / CLUT8_ENTRY_SIZE;
         fprintf(stderr, "GsRenderer: CLUT8.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut8Count, clut8FileSize);
 
-        gs->clut8VramAddrs = safeMalloc(gs->clut8Count * sizeof(uint32_t));
+        gs->clut8VramAddrs = (uint32_t *)safeMalloc(gs->clut8Count * sizeof(uint32_t));
 
         repeat(gs->clut8Count, i) {
             // gsKit uploads 8bpp CLUTs as 16x16 CT32 (256 entries in 16-wide, 16-tall grid)
@@ -270,7 +270,7 @@ static void initTextureCache(GsRenderer* gs) {
     uint32_t availableVram = GS_VRAM_SIZE - gs->textureVramBase;
     gs->chunkCount = availableVram / VRAM_CHUNK_SIZE;
 
-    gs->chunks = safeMalloc(gs->chunkCount * sizeof(VRAMChunk));
+    gs->chunks = (VRAMChunk *)safeMalloc(gs->chunkCount * sizeof(VRAMChunk));
     forEach(VRAMChunk, chunk, gs->chunks, gs->chunkCount) {
         chunk->atlasId = -1;
         chunk->snapshotIdx = -1;
@@ -479,7 +479,7 @@ static void initEeCache(GsRenderer* gs) {
     gs->eeCacheBumpPtr = 0;
     gs->eeCache = (uint8_t*) safeMemalign(128, gs->eeAtlasCacheBytes);
 
-    gs->eeCacheEntries = safeMalloc(gs->atlasCount * sizeof(EeAtlasCacheEntry));
+    gs->eeCacheEntries = (EeAtlasCacheEntry *)safeMalloc(gs->atlasCount * sizeof(EeAtlasCacheEntry));
     repeat(gs->atlasCount, i) {
         gs->eeCacheEntries[i].atlasId = -1;
         gs->eeCacheEntries[i].offset = 0;
@@ -2278,7 +2278,7 @@ static int32_t gsCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
-    sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices = (int32_t *)safeMalloc(sizeof(int32_t));
     sprite->tpagIndices[0] = (int32_t) tpagIndex;
     sprite->maskCount = 0;
     sprite->masks = nullptr;
@@ -3071,7 +3071,7 @@ static RendererVtable gsVtable;
 // ===[ Public API ]===
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
-    GsRenderer* gs = safeCalloc(1, sizeof(GsRenderer));
+    GsRenderer* gs = (GsRenderer *)safeCalloc(1, sizeof(GsRenderer));
     gs->eeAtlasCacheBytes = eeAtlasCacheMiB;
     gs->base.vtable = &gsVtable;
     gsVtable.init = gsInit;

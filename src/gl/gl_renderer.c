@@ -214,7 +214,7 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
     glGetProgramiv(shaderId, GL_ACTIVE_UNIFORMS, &uniformCount);
 
     gmlShader->uniformCount = uniformCount;
-    gmlShader->uniforms = safeCalloc(uniformCount, sizeof(GLShaderUniform));
+    gmlShader->uniforms = (GLShaderUniform *)safeCalloc(uniformCount, sizeof(GLShaderUniform));
 
     // We can only get the length of a specific uniform in OpenGL 4.3+...
     GLint maxUniformNameLength = 0;
@@ -225,7 +225,7 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
         GLint size = 0;
         GLenum type = 0;
 
-        char* uniformName = safeMalloc(maxUniformNameLength + 1);
+        char* uniformName = (char *)safeMalloc(maxUniformNameLength + 1);
 
         glGetActiveUniform(shaderId, b, maxUniformNameLength, &length, &size, &type, uniformName);
 
@@ -250,7 +250,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
+    GMLShader* defaultShader = (GMLShader *)safeCalloc(1, sizeof(GMLShader));
     bool success = compileProgram(defaultShader, "default", defaultVertexShaderSource, defaultFragmentShaderSource, 0, nullptr);
     if (!success) {
         fprintf(stderr, "GL: Failed to compile default shaders! Bailing...");
@@ -259,7 +259,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     gl->defaultShaderProgram = defaultShader;
 
-    gl->gmlShaders = safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
+    gl->gmlShaders = (GMLShader *)safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
     fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
 
     repeat(dataWin->shdr.count, i) {
@@ -319,7 +319,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     // EBO: pre-fill with quad index pattern (0,1,2,2,3,0 repeated)
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * (int32_t) sizeof(uint32_t);
-    uint32_t* indices = safeMalloc(eboSize);
+    uint32_t* indices = (uint32_t *)safeMalloc(eboSize);
     for (int32_t i = 0; MAX_QUADS > i; i++) {
         uint32_t base = (uint32_t) i * 4;
         indices[i * 6 + 0] = base + 0;
@@ -345,14 +345,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBindVertexArray(0);
 
     // Allocate CPU-side vertex buffer
-    gl->vertexData = safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * sizeof(float));
+    gl->vertexData = (float *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * sizeof(float));
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
     gl->textureCount = dataWin->txtr.count;
-    gl->glTextures = safeMalloc(gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeMalloc(gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
 
     glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -1834,10 +1834,10 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     // No free slot found, grow the arrays
     uint32_t newPageId = gl->textureCount;
     gl->textureCount++;
-    gl->glTextures = safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -1852,7 +1852,7 @@ static uint32_t findOrAllocTpagSlot(DataWin* dw, uint32_t originalTpagCount) {
     }
     uint32_t newIndex = dw->tpag.count;
     dw->tpag.count++;
-    dw->tpag.items = safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+    dw->tpag.items = (TexturePageItem *)safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
     memset(&dw->tpag.items[newIndex], 0, sizeof(TexturePageItem));
     dw->tpag.items[newIndex].texturePageId = -1;
     return newIndex;
@@ -2111,7 +2111,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
-    uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
+    uint8_t* pixels = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
 
     glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -2157,7 +2157,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
-    sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices = (int32_t *)safeMalloc(sizeof(int32_t));
     sprite->tpagIndices[0] = (int32_t) tpagIndex;
     sprite->maskCount = 0;
     sprite->masks = nullptr;
@@ -2487,7 +2487,7 @@ static RendererVtable glVtable;
 // ===[ Public API ]===
 
 Renderer* GLRenderer_create(void) {
-    GLRenderer* gl = safeCalloc(1, sizeof(GLRenderer));
+    GLRenderer* gl = (GLRenderer *)safeCalloc(1, sizeof(GLRenderer));
     gl->base.vtable = &glVtable;
     glVtable.init = glInit;
     glVtable.destroy = glDestroy;

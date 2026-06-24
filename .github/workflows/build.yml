@@ -390,7 +390,7 @@ jobs:
             flags: '-std=gnu99 -w'
           - name: GCC 2.95
             compiler: g++-2.95
-            flags: '-fpermissive -w'
+            flags: '-w'
     name: Build (${{ matrix.name }})
     runs-on: ubuntu-24.04
     steps:
@@ -408,3 +408,16 @@ jobs:
         run: |
           sudo mv butterscotch ~/woody
           sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+
+  build-cxx:
+    name: Build as C++
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libglfw3-dev
+
+      - name: Build
+        run: make CC='g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1
