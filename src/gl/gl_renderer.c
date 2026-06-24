@@ -311,7 +311,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
             gl->isGL3 = true;
         }
-        gl->hasVAO = gl->isGL3 || glGenVertexArrays != nullptr || glGenVertexArraysOES != nullptr;
 #else
         int majorVersion = 0;
         if (versionStr != nullptr) {
@@ -319,8 +318,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         }
         
         gl->isGL3 = (majorVersion >= 3);
-        gl->hasVAO = gl->isGL3 || glGenVertexArrays != nullptr;
 #endif
+
+    const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
+    gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
+            strstr(extensions, "GL_OES_vertex_array_object")));
 
     char vertSrc[1024];
     char fragSrc[1024];
