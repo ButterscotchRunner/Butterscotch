@@ -101,7 +101,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #else
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 #endif
     }
@@ -119,11 +119,30 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
             reqW, reqH,
             flags
     );
-#ifdef ENABLE_GLES
-    if (!window && gfx == MODERN_GL) {
-        fprintf(stderr, "Warning: Could not create window with GLES 3.0 attributes (%s), retrying with GLES 2.0...\n", SDL_GetError());
+    
+    SDL_GLContext gl_context = NULL;
+    
+    if (window && gfx != SOFTWARE) {
+        gl_context = SDL_GL_CreateContext(window);
+    }
+    
+    if ((!window || !gl_context) && gfx == MODERN_GL) {
+        fprintf(stderr, "Warning: Could not create OpenGL 3 context (%s), retrying with OpenGL 2...\n", SDL_GetError());
+        
+        if (window) {
+            SDL_DestroyWindow(window);
+            window = NULL;
+        }
+    
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    #ifdef ENABLE_GLES
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    #else
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    #endif
+    
         window = SDL_CreateWindow(
                 title,
                 SDL_WINDOWPOS_UNDEFINED,
@@ -131,8 +150,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
                 reqW, reqH,
                 flags
         );
+        
+        if (window) {
+            gl_context = SDL_GL_CreateContext(window);
+        }
     }
-#endif
+    
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
@@ -154,14 +177,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!SDL_GL_CreateContext(window)) {
+        if (!gl_context) {
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
         }
         SDL_GL_SetSwapInterval(0); // disable vsync
-    } else
+    } else {
         scr = SDL_GetWindowSurface(window);
-
+    }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
