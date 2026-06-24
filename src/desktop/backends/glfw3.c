@@ -225,27 +225,25 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
-    if (!window) {
-#ifdef ENABLE_GLES
-        fprintf(stderr, "Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
+    if (!window && gfx == MODERN_GL) {
+        fprintf(stderr, "Failed to create OpenGL 3 context, retrying with OpenGL 2...\n");
         
         glfwDefaultWindowHints(); 
+#ifdef ENABLE_GLES
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        
-        window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
-        
-        if (!window) {
-            fprintf(stderr, "Failed to create GLFW window )\n");
-            glfwTerminate();
-            return false;
-        }
 #else
-        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#endif
+        window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+    }
+    if (!window) {
+        fprintf(stderr, "Failed to create GLFW window )\n");
         glfwTerminate();
         return false;
-#endif
     }
 
     glfwMakeContextCurrent(window);

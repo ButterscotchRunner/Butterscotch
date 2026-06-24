@@ -197,24 +197,21 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 #endif
 
     int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-    if (!window) {
-#ifdef ENABLE_GLES
-        fprintf(stderr, "Failed to create GLES 3.0 context, retrying with GLES 2.0...\n");
-        
+    if (!window && gfx == MODERN_GL) {
+        fprintf(stderr, "Failed to create GL(ES) 3 context, retrying with GL(ES) 2...\n");
         glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+#ifdef ENABLE_GLES
         glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#else
+        glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#endif
 
         window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-        if (!window) {
-            fprintf(stderr, "Failed to create GLFW window\n");
-            glfwTerminate();
-            return false;
-        }
-#else
-            fprintf(stderr, "Failed to create GLFW window\n");
-            glfwTerminate();
-            return false;
-#endif
+    }
+    if (!window) {
+        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        return false;
     }
 
     glfwSetWindowTitle(title);

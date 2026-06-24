@@ -96,6 +96,27 @@ static GLboolean __bs_glIsVertexArray(GLuint array) {
 #define glIsVertexArray __bs_glIsVertexArray
 #endif
 
+#if !defined(__EMSCRIPTEN__) && !defined(ENABLE_GLES)
+    // Map VAO core functions to ARB extensions
+    #ifndef glBindVertexArray
+        #define glBindVertexArray glBindVertexArrayARB
+        #define glGenVertexArrays glGenVertexArraysARB
+        #define glDeleteVertexArrays glDeleteVertexArraysARB
+        #define glIsVertexArray glIsVertexArrayARB
+    #endif
+
+    // Map FBO core functions to EXT extensions
+    #ifndef glGenFramebuffers
+        #define GL_FRAMEBUFFER 0x8D40
+        #define GL_COLOR_ATTACHMENT0 0x8CE0
+        #define glGenFramebuffers glGenFramebuffersEXT
+        #define glBindFramebuffer glBindFramebufferEXT
+        #define glFramebufferTexture2D glFramebufferTexture2DEXT
+        #define glDeleteFramebuffers glDeleteFramebuffersEXT
+        #define glCheckFramebufferStatus glCheckFramebufferStatusEXT
+    #endif
+#endif
+
 // ===[ Shader Compilation ]===
 
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
@@ -284,22 +305,27 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
     fprintf(stderr, "GL: versionStr=%s\n", versionStr);
-    gl->isGLES3 = false;
+    gl->isGL3 = false;
 
-    #if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
+#if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
         if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
-            gl->isGLES3 = true;
+            gl->isGL3 = true;
         }
-        gl->hasVAO = (glGenVertexArrays != nullptr || glGenVertexArraysOES != nullptr);
-    #else
-        gl->isGLES3 = true; // Desktop Core OpenGL is generally treated as GLES3 equivalent here
-        gl->hasVAO = true;
-    #endif
+        gl->hasVAO = gl->isGL3 || glGenVertexArrays != nullptr || glGenVertexArraysOES != nullptr;
+#else
+        int majorVersion = 0;
+        if (versionStr != nullptr) {
+            sscanf((const char*)versionStr, "%d", &majorVersion);
+        }
+        
+        gl->isGL3 = (majorVersion >= 3);
+        gl->hasVAO = gl->isGL3 || glGenVertexArrays != nullptr;
+#endif
 
     char vertSrc[1024];
     char fragSrc[1024];
 
-    if (gl->isGLES3) {
+    if (gl->isGL3) {
         snprintf(vertSrc, sizeof(vertSrc),
 #ifdef ENABLE_GLES
             "#version 300 es\nprecision highp float;\n"
@@ -319,12 +345,20 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", baseFragmentShader);
     } else {
         snprintf(vertSrc, sizeof(vertSrc),
+#ifdef ENABLE_GLES
             "#version 100\nprecision highp float;\n"
+#else
+            "#version 120\n"
+#endif
             "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
+#ifdef ENABLE_GLES
             "#version 100\nprecision mediump float;\n"
+#else
+            "#version 120\n"
+#endif
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
             "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", baseFragmentShader);
     }
@@ -711,7 +745,7 @@ static void glEndFrameEnd(Renderer* renderer) {
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
 
-    if (gl->isGLES3) {
+    if (gl->isGL3) {
         GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
         GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
     } else {
@@ -2112,7 +2146,7 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     if (0 > srcSurfaceID || (uint32_t) srcSurfaceID >= gl->surfaceCount || gl->surfaces[srcSurfaceID] == 0) return;
     if (0 > destSurfaceID || (uint32_t) destSurfaceID >= gl->surfaceCount || gl->surfaces[destSurfaceID] == 0) return;
 
-    if (gl->isGLES3) {
+    if (gl->isGL3) {
         GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
     } else {
         GLint prevBinding = 0;
