@@ -199,11 +199,11 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
     if (!window && gfx == MODERN_GL) {
         fprintf(stderr, "Failed to create GL(ES) 3 context, retrying with GL(ES) 2...\n");
-        glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 2);
 #ifdef ENABLE_GLES
-        glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
 #else
-        glfwOpenWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
 #endif
 
         window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
