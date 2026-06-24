@@ -8,7 +8,7 @@ project(butterscotch C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -Wvla)
 if(WERROR)
     add_compile_options(-Werror)
 endif()
