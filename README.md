@@ -58,7 +58,6 @@ Of course, there are exceptions that break game compatibility altogether:
 ## Supported Platforms
 
 * Windows
-* Android
 * Web
 * PlayStation 2
 * PlayStation 3
