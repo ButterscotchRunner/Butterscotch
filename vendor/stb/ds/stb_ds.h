@@ -513,7 +513,12 @@ extern void * stbds_shmode_func(size_t elemsize, int mode);
 #endif
 
 #if !defined(__cplusplus)
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L && (!defined(__GNUC__) || (__GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)))
+// This causes issues with old compilers, (GCC 3.0, Clang 1.1, and maybe more), and all it does
+// is allow the stb_ds functions to work on rvalues, which we don't do anywhere in the codebase.
+// I don't feel like figuring out the oldest version of every compiler this works on and writing
+// a huge conditional, so just disable it entirely.
+//#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#if 0
 #define STBDS_HAS_LITERAL_ARRAY
 #endif
 #endif
