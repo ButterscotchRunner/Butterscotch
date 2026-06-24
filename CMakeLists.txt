@@ -692,17 +692,44 @@ elseif(PLATFORM STREQUAL "libretro")
     # bzip2 needs -fPIC for linking into shared library
     set_target_properties(bzip2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-    # SW renderer, image decoder, stb image loader
+    if(ENABLE_SW_RENDERER)
+        target_sources(butterscotch PRIVATE
+            src/sw/sw_renderer.c
+            src/desktop/stb_impl.c
+        )
+        target_include_directories(butterscotch PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/sw
+        )
+    else()
+        target_sources(butterscotch PRIVATE
+            src/gl/gl_renderer.c
+            src/gl_common/gl_common.c
+            src/libretro/libretro-common/glsym/glsym_es3.c
+            src/libretro/libretro-common/glsm/glsm.c
+            src/libretro/libretro-common/glsym/rglgen.c
+        )
+        target_include_directories(butterscotch PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/gl
+            ${CMAKE_SOURCE_DIR}/src/gl_common
+        )
+        target_compile_definitions(butterscotch PRIVATE HAVE_OPENGLES HAVE_OPENGLES3)
+        add_compile_definitions(ENABLE_GLES)
+
+        find_library(GLES2_LIB GLESv2)
+        target_link_libraries(butterscotch PRIVATE ${GLES2_LIB})
+
+        target_compile_definitions(butterscotch PRIVATE GLclampd=GLclampf)
+    endif()
     target_sources(butterscotch PRIVATE
-        src/sw/sw_renderer.c
         src/image/image_decoder.c
         src/desktop/stb_impl.c
     )
+
     target_include_directories(butterscotch PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/sw
         ${CMAKE_SOURCE_DIR}/src/image
         ${CMAKE_SOURCE_DIR}/src/desktop
         ${CMAKE_SOURCE_DIR}/src/libretro
+        ${CMAKE_SOURCE_DIR}/src/libretro/libretro-common/include
         vendor/stb/image
         vendor/stb/vorbis
     )
@@ -721,7 +748,12 @@ elseif(PLATFORM STREQUAL "libretro")
 
     # Libraries
     find_library(DL_LIB dl)
+    find_library(ATOMIC_LIB atomic)
+
     target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 m ${DL_LIB} ${AUDIO_LIBRARIES})
+    if(ATOMIC_LIB)
+        target_link_libraries(butterscotch PRIVATE ${ATOMIC_LIB})
+    endif()
 
     target_compile_definitions(butterscotch PRIVATE
         _GNU_SOURCE

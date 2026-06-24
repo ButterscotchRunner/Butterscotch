@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include "libretro.h"
+#include <glsm/glsmsym.h>
 
 #include "data_win.h"
 #include "vm.h"
@@ -11,7 +12,11 @@
 #include "runner_keyboard.h"
 #include "runner_mouse.h"
 #include "runner_gamepad.h"
+#ifdef ENABLE_GLES
+#include "gl/gl_renderer.h"
+#else
 #include "sw_renderer.h"
+#endif
 #include "ma_audio_system.h"
 #include "overlay_file_system.h"
 #include "desktop/platformdefs.h"
@@ -37,6 +42,9 @@ static double   lastFrameStartTime = 0.0;
 
 enum GraphicsAPI gfx = SOFTWARE;
 InputRecording*  globalInputRecording = nullptr;
+
+static bool use_hw_renderer  = false;
+static bool hw_context_valid = false;
 
 static uint32_t* nextFb  = nullptr;
 static int       nextFbW = 0;
@@ -69,7 +77,16 @@ void platformExit(void) {}
 
 void platformSwapBuffers(void) {}
 
-void* platformGetProcAddress(const char* name) { (void)name; return nullptr; }
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+void *platformGetProcAddress(const char *name)
+{
+  glsm_ctx_proc_address_t proc;
+  proc.addr = NULL;
+  if (!glsm_ctl(GLSM_CTL_PROC_ADDRESS_GET, &proc))
+    return NULL;
+  return (void*)proc.addr(name);
+}
+#endif
 
 double platformGetTime(void)
 {
@@ -108,6 +125,73 @@ void platformSetWindowSize(int32_t width, int32_t height)
 void platformSetWindowTitle(const char* title) { (void)title; }
 
 void platformSleepUntil(uint64_t time) { (void)time; }
+
+static void context_reset(void)
+{
+  log_cb(RETRO_LOG_INFO, "butterscotch: GL context reset\n");
+
+
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+  static bool first_init = true;
+  printf("context_reset.\n");
+  glsm_ctl(GLSM_CTL_STATE_CONTEXT_RESET, NULL);
+
+  if (first_init)
+  {
+    glsm_ctl(GLSM_CTL_STATE_SETUP, NULL);
+    first_init = false;
+  }
+#endif
+
+#ifdef ENABLE_GLES
+  g_renderer = GLRenderer_create();
+  GLRenderer* gl = (GLRenderer*)g_renderer;
+  gl->hostFramebuffer = glsm_get_current_framebuffer();
+#endif
+
+  MaAudioSystem* maAudio = MaAudioSystem_create(g_dataWin);
+  AudioSystem* audio = (AudioSystem*)maAudio;
+
+  g_runner = Runner_create(g_dataWin, g_vm,
+                            g_renderer,
+                            (FileSystem *)g_overlayFs, audio);
+  g_runner->osType          = OS_WINDOWS;
+  g_runner->setWindowSize   = platformSetWindowSize;
+  g_runner->getWindowSize   = platformGetWindowSize;
+  g_runner->setWindowTitle  = platformSetWindowTitle;
+  platformInitFunctions(g_runner);
+
+  Runner_initFirstRoom(g_runner);
+  lastFrameStartTime = platformGetTime();
+
+  if (!g_renderer)
+  {
+    use_hw_renderer = false;
+  }
+  else
+  {
+    hw_context_valid = true;
+    log_cb(RETRO_LOG_INFO, "butterscotch: GLES3 renderer ready\n");
+  }
+
+  if (g_runner)
+    g_runner->renderer = g_renderer;
+
+}
+
+static void context_destroy(void)
+{
+  log_cb(RETRO_LOG_INFO, "butterscotch: GL context destroyed\n");
+  hw_context_valid = false;
+
+  if (g_renderer)
+  {
+    g_renderer->vtable->destroy(g_renderer);
+    g_renderer = NULL;
+    if (g_runner)
+      g_runner->renderer = NULL;
+  }
+}
 
 static int retroKeyToGml(unsigned key)
 {
@@ -319,6 +403,21 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
 void retro_init(void)
 {
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+  glsm_ctx_params_t params = {0};
+  params.context_reset   = context_reset;
+  params.context_destroy = context_destroy;
+  params.environ_cb      = environ_cb;
+  params.stencil         = false;
+  params.major           = 3;
+  params.minor           = 0;
+  params.context_type    = RETRO_HW_CONTEXT_OPENGLES3;
+
+  use_hw_renderer = glsm_ctl(GLSM_CTL_STATE_CONTEXT_INIT, &params);
+  if (!use_hw_renderer)
+      log_cb(RETRO_LOG_WARN,
+              "butterscotch: missing opengles 3 support \n");
+#endif
   enum retro_pixel_format pixfmt = RETRO_PIXEL_FORMAT_XRGB8888;
   environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &pixfmt);
 }
@@ -397,7 +496,7 @@ bool retro_load_game(const struct retro_game_info *game)
 
   fbWidth  = g_gen8->defaultWindowWidth  > 0 ? (int32_t)g_gen8->defaultWindowWidth  : 640;
   fbHeight = g_gen8->defaultWindowHeight > 0 ? (int32_t)g_gen8->defaultWindowHeight : 480;
-
+#if !defined(ENABLE_GLES)
   g_renderer = SWRenderer_create();
   if (!g_renderer)
   {
@@ -419,19 +518,8 @@ bool retro_load_game(const struct retro_game_info *game)
 
   lastFrameStartTime = platformGetTime();
 
-  Dl_info dl;
-  if (dladdr((void*)retro_init, &dl) && dl.dli_fname)
-  {
-    char core_path[4096];
-    strncpy(core_path, dl.dli_fname, sizeof(core_path) - 1);
-    core_path[sizeof(core_path) - 1] = '\0';
-    char* p = strrchr(core_path, '/');
-    if (p)
-    {
-      *p = '\0';
-      chdir(core_path);
-    }
   }
+#endif
 
   struct retro_keyboard_callback kbcb = { .callback = keyboard_cb };
   environ_cb(RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK, &kbcb);
@@ -450,7 +538,7 @@ void retro_unload_game(void)
   if (g_runner)
   {
     g_runner->audioSystem->vtable->destroy(g_runner->audioSystem);
-    g_renderer->vtable->destroy(g_renderer);
+    if (g_renderer) g_renderer->vtable->destroy(g_renderer);
     Runner_free(g_runner);
     g_runner = nullptr;
   }
@@ -578,6 +666,38 @@ void retro_run(void)
   float displayScaleX, displayScaleY;
   Runner_computeViewDisplayScale(g_runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+  glsm_ctl(GLSM_CTL_STATE_BIND, NULL);
+
+  Runner_drawPre(g_runner, fbWidth, fbHeight);
+  Runner_beginFrame(g_runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
+
+  if (g_runner->drawBackgroundColor)
+  {
+    uint32_t c = g_runner->backgroundColor;
+    glClearColor(((c >> 16) & 0xFF) / 255.0f,
+                    ((c >>  8) & 0xFF) / 255.0f,
+                    ( c        & 0xFF) / 255.0f,
+                    1.0f);
+  }
+  else
+  {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  }
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  Runner_drawViews(g_runner, gameW, gameH, false);
+  g_renderer->vtable->endFrameInit(g_renderer);
+  Runner_drawPost(g_runner, fbWidth, fbHeight);
+  g_renderer->vtable->endFrameEnd(g_renderer);
+  Runner_drawGUI(g_runner, fbWidth, fbHeight, gameW, gameH);
+
+  glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);
+
+  video_cb(RETRO_HW_FRAME_BUFFER_VALID,
+              (unsigned)fbWidth, (unsigned)fbHeight, 0);
+#else
+
   Runner_drawPre(g_runner, fbWidth, fbHeight);
   Runner_beginFrame(g_runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
   if (g_runner->drawBackgroundColor)
@@ -593,6 +713,7 @@ void retro_run(void)
 
   if (nextFb)
     video_cb(nextFb, nextFbW, nextFbH, nextFbW * (int)sizeof(uint32_t));
+#endif
 
   Runner_handlePendingRoomChange(g_runner);
 }
