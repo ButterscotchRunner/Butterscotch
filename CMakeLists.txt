@@ -708,6 +708,10 @@ elseif(PLATFORM STREQUAL "libretro")
             src/libretro/libretro-common/glsm/glsm.c
             src/libretro/libretro-common/glsym/rglgen.c
         )
+        set_source_files_properties(
+            src/libretro/libretro-common/glsm/glsm.c
+            PROPERTIES COMPILE_OPTIONS "-w"
+        )
         target_include_directories(butterscotch PRIVATE
             ${CMAKE_SOURCE_DIR}/src/gl
             ${CMAKE_SOURCE_DIR}/src/gl_common
