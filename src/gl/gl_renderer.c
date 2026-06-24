@@ -305,24 +305,30 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
     fprintf(stderr, "GL: versionStr=%s\n", versionStr);
-    gl->isGL3 = false;
-
-#if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
-        if (versionStr && strstr(versionStr, "OpenGL ES 3")) {
-            gl->isGL3 = true;
-        }
-#else
-        int majorVersion = 0;
-        if (versionStr != nullptr) {
-            sscanf((const char*)versionStr, "%d", &majorVersion);
-        }
-        
-        gl->isGL3 = (majorVersion >= 3);
-#endif
-
+    int glMajorVersion = 0;
+    bool isGLES = (versionStr != nullptr && strstr(versionStr, "OpenGL ES") != nullptr);
+    if (versionStr != nullptr) {
+        sscanf((const char*)versionStr, "%d", &glMajorVersion);
+    }
+    gl->isGL3 = (glMajorVersion >= 3);
+    
     const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
     gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
             strstr(extensions, "GL_OES_vertex_array_object")));
+    
+    bool hasFBO = 
+        (!isGLES && glMajorVersion >= 3) ||  // Core in Desktop OpenGL 3.0+
+        (isGLES && glMajorVersion >= 2) ||   // Core in OpenGL ES 2.0+
+        (extensions != nullptr && (
+            strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
+            strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
+            strstr(extensions, "GL_OES_framebuffer_object")    // OES Extension (Legacy Mobile)
+        ));
+    
+    if (!hasFBO) {
+        fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
+        abort();
+    }
 
     char vertSrc[1024];
     char fragSrc[1024];
