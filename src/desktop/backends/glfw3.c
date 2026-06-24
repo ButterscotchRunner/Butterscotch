@@ -241,7 +241,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
     }
     if (!window) {
-        fprintf(stderr, "Failed to create GLFW window )\n");
+        fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }
