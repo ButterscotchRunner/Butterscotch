@@ -38,6 +38,15 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
 };
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
+    if (gfx == SOFTWARE) {
+        *outContext = NULL;
+        return SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+    }
     if (gfx == LEGACY_GL) {
         SDL_GL_ResetAttributes(); // Start with a clean slate
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);

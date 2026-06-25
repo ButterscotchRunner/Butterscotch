@@ -15,6 +15,16 @@ static SDL_Surface* scr;
 static SDL_Window *window;
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
+    if (gfx == SOFTWARE) {
+        *outContext = NULL;
+        return SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+    }
     if (gfx == LEGACY_GL) {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
