@@ -14,7 +14,7 @@ static Runner *g_runner;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
-static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* out_context) {
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
     int i;
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {        
         SDL_Window *newWindow;
@@ -53,8 +53,8 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         );
 
         if (newWindow) {
-            *out_context = SDL_GL_CreateContext(newWindow);
-            if (*out_context) {
+            *outContext = SDL_GL_CreateContext(newWindow);
+            if (*outContext) {
                 return newWindow;
             }
             SDL_DestroyWindow(newWindow);
@@ -195,7 +195,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!gl_context) {
+        if (!glContext) {
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
         }
