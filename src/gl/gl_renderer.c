@@ -295,7 +295,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
     fprintf(stderr, "GL: versionStr=%s\n", versionStr);
-    int glMajorVersion = 0;
+    int major = 0;
+    int minor = 0;
     
     if (versionStr != nullptr) {
         const char* p = versionStr;
@@ -303,19 +304,23 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             p++;
         }
         if (*p) {
-            sscanf(p, "%d", &glMajorVersion);
+            sscanf(p, "%d", &major);
+        }
+        p = strchr(p, '.');
+        if (p && *p) {
+            sscanf(p + 1, "%d", &minor);
         }
     }
     
-    gl->isGL3 = (glMajorVersion >= 3);
+    gl->isGL3 = (major >= 3);
     
     const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
     gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
             strstr(extensions, "GL_OES_vertex_array_object")));
     
     bool hasFBO = 
-        (!gl->isGLES && glMajorVersion >= 3) ||  // Core in Desktop OpenGL 3.0+
-        (gl->isGLES && glMajorVersion >= 2) ||   // Core in OpenGL ES 2.0+
+        (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
+        (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
         (extensions != nullptr && (
             strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
             strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
@@ -363,8 +368,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             vertHeader = "#version 100\nprecision highp float;\n";
             fragHeader = "#version 100\nprecision mediump float;\n";
         } else {
-            vertHeader = "#version 120\n";
-            fragHeader = "#version 120\n";
+            vertHeader = "#version 110\n";
+            fragHeader = "#version 110\n";
         }
 
         snprintf(vertSrc, sizeof(vertSrc),
@@ -402,26 +407,40 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             continue;
         }
 
-        fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name);
-        if (gl->isGLES) {
-            compileProgram(
-                gmlShader,
-                shdr->name,
-                shdr->glslES_Vertex,
-                shdr->glslES_Fragment,
-                shdr->vertexAttributeCount,
-                shdr->vertexAttributes
-            );
-        } else {
-            compileProgram(
-                gmlShader,
-                shdr->name,
-                shdr->glsl_Vertex,
-                shdr->glsl_Fragment,
-                shdr->vertexAttributeCount,
-                shdr->vertexAttributes
-            );
+        fprintf(stderr, "GL: Compiling %s\n", shdr->name);
+        
+        const char* vertexShaderSource = gl->isGLES ? shdr->glslES_Vertex : shdr->glsl_Vertex;
+        const char* fragmentShaderSource = gl->isGLES ? shdr->glslES_Fragment : shdr->glsl_Fragment;
+        
+        char* patchedVertexSource = nullptr;
+        char* patchedFragmentSource = nullptr;
+
+        if (!gl->isGLES && major == 2 && minor == 0) { // super opengl 2.0 fuckery go go
+            if (vertexShaderSource && strstr(vertexShaderSource, "#version 120")) {
+                patchedVertexSource = strdup(vertexShaderSource);
+                char* loc = strstr(patchedVertexSource, "#version 120");
+                if (loc) loc[10] = '1';
+                vertexShaderSource = patchedVertexSource;
+            }
+            if (fragmentShaderSource && strstr(fragmentShaderSource, "#version 120")) {
+                patchedFragmentSource = strdup(fragmentShaderSource);
+                char* loc = strstr(patchedFragmentSource, "#version 120");
+                if (loc) loc[10] = '1';
+                fragmentShaderSource = patchedFragmentSource;
+            }
         }
+
+        compileProgram(
+            gmlShader,
+            shdr->name,
+            vertexShaderSource,
+            fragmentShaderSource,
+            shdr->vertexAttributeCount,
+            shdr->vertexAttributes
+        );
+
+        if (patchedVertexSource) free(patchedVertexSource);
+        if (patchedFragmentSource) free(patchedFragmentSource);
 
         gl->gmlShaderCount++;
     }
