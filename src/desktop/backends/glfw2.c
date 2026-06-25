@@ -18,6 +18,58 @@
 
 static Runner *g_runner;
 
+static bool tryOpenWindow(int reqW, int reqH) {
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
+#ifdef GLFW_OPENGL_VERSION_MAJOR
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
+#endif
+        return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) == GL_TRUE;
+    }
+
+    int i;
+    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
+#ifdef GLFW_OPENGL_VERSION_MAJOR
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+#ifdef GLFW_OPENGL_ES 
+            glfwOpenWindowHint(GLFW_OPENGL_ES, GL_TRUE);
+#endif
+        } else {
+#ifdef GLFW_OPENGL_ES
+            glfwOpenWindowHint(GLFW_OPENGL_ES, GL_FALSE);
+#endif
+            
+#ifdef GLFW_OPENGL_PROFILE
+            if (GLCommon_versions[i].major >= 3) {
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                } else {
+                    glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+                }
+            } else {
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
+            }
+#endif
+
+#ifdef GLFW_OPENGL_DEBUG_CONTEXT
+            glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+        }
+#endif
+        if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) == GL_TRUE) {
+            return true;
+        }
+        glfwCloseWindow();
+        fprintf(stderr, "Failed to create OpenGL %d.%d context, retrying with next version...\n", GLCommon_versions[i].major, GLCommon_versions[i].minor);
+    }
+
+    return false;
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -152,62 +204,13 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-        if (wantGLES) {
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-        } else {
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-            glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-        }
-#endif
-    }
-
     // Init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-    }
-#endif
-
-    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-    if (!window && gfx == MODERN_GL) {
-        fprintf(stderr, "Failed to create GL(ES) 3 context, retrying with GL(ES) 2...\n");
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 2);
-        if (wantGLES) {
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-        } else {
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-        }
-
-        window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-    }
-    if (!window) {
+    if (!tryOpenWindow(reqW, reqH)) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;

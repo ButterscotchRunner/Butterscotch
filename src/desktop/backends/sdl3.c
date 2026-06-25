@@ -37,6 +37,54 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
     [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
 };
 
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* out_context) {
+    int i;
+    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+        // Equivalent to glfwDefaultWindowHints()
+        SDL_GL_ResetAttributes();
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {            
+            if (GLCommon_versions[i].major >= 3) {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+            }
+        }
+        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+
+        if (newWindow) {
+            *out_context = SDL_GL_CreateContext(newWindow);
+            if (*out_context) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        
+        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version.\n", GLCommon_versions[i].gles ? "ES" : "core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
+    }
+    return NULL;
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -86,22 +134,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         openControllers[i] = NULL;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-        if (wantGLES) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-        }
-    }
-
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
@@ -111,21 +143,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         fbHeight,
         flags
     );
-    if (!window && gfx == MODERN_GL) {
-        fprintf(stderr, "Warning: Could not create window with OpenGL 3 attributes (%s), retrying with OpenGL 2...\n", SDL_GetError());
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-        if (wantGLES) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-        }
-        window = SDL_CreateWindow(
-            title,
-            fbWidth,
-            fbHeight,
-            flags
-        );
-    }
     
     SDL_GLContext gl_context = NULL;
     
@@ -133,32 +150,16 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         gl_context = SDL_GL_CreateContext(window);
     }
     
-    if ((!window || !gl_context) && gfx == MODERN_GL) {
-        fprintf(stderr, "Warning: Could not create OpenGL 3 context (%s), retrying with OpenGL 2...\n", SDL_GetError());
-        
+    if (!gl_context && gfx == MODERN_GL) {
         if (window) {
             SDL_DestroyWindow(window);
             window = NULL;
         }
+        window = tryOpenWindow(reqW, reqH, title, flags, &gl_context);
+    }
     
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-        if (wantGLES) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-        }
-    
-        window = SDL_CreateWindow(
-                title,
-                fbWidth,
-                fbHeight,
-                flags
-        );
-        if (window) {
-            gl_context = SDL_GL_CreateContext(window);
-        }
+    if (window && gfx != SOFTWARE) {
+        gl_context = SDL_GL_CreateContext(window);
     }
     
     if (!window && gfx == SOFTWARE) {

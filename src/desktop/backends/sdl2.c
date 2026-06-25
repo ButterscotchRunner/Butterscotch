@@ -14,6 +14,55 @@ static Runner *g_runner;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* out_context) {
+    int i;
+    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {        
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+        // Equivalent to glfwDefaultWindowHints()
+        SDL_GL_ResetAttributes();
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {            
+            if (GLCommon_versions[i].major >= 3) {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+            }
+        }
+        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            *out_context = SDL_GL_CreateContext(newWindow);
+            if (*out_context) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        
+        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version.\n", GLCommon_versions[i].gles ? "ES" : "core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
+    }
+    return NULL;
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -90,22 +139,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-        if (wantGLES) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-        }
-    }
-
     Uint32 flags;
     if (headless)
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_ALLOW_HIGHDPI;
@@ -126,34 +159,11 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         gl_context = SDL_GL_CreateContext(window);
     }
     
-    if ((!window || !gl_context) && gfx == MODERN_GL) {
-        fprintf(stderr, "Warning: Could not create OpenGL 3 context (%s), retrying with OpenGL 2...\n", SDL_GetError());
-        
+    if (!gl_context && gfx == MODERN_GL) {
         if (window) {
             SDL_DestroyWindow(window);
-            window = NULL;
         }
-    
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-        if (wantGLES) {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-        } else {
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-        }
-    
-        window = SDL_CreateWindow(
-                title,
-                SDL_WINDOWPOS_UNDEFINED,
-                SDL_WINDOWPOS_UNDEFINED,
-                reqW, reqH,
-                flags
-        );
-        
-        if (window) {
-            gl_context = SDL_GL_CreateContext(window);
-        }
+        window = tryOpenWindow(reqW, reqH, title, flags, &gl_context);
     }
     
     if (!window && gfx == SOFTWARE) {

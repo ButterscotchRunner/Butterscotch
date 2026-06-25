@@ -1323,7 +1323,7 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            ((GLRenderer *)renderer)->isGLES = wantGLES;
+            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
         }
 #endif
         if (!renderer) {
