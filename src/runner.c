@@ -724,7 +724,8 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         int32_t instanceCount = (int32_t) arrlen(runner->instances);
         repeat(instanceCount, i) {
             Instance* inst = runner->instances[i];
-            Drawable d = {0};
+            Drawable d;
+            ZERO_STRUCT(d);
             d.type = DRAWABLE_INSTANCE;
             d.depth = inst->depth;
             d.instance = inst;
@@ -734,7 +735,8 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
             repeat(room->tileCount, i) {
                 RoomTile* tile = &room->tiles[i];
-                Drawable d = {0};
+                Drawable d;
+                ZERO_STRUCT(d);
                 d.type = DRAWABLE_TILE;
                 d.depth = tile->tileDepth;
                 d.tileIndex = (int32_t) i;
@@ -744,7 +746,8 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             size_t runtimeLayersCount = arrlenu(runner->runtimeLayers);
             repeat(runtimeLayersCount, i) {
                 RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
-                Drawable d = {0};
+                Drawable d;
+                ZERO_STRUCT(d);
                 d.type = DRAWABLE_LAYER;
                 d.depth = runtimeLayer->depth;
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;

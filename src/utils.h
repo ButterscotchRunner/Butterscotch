@@ -121,6 +121,8 @@ static inline void* requireNotNullFunction(void* ptr, const char* file, int line
     _ptr; \
 })
 
+#define ZERO_STRUCT(s) memset(&(s), 0, sizeof(s))
+
 // Truncates to 6 decimal places, matching the HTML5 runner's ClampFloat
 static inline GMLReal clampFloat(GMLReal f) {
     return ((GMLReal) ((int64_t) (f * 1000000.0))) / 1000000.0;
