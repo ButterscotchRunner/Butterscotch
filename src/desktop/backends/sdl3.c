@@ -136,29 +136,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
-    window = SDL_CreateWindow(
-        title,
-        fbWidth,
-        fbHeight,
-        flags
-    );
     
-    SDL_GLContext gl_context = NULL;
+    SDL_GLContext glContext = NULL;
     
-    if (window && gfx != SOFTWARE) {
-        gl_context = SDL_GL_CreateContext(window);
-    }
+    window = tryOpenWindow(fbWidth, fbHeight, title, flags, &glContext);
     
-    if (!gl_context && gfx == MODERN_GL) {
-        if (window) {
-            SDL_DestroyWindow(window);
-            window = NULL;
-        }
-        window = tryOpenWindow(reqW, reqH, title, flags, &gl_context);
-    }
-    
-    if (window && gfx != SOFTWARE) {
-        gl_context = SDL_GL_CreateContext(window);
+    if (!(window || glContext) && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
     }
     
     if (!window && gfx == SOFTWARE) {
@@ -179,7 +164,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!gl_context) {
+        if (!glContext) {
             fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
             return false;
         }
