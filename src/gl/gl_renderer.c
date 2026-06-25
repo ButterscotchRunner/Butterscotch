@@ -105,6 +105,7 @@ static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
 }
 #undef glDeleteFramebuffers
 #define glDeleteFramebuffers rt_glDeleteFramebuffers
+#endif
 
 // ===[ Shader Compilation ]===
 
