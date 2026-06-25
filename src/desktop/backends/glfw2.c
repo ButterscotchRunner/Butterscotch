@@ -161,7 +161,6 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
     } else {
         if (wantGLES) {
-            glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
             glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
             glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
         } else {
