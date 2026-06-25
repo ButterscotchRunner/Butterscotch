@@ -318,14 +318,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
             strstr(extensions, "GL_OES_vertex_array_object")));
     
-    bool hasFBO = 
-        (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
-        (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
-        (extensions != nullptr && (
-            strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
-            strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
-            strstr(extensions, "GL_OES_framebuffer_object")    // OES Extension (Legacy Mobile)
-        ));
+    bool hasFBO = (glGenFramebuffers || glGenFramebuffersEXT);
     
     if (!hasFBO) {
         fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
