@@ -38,6 +38,28 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
 };
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
+    if (gfx == LEGACY_GL) {
+        SDL_GL_ResetAttributes(); // Start with a clean slate
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+        
+        SDL_Window *newWindow = SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+
+        if (newWindow) {
+            *outContext = SDL_GL_CreateContext(newWindow);
+            if (*outContext) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        return NULL;
+    }
     int i;
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
         SDL_Window *newWindow;
