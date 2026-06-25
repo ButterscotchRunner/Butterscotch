@@ -59,49 +59,49 @@ static const char* baseFragmentShader =
 #if !defined(__EMSCRIPTEN__)
 static void rt_glBindVertexArray(GLuint vao) {
     if (glBindVertexArray) glBindVertexArray(vao);
-    else if (glBindVertexArrayOES) glBindVertexArrayOES(vao);
+    else glBindVertexArrayOES(vao);
 }
 #undef glBindVertexArray
 #define glBindVertexArray rt_glBindVertexArray
 
 static void rt_glGenVertexArrays(GLsizei n, GLuint* arrays) {
     if (glGenVertexArrays) glGenVertexArrays(n, arrays);
-    else if (glGenVertexArraysOES) glGenVertexArraysOES(n, arrays);
+    else glGenVertexArraysOES(n, arrays);
 }
 #undef glGenVertexArrays
 #define glGenVertexArrays rt_glGenVertexArrays
 
 static void rt_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
     if (glDeleteVertexArrays) glDeleteVertexArrays(n, arrays);
-    else if (glDeleteVertexArraysOES) glDeleteVertexArraysOES(n, arrays);
+    else glDeleteVertexArraysOES(n, arrays);
 }
 #undef glDeleteVertexArrays
 #define glDeleteVertexArrays rt_glDeleteVertexArrays
 
 static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
     if (glGenFramebuffers) glGenFramebuffers(n, ids);
-    else if (glGenFramebuffersEXT) glGenFramebuffersEXT(n, ids);
+    else glGenFramebuffersEXT(n, ids);
 }
 #undef glGenFramebuffers
 #define glGenFramebuffers rt_glGenFramebuffers
 
 static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
     if (glBindFramebuffer) glBindFramebuffer(target, fb);
-    else if (glBindFramebufferEXT) glBindFramebufferEXT(target, fb);
+    else glBindFramebufferEXT(target, fb);
 }
 #undef glBindFramebuffer
 #define glBindFramebuffer rt_glBindFramebuffer
 
 static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
     if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
-    else if (glFramebufferTexture2DEXT) glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
+    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
 }
 #undef glFramebufferTexture2D
 #define glFramebufferTexture2D rt_glFramebufferTexture2D
 
 static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
     if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
-    else if (glDeleteFramebuffersEXT) glDeleteFramebuffersEXT(n, ids);
+    else glDeleteFramebuffersEXT(n, ids);
 }
 #undef glDeleteFramebuffers
 #define glDeleteFramebuffers rt_glDeleteFramebuffers
