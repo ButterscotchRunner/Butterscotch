@@ -18,7 +18,11 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
     int i;
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {        
         SDL_Window *newWindow;
-        int contextFlags = SDL_GL_CONTEXT_DEBUG_FLAG;
+        int contextFlags = 0;
+
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
