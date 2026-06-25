@@ -78,14 +78,6 @@ static void rt_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
 #undef glDeleteVertexArrays
 #define glDeleteVertexArrays rt_glDeleteVertexArrays
 
-static GLboolean rt_glIsVertexArray(GLuint array) {
-    if (glIsVertexArray) return glIsVertexArray(array);
-    if (glIsVertexArrayOES) return glIsVertexArrayOES(array);
-    return GL_FALSE;
-}
-#undef glIsVertexArray
-#define glIsVertexArray rt_glIsVertexArray
-
 static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
     if (glGenFramebuffers) glGenFramebuffers(n, ids);
     else if (glGenFramebuffersEXT) glGenFramebuffersEXT(n, ids);
@@ -113,15 +105,6 @@ static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
 }
 #undef glDeleteFramebuffers
 #define glDeleteFramebuffers rt_glDeleteFramebuffers
-
-static GLenum rt_glCheckFramebufferStatus(GLenum target) {
-    if (glCheckFramebufferStatus) return glCheckFramebufferStatus(target);
-    if (glCheckFramebufferStatusEXT) return glCheckFramebufferStatusEXT(target);
-    return 0;
-}
-#undef glCheckFramebufferStatus
-#define glCheckFramebufferStatus rt_glCheckFramebufferStatus
-#endif
 
 // ===[ Shader Compilation ]===
 
