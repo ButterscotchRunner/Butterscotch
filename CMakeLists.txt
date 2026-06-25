@@ -93,12 +93,6 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
-# OpenGL ES 3.0 / WebGL2 compatibility
-option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
-if (ENABLE_GLES AND ENABLE_LEGACY_GL)
-    set(ENABLE_LEGACY_GL OFF)
-endif()
-
 add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
@@ -310,7 +304,6 @@ elseif(PLATFORM STREQUAL "web")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)

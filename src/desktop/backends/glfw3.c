@@ -229,15 +229,14 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         fprintf(stderr, "Failed to create OpenGL 3 context, retrying with OpenGL 2...\n");
         
         glfwDefaultWindowHints(); 
-#ifdef ENABLE_GLES
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-#endif
+        if (wantGLES) {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        } else {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        }
         window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
     }
     if (!window) {

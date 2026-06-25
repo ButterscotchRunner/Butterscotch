@@ -114,12 +114,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     if (!window && gfx == MODERN_GL) {
         fprintf(stderr, "Warning: Could not create window with OpenGL 3 attributes (%s), retrying with OpenGL 2...\n", SDL_GetError());
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-#ifdef ENABLE_GLES
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-#endif
-    window = SDL_CreateWindow(
+        if (wantGLES) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        } else {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        }
+        window = SDL_CreateWindow(
             title,
             fbWidth,
             fbHeight,
