@@ -37,9 +37,8 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
     [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
 };
 
-static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
     if (gfx == SOFTWARE) {
-        *outContext = NULL;
         return SDL_CreateWindow(
             title,
             reqW,
@@ -61,8 +60,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         );
 
         if (newWindow) {
-            *outContext = SDL_GL_CreateContext(newWindow);
-            if (*outContext) {
+            if (SDL_GL_CreateContext(newWindow)) {
                 return newWindow;
             }
             SDL_DestroyWindow(newWindow);
@@ -167,12 +165,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
+
+    window = tryOpenWindow(fbWidth, fbHeight, title, flags);
     
-    SDL_GLContext glContext = NULL;
-    
-    window = tryOpenWindow(fbWidth, fbHeight, title, flags, &glContext);
-    
-    if (!(window || glContext) && gfx != SOFTWARE) {
+    if (!window && gfx != SOFTWARE) {
         fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }

@@ -14,9 +14,8 @@ static Runner *g_runner;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
-static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
     if (gfx == SOFTWARE) {
-        *outContext = NULL;
         return SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
@@ -39,8 +38,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         );
 
         if (newWindow) {
-            *outContext = SDL_GL_CreateContext(newWindow);
-            if (*outContext) {
+            if (SDL_GL_CreateContext(newWindow)) {
                 return newWindow;
             }
             SDL_DestroyWindow(newWindow);
@@ -85,8 +83,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         );
 
         if (newWindow) {
-            *outContext = SDL_GL_CreateContext(newWindow);
-            if (*outContext) {
+            if (SDL_GL_CreateContext(newWindow)) {
                 return newWindow;
             }
             SDL_DestroyWindow(newWindow);
@@ -184,12 +181,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #if SDL_VERSION_ATLEAST(2, 0, 1)
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
-
-    SDL_GLContext glContext = NULL;
     
-    window = tryOpenWindow(reqW, reqH, title, flags, &glContext);
+    window = tryOpenWindow(reqW, reqH, title, flags);
     
-    if (!(window || glContext) && gfx != SOFTWARE) {
+    if (!window && gfx != SOFTWARE) {
         fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
@@ -215,10 +210,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!glContext) {
-            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-            return false;
-        }
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else {
         scr = SDL_GetWindowSurface(window);
