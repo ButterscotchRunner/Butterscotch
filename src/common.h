@@ -22,18 +22,14 @@
 #define IS_BIG_ENDIAN
 #endif
 
-#if defined(__has_c_attribute)
-    #if __has_c_attribute(maybe_unused)
-        #define MAYBE_UNUSED [[maybe_unused]]
-    #endif
-#endif
-
-#ifndef MAYBE_UNUSED
-    #if defined(__GNUC__) || defined(__clang__)
-        #define MAYBE_UNUSED __attribute__((unused))
-    #else
-        #define MAYBE_UNUSED
-    #endif
+#if defined(__cplusplus) && __cplusplus >= 201703L
+    #define MAYBE_UNUSED [[maybe_unused]]
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+    #define MAYBE_UNUSED [[maybe_unused]]
+#elif defined(__GNUC__) || defined(__clang__)
+    #define MAYBE_UNUSED __attribute__((unused))
+#else
+    #define MAYBE_UNUSED
 #endif
 
 #if (defined(__GNUC__) && (__GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8))) || defined(__TINYC__)
