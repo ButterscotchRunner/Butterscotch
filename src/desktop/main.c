@@ -70,7 +70,7 @@ int platformInitGlad(GLADloadproc load) {
     glGetString = load("glGetString");
     const char *version;
     if (glGetString) {
-        version = glGetString(GL_VERSION);
+        version = (const char*)glGetString(GL_VERSION);
     } else
         return 0;
     // Load OpenGL function pointers via GLAD

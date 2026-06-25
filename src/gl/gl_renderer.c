@@ -352,17 +352,23 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         if (gl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
             fragHeader = "#version 300 es\nprecision mediump float;\n";
+            
+            snprintf(vertSrc, sizeof(vertSrc),
+                "%s"
+                "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
+                "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
+                vertHeader, baseVertexShader);
         } else {
-            vertHeader = "#version 410\n";
-            fragHeader = "#version 410\n";
+            vertHeader = "#version 130\n";
+            fragHeader = "#version 130\n";
+            
+            snprintf(vertSrc, sizeof(vertSrc),
+                "%s"
+                "in vec2 aPos;\nin vec4 aColor;\nin vec2 aTexCoord;\n"
+                "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
+                vertHeader, baseVertexShader);
         }
-        
-        snprintf(vertSrc, sizeof(vertSrc),
-            "%s"
-            "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
-            "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
-            vertHeader, baseVertexShader);
-
+    
         snprintf(fragSrc, sizeof(fragSrc),
             "%s"
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
