@@ -173,7 +173,6 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         }
 #endif
     }
-#endif
 
     // Init GLFW
     if (!glfwInit()) {
