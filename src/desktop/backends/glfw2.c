@@ -64,7 +64,7 @@ static bool tryOpenWindow(int reqW, int reqH) {
             return true;
         }
         glfwCloseWindow();
-        fprintf(stderr, "Failed to create OpenGL %d.%d context, retrying with next version...\n", GLCommon_versions[i].major, GLCommon_versions[i].minor);
+        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version...\n", GLCommon_versions[i].gles ? "ES" : "Core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
     }
 
     return false;
