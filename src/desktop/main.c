@@ -64,7 +64,29 @@
 
 enum GraphicsAPI gfx;
 
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
+int platformInitGlad(GLADloadproc load) {
+    glGetString = load("glGetString");
+    const char *version;
+    if (glGetString) {
+        version = glGetString(GL_VERSION);
+    } else
+        return 0;
+    // Load OpenGL function pointers via GLAD
+    // This will need to be modified if we ever want to support GLES 1.x
+    if (version && strstr(version, "OpenGL ES")) {
+        if (!gladLoadGLES2Loader(platformGetProcAddress))
+            return 0;
+        return 2;
+    } else {
+        if (!gladLoadGLLoader(platformGetProcAddress))
+            return 0;
+        return 1;
+    }
+}
+#endif
+
+#ifdef ENABLE_MODERN_GL
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
     switch (source) {
@@ -104,15 +126,28 @@ static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLen
 }
 
 static void installGLDebugCallback(void) {
-    if (!GLAD_GL_KHR_debug) {
-        fprintf(stderr, "OpenGL debug callback not available (driver does not expose GL_KHR_debug)\n");
+    if (glDebugMessageCallback && glDebugMessageControl) {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(glDebugCallback, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
         return;
     }
 
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallbackKHR(glDebugCallback, nullptr);
-    glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+    if (glDebugMessageCallbackKHR && glDebugMessageControlKHR) {
+        glEnable(GL_DEBUG_OUTPUT_KHR);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);
+        glDebugMessageCallbackKHR(glDebugCallback, NULL);
+        glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
+
+    if (glDebugMessageCallbackARB && glDebugMessageControlARB) {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+        glDebugMessageCallbackARB(glDebugCallback, NULL);
+        glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
 }
 #endif
 
@@ -1236,6 +1271,7 @@ int main(int argc, char* argv[]) {
         int32_t windowW, windowH;
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
+        int glad_ret;
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
@@ -1249,12 +1285,8 @@ int main(int argc, char* argv[]) {
 #else
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
-                // Load OpenGL function pointers via GLAD
-#ifdef ENABLE_GLES
-                if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
-#else
-                if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
-#endif
+                glad_ret = platformInitGlad((GLADloadproc)platformGetProcAddress);
+                if (glad_ret == 0) {
                     fprintf(stderr, "Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
@@ -1265,7 +1297,7 @@ int main(int argc, char* argv[]) {
 #endif
 
             // Install the OpenGL debug message callback
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#ifdef ENABLE_MODERN_GL
             if (gfx == MODERN_GL)
                 installGLDebugCallback();
 #endif
@@ -1288,8 +1320,10 @@ int main(int argc, char* argv[]) {
             renderer = GLLegacyRenderer_create();
 #endif
 #ifdef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL)
+        if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
+            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
+        }
 #endif
         if (!renderer) {
             fprintf(stderr, "Failed to initialize a renderer\n");

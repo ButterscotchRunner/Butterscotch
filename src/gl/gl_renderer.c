@@ -26,15 +26,6 @@
 #define INDICES_PER_QUAD 6
 
 // ===[ Shader Sources ]===
-#ifdef ENABLE_GLES
-    #define GLSL_VERSION_DIRECTIVE "#version 300 es\n"
-    #define GLSL_VERTEX_PRECISION  "precision highp float;\n"
-    #define GLSL_FRAGMENT_PRECISION "precision mediump float;\n"
-#else
-    #define GLSL_VERSION_DIRECTIVE "#version 410 core\n"
-    #define GLSL_VERTEX_PRECISION  ""
-    #define GLSL_FRAGMENT_PRECISION ""
-#endif
 
 static const char* baseVertexShader =
     "uniform mat4 uProjection;\n"
@@ -334,39 +325,38 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     char fragSrc[1024];
 
     if (gl->isGL3) {
+        if (gl->isGLES) {
+            snprintf(vertSrc, sizeof(vertSrc),
+                "#version 300 es\nprecision highp float;\n");
+            snprintf(fragSrc, sizeof(fragSrc),
+                "#version 300 es\nprecision mediump float;\n");
+        } else {
+            snprintf(vertSrc, sizeof(vertSrc),
+                "#version 410\n");
+            snprintf(fragSrc, sizeof(fragSrc),
+                "#version 410\n");
+        }
+        
         snprintf(vertSrc, sizeof(vertSrc),
-#ifdef ENABLE_GLES
-            "#version 300 es\nprecision highp float;\n"
-#else
-            "#version 410\n"
-#endif
             "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
             "out vec2 vTexCoord;\nout vec4 vColor;\n%s", baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
-#ifdef ENABLE_GLES
-            "#version 300 es\nprecision mediump float;\n"
-#else
-            "#version 410\n"
-#endif
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", baseFragmentShader);
     } else {
+        if (gl->isGLES) {
+            snprintf(vertSrc, sizeof(vertSrc), "#version 100\nprecision highp float;\n");
+            snprintf(fragSrc, sizeof(fragSrc), "#version 100\nprecision mediump float;\n");
+        } else {
+            snprintf(vertSrc, sizeof(vertSrc), "#version 120\n");
+            snprintf(fragSrc, sizeof(fragSrc), "#version 120\n");
+        }
         snprintf(vertSrc, sizeof(vertSrc),
-#ifdef ENABLE_GLES
-            "#version 100\nprecision highp float;\n"
-#else
-            "#version 120\n"
-#endif
             "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
-#ifdef ENABLE_GLES
-            "#version 100\nprecision mediump float;\n"
-#else
-            "#version 120\n"
-#endif
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
             "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", baseFragmentShader);
     }
@@ -394,19 +384,25 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         }
 
         fprintf(stderr, "GL: Compiling %s Vertex Shader\n", shdr->name);
-        compileProgram(
-            gmlShader,
-            shdr->name,
-#ifdef ENABLE_GLES
-            shdr->glslES_Vertex,
-            shdr->glslES_Fragment,
-#else
-            shdr->glsl_Vertex,
-            shdr->glsl_Fragment,
-#endif
-            shdr->vertexAttributeCount,
-            shdr->vertexAttributes
-        );
+        if (gl->isGLES) {
+            compileProgram(
+                gmlShader,
+                shdr->name,
+                shdr->glslES_Vertex,
+                shdr->glslES_Fragment,
+                shdr->vertexAttributeCount,
+                shdr->vertexAttributes
+            );
+        } else {
+            compileProgram(
+                gmlShader,
+                shdr->name,
+                shdr->glsl_Vertex,
+                shdr->glsl_Fragment,
+                shdr->vertexAttributeCount,
+                shdr->vertexAttributes
+            );
+        }
 
         gl->gmlShaderCount++;
     }

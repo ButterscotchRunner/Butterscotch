@@ -218,14 +218,8 @@ if(PLATFORM STREQUAL "desktop")
     endif()
 
     # GLAD
-    if(ENABLE_GLES)
-        add_compile_definitions(ENABLE_GLES)
-        add_library(glad STATIC vendor/glad-gles/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad-gles/include)
-    else()
-        add_library(glad STATIC vendor/glad/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad/include)
-    endif()
+    add_library(glad STATIC vendor/glad/src/glad.c)
+    target_include_directories(glad PUBLIC vendor/glad/include)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)

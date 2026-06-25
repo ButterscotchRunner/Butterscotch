@@ -150,13 +150,8 @@ endif
 endif
 
 ifdef ENABLE_GLAD
-ifdef ENABLE_GLES
-SRCS += vendor/glad-gles/src/glad.c
-INCLUDES += -Ivendor/glad-gles/include
-else
 SRCS += vendor/glad/src/glad.c
 INCLUDES += -Ivendor/glad/include
-endif
 endif
 
 ifeq ($(OS),Windows)
