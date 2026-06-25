@@ -29,7 +29,11 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     } else {
         int w = 0;
         int h = 0;
+#if SDL_VERSION_ATLEAST(2, 0, 1)
         SDL_GL_GetDrawableSize(window, &w, &h);
+#else
+        SDL_GetWindowSize(window, &w, &h);
+#endif
         if (w <= 0 || h <= 0) return false;
         *outW = w;
         *outH = h;
@@ -110,9 +114,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     Uint32 flags;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_ALLOW_HIGHDPI;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+#if SDL_VERSION_ATLEAST(2, 0, 1)
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
 
     window = SDL_CreateWindow(
             title,
@@ -326,6 +333,7 @@ bool platformHandleEvents(void) {
                 if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
             case SDL_WINDOWEVENT:
             case SDL_QUIT:
+                break;
         }
         switch(e.type) {
             case SDL_KEYDOWN:
