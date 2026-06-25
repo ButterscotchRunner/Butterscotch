@@ -23,27 +23,10 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
 #if SDL_VERSION_ATLEAST(2, 0, 2)
         SDL_GL_ResetAttributes();
 #else
-        SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 3);
-        SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 3);
-        SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 2);
-        SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
-        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_ACCUM_RED_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_ACCUM_GREEN_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_ACCUM_BLUE_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_ACCUM_ALPHA_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_STEREO, 0);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-        SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, -1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-        SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0);
 #endif
         contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
 
