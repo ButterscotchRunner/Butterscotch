@@ -63,7 +63,7 @@ static int MAX_MEMORY_BYTES = 0;
 static int heapCeilingBytes = 0;
 
 // 256-byte aligned buffers for libpad (one per port)
-static char padBuf[2][256] __attribute__((aligned(64)));
+static char padBuf[2][256] BS_ALIGN(64);
 
 // Controller button to GML key mapping
 typedef struct {

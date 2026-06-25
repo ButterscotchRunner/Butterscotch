@@ -9,7 +9,7 @@ on:
 jobs:
   build-glfw-linux-x86_64:
     name: Build (GLFW/Linux x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +23,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
 
       - name: Configure
-        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -36,7 +36,7 @@ jobs:
 
   build-glfw-windows-x86_64:
     name: Build (GLFW/Windows x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +71,7 @@ jobs:
           sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/x86_64-w64-mingw32/include/
 
       - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -84,7 +84,7 @@ jobs:
 
   build-glfw-linux-x86:
     name: Build (GLFW/Linux x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -114,7 +114,7 @@ jobs:
       - name: Configure
         run: |
           export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -127,7 +127,7 @@ jobs:
 
   build-glfw-windows-x86:
     name: Build (GLFW/Windows x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -183,7 +183,7 @@ jobs:
 
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ps2dev/ps2dev:latest
     strategy:
@@ -220,7 +220,7 @@ jobs:
         run: |
           mkdir -p build
           export CFLAGS="-fopt-info-inline-optimized=$PWD/build/inline_report.txt"
-          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DPLATFORM=ps2 ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: |
@@ -312,7 +312,7 @@ jobs:
 
   build-web:
     name: Build (Web)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -340,7 +340,7 @@ jobs:
           version: latest
 
       - name: Configure
-        run: emcmake cmake -B build -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: emcmake cmake -B build -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -353,13 +353,13 @@ jobs:
 
   build-ps3:
     name: Build (PS3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: scummvm/dockerized-toolchains:ps3
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -B build -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
 
       - name: Build bzip2 for PS3
         run: |
@@ -392,7 +392,7 @@ jobs:
             compiler: g++-2.95
             flags: '-fpermissive -w'
     name: Build (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Create Debian Woody chroot
         run: |

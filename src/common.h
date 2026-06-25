@@ -37,9 +37,17 @@
 #endif
 
 #if (defined(__GNUC__) && (__GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8))) || defined(__TINYC__)
-    #define ALIGN(x) __attribute__((aligned(x)));
+    #define BS_ALIGN(x) __attribute__((aligned(x)));
 #else
-    #define ALIGN(x)
+    #define BS_ALIGN(x)
+#endif
+
+#if defined(__GNUC__) || defined(__TINYC__)
+    #define NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER) && _MSC_VER >= 1400 // VS2005 or later
+    #define NOINLINE __declspec(noinline)
+#else
+    #define NOINLINE
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

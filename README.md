@@ -10,10 +10,6 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
-<div align="center">
-  <a href="https://play.google.com/store/apps/details?id=net.perfectdreams.butterscotch&referrer=utm_source%3Dgithub%26utm_medium%3Dreferral%26utm_content%3Dgithub-readme"><img width="239" height="71" alt="GetItOnGooglePlay_Badge_Web_color_English" src="https://github.com/user-attachments/assets/c6be56cb-68ca-41d6-b479-3bf2a95f0ba6" /></a>
-</div>
-
 > [!IMPORTANT]  
 > Butterscotch is still VERY early in development and it is NOT that good yet.
 
@@ -61,15 +57,28 @@ Of course, there are exceptions that break game compatibility altogether:
 
 ## Supported Platforms
 
-* Linux (GLFW, OpenGL)
-* macOS (GLFW, OpenGL)
-* Windows (GLFW, OpenGL, MinGW)
-* Android (Kotlin, OpenGL ES, Jetpack Compose)
-* Web (WASM, Emscripten, WebGL2)
-* PlayStation 2 (ps2sdk, gsKit)
-* PlayStation 3 (PSL1GHT, PS3GL)
-* Haiku (GLFW)
+* Windows
+* Web
+* PlayStation 2
+* PlayStation 3
 * ...and maybe more in the future!
+
+Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
+* Linux with glibc as old as about ~1996
+* FreeBSD as old as 2.2.8
+* Haiku
+
+The following backends are available for desktop platforms (Windows and POSIX systems).
+* GLFW 2
+* GLFW 3
+* SDL 1.2
+* SDL 2
+* SDL 3
+
+The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+* GCC 2.7 through 2.95 in C++ mode, and 3.0 and up in C99 mode
+* Clang 1.1 and up
+* TinyCC 0.9.27 and up
 
 ## Community Ports
 

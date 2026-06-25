@@ -6,19 +6,27 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include "math_compat.h"
 
 #include "real_type.h"
 
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)) \
+    || defined(__GNUC__) || defined(__clang__) || defined(__TINYC__)
+    #define TYPEOF(x) __typeof__(x)
+#else
+    #define TYPEOF(x) long long
+#endif
+
 #define forEach(type, item, array, count) \
-    for (typeof(count) item##_i_ = 0; item##_i_ < (count); item##_i_++) \
+    for (TYPEOF(count) item##_i_ = 0; item##_i_ < (count); ++item##_i_) \
     for (type* item = &(array)[item##_i_]; item; item = NULL)
 
 #define forEachIndexed(type, item, index, array, count) \
-    for (typeof(count) index = 0; index < (count); index++) \
+    for (TYPEOF(count) index = 0; index < (count); ++index) \
     for (type* item = &(array)[index]; item; item = NULL)
 
-#define repeat(n, it) for (typeof(n) it = 0; it < (n); ++it)
+#define repeat(n, it) for (TYPEOF(n) it = 0; it < (n); ++it)
 
 #define require(condition) \
     do { \
@@ -48,23 +56,15 @@ static inline void requireMessageFormatted(const char *file, int line, bool cond
     abort();
 }
 
-#define requireNotNull(ptr) ({ \
-typeof(ptr) _val = (ptr); \
-if (_val == NULL) { \
-fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", __FILE__, __LINE__, #ptr); \
-abort(); \
-} \
-_val; \
-})
-
-#define requireNotNullMessage(ptr, msg) ({ \
-typeof(ptr) _val = (ptr); \
-if (_val == NULL) { \
-fprintf(stderr, "%s:%d: requireNotNull failed: %s\n", __FILE__, __LINE__, (msg)); \
-abort(); \
-} \
-_val; \
-})
+static inline void* requireNotNullFunction(void* ptr, const char* file, int line, const char* name) {
+    if (!ptr) {
+        fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", file, line, name);
+        abort();
+    }
+    return ptr;
+}
+#define requireNotNull(ptr) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, #ptr)
+#define requireNotNullMessage(ptr, msg) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, msg)
 
 // Safe allocation macros - check for nullptr and abort with file/line info
 #define safeMalloc(size) ({ \

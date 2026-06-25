@@ -804,14 +804,15 @@ static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
 static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
     if (groupIndex > 0) {
         int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-        char buf[sz + 1];
-        snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
+        char *buf = (char *)safeMalloc(sz + 1);
+        snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
 
         // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
         FileSystem* fileSystem = ((AlAudioSystem*)audio)->fileSystem;
         char* resolvedPath = (((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf));
         if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
             fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+            free(buf);
             return;
         }
 
@@ -819,6 +820,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         options.parseAudo = true;
         DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
+        free(buf);
     }
 }
 

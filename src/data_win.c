@@ -890,7 +890,7 @@ static void parseBGND(BinaryReader* reader, DataWin* dw) {
             bg->gms2ExportedSpriteIndex = BinaryReader_readInt32(reader);
             bg->gms2FrameLength = BinaryReader_readInt64(reader);
             int tileIdCount = bg->gms2TileCount * bg->gms2ItemsPerTileCount;
-            bg->gms2TileIds = malloc(tileIdCount*sizeof(uint32_t));
+            bg->gms2TileIds = safeMalloc(tileIdCount*sizeof(uint32_t));
             repeat(tileIdCount, j) {
                 bg->gms2TileIds[j] = BinaryReader_readUint32(reader);
             }
