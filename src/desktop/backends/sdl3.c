@@ -37,7 +37,7 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
     [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
 };
 
-static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* out_context) {
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags, SDL_GLContext* outContext) {
     int i;
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
         SDL_Window *newWindow;
@@ -73,8 +73,8 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         );
 
         if (newWindow) {
-            *out_context = SDL_GL_CreateContext(newWindow);
-            if (*out_context) {
+            *outContext = SDL_GL_CreateContext(newWindow);
+            if (*outContext) {
                 return newWindow;
             }
             SDL_DestroyWindow(newWindow);

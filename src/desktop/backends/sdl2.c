@@ -161,17 +161,17 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
             flags
     );
     
-    SDL_GLContext gl_context = NULL;
+    SDL_GLContext glContext = NULL;
     
     if (window && gfx != SOFTWARE) {
-        gl_context = SDL_GL_CreateContext(window);
+        glContext = SDL_GL_CreateContext(window);
     }
     
-    if (!gl_context && gfx == MODERN_GL) {
+    if (!glContext && gfx == MODERN_GL) {
         if (window) {
             SDL_DestroyWindow(window);
         }
-        window = tryOpenWindow(reqW, reqH, title, flags, &gl_context);
+        window = tryOpenWindow(reqW, reqH, title, flags, &glContext);
     }
     
     if (!window && gfx == SOFTWARE) {
