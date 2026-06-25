@@ -20,7 +20,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         SDL_Window *newWindow;
         int contextFlags = 0;
 
-#if SDL_COMPILEDVERSION >= SDL_VERSIONNUM(2, 0, 2)
+#if SDL_VERSION_ATLEAST(2, 0, 2)
         SDL_GL_ResetAttributes();
 #else
         SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 3);
