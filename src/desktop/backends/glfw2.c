@@ -30,27 +30,21 @@ static bool tryOpenWindow(int reqW, int reqH) {
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
-
-        if (GLCommon_versions[i].gles) {
-            glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        } else {
-            glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
             
-            if (GLCommon_versions[i].major >= 3) {
-                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
-                    glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-                } else {
-                    glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
-                }
+        if (GLCommon_versions[i].major >= 3) {
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             } else {
-                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
             }
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
+        }
 
 #ifndef NDEBUG
-            glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
-        }
         if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0) {
             return true;
         }

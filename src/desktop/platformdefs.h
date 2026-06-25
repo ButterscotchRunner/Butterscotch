@@ -49,9 +49,11 @@ static const struct {
     { 3, 0, false },
     { 2, 1, false },
     { 2, 0, false },
+#ifndef USE_GLFW2
     /* GLES */
     { 3, 2, true  },
     { 3, 1, true  },
     { 3, 0, true  },
     { 2, 0, true  },
+#endif
 };
