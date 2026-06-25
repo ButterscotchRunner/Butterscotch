@@ -49,63 +49,78 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
-#if defined(ENABLE_GLES) && !defined(__EMSCRIPTEN__)
-static void __bs_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray != nullptr)
-        glBindVertexArray(vao);
-    else
-        glBindVertexArrayOES(vao);
-}
-#undef glBindVertexArray
-#define glBindVertexArray __bs_glBindVertexArray
-
-static void __bs_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays != nullptr)
-        glGenVertexArrays(n, arrays);
-    else
-        glGenVertexArraysOES(n, arrays);
-}
-#undef glGenVertexArrays
-#define glGenVertexArrays __bs_glGenVertexArrays
-
-static void __bs_glDeleteVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glDeleteVertexArrays != nullptr)
-        glDeleteVertexArrays(n, arrays);
-    else
-        glDeleteVertexArraysOES(n, arrays);
-}
-#undef glDeleteVertexArrays
-#define glDeleteVertexArrays __bs_glDeleteVertexArrays
-
-static GLboolean __bs_glIsVertexArray(GLuint array) {
-    if (glIsVertexArray != nullptr)
-        return glIsVertexArray(array);
-    else
-        return glIsVertexArrayOES(array);
-}
-#undef glIsVertexArray
-#define glIsVertexArray __bs_glIsVertexArray
+#ifndef GL_FRAMEBUFFER
+    #define GL_FRAMEBUFFER 0x8D40
+#endif
+#ifndef GL_COLOR_ATTACHMENT0
+    #define GL_COLOR_ATTACHMENT0 0x8CE0
 #endif
 
-#if !defined(__EMSCRIPTEN__) && !defined(ENABLE_GLES)
-    // Map VAO core functions to ARB extensions
-    #ifndef glBindVertexArray
-        #define glBindVertexArray glBindVertexArrayARB
-        #define glGenVertexArrays glGenVertexArraysARB
-        #define glDeleteVertexArrays glDeleteVertexArraysARB
-        #define glIsVertexArray glIsVertexArrayARB
-    #endif
+#if !defined(__EMSCRIPTEN__)
+static void rt_glBindVertexArray(GLuint vao) {
+    if (glBindVertexArray) glBindVertexArray(vao);
+    else if (glBindVertexArrayOES) glBindVertexArrayOES(vao);
+}
+#undef glBindVertexArray
+#define glBindVertexArray rt_glBindVertexArray
 
-    // Map FBO core functions to EXT extensions
-    #ifndef glGenFramebuffers
-        #define GL_FRAMEBUFFER 0x8D40
-        #define GL_COLOR_ATTACHMENT0 0x8CE0
-        #define glGenFramebuffers glGenFramebuffersEXT
-        #define glBindFramebuffer glBindFramebufferEXT
-        #define glFramebufferTexture2D glFramebufferTexture2DEXT
-        #define glDeleteFramebuffers glDeleteFramebuffersEXT
-        #define glCheckFramebufferStatus glCheckFramebufferStatusEXT
-    #endif
+static void rt_glGenVertexArrays(GLsizei n, GLuint* arrays) {
+    if (glGenVertexArrays) glGenVertexArrays(n, arrays);
+    else if (glGenVertexArraysOES) glGenVertexArraysOES(n, arrays);
+}
+#undef glGenVertexArrays
+#define glGenVertexArrays rt_glGenVertexArrays
+
+static void rt_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
+    if (glDeleteVertexArrays) glDeleteVertexArrays(n, arrays);
+    else if (glDeleteVertexArraysOES) glDeleteVertexArraysOES(n, arrays);
+}
+#undef glDeleteVertexArrays
+#define glDeleteVertexArrays rt_glDeleteVertexArrays
+
+static GLboolean rt_glIsVertexArray(GLuint array) {
+    if (glIsVertexArray) return glIsVertexArray(array);
+    if (glIsVertexArrayOES) return glIsVertexArrayOES(array);
+    return GL_FALSE;
+}
+#undef glIsVertexArray
+#define glIsVertexArray rt_glIsVertexArray
+
+static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
+    if (glGenFramebuffers) glGenFramebuffers(n, ids);
+    else if (glGenFramebuffersEXT) glGenFramebuffersEXT(n, ids);
+}
+#undef glGenFramebuffers
+#define glGenFramebuffers rt_glGenFramebuffers
+
+static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
+    if (glBindFramebuffer) glBindFramebuffer(target, fb);
+    else if (glBindFramebufferEXT) glBindFramebufferEXT(target, fb);
+}
+#undef glBindFramebuffer
+#define glBindFramebuffer rt_glBindFramebuffer
+
+static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
+    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
+    else if (glFramebufferTexture2DEXT) glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
+}
+#undef glFramebufferTexture2D
+#define glFramebufferTexture2D rt_glFramebufferTexture2D
+
+static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
+    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
+    else if (glDeleteFramebuffersEXT) glDeleteFramebuffersEXT(n, ids);
+}
+#undef glDeleteFramebuffers
+#define glDeleteFramebuffers rt_glDeleteFramebuffers
+
+static GLenum rt_glCheckFramebufferStatus(GLenum target) {
+    if (glCheckFramebufferStatus) return glCheckFramebufferStatus(target);
+    if (glCheckFramebufferStatusEXT) return glCheckFramebufferStatusEXT(target);
+    return 0;
+}
+#undef glCheckFramebufferStatus
+#define glCheckFramebufferStatus rt_glCheckFramebufferStatus
 #endif
 
 // ===[ Shader Compilation ]===
@@ -297,10 +312,17 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* versionStr = (const char*) glGetString(GL_VERSION);
     fprintf(stderr, "GL: versionStr=%s\n", versionStr);
     int glMajorVersion = 0;
-    bool isGLES = (versionStr != nullptr && strstr(versionStr, "OpenGL ES") != nullptr);
+    
     if (versionStr != nullptr) {
-        sscanf((const char*)versionStr, "%d", &glMajorVersion);
+        const char* p = versionStr;
+        while (*p && (*p < '0' || *p > '9')) {
+            p++;
+        }
+        if (*p) {
+            sscanf(p, "%d", &glMajorVersion);
+        }
     }
+    
     gl->isGL3 = (glMajorVersion >= 3);
     
     const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
@@ -308,8 +330,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             strstr(extensions, "GL_OES_vertex_array_object")));
     
     bool hasFBO = 
-        (!isGLES && glMajorVersion >= 3) ||  // Core in Desktop OpenGL 3.0+
-        (isGLES && glMajorVersion >= 2) ||   // Core in OpenGL ES 2.0+
+        (!gl->isGLES && glMajorVersion >= 3) ||  // Core in Desktop OpenGL 3.0+
+        (gl->isGLES && glMajorVersion >= 2) ||   // Core in OpenGL ES 2.0+
         (extensions != nullptr && (
             strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
             strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
@@ -323,42 +345,49 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     char vertSrc[1024];
     char fragSrc[1024];
+    const char* vertHeader = "";
+    const char* fragHeader = "";
 
     if (gl->isGL3) {
         if (gl->isGLES) {
-            snprintf(vertSrc, sizeof(vertSrc),
-                "#version 300 es\nprecision highp float;\n");
-            snprintf(fragSrc, sizeof(fragSrc),
-                "#version 300 es\nprecision mediump float;\n");
+            vertHeader = "#version 300 es\nprecision highp float;\n";
+            fragHeader = "#version 300 es\nprecision mediump float;\n";
         } else {
-            snprintf(vertSrc, sizeof(vertSrc),
-                "#version 410\n");
-            snprintf(fragSrc, sizeof(fragSrc),
-                "#version 410\n");
+            vertHeader = "#version 410\n";
+            fragHeader = "#version 410\n";
         }
         
         snprintf(vertSrc, sizeof(vertSrc),
+            "%s"
             "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
-            "out vec2 vTexCoord;\nout vec4 vColor;\n%s", baseVertexShader);
+            "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
+            vertHeader, baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
+            "%s"
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
-            "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", baseFragmentShader);
+            "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", 
+            fragHeader, baseFragmentShader);
     } else {
         if (gl->isGLES) {
-            snprintf(vertSrc, sizeof(vertSrc), "#version 100\nprecision highp float;\n");
-            snprintf(fragSrc, sizeof(fragSrc), "#version 100\nprecision mediump float;\n");
+            vertHeader = "#version 100\nprecision highp float;\n";
+            fragHeader = "#version 100\nprecision mediump float;\n";
         } else {
-            snprintf(vertSrc, sizeof(vertSrc), "#version 120\n");
-            snprintf(fragSrc, sizeof(fragSrc), "#version 120\n");
+            vertHeader = "#version 120\n";
+            fragHeader = "#version 120\n";
         }
+
         snprintf(vertSrc, sizeof(vertSrc),
+            "%s"
             "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
-            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", baseVertexShader);
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", 
+            vertHeader, baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
+            "%s"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
-            "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", baseFragmentShader);
+            "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", 
+            fragHeader, baseFragmentShader);
     }
 
     const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };

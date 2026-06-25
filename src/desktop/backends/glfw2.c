@@ -160,16 +160,17 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
     } else {
-#ifdef ENABLE_GLES
-        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-#else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        if (wantGLES) {
+            glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        }
 #endif
     }
 #endif
@@ -200,11 +201,11 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (!window && gfx == MODERN_GL) {
         fprintf(stderr, "Failed to create GL(ES) 3 context, retrying with GL(ES) 2...\n");
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 2);
-#ifdef ENABLE_GLES
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-#else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-#endif
+        if (wantGLES) {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
+        }
 
         window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
     }

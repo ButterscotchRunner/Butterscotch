@@ -63,6 +63,7 @@
 #endif
 
 enum GraphicsAPI gfx;
+bool wantGLES;
 
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 int platformInitGlad(GLADloadproc load) {
@@ -1322,7 +1323,7 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
+            ((GLRenderer *)renderer)->isGLES = wantGLES;
         }
 #endif
         if (!renderer) {
