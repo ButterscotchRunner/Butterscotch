@@ -417,13 +417,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         if (!gl->isGLES && major == 2 && minor == 0) { // super opengl 2.0 fuckery go go
             if (vertexShaderSource && strstr(vertexShaderSource, "#version 120")) {
-                patchedVertexSource = strdup(vertexShaderSource);
+                patchedVertexSource = safeStrdup(vertexShaderSource);
                 char* loc = strstr(patchedVertexSource, "#version 120");
                 if (loc) loc[10] = '1';
                 vertexShaderSource = patchedVertexSource;
             }
             if (fragmentShaderSource && strstr(fragmentShaderSource, "#version 120")) {
-                patchedFragmentSource = strdup(fragmentShaderSource);
+                patchedFragmentSource = safeStrdup(fragmentShaderSource);
                 char* loc = strstr(patchedFragmentSource, "#version 120");
                 if (loc) loc[10] = '1';
                 fragmentShaderSource = patchedFragmentSource;
