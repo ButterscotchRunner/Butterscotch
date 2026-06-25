@@ -153,14 +153,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
-        SDL_GLContext glContext = NULL;
-        
-        window = tryOpenWindow(reqW, reqH, title, flags, &glContext);
-        
-        if (!(window || glContext) && gfx != SOFTWARE) {
-            fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
-            return false;
-        }
+    SDL_GLContext glContext = NULL;
+    
+    window = tryOpenWindow(reqW, reqH, title, flags, &glContext);
+    
+    if (!(window || glContext) && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
     
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
