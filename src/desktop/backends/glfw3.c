@@ -73,7 +73,6 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
             return window;
         }
 
-        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version...\n", GLCommon_versions[i].gles ? "ES" : "Core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
     }
 
     return NULL;

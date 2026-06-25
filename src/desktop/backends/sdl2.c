@@ -60,7 +60,6 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             SDL_DestroyWindow(newWindow);
         }
         
-        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version.\n", GLCommon_versions[i].gles ? "ES" : "core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
     }
     return NULL;
 }

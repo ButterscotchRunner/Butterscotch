@@ -294,7 +294,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
-    fprintf(stderr, "GL: versionStr=%s\n", versionStr);
+    fprintf(stderr, "OpenGL version: %s\n", versionStr);
     int major = 0;
     int minor = 0;
     

@@ -19,17 +19,15 @@
 static Runner *g_runner;
 
 static bool tryOpenWindow(int reqW, int reqH) {
-    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
 #ifdef GLFW_OPENGL_VERSION_MAJOR
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
-#endif
-        return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) == GL_TRUE;
+        return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
     }
 
     int i;
     for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
-#ifdef GLFW_OPENGL_VERSION_MAJOR
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
 
@@ -42,7 +40,6 @@ static bool tryOpenWindow(int reqW, int reqH) {
             glfwOpenWindowHint(GLFW_OPENGL_ES, GL_FALSE);
 #endif
             
-#ifdef GLFW_OPENGL_PROFILE
             if (GLCommon_versions[i].major >= 3) {
                 glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
                 if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
@@ -53,21 +50,21 @@ static bool tryOpenWindow(int reqW, int reqH) {
             } else {
                 glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
             }
-#endif
 
-#ifdef GLFW_OPENGL_DEBUG_CONTEXT
+#ifndef NDEBUG
             glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
         }
-#endif
-        if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) == GL_TRUE) {
+        if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0) {
             return true;
         }
         glfwCloseWindow();
-        fprintf(stderr, "Failed to create OpenGL %s %d.%d context, retrying with next version...\n", GLCommon_versions[i].gles ? "ES" : "Core", GLCommon_versions[i].major, GLCommon_versions[i].minor);
     }
 
     return false;
+#else
+    return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+#endif
 }
 
 void platformSetWindowTitle(const char* title) {
