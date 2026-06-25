@@ -255,7 +255,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    window = tryOpenWindow(reqW, reqH, "Butterscotch");
+    window = tryOpenWindow(reqW, reqH, title);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
