@@ -14,7 +14,6 @@
 #include "runner_mouse.h"
 
 static Runner *g_runner;
-static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
 static SDL_Gamepad* openControllers[MAX_GAMEPADS];
@@ -45,20 +44,64 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    *outW = fbWidth;
-    *outH = fbHeight;
+    if (gfx == SOFTWARE) {
+        if (scr->w <= 0 || scr->h <= 0) return false;
+        *outW = scr->w;
+        *outH = scr->h;
+    } else {
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSizeInPixels(window, &w, &h);
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
+    }
     return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
-    return platformGetWindowSize(outW, outH);
+    if (!outW || !outH) return false;
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-    fbWidth = width;
-    fbHeight = height;
-    SDL_SetWindowSize(window, width, height);
+    if (SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED) return;
+
+    // Account for correct size adjustment for multiple monitors
+    int32_t finalW = width;
+    int32_t finalH = height;
+    SDL_Rect usableBounds;
+    SDL_DisplayID displayID = SDL_GetDisplayForWindow(window);
+    if (displayID == 0) displayID = SDL_GetPrimaryDisplay();
+    if (SDL_GetDisplayUsableBounds(displayID, &usableBounds)) {
+        if (width > usableBounds.w || height > usableBounds.h) {
+            platformGetBestFitRes(width, height, usableBounds.w, usableBounds.h, &finalW, &finalH);
+        }
+    }
+
+    if (!platformCacheWindowSize(width, height)) return;
+
+    // No scale here for HIDPI, SDL3 seems to do it internally.
+    SDL_SetWindowSize(window, finalW, finalH);
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_SyncWindow(window);
+
+    // Move the window a bit down so the title bar is visible on large sizes.
+    int top_border, windowX, windowY;
+    SDL_GetWindowBordersSize(window, &top_border, NULL, NULL, NULL);
+    SDL_GetWindowPosition(window, &windowX, &windowY);
+    if (top_border > 0) {
+        windowY += top_border;
+        SDL_SetWindowPosition(window, windowX, windowY);
+    }
+
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
@@ -104,13 +147,34 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #endif
     }
 
-    Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
-    fbWidth = reqW;
-    fbHeight = reqH;
+    Uint32 flags;
+    if (headless)
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    else
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+
+    int finalW = reqW;
+    int finalH = reqH;
+    int num_displays = 0;
+    SDL_DisplayID *displays = SDL_GetDisplays(&num_displays);
+    if (displays && num_displays > 0) {
+        SDL_DisplayID primaryDisplay = displays[0];
+        SDL_Rect usableBounds;
+        if (SDL_GetDisplayUsableBounds(primaryDisplay, &usableBounds)) {
+            if (reqW >= usableBounds.w || reqH >= usableBounds.h) {
+                platformGetBestFitRes(reqW, reqH, usableBounds.w, usableBounds.h, &finalW, &finalH);
+                fprintf(stderr, "Warning: Requested resolution %dx%d is bigger than %dx%d, adjusting to %dx%d\n",
+                        reqW, reqH, usableBounds.w, usableBounds.h, finalW, finalH);
+            }
+        }
+    }
+    if (displays)
+        SDL_free(displays);
+
     window = SDL_CreateWindow(
         title,
-        fbWidth,
-        fbHeight,
+        finalW,
+        finalH,
         flags
     );
     if (!window && gfx == SOFTWARE) {
@@ -118,13 +182,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id);
         if (mode != NULL) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
-                    reqW, reqH, mode->w, mode->h, SDL_GetError());
-            fbWidth = mode->w;
-            fbHeight = mode->h;
+                    finalW, finalH, mode->w, mode->h, SDL_GetError());
+            finalW = mode->w;
+            finalH = mode->h;
             window = SDL_CreateWindow(
                 title,
-                fbWidth,
-                fbHeight,
+                finalW,
+                finalH,
                 flags
             );
         }
@@ -141,6 +205,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else
         scr = SDL_GetWindowSurface(window);
+
+    // If we don't do this, the window will be larger than it should be on HiDPI displays.
+    platformSetWindowSize(finalW, finalH);
 
     return true;
 }
@@ -339,45 +406,44 @@ static void mapSdl3ToGml(SDL_Gamepad* gp, GamepadSlot* slot) {
 }
 
 bool platformHandleEvents(void) {
-    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+            default:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
+                break;
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            case SDL_EVENT_QUIT:
+                break;
+        }
         switch(e.type) {
             case SDL_EVENT_KEY_DOWN:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.key.repeat != 0)
                     break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.key));
                 break;
             case SDL_EVENT_KEY_UP:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.key));
                 break;
             case SDL_EVENT_TEXT_INPUT:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
             } break;
             case SDL_EVENT_MOUSE_BUTTON_UP: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
             } break;
             case SDL_EVENT_MOUSE_WHEEL:
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.wheel.y != 0)
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
-            case SDL_EVENT_WINDOW_RESIZED:
-                fbWidth = e.window.data1;
-                fbHeight = e.window.data2;
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 if (gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
@@ -406,8 +472,7 @@ bool platformHandleEvents(void) {
                 break;
             }
             case SDL_EVENT_QUIT:
-                should_exit = true;
-                break;
+                return true;
             default:
                 break;
         }
@@ -463,7 +528,7 @@ bool platformHandleEvents(void) {
         }
     }
 
-    return should_exit;
+    return false;
 }
 
 void platformSleepUntil(uint64_t time) {

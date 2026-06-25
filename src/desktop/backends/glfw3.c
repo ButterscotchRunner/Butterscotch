@@ -5,6 +5,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <mmsystem.h>
 #endif
 
 #ifdef ENABLE_SW_RENDERER
@@ -57,13 +58,20 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
-    if (width <= 0 || height <= 0) return;
-    if (!window) return;
+    if (width <= 0 || height <= 0 || !window) return;
+    if (glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) return;
+    if (!platformCacheWindowSize(width, height)) return;
+
     float xs = 1.0f, ys = 1.0f;
     glfwGetWindowContentScale(window, &xs, &ys);
     int logicalW, logicalH;
     framebufferToLogical(xs, ys, width, height, &logicalW, &logicalH);
     glfwSetWindowSize(window, logicalW, logicalH);
+
+    const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    if (mode != NULL) {
+        glfwSetWindowPos(window, ((mode->width - logicalW) / 2), ((mode->height - logicalH) / 2));
+    }
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -72,7 +80,7 @@ void platformGetMousePos(double *xPos, double *yPos) {
 }
 
 static bool platformGetWindowFocus(void) {
-    return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
+    return glfwGetWindowAttrib(window, GLFW_FOCUSED);
 }
 
 static void glfwErrorCallback(int code, const char* description) {
@@ -170,10 +178,16 @@ static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         return false;
     }
 
@@ -224,10 +238,26 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+    int finalW = reqW;
+    int finalH = reqH;
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+    if (primaryMonitor) {
+        int workX, workY, workW, workH;
+        glfwGetMonitorWorkarea(primaryMonitor, &workX, &workY, &workW, &workH);
+        if (reqW >= workW || reqH >= workH) {
+            platformGetBestFitRes(reqW, reqH, workW, workH, &finalW, &finalH);
+            fprintf(stderr, "Warning: Requested resolution %dx%d is bigger than %dx%d, adjusting to %dx%d\n",
+                    reqW, reqH, workW, workH, finalW, finalH);
+        }
+    }
+
+    window = glfwCreateWindow(finalW, finalH, title, nullptr, nullptr);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         return false;
     }
 
@@ -236,7 +266,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 
     // If we don't do this, the window will be larger than it should be if you are using Wayland fractional scaling
     // We set the window size AFTER the window creation so we can use glfwGetWindowContentScale
-    platformSetWindowSize(reqW, reqH);
+    platformSetWindowSize(finalW, finalH);
 
     // Set up keyboard input
     glfwSetKeyCallback(window, keyCallback);
@@ -251,6 +281,9 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 void platformExit(void) {
     glfwDestroyWindow(window);
     glfwTerminate();
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
 }
 
 static void platformSetCursor(int32_t cursorType) {

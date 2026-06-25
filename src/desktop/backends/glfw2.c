@@ -3,6 +3,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <mmsystem.h>
 #endif
 
 #ifdef ENABLE_SW_RENDERER
@@ -39,9 +40,29 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return platformGetWindowSize(outW, outH);
 }
 
+static void platformGetTrueDesktopSize(int* outW, int* outH) {
+    GLFWvidmode list[256];
+    int numModes = glfwGetVideoModes(list, 256);
+
+    if (numModes > 0) {
+        *outW = list[numModes - 1].Width;
+        *outH = list[numModes - 1].Height;
+    } else {
+        GLFWvidmode mode;
+        glfwGetDesktopMode(&mode);
+        *outW = mode.Width;
+        *outH = mode.Height;
+    }
+}
+
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
+    if (!platformCacheWindowSize(width, height)) return;
     glfwSetWindowSize(width, height);
+
+    int desktopW, desktopH;
+    platformGetTrueDesktopSize(&desktopW, &desktopH);
+    glfwSetWindowPos(((desktopW - width) / 2), ((desktopH - height) / 2));
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -139,8 +160,8 @@ static void GLFWCALL mouseButtonCallback(int button, int action) {
     else if (action == GLFW_RELEASE) RunnerMouse_onButtonUp(g_runner->mouse, gmlButton);
 }
 
-static int g_last_wheel_pos = 0;
 static void GLFWCALL scrollCallback(int pos) {
+    static int g_last_wheel_pos = 0;
     double yoffset = (double)(pos - g_last_wheel_pos);
     g_last_wheel_pos = pos;
     if (g_runner) RunnerMouse_onWheel(g_runner->mouse, yoffset);
@@ -151,7 +172,9 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
         return false;
     }
-
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
 #ifdef GLFW_OPENGL_VERSION_MAJOR
     if (gfx == SOFTWARE) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
@@ -177,6 +200,9 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     // Init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         return false;
     }
 
@@ -196,12 +222,27 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     }
 #endif
 
-    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
+    int desktopW, desktopH;
+    platformGetTrueDesktopSize(&desktopW, &desktopH);
+
+    int finalW = reqW;
+    int finalH = reqH;
+    if (reqW >= desktopW || reqH >= desktopH) {
+        platformGetBestFitRes(reqW, reqH, desktopW, desktopH, &finalW, &finalH);
+        fprintf(stderr, "Warning: Requested resolution %dx%d is bigger than %dx%d, adjusting to %dx%d\n",
+                reqW, reqH, desktopW, desktopH, finalW, finalH);
+    }
+
+    int window = glfwOpenWindow(finalW, finalH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         return false;
     }
+    glfwSetWindowPos(((desktopW - finalW) / 2), ((desktopH - finalH) / 2));
 
     glfwSetWindowTitle(title);
 
@@ -220,14 +261,27 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 void platformExit(void) {
     glfwCloseWindow();
     glfwTerminate();
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
 }
 
+// GLFW2's mouse cursor locks the mouse position when it's invisible on Windows.
+// This just makes it visible/invisible as intended.
 static void platformSetCursor(int32_t cursorType) {
     // GLFW2 only supports showing/hiding
     if (cursorType == GML_CR_NONE) {
+#ifdef _WIN32
+        while (ShowCursor(FALSE) >= 0);
+#else
         glfwDisable(GLFW_MOUSE_CURSOR);
+#endif
     } else {
+#ifdef _WIN32
+        while (ShowCursor(TRUE) < 0);
+#else
         glfwEnable(GLFW_MOUSE_CURSOR);
+#endif
     }
 }
 
@@ -269,7 +323,7 @@ void platformSwapBuffers(void) {
 
 void *platformGetProcAddress(const char *name) {
 #ifdef _WIN32
-    // glfw2's glfwGetProcAddress is broken on Windows.
+    // GLFW2's glfwGetProcAddress is broken on Windows.
     // This just implements it in a way that's fixed so it can be passed to GLAD.
     void *ret = (void *)wglGetProcAddress(name);
     // Fallback for driver-specific error codes and legacy OpenGL core functions.
@@ -292,7 +346,7 @@ bool platformHandleEvents(void) {
 }
 
 void platformSleepUntil(uint64_t time) {
-    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
+    double remaining = ((int64_t)time - (int64_t)nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 

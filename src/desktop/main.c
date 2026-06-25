@@ -918,8 +918,8 @@ char* collapseNewlines(const char *input) {
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
     setbuf(stderr, NULL);
-#ifdef _WIN32
-    timeBeginPeriod(1);
+#if defined(USE_SDL2) || defined(USE_SDL3)
+    setbuf(stdout, NULL);
 #endif
 
     CommandLineArgs args;
@@ -1848,9 +1848,6 @@ int main(int argc, char* argv[]) {
             arrfree(newArguments);
         }
 
-#ifdef _WIN32
-        timeEndPeriod(1);
-#endif
         printf("Bye! :3\n");
     }
 }

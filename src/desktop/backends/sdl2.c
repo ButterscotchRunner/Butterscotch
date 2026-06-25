@@ -52,22 +52,36 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static void platformGetWindowScale(float *scale_x, float *scale_y) {
-    if (!scale_x || !scale_y) return;
+static float platformGetWindowScale(void) {
     int32_t draw_w, draw_h;
     int logical_w, logical_h;
     platformGetWindowSize(&draw_w, &draw_h);
     SDL_GetWindowSize(window, &logical_w, &logical_h);
-    *scale_x = (logical_w > 0) ? (float)draw_w / logical_w : 1.0f;
-    *scale_y = (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
+    return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
+    if (SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED) return;
 
-    float scale_x, scale_y;
-    platformGetWindowScale(&scale_x, &scale_y);
-    SDL_SetWindowSize(window, (int)(width / scale_x), (int)(height / scale_y));
+    // Account for correct size adjustment for multiple monitors
+    int32_t finalW = width;
+    int32_t finalH = height;
+    SDL_Rect usableBounds;
+    int displayIndex = SDL_GetWindowDisplayIndex(window);
+    if (displayIndex < 0) displayIndex = 0;
+    if (SDL_GetDisplayUsableBounds(displayIndex, &usableBounds) == 0) {
+        if (width > usableBounds.w || height > usableBounds.h) {
+            platformGetBestFitRes(width, height, usableBounds.w, usableBounds.h, &finalW, &finalH);
+        }
+    }
+
+    if (!platformCacheWindowSize(width, height)) return;
+
+    // Scale window down to account for HIDPI
+    float scale = platformGetWindowScale();
+    SDL_SetWindowSize(window, (int)(finalW / scale), (int)(finalH / scale));
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
@@ -77,10 +91,9 @@ void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
     SDL_GetMouseState(&mx, &my);
-    float scale_x, scale_y;
-    platformGetWindowScale(&scale_x, &scale_y);
-    *xPos = (double)mx * scale_x;
-    *yPos = (double)my * scale_y;
+    float scale = platformGetWindowScale();
+    *xPos = (double)mx * scale;
+    *yPos = (double)my * scale;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -121,25 +134,36 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
+    int finalW = reqW;
+    int finalH = reqH;
+    SDL_Rect usableBounds;
+    if (SDL_GetDisplayUsableBounds(0, &usableBounds) == 0) {
+        if (reqW >= usableBounds.w || reqH >= usableBounds.h) {
+            platformGetBestFitRes(reqW, reqH, usableBounds.w, usableBounds.h, &finalW, &finalH);
+            fprintf(stderr, "Warning: Requested resolution %dx%d is bigger than %dx%d, adjusting to %dx%d\n",
+                    reqW, reqH, usableBounds.w, usableBounds.h, finalW, finalH);
+        }
+    }
+
     window = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
+            finalW, finalH,
             flags
     );
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
-                    reqW, reqH, mode.w, mode.h, SDL_GetError());
-            reqW = mode.w;
-            reqH = mode.h;
+                    finalW, finalH, mode.w, mode.h, SDL_GetError());
+            finalW = mode.w;
+            finalH = mode.h;
             window = SDL_CreateWindow(
                     title,
                     SDL_WINDOWPOS_UNDEFINED,
                     SDL_WINDOWPOS_UNDEFINED,
-                    mode.w, mode.h,
+                    finalW, finalH,
                     flags
             );
         }
@@ -158,7 +182,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         scr = SDL_GetWindowSurface(window);
 
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
-    platformSetWindowSize(reqW, reqH);
+    platformSetWindowSize(finalW, finalH);
 
     return true;
 }
@@ -331,6 +355,7 @@ bool platformHandleEvents(void) {
         switch (e.type) {
             default:
                 if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
+                break;
             case SDL_WINDOWEVENT:
             case SDL_QUIT:
                 break;
