@@ -303,7 +303,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    GMLShader* defaultShader = safeCalloc(1, sizeof(GMLShader));
+    GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
     fprintf(stderr, "OpenGL version: %s\n", versionStr);
     int major = 0;
@@ -471,7 +471,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
-    uint16_t* indices = safeMalloc(eboSize);
+    uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
     for (int32_t i = 0; MAX_QUADS > i; i++) {
         uint16_t base = i * 4;
         indices[i*6+0] = base+0; indices[i*6+1] = base+1; indices[i*6+2] = base+2;
