@@ -56,6 +56,14 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+bool platformGetWindowFullscreen(bool* outFullscreen) {
+	if (!outFullscreen || !window) return false;
+
+	*outFullscreen = glfwGetWindowMonitor(window) != nullptr;
+
+	return true;
+}
+
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     if (!window) return;
@@ -64,6 +72,31 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     int logicalW, logicalH;
     framebufferToLogical(xs, ys, width, height, &logicalW, &logicalH);
     glfwSetWindowSize(window, logicalW, logicalH);
+}
+
+static int savedWindowX = 0;
+static int savedWindowY = 0;
+void platformSetWindowFullscreen(bool fullscreen) {
+	int32_t w = 0;
+	int32_t h = 0;
+
+	platformGetWindowSize(&w, &h);
+
+	int refreshRate = glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate;
+
+	if (fullscreen) {
+		glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
+		glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, w, h, refreshRate);
+	}
+	else {
+		bool fullscreen = false;
+		platformGetWindowFullscreen(&fullscreen);
+		if (fullscreen) {
+			glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
+		}
+		glfwSetWindowMonitor(window, nullptr, savedWindowX, savedWindowY, w, h, refreshRate);
+	}
+
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
