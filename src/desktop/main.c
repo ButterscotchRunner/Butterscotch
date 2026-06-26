@@ -67,7 +67,7 @@ bool wantGLES;
 
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 int platformInitGlad(GLADloadproc load) {
-    glGetString = load("glGetString");
+    glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
     const char *version;
     if (glGetString) {
         version = (const char*)glGetString(GL_VERSION);
