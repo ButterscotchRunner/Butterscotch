@@ -12,6 +12,10 @@
 
 #include "real_type.h"
 
+#ifdef PLATFORM_PS2
+#include <malloc.h>
+#endif
+
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)
     #define TYPEOF(x) typeof(x)
 #elif defined(__GNUC__) || defined(__clang__) || \
@@ -71,59 +75,68 @@ static inline void* requireNotNullFunction(void* ptr, const char* file, int line
 #define requireNotNullMessage(ptr, msg) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, msg)
 
 // Safe allocation macros - check for nullptr and abort with file/line info
-#define safeMalloc(size) ({ \
-    void* _ptr = malloc(size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void *safeMallocFunction(size_t size, const char *file, int line) {
+    void *ret = malloc(size);
+    if (!ret) {
+        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
+        abort();
+    }
+    return ret;
+}
+#define safeMalloc(size) safeMallocFunction(size, __FILE__, __LINE__)
 
-#define safeCalloc(count, size) ({ \
-    void* _ptr = calloc(count, size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", (size_t)(count), (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void *safeCallocFunction(size_t count, size_t size, const char *file, int line) {
+    void *ret = calloc(count, size);
+    if (!ret) {
+        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
+        abort();
+    }
+    return ret;
+}
+#define safeCalloc(count, size) safeCallocFunction(count, size, __FILE__, __LINE__)
 
-#define safeRealloc(ptr, size) ({ \
-    void* _ptr = realloc(ptr, size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline void *safeReallocFunction(void *ptr, size_t size, const char *file, int line) {
+    void *ret = realloc(ptr, size);
+    if (!ret) {
+        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
+        abort();
+    }
+    return ret;
+}
+#define safeRealloc(ptr, size) safeReallocFunction(ptr, size, __FILE__, __LINE__)
 
-#define safeMemalign(alignment, size) ({ \
-    void* _ptr = memalign(alignment, size); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: memalign(%zu, %zu) failed at %s:%d\n", (size_t)(alignment), (size_t)(size), __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+#ifdef PLATFORM_PS2
+
+static inline void *safeMemalignFunction(size_t alignment, size_t size, const char *file, int line) {
+    void *ret = memalign(alignment, size);
+    if (!ret) {
+        fprintf(stderr, "FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);
+        abort();
+    }
+    return ret;
+}
+#define safeMemalign(alignment, size) safeMemalignFunction(alignment, size, __FILE__, __LINE__)
+
+#endif
 
 // Reads exactly n bytes or aborts with the "pathForError" that caused the error.
-#define safeFread(dst, n, file, pathForError) ({ \
-    size_t _want = (size_t)(n); \
-    if (fread((dst), 1, _want, (file)) != _want) { \
-        fprintf(stderr, "FATAL: failed to read %zu bytes from %s at %s:%d\n", _want, (pathForError), __FILE__, __LINE__); \
-        abort(); \
-    } \
-})
+static inline void safeFreadFunction(void *dst, size_t n, FILE *read_file, const char *pathForError, const char *file, int line) {
+    if (fread(dst, 1, n, read_file) != n) {
+        fprintf(stderr, "FATAL: failed to read %zu bytes from %s at %s:%d\n", n, pathForError, file, line);
+        abort();
+    }
+}
+#define safeFread(dst, n, file, pathForError) safeFreadFunction(dst, n, file, pathForError, __FILE__, __LINE__)
 
-#define safeStrdup(str) ({ \
-    char* _ptr = strdup(str); \
-    if (_ptr == nullptr) { \
-        fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", __FILE__, __LINE__); \
-        abort(); \
-    } \
-    _ptr; \
-})
+static inline char *safeStrdupFunction(const char *str, const char *file, int line) {
+    char *ret = strdup(str);
+    if (!ret) {
+        fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", file, line);
+        abort();
+    }
+    return ret;
+}
+#define safeStrdup(str) safeStrdupFunction(str, __FILE__, __LINE__)
 
 #define ZERO_STRUCT(s) memset(&(s), 0, sizeof(s))
 
