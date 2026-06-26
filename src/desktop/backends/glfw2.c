@@ -27,16 +27,25 @@ static bool tryOpenWindow(int reqW, int reqH) {
     }
 
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+#ifdef __APPLE__
+        if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor < 2) {
+            continue;
+        }
+#endif
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
             
         if (GLCommon_versions[i].major >= 3) {
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef __APPLE__
+            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#else
             if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                 glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             } else {
                 glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
             }
+#endif
         } else {
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
         }
