@@ -46,11 +46,6 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
     }
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {        
         SDL_Window *newWindow;
-#ifdef __APPLE__
-        if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor < 2) {
-            continue;
-        }
-#endif
         int contextFlags = 0;
 
 #ifndef NDEBUG
