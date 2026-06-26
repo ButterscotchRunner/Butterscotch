@@ -15,6 +15,7 @@
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
+static bool gFullscreen;
 static SDL_Surface* scr;
 static SDL_Window *window;
 static SDL_Gamepad* openControllers[MAX_GAMEPADS];
@@ -50,6 +51,12 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+bool platformGetWindowFullscreen(bool* outFullscreen) {
+    if (!outFullscreen || !window) return false;
+    *outFullscreen = gFullscreen;
+    return true;
+}
+
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return platformGetWindowSize(outW, outH);
 }
@@ -61,6 +68,10 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     SDL_SetWindowSize(window, width, height);
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+	gFullscreen = SDL_SetWindowFullscreen(window, fullscreen) ? fullscreen : gFullscreen; // Assign "fullscreen" if success, "gFullscreen" on failure to not modify
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -107,6 +118,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
+	gFullscreen = false;
     window = SDL_CreateWindow(
         title,
         fbWidth,
