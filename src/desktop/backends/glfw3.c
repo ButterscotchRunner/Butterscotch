@@ -41,8 +41,7 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
         return glfwCreateWindow(reqW, reqH, title, NULL, NULL);
     }
 
-    int i;
-    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         GLFWwindow *window;
 
         glfwDefaultWindowHints();

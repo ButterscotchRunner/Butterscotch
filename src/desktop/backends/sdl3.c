@@ -67,8 +67,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         }
         return NULL;
     }
-    int i;
-    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         SDL_Window *newWindow;
         int contextFlags = 0;
 

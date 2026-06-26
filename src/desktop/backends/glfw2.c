@@ -26,8 +26,7 @@ static bool tryOpenWindow(int reqW, int reqH) {
         return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
     }
 
-    int i;
-    for (i = 0; i < (int)(sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0])); i++) {
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
             

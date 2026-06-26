@@ -313,19 +313,38 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
     
     gl->isGL3 = (major >= 3);
-    
-    const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
-    gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
-            strstr(extensions, "GL_OES_vertex_array_object")));
-    
-    bool hasFBO = 
-        (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
-        (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
-        (extensions != nullptr && (
-            strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
-            strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
-            strstr(extensions, "GL_OES_framebuffer_object")    // OES Extension (Legacy Mobile)
-        ));
+    gl->hasVAO = false;
+    bool hasFBO = false;
+
+    if (glGetStringi != nullptr) {
+        GLint numExtensions;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+        for (GLint i = 0; i < numExtensions; i++) {
+            const char* ext = (const char*) glGetStringi(GL_EXTENSIONS, i);
+            if (ext != nullptr) {
+                if (strstr(ext, "GL_ARB_vertex_array_object") || strstr(ext, "GL_OES_vertex_array_object")) {
+                    gl->hasVAO = true;
+                }
+                if (strstr(ext, "GL_ARB_framebuffer_object") || strstr(ext, "GL_EXT_framebuffer_object") || strstr(ext, "GL_OES_framebuffer_object")) {
+                    hasFBO = true;
+                }
+            }
+        }
+    } else {
+        const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
+        gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
+                strstr(extensions, "GL_OES_vertex_array_object")));
+        
+        bool hasFBO = 
+            (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
+            (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
+            (extensions != nullptr && (
+                strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
+                strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
+                strstr(extensions, "GL_OES_framebuffer_object")    // OES Extension (Legacy Mobile)
+            ));
+    }
+
     
     if (!hasFBO) {
         fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
@@ -388,7 +407,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };
     bool success = compileProgram(defaultShader, "default", vertSrc, fragSrc, 3, defaultAttributes);
     if (!success) {
-        fprintf(stderr, "GL: Failed to compile default shaders! Bailing...");
+        fprintf(stderr, "GL: Failed to compile default shaders! Bailing...\n");
         abort();
     }
 
