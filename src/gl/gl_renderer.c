@@ -316,7 +316,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->hasVAO = false;
     bool hasFBO = false;
 
-    if (glad_glGetStringi != nullptr) {
+#ifdef __EMSCRIPTEN__
+    if (glGetStringi) {
+#else
+    if (major >= 3) {
+#endif
         GLint numExtensions;
         glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
         for (GLint i = 0; i < numExtensions; i++) {
