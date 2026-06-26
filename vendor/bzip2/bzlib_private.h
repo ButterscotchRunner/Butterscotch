@@ -18,6 +18,7 @@
    in the file LICENSE.
    ------------------------------------------------------------------ */
 
+#define BZ_NO_STDIO
 
 #ifndef _BZLIB_PRIVATE_H
 #define _BZLIB_PRIVATE_H

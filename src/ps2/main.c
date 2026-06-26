@@ -92,7 +92,7 @@ static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping*
     JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
     int count = JsonReader_objectLength(mappingsObj);
-    PadMapping* mappings = safeMalloc(sizeof(PadMapping) * count);
+    PadMapping* mappings = (PadMapping *)safeMalloc(sizeof(PadMapping) * count);
     repeat(count, i) {
         const char* padButtonStr = JsonReader_getJsonKeyByIndex(mappingsObj, i);
         JsonValue* gmlKeyVal = JsonReader_getJsonValueByIndex(mappingsObj, i);
@@ -375,7 +375,7 @@ int main(int argc, char* argv[]) {
         long configSize = ftell(configFile);
         fseek(configFile, 0, SEEK_SET);
 
-        char* configJsonText = safeMalloc((size_t) configSize + 1);
+        char* configJsonText = (char *)safeMalloc((size_t) configSize + 1);
         size_t configBytesRead = fread(configJsonText, 1, (size_t) configSize, configFile);
         configJsonText[configBytesRead] = '\0';
         fclose(configFile);

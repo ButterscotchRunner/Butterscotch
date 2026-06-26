@@ -264,7 +264,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     const char* lastSlash = strrchr(gamePath, '/');
     if (lastSlash != nullptr) {
         size_t len = (size_t) (lastSlash - gamePath + 1);
-        bundleDir = safeMalloc(len + 1);
+        bundleDir = (char *)safeMalloc(len + 1);
         memcpy(bundleDir, gamePath, len);
         bundleDir[len] = '\0';
     } else {

@@ -1244,7 +1244,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
 }
 
 void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId, const char* name, RValue val, int32_t arrayIndex) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: setVariable called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: setVariable called but no runner!");
     requireNotNull(runner);
 
     // Structs: instance builtins are ordinary members.
@@ -2103,7 +2103,7 @@ static RValue builtin_string_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int
     if (byteEnd > strLen) byteEnd = strLen;
 
     int32_t nbytes = byteEnd - byteStart;
-    char* result = safeMalloc(nbytes + 1);
+    char* result = (char *)safeMalloc(nbytes + 1);
     memcpy(result, str + byteStart, (size_t) nbytes);
     result[nbytes] = '\0';
 
@@ -2132,7 +2132,7 @@ static RValue builtin_string_format(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     int32_t numLen = (int32_t) strlen(numBuf);
     int32_t totalLen = leftPad + numLen;
 
-    char* result = safeMalloc(totalLen + 1);
+    char* result = (char *)safeMalloc(totalLen + 1);
     for (int32_t i = 0; leftPad > i; i++) result[i] = ' ';
     memcpy(result + leftPad, numBuf, (size_t) numLen);
     result[totalLen] = '\0';
@@ -2150,7 +2150,7 @@ static RValue builtin_string_repeat(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     size_t strLen = strlen(str);
     size_t totalLen = strLen * (size_t) count;
-    char* result = safeMalloc(totalLen + 1);
+    char* result = (char *)safeMalloc(totalLen + 1);
     repeat(count, i) {
         memcpy(result + i * strLen, str, strLen);
     }
@@ -2222,7 +2222,7 @@ static RValue builtin_string_pos(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
 // Appends a copy of [start, start + len) to the array as an owned string, growing it by one slot.
 static void appendSplitSegment(GMLArray* arr, int32_t* count, const char* start, int32_t len) {
-    char* segment = safeMalloc((size_t) len + 1);
+    char* segment = (char *)safeMalloc((size_t) len + 1);
     if (len > 0) memcpy(segment, start, (size_t) len);
     segment[len] = '\0';
     GMLArray_growTo(arr, *count + 1);
@@ -2301,7 +2301,7 @@ static RValue builtin_string_char_at(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     int32_t byteNext = byteStart;
     TextUtils_decodeUtf8(str, strLen, &byteNext);
     int32_t nbytes = byteNext - byteStart;
-    char* out = safeMalloc(nbytes + 1);
+    char* out = (char *)safeMalloc(nbytes + 1);
     memcpy(out, str + byteStart, (size_t) nbytes);
     out[nbytes] = '\0';
     free(str);
@@ -2345,7 +2345,7 @@ static RValue builtin_string_delete(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     if (byteEnd > strLen) byteEnd = strLen;
 
     int32_t removeLen = byteEnd - byteStart;
-    char* result = safeMalloc(strLen - removeLen + 1);
+    char* result = (char *)safeMalloc(strLen - removeLen + 1);
     memcpy(result, str, (size_t) byteStart);
     memcpy(result + byteStart, str + byteEnd, (size_t) (strLen - byteEnd));
     result[strLen - removeLen] = '\0';
@@ -2367,7 +2367,7 @@ static RValue builtin_string_insert(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     int32_t bytePos = TextUtils_utf8AdvanceCodepoints(str, strLen, pos);
     if (bytePos > strLen) bytePos = strLen;
 
-    char* result = safeMalloc(strLen + subLen + 1);
+    char* result = (char *)safeMalloc(strLen + subLen + 1);
     memcpy(result, str, (size_t) bytePos);
     memcpy(result + bytePos, substr, (size_t) subLen);
     memcpy(result + bytePos + subLen, str + bytePos, (size_t) (strLen - bytePos));
@@ -2403,7 +2403,7 @@ static RValue builtin_string_replace(MAYBE_UNUSED VMContext* ctx, RValue* args, 
 
     int32_t newLen = strLen - needleLen + replacementLen;
     int32_t before = (int32_t) (appearance - str);
-    char *outputString = safeMalloc(newLen + 1);
+    char *outputString = (char *)safeMalloc(newLen + 1);
 
     memcpy(outputString, str, before);
     memcpy(outputString + before, replacement, replacementLen);
@@ -2436,7 +2436,7 @@ static RValue builtin_string_replace_all(MAYBE_UNUSED VMContext* ctx, RValue* ar
 
     int32_t strLen = (int32_t) strlen(str);
     int32_t resultLen = strLen + count * (replacementLen - needleLen);
-    char* result = safeMalloc(resultLen + 1);
+    char* result = (char *)safeMalloc(resultLen + 1);
     char* out = result;
     p = str;
     const char* match;
@@ -2767,7 +2767,7 @@ static bool rvalueIsMatrix(RValue rv) {
     if (rv.type != RVALUE_ARRAY) return false;
     if (GMLArray_length1D(rv.array) != 16) return false;
     repeat (16, i) {
-        RValueType type = GMLArray_slot(rv.array, i)->type;
+        RValueType type = (RValueType)(GMLArray_slot(rv.array, i)->type);
         if (type != RVALUE_REAL && type != RVALUE_INT32 && type != RVALUE_INT64)
             return false;
     }
@@ -3230,7 +3230,7 @@ static RValue builtin_room_get_info(VMContext* ctx, RValue* args, int32_t argCou
 }
 
 static RValue builtin_room_goto_next(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_goto_next called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_goto_next called but no runner!");
 
     int32_t nextPos = runner->currentRoomOrderPosition + 1;
     if ((int32_t) runner->dataWin->gen8.roomOrderCount > nextPos) {
@@ -3242,7 +3242,7 @@ static RValue builtin_room_goto_next(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 }
 
 static RValue builtin_room_goto_previous(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_goto_previous called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_goto_previous called but no runner!");
 
     int32_t previousPos = runner->currentRoomOrderPosition - 1;
     if (previousPos >= 0) {
@@ -3255,19 +3255,19 @@ static RValue builtin_room_goto_previous(VMContext* ctx, MAYBE_UNUSED RValue* ar
 
 static RValue builtin_room_goto(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_goto called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_goto called but no runner!");
     runner->pendingRoom = RValue_toInt32(args[0]);
     return RValue_makeUndefined();
 }
 
 static RValue builtin_room_restart(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_restart called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_restart called but no runner!");
     runner->pendingRoom = runner->currentRoomIndex;
     return RValue_makeUndefined();
 }
 
 static RValue builtin_room_next(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_next called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_next called but no runner!");
     int32_t roomId = RValue_toInt32(args[0]);
     DataWin* dw = runner->dataWin;
     repeat(dw->gen8.roomOrderCount, i) {
@@ -3279,7 +3279,7 @@ static RValue builtin_room_next(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
 }
 
 static RValue builtin_room_previous(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: room_previous called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: room_previous called but no runner!");
     int32_t roomId = RValue_toInt32(args[0]);
     DataWin* dw = runner->dataWin;
     repeat(dw->gen8.roomOrderCount, i) {
@@ -3924,7 +3924,7 @@ static RValue builtin_struct_get_names(VMContext* ctx, RValue* args, int32_t arg
                 char* name = VM_getVariableNameByVarId(ctx, entryOnTheVarStruct.key);
 
                 // We don't need to worry about making it owned because the name is owned by the Runner itself
-                GMLArray_add(array, RValue_makeString(requireNotNullMessage(name, "Trying to set a variable that we do not know the name of! Bug?")));
+                GMLArray_add(array, RValue_makeString((const char *)requireNotNullMessage(name, "Trying to set a variable that we do not know the name of! Bug?")));
             }
         }
     }
@@ -4567,7 +4567,7 @@ static RValue dsStreamReadValue(int32_t wadVersion, DsReadStream* s, int32_t ver
         case DS_STREAM_VALUE_STRING: {
             int32_t len = dsStreamReadS32(s);
             if (s->error || 0 > len || s->pos + len > s->size) { s->error = true; return RValue_makeUndefined(); }
-            char* str = safeMalloc((size_t) len + 1);
+            char* str = (char *)safeMalloc((size_t) len + 1);
             if (len > 0) memcpy(str, s->data + s->pos, (size_t) len);
             str[len] = '\0';
             s->pos += len;
@@ -4631,7 +4631,7 @@ static RValue builtin_ds_list_read(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     if (2 > hexLen || (hexLen & 1) != 0) return RValue_makeBool(false);
 
     int32_t byteLen = hexLen / 2;
-    uint8_t* bytes = safeMalloc((size_t) byteLen);
+    uint8_t* bytes = (uint8_t *)safeMalloc((size_t) byteLen);
     repeat(byteLen, i) {
         int hi = dsHexNibble(hex[i * 2]);
         int lo = dsHexNibble(hex[i * 2 + 1]);
@@ -4757,7 +4757,7 @@ static void dsStreamAppendValues(uint8_t** buf, const RValue* items, int32_t len
 // Consumes "buf" (stb_ds array): hex-encodes it, frees it, and returns the hex as an owned-string RValue.
 static RValue dsStreamFinishToHexString(uint8_t* buf) {
     int32_t byteLen = (int32_t) arrlen(buf);
-    char* hex = safeMalloc((size_t) byteLen * 2 + 1);
+    char* hex = (char *)safeMalloc((size_t) byteLen * 2 + 1);
     static const char HEX_CHARS[] = "0123456789ABCDEF";
     repeat(byteLen, i) {
         hex[i * 2] = HEX_CHARS[(buf[i] >> 4) & 0xF];
@@ -4820,7 +4820,7 @@ static RValue builtin_ds_grid_create(VMContext* ctx, MAYBE_UNUSED RValue* args, 
             runner->dsGridPool[i].freed = false;
             runner->dsGridPool[i].width = width;
             runner->dsGridPool[i].height = height;
-            runner->dsGridPool[i].items = count > 0 ? safeCalloc(count, sizeof(RValue)) : nullptr;
+            runner->dsGridPool[i].items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
             return RValue_makeReal(i);
         }
     }
@@ -4828,7 +4828,7 @@ static RValue builtin_ds_grid_create(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     DsGrid newGrid = {0};
     newGrid.width = width;
     newGrid.height = height;
-    newGrid.items = count > 0 ? safeCalloc(count, sizeof(RValue)) : nullptr;
+    newGrid.items = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
     int32_t id = poolSize;
     arrput(runner->dsGridPool, newGrid);
     return RValue_makeReal(id);
@@ -4913,11 +4913,11 @@ static RValue builtin_ds_grid_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
     RValue* slot = &grid->items[x + (y * grid->width)];
     if (slot->type == RVALUE_STRING && args[3].type == RVALUE_STRING) {
         // If they are both strings, then we concatenate them
-        const char* sa = requireNotNull(slot->string);
-        const char* sb = requireNotNull(args[3].string);
+        const char* sa = (const char *)requireNotNull(slot->string);
+        const char* sb = (const char *)requireNotNull(args[3].string);
         size_t lenA = strlen(sa);
         size_t lenB = strlen(sb);
-        char* result = safeMalloc(lenA + lenB + 1);
+        char* result = (char *)safeMalloc(lenA + lenB + 1);
         memcpy(result, sa, lenA);
         memcpy(result + lenA, sb, lenB + 1);
         RValue_free(slot);
@@ -4942,7 +4942,7 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     if (0 > height) height = 0;
 
     size_t count = (size_t) width * (size_t) height;
-    RValue* newGrid = count > 0 ? safeCalloc(count, sizeof(RValue)) : nullptr;
+    RValue* newGrid = count > 0 ? (RValue *)safeCalloc(count, sizeof(RValue)) : nullptr;
 
     int32_t copyWidth = width > grid->width ? grid->width : width;
     int32_t copyHeight = height > grid->height ? grid->height : height;
@@ -5090,7 +5090,7 @@ static RValue builtin_ds_stack_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     if (2 > hexLen || (hexLen & 1) != 0) return RValue_makeBool(false);
 
     int32_t byteLen = hexLen / 2;
-    uint8_t* bytes = safeMalloc((size_t) byteLen);
+    uint8_t* bytes = (uint8_t *)safeMalloc((size_t) byteLen);
     repeat(byteLen, i) {
         int hi = dsHexNibble(hex[i * 2]);
         int lo = dsHexNibble(hex[i * 2 + 1]);
@@ -5268,7 +5268,7 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     if (2 > hexLen || (hexLen & 1) != 0) return RValue_makeBool(false);
 
     int32_t byteLen = hexLen / 2;
-    uint8_t* bytes = safeMalloc((size_t) byteLen);
+    uint8_t* bytes = (uint8_t *)safeMalloc((size_t) byteLen);
     repeat(byteLen, i) {
         int hi = dsHexNibble(hex[i * 2]);
         int lo = dsHexNibble(hex[i * 2 + 1]);
@@ -7015,7 +7015,7 @@ static RValue builtin_file_text_read_string(VMContext* ctx, RValue* args, int32_
     }
 
     int32_t len = file->readPos - start;
-    char* result = safeMalloc((size_t) len + 1);
+    char* result = (char *)safeMalloc((size_t) len + 1);
     memcpy(result, file->content + start, (size_t) len);
     result[len] = '\0';
     return RValue_makeOwnedString(result);
@@ -7050,7 +7050,7 @@ static RValue builtin_file_text_readln(VMContext* ctx, RValue* args, int32_t arg
     }
 
     // Now we copy it because we already know the size of the string!
-    char* string = safeMalloc(size + 1); // +1 because the last one is null
+    char* string = (char *)safeMalloc(size + 1); // +1 because the last one is null
     memcpy(string, file->content + file->readPos, size);
     string[size] = '\0';
     file->readPos = readPos;
@@ -7088,7 +7088,7 @@ static RValue builtin_file_text_write_string(VMContext* ctx, RValue* args, int32
     char* str = RValue_toString(args[1]);
     size_t oldLen = strlen(file->writeBuffer);
     size_t addLen = strlen(str);
-    file->writeBuffer = safeRealloc(file->writeBuffer, oldLen + addLen + 1);
+    file->writeBuffer = (char *)safeRealloc(file->writeBuffer, oldLen + addLen + 1);
     memcpy(file->writeBuffer + oldLen, str, addLen);
     file->writeBuffer[oldLen + addLen] = '\0';
     free(str);
@@ -7106,7 +7106,7 @@ static RValue builtin_file_text_writeln(VMContext* ctx, RValue* args, int32_t ar
     if (!file->isWriteMode) return RValue_makeUndefined();
 
     size_t oldLen = strlen(file->writeBuffer);
-    file->writeBuffer = safeRealloc(file->writeBuffer, oldLen + 2);
+    file->writeBuffer = (char *)safeRealloc(file->writeBuffer, oldLen + 2);
     file->writeBuffer[oldLen] = '\n';
     file->writeBuffer[oldLen + 1] = '\0';
 
@@ -7125,7 +7125,7 @@ static RValue builtin_file_text_write_real(VMContext* ctx, RValue* args, int32_t
     char* str = RValue_toString(args[1]);
     size_t oldLen = strlen(file->writeBuffer);
     size_t addLen = strlen(str);
-    file->writeBuffer = safeRealloc(file->writeBuffer, oldLen + addLen + 1);
+    file->writeBuffer = (char *)safeRealloc(file->writeBuffer, oldLen + addLen + 1);
     memcpy(file->writeBuffer + oldLen, str, addLen);
     file->writeBuffer[oldLen + addLen] = '\0';
     free(str);
@@ -7868,7 +7868,7 @@ static RValue builtin_instance_create_layer(VMContext* ctx, RValue* args, int32_
                     variableInstanceSetOn(
                         ctx,
                         inst,
-                        requireNotNullMessage(name, "Trying to set a variable that we do not know the name of! Bug?"),
+                        (const char *)requireNotNullMessage(name, "Trying to set a variable that we do not know the name of! Bug?"),
                         target,
                         "instance_create_layer"
                     );
@@ -8529,7 +8529,7 @@ static RValue builtin_action_set_vspeed(VMContext* ctx, MAYBE_UNUSED RValue* arg
 static int32_t gmlBufferCreate(Runner* runner, int32_t size, int32_t type, int32_t alignment) {
     GmlBuffer buf = {0};
     buf.size = size > 0 ? size : 1;
-    buf.data = safeCalloc((size_t) buf.size, 1);
+    buf.data = (uint8_t *)safeCalloc((size_t) buf.size, 1);
     buf.position = 0;
     buf.usedSize = (type == GML_BUFFER_GROW) ? 0 : buf.size;
     buf.alignment = alignment > 0 ? alignment : 1;
@@ -8559,7 +8559,7 @@ static void gmlBufferEnsureSize(GmlBuffer* buf, int32_t newSize) {
     // Double or use newSize, whichever is larger
     int32_t newAlloc = buf->size * 2;
     if (newAlloc < newSize) newAlloc = newSize;
-    buf->data = safeRealloc(buf->data, (size_t) newAlloc);
+    buf->data = (uint8_t *)safeRealloc(buf->data, (size_t) newAlloc);
     memset(buf->data + buf->size, 0, (size_t) (newAlloc - buf->size));
     buf->size = newAlloc;
 }
@@ -8770,7 +8770,7 @@ static RValue builtin_buffer_read(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
                 buf->position++;
             }
             int32_t len = buf->position - start;
-            char* str = safeMalloc((size_t) len + 1);
+            char* str = (char *)safeMalloc((size_t) len + 1);
             memcpy(str, buf->data + start, (size_t) len);
             str[len] = '\0';
             // Skip past the null terminator
@@ -8783,7 +8783,7 @@ static RValue builtin_buffer_read(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
             int32_t start = buf->position;
             int32_t len = buf->size - start;
             if (0 > len) len = 0;
-            char* str = safeMalloc((size_t) len + 1);
+            char* str = (char *)safeMalloc((size_t) len + 1);
             if (len > 0) memcpy(str, buf->data + start, (size_t) len);
             str[len] = '\0';
             buf->position = buf->size;
@@ -8918,7 +8918,7 @@ static RValue builtin_buffer_save_ext(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static char* gmlAsyncBufferResolvePath(const char* groupName, const char* filename) {
     if (groupName == nullptr || groupName[0] == '\0') return safeStrdup(filename);
     size_t length = strlen(groupName) + 1 + strlen(filename) + 1;
-    char* path = safeMalloc(length);
+    char* path = (char *)safeMalloc(length);
     snprintf(path, length, "%s/%s", groupName, filename);
     return path;
 }
@@ -9058,7 +9058,7 @@ static RValue builtin_filename_change_ext(MAYBE_UNUSED VMContext* ctx, MAYBE_UNU
 
     if (last != nullptr && last != 0) {
         long index = last - fname;
-        char* new_name = safeMalloc(index + strlen(newext) + 1);
+        char* new_name = (char *)safeMalloc(index + strlen(newext) + 1);
         memcpy(new_name, fname, (size_t) index);
         memcpy(new_name + index, newext, (size_t) strlen(newext));
         new_name[index + strlen(newext)] = '\0';
@@ -9097,7 +9097,7 @@ static RValue builtin_buffer_base64_encode(MAYBE_UNUSED VMContext* ctx, RValue* 
         size = (size_t)(maxBoundary - offset);
     }
 
-    char* out = safeMalloc(BASE64_ENCODE_OUT_SIZE(size));
+    char* out = (char *)safeMalloc(BASE64_ENCODE_OUT_SIZE(size));
     base64_encode((const unsigned char*) buf->data + offset, size, out);
     return RValue_makeOwnedString(out);
 }
@@ -9108,7 +9108,7 @@ static RValue builtin_buffer_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* 
     char* input = RValue_toString(args[1]);
     unsigned int inLen = (unsigned int) strlen(input);
     size_t outLen = BASE64_DECODE_OUT_SIZE(inLen);
-    uint8_t* out = safeMalloc(outLen);
+    uint8_t* out = (uint8_t *)safeMalloc(outLen);
     base64_decode(input, inLen, out);
     free(input);
     int32_t id = gmlBufferCreate(runner, outLen, GML_BUFFER_GROW, 1);
@@ -9124,7 +9124,7 @@ static RValue builtin_base64_encode(MAYBE_UNUSED VMContext* ctx, RValue* args, M
     if (1 > argCount) return RValue_makeOwnedString(safeStrdup(""));
     char* input = RValue_toString(args[0]);
     unsigned int inLen = (unsigned int) strlen(input);
-    char* out = safeMalloc(BASE64_ENCODE_OUT_SIZE(inLen));
+    char* out = (char *)safeMalloc(BASE64_ENCODE_OUT_SIZE(inLen));
     base64_encode((const unsigned char*) input, inLen, out);
     free(input);
     return RValue_makeOwnedString(out);
@@ -9135,7 +9135,7 @@ static RValue builtin_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* args, M
     char* input = RValue_toString(args[0]);
     unsigned int inLen = (unsigned int) strlen(input);
     unsigned int outCap = BASE64_DECODE_OUT_SIZE(inLen);
-    unsigned char* out = safeMalloc(outCap + 1);
+    unsigned char* out = (unsigned char *)safeMalloc(outCap + 1);
     unsigned int outLen = base64_decode(input, inLen, out);
     out[outLen] = '\0';
     free(input);
@@ -9145,7 +9145,7 @@ static RValue builtin_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* args, M
 // Converts the "digest" to a hex string
 static char* convertToHexString(unsigned char* digest, int32_t digestLength) {
     int32_t stringLength = digestLength * 2;
-    char* hex = safeMalloc(stringLength + 1);
+    char* hex = (char *)safeMalloc(stringLength + 1);
     for (int32_t i = 0; digestLength > i; i++) {
         sprintf(&hex[i * 2], "%02x", digest[i]);
     }
@@ -12070,21 +12070,21 @@ static RValue builtin_action_message(MAYBE_UNUSED VMContext* ctx, RValue* args, 
 
 // action_another_room(room_id) - jumps to the given room.
 static RValue builtin_action_another_room(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: action_another_room called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: action_another_room called but no runner!");
     runner->pendingRoom = RValue_toInt32(args[0]);
     return RValue_makeUndefined();
 }
 
 // action_current_room() -  restarts the current room.
 static RValue builtin_action_current_room(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: action_current_room called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: action_current_room called but no runner!");
     runner->pendingRoom = runner->currentRoomIndex;
     return RValue_makeUndefined();
 }
 
 // action_next_room() - goes to the next room in the room order.
 static RValue builtin_action_next_room(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Runner* runner = requireNotNullMessage(ctx->runner, "VM: action_next_room called but no runner!");
+    Runner* runner = (Runner *)requireNotNullMessage(ctx->runner, "VM: action_next_room called but no runner!");
     int32_t nextPos = runner->currentRoomOrderPosition + 1;
     if ((int32_t) runner->dataWin->gen8.roomOrderCount > nextPos) {
         runner->pendingRoom = runner->dataWin->gen8.roomOrder[nextPos];
@@ -12240,7 +12240,7 @@ static RValue builtin_tile_add(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_
 
     uint32_t newId = runner->nextInstanceId++;
     uint32_t newCount = room->tileCount + 1;
-    room->tiles = safeRealloc(room->tiles, newCount * sizeof(RoomTile));
+    room->tiles = (RoomTile *)safeRealloc(room->tiles, newCount * sizeof(RoomTile));
     RoomTile* tile = &room->tiles[room->tileCount];
     tile->x = RValue_toInt32(args[5]);
     tile->y = RValue_toInt32(args[6]);
@@ -12640,7 +12640,7 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
         name = RValue_toString(args[1]);
     } else {
         // Technically could be smaller, but let's be safe
-        char* generatedName = safeMalloc(16);
+        char* generatedName = (char *)safeMalloc(16);
         snprintf(generatedName, 16, "_layer_%x", id);
         name = generatedName;
     }
@@ -12684,7 +12684,7 @@ static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYB
     if (runtimeLayer == nullptr)
         return RValue_makeReal(-1.0);
 
-    RuntimeBackgroundElement* bg = safeMalloc(sizeof(RuntimeBackgroundElement));
+    RuntimeBackgroundElement* bg = (RuntimeBackgroundElement *)safeMalloc(sizeof(RuntimeBackgroundElement));
     bg->spriteIndex = spriteIndex;
     bg->visible = true;
     bg->hTiled = false;
@@ -13469,7 +13469,7 @@ static RValue builtin_array_create(VMContext* ctx, RValue* args, int32_t argCoun
 // @@This@@ - GMS2 internal function returning the current instance's ID.
 // Emitted by the GMS2 compiler for expressions like `self` when used as a value.
 static RValue builtin_This(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Instance* instance = requireNotNullMessage(ctx->currentInstance, "Called @@This@@ while there isn't a current instance on the context!");
+    Instance* instance = (Instance *)requireNotNullMessage(ctx->currentInstance, "Called @@This@@ while there isn't a current instance on the context!");
     return RValue_makeInt32((int32_t) instance->instanceId);
 }
 
@@ -13617,7 +13617,7 @@ static RValue builtin_finish_catch(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RVa
 // @@throw@@ - throws a custom exception
 static RValue builtin_throw(VMContext* ctx, RValue* args, int32_t argCount) {
     char* message = RValue_toString(args[0]);
-    VMException* exception = safeCalloc(1, sizeof(VMException));
+    VMException* exception = (VMException *)safeCalloc(1, sizeof(VMException));
     exception->message = message;
     ctx->exception = exception;
     return RValue_makeUndefined();
@@ -14824,7 +14824,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
 
     // Allocate glyphs (+ 1 for synthetic space if needed)
     uint32_t totalGlyphs = hasSpace ? glyphCount : glyphCount + 1;
-    FontGlyph* glyphs = safeMalloc(totalGlyphs * sizeof(FontGlyph));
+    FontGlyph* glyphs = (FontGlyph *)safeMalloc(totalGlyphs * sizeof(FontGlyph));
 
     repeat(glyphCount, i) {
         int32_t tpagIdx = sprite->tpagIndices[i];
@@ -14874,7 +14874,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
     // Grow the font array and create the new font
     uint32_t newFontIndex = dw->font.count;
     dw->font.count++;
-    dw->font.fonts = safeRealloc(dw->font.fonts, dw->font.count * sizeof(Font));
+    dw->font.fonts = (Font *)safeRealloc(dw->font.fonts, dw->font.count * sizeof(Font));
 
     Font* font = &dw->font.fonts[newFontIndex];
     font->name = "sprite_font";
@@ -15231,7 +15231,7 @@ static RValue builtin_shader_set_uniform_f_array(VMContext* ctx, MAYBE_UNUSED RV
     uint32_t count = GMLArray_length1D(arr);
     if (count == 0) return RValue_makeUndefined();
 
-    float* values = safeMalloc(count * sizeof(float));
+    float* values = (float *)safeMalloc(count * sizeof(float));
     for (uint32_t i = 0; i < count; i++) {
         values[i] = (float) RValue_toReal(*GMLArray_slot(arr, i));
     }

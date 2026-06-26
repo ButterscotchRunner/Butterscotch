@@ -693,11 +693,11 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         char* buf;
         if (audioGroupEntry->path == nullptr) {
             int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-            buf = safeMalloc(sz + 1);
+            buf = (char *)safeMalloc(sz + 1);
             snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
         } else {
             size_t length = strlen(audioGroupEntry->path);
-            buf = safeMalloc(length + 1);
+            buf = (char *)safeMalloc(length + 1);
             memcpy(buf, audioGroupEntry->path, length);
             buf[length] = '\0';
         }
@@ -707,7 +707,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
             fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
             free(buf);
-            DataWin* dw = safeCalloc(1, sizeof(DataWin));
+            DataWin* dw = (DataWin *)safeCalloc(1, sizeof(DataWin));
             arrput(audio->audioGroups, dw);
             return;
         }
@@ -800,7 +800,7 @@ static AudioSystemVtable maAudioSystemVtable;
 // ===[ Lifecycle ]===
 
 MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
-    MaAudioSystem* ma = safeCalloc(1, sizeof(MaAudioSystem));
+    MaAudioSystem* ma = (MaAudioSystem *)safeCalloc(1, sizeof(MaAudioSystem));
     ma->base.dw = dataWin;
     maAudioSystemVtable.init = maInit;
     maAudioSystemVtable.destroy = maDestroy;

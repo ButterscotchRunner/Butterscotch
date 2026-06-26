@@ -334,7 +334,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         slot->streamSampleRate = (int) info.sample_rate;
         slot->streamFormat = (info.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
         slot->streamLengthSeconds = stb_vorbis_stream_length_in_seconds(v);
-        slot->decodeScratch = safeMalloc(AL_STREAM_BUFFER_SAMPLES * info.channels * sizeof(int16_t));
+        slot->decodeScratch = (int16_t *)safeMalloc(AL_STREAM_BUFFER_SAMPLES * info.channels * sizeof(int16_t));
 
         alGenSources(1, &slot->alSource);
         alGenBuffers(AL_STREAM_BUFFER_COUNT, slot->streamBuffers);
@@ -895,7 +895,7 @@ static AudioSystemVtable AlAudioSystemVtable;
 // ===[ Lifecycle ]===
 
 AlAudioSystem* AlAudioSystem_create(void) {
-    AlAudioSystem* ma = safeCalloc(1, sizeof(AlAudioSystem));
+    AlAudioSystem* ma = (AlAudioSystem *)safeCalloc(1, sizeof(AlAudioSystem));
     AlAudioSystemVtable.init = maInit;
     AlAudioSystemVtable.destroy = maDestroy;
     AlAudioSystemVtable.update = maUpdate;

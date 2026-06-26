@@ -15,7 +15,7 @@ static bool isValidButton(int32_t button) {
 }
 
 RunnerMouseState* RunnerMouse_create(void) {
-    RunnerMouseState* m = safeCalloc(1, sizeof(RunnerMouseState));
+    RunnerMouseState* m = (RunnerMouseState *)safeCalloc(1, sizeof(RunnerMouseState));
     return m;
 }
 

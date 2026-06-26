@@ -1,10 +1,7 @@
-#include <SDL3/SDL_timer.h>
+#include <ctype.h>
 #include <stdio.h>
 
-#include <SDL3/SDL_events.h>
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_video.h>
-#include <SDL3/SDL_mouse.h>
 
 #include "common.h"
 #include "input_recording.h"

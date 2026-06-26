@@ -349,7 +349,7 @@ void platformSwapBuffers(void) {
 }
 
 void *platformGetProcAddress(const char *name) {
-    return glfwGetProcAddress(name);
+    return (void *)glfwGetProcAddress(name);
 }
 
 enum {

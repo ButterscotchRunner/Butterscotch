@@ -147,9 +147,8 @@ target_include_directories(butterscotch PUBLIC vendor/base64)
 
 # bzip2
 add_library(bzip2 STATIC
-    vendor/bzip2/blocksort.c
+    vendor/bzip2/bz_internal_error.c
     vendor/bzip2/bzlib.c
-    vendor/bzip2/compress.c
     vendor/bzip2/crctable.c
     vendor/bzip2/decompress.c
     vendor/bzip2/huffman.c
