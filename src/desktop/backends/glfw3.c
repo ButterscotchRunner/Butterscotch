@@ -50,12 +50,6 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
 
-#ifdef __APPLE__
-        if (!GLCommon_versions[i].gles && GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor < 2) {
-            continue;
-        }
-#endif
-
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLCommon_versions[i].minor);
 
@@ -64,16 +58,11 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
         } else {
             glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
             if (GLCommon_versions[i].major >= 3) {
-                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#ifdef __APPLE__
-                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#else
                 if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
                 } else {
                     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
                 }
-#endif
             } else {
                 glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
             }

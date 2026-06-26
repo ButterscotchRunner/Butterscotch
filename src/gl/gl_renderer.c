@@ -56,6 +56,22 @@ static const char* baseFragmentShader =
     #define GL_COLOR_ATTACHMENT0 0x8CE0
 #endif
 
+static bool hasFBO() {
+#ifndef __EMSCRIPTEN__
+    return (glGenFramebuffers || glGenFramebuffersEXT);
+#else
+    return true;
+#endif
+}
+
+static bool hasVAO() {
+#ifndef __EMSCRIPTEN__
+    return (glGenVertexArrays || glGenVertexArraysOES);
+#else
+    return true;
+#endif
+}
+
 #if !defined(__EMSCRIPTEN__)
 static void rt_glBindVertexArray(GLuint vao) {
     if (glBindVertexArray) glBindVertexArray(vao);
@@ -183,7 +199,7 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    if (gl->hasVAO) {
+    if (hasVAO()) {
         glBindVertexArray(gl->vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
@@ -207,7 +223,7 @@ static void flushBatch(GLRenderer* gl) {
         glDrawArrays(GL_TRIANGLES, 0, gl->batchCount * VERTICES_PER_TRIANGLE);
     }
 
-    if (!gl->hasVAO) {
+    if (!hasVAO()) {
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
         glDisableVertexAttribArray(2);
@@ -297,7 +313,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     fprintf(stderr, "OpenGL version: %s\n", versionStr);
     int major = 0;
     int minor = 0;
-    
+
     if (versionStr != nullptr) {
         const char* p = versionStr;
         while (*p && (*p < '0' || *p > '9')) {
@@ -311,46 +327,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             sscanf(p + 1, "%d", &minor);
         }
     }
-    
+
     gl->isGL3 = (major >= 3);
-    gl->hasVAO = false;
-    bool hasFBO = false;
 
-#ifndef __EMSCRIPTEN__
-    if (glGetStringi) {
-#else
-    if (major >= 3) {
-#endif
-        GLint numExtensions;
-        glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
-        for (GLint i = 0; i < numExtensions; i++) {
-            const char* ext = (const char*) glGetStringi(GL_EXTENSIONS, i);
-            if (ext != nullptr) {
-                if (strstr(ext, "GL_ARB_vertex_array_object") || strstr(ext, "GL_OES_vertex_array_object")) {
-                    gl->hasVAO = true;
-                }
-                if (strstr(ext, "GL_ARB_framebuffer_object") || strstr(ext, "GL_EXT_framebuffer_object") || strstr(ext, "GL_OES_framebuffer_object")) {
-                    hasFBO = true;
-                }
-            }
-        }
-    } else {
-        const char* extensions = (const char*) glGetString(GL_EXTENSIONS);
-        gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
-                strstr(extensions, "GL_OES_vertex_array_object")));
-        
-        hasFBO = 
-            (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
-            (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
-            (extensions != nullptr && (
-                strstr(extensions, "GL_ARB_framebuffer_object") || // ARB Extension (Mesa Desktop 2.1)
-                strstr(extensions, "GL_EXT_framebuffer_object") || // EXT Extension (Legacy)
-                strstr(extensions, "GL_OES_framebuffer_object")    // OES Extension (Legacy Mobile)
-            ));
-    }
-
-    
-    if (!hasFBO) {
+    if (!hasFBO()) {
         fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
@@ -364,27 +344,27 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         if (gl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
             fragHeader = "#version 300 es\nprecision mediump float;\n";
-            
+
             snprintf(vertSrc, sizeof(vertSrc),
                 "%s"
                 "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
-                "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
+                "out vec2 vTexCoord;\nout vec4 vColor;\n%s",
                 vertHeader, baseVertexShader);
         } else {
             vertHeader = "#version 130\n";
             fragHeader = "#version 130\n";
-            
+
             snprintf(vertSrc, sizeof(vertSrc),
                 "%s"
                 "in vec2 aPos;\nin vec4 aColor;\nin vec2 aTexCoord;\n"
-                "out vec2 vTexCoord;\nout vec4 vColor;\n%s", 
+                "out vec2 vTexCoord;\nout vec4 vColor;\n%s",
                 vertHeader, baseVertexShader);
         }
-    
+
         snprintf(fragSrc, sizeof(fragSrc),
             "%s"
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
-            "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s", 
+            "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s",
             fragHeader, baseFragmentShader);
     } else {
         if (gl->isGLES) {
@@ -398,13 +378,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         snprintf(vertSrc, sizeof(vertSrc),
             "%s"
             "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
-            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s", 
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s",
             vertHeader, baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
             "%s"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
-            "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s", 
+            "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s",
             fragHeader, baseFragmentShader);
     }
 
@@ -431,10 +411,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         }
 
         fprintf(stderr, "GL: Compiling %s\n", shdr->name);
-        
+
         const char* vertexShaderSource = gl->isGLES ? shdr->glslES_Vertex : shdr->glsl_Vertex;
         const char* fragmentShaderSource = gl->isGLES ? shdr->glslES_Fragment : shdr->glsl_Fragment;
-        
+
         char* patchedVertexSource = nullptr;
         char* patchedFragmentSource = nullptr;
 
@@ -483,7 +463,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUniform4f(uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
 
     // Create VAO/VBO/EBO
-    if (gl->hasVAO) {
+    if (hasVAO()) {
         glGenVertexArrays(1, &gl->vao);
         glBindVertexArray(gl->vao);
     }
@@ -506,7 +486,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
     free(indices);
 
-    if (gl->hasVAO) {
+    if (hasVAO()) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
         int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
@@ -657,7 +637,7 @@ static void glDestroy(Renderer* renderer) {
     freeShader(gl->defaultShaderProgram);
     free(gl->defaultShaderProgram);
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
-    if (gl->hasVAO) glDeleteVertexArrays(1, &gl->vao);
+    if (hasVAO()) glDeleteVertexArrays(1, &gl->vao);
     glDeleteBuffers(1, &gl->vbo);
     glDeleteBuffers(1, &gl->ebo);
 
@@ -718,7 +698,7 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
-    if (gl->hasVAO) glBindVertexArray(gl->vao);
+    if (hasVAO()) glBindVertexArray(gl->vao);
     renderer->previousViewMatrix = projection;
 
 }
@@ -769,7 +749,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
-    if (gl->hasVAO) glBindVertexArray(gl->vao);
+    if (hasVAO()) glBindVertexArray(gl->vao);
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
@@ -792,7 +772,7 @@ static void glEndGUI(Renderer* renderer) {
 
 static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (gl->hasVAO) glBindVertexArray(0);
+    if (hasVAO()) glBindVertexArray(0);
 
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);

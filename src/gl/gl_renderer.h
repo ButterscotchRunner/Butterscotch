@@ -76,7 +76,6 @@ typedef struct {
     uint32_t surfaceCount;
 
     bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
-    bool hasVAO;  // TRUE if VAOs are natively supported or available via extension
     bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 } GLRenderer;
 

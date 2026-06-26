@@ -69,11 +69,6 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
     }
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         SDL_Window *newWindow;
-#ifdef __APPLE__
-        if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor < 2) {
-            continue;
-        }
-#endif
         int contextFlags = 0;
 
         SDL_GL_ResetAttributes();
@@ -88,14 +83,9 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         } else {            
             if (GLCommon_versions[i].major >= 3) {
-                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-#ifdef __APPLE__
-                contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
-#else
                 if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                     contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
                 }
-#endif
             } else {
                 SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
             }
