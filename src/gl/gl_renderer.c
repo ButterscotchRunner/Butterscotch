@@ -49,6 +49,8 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
+// ===[ Runtime OpenGL extension checks ]===
+
 static bool hasFBO() {
 #ifndef __EMSCRIPTEN__
     return (glGenFramebuffers || glGenFramebuffersEXT);
