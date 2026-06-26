@@ -115,33 +115,10 @@ void default_bzfree ( void* opaque, void* addr )
 
 /*---------------------------------------------------*/
 static
-void prepare_new_block ( EState* s )
-{
-   Int32 i;
-   s->nblock = 0;
-   s->numZ = 0;
-   s->state_out_pos = 0;
-   BZ_INITIALISE_CRC ( s->blockCRC );
-   for (i = 0; i < 256; i++) s->inUse[i] = False;
-   s->blockNo++;
-}
-
-
-/*---------------------------------------------------*/
-static
 void init_RL ( EState* s )
 {
    s->state_in_ch  = 256;
    s->state_in_len = 0;
-}
-
-
-static
-Bool isempty_RL ( EState* s )
-{
-   if (s->state_in_ch < 256 && s->state_in_len > 0)
-      return False; else
-      return True;
 }
 
 /*---------------------------------------------------*/
@@ -181,15 +158,6 @@ void add_pair_to_block ( EState* s )
 
 
 /*---------------------------------------------------*/
-static
-void flush_RL ( EState* s )
-{
-   if (s->state_in_ch < 256) add_pair_to_block ( s );
-   init_RL ( s );
-}
-
-
-/*---------------------------------------------------*/
 #define ADD_CHAR_TO_BLOCK(zs,zchh0)               \
 {                                                 \
    UInt32 zchh = (UInt32)(zchh0);                 \
@@ -216,77 +184,6 @@ void flush_RL ( EState* s )
    }                                              \
 }
 
-
-/*---------------------------------------------------*/
-static
-Bool copy_input_until_stop ( EState* s )
-{
-   Bool progress_in = False;
-
-   if (s->mode == BZ_M_RUNNING) {
-
-      /*-- fast track the common case --*/
-      while (True) {
-         /*-- block full? --*/
-         if (s->nblock >= s->nblockMAX) break;
-         /*-- no input? --*/
-         if (s->strm->avail_in == 0) break;
-         progress_in = True;
-         ADD_CHAR_TO_BLOCK ( s, (UInt32)(*((UChar*)(s->strm->next_in))) ); 
-         s->strm->next_in++;
-         s->strm->avail_in--;
-         s->strm->total_in_lo32++;
-         if (s->strm->total_in_lo32 == 0) s->strm->total_in_hi32++;
-      }
-
-   } else {
-
-      /*-- general, uncommon case --*/
-      while (True) {
-         /*-- block full? --*/
-         if (s->nblock >= s->nblockMAX) break;
-         /*-- no input? --*/
-         if (s->strm->avail_in == 0) break;
-         /*-- flush/finish end? --*/
-         if (s->avail_in_expect == 0) break;
-         progress_in = True;
-         ADD_CHAR_TO_BLOCK ( s, (UInt32)(*((UChar*)(s->strm->next_in))) ); 
-         s->strm->next_in++;
-         s->strm->avail_in--;
-         s->strm->total_in_lo32++;
-         if (s->strm->total_in_lo32 == 0) s->strm->total_in_hi32++;
-         s->avail_in_expect--;
-      }
-   }
-   return progress_in;
-}
-
-
-/*---------------------------------------------------*/
-static
-Bool copy_output_until_stop ( EState* s )
-{
-   Bool progress_out = False;
-
-   while (True) {
-
-      /*-- no output space? --*/
-      if (s->strm->avail_out == 0) break;
-
-      /*-- block done? --*/
-      if (s->state_out_pos >= s->numZ) break;
-
-      progress_out = True;
-      *(s->strm->next_out) = s->zbits[s->state_out_pos];
-      s->state_out_pos++;
-      s->strm->avail_out--;
-      s->strm->next_out++;
-      s->strm->total_out_lo32++;
-      if (s->strm->total_out_lo32 == 0) s->strm->total_out_hi32++;
-   }
-
-   return progress_out;
-}
 
 /*---------------------------------------------------*/
 /*--- Decompression stuff                         ---*/
