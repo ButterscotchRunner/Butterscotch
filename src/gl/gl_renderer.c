@@ -316,7 +316,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->hasVAO = false;
     bool hasFBO = false;
 
-    if (glGetStringi != nullptr) {
+    if (&glGetStringi != nullptr) {
         GLint numExtensions;
         glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
         for (GLint i = 0; i < numExtensions; i++) {
@@ -335,7 +335,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         gl->hasVAO = gl->isGL3 || (extensions != nullptr && (strstr(extensions, "GL_ARB_vertex_array_object") || \
                 strstr(extensions, "GL_OES_vertex_array_object")));
         
-        bool hasFBO = 
+        hasFBO = 
             (!gl->isGLES && major >= 3) ||  // Core in Desktop OpenGL 3.0+
             (gl->isGLES && major >= 2) ||   // Core in OpenGL ES 2.0+
             (extensions != nullptr && (
