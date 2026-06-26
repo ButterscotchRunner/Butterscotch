@@ -316,7 +316,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->hasVAO = false;
     bool hasFBO = false;
 
-#ifdef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
     if (glGetStringi) {
 #else
     if (major >= 3) {
