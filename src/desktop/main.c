@@ -1851,6 +1851,5 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
         timeEndPeriod(1);
 #endif
-        printf("Bye! :3\n");
     }
 }
