@@ -31,7 +31,6 @@ static bool tryOpenWindow(int reqW, int reqH) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
             
         if (GLCommon_versions[i].major >= 3) {
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
             if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                 glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             } else {
