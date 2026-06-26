@@ -46,7 +46,11 @@ extern GLint  gPalettedUPaletteVLoc;
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
+#ifdef PLATFORM_PS3
+    return true;
+#else
     return (glGenFramebuffers || glGenFramebuffersEXT);
+#endif
 }
 
 static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
