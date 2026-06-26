@@ -11,6 +11,7 @@
 #include "runner_mouse.h"
 
 static Runner *g_runner;
+static bool gFullscreen;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
@@ -39,6 +40,12 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
         *outH = h;
     }
     return true;
+}
+
+bool platformGetWindowFullscreen(bool* outFullscreen) {
+	if (!outFullscreen) return false;
+
+	*outFullscreen = gFullscreen;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
@@ -71,6 +78,50 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    if (!window) return;
+
+    static int savedGameW = 0;
+    static int savedGameH = 0;
+
+    if (!gFullscreen) {
+        platformGetWindowSize(&savedGameW, &savedGameH);
+    }
+
+    Uint32 flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+
+    if (SDL_SetWindowFullscreen(window, flags) == 0) {
+        gFullscreen = fullscreen;
+
+        int winW, winH;
+        SDL_GetWindowSize(window, &winW, &winH);
+
+        if (savedGameW > 0 && savedGameH > 0) {
+            int scaleX = winW / savedGameW;
+            int scaleY = winH / savedGameH;
+            int scale = (scaleX < scaleY) ? scaleX : scaleY;
+            if (scale < 1) scale = 1;
+
+            int viewWidth = savedGameW * scale;
+            int viewHeight = savedGameH * scale;
+
+            int viewX = (winW - viewWidth) / 2;
+            int viewY = (winH - viewHeight) / 2;
+
+            typedef void (SDLCALL *PFNGLVIEWPORTPROC)(int x, int y, int width, int height);
+            static PFNGLVIEWPORTPROC local_glViewport = NULL;
+
+            if (!local_glViewport) {
+                local_glViewport = (PFNGLVIEWPORTPROC)SDL_GL_GetProcAddress("glViewport");
+            }
+
+            if (local_glViewport) {
+                local_glViewport(viewX, viewY, viewWidth, viewHeight);
+            }
+        }
+    }
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -121,6 +172,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
+	gFullscreen = false;
     window = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
