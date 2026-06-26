@@ -49,13 +49,6 @@ static const char* baseFragmentShader =
     "    FRAG_COLOR = c;\n"
     "}\n";
 
-#ifndef GL_FRAMEBUFFER
-    #define GL_FRAMEBUFFER 0x8D40
-#endif
-#ifndef GL_COLOR_ATTACHMENT0
-    #define GL_COLOR_ATTACHMENT0 0x8CE0
-#endif
-
 static bool hasFBO() {
 #ifndef __EMSCRIPTEN__
     return (glGenFramebuffers || glGenFramebuffersEXT);
