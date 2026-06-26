@@ -53,6 +53,7 @@ static bool hasFBO() {
 #endif
 }
 
+#ifndef PLATFORM_PS3
 static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
     if (glGenFramebuffers) glGenFramebuffers(n, ids);
     else glGenFramebuffersEXT(n, ids);
@@ -80,6 +81,7 @@ static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
 }
 #undef glDeleteFramebuffers
 #define glDeleteFramebuffers rt_glDeleteFramebuffers
+#endif
 
 // ===[ Helpers ]===
 
