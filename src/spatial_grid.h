@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_SPATIAL_GRID_H_
+#define _BS_SPATIAL_GRID_H_
 #include <stdint.h>
 
 // Forward declarations
@@ -87,3 +88,5 @@ typedef struct {
 } SpatialGridQuery;
 
 SpatialGridQuery SpatialGrid_prepareQuery(Runner* runner, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, int32_t target);
+
+#endif /* _BS_SPATIAL_GRID_H_ */

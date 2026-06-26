@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_TEXT_UTILS_H_
+#define _BS_TEXT_UTILS_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -395,3 +396,5 @@ static inline char* TextUtils_trimTrailingWhitespace(char* str) {
     str[len] = '\0';
     return str;
 }
+
+#endif /* _BS_TEXT_UTILS_H_ */

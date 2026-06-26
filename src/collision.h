@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_COLLISION_H_
+#define _BS_COLLISION_H_
 
 #include "common.h"
 #include "data_win.h"
@@ -431,3 +432,5 @@ static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a
 
     return false;
 }
+
+#endif /* _BS_COLLISION_H_ */

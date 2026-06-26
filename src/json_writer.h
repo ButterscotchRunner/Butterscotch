@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_JSON_WRITER_H_
+#define _BS_JSON_WRITER_H_
 
 #include "common.h"
 #include "string_builder.h"
@@ -52,3 +53,5 @@ void JsonWriter_propertyNull(JsonWriter* writer, const char* key);
 const char* JsonWriter_getOutput(const JsonWriter* writer);
 char* JsonWriter_copyOutput(const JsonWriter* writer);
 size_t JsonWriter_getLength(const JsonWriter* writer);
+
+#endif /* _BS_JSON_WRITER_H_ */

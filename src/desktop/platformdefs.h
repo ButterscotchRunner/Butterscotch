@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PLATFORMDEFS_H_
+#define _BS_PLATFORMDEFS_H_
 
 #include <stdbool.h>
 
@@ -57,3 +58,5 @@ static const struct {
     { 2, 0, true  },
 #endif
 };
+
+#endif /* _BS_PLATFORMDEFS_H_ */

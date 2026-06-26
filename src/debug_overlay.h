@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_DEBUG_OVERLAY_H_
+#define _BS_DEBUG_OVERLAY_H_
 
 #include "common.h"
 #include "runner.h"
@@ -12,3 +13,5 @@
 // implements drawRectangle. Must be called inside a beginView/endView pair so the
 // world-space coordinates project correctly.
 void DebugOverlay_drawCollisionMasks(Runner* runner);
+
+#endif /* _BS_DEBUG_OVERLAY_H_ */

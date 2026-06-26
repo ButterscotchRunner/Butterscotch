@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GETOPT_H_
+#define _BS_GETOPT_H_
 
 /*
  * Minimal header-only getopt_long — long options only, no short opts.
@@ -143,3 +144,5 @@ static inline int getopt_long(int argc, char *const argv_const[],
     if (longopts[matched].flag) { *longopts[matched].flag = longopts[matched].val; return 0; }
     return longopts[matched].val;
 }
+
+#endif /* _BS_GETOPT_H_ */

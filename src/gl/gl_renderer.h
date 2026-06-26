@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GL_RENDERER_H_
+#define _BS_GL_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
@@ -81,3 +82,5 @@ typedef struct {
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);
+
+#endif /* _BS_GL_RENDERER_H_ */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_VM_H_
+#define _BS_VM_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -405,3 +406,5 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     free(rvalueAsString);
 }
 #endif
+
+#endif /* _BS_VM_H_ */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_WEB_AUDIO_SYSTEM_H_
+#define _BS_WEB_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -47,3 +48,5 @@ WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate);
 // Pulls frameCount interleaved-stereo float32 frames into out.
 // out must have at least frameCount * 2 floats of space. Underruns are zero-filled by miniaudio.
 void WebAudioSystem_pullFrames(WebAudioSystem* audio, float* out, int32_t frameCount);
+
+#endif /* _BS_WEB_AUDIO_SYSTEM_H_ */

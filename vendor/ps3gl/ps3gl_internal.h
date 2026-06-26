@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS3GL_INTERNAL_H_
+#define _BS_PS3GL_INTERNAL_H_
 
 #include "GL/gl.h"
 #include <vectormath/c/vectormath_aos.h>
@@ -314,3 +315,5 @@ static inline void rsxSetFragmentProgramParameterF32Vec4(gcmContextData *context
 			GCM_LOCATION_RSX);
 	}
 }
+
+#endif /* _BS_PS3GL_INTERNAL_H_ */

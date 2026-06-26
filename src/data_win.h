@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_DATA_WIN_H_
+#define _BS_DATA_WIN_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -948,3 +949,5 @@ bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor,
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 void GamePath_computeInternal(GamePath* path);
 PathPositionResult GamePath_getPosition(GamePath* path, float t);
+
+#endif /* _BS_DATA_WIN_H_ */

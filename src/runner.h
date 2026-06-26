@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_H_
+#define _BS_RUNNER_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -723,3 +724,5 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 
     instance->active = active;
 }
+
+#endif /* _BS_RUNNER_H_ */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INSTANCE_H_
+#define _BS_INSTANCE_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -117,3 +118,5 @@ static inline void Instance_setSelfVar(Instance* inst, int32_t varID, RValue val
 void Instance_computeSpeedFromComponents(Instance* inst);
 // Recompute hspeed/vspeed from speed/direction (called when speed or direction is set)
 void Instance_computeComponentsFromSpeed(Instance* inst);
+
+#endif /* _BS_INSTANCE_H_ */

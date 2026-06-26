@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RVALUE_H_
+#define _BS_RVALUE_H_
 #include <stdint.h>
 #include "common.h"
 #include <stdio.h>
@@ -515,3 +516,5 @@ static inline void RValue_writeIntoSlotStealingOwnershipOrCopying(RValue* slot, 
     RValue_free(slot);
     *slot = target;
 }
+
+#endif /* _BS_RVALUE_H_ */
