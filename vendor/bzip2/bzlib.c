@@ -112,51 +112,6 @@ void default_bzfree ( void* opaque, void* addr )
    if (addr != NULL) free ( addr );
 }
 
-
-/*---------------------------------------------------*/
-static
-void init_RL ( EState* s )
-{
-   s->state_in_ch  = 256;
-   s->state_in_len = 0;
-}
-
-/*---------------------------------------------------*/
-static
-void add_pair_to_block ( EState* s )
-{
-   Int32 i;
-   UChar ch = (UChar)(s->state_in_ch);
-   for (i = 0; i < s->state_in_len; i++) {
-      BZ_UPDATE_CRC( s->blockCRC, ch );
-   }
-   s->inUse[s->state_in_ch] = True;
-   switch (s->state_in_len) {
-      case 1:
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         break;
-      case 2:
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         break;
-      case 3:
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         break;
-      default:
-         s->inUse[s->state_in_len-4] = True;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = (UChar)ch; s->nblock++;
-         s->block[s->nblock] = ((UChar)(s->state_in_len-4));
-         s->nblock++;
-         break;
-   }
-}
-
-
 /*---------------------------------------------------*/
 #define ADD_CHAR_TO_BLOCK(zs,zchh0)               \
 {                                                 \
