@@ -98,7 +98,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     renderer->dataWin = dataWin;
 
     if (!hasFBO()) {
-        fprintf(stderr, "GL: The legacy renderer requires FBO support!\n");
+        fprintf(stderr, "GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
 
