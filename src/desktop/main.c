@@ -1764,6 +1764,9 @@ int main(int argc, char* argv[]) {
             }
             arrfree(currentGameArgs);
             printf("Bye! :3\n");
+#ifdef _WIN32
+            timeEndPeriod(1);
+#endif
             return 0;
         }
 
@@ -1847,9 +1850,5 @@ int main(int argc, char* argv[]) {
             free(nextLaunchParameters);
             arrfree(newArguments);
         }
-
-#ifdef _WIN32
-        timeEndPeriod(1);
-#endif
     }
 }
