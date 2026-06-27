@@ -46,7 +46,7 @@ if(AUDIO_BACKEND STREQUAL "")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
     elseif(MSVC)
-        set(AUDIO_BACKEND "none")
+        set(AUDIO_BACKEND "none") # miniaudio fails to build under MSVC for some reason
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
