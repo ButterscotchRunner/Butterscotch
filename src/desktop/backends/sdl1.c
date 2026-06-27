@@ -1,5 +1,3 @@
-#include <SDL/SDL_active.h>
-#include <SDL/SDL_events.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
