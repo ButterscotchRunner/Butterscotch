@@ -245,10 +245,6 @@ static JsonValue* parseObject(JsonParser* parser) {
             int newCapacity = (value->object.capacity == 0) ? 8 : value->object.capacity * 2;
             value->object.keys = (char **)safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
             value->object.values = (JsonValue *)safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
-            if (value->object.keys == nullptr || value->object.values == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
             value->object.capacity = newCapacity;
         }
 
