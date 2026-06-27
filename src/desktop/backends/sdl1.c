@@ -19,7 +19,6 @@
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
-static bool gFullscreen;
 static SDL_Surface* scr;
 
 void platformSetWindowTitle(const char* title) {
@@ -52,7 +51,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
-void platformSetWindowFullscreen(bool fullscreen) {}
+void platformSetWindowFullscreen(MAYBE_UNUSED bool fullscreen) {}
 
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
