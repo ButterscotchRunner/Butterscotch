@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS2_AUDIO_SYSTEM_H_
+#define _BS_PS2_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -173,3 +174,5 @@ typedef struct {
 } Ps2AudioSystem;
 
 Ps2AudioSystem* Ps2AudioSystem_create(void);
+
+#endif /* _BS_PS2_AUDIO_SYSTEM_H_ */

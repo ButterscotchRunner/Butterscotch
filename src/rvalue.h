@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RVALUE_H_
+#define _BS_RVALUE_H_
 #include <stdint.h>
 #include "common.h"
 #include <stdio.h>
@@ -35,6 +36,7 @@ uint32_t Instance_getInstanceId(struct Instance* inst);
 #define GML_TYPE_INT16    0xF
 
 // ===[ Asset Reference Types ]===
+// See yyTypes.js for reference
 typedef enum {
     ASSET_TYPE_OBJECT = 0,
     ASSET_TYPE_SPRITE = 1,
@@ -48,11 +50,14 @@ typedef enum {
     ASSET_TYPE_SEQUENCE = 9,
     ASSET_TYPE_ANIMCURVE = 10,
     ASSET_TYPE_PARTICLESYSTEM = 11,
-    ASSET_TYPE_UNKNOWN = 12,
+    ASSET_TYPE_TILEMAP = 12,
     ASSET_TYPE_TILESET = 13,
+    ASSET_TYPE_INSTANCE = 14,
+    ASSET_TYPE_PARTICLESYSTEMINSTANCE = 15
 } AssetRefType;
 
 // ===[ RValue - Tagged Union ]===
+// When adding new elements to here, don't forget to update the "typeof" builtin!
 typedef enum {
     RVALUE_UNDEFINED = 0,
     RVALUE_STRING = 1,
@@ -88,7 +93,7 @@ struct RValue {
     bool ownsReference;
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
     uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
-} __attribute__((aligned(8)));
+} BS_ALIGN(8);
 
 static inline RValue RValue_makeReal(GMLReal val) {
     RValue rv = {0};
@@ -162,7 +167,7 @@ static inline RValue RValue_makeUndefined(void) {
 }
 
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
-// Use this when you have a freshly-allocated array (GMLArray_alloc) or after a GMLArray_incRef.
+// Use this when you have a freshly-allocated array (GMLArray_create) or after a GMLArray_incRef.
 static inline RValue RValue_makeArray(GMLArray* arr) {
     RValue rv = {0};
     rv.type = RVALUE_ARRAY;
@@ -184,13 +189,18 @@ static inline RValue RValue_makeArrayWeak(GMLArray* arr) {
 
 #if IS_WAD17_OR_HIGHER_ENABLED
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
-static inline RValue RValue_makeMethod(int32_t codeIndex, int32_t boundInstanceId) {
+static inline RValue RValue_makeMethod(GMLMethod* gmlMethod) {
     RValue rv = {0};
     rv.type = RVALUE_METHOD;
     rv.ownsReference = true;
     rv.gmlStackType = GML_TYPE_VARIABLE;
-    rv.method = GMLMethod_create(codeIndex, boundInstanceId);
+    rv.method = gmlMethod;
     return rv;
+}
+
+// Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
+static inline RValue RValue_makeMethodFromCodeIndexAndInstanceId(int32_t codeIndex, int32_t boundInstanceId) {
+    return RValue_makeMethod(GMLMethod_create(codeIndex, boundInstanceId));
 }
 
 // Weak view: does not own (no decRef on free). Callers that stash the value long-term must incRef + set ownsString.
@@ -263,6 +273,13 @@ static inline RValue RValue_makeIndependent(RValue val) {
     return val;
 }
 
+// Steals the "val" ownership or, if it isn't owned, makes it independent.
+static inline RValue RValue_stealOwnershipOrCopy(RValue val) {
+    if (val.ownsReference)
+        return val;
+    return RValue_makeIndependent(val);
+}
+
 // Converts an RValue to a heap-allocated string representation.
 // The caller must free the returned string
 static inline char* RValue_toString(RValue val) {
@@ -327,7 +344,7 @@ static inline char* RValue_toStringFancy(RValue val) {
 
             // length + quotes (2) + null terminator
             int newLength = strlen(valueAsString) + 3;
-            char* valueWithQuotes = safeCalloc(newLength, sizeof(char));
+            char* valueWithQuotes = (char *)safeCalloc(newLength, sizeof(char));
             snprintf(valueWithQuotes, newLength, "\"%s\"", valueAsString);
 
             free(valueAsString);
@@ -360,7 +377,7 @@ static inline char* RValue_toStringTyped(RValue val) {
         case RVALUE_STRING: {
             const char* str = val.string != nullptr ? val.string : "";
             size_t needed = strlen(str) + 3;
-            char* result = safeCalloc(needed, sizeof(char));
+            char* result = (char *)safeCalloc(needed, sizeof(char));
             snprintf(result, needed, "\"%s\"", str);
             return result;
         }
@@ -483,3 +500,21 @@ static inline bool RValue_toBool(RValue val) {
         default:            return false;
     }
 }
+
+// Copies "val" into *slot by making the RValue independent. Caller retains "val".
+static inline void RValue_copyIntoSlot(RValue* slot, RValue val) {
+    RValue target = RValue_makeIndependent(val);
+    // Free whatever was there.
+    RValue_free(slot);
+    *slot = target;
+}
+
+// Writes "val" into *slot. If the "val" is owning, we steal it, if it isn't, we copy it. Caller must NOT free "val".
+static inline void RValue_writeIntoSlotStealingOwnershipOrCopying(RValue* slot, RValue val) {
+    RValue target = RValue_stealOwnershipOrCopy(val);
+    // Free whatever was there.
+    RValue_free(slot);
+    *slot = target;
+}
+
+#endif /* _BS_RVALUE_H_ */

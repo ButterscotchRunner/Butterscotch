@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GL_RENDERER_H_
+#define _BS_GL_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
@@ -15,21 +16,27 @@ typedef enum {
 } BatchType;
 
 // ===[ GLRenderer Struct ]===
+typedef struct {
+    char* name; // owned
+    int32_t location;
+    GLenum type;
+    uint32_t samplerSlot;
+} GLShaderUniform;
+
+typedef struct {
+    GLuint shaderId;
+    bool compiled;
+    uint32_t uniformCount;
+    GLShaderUniform* uniforms;
+} GMLShader;
+
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
 
-    GLuint shaderProgram;
-    GLint uProjection;
-    GLint uTexture;
-    GLint uAlphaTestRef;
-    GLint uFogColor;
-    GLint uAlphaTestEnabled;
-    GLuint* gmlShaders;
-    bool* gmlShaderCompiled;
+    GMLShader* defaultShaderProgram;
+    GMLShader* gmlShaders;
     uint32_t gmlShaderCount;
-    int32_t** sampler2DLookUpTable;
-    GLint** sampler2DLocationLookUpTable;
 
     bool alphaTestEnable;
     float alphaTestRef;
@@ -68,7 +75,12 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+
+    bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
+    bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);
+
+#endif /* _BS_GL_RENDERER_H_ */

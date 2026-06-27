@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_COLLISION_H_
+#define _BS_COLLISION_H_
 
 #include "common.h"
 #include "data_win.h"
@@ -6,14 +7,14 @@
 #include "runner.h"
 #include "vm.h"
 
-#include <math.h>
+#include "math_compat.h"
 
 // Checks if an instance matches a collision target.
-// target >= 100000: instance ID (match specific instance)
+// target >= INSTANCE_ID_BASE: instance ID (match specific instance)
 // target == INSTANCE_ALL (-3): match any instance
-// target >= 0 && < 100000: object index (match via parent chain)
+// target >= 0 && < INSTANCE_ID_BASE: object index (match via parent chain)
 static inline bool Collision_matchesTarget(DataWin* dataWin, Instance* inst, int32_t target) {
-    if (target >= 100000) return inst->instanceId == (uint32_t) target;
+    if (target >= INSTANCE_ID_BASE) return inst->instanceId == (uint32_t) target;
     if (target == INSTANCE_ALL) return true;
     return VM_isObjectOrDescendant(dataWin, inst->objectIndex, target);
 }
@@ -431,3 +432,5 @@ static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a
 
     return false;
 }
+
+#endif /* _BS_COLLISION_H_ */

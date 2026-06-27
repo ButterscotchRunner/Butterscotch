@@ -72,7 +72,7 @@ WAVFile WAV_ParseFileData(uint8_t const* data) {
   data_ptr += 4;
 
   // memcpy so we don't byteswap the original data more than once
-  file.data = safeMalloc(file.header.data_size);
+  file.data = (uint8_t *)safeMalloc(file.header.data_size);
   memcpy(file.data, data_ptr, file.header.data_size);
   file.data_length = file.header.data_size;
 

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_AUDIO_SYSTEM_H_
+#define _BS_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -46,5 +47,8 @@ typedef struct {
 
 struct AudioSystem {
     AudioSystemVtable* vtable;
+    DataWin* dw;
     DataWin** audioGroups;
 };
+
+#endif /* _BS_AUDIO_SYSTEM_H_ */

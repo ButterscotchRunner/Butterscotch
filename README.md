@@ -1,3 +1,7 @@
+<div align="center">
+<img width="256" height="256" alt="Butterscotch Logo" src="https://github.com/user-attachments/assets/ef8bdd5c-d407-4b3c-a4d5-07b25e8bbc70" />
+</div>
+
 <h1 align="center">🥧 Butterscotch 🥧</h1>
 
 <!-- Badges, about the GitHub repository itself -->
@@ -53,14 +57,29 @@ Of course, there are exceptions that break game compatibility altogether:
 
 ## Supported Platforms
 
-* Linux (GLFW, OpenGL)
-* macOS (GLFW, OpenGL)
-* Windows (GLFW, OpenGL, MinGW)
-* Web (WASM, Emscripten, WebGL2)
-* PlayStation 2 (ps2sdk, gsKit)
-* PlayStation 3 (PSL1GHT, PS3GL)
-* Haiku (GLFW)
+* Windows
+* Web
+* PlayStation 2
+* PlayStation 3
 * ...and maybe more in the future!
+
+Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
+* Linux with glibc as old as about ~1996
+* FreeBSD as old as 2.2.8
+* Haiku
+
+The following backends are available for desktop platforms (Windows and POSIX systems).
+* GLFW 2
+* GLFW 3
+* SDL 1.2
+* SDL 2
+* SDL 3
+
+The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+* GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
+* Clang 1.1 and up
+* TinyCC 0.9.27 and up
+* MSVC 19.51.36248
 
 ## Community Ports
 

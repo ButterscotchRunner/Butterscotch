@@ -97,22 +97,6 @@ typedef
 
 /*-- Core (low-level) library functions --*/
 
-BZ_EXTERN int BZ_API(BZ2_bzCompressInit) ( 
-      bz_stream* strm, 
-      int        blockSize100k, 
-      int        verbosity, 
-      int        workFactor 
-   );
-
-BZ_EXTERN int BZ_API(BZ2_bzCompress) ( 
-      bz_stream* strm, 
-      int action 
-   );
-
-BZ_EXTERN int BZ_API(BZ2_bzCompressEnd) ( 
-      bz_stream* strm 
-   );
-
 BZ_EXTERN int BZ_API(BZ2_bzDecompressInit) ( 
       bz_stream *strm, 
       int       verbosity, 
@@ -200,16 +184,6 @@ BZ_EXTERN void BZ_API(BZ2_bzWriteClose64) (
 
 
 /*-- Utility functions --*/
-
-BZ_EXTERN int BZ_API(BZ2_bzBuffToBuffCompress) ( 
-      char*         dest, 
-      unsigned int* destLen,
-      char*         source, 
-      unsigned int  sourceLen,
-      int           blockSize100k, 
-      int           verbosity, 
-      int           workFactor 
-   );
 
 BZ_EXTERN int BZ_API(BZ2_bzBuffToBuffDecompress) ( 
       char*         dest, 

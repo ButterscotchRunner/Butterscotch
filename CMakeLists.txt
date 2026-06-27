@@ -8,11 +8,18 @@ project(butterscotch C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -Wvla)
+if(WERROR)
+    add_compile_options(-Werror)
+endif()
 
 set(PLATFORM "desktop" CACHE STRING "Platform backend")
 set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+
+if(PLATFORM STREQUAL "desktop" AND DESKTOP_BACKEND STREQUAL "")
+    message(FATAL_ERROR "You need to set a DESKTOP_BACKEND!")
+endif()
 
 # Build metadata
 set(BUTTERSCOTCH_COMMIT_HASH "unknown" CACHE STRING "Git commit hash")
@@ -89,12 +96,6 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
-# OpenGL ES 3.0 / WebGL2 compatibility
-option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
-if (ENABLE_GLES AND ENABLE_LEGACY_GL)
-    set(ENABLE_LEGACY_GL OFF)
-endif()
-
 add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
@@ -124,15 +125,21 @@ elseif(AUDIO_BACKEND STREQUAL "ps2")
 endif()
 
 # stb_ds
-target_include_directories(butterscotch PUBLIC vendor/stb/ds)
+add_library(stb_ds INTERFACE)
+target_include_directories(stb_ds SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/vendor/stb/ds)
+
+# stb_vorbis
+add_library(stb_vorbis INTERFACE)
+target_include_directories(stb_vorbis SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/vendor/stb/vorbis)
 
 # RFC 1321 reference MD5 implementation
 target_sources(butterscotch PRIVATE vendor/md5/md5.c)
 target_include_directories(butterscotch PUBLIC vendor/md5)
 
 # Steve Reid's SHA1 implementation
-target_sources(butterscotch PRIVATE vendor/sha1/sha1.c)
-target_include_directories(butterscotch PUBLIC vendor/sha1)
+add_library(sha1 STATIC vendor/sha1/sha1.c)
+target_include_directories(sha1 SYSTEM PUBLIC vendor/sha1)
+target_compile_options(sha1 PRIVATE -w)
 
 # Base64 implementation
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
@@ -140,17 +147,32 @@ target_include_directories(butterscotch PUBLIC vendor/base64)
 
 # bzip2
 add_library(bzip2 STATIC
-    vendor/bzip2/blocksort.c
+    vendor/bzip2/bz_internal_error.c
     vendor/bzip2/bzlib.c
-    vendor/bzip2/compress.c
     vendor/bzip2/crctable.c
     vendor/bzip2/decompress.c
     vendor/bzip2/huffman.c
     vendor/bzip2/randtable.c
 )
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
+target_compile_options(bzip2 PRIVATE -w)
+
+# Spatial grid logs
+option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+if(ENABLE_SPATIAL_GRID_LOGS)
+    add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+endif()
+
+# VM Exceptions logs
+option(ENABLE_VM_EXCEPTIONS_LOGS "Enable VM Exceptions logs" OFF)
+if(ENABLE_VM_EXCEPTIONS_LOGS)
+    add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
+endif()
 
 if(PLATFORM STREQUAL "desktop")
+    # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
+    target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
+
     if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "You must enable at least one renderer!")
     endif()
@@ -185,12 +207,6 @@ if(PLATFORM STREQUAL "desktop")
         add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
     endif()
 
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
     # VM unknown/stubbed function logs
     option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
     if(ENABLE_VM_STUB_LOGS)
@@ -198,22 +214,13 @@ if(PLATFORM STREQUAL "desktop")
     endif()
 
     # GLAD
-    if(ENABLE_GLES)
-        add_compile_definitions(ENABLE_GLES)
-        add_library(glad STATIC vendor/glad-gles/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad-gles/include)
-    else()
-        add_library(glad STATIC vendor/glad/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad/include)
-    endif()
+    add_library(glad STATIC vendor/glad/src/glad.c)
+    target_include_directories(glad PUBLIC vendor/glad/include)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    # stb_vorbis
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
-    set(PLATFORM_LIBRARIES glad m bzip2)
+    set(PLATFORM_LIBRARIES glad m bzip2 stb_ds sha1 stb_vorbis)
     if(MINGW)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
     elseif(NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
@@ -267,8 +274,16 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+    elseif(DESKTOP_BACKEND STREQUAL "sdl3")
+        add_compile_definitions(USE_SDL3)
+
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(SDL3 REQUIRED sdl3)
+        target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
+        target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
+        set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
     endif()
-    target_link_libraries(butterscotch ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+    target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
     target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
 
     # Enable AddressSanitizer by default in Debug builds
@@ -291,16 +306,12 @@ elseif(PLATFORM STREQUAL "web")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    # stb_vorbis (for miniaudio's OGG decoding)
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
     # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2)
+    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis)
 
     set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
 
@@ -330,6 +341,8 @@ elseif(PLATFORM STREQUAL "web-meta")
         SUFFIX ".mjs"
         OUTPUT_NAME "butterscotch-meta"
     )
+
+    target_link_libraries(butterscotch PRIVATE stb_ds)
 
     target_link_options(
             butterscotch
@@ -395,13 +408,14 @@ elseif(PLATFORM STREQUAL "ps2")
     # -Werror=double-promotion: Warn when something is being promoted to a double
     # -fomit-frame-pointer: frees a register on a target with tight register pressure
     # -ffast-math: enables aggressive floating point optimizations
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math)
+    # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
         target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
         target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m)
+        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
 
         # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
         # This avoids loading from rom0: which has compatibility issues between fat/slim PS2
@@ -528,17 +542,26 @@ elseif(PLATFORM STREQUAL "ps3")
     if (NOT ENABLE_LEGACY_GL)
         message(FATAL_ERROR "PS3 requires legacy gl!")
     endif()
-    file(GLOB GL_SOURCES src/gl_common/*.c src/gl_legacy/*.c src/image/*.c vendor/ps3gl/*.c)
-    file(GLOB AL_SOURCES vendor/mojoal/mojoal.c)
+    file(GLOB GL_SOURCES src/gl_common/*.c src/gl_legacy/*.c src/image/*.c)
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${AL_SOURCES} ${DEBUG_FONT_SOURCES})
+    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${DEBUG_FONT_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/vendor/ps3gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/vendor/mojoal)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/ps3)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
+
+    # ps3gl
+    file(GLOB PS3GL_SOURCES vendor/ps3gl/*.c)
+    add_library(ps3gl STATIC ${PS3GL_SOURCES})
+    target_include_directories(ps3gl SYSTEM PUBLIC vendor/ps3gl)
+    target_compile_options(ps3gl PRIVATE -w)
+
+    # mojoal
+    add_library(mojoal STATIC vendor/mojoal/mojoal.c)
+    target_include_directories(mojoal SYSTEM PUBLIC vendor/mojoal)
+    target_compile_definitions(mojoal PRIVATE AL_LIBTYPE_STATIC)
+    target_compile_options(mojoal PRIVATE -w)
 
     # Butterscotch VM/interpreter profiler
     option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
@@ -573,19 +596,17 @@ elseif(PLATFORM STREQUAL "ps3")
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    # stb_vorbis
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
     # Platform identifier for PS3-specific code paths
     add_compile_definitions(PLATFORM_PS3)
-    add_compile_definitions(IS_BIG_ENDIAN)
     add_compile_definitions(AL_LIBTYPE_STATIC)
 
     set(CMAKE_EXE_LINKER_FLAGS "-mhard-float -fmodulo-sched -Wl,--gc-sections -L$ENV{PS3DEV}/ppu/lib -L$ENV{PS3DEV}/portlibs/ppu/lib")
 
     find_package(SDL2 REQUIRED)
     target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2)
+    # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
+    target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
+    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()

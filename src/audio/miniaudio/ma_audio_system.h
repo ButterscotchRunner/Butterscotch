@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_MA_AUDIO_SYSTEM_H_
+#define _BS_MA_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -28,6 +29,8 @@ typedef struct {
 typedef struct {
     bool active;
     char* filePath; // resolved file path (owned, freed on destroy)
+    float initialGain;
+    float initialPitch;
 } AudioStreamEntry;
 
 typedef struct {
@@ -39,4 +42,6 @@ typedef struct {
     AudioStreamEntry streams[MAX_AUDIO_STREAMS];
 } MaAudioSystem;
 
-MaAudioSystem* MaAudioSystem_create(void);
+MaAudioSystem* MaAudioSystem_create(DataWin* dataWin);
+
+#endif /* _BS_MA_AUDIO_SYSTEM_H_ */

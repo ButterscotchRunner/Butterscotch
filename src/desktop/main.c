@@ -1,3 +1,5 @@
+#include <ctype.h>
+
 #include "data_win.h"
 #include "vm.h"
 
@@ -25,7 +27,7 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 #include <glad/glad.h>
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
@@ -49,17 +51,43 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "gettime.h"
 
 /* For SDL_main */
 #if defined(USE_SDL1)
 #include <SDL/SDL_main.h>
 #elif defined(USE_SDL2)
 #include <SDL2/SDL_main.h>
+#elif defined(USE_SDL3)
+#include <SDL3/SDL_main.h>
 #endif
 
 enum GraphicsAPI gfx;
+bool wantGLES;
 
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
+int platformInitGlad(GLADloadproc load) {
+    glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
+    const char *version;
+    if (glGetString) {
+        version = (const char*)glGetString(GL_VERSION);
+    } else
+        return 0;
+    // Load OpenGL function pointers via GLAD
+    // This will need to be modified if we ever want to support GLES 1.x
+    if (version && strstr(version, "OpenGL ES")) {
+        if (!gladLoadGLES2Loader(platformGetProcAddress))
+            return 0;
+        return 2;
+    } else {
+        if (!gladLoadGLLoader(platformGetProcAddress))
+            return 0;
+        return 1;
+    }
+}
+#endif
+
+#ifdef ENABLE_MODERN_GL
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
     switch (source) {
@@ -99,15 +127,28 @@ static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLen
 }
 
 static void installGLDebugCallback(void) {
-    if (!GLAD_GL_KHR_debug) {
-        fprintf(stderr, "OpenGL debug callback not available (driver does not expose GL_KHR_debug)\n");
+    if (glDebugMessageCallback && glDebugMessageControl) {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(glDebugCallback, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
         return;
     }
 
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallbackKHR(glDebugCallback, nullptr);
-    glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+    if (glDebugMessageCallbackKHR && glDebugMessageControlKHR) {
+        glEnable(GL_DEBUG_OUTPUT_KHR);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);
+        glDebugMessageCallbackKHR(glDebugCallback, NULL);
+        glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
+
+    if (glDebugMessageCallbackARB && glDebugMessageControlARB) {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+        glDebugMessageCallbackARB(glDebugCallback, NULL);
+        glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
 }
 #endif
 
@@ -146,6 +187,7 @@ typedef struct {
     bool traceFrames;
     bool printRooms;
     bool printObjects;
+    bool printShaders;
     bool printDeclaredFunctions;
     bool printUnknownFunctions;
     int exitAtFrame;
@@ -263,6 +305,20 @@ static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, u
     }
 }
 
+#ifdef NO_STRTOK_R
+
+static char *strtok_r(char *s, const char *sep, char **p) {
+    if (!s && !(s = *p)) return NULL;
+    s += strspn(s, sep);
+    if (!*s) return *p = 0;
+    *p = s + strcspn(s, sep);
+    if (**p) *(*p)++ = 0;
+    else *p = 0;
+    return s;
+}
+
+#endif
+
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function
 // Returns the modified array
@@ -285,10 +341,70 @@ static char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
+static void printUsage(const char *argv0) {
+    fprintf(
+        stderr,
+        "Usage: %s <path to data.win or game.unx>\n"
+        "    --help                                 - Show this message\n"
+        "    --screenshot <filename>                - Specify the filename for screenshots\n"
+        "    --screenshot-at-frame <frame>          - Take a screenshot at the specified frame\n"
+        "    --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame\n"
+        "    --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots\n"
+#ifndef USE_GLFW2
+        "    --headless                             - Launch without a window\n"
+#endif
+        "    --print-rooms                          - Print all rooms in the game and exit\n"
+        "    --print-objects                        - Print all objects in the game and exit\n"
+        "    --print-shaders                        - Print all shaders in the game and exit\n"
+        "    --print-declared-functions             - Print all declared functions in the game and exit\n"
+        "    --print-unknown-functions              - Print all unknown functions used by the game and exit\n"
+        "    --trace-variable-reads                 - Trace variable reads\n"
+        "    --trace-variable-writes                - Trace variable writes\n"
+        "    --trace-function-calls                 - Trace function calls\n"
+        "    --trace-alarms                         - Trace alarms\n"
+        "    --trace-instance-lifecycles            - Trace instance creations and deletions\n"
+        "    --trace-events                         - Trace events\n"
+        "    --trace-collisions                     - Trace collisions between instances\n"
+        "    --trace-event-inherited                - Trace event inherited calls\n"
+        "    --trace-tiles                          - Trace drawn tiles\n"
+        "    --trace-opcodes                        - Trace opcodes\n"
+        "    --trace-stack                          - Trace stack\n"
+        "    --trace-frames                         - Log frametimes\n"
+        "    --always-log-unknown-functions         - Always log unknown function calls instead of once per script\n"
+        "    --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script\n"
+        "    --exit-at-frame <frame>                - Exit at the specified frame\n"
+        "    --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame\n"
+        "    --dump-frame <frame>                   - Dump the runner state at the specified frame\n"
+        "    --dump-frame-json <frame>              - Dump the runner state in json at the specified frame\n"
+        "    --dump-frame-json-file <file>          - Specify an output file for runner state dumps\n"
+        "    --speed <speed>                        - Set a normal speed multiplier\n"
+        "    --fast-forward-speed <speed>           - Set a fast-forward speed multiplier\n"
+        "    --seed <seed>                          - Seed for the random number generator\n"
+        "    --debug                                - Enable debug mode\n"
+        "    --disassemble <script>                 - Disassemble the specified script and print to console (* disassembles all)\n"
+        "    --record-inputs <file>                 - Record all keyboard inputs to a file\n"
+        "    --playback-inputs <file>               - Playback input from file\n"
+        "    --renderer <renderer>                  - Set the rendering API\n"
+        "    --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage\n"
+        "    --eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory\n"
+        "    --os-type <os>                         - Set the reported OS type\n"
+        "    --window-size <dimentions>             - Set a custom window size\n"
+        "    --widescreen-hack <aspect ratio>       - Set a custom aspect ratio\n"
+        "    --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions\n"
+        "    --save-folder <directory>              - Set the directory will save files will be stored\n"
+        "    --game-args <args>                     - Arguments to pass to the game\n"
+#ifdef EABLE_VM_OPCODE_PROFILER
+        "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
+#endif
+        , argv0
+    );
+}
+
 static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
     memset(args, 0, sizeof(CommandLineArgs));
 
     static struct option longOptions[] = {
+        {"help",          no_argument, nullptr, 'H'},
         {"screenshot",          required_argument, nullptr, 's'},
         {"screenshot-at-frame", required_argument, nullptr, 'f'},
         {"screenshot-surfaces", required_argument, nullptr, 'U'},
@@ -296,6 +412,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"headless",            no_argument,       nullptr, 'h'},
         {"print-rooms", no_argument,               nullptr, 'r'},
         {"print-objects", no_argument,             nullptr, 'b'},
+        {"print-shaders", no_argument,               nullptr, 998},
         {"print-declared-functions", no_argument,  nullptr, 'p'},
         {"print-unknown-functions", no_argument, nullptr, 'u'},
         {"trace-variable-reads", required_argument,  nullptr, 'R'},
@@ -351,7 +468,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     // TODO: detect available driver features
     // at runtime to improve defaults.
-#if defined(ENABLE_MODERN_GL) && (defined(USE_GLFW3) || defined(USE_SDL2))
+#if defined(ENABLE_MODERN_GL)
     args->renderer = "modern-gl";
 #elif defined(ENABLE_LEGACY_GL)
     args->renderer = "legacy-gl";
@@ -362,6 +479,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     int opt;
     while ((opt = getopt_long(argc, argv, "", longOptions, nullptr)) != -1) {
         switch (opt) {
+            case 'H':
+                printUsage(argv[0]);
+                exit(0);
             case 's':
                 args->screenshotPattern = optarg;
                 break;
@@ -398,6 +518,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'b':
                 args->printObjects = true;
                 break;
+            case 998: {
+                args->printShaders = true;
+                break;
+            }
             case 'p':
                 args->printDeclaredFunctions = true;
                 break;
@@ -618,7 +742,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             }
             default:
-                fprintf(stderr, "Usage: %s <path to data.win or game.unx>\n", argv[0]);
+                printUsage(argv[0]);
                 exit(1);
         }
     }
@@ -670,11 +794,12 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque) {
+// When flipY is true, the image will be flipped vertically.
+static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque, bool flipY) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
-    unsigned char* pixels = safeMalloc(stride * height);
+    unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
         fprintf(stderr, "Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
@@ -687,19 +812,22 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
         repeat(totalPixels, i) pixels[i * 4 + 3] = 255;
     }
 
-    // OpenGL reads bottom-to-top, but PNG is top-to-bottom.
-    // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
-    unsigned char* lastRow = pixels + (height - 1) * stride;
-    stbi_write_png(filename, width, height, 4, lastRow, -stride);
+    if (flipY) {
+        // Use stb's negative stride trick: point to the last row and use a negative stride to flip vertically.
+        unsigned char* lastRow = pixels + (height - 1) * stride;
+        stbi_write_png(filename, width, height, 4, lastRow, -stride);
+    } else {
+        stbi_write_png(filename, width, height, 4, pixels, stride);
+    }
 
     free(pixels);
     printf("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
 }
 
-static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height) {
+static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height, bool flipY) {
     char filename[512];
     snprintf(filename, sizeof(filename), filenamePattern, frameNumber);
-    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true);
+    writeFramebufferAsPng(fbo, width, height, filename, "Screenshot saved", true, flipY);
 }
 
 // Dumps every live surface in the GL renderer as a PNG.
@@ -715,7 +843,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
         char filename[512];
         snprintf(filename, sizeof(filename), filenamePattern, frameNumber, (int) surfaceId);
-        writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false);
+        writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false, false);
     }
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -792,6 +920,37 @@ static void onCrashSignal(int sig) {
 }
 #endif
 
+char* collapseNewlines(const char *input) {
+    if (input == nullptr) {
+        return nullptr;
+    }
+
+    size_t len = strlen(input);
+    char *result = (char *)malloc(len + 1);
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    size_t j = 0;
+    bool isNewline = false;
+    repeat(len, i) {
+        if (input[i] == '\n' || input[i] == '\r') {
+            if (isNewline)
+                continue;
+
+            isNewline = true;
+            result[j++] = '\n';
+            continue;
+        } else {
+            isNewline = false;
+        }
+        result[j++] = input[i];
+    }
+    result[j] = '\0';
+
+    return result;
+}
+
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
     setbuf(stderr, NULL);
@@ -811,6 +970,7 @@ int main(int argc, char* argv[]) {
     arrins(currentGameArgs, 0, safeStrdup(argv[0]));
 
     bool platformInitialized = false;
+    int32_t inputFrameCount = 0;
 
     while (true) {
         printf("Loading %s...\n", args.dataWinPath);
@@ -866,8 +1026,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
         vm->opcodeProfilerEnabled = args.opcodeProfiler;
         if (vm->opcodeProfilerEnabled) {
-            vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-            vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
 
@@ -963,6 +1123,34 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
+        if (args.printShaders) {
+            forEachIndexed(Shader, shader, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
+                printf("[%u] %s:\n", idx, shader->name);
+                printf("GLSL Vertex Shader:\n");
+                char* glslVertex = collapseNewlines(shader->glsl_Vertex);
+                printf("%s\n", glslVertex);
+                free(glslVertex);
+
+                printf("GLSL Fragment Shader:\n");
+                char* glslFragment = collapseNewlines(shader->glsl_Fragment);
+                printf("%s\n", glslFragment);
+                free(glslFragment);
+
+                printf("GLSL ES Vertex Shader:\n");
+                char* glslESVertex = collapseNewlines(shader->glslES_Vertex);
+                printf("%s\n", glslESVertex);
+                free(glslESVertex);
+
+                printf("GLSL ES Fragment Shader:\n");
+                char* glslESFragment = collapseNewlines(shader->glslES_Fragment);
+                printf("%s\n", glslESFragment);
+                free(glslESFragment);
+            }
+            VM_free(vm);
+            DataWin_free(dataWin);
+            return 0;
+        }
+
         if (args.printDeclaredFunctions) {
             repeat(hmlen(vm->codeIndexByName), i) {
                 printf("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
@@ -1034,7 +1222,7 @@ int main(int argc, char* argv[]) {
                 lastSlash = lastBackslash;
             if (lastSlash != nullptr) {
                 size_t len = (size_t) (lastSlash - args.dataWinPath + 1);
-                dataWinDir = safeMalloc(len + 1);
+                dataWinDir = (char *)safeMalloc(len + 1);
                 memcpy(dataWinDir, args.dataWinPath, len);
                 dataWinDir[len] = '\0';
             } else {
@@ -1084,6 +1272,7 @@ int main(int argc, char* argv[]) {
         int32_t windowW, windowH;
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
+        int glad_ret;
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
@@ -1097,12 +1286,8 @@ int main(int argc, char* argv[]) {
 #else
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
-                // Load OpenGL function pointers via GLAD
-#ifdef ENABLE_GLES
-                if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
-#else
-                if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
-#endif
+                glad_ret = platformInitGlad((GLADloadproc)platformGetProcAddress);
+                if (glad_ret == 0) {
                     fprintf(stderr, "Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
@@ -1113,7 +1298,7 @@ int main(int argc, char* argv[]) {
 #endif
 
             // Install the OpenGL debug message callback
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#ifdef ENABLE_MODERN_GL
             if (gfx == MODERN_GL)
                 installGLDebugCallback();
 #endif
@@ -1136,8 +1321,10 @@ int main(int argc, char* argv[]) {
             renderer = GLLegacyRenderer_create();
 #endif
 #ifdef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL)
+        if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
+            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
+        }
 #endif
         if (!renderer) {
             fprintf(stderr, "Failed to initialize a renderer\n");
@@ -1155,7 +1342,7 @@ int main(int argc, char* argv[]) {
 #if defined(USE_OPENAL)
             audioSystem = (AudioSystem*) AlAudioSystem_create();
 #elif defined(USE_MINIAUDIO)
-            audioSystem = (AudioSystem*) MaAudioSystem_create();
+            audioSystem = (AudioSystem*) MaAudioSystem_create(dataWin);
 #else
             audioSystem = (AudioSystem*) NoopAudioSystem_create();
 #endif
@@ -1235,8 +1422,8 @@ int main(int argc, char* argv[]) {
         bool debugShowCollisionMasks = false;
         bool freeCamActive = false;
         bool actuallyShuttingDown = false;
-        double lastFrameTime = platformGetTime();
-        double lastFrameStartTime = platformGetTime(); // for delta_time
+        uint64_t lastFrameTime = nowNanos();
+        uint64_t lastFrameStartTime = lastFrameTime; // for delta_time
         bool shouldWindowClose = false;
         while (true) {
             if (runner->shouldExit || shouldWindowClose) {
@@ -1249,8 +1436,8 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            double frameStartNow = platformGetTime();
-            runner->deltaTime = (frameStartNow - lastFrameStartTime) * 1000000.0;
+            uint64_t frameStartNow = nowNanos();
+            runner->deltaTime = (frameStartNow - lastFrameStartTime) / 1000;
             lastFrameStartTime = frameStartNow;
 
             // Clear last frame's pressed/released state, then poll new input events
@@ -1278,16 +1465,16 @@ int main(int argc, char* argv[]) {
                 if (shouldStep) fprintf(stderr, "Debug: Frame advance (frame %d)\n", runner->frameCount);
             }
 
-            double frameStartTime = 0;
+            uint64_t frameStartTime = 0;
 
             if (shouldStep) {
                 if (args.traceFrames) {
-                    frameStartTime = platformGetTime();
+                    frameStartTime = nowNanos();
                     fprintf(stderr, "Frame %d (Start)\n", runner->frameCount);
                 }
 
                 // Process input recording/playback (must happen after platformHandleEvents, before Runner_step)
-                InputRecording_processFrame(globalInputRecording, runner->keyboard, runner->frameCount);
+                InputRecording_processFrame(globalInputRecording, runner->keyboard, inputFrameCount++);
 
                 // Go to next room
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEUP)) {
@@ -1376,15 +1563,15 @@ int main(int argc, char* argv[]) {
 
                 // Reset global interact state because I HATE when I get stuck while moving through rooms
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
-                    int32_t interactVarId = shget(runner->vmContext->globalVarNameMap, "interact");
+                    int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
-                    runner->vmContext->globalVars[interactVarId] = RValue_makeInt32(0);
+                    Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
-                bool* currentKeyDown = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyPressed = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyReleased = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyDown = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyPressed = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyReleased = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
 
                 if (freeCamActive) {
                     // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
@@ -1506,66 +1693,19 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-                // It is a bit hard to understand, but here's how it works:
-                // The Port X/Port Y controls the position of the game viewport within the application surface.
-                // The Port W/Port H controls the size of the game viewport within the application surface.
-                // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-                // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-                float displayScaleX;
-                float displayScaleY;
-
                 Runner_drawPre(runner, fbWidth, fbHeight);
-                Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
-
-                runner->renderGameW = gameW;
-                runner->renderGameH = gameH;
 
                 // Calculate viewport (letterboxing) in screen coordinates for mouse mapping
-                int32_t winW, winH, scaledW, scaledH;
+                int32_t winW, winH;
                 platformGetScaledWindowSize(&winW, &winH);
-                if ((gameW * winH) / gameH < winW) {
-                    scaledW = (gameW * winH) / gameH;
-                    scaledH = winH;
-                } else {
-                    scaledW = winW;
-                    scaledH = (gameH * winW) / gameW;
-                }
-                runner->viewportX = (winW - scaledW) / 2;
-                runner->viewportY = (winH - scaledH) / 2;
-                runner->viewportW = scaledW;
-                runner->viewportH = scaledH;
+
+                Runner_beginFrame(runner, gameW, gameH, winW, winH, fbWidth, fbHeight);
 
                 double mx, my;
                 platformGetMousePos(&mx, &my);
                 Runner_updateMousePosition(runner, winW, winH, mx, my);
 
-                Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
-
-                // Clear FBO with room background color
-#ifdef ENABLE_SW_RENDERER
-                if (gfx == SOFTWARE) {
-                    if (runner->drawBackgroundColor)
-                        SWRenderer_clearFrameBuffer(renderer, runner->backgroundColor);
-                    else
-                        SWRenderer_clearFrameBuffer(renderer, 0);
-                }
-#endif
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-                if (gfx == MODERN_GL || gfx == LEGACY_GL) {
-                    if (runner->drawBackgroundColor) {
-                        int rInt = BGR_R(runner->backgroundColor);
-                        int gInt = BGR_G(runner->backgroundColor);
-                        int bInt = BGR_B(runner->backgroundColor);
-                        glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, 1.0f);
-                    } else
-                        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-                    glClear(GL_COLOR_BUFFER_BIT);
-                }
-#endif
-
-                Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+                Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
                 renderer->vtable->endFrameInit(renderer);
                 Runner_drawPost(runner, fbWidth, fbHeight);
                 renderer->vtable->endFrameEnd(renderer);
@@ -1575,25 +1715,15 @@ int main(int argc, char* argv[]) {
                 // Capture screenshot if this frame matches a requested frame
                 bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
-                if (shouldScreenshot) {
-                    int32_t appId = runner->applicationSurfaceId;
-                    GLuint readFbo;
-#ifdef ENABLE_LEGACY_GL
-                    if (gfx == LEGACY_GL) {
-                        readFbo = ((GLLegacyRenderer*) renderer)->surfaces[appId];
-                    } else
-#endif
-                    {
-                        readFbo = ((GLRenderer*) renderer)->surfaces[appId];
-                    }
-                    captureScreenshot(readFbo, args.screenshotPattern, runner->frameCount, gameW, gameH);
+                if (shouldScreenshot || RunnerKeyboard_checkPressed(runner->keyboard, VK_F5)) {
+                    captureScreenshot(0, args.screenshotPattern, runner->frameCount, fbWidth, fbHeight, true);
                     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
                 }
 
                 // Dump all surfaces if this frame matches a requested frame
                 bool shouldDumpSurfaces = hmget(args.screenshotSurfacesFrames, runner->frameCount);
 
-                if (shouldDumpSurfaces) {
+                if (shouldDumpSurfaces || RunnerKeyboard_checkPressed(runner->keyboard, VK_F6)) {
                     GLRenderer* gl = (GLRenderer*) renderer;
                     dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
                     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -1606,7 +1736,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (shouldStep && args.traceFrames) {
-                    double frameElapsedMs = (platformGetTime() - frameStartTime) * 1000.0;
+                    double frameElapsedMs = (nowNanos() - frameStartTime) / 1000000.0;
                     fprintf(stderr, "Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
                 }
 
@@ -1623,15 +1753,15 @@ int main(int argc, char* argv[]) {
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, '\t');
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
-                    lastFrameTime = platformGetTime();
+                    lastFrameTime = nowNanos();
                 }
                 fastForwardTabPrev = fastForwardTabNow;
                 double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
-                double targetFrameTime = 1.0 / (runner->currentRoom->speed * effectiveSpeed);
-                double nextFrameTime = lastFrameTime + targetFrameTime;
+                uint64_t targetFrameTime = 1000000000 / (runner->currentRoom->speed * effectiveSpeed);
+                uint64_t nextFrameTime = lastFrameTime + targetFrameTime;
                 platformSleepUntil(nextFrameTime);
             }
-            lastFrameTime = platformGetTime();
+            lastFrameTime = nowNanos();
         }
 
         saveInputRecording();
@@ -1669,6 +1799,9 @@ int main(int argc, char* argv[]) {
             }
             arrfree(currentGameArgs);
             printf("Bye! :3\n");
+#ifdef _WIN32
+            timeEndPeriod(1);
+#endif
             return 0;
         }
 
@@ -1728,7 +1861,7 @@ int main(int argc, char* argv[]) {
             // The pendingWorkingDirectory contains a slash at the beginning of it (example: /chapter3)
             // The parentDir does NOT have a trailing slash, so we don't need to bother with it
             size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-            char* newPath = safeMalloc(newPathLen);
+            char* newPath = (char *)safeMalloc(newPathLen);
             snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDirectory, dataWinFilename);
 
             free(parentDir);
@@ -1752,10 +1885,5 @@ int main(int argc, char* argv[]) {
             free(nextLaunchParameters);
             arrfree(newArguments);
         }
-
-#ifdef _WIN32
-        timeEndPeriod(1);
-#endif
-        printf("Bye! :3\n");
     }
 }

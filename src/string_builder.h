@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_STRING_BUILDER_H_
+#define _BS_STRING_BUILDER_H_
 
 #include <common.h>
 #include <stdint.h>
@@ -40,3 +41,5 @@ size_t StringBuilder_length(const StringBuilder* sb);
 
 // Returns a heap-allocated copy of the current contents. The StringBuilder is unchanged and may still be appended to or freed. The caller must free() the returned pointer.
 char* StringBuilder_toString(const StringBuilder* sb);
+
+#endif /* _BS_STRING_BUILDER_H_ */

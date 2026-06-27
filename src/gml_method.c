@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 GMLMethod* GMLMethod_create(int32_t codeIndex, int32_t boundInstanceId) {
-    GMLMethod* m = safeCalloc(1, sizeof(GMLMethod));
+    GMLMethod* m = (GMLMethod *)safeCalloc(1, sizeof(GMLMethod));
     m->refCount = 1;
     m->codeIndex = codeIndex;
     m->boundInstanceId = boundInstanceId;
@@ -12,7 +12,7 @@ GMLMethod* GMLMethod_create(int32_t codeIndex, int32_t boundInstanceId) {
 }
 
 GMLMethod* GMLMethod_createBuiltin(BuiltinFunc builtin, int32_t boundInstanceId) {
-    GMLMethod* m = safeCalloc(1, sizeof(GMLMethod));
+    GMLMethod* m = (GMLMethod *)safeCalloc(1, sizeof(GMLMethod));
     m->refCount = 1;
     m->codeIndex = -1;
     m->boundInstanceId = boundInstanceId;
@@ -21,7 +21,7 @@ GMLMethod* GMLMethod_createBuiltin(BuiltinFunc builtin, int32_t boundInstanceId)
 }
 
 GMLMethod* GMLMethod_createUnresolved(const char* name, int32_t boundInstanceId) {
-    GMLMethod* m = safeCalloc(1, sizeof(GMLMethod));
+    GMLMethod* m = (GMLMethod *)safeCalloc(1, sizeof(GMLMethod));
     m->refCount = 1;
     m->codeIndex = -1;
     m->boundInstanceId = boundInstanceId;

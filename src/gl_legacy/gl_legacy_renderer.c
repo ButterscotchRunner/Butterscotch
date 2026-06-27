@@ -35,13 +35,53 @@ extern GLint  gPalettedUPaletteVLoc;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include "math_compat.h"
 
 #include "stb_image.h"
 #include "stb_ds.h"
 #include "utils.h"
 #include "image_decoder.h"
 #include "gl_common.h"
+
+// ===[ Runtime OpenGL extension checks ]===
+
+static bool hasFBO() {
+#ifdef PLATFORM_PS3
+    return true;
+#else
+    return (glGenFramebuffers || glGenFramebuffersEXT);
+#endif
+}
+
+#ifndef PLATFORM_PS3
+static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
+    if (glGenFramebuffers) glGenFramebuffers(n, ids);
+    else glGenFramebuffersEXT(n, ids);
+}
+#undef glGenFramebuffers
+#define glGenFramebuffers rt_glGenFramebuffers
+
+static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
+    if (glBindFramebuffer) glBindFramebuffer(target, fb);
+    else glBindFramebufferEXT(target, fb);
+}
+#undef glBindFramebuffer
+#define glBindFramebuffer rt_glBindFramebuffer
+
+static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
+    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
+    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
+}
+#undef glFramebufferTexture2D
+#define glFramebufferTexture2D rt_glFramebufferTexture2D
+
+static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
+    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
+    else glDeleteFramebuffersEXT(n, ids);
+}
+#undef glDeleteFramebuffers
+#define glDeleteFramebuffers rt_glDeleteFramebuffers
+#endif
 
 // ===[ Helpers ]===
 
@@ -63,6 +103,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+    if (!hasFBO()) {
+        fprintf(stderr, "GL: The legacy-gl renderer requires FBO support!\n");
+        abort();
+    }
+
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
     glEnable(GL_TEXTURE_2D);
     glDisable(GL_DEPTH_TEST);
@@ -74,10 +119,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #else
     gl->textureCount = dataWin->txtr.count;
 #endif
-    gl->glTextures = safeMalloc(gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeMalloc(gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
 
     glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -196,18 +241,20 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
     renderer->previousViewMatrix = projection;
 }
 
-static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    GLint boundFbo = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &boundFbo);
-    if (boundFbo == 0) {
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, portW, portH);
         glEnable(GL_SCISSOR_TEST);
         glScissor(0, 0, portW, portH);
     } else {
+        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
+        require(gl->surfaces[targetSurfaceId] != 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         glApplyViewport(gl, portX, portY, portW, portH);
     }
 
@@ -219,6 +266,18 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glActiveTexture(GL_TEXTURE0);
+}
+
+static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
+    Matrix4f projection;
+    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+    // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
+    // Flip the projection when we are rendering to a user surface so it comes back upright.
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projection);
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(projection.m);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 }
 
 static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
@@ -241,6 +300,7 @@ static void glEndFrameEnd(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
+    GLCommon_beginLetterboxBlit(gl->surfaces[appId], 0);
     GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, 0);
 }
 
@@ -388,7 +448,7 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     PS3_PALETTED_END();
 }
 
-static void glDrawTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
+static void glDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -775,33 +835,29 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
     glEnd();
 }
 
-static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
+static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline)
 {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     if(outline)
     {
-        glDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
-        glDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
+        glDrawLineColor(renderer, x1, y1, x2, y2, 1, color1, color2, alpha);
+        glDrawLineColor(renderer, x2, y2, x3, y3, 1, color2, color3, alpha);
+        glDrawLineColor(renderer, x3, y3, x1, y1, 1, color3, color1, alpha);
     } else {
-        float r = (float) BGR_R(renderer->drawColor) / 255.0f;
-        float g = (float) BGR_G(renderer->drawColor) / 255.0f;
-        float b = (float) BGR_B(renderer->drawColor) / 255.0f;
-
         glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
 
         glBegin(GL_TRIANGLES);
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color1) / 255.0f, (float) BGR_G(color1) / 255.0f, (float) BGR_B(color1) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x1 , y1); 
+            glVertex2f(x1 , y1);
 
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color2) / 255.0f, (float) BGR_G(color2) / 255.0f, (float) BGR_B(color2) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x2, y2); 
+            glVertex2f(x2, y2);
 
-            glColor4f(r, g, b, renderer->drawAlpha);
+            glColor4f((float) BGR_R(color3) / 255.0f, (float) BGR_G(color3) / 255.0f, (float) BGR_B(color3) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x3, y3); 
+            glVertex2f(x3, y3);
         glEnd();
     }
 }
@@ -875,8 +931,10 @@ static bool glResolveGlyph(GLLegacyRenderer* gl, DataWin* dw, GlFontState* state
         *outU1 = (float) (glyphTpag->sourceX + glyphTpag->sourceWidth) / (float) tw;
         *outV1 = (float) (glyphTpag->sourceY + glyphTpag->sourceHeight) / (float) th;
 
+        // Sprite-font glyphs sit at the cell offset. GM 2023.2+ subtracts the sprite origin, pre-2023.2 it cancels.
+        // (See GameMaker-HTML5's commit a7c5b909209d5a28602fedfe2031965386a99921)
         *outLocalX0 = cursorX + (float) glyph->offset;
-        *outLocalY0 = cursorY + (float) ((int32_t) glyphTpag->targetY - sprite->originY);
+        *outLocalY0 = cursorY + (float) (int32_t) glyphTpag->targetY - (float) font->spriteOriginYAdjust;
     } else {
         *outTexId = state->texId;
         *outTpagIdx = state->fontTpagIndex;
@@ -1188,10 +1246,10 @@ static uint32_t findOrAllocTexturePageSlot(GLLegacyRenderer* gl) {
     // No free slot found, grow the arrays
     uint32_t newPageId = gl->textureCount;
     gl->textureCount++;
-    gl->glTextures = safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -1206,13 +1264,16 @@ static uint32_t findOrAllocTpagSlot(DataWin* dw, uint32_t originalTpagCount) {
     }
     uint32_t newIndex = dw->tpag.count;
     dw->tpag.count++;
-    dw->tpag.items = safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+    dw->tpag.items = (TexturePageItem *)safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
     memset(&dw->tpag.items[newIndex], 0, sizeof(TexturePageItem));
     dw->tpag.items[newIndex].texturePageId = -1;
     return newIndex;
 }
 
 static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    // TODO: implement these
+    (void)smooth;
+    (void)removeback;
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1222,7 +1283,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
-    uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
+    uint8_t* pixels = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr)
         return -1;
 
@@ -1269,7 +1330,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
-    sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices = (int32_t *)safeMalloc(sizeof(int32_t));
     sprite->tpagIndices[0] = (int32_t) tpagIndex;
     sprite->maskCount = 0;
     sprite->masks = nullptr;
@@ -1327,7 +1388,8 @@ static void glGpuSetBlendModeExt(MAYBE_UNUSED Renderer* renderer, int32_t sfacto
     glBlendFunc(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor));
 }
 
-static void glGpuSetBlendEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
+    (void)renderer;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 }
 
@@ -1477,7 +1539,7 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     fprintf(stderr, "GL: Freed Surface %d\n", surfaceId);
 }
 
-static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
+static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
@@ -1485,7 +1547,7 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
-    if (surfaceId == renderer->runner->applicationSurfaceId) {
+    if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glMatrixMode(GL_PROJECTION);
         glLoadMatrixf(renderer->previousViewMatrix.m);
@@ -1521,8 +1583,10 @@ static bool resolveSurfaceTexture(GLLegacyRenderer* gl, int32_t surfaceId, GLuin
     return true;
 }
 
-// Surface textures are stored with Y=0 at the bottom (OpenGL convention), but GML treats
-// surfaces top-down, so we sample with V flipped (v0=1, v1=0) when drawing them.
+static void glLegacyDrawSurfaceTiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
+    // No-op
+}
+
 static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     GLuint texId;
@@ -1664,16 +1728,17 @@ static void glGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
 static int32_t glShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static int32_t glShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
 static void glShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void glShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
 static void glShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
 static bool glShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool glShadersSupported(MAYBE_UNUSED Renderer* renderer) { return false; }
+static bool glShadersSupported(void) { return false; }
 
 static RendererVtable glVtable;
 
 // ===[ Public API ]===
 
 Renderer* GLLegacyRenderer_create(void) {
-    GLLegacyRenderer* gl = safeCalloc(1, sizeof(GLLegacyRenderer));
+    GLLegacyRenderer* gl = (GLLegacyRenderer *)safeCalloc(1, sizeof(GLLegacyRenderer));
     gl->base.vtable = &glVtable;
     glVtable.init = glInit;
     glVtable.destroy = glDestroy;
@@ -1684,6 +1749,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.endView = glEndView;
     glVtable.applyProjection = glApplyProjection;
     glVtable.beginGUI = glBeginGUI;
+    glVtable.setGuiProjection = glSetGuiProjection;
     glVtable.endGUI = glEndGUI;
     glVtable.drawSprite = glDrawSprite;
     glVtable.drawSpritePos = glDrawSpritePos;
@@ -1708,7 +1774,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
     glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
     glVtable.drawTile = nullptr;
-    glVtable.drawTiled = glDrawTiled;
+    glVtable.drawSpriteTiled = glDrawSpriteTiled;
     glVtable.createSurface = glLegacyCreateSurface;
     glVtable.surfaceExists = glLegacySurfaceExists;
     glVtable.setRenderTarget = glLegacySetRenderTarget;
@@ -1716,6 +1782,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.getSurfaceWidth = glLegacyGetSurfaceWidth;
     glVtable.getSurfaceHeight = glLegacyGetSurfaceHeight;
     glVtable.drawSurface = glLegacyDrawSurface;
+    glVtable.drawSurfaceTiled = glLegacyDrawSurfaceTiled;
     glVtable.surfaceResize = glLegacySurfaceResize;
     glVtable.surfaceFree = glLegacySurfaceFree;
     glVtable.surfaceCopy = glLegacySurfaceCopy;
@@ -1731,6 +1798,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.shaderGetUniform = glShaderGetUniform;
     glVtable.shaderGetSamplerIndex = glShaderGetSamplerIndex;
     glVtable.shaderSetUniformF = glShaderSetUniformF;
+    glVtable.shaderSetUniformFArray = glShaderSetUniformFArray;
     glVtable.shaderSetUniformI = glShaderSetUniformI;
     glVtable.shaderIsCompiled = glShaderIsCompiled;
     glVtable.shadersSupported = glShadersSupported;

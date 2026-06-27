@@ -16,15 +16,13 @@ void PS2Utils_extractDeviceKey(const char* path) {
     requireNotNull(pos);
 
     size_t length = pos - path;
-    char* result = safeMalloc((length + 1) * sizeof(char));
+    char* result = (char *)safeMalloc((length + 1) * sizeof(char));
     strncpy(result, path, length);
     result[length] = '\0';
 
     // The "result" is the device key as a string (example: "mass" or "host")
-    deviceKey = (PS2DeviceKey) {
-        .key = result,
-        .usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0,
-    };
+    deviceKey.key = result;
+    deviceKey.usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0;
 
     deviceKeyLoaded = true;
 }
@@ -106,12 +104,12 @@ char* PS2Utils_createDevicePath(const char* path) {
 
     if (deviceKey.usesISO9660) {
         size_t len = strlen(deviceKey.key) + 3 + strlen(path) + 2 + 1;
-        char* devicePath = safeMalloc(len);
+        char* devicePath = (char *)safeMalloc(len);
         snprintf(devicePath, len, "%s:\\%s;1", deviceKey.key, path);
         return devicePath;
     } else {
         size_t len = strlen(deviceKey.key) + 1 + strlen(path) + 1;
-        char* devicePath = safeMalloc(len);
+        char* devicePath = (char *)safeMalloc(len);
         snprintf(devicePath, len, "%s:%s", deviceKey.key, path);
         return devicePath;
     }

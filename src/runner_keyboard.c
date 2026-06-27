@@ -9,10 +9,12 @@ static bool isValidKey(int32_t key) {
 }
 
 RunnerKeyboardState* RunnerKeyboard_create(void) {
-    RunnerKeyboardState* kb = safeCalloc(1, sizeof(RunnerKeyboardState));
+    RunnerKeyboardState* kb = (RunnerKeyboardState *)safeCalloc(1, sizeof(RunnerKeyboardState));
     kb->lastKey = VK_NOKEY;
     kb->lastChar[0] = 0;
     kb->lastChar[1] = 0;
+    kb->string[0] = 0;
+    kb->stringLen = 0;
     repeat(GML_KEY_COUNT, i) {
         kb->keyMap[i] = i;
     }
@@ -50,6 +52,18 @@ void RunnerKeyboard_onKeyUp(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
 
 void RunnerKeyboard_onCharacter(RunnerKeyboardState* kb, unsigned int character) {
     kb->lastChar[0] = (character >= ' ' && character <= '~') ? (char) character : 0;
+    if (character == 8) {
+        if (kb->stringLen > 0) {
+            kb->stringLen--;
+            kb->string[kb->stringLen] = '\0';
+        }
+    } else if (character >= 32) {
+        if (kb->stringLen < 1023) {
+            kb->string[kb->stringLen] = (char)character;
+            kb->stringLen++;
+            kb->string[kb->stringLen] = '\0';
+        }
+    }
 }
 
 bool checkIfAnyKey(const bool* array) {

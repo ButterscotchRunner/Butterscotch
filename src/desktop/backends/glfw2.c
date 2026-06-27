@@ -13,8 +13,47 @@
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
+#include "runner_mouse.h"
 
 static Runner *g_runner;
+
+static bool tryOpenWindow(int reqW, int reqH) {
+#ifdef GLFW_OPENGL_VERSION_MAJOR
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
+        return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+    }
+
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
+            
+        if (GLCommon_versions[i].major >= 3) {
+            if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            } else {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+            }
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
+        }
+
+#ifndef NDEBUG
+        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+        if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0) {
+            return true;
+        }
+        glfwCloseWindow();
+    }
+
+    return false;
+#else
+    return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+#endif
+}
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -150,52 +189,13 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-#ifdef ENABLE_GLES
-        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-#else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    }
-#endif
-
     // Init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-    }
-#endif
-
-    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-    if (!window) {
+    if (!tryOpenWindow(reqW, reqH)) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;
@@ -220,9 +220,20 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // GLFW2 only supports showing/hiding
+    if (cursorType == GML_CR_NONE) {
+        glfwDisable(GLFW_MOUSE_CURSOR);
+    } else {
+        glfwEnable(GLFW_MOUSE_CURSOR);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(resizeCallback);
@@ -271,10 +282,6 @@ void *platformGetProcAddress(const char *name) {
 #endif
 }
 
-double platformGetTime(void) {
-    return glfwGetTime();
-}
-
 bool platformHandleEvents(void) {
     if (!glfwGetWindowParam(GLFW_OPENED))
         return true;
@@ -282,12 +289,13 @@ bool platformHandleEvents(void) {
     return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
+void platformSleepUntil(uint64_t time) {
+    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
+        YIELD();
     }
 }

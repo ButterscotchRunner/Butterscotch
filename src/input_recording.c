@@ -11,7 +11,7 @@
 #include "stb_ds.h"
 
 InputRecording* InputRecording_createRecorder(const char* filePath) {
-    InputRecording* rec = safeCalloc(1, sizeof(InputRecording));
+    InputRecording* rec = (InputRecording *)safeCalloc(1, sizeof(InputRecording));
     rec->isRecording = true;
     rec->recordFilePath = filePath;
     return rec;
@@ -29,8 +29,8 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     long fileSize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* contents = safeMalloc(fileSize + 1);
-    fread(contents, 1, fileSize, f);
+    char* contents = (char *)safeMalloc(fileSize + 1);
+    safeFread(contents, fileSize, f, playbackFilePath);
     contents[fileSize] = '\0';
     fclose(f);
 
@@ -47,12 +47,12 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     int objectLen = JsonReader_objectLength(root);
     int32_t maxFrame = -1;
     repeat(objectLen, i) {
-        const char* key = JsonReader_getObjectKey(root, i);
+        const char* key = JsonReader_getJsonKeyByIndex(root, i);
         int32_t frameNum = (int32_t) strtol(key, nullptr, 10);
         if (frameNum > maxFrame) maxFrame = frameNum;
     }
 
-    InputRecording* rec = safeCalloc(1, sizeof(InputRecording));
+    InputRecording* rec = (InputRecording *)safeCalloc(1, sizeof(InputRecording));
     rec->isPlayback = true;
     rec->playbackFrameCount = maxFrame + 1;
 
@@ -63,22 +63,34 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     }
 
     // Allocate playbackFrames array (one stb_ds int32_t array per frame)
-    rec->playbackFrames = safeCalloc(rec->playbackFrameCount, sizeof(int32_t*));
+    rec->playbackFrames = (InputFrame *)safeCalloc(rec->playbackFrameCount, sizeof(InputFrame));
 
     repeat(objectLen, i) {
-        const char* key = JsonReader_getObjectKey(root, i);
-        JsonValue* val = JsonReader_getObjectValue(root, i);
+        const char* key = JsonReader_getJsonKeyByIndex(root, i);
+        JsonValue* val = JsonReader_getJsonValueByIndex(root, i);
         int32_t frameNum = (int32_t) strtol(key, nullptr, 10);
 
-        if (JsonReader_isArray(val)) {
-            int keyCount = JsonReader_arrayLength(val);
-            int32_t* keys = nullptr;
-            repeat(keyCount, k) {
-                JsonValue* keyVal = JsonReader_getArrayElement(val, k);
-                arrput(keys, (int32_t) JsonReader_getInt(keyVal));
-            }
-            rec->playbackFrames[frameNum] = keys;
+        JsonValue* keysPressed = JsonReader_getJsonValueByKey(val, "keysPressed");
+        JsonValue* keysReleased = JsonReader_getJsonValueByKey(val, "keysReleased");
+
+        int32_t keysPressedLength = JsonReader_arrayLength(keysPressed);
+        int32_t keysReleasedLength = JsonReader_arrayLength(keysReleased);
+
+        int32_t* keysPressedArray = nullptr;
+        int32_t* keysReleasedArray = nullptr;
+
+        repeat(keysPressedLength, j) {
+            arrput(keysPressedArray, JsonReader_getInt(JsonReader_getArrayElement(keysPressed, j)));
         }
+
+        repeat(keysReleasedLength, j) {
+            arrput(keysReleasedArray, JsonReader_getInt(JsonReader_getArrayElement(keysReleased, j)));
+        }
+
+        InputFrame inputFrame = {0};
+        inputFrame.keysPressed = keysPressedArray;
+        inputFrame.keysReleased = keysReleasedArray;
+        rec->playbackFrames[frameNum] = inputFrame;
     }
 
     JsonReader_free(root);
@@ -90,17 +102,22 @@ void InputRecording_free(InputRecording* recording) {
     if (recording == nullptr) return;
 
     if (recording->recordedFrames != nullptr) {
-        int32_t count = (int32_t) arrlen(recording->recordedFrames);
-        repeat(count, i) {
-            arrfree(recording->recordedFrames[i]);
+        repeat(arrlen(recording->recordedFrames), i) {
+            InputFrame frame = recording->recordedFrames[i];
+            arrfree(frame.keysPressed);
+            arrfree(frame.keysReleased);
         }
+
         arrfree(recording->recordedFrames);
     }
 
     if (recording->playbackFrames != nullptr) {
         repeat(recording->playbackFrameCount, i) {
-            arrfree(recording->playbackFrames[i]);
+            InputFrame frame = recording->playbackFrames[i];
+            arrfree(frame.keysPressed);
+            arrfree(frame.keysReleased);
         }
+
         free(recording->playbackFrames);
     }
 
@@ -110,64 +127,48 @@ void InputRecording_free(InputRecording* recording) {
 void InputRecording_processFrame(InputRecording* recording, RunnerKeyboardState* kb, int frameNumber) {
     if (recording == nullptr) return;
 
-    // Playback: overwrite keyboard state from recorded data (while frames remain)
+    // Playback: send the pressed keys from the recorded data
     if (recording->isPlayback) {
         if (recording->playbackFrameCount > frameNumber) {
-            int32_t* frameKeys = recording->playbackFrames[frameNumber];
-            int32_t keyCount = (int32_t) arrlen(frameKeys);
+            InputFrame frame = recording->playbackFrames[frameNumber];
+            int32_t keyPressedCount = (int32_t) arrlen(frame.keysPressed);
+            int32_t keyReleasedCount = (int32_t) arrlen(frame.keysReleased);
 
-            // Build a temporary "current held" array for this frame.
-            // Apply the keyboard_set_map translation so playback matches native input semantics.
-            bool currentKeyDown[GML_KEY_COUNT];
-            memset(currentKeyDown, 0, sizeof(currentKeyDown));
-            repeat(keyCount, i) {
-                int32_t key = frameKeys[i];
-                if (GML_KEY_COUNT > key && key >= 0) {
-                    int32_t mapped = kb->keyMap[key];
-                    if (GML_KEY_COUNT > mapped && mapped >= 0) {
-                        currentKeyDown[mapped] = true;
-                    }
-                }
+            repeat(keyPressedCount, i) {
+                RunnerKeyboard_onKeyDown(kb, frame.keysPressed[i]);
             }
 
-            // Derive transitions by comparing against previousKeyDown
-            repeat(GML_KEY_COUNT, key) {
-                kb->keyDown[key] = currentKeyDown[key];
-                kb->keyPressed[key] = currentKeyDown[key] && !recording->previousKeyDown[key];
-                kb->keyReleased[key] = !currentKeyDown[key] && recording->previousKeyDown[key];
-                if (kb->keyPressed[key]) {
-                    kb->lastKey = (int32_t) key;
-                }
+            repeat(keyReleasedCount, i) {
+                RunnerKeyboard_onKeyUp(kb, frame.keysReleased[i]);
             }
-
-            memcpy(recording->previousKeyDown, currentKeyDown, sizeof(currentKeyDown));
         } else {
-            // Past the end of recorded data: release everything, then let real input through
             if (!recording->playbackEnded) {
                 fprintf(stderr, "InputRecording: Playback ended at frame %d (recorded %d frames)\n", frameNumber, recording->playbackFrameCount);
                 recording->playbackEnded = true;
-
-                repeat(GML_KEY_COUNT, key) {
-                    kb->keyReleased[key] = recording->previousKeyDown[key];
-                    kb->keyDown[key] = false;
-                    kb->keyPressed[key] = false;
-                }
-                memset(recording->previousKeyDown, 0, sizeof(recording->previousKeyDown));
             }
-            // After the first "ended" frame, real keyboard input flows through naturally
         }
     }
 
     // Recording: snapshot whatever the current keyboard state is (from real input or playback)
     if (recording->isRecording) {
-        int32_t* heldKeys = nullptr;
+        int32_t* keysPressed = nullptr;
+        int32_t* keysReleased = nullptr;
+
         repeat(GML_KEY_COUNT, key) {
             if (recording->filterDebugKeys && (key == 'P' || key == 'O')) continue;
-            if (kb->keyDown[key]) {
-                arrput(heldKeys, (int32_t) key);
+            if (kb->keyPressed[key]) {
+                arrput(keysPressed, (int32_t) key);
+            }
+            if (kb->keyReleased[key]) {
+                arrput(keysReleased, (int32_t) key);
             }
         }
-        arrput(recording->recordedFrames, heldKeys);
+
+        InputFrame inputFrame = {0};
+        inputFrame.keysPressed = keysPressed;
+        inputFrame.keysReleased = keysReleased;
+
+        arrput(recording->recordedFrames, inputFrame);
     }
 }
 
@@ -185,13 +186,28 @@ bool InputRecording_save(InputRecording* recording) {
         snprintf(frameKey, sizeof(frameKey), "%d", (int) f);
         JsonWriter_key(&w, frameKey);
 
+        InputFrame frame = recording->recordedFrames[f];
+        JsonWriter_beginObject(&w);
+
+        JsonWriter_key(&w, "keysPressed");
         JsonWriter_beginArray(&w);
-        int32_t* keys = recording->recordedFrames[f];
-        int32_t keyCount = (int32_t) arrlen(keys);
-        repeat(keyCount, k) {
-            JsonWriter_int(&w, keys[k]);
+
+        repeat(arrlen(frame.keysPressed), i) {
+            JsonWriter_int(&w, frame.keysPressed[i]);
         }
+
         JsonWriter_endArray(&w);
+
+        JsonWriter_key(&w, "keysReleased");
+        JsonWriter_beginArray(&w);
+
+        repeat(arrlen(frame.keysReleased), i) {
+            JsonWriter_int(&w, frame.keysReleased[i]);
+        }
+
+        JsonWriter_endArray(&w);
+
+        JsonWriter_endObject(&w);
     }
 
     JsonWriter_endObject(&w);

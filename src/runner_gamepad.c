@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include "math_compat.h"
 
 //DELTARUNE HACK
 int RawToGPDelta(int32_t gmlButton) {
@@ -66,7 +66,7 @@ static int gmlAxisToIndex(int32_t gmlAxis) {
 }
 
 RunnerGamepadState* RunnerGamepad_create(void) {
-    RunnerGamepadState* gp = safeCalloc(1, sizeof(RunnerGamepadState));
+    RunnerGamepadState* gp = (RunnerGamepadState *)safeCalloc(1, sizeof(RunnerGamepadState));
     for (int i = 0; MAX_GAMEPADS > i; i++) {
         gp->slots[i].deadzone = 0.15f;
         gp->slots[i].triggerThreshold = 0.5f;

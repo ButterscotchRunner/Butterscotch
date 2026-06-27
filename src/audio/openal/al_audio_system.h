@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_AL_AUDIO_SYSTEM_H_
+#define _BS_AL_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -64,3 +65,5 @@ typedef struct {
 } AlAudioSystem;
 
 AlAudioSystem* AlAudioSystem_create(void);
+
+#endif /* _BS_AL_AUDIO_SYSTEM_H_ */

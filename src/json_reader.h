@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_JSON_READER_H_
+#define _BS_JSON_READER_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -62,6 +63,8 @@ void JsonReader_readInt32Array(const JsonValue* value, int32_t* out, int expecte
 // ===[ Object Access ]===
 
 int JsonReader_objectLength(const JsonValue* value);
-JsonValue* JsonReader_getObject(const JsonValue* value, const char* key);
-const char* JsonReader_getObjectKey(const JsonValue* value, int index);
-JsonValue* JsonReader_getObjectValue(const JsonValue* value, int index);
+JsonValue* JsonReader_getJsonValueByKey(const JsonValue* value, const char* key);
+const char* JsonReader_getJsonKeyByIndex(const JsonValue* value, int index);
+JsonValue* JsonReader_getJsonValueByIndex(const JsonValue* value, int index);
+
+#endif /* _BS_JSON_READER_H_ */

@@ -1,17 +1,94 @@
+#include <ctype.h>
 #include <stdio.h>
 
-#include <SDL2/SDL_events.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
+#include "gettime.h"
+#include "runner_mouse.h"
 
 static Runner *g_runner;
-static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
+
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
+    if (gfx == SOFTWARE) {
+        return SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+    }
+    if (gfx == LEGACY_GL) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+        
+        SDL_Window *newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {        
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {            
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+            }
+        }
+        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        
+    }
+    return NULL;
+}
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -21,20 +98,53 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    *outW = fbWidth;
-    *outH = fbHeight;
+    if (gfx == SOFTWARE) {
+        if (scr->w <= 0 || scr->h <= 0) return false;
+        *outW = scr->w;
+        *outH = scr->h;
+    } else {
+        int w = 0;
+        int h = 0;
+#if SDL_VERSION_ATLEAST(2, 0, 1)
+        SDL_GL_GetDrawableSize(window, &w, &h);
+#else
+        SDL_GetWindowSize(window, &w, &h);
+#endif
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
+    }
     return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
-    return platformGetWindowSize(outW, outH);
+    if (!outW || !outH) return false;
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+
+static void platformGetWindowScale(float *scale_x, float *scale_y) {
+    if (!scale_x || !scale_y) return;
+    int32_t draw_w, draw_h;
+    int logical_w, logical_h;
+    platformGetWindowSize(&draw_w, &draw_h);
+    SDL_GetWindowSize(window, &logical_w, &logical_h);
+    *scale_x = (logical_w > 0) ? (float)draw_w / logical_w : 1.0f;
+    *scale_y = (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-    fbWidth = width;
-    fbHeight = height;
-    SDL_SetWindowSize(window, width, height);
+
+    float scale_x, scale_y;
+    platformGetWindowScale(&scale_x, &scale_y);
+    SDL_SetWindowSize(window, (int)(width / scale_x), (int)(height / scale_y));
+
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
@@ -43,8 +153,10 @@ void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
     SDL_GetMouseState(&mx, &my);
-    *xPos = (double)mx;
-    *yPos = (double)my;
+    float scale_x, scale_y;
+    platformGetWindowScale(&scale_x, &scale_y);
+    *xPos = (double)mx * scale_x;
+    *yPos = (double)my * scale_y;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -58,51 +170,34 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-#ifdef ENABLE_GLES
-#ifdef SDL_GL_CONTEXT_PROFILE_MASK
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#endif
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#endif
-    }
-
     Uint32 flags;
     if (headless)
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
     else
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
-
-    fbWidth = reqW;
-    fbHeight = reqH;
-    window = SDL_CreateWindow(
-            title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            fbWidth, fbHeight,
-            flags
-    );
+#if SDL_VERSION_ATLEAST(2, 0, 1)
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+    
+    window = tryOpenWindow(reqW, reqH, title, flags);
+    
+    if (!window && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
+    
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
-            fbWidth = mode.w;
-            fbHeight = mode.h;
+            reqW = mode.w;
+            reqH = mode.h;
             window = SDL_CreateWindow(
                     title,
                     SDL_WINDOWPOS_UNDEFINED,
                     SDL_WINDOWPOS_UNDEFINED,
-                    fbWidth, fbHeight,
+                    mode.w, mode.h,
                     flags
             );
         }
@@ -112,13 +207,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!SDL_GL_CreateContext(window)) {
-            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-            return false;
-        }
         SDL_GL_SetSwapInterval(0); // disable vsync
-    } else
+    } else {
         scr = SDL_GetWindowSurface(window);
+    }
+    // If we don't do this, the window will be larger than it should be on HiDPI displays.
+    platformSetWindowSize(reqW, reqH);
 
     return true;
 }
@@ -127,9 +221,40 @@ void platformExit(void) {
     SDL_Quit();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    if (cursorType == GML_CR_NONE) {
+        SDL_ShowCursor(SDL_DISABLE);
+        return;
+    }
+    SDL_ShowCursor(SDL_ENABLE);
+
+    SDL_SystemCursor sdlCursor;
+    switch (cursorType) {
+        case GML_CR_CROSS: sdlCursor = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
+        case GML_CR_BEAM: sdlCursor = SDL_SYSTEM_CURSOR_IBEAM;     break;
+        case GML_CR_SIZE_NESW: sdlCursor = SDL_SYSTEM_CURSOR_SIZENESW;  break;
+        case GML_CR_SIZE_NS: sdlCursor = SDL_SYSTEM_CURSOR_SIZENS;    break;
+        case GML_CR_SIZE_NWSE: sdlCursor = SDL_SYSTEM_CURSOR_SIZENWSE;  break;
+        case GML_CR_SIZE_WE: sdlCursor = SDL_SYSTEM_CURSOR_SIZEWE;    break;
+        case GML_CR_HOURGLASS: sdlCursor = SDL_SYSTEM_CURSOR_WAIT;      break;
+        case GML_CR_DRAG: sdlCursor = SDL_SYSTEM_CURSOR_HAND;   break;
+        case GML_CR_APPSTART: sdlCursor = SDL_SYSTEM_CURSOR_WAITARROW; break;
+        case GML_CR_HANDPOINT: sdlCursor = SDL_SYSTEM_CURSOR_HAND;      break;
+        case GML_CR_SIZE_ALL: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
+        default:  sdlCursor = SDL_SYSTEM_CURSOR_ARROW;     break;
+    }
+
+    SDL_Cursor* cursor = SDL_CreateSystemCursor(sdlCursor);
+    if (cursor) {
+        SDL_SetCursor(cursor);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 #ifdef ENABLE_SW_RENDERER
@@ -177,10 +302,6 @@ void *platformGetProcAddress(const char *name) {
 }
 
 #endif
-
-double platformGetTime(void) {
-    return (double)SDL_GetTicks() / 1000.0;
-}
 
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
@@ -259,71 +380,61 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
-    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+            default:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
+            case SDL_WINDOWEVENT:
+            case SDL_QUIT:
+                break;
+        }
         switch(e.type) {
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.key.repeat != 0)
                     break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_KEYUP:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
                 break;
             case SDL_TEXTINPUT:
                 // During playback, suppress real keyboard input
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
             case SDL_MOUSEBUTTONDOWN: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEBUTTONUP: {
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
             } break;
             case SDL_MOUSEWHEEL:
-                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.wheel.y != 0)
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
             case SDL_WINDOWEVENT:
-                if (e.window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
-                    break;
-                fbWidth = e.window.data1;
-                fbHeight = e.window.data2;
-                if (gfx == SOFTWARE)
+                if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED && gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
             case SDL_QUIT:
-                should_exit = true;
-                break;
-            default:
-                break;
+                return true;
         }
     }
 
-    return should_exit;
+    return false;
 }
 
-void platformSleepUntil(double time) {
-    double remaining = time - platformGetTime();
-    if (remaining > 0.002)
-        SDL_Delay((Uint32)((remaining - 0.001) * 1000));
+void platformSleepUntil(uint64_t time) {
+    int64_t remaining = time - nowNanos();
+    if (remaining > 2000000)
+        SDL_Delay((remaining - 1000000) / 1000000);
 
-    while (platformGetTime() < time) {
+    while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
+        YIELD();
     }
-}
-
-void platformGamepad_poll(RunnerGamepadState* gp) {
-    (void)gp;
 }

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_MOUSE_H_
+#define _BS_RUNNER_MOUSE_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -15,6 +16,23 @@
 #define GML_MOUSE_BUTTONS 6
 
 #define GML_MOUSE_BUTTON_COUNT 5
+
+// Cursor constants
+#define GML_CR_SIZE_ALL -22
+#define GML_CR_HANDPOINT -21
+#define GML_CR_APPSTART -19
+#define GML_CR_DRAG -12
+#define GML_CR_HOURGLASS -11
+#define GML_CR_UPARROW -10
+#define GML_CR_SIZE_WE -9
+#define GML_CR_SIZE_NWSE -8
+#define GML_CR_SIZE_NS -7
+#define GML_CR_SIZE_NESW -6
+#define GML_CR_BEAM -4
+#define GML_CR_CROSS -3
+#define GML_CR_ARROW -2
+#define GML_CR_NONE -1
+#define GML_CR_DEFAULT 0
 
 typedef struct RunnerMouseState {
     // Cursor cached in app-surface (FBO) pixel space
@@ -43,3 +61,5 @@ int32_t RunnerMouse_getLastButton(RunnerMouseState* m);
 void RunnerMouse_onWheel(RunnerMouseState* m, double yoffset);
 bool RunnerMouse_getWheelUp(RunnerMouseState* m);
 bool RunnerMouse_getWheelDown(RunnerMouseState* m);
+
+#endif /* _BS_RUNNER_MOUSE_H_ */
