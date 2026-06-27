@@ -1366,11 +1366,11 @@ int main(int argc, char* argv[]) {
         }
         runner->debugMode = args.debug;
         runner->osType = args.osType;
-        runner->setWindowTitle = platformSetWindowTitle;
-        runner->getWindowSize = platformGetWindowSize;
         runner->setWindowSize = platformSetWindowSize;
-		runner->getWindowFullscreen = platformGetWindowFullscreen;
-		runner->setWindowFullscreen = platformSetWindowFullscreen;
+        runner->getWindowSize = platformGetWindowSize;
+        runner->setWindowTitle = platformSetWindowTitle;
+		runner->getWindowFullscreen = nullptr;
+		runner->setWindowFullscreen = nullptr;
         Runner_setGameArgs(runner, currentGameArgs, (int32_t) arrlen(currentGameArgs));
         platformInitFunctions(runner);
 

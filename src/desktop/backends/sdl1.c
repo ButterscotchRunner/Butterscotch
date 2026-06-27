@@ -34,12 +34,6 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-bool platformGetWindowFullscreen(bool* outFullscreen) {
-	if (!outFullscreen) return false;
-	*outFullscreen = false;
-	return true;
-}
-
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return platformGetWindowSize(outW, outH);
 }
@@ -50,11 +44,6 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     fbHeight = height;
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
-
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((used))
-#endif
-void platformSetWindowFullscreen(MAYBE_UNUSED bool fullscreen) {}
 
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
