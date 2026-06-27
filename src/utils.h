@@ -12,8 +12,11 @@
 
 #include "real_type.h"
 
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)) \
-    || defined(__GNUC__) || defined(__clang__) || defined(__TINYC__)
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)
+    #define TYPEOF(x) typeof(x)
+#elif defined(__GNUC__) || defined(__clang__) || \
+    (defined(__TINYC__) && __TINYC__ >= 913) || \
+    (defined(_MSC_VER) && _MSC_VER >= 1940)
     #define TYPEOF(x) __typeof__(x)
 #else
     #define TYPEOF(x) long long
