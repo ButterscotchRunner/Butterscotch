@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_STDINT_H_
+#define _BS_STDINT_H_
 
 #ifdef HAVE_SYS_TYPES_H
 /* some systems have their own int*_t definitions here that might cause conflicts */
@@ -19,3 +20,5 @@ typedef unsigned int uint32_t;
 typedef unsigned long long uint64_t;
 typedef int8_t int_fast8_t;
 typedef long intptr_t;
+
+#endif /* _BS_STDINT_H_ */

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RENDERER_H_
+#define _BS_RENDERER_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -666,3 +667,5 @@ static inline void Renderer_drawCircleColor(Renderer* renderer, float cx, float 
 static inline void Renderer_drawCircle(Renderer* renderer, float cx, float cy, float radius, bool outline) {
     Renderer_drawCircleColor(renderer, cx, cy, radius, renderer->drawColor, renderer->drawColor, outline);
 }
+
+#endif /* _BS_RENDERER_H_ */

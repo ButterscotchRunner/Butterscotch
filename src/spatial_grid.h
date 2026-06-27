@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_SPATIAL_GRID_H_
+#define _BS_SPATIAL_GRID_H_
 #include <stdint.h>
 
 // Forward declarations
@@ -59,7 +60,7 @@ static inline SpatialGridRange SpatialGrid_computeCellRange(SpatialGrid* grid, G
     if (minGridY > grid->gridHeight - 1) minGridY = grid->gridHeight - 1;
     if (maxGridX > grid->gridWidth - 1) maxGridX = grid->gridWidth - 1;
     if (maxGridY > grid->gridHeight - 1) maxGridY = grid->gridHeight - 1;
-    return (SpatialGridRange){ minGridX, minGridY, maxGridX, maxGridY };
+    return (SpatialGridRange){ (uint16_t)minGridX, (uint16_t)minGridY, (uint16_t)maxGridX, (uint16_t)maxGridY };
 }
 
 static inline bool SpatialGrid_instanceOverlapsRange(Instance* instance, SpatialGridRange range) {
@@ -87,3 +88,5 @@ typedef struct {
 } SpatialGridQuery;
 
 SpatialGridQuery SpatialGrid_prepareQuery(Runner* runner, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, int32_t target);
+
+#endif /* _BS_SPATIAL_GRID_H_ */

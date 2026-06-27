@@ -43,6 +43,46 @@ extern GLint  gPalettedUPaletteVLoc;
 #include "image_decoder.h"
 #include "gl_common.h"
 
+// ===[ Runtime OpenGL extension checks ]===
+
+static bool hasFBO() {
+#ifdef PLATFORM_PS3
+    return true;
+#else
+    return (glGenFramebuffers || glGenFramebuffersEXT);
+#endif
+}
+
+#ifndef PLATFORM_PS3
+static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
+    if (glGenFramebuffers) glGenFramebuffers(n, ids);
+    else glGenFramebuffersEXT(n, ids);
+}
+#undef glGenFramebuffers
+#define glGenFramebuffers rt_glGenFramebuffers
+
+static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
+    if (glBindFramebuffer) glBindFramebuffer(target, fb);
+    else glBindFramebufferEXT(target, fb);
+}
+#undef glBindFramebuffer
+#define glBindFramebuffer rt_glBindFramebuffer
+
+static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
+    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
+    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
+}
+#undef glFramebufferTexture2D
+#define glFramebufferTexture2D rt_glFramebufferTexture2D
+
+static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
+    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
+    else glDeleteFramebuffersEXT(n, ids);
+}
+#undef glDeleteFramebuffers
+#define glDeleteFramebuffers rt_glDeleteFramebuffers
+#endif
+
 // ===[ Helpers ]===
 
 static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -63,6 +103,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+    if (!hasFBO()) {
+        fprintf(stderr, "GL: The legacy-gl renderer requires FBO support!\n");
+        abort();
+    }
+
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
     glEnable(GL_TEXTURE_2D);
     glDisable(GL_DEPTH_TEST);
@@ -74,10 +119,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #else
     gl->textureCount = dataWin->txtr.count;
 #endif
-    gl->glTextures = safeMalloc(gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeMalloc(gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
 
     glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -1201,10 +1246,10 @@ static uint32_t findOrAllocTexturePageSlot(GLLegacyRenderer* gl) {
     // No free slot found, grow the arrays
     uint32_t newPageId = gl->textureCount;
     gl->textureCount++;
-    gl->glTextures = safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->glTextures = (GLuint *)safeRealloc(gl->glTextures, gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -1219,7 +1264,7 @@ static uint32_t findOrAllocTpagSlot(DataWin* dw, uint32_t originalTpagCount) {
     }
     uint32_t newIndex = dw->tpag.count;
     dw->tpag.count++;
-    dw->tpag.items = safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+    dw->tpag.items = (TexturePageItem *)safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
     memset(&dw->tpag.items[newIndex], 0, sizeof(TexturePageItem));
     dw->tpag.items[newIndex].texturePageId = -1;
     return newIndex;
@@ -1238,7 +1283,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
-    uint8_t* pixels = safeMalloc((size_t) w * (size_t) h * 4);
+    uint8_t* pixels = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr)
         return -1;
 
@@ -1285,7 +1330,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
-    sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices = (int32_t *)safeMalloc(sizeof(int32_t));
     sprite->tpagIndices[0] = (int32_t) tpagIndex;
     sprite->maskCount = 0;
     sprite->masks = nullptr;
@@ -1693,7 +1738,7 @@ static RendererVtable glVtable;
 // ===[ Public API ]===
 
 Renderer* GLLegacyRenderer_create(void) {
-    GLLegacyRenderer* gl = safeCalloc(1, sizeof(GLLegacyRenderer));
+    GLLegacyRenderer* gl = (GLLegacyRenderer *)safeCalloc(1, sizeof(GLLegacyRenderer));
     gl->base.vtable = &glVtable;
     glVtable.init = glInit;
     glVtable.destroy = glDestroy;

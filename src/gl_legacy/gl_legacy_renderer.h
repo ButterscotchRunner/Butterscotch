@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GL_LEGACY_RENDERER_H_
+#define _BS_GL_LEGACY_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
@@ -45,3 +46,5 @@ typedef struct {
 
 bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId);
 Renderer* GLLegacyRenderer_create(void);
+
+#endif /* _BS_GL_LEGACY_RENDERER_H_ */

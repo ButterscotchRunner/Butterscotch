@@ -10,7 +10,7 @@ static void ensureLegacyRowCapacity(GMLArray* arr, int32_t minRows) {
     if (arr->legacy.rowCapacity >= minRows) return;
     int32_t newCap = arr->legacy.rowCapacity > 0 ? arr->legacy.rowCapacity : 4;
     while (minRows > newCap) newCap *= 2;
-    arr->legacy.rows = safeRealloc(arr->legacy.rows, (uint32_t) newCap * sizeof(GMLArrayRow));
+    arr->legacy.rows = (GMLArrayRow *)safeRealloc(arr->legacy.rows, (uint32_t) newCap * sizeof(GMLArrayRow));
     memset(arr->legacy.rows + arr->legacy.rowCapacity, 0, (newCap - arr->legacy.rowCapacity) * sizeof(GMLArrayRow));
     arr->legacy.rowCapacity = newCap;
 }
@@ -20,7 +20,7 @@ static void growLegacyRow(GMLArrayRow* row, int32_t minLength) {
     if (minLength > row->capacity) {
         int32_t newCap = row->capacity > 0 ? row->capacity : 4;
         while (minLength > newCap) newCap *= 2;
-        row->data = safeRealloc(row->data, (uint32_t) newCap * sizeof(RValue));
+        row->data = (RValue *)safeRealloc(row->data, (uint32_t) newCap * sizeof(RValue));
         row->capacity = newCap;
     }
     // GameMaker fills uninitialized array slots with 0 (real).
@@ -36,7 +36,7 @@ GMLArray* GMLArray_create(int32_t wadVersion, int32_t initialLength) {
 #ifndef ENABLE_WAD17
     require(type == GML_LEGACY_ARRAY);
 #endif
-    GMLArray* arr = safeCalloc(1, sizeof(GMLArray));
+    GMLArray* arr = (GMLArray *)safeCalloc(1, sizeof(GMLArray));
     arr->refCount = 1;
     arr->type = type;
     arr->owner = nullptr;
@@ -75,7 +75,7 @@ void GMLArray_decRef(GMLArray* arr) {
 
 GMLArray* GMLArray_clone(GMLArray* src, void* newOwner) {
     if (src == nullptr) return nullptr;
-    GMLArray* dst = safeCalloc(1, sizeof(GMLArray));
+    GMLArray* dst = (GMLArray *)safeCalloc(1, sizeof(GMLArray));
     dst->refCount = 1;
     dst->owner = newOwner;
     dst->type = src->type;
@@ -117,7 +117,7 @@ void GMLArray_growTo(GMLArray* arr, int32_t minLength) {
         if (minLength > arr->modern.capacity) {
             int32_t newCap = arr->modern.capacity > 0 ? arr->modern.capacity : 4;
             while (minLength > newCap) newCap *= 2; // geometric growth -> amortized O(1) appends
-            arr->modern.data = safeRealloc(arr->modern.data, (uint32_t) newCap * sizeof(RValue));
+            arr->modern.data = (RValue *)safeRealloc(arr->modern.data, (uint32_t) newCap * sizeof(RValue));
             arr->modern.capacity = newCap;
         }
         // GameMaker fills uninitialized array slots with 0 (real)

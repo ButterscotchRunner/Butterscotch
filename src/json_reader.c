@@ -38,7 +38,7 @@ static char advance(JsonParser* parser) {
 }
 
 static JsonValue* makeValue(JsonValueType type) {
-    JsonValue* value = safeCalloc(1, sizeof(JsonValue));
+    JsonValue* value = (JsonValue *)safeCalloc(1, sizeof(JsonValue));
     if (value == nullptr) {
         fprintf(stderr, "JsonReader: calloc failed\n");
         abort();
@@ -56,7 +56,7 @@ static JsonValue* parseString(JsonParser* parser) {
 
     size_t capacity = 64;
     size_t length = 0;
-    char* buffer = safeMalloc(capacity);
+    char* buffer = (char *)safeMalloc(capacity);
     if (buffer == nullptr) {
         fprintf(stderr, "JsonReader: malloc failed\n");
         abort();
@@ -99,14 +99,14 @@ static JsonValue* parseString(JsonParser* parser) {
                     } else if (2048 > codePoint) {
                         if (length + 2 >= capacity) {
                             capacity *= 2;
-                            buffer = safeRealloc(buffer, capacity);
+                            buffer = (char *)safeRealloc(buffer, capacity);
                         }
                         buffer[length++] = (char) (0xC0 | (codePoint >> 6));
                         c = (char) (0x80 | (codePoint & 0x3F));
                     } else {
                         if (length + 3 >= capacity) {
                             capacity *= 2;
-                            buffer = safeRealloc(buffer, capacity);
+                            buffer = (char *)safeRealloc(buffer, capacity);
                         }
                         buffer[length++] = (char) (0xE0 | (codePoint >> 12));
                         buffer[length++] = (char) (0x80 | ((codePoint >> 6) & 0x3F));
@@ -124,7 +124,7 @@ static JsonValue* parseString(JsonParser* parser) {
         // Grow buffer if needed
         if (length + 1 >= capacity) {
             capacity *= 2;
-            buffer = safeRealloc(buffer, capacity);
+            buffer = (char *)safeRealloc(buffer, capacity);
             if (buffer == nullptr) {
                 fprintf(stderr, "JsonReader: realloc failed\n");
                 abort();
@@ -180,7 +180,7 @@ static JsonValue* parseArray(JsonParser* parser) {
         // Grow items array if needed
         if (value->array.count >= value->array.capacity) {
             int newCapacity = (value->array.capacity == 0) ? 8 : value->array.capacity * 2;
-            value->array.items = safeRealloc(value->array.items, (size_t) newCapacity * sizeof(JsonValue));
+            value->array.items = (JsonValue *)safeRealloc(value->array.items, (size_t) newCapacity * sizeof(JsonValue));
             if (value->array.items == nullptr) {
                 fprintf(stderr, "JsonReader: realloc failed\n");
                 abort();
@@ -259,8 +259,8 @@ static JsonValue* parseObject(JsonParser* parser) {
         // Grow arrays if needed
         if (value->object.count >= value->object.capacity) {
             int newCapacity = (value->object.capacity == 0) ? 8 : value->object.capacity * 2;
-            value->object.keys = safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
-            value->object.values = safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
+            value->object.keys = (char **)safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
+            value->object.values = (JsonValue *)safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
             if (value->object.keys == nullptr || value->object.values == nullptr) {
                 fprintf(stderr, "JsonReader: realloc failed\n");
                 abort();

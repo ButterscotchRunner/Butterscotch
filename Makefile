@@ -96,12 +96,10 @@ ENABLE_GLAD := 1
 endif
 
 ifndef DISABLE_LEGACY_GL
-ifndef ENABLE_GLES
 DEFINES += -DENABLE_LEGACY_GL
 SRCS += $(wildcard src/gl_legacy/*.c)
 INCLUDES += -Isrc/gl_legacy
 HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
-endif
 endif
 
 ifndef DISABLE_MODERN_GL
@@ -122,10 +120,6 @@ ifdef DISABLE_LEGACY_GL
 ifdef DISABLE_MODERN_GL
 $(error must enable at least 1 renderer)
 endif
-endif
-
-ifdef ENABLE_GLES
-DEFINES += -DENABLE_GLES
 endif
 
 ifeq ($(AUDIO_BACKEND),miniaudio)
@@ -150,13 +144,8 @@ endif
 endif
 
 ifdef ENABLE_GLAD
-ifdef ENABLE_GLES
-SRCS += vendor/glad-gles/src/glad.c
-INCLUDES += -Ivendor/glad-gles/include
-else
 SRCS += vendor/glad/src/glad.c
 INCLUDES += -Ivendor/glad/include
-endif
 endif
 
 ifeq ($(OS),Windows)

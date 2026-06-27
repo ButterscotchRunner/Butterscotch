@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_FILE_SYSTEM_H_
+#define _BS_FILE_SYSTEM_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -64,3 +65,5 @@ typedef struct {
 struct FileSystem {
     FileSystemVtable* vtable;
 };
+
+#endif /* _BS_FILE_SYSTEM_H_ */

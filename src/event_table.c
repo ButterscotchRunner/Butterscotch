@@ -36,7 +36,7 @@ void EventSlotMap_build(EventSlotMap* outMap, DataWin* dw) {
         int32_t maxSub = outMap->maxSubtypeByType[t];
         if (0 > maxSub) continue;
         size_t entryCount = (size_t)(maxSub + 1);
-        outMap->denseLookup[t] = safeMalloc(entryCount * sizeof(int16_t));
+        outMap->denseLookup[t] = (int16_t *)safeMalloc(entryCount * sizeof(int16_t));
         repeat(entryCount, i) outMap->denseLookup[t][i] = -1;
     }
 
@@ -128,10 +128,10 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     outTable->totalEntries = 0;
 
     // Pass 1: count resolved entries per object so we can allocate flat arrays.
-    int32_t* scratchCodeId = safeMalloc((size_t) slotCount * sizeof(int32_t));
-    int16_t* scratchOwner = safeMalloc((size_t) slotCount * sizeof(int16_t));
+    int32_t* scratchCodeId = (int32_t *)safeMalloc((size_t) slotCount * sizeof(int32_t));
+    int16_t* scratchOwner = (int16_t *)safeMalloc((size_t) slotCount * sizeof(int16_t));
 
-    outTable->byObjectStart = safeMalloc((size_t)(objectCount + 1) * sizeof(uint32_t));
+    outTable->byObjectStart = (uint32_t *)safeMalloc((size_t)(objectCount + 1) * sizeof(uint32_t));
     outTable->byObjectStart[0] = 0;
 
     uint32_t totalEntries = 0;
@@ -145,7 +145,7 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     outTable->totalEntries = totalEntries;
 
     // Pass 2: fill byObject. Walking slots in ascending order means each object's range is already sorted by slot (no extra qsort needed).
-    outTable->byObject = safeMalloc((size_t) totalEntries * sizeof(ObjectEventEntry));
+    outTable->byObject = (ObjectEventEntry *)safeMalloc((size_t) totalEntries * sizeof(ObjectEventEntry));
 
     uint32_t cursor = 0;
     repeat(objectCount, oi) {
@@ -163,7 +163,7 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     free(scratchOwner);
 
     // Pass 3: histogram + prefix sum + scatter to build bySlot. Walking byObject in object-major order means each slot's range ends up sorted by concreteObjectId for free.
-    outTable->bySlotStart = safeMalloc((size_t)(slotCount + 1) * sizeof(uint32_t));
+    outTable->bySlotStart = (uint32_t *)safeMalloc((size_t)(slotCount + 1) * sizeof(uint32_t));
     repeat(slotCount + 1, i) outTable->bySlotStart[i] = 0;
     repeat(totalEntries, i) {
         outTable->bySlotStart[outTable->byObject[i].slot + 1]++;
@@ -172,8 +172,8 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
         outTable->bySlotStart[s + 1] += outTable->bySlotStart[s];
     }
 
-    outTable->bySlot = safeMalloc((size_t) totalEntries * sizeof(SlotResponderEntry));
-    uint32_t* slotCursor = safeMalloc((size_t) slotCount * sizeof(uint32_t));
+    outTable->bySlot = (SlotResponderEntry *)safeMalloc((size_t) totalEntries * sizeof(SlotResponderEntry));
+    uint32_t* slotCursor = (uint32_t *)safeMalloc((size_t) slotCount * sizeof(uint32_t));
     memset(slotCursor, 0, (size_t) slotCount * sizeof(uint32_t));
 
     repeat(objectCount, oi) {

@@ -10,7 +10,7 @@
 #include "gettime.h"
 
 Profiler* Profiler_create(void) {
-    Profiler* p = safeMalloc(sizeof(Profiler));
+    Profiler* p = (Profiler *)safeMalloc(sizeof(Profiler));
     p->entries = nullptr;
     p->frameDepth = 0;
     p->instructionCount = 0;

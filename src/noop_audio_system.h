@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_NOOP_AUDIO_SYSTEM_H_
+#define _BS_NOOP_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -11,3 +12,5 @@ typedef struct {
 } NoopAudioSystem;
 
 NoopAudioSystem* NoopAudioSystem_create(void);
+
+#endif /* _BS_NOOP_AUDIO_SYSTEM_H_ */

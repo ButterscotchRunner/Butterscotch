@@ -1,7 +1,8 @@
 // This is auto generated!
 // Font: "JetBrains Mono ExtraBold"
 // 4-bit-per-pixel alpha atlas. Two pixels per byte: low nibble = x even, high nibble = x odd.
-#pragma once
+#ifndef _BS_DEBUG_FONT_4BPP_H_
+#define _BS_DEBUG_FONT_4BPP_H_
 
 #include <stdint.h>
 #include "debug_font.h"
@@ -18,3 +19,5 @@ extern const uint32_t debugFontClutPs2[DEBUGFONT_CLUT_ENTRIES];
 
 // Same CLUT but with standard 0..0xFF alpha for desktop GL / PS3 (PSGL accepts 0..0xFF).
 extern const uint32_t debugFontClutRgba8[DEBUGFONT_CLUT_ENTRIES];
+
+#endif /* _BS_DEBUG_FONT_4BPP_H_ */

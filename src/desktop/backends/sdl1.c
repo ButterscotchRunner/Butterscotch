@@ -1,9 +1,8 @@
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 
-#include <SDL/SDL_events.h>
 #include <SDL/SDL.h>
-#include <SDL/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"

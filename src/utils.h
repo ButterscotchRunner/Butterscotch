@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_UTILS_H_
+#define _BS_UTILS_H_
 
 #include "common.h"
 #include <stdarg.h>
@@ -155,3 +156,5 @@ typedef struct {
     char* key;
     bool value;
 } StringBooleanEntry;
+
+#endif /* _BS_UTILS_H_ */

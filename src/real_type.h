@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_REAL_TYPE_H_
+#define _BS_REAL_TYPE_H_
 
 #include "common.h"
 #include <math.h>
@@ -67,3 +68,5 @@ static inline GMLReal GMLReal_bankersRound(GMLReal v) {
     int64_t fi = (int64_t) f;
     return (fi & 1) == 0 ? f : f + 1.0;
 }
+
+#endif /* _BS_REAL_TYPE_H_ */

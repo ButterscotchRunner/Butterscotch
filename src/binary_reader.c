@@ -106,7 +106,7 @@ void BinaryReader_readBytes(BinaryReader* reader, void* dest, size_t count) {
 }
 
 uint8_t* BinaryReader_readBytesAt(BinaryReader* reader, size_t offset, size_t count) {
-    uint8_t* buf = safeMalloc(count);
+    uint8_t* buf = (uint8_t *)safeMalloc(count);
 
     if (reader->buffer != nullptr) {
         if (offset < reader->bufferBase || offset + count > reader->bufferBase + reader->bufferSize) {

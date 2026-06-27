@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_TEXT_UTILS_H_
+#define _BS_TEXT_UTILS_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -173,7 +174,7 @@ static inline PreprocessedText TextUtils_preprocessGmlText(const char* text) {
     for (int32_t i = 0; len > i; i++) {
         if (text[i] == '#') {
             // Found one - allocate and process from here
-            char* result = safeMalloc(len + 1);
+            char* result = (char *)safeMalloc(len + 1);
             memcpy(result, text, i);
             int32_t out = i;
 
@@ -271,7 +272,7 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
     int32_t linewidth = (0 > maxWidth) ? 10000000 : maxWidth; // means nothing will "wrap"
 
     // Worst case: each byte becomes itself plus a '\n' separator.
-    char* out = safeMalloc((size_t) len * 2 + 1);
+    char* out = (char *)safeMalloc((size_t) len * 2 + 1);
     int32_t outLen = 0;
     bool wroteAny = false;
 
@@ -395,3 +396,5 @@ static inline char* TextUtils_trimTrailingWhitespace(char* str) {
     str[len] = '\0';
     return str;
 }
+
+#endif /* _BS_TEXT_UTILS_H_ */

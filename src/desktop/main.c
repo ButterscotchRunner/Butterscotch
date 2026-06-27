@@ -63,8 +63,31 @@
 #endif
 
 enum GraphicsAPI gfx;
+bool wantGLES;
 
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
+int platformInitGlad(GLADloadproc load) {
+    glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
+    const char *version;
+    if (glGetString) {
+        version = (const char*)glGetString(GL_VERSION);
+    } else
+        return 0;
+    // Load OpenGL function pointers via GLAD
+    // This will need to be modified if we ever want to support GLES 1.x
+    if (version && strstr(version, "OpenGL ES")) {
+        if (!gladLoadGLES2Loader(platformGetProcAddress))
+            return 0;
+        return 2;
+    } else {
+        if (!gladLoadGLLoader(platformGetProcAddress))
+            return 0;
+        return 1;
+    }
+}
+#endif
+
+#ifdef ENABLE_MODERN_GL
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
     switch (source) {
@@ -104,15 +127,28 @@ static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLen
 }
 
 static void installGLDebugCallback(void) {
-    if (!GLAD_GL_KHR_debug) {
-        fprintf(stderr, "OpenGL debug callback not available (driver does not expose GL_KHR_debug)\n");
+    if (glDebugMessageCallback && glDebugMessageControl) {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(glDebugCallback, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
         return;
     }
 
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallbackKHR(glDebugCallback, nullptr);
-    glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+    if (glDebugMessageCallbackKHR && glDebugMessageControlKHR) {
+        glEnable(GL_DEBUG_OUTPUT_KHR);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);
+        glDebugMessageCallbackKHR(glDebugCallback, NULL);
+        glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
+
+    if (glDebugMessageCallbackARB && glDebugMessageControlARB) {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+        glDebugMessageCallbackARB(glDebugCallback, NULL);
+        glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        return;
+    }
 }
 #endif
 
@@ -432,7 +468,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     // TODO: detect available driver features
     // at runtime to improve defaults.
-#if defined(ENABLE_MODERN_GL) && (defined(USE_GLFW3) || defined(USE_SDL2) || defined(USE_SDL3))
+#if defined(ENABLE_MODERN_GL)
     args->renderer = "modern-gl";
 #elif defined(ENABLE_LEGACY_GL)
     args->renderer = "legacy-gl";
@@ -763,7 +799,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
-    unsigned char* pixels = safeMalloc(stride * height);
+    unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
         fprintf(stderr, "Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
@@ -890,7 +926,7 @@ char* collapseNewlines(const char *input) {
     }
 
     size_t len = strlen(input);
-    char *result = malloc(len + 1);
+    char *result = (char *)malloc(len + 1);
     if (result == nullptr) {
         return nullptr;
     }
@@ -990,8 +1026,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
         vm->opcodeProfilerEnabled = args.opcodeProfiler;
         if (vm->opcodeProfilerEnabled) {
-            vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-            vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+            vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
 
@@ -1186,7 +1222,7 @@ int main(int argc, char* argv[]) {
                 lastSlash = lastBackslash;
             if (lastSlash != nullptr) {
                 size_t len = (size_t) (lastSlash - args.dataWinPath + 1);
-                dataWinDir = safeMalloc(len + 1);
+                dataWinDir = (char *)safeMalloc(len + 1);
                 memcpy(dataWinDir, args.dataWinPath, len);
                 dataWinDir[len] = '\0';
             } else {
@@ -1236,6 +1272,7 @@ int main(int argc, char* argv[]) {
         int32_t windowW, windowH;
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
+        int glad_ret;
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
@@ -1249,12 +1286,8 @@ int main(int argc, char* argv[]) {
 #else
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
-                // Load OpenGL function pointers via GLAD
-#ifdef ENABLE_GLES
-                if (!gladLoadGLES2Loader((GLADloadproc)platformGetProcAddress)) {
-#else
-                if (!gladLoadGLLoader((GLADloadproc)platformGetProcAddress)) {
-#endif
+                glad_ret = platformInitGlad((GLADloadproc)platformGetProcAddress);
+                if (glad_ret == 0) {
                     fprintf(stderr, "Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
@@ -1265,7 +1298,7 @@ int main(int argc, char* argv[]) {
 #endif
 
             // Install the OpenGL debug message callback
-#if !defined(ENABLE_GLES) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#ifdef ENABLE_MODERN_GL
             if (gfx == MODERN_GL)
                 installGLDebugCallback();
 #endif
@@ -1288,8 +1321,10 @@ int main(int argc, char* argv[]) {
             renderer = GLLegacyRenderer_create();
 #endif
 #ifdef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL)
+        if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
+            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
+        }
 #endif
         if (!renderer) {
             fprintf(stderr, "Failed to initialize a renderer\n");
@@ -1536,9 +1571,9 @@ int main(int argc, char* argv[]) {
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
-                bool* currentKeyDown = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyPressed = safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyReleased = safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyDown = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyPressed = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool* currentKeyReleased = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
 
                 if (freeCamActive) {
                     // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
@@ -1766,6 +1801,9 @@ int main(int argc, char* argv[]) {
             }
             arrfree(currentGameArgs);
             printf("Bye! :3\n");
+#ifdef _WIN32
+            timeEndPeriod(1);
+#endif
             return 0;
         }
 
@@ -1825,7 +1863,7 @@ int main(int argc, char* argv[]) {
             // The pendingWorkingDirectory contains a slash at the beginning of it (example: /chapter3)
             // The parentDir does NOT have a trailing slash, so we don't need to bother with it
             size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-            char* newPath = safeMalloc(newPathLen);
+            char* newPath = (char *)safeMalloc(newPathLen);
             snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDirectory, dataWinFilename);
 
             free(parentDir);
@@ -1849,10 +1887,5 @@ int main(int argc, char* argv[]) {
             free(nextLaunchParameters);
             arrfree(newArguments);
         }
-
-#ifdef _WIN32
-        timeEndPeriod(1);
-#endif
-        printf("Bye! :3\n");
     }
 }

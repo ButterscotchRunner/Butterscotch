@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_MATRIX_MATH_H_
+#define _BS_MATRIX_MATH_H_
 #include "common.h"
 #include "math_compat.h"
 #include <string.h>
@@ -374,3 +375,5 @@ static inline bool Matrix4f_inverse(Matrix4f *inv, const Matrix4f *mat) {
     for (int i = 0; i < 16; i++) inv->m[i] *= invDet;
     return true;
 }
+
+#endif /* _BS_MATRIX_MATH_H_ */

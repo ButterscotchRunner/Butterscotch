@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_COMMON_H_
+#define _BS_COMMON_H_
 
 #include <stdbool.h>
 #ifndef nullptr
@@ -68,3 +69,5 @@
 #else
     #define YIELD() ((void)0)
 #endif
+
+#endif /* _BS_COMMON_H_ */

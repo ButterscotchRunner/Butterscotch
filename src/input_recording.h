@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INPUT_RECORDING_H_
+#define _BS_INPUT_RECORDING_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -43,3 +44,5 @@ bool InputRecording_save(InputRecording* recording);
 
 // Null-safe check: returns true if recording is non-null and playback hasn't ended yet
 bool InputRecording_isPlaybackActive(InputRecording* recording);
+
+#endif /* _BS_INPUT_RECORDING_H_ */

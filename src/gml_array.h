@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GML_ARRAY_H_
+#define _BS_GML_ARRAY_H_
 #include <stdint.h>
 #include <stddef.h>
 #include "common.h"
@@ -155,3 +156,5 @@ static inline void GMLArray_addOnArrayRef(RValue* arrayRef, RValue val) {
     require(arrayRef != nullptr && arrayRef->type == RVALUE_ARRAY && arrayRef->array != nullptr);
     GMLArray_add(arrayRef->array, val);
 }
+
+#endif /* _BS_GML_ARRAY_H_ */

@@ -1,8 +1,7 @@
+#include <ctype.h>
 #include <stdio.h>
 
-#include <SDL2/SDL_events.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -14,6 +13,83 @@ static Runner *g_runner;
 static bool gFullscreen;
 static SDL_Surface* scr;
 static SDL_Window *window;
+
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
+    if (gfx == SOFTWARE) {
+        return SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+    }
+    if (gfx == LEGACY_GL) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+
+        SDL_Window *newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+            }
+        }
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+
+    }
+    return NULL;
+}
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -145,24 +221,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-#ifdef ENABLE_GLES
-#ifdef SDL_GL_CONTEXT_PROFILE_MASK
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#endif
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#endif
-    }
-
     Uint32 flags;
     if (headless)
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
@@ -172,14 +230,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
-	gFullscreen = false;
-    window = SDL_CreateWindow(
-            title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
-            flags
-    );
+    gFullscreen = false;
+    window = tryOpenWindow(reqW, reqH, title, flags);
+
+    if (!window && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
+
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
@@ -201,14 +259,10 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!SDL_GL_CreateContext(window)) {
-            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-            return false;
-        }
         SDL_GL_SetSwapInterval(0); // disable vsync
-    } else
+    } else {
         scr = SDL_GetWindowSurface(window);
-
+    }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
