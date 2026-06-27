@@ -51,6 +51,9 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((used))
+#endif
 void platformSetWindowFullscreen(MAYBE_UNUSED bool fullscreen) {}
 
 void platformGetMousePos(double *xPos, double *yPos) {
