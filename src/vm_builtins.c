@@ -31,7 +31,9 @@
 #include "base64.h"
 #include "gettime.h"
 
+#ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 
 #define MAX_BACKGROUNDS 8
 
@@ -1048,7 +1050,22 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             }
             return RValue_makeUndefined();
         }
-        case BUILTIN_VAR_ARGUMENT0 ... BUILTIN_VAR_ARGUMENT15: {
+        case BUILTIN_VAR_ARGUMENT0:
+        case BUILTIN_VAR_ARGUMENT1:
+        case BUILTIN_VAR_ARGUMENT2:
+        case BUILTIN_VAR_ARGUMENT3:
+        case BUILTIN_VAR_ARGUMENT4:
+        case BUILTIN_VAR_ARGUMENT5:
+        case BUILTIN_VAR_ARGUMENT6:
+        case BUILTIN_VAR_ARGUMENT7:
+        case BUILTIN_VAR_ARGUMENT8:
+        case BUILTIN_VAR_ARGUMENT9:
+        case BUILTIN_VAR_ARGUMENT10:
+        case BUILTIN_VAR_ARGUMENT11:
+        case BUILTIN_VAR_ARGUMENT12:
+        case BUILTIN_VAR_ARGUMENT13:
+        case BUILTIN_VAR_ARGUMENT14:
+        case BUILTIN_VAR_ARGUMENT15: {
             int argNumber = builtinVarId - BUILTIN_VAR_ARGUMENT0;
             if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > argNumber) {
                 RValue val = ctx->scriptArgs[argNumber];
@@ -1673,28 +1690,6 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             runner->currentRoom->speed = (uint32_t) RValue_toInt32(val);
             return;
 
-        // Read-only variables (silently ignore with warning)
-        case BUILTIN_VAR_OS_TYPE ... BUILTIN_VAR_OS_LLVM_WINPHONE:
-        case BUILTIN_VAR_BUFFER_FIXED ... BUILTIN_VAR_BUFFER_SEEK_END:
-        case BUILTIN_VAR_ID:
-        case BUILTIN_VAR_OBJECT_INDEX:
-        case BUILTIN_VAR_CURRENT_DAY:
-        case BUILTIN_VAR_CURRENT_HOUR:
-        case BUILTIN_VAR_CURRENT_MINUTE:
-        case BUILTIN_VAR_CURRENT_MONTH:
-        case BUILTIN_VAR_CURRENT_SECOND:
-        case BUILTIN_VAR_CURRENT_TIME:
-        case BUILTIN_VAR_CURRENT_WEEKDAY:
-        case BUILTIN_VAR_CURRENT_YEAR:
-        case BUILTIN_VAR_VIEW_CURRENT:
-        case BUILTIN_VAR_PATH_INDEX:
-        case BUILTIN_VAR_DEBUG_MODE:
-        case BUILTIN_VAR_ROOM_FIRST:
-        case BUILTIN_VAR_ROOM_LAST:
-        case BUILTIN_VAR_GP_FACE1 ... BUILTIN_VAR_GP_AXIS_RV:
-            fprintf(stderr, "VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
-            return;
-
         // argument[N] - array-style write to script arguments
         case BUILTIN_VAR_ARGUMENT:
             if (arrayIndex >= 0) {
@@ -1703,7 +1698,22 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             return;
 
         // Argument variables (argument0..argument15)
-        case BUILTIN_VAR_ARGUMENT0 ... BUILTIN_VAR_ARGUMENT15: {
+        case BUILTIN_VAR_ARGUMENT0:
+        case BUILTIN_VAR_ARGUMENT1:
+        case BUILTIN_VAR_ARGUMENT2:
+        case BUILTIN_VAR_ARGUMENT3:
+        case BUILTIN_VAR_ARGUMENT4:
+        case BUILTIN_VAR_ARGUMENT5:
+        case BUILTIN_VAR_ARGUMENT6:
+        case BUILTIN_VAR_ARGUMENT7:
+        case BUILTIN_VAR_ARGUMENT8:
+        case BUILTIN_VAR_ARGUMENT9:
+        case BUILTIN_VAR_ARGUMENT10:
+        case BUILTIN_VAR_ARGUMENT11:
+        case BUILTIN_VAR_ARGUMENT12:
+        case BUILTIN_VAR_ARGUMENT13:
+        case BUILTIN_VAR_ARGUMENT14:
+        case BUILTIN_VAR_ARGUMENT15: {
             int argNumber = builtinVarId - BUILTIN_VAR_ARGUMENT0;
             VM_writeToScriptArgs(ctx, argNumber, val);
             return;
@@ -1719,8 +1729,30 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             Runner_setHealth(runner, RValue_toReal(val));
             return;
 
+        // Read-only variables (silently ignore with warning)
         default:
-            break;
+            if (!((builtinVarId >= BUILTIN_VAR_OS_TYPE && builtinVarId <= BUILTIN_VAR_OS_LLVM_WINPHONE) || \
+               (builtinVarId >= BUILTIN_VAR_BUFFER_FIXED && builtinVarId <= BUILTIN_VAR_BUFFER_SEEK_END) || \
+               (builtinVarId >= BUILTIN_VAR_GP_FACE1 && builtinVarId <= BUILTIN_VAR_GP_AXIS_RV)))
+                break;
+            // fall through
+        case BUILTIN_VAR_ID:
+        case BUILTIN_VAR_OBJECT_INDEX:
+        case BUILTIN_VAR_CURRENT_DAY:
+        case BUILTIN_VAR_CURRENT_HOUR:
+        case BUILTIN_VAR_CURRENT_MINUTE:
+        case BUILTIN_VAR_CURRENT_MONTH:
+        case BUILTIN_VAR_CURRENT_SECOND:
+        case BUILTIN_VAR_CURRENT_TIME:
+        case BUILTIN_VAR_CURRENT_WEEKDAY:
+        case BUILTIN_VAR_CURRENT_YEAR:
+        case BUILTIN_VAR_VIEW_CURRENT:
+        case BUILTIN_VAR_PATH_INDEX:
+        case BUILTIN_VAR_DEBUG_MODE:
+        case BUILTIN_VAR_ROOM_FIRST:
+        case BUILTIN_VAR_ROOM_LAST:
+            fprintf(stderr, "VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
+            return;
     }
 
     fprintf(stderr, "VM: [%s] Unhandled built-in variable write '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);

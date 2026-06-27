@@ -20,6 +20,10 @@
 #define overlayRmdir(path) rmdir(path)
 #endif
 
+#if defined(_MSC_VER) && !defined(S_ISDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#endif
+
 // ===[ Helpers ]===
 
 // Replaces all backslashes (\) with forward slashes (/) in a path string. (dealing with windows paths)

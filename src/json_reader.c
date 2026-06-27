@@ -39,10 +39,6 @@ static char advance(JsonParser* parser) {
 
 static JsonValue* makeValue(JsonValueType type) {
     JsonValue* value = (JsonValue *)safeCalloc(1, sizeof(JsonValue));
-    if (value == nullptr) {
-        fprintf(stderr, "JsonReader: calloc failed\n");
-        abort();
-    }
     value->type = type;
     return value;
 }
@@ -57,10 +53,6 @@ static JsonValue* parseString(JsonParser* parser) {
     size_t capacity = 64;
     size_t length = 0;
     char* buffer = (char *)safeMalloc(capacity);
-    if (buffer == nullptr) {
-        fprintf(stderr, "JsonReader: malloc failed\n");
-        abort();
-    }
 
     while (parser->position < parser->length) {
         char c = advance(parser);
@@ -125,10 +117,6 @@ static JsonValue* parseString(JsonParser* parser) {
         if (length + 1 >= capacity) {
             capacity *= 2;
             buffer = (char *)safeRealloc(buffer, capacity);
-            if (buffer == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
         }
         buffer[length++] = c;
     }
@@ -181,10 +169,6 @@ static JsonValue* parseArray(JsonParser* parser) {
         if (value->array.count >= value->array.capacity) {
             int newCapacity = (value->array.capacity == 0) ? 8 : value->array.capacity * 2;
             value->array.items = (JsonValue *)safeRealloc(value->array.items, (size_t) newCapacity * sizeof(JsonValue));
-            if (value->array.items == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
             value->array.capacity = newCapacity;
         }
 
@@ -261,10 +245,6 @@ static JsonValue* parseObject(JsonParser* parser) {
             int newCapacity = (value->object.capacity == 0) ? 8 : value->object.capacity * 2;
             value->object.keys = (char **)safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
             value->object.values = (JsonValue *)safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
-            if (value->object.keys == nullptr || value->object.values == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
             value->object.capacity = newCapacity;
         }
 
