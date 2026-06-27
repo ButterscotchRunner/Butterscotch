@@ -12,7 +12,7 @@
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
-static bool gFullscreen;
+static bool gFullscreen = false;
 static SDL_Surface* scr;
 static SDL_Window *window;
 static SDL_Gamepad* openControllers[MAX_GAMEPADS];
@@ -171,7 +171,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbWidth = reqW;
     fbHeight = reqH;
 
-	gFullscreen = false;
     window = tryOpenWindow(fbWidth, fbHeight, title, flags);
 
     if (!window && gfx != SOFTWARE) {

@@ -10,7 +10,7 @@
 #include "runner_mouse.h"
 
 static Runner *g_runner;
-static bool gFullscreen;
+static bool gFullscreen = false;
 static SDL_Surface* scr;
 static SDL_Window *window;
 
@@ -228,7 +228,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
-    gFullscreen = false;
     window = tryOpenWindow(reqW, reqH, title, flags);
 
     if (!window && gfx != SOFTWARE) {
