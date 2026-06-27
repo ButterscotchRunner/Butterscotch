@@ -1,3 +1,5 @@
+#include <SDL/SDL_active.h>
+#include <SDL/SDL_events.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
@@ -404,6 +406,44 @@ static int32_t SDLKeyToGml(int sdlkey) {
     }
 }
 
+static void platformResetJoysticks(void) {
+    char oldNames[MAX_GAMEPADS][256] = {0};
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        if (openJoysticks[i]) {
+            const char* name = SDL_JoystickName(i);
+            if (name) {
+                strncpy(oldNames[i], name, sizeof(oldNames[i]) - 1);
+            }
+            SDL_JoystickClose(openJoysticks[i]);
+            openJoysticks[i] = NULL;
+        }
+    }
+    
+    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+    SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+    SDL_JoystickEventState(SDL_IGNORE);
+    
+    int numJoysticks = SDL_NumJoysticks();
+    bool needsRemap = false;
+    for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; i++) {
+        openJoysticks[i] = SDL_JoystickOpen(i);
+        const char* newName = SDL_JoystickName(i);
+        if (!newName) newName = "";
+        if (strcmp(oldNames[i], newName) != 0) {
+            joystickMappings[i].valid = false;
+            needsRemap = true;
+        }
+    }
+    
+    for (int i = numJoysticks; i < MAX_GAMEPADS; i++) {
+        joystickMappings[i].valid = false;
+    }
+    
+    if (needsRemap) {
+        loadGamepadMappings();
+    }
+}
+
 static int32_t SDLMouseButtonToGml(int sdlButton) {
     switch (sdlButton) {
         case SDL_BUTTON_LEFT: return GML_MB_LEFT;
@@ -414,47 +454,6 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
-    static double lastJoyCheck = 0;
-    if (nowNanos() - lastJoyCheck > 2.0) {
-        lastJoyCheck = nowNanos();
-        
-        char oldNames[MAX_GAMEPADS][256] = {0};
-        for (int i = 0; i < MAX_GAMEPADS; i++) {
-            if (openJoysticks[i]) {
-                const char* name = SDL_JoystickName(i);
-                if (name) {
-                    strncpy(oldNames[i], name, sizeof(oldNames[i]) - 1);
-                }
-                SDL_JoystickClose(openJoysticks[i]);
-                openJoysticks[i] = NULL;
-            }
-        }
-        
-        SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
-        SDL_InitSubSystem(SDL_INIT_JOYSTICK);
-        SDL_JoystickEventState(SDL_IGNORE);
-        
-        int numJoysticks = SDL_NumJoysticks();
-        bool needsRemap = false;
-        for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; i++) {
-            openJoysticks[i] = SDL_JoystickOpen(i);
-            const char* newName = SDL_JoystickName(i);
-            if (!newName) newName = "";
-            if (strcmp(oldNames[i], newName) != 0) {
-                joystickMappings[i].valid = false;
-                needsRemap = true;
-            }
-        }
-        
-        for (int i = numJoysticks; i < MAX_GAMEPADS; i++) {
-            joystickMappings[i].valid = false;
-        }
-        
-        if (needsRemap) {
-            loadGamepadMappings();
-        }
-    }
-
     SDL_JoystickUpdate();
 
     g_runner->gamepads->connectedCount = 0;
@@ -537,6 +536,11 @@ bool platformHandleEvents(void) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch(e.type) {
+            case SDL_ACTIVEEVENT:
+                if ((e.active.state & SDL_APPINPUTFOCUS) && e.active.gain) {
+                    platformResetJoysticks();
+                }
+                break;
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
