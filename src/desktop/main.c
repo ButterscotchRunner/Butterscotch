@@ -796,7 +796,7 @@ static void freeCommandLineArgs(CommandLineArgs* args) {
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 // When flipY is true, the image will be flipped vertically.
 static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque, bool flipY) {
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     int stride = width * 4;
     unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
@@ -846,7 +846,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
         writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false, false);
     }
 
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 #endif
 
@@ -1717,7 +1717,7 @@ int main(int argc, char* argv[]) {
 
                 if (shouldScreenshot || RunnerKeyboard_checkPressed(runner->keyboard, VK_F5)) {
                     captureScreenshot(0, args.screenshotPattern, runner->frameCount, fbWidth, fbHeight, true);
-                    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 }
 
                 // Dump all surfaces if this frame matches a requested frame
@@ -1726,7 +1726,7 @@ int main(int argc, char* argv[]) {
                 if (shouldDumpSurfaces || RunnerKeyboard_checkPressed(runner->keyboard, VK_F6)) {
                     GLRenderer* gl = (GLRenderer*) renderer;
                     dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
-                    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 }
 #endif
 
