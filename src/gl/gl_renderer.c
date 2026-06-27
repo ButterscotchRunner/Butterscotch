@@ -401,7 +401,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         if (!shdr->present) {
             gl->gmlShaderCount++;
-            fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", i);
+            fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", (int)i);
             continue;
         }
 

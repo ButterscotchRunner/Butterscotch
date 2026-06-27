@@ -1042,7 +1042,7 @@ int main(int argc, char* argv[]) {
             // reflects what each room contains without keeping all of them resident simultaneously.
             forEachIndexed(Room, room, idx, dataWin->room.rooms, dataWin->room.count) {
                 if (!room->present) {
-                    printf("[%d] <absent>\n", idx);
+                    printf("[%d] <absent>\n", (int)idx);
                     continue;
                 }
                 bool loadedHere = false;
@@ -1051,17 +1051,17 @@ int main(int argc, char* argv[]) {
                     loadedHere = true;
                 }
 
-                printf("[%d] %s ()\n", idx, room->name);
+                printf("[%d] %s ()\n", (int)idx, room->name);
 
                 forEachIndexed(RoomGameObject, roomGameObject, idx2, room->gameObjects, room->gameObjectCount) {
                     if (roomGameObject->objectDefinition < 0 || (uint32_t) roomGameObject->objectDefinition >= dataWin->objt.count) {
-                        printf("  [%d] <no object> (x=%d,y=%d)\n", idx2, roomGameObject->x, roomGameObject->y);
+                        printf("  [%d] <no object> (x=%d,y=%d)\n", (int)idx2, roomGameObject->x, roomGameObject->y);
                         continue;
                     }
                     GameObject* gameObject = &dataWin->objt.objects[roomGameObject->objectDefinition];
                     printf(
                         "  [%d] %s (x=%d,y=%d,persistent=%d,solid=%d,spriteId=%d,preCreateCode=%d,creationCode=%d)\n",
-                        idx2,
+                        (int)idx2,
                         gameObject->name,
                         roomGameObject->x,
                         roomGameObject->y,
@@ -1088,7 +1088,7 @@ int main(int argc, char* argv[]) {
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     totalEvents += obj->eventLists[e].eventCount;
                 }
-                printf("[%u] %s:\n", idx, obj->name);
+                printf("[%u] %s:\n", (unsigned int)idx, obj->name);
                 if (obj->parentId >= 0 && (uint32_t) obj->parentId < dataWin->objt.count) {
                     printf("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
                 } else {
@@ -1125,7 +1125,7 @@ int main(int argc, char* argv[]) {
 
         if (args.printShaders) {
             forEachIndexed(Shader, shader, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
-                printf("[%u] %s:\n", idx, shader->name);
+                printf("[%u] %s:\n", (unsigned int)idx, shader->name);
                 printf("GLSL Vertex Shader:\n");
                 char* glslVertex = collapseNewlines(shader->glsl_Vertex);
                 printf("%s\n", glslVertex);
