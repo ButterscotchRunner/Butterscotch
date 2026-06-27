@@ -7600,8 +7600,8 @@ static RValue builtin_window_get_fullscreen(VMContext* ctx, MAYBE_UNUSED RValue*
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->getWindowFullscreen != nullptr) {
         return RValue_makeBool(runner->getWindowFullscreen());
-
     }
+
     return RValue_makeBool(true);
 }
 
@@ -7625,6 +7625,7 @@ static RValue builtin_window_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args
             return RValue_makeReal((GMLReal) w);
         }
     }
+
     return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowWidth);
 }
 
@@ -7637,6 +7638,7 @@ static RValue builtin_window_get_height(VMContext* ctx, MAYBE_UNUSED RValue* arg
             return RValue_makeReal((GMLReal) h);
         }
     }
+
     return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
 }
 
