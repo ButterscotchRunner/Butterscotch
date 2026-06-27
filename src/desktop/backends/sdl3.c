@@ -122,10 +122,8 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static bool platformGetWindowFullscreen(bool* outFullscreen) {
-    if (!outFullscreen || !window) return false;
-    *outFullscreen = gFullscreen;
-    return true;
+static bool platformGetWindowFullscreen() {
+    return gFullscreen;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
