@@ -33,11 +33,11 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
-        
+
 #ifndef NDEBUG
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
-        
+
         return glfwCreateWindow(reqW, reqH, title, NULL, NULL);
     }
 
@@ -106,12 +106,10 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-bool platformGetWindowFullscreen(bool* outFullscreen) {
-	if (!outFullscreen || !window) return false;
+static bool platformGetWindowFullscreen() {
+	if (!window) return false;
 
-	*outFullscreen = glfwGetWindowMonitor(window) != nullptr;
-
-	return true;
+	return glfwGetWindowMonitor(window) != nullptr;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
@@ -350,6 +348,8 @@ void platformInitFunctions(Runner *runner) {
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_DEFAULT;
+	runner->getWindowFullscreen = platformGetWindowFullscreen;
+	runner->setWindowFullscreen = platformSetWindowFullscreen;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
