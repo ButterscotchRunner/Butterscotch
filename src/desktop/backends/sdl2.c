@@ -157,11 +157,11 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 static void platformSetWindowFullscreen(bool fullscreen) {
     if (!window) return;
 
-    static int savedGameW = 0;
-    static int savedGameH = 0;
+    static int savedWindowW = 0;
+    static int savedWindowH = 0;
 
     if (!gFullscreen) {
-        platformGetWindowSize(&savedGameW, &savedGameH);
+        platformGetWindowSize(&savedWindowW, &savedWindowH);
     }
 
     Uint32 flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
@@ -172,14 +172,14 @@ static void platformSetWindowFullscreen(bool fullscreen) {
         int winW, winH;
         SDL_GetWindowSize(window, &winW, &winH);
 
-        if (savedGameW > 0 && savedGameH > 0) {
-            int scaleX = winW / savedGameW;
-            int scaleY = winH / savedGameH;
+        if (savedWindowW > 0 && savedWindowH > 0) {
+            int scaleX = winW / savedWindowW;
+            int scaleY = winH / savedWindowH;
             int scale = (scaleX < scaleY) ? scaleX : scaleY;
             if (scale < 1) scale = 1;
 
-            int viewWidth = savedGameW * scale;
-            int viewHeight = savedGameH * scale;
+            int viewWidth = savedWindowW * scale;
+            int viewHeight = savedWindowH * scale;
 
             int viewX = (winW - viewWidth) / 2;
             int viewY = (winH - viewHeight) / 2;

@@ -122,12 +122,12 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     glfwSetWindowSize(window, logicalW, logicalH);
 }
 
-static int savedWindowX = 0;
-static int savedWindowY = 0;
 void platformSetWindowFullscreen(bool fullscreen) {
+	static int savedWindowY = 0;
+	static int savedWindowX = 0;
+
 	int32_t w = 0;
 	int32_t h = 0;
-
 	platformGetWindowSize(&w, &h);
 
 	int refreshRate = glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate;
