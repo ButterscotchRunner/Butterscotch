@@ -13261,10 +13261,9 @@ static RValue builtin_tilemap_get_width(VMContext* ctx, RValue* args, MAYBE_UNUS
     Runner* runner = ctx->runner;
 
 	RuntimeLayer* runtimeLayer = nullptr;
-    if (findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer) == nullptr) return RValue_makeUndefined();
-
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeUndefined();
+
     return RValue_makeReal(data->tilesX);
 }
 
@@ -13273,10 +13272,9 @@ static RValue builtin_tilemap_get_height(VMContext* ctx, RValue* args, MAYBE_UNU
     Runner* runner = ctx->runner;
 
 	RuntimeLayer* runtimeLayer = nullptr;
-    if (findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer) == nullptr) return RValue_makeUndefined();
-
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeUndefined();
+
     return RValue_makeReal(data->tilesY);
 }
 
@@ -13285,12 +13283,10 @@ static RValue builtin_tilemap_get_tile_width(VMContext* ctx, RValue* args, MAYBE
     Runner* runner = ctx->runner;
 
 	RuntimeLayer* runtimeLayer = nullptr;
-    if (findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer) == nullptr) return RValue_makeUndefined();
-
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+	if (!data) return RValue_makeUndefined();
 
 	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
-
 	return RValue_makeReal(tileset->gms2TileWidth);
 }
 
@@ -13299,12 +13295,10 @@ static RValue builtin_tilemap_get_tile_height(VMContext* ctx, RValue* args, MAYB
     Runner* runner = ctx->runner;
 
 	RuntimeLayer* runtimeLayer = nullptr;
-    if (findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer) == nullptr) return RValue_makeUndefined();
-
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+	if (!data) return RValue_makeUndefined();
 
 	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
-
 	return RValue_makeReal(tileset->gms2TileHeight);
 }
 
