@@ -108,7 +108,6 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 
 static bool platformGetWindowFullscreen() {
 	if (!window) return false;
-
 	return glfwGetWindowMonitor(window) != nullptr;
 }
 
