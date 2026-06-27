@@ -142,7 +142,6 @@ void platformSetWindowFullscreen(bool fullscreen) {
 		}
 		glfwSetWindowMonitor(window, nullptr, savedWindowX, savedWindowY, w, h, refreshRate);
 	}
-
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
