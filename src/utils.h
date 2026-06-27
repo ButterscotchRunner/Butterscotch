@@ -18,9 +18,11 @@
 
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 202311L)
     #define TYPEOF(x) typeof(x)
+#elif defined(_MSC_VER) && defined(__cplusplus) && __cplusplus >= 201103L
+    #define TYPEOF(x) std::remove_reference<decltype(x)>::type
 #elif defined(__GNUC__) || defined(__clang__) || \
     (defined(__TINYC__) && __TINYC__ >= 913) || \
-    (defined(_MSC_VER) && _MSC_VER >= 1940)
+    (defined(_MSC_VER) && _MSC_VER >= 1940 && !defined(__cplusplus))
     #define TYPEOF(x) __typeof__(x)
 #else
     #define TYPEOF(x) long long
