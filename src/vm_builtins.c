@@ -13260,7 +13260,7 @@ static RValue builtin_tilemap_get_width(VMContext* ctx, RValue* args, MAYBE_UNUS
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer = nullptr;
+	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeUndefined();
 
@@ -13271,7 +13271,7 @@ static RValue builtin_tilemap_get_height(VMContext* ctx, RValue* args, MAYBE_UNU
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer = nullptr;
+	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeUndefined();
 
@@ -13282,7 +13282,7 @@ static RValue builtin_tilemap_get_tile_width(VMContext* ctx, RValue* args, MAYBE
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer = nullptr;
+	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
 	if (!data) return RValue_makeUndefined();
 
@@ -13294,7 +13294,7 @@ static RValue builtin_tilemap_get_tile_height(VMContext* ctx, RValue* args, MAYB
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer = nullptr;
+	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
 	if (!data) return RValue_makeUndefined();
 
