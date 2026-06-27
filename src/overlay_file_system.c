@@ -9,9 +9,6 @@
 #include <errno.h>
 
 #ifdef _WIN32
-#ifndef S_ISDIR
-#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
-#endif
 #include <direct.h>
 #include <windows.h>
 #define overlayMkdir(path) _mkdir(path)
@@ -21,6 +18,10 @@
 #include <dirent.h>
 #define overlayMkdir(path) mkdir((path), 0777)
 #define overlayRmdir(path) rmdir(path)
+#endif
+
+#if defined(_MSC_VER) && !defined(S_ISDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 
 // ===[ Helpers ]===
