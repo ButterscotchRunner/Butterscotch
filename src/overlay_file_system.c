@@ -399,8 +399,7 @@ static FileSystemDirEntry* overlayListDirectory(FileSystem* fs, const char* rela
 
 // ===[ Vtable ]===
 
-static FileSystemVtable overlayFileSystemVtable = {
-};
+static FileSystemVtable overlayFileSystemVtable;
 
 // ===[ Lifecycle ]===
 
