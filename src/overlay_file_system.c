@@ -10,7 +10,7 @@
 
 #ifdef _WIN32
 #ifndef S_ISDIR
-#define S_ISDIR(mode)  (((mode) & S_IFMT) == S_IFDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 #include <direct.h>
 #include <windows.h>
