@@ -72,6 +72,7 @@ if $CC /nologo tmp/test.c /Fe:tmp/a.out >> tmp/config.log 2>&1; then
     nologo='/nologo'
     output='/Fe:'
     config 'MSVC := 1'
+    config 'OBJ_EXT := obj'
     config '_CC := $(CC) /nologo'
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'COMPILE_OBJ := /c'
@@ -84,6 +85,7 @@ elif $CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1; then
     syntax=gcc
     lm='-lm'
     output='-o'
+    config 'OBJ_EXT := o'
     config '_CC := $(CC)'
     config 'CFLAGS := -O2 -DNDEBUG'
     config 'COMPILE_OBJ := -c'
