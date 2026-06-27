@@ -213,7 +213,7 @@ endif
 build/butterscotch: $(OBJS)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
 	$(V)$(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
-	@[ -f $@.exe ] && chmod +x $@.exe
+	@[ -f $@.exe ] && chmod +x $@.exe || true
 
 build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
