@@ -27,7 +27,7 @@ printyes() {
 }
 
 printno() {
-    if [ -z "$NO_COLOR" ]; then
+    if [ -z "$NO_COLOR" ] && [ -t 1 ]; then
         printf '\033[1;31mno\033[0m\n'
     else
         printf 'no\n'
