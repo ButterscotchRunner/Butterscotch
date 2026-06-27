@@ -5,13 +5,9 @@ CC := cc
 
 CFLAGS := -O2 -DNDEBUG
 
-ifeq ($(OS),Windows_NT)
-OS := Windows
-else
 OS := $(shell uname -s)
-ifneq ($(filter MINGW% MSYS% CYGWIN%,$(OS)),)
+ifneq ($(filter Windows_NT MINGW% MSYS% CYGWIN%,$(OS)),)
 OS := Windows
-endif
 endif
 
 DEFINES := -DENABLE_VM_GML_PROFILER \
@@ -50,7 +46,7 @@ DEFINES += -DENABLE_WAD17
 endif
 
 # TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c) $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c)
+SRCS += $(wildcard src/desktop/*.c) src/desktop/backends/$(DESKTOP_BACKEND).c
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
@@ -100,12 +96,10 @@ ENABLE_GLAD := 1
 endif
 
 ifndef DISABLE_LEGACY_GL
-ifndef ENABLE_GLES
 DEFINES += -DENABLE_LEGACY_GL
 SRCS += $(wildcard src/gl_legacy/*.c)
 INCLUDES += -Isrc/gl_legacy
 HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
-endif
 endif
 
 ifndef DISABLE_MODERN_GL
@@ -128,18 +122,12 @@ $(error must enable at least 1 renderer)
 endif
 endif
 
-ifdef ENABLE_GLES
-DEFINES += -DENABLE_GLES
-endif
-
 ifeq ($(AUDIO_BACKEND),miniaudio)
 INCLUDES += -Isrc/audio/miniaudio -Ivendor/miniaudio
 DEFINES += -DUSE_MINIAUDIO
 SRCS += $(wildcard src/audio/miniaudio/*.c)
 HEADERS += $(wildcard src/audio/miniaudio/*.h)
-ifeq ($(OS),Windows)
-LIBS += -lwinmm
-else
+ifneq ($(OS),Windows)
 LIBS += -pthread
 endif
 endif
@@ -156,17 +144,12 @@ endif
 endif
 
 ifdef ENABLE_GLAD
-ifdef ENABLE_GLES
-SRCS += vendor/glad-gles/src/glad.c
-INCLUDES += -Ivendor/glad-gles/include
-else
 SRCS += vendor/glad/src/glad.c
 INCLUDES += -Ivendor/glad/include
 endif
-endif
 
 ifeq ($(OS),Windows)
-LIBS += -static
+LIBS += -static -lwinmm
 else
 ifeq ($(OS),Darwin)
 LIBS += -lobjc
@@ -177,6 +160,10 @@ else
 $(error unknown OS '$(OS)', please manually set the OS variable)
 endif
 endif
+endif
+
+ifndef VERBOSE
+V := @
 endif
 
 OBJS := $(addprefix build/,$(SRCS:.c=.c.o))
@@ -193,30 +180,30 @@ ifndef DISABLE_MMD
 DEPFLAGS = -MMD -MP -MF $(@:.o=.d)
 endif
 
-FORCE:
+# trigger configure re-run if $(CC) changes
+_dummy := $(shell \
+	printf '$(CC)' > compat/tmp/cc-new; \
+	cmp -s compat/tmp/cc-new compat/tmp/cc || \
+	mv compat/tmp/cc-new compat/tmp/cc; \
+	rm -f compat/tmp/cc-new \
+)
 
 compat/config.mk: compat/configure.sh compat/tmp/cc
-	@$(MAKE) distclean > /dev/null
 	@CC="$(CC)" $(SHELL) compat/configure.sh
-	@$(MAKE)
-	@exit 0
-
-compat/tmp/cc: FORCE
-	@printf '$(CC)' > compat/tmp/cc-new
-	@cmp -s compat/tmp/cc-new compat/tmp/cc || mv compat/tmp/cc-new compat/tmp/cc
-	@rm -f compat/tmp/cc-new
 
 endif
 
 build/butterscotch: $(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
+	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
+	$(V)$(CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) -o $@
 
 build/%.c.o: %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
-	$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
+	$(V)$(CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf build
 
 distclean: clean
-	rm -f compat/config.mk
+	rm -f compat/config.mk compat/tmp/cc

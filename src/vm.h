@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_VM_H_
+#define _BS_VM_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -29,6 +30,9 @@
 #define VARTYPE_NORMAL    0xA0
 #define VARTYPE_INSTANCE  0xE0
 
+// ===[ Variable Identities ]===
+#define VARIABLE_BUILTIN (-6)
+
 // ===[ Room Constants ]===
 #define ROOM_RESTARTGAME (-200) // The reason why it is -200 is because the GameMaker-HTML5 runner uses -200 too (see Globals.js)
 
@@ -45,7 +49,10 @@
 #endif
 
 // GMS 1.4 supports up to 16 arguments per script call
+// Newer GM versions do NOT have an argument limit however, but the limit is still used for the old classic style "argumentX" access
 #define GML_MAX_ARGUMENTS 16
+
+#define INSTANCE_ID_BASE 100000
 
 // ===[ Comparison Kinds ]===
 #define CMP_LT  1
@@ -141,8 +148,16 @@ typedef struct EnvFrame {
     struct EnvFrame* parent;
 } EnvFrame;
 
+typedef struct {
+    int32_t jumpToOnException;
+    int32_t jumpToOnSuccess;
+    int32_t boundToCallDepth;
+    int32_t stackTop;
+} ExceptionHandlerFrame;
+
 // ===[ VMStack - Upward-growing array of RValue slots ]===
 #define VM_STACK_SIZE 1024
+#define VM_EXCEPTION_HANDLER_FRAME_STACK_SIZE 16
 
 typedef struct {
     int32_t top;
@@ -167,6 +182,10 @@ typedef struct {
     BuiltinFunc value;
 } BuiltinEntry;
 
+typedef struct {
+    char* message;
+} VMException;
+
 // ===[ VMContext - Holds all VM state ]===
 // Fields are ordered by access frequency so that the hottest data sits in the first bytes of the struct
 // This way data can be kept "hot" in the CPU cache or, depending on the platform, in scratchpad RAM
@@ -177,8 +196,7 @@ struct VMContext {
     uint32_t codeEnd;
     RValue* localVars;
     uint32_t localVarCount;
-    RValue* globalVars;
-    uint32_t globalVarCount;
+    struct Instance* globalScopeInstance; // used when GLOB scripts are being executed, and used for the "global" reference
     struct Instance* currentInstance;
     struct Instance* otherInstance; // "other" instance for collision events
     DataWin* dataWin;
@@ -216,6 +234,12 @@ struct VMContext {
     void* currentArrayOwner;
     // SAVEAREF/RESTOREAREF balance tracker.
     int32_t savearefBalance;
+#ifdef ENABLE_WAD17
+    VMException* exception;
+    VMException* parkedException;
+    int32_t exceptionHandlerStackTop;
+    ExceptionHandlerFrame exceptionHandlerFrameStack[VM_EXCEPTION_HANDLER_FRAME_STACK_SIZE];
+#endif
 
     // Cold: init-only or rare lookups
     BuiltinEntry* builtinMap;
@@ -226,15 +250,9 @@ struct VMContext {
     struct { char* key; CodeLocals* value; }* codeLocalsMap;
     // BC13/BC14/BC17+: A map of CODE indexes -> localVars slot lookup map
     IntIntHashMap* codeLocalsSlotMaps;
-    // BC13/BC14 only: varIdx -> globalVars slot lookup
-    IntIntHashMap globalVarsSlotMap;
-    // Allocated capacity of ctx->globalVars, only used for BC13/BC14
-    uint32_t globalVarCapacity;
-    // varName -> varID hash map for global variables (stb_ds)
-    struct { char* key; int32_t value; }* globalVarNameMap;
     // varName -> varID hash map for self/instance-scoped variables (stb_ds).
-    struct { char* key; int32_t value; }* selfVarNameMap;
-    int32_t nextDynamicSelfVarID;
+    struct { char* key; int32_t value; }* varNameMap;
+    int32_t nextDynamicVarID;
     // "codeName\tfuncName" -> true, for deduplicating unknown function warnings
     StringBooleanEntry* loggedUnknownFuncs;
     // "codeName\tfuncName" -> true, for deduplicating stubbed function warnings
@@ -277,6 +295,7 @@ struct VMContext {
 };
 
 // ===[ Public API ]===
+Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target);
 VMContext* VM_create(DataWin* dataWin);
 void VM_reset(VMContext* ctx);
 RValue VM_executeCode(VMContext* ctx, int32_t codeIndex);
@@ -293,7 +312,9 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx);
 void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func);
 BuiltinFunc VM_findBuiltin(VMContext* ctx, const char* name);
 
-RValue VM_structGet(VMContext* ctx, Instance* structInst, const char* name, int32_t arrayIndex);
+char* VM_getVariableNameByVarId(VMContext* ctx, int32_t varId);
+RValue VM_structGetVariableByVarId(Instance* structInst, int32_t varId, int32_t arrayIndex);
+RValue VM_structGetVariableByVarName(VMContext* ctx, Instance* structInst, const char* name, int32_t arrayIndex);
 // Set a named field on a freshly-built GML struct.
 void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
 void VM_structSetAndFreeVal(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
@@ -302,7 +323,11 @@ void VM_structSetAndFreeVal(VMContext* ctx, Instance* structInst, const char* na
 void VM_copyStatic(VMContext* ctx, RValue* parentRef);
 
 // Look up the varID for a self-scoped variable name, allocating a fresh synthetic ID if absent.
-int32_t VM_getOrAllocateSelfVarID(VMContext* ctx, const char* name);
+int32_t VM_getOrAllocateVarID(VMContext* ctx, const char* name);
+
+// Writes to the VMContext's scriptArgs, resizing the underlying array if needed
+// The "val" will be RValue_makeIndependent(val), it won't be freed
+void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val);
 
 static inline const char* VM_getCallerName(VMContext* ctx) {
     return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
@@ -311,7 +336,7 @@ static inline const char* VM_getCallerName(VMContext* ctx) {
 static inline char* VM_createDedupKey(const char* callerName, const char* funcName) {
     // Build dedup key: "callerName\tfuncName"
     size_t keyLen = strlen(callerName) + 1 + strlen(funcName) + 1;
-    char* dedupKey = safeMalloc(keyLen);
+    char* dedupKey = (char *)safeMalloc(keyLen);
     snprintf(dedupKey, keyLen, "%s\t%s", callerName, funcName);
     return dedupKey;
 }
@@ -344,13 +369,23 @@ static inline bool VM_shouldTraceVariable(StringBooleanEntry* traceMap, const ch
     // "hp" should trace EVERY "hp" variable read/write to ALL objects
     if (shgeti(traceMap, varName) != -1) return true;
     // "obj_mainchara.hp" should trace EVERY variable read/write to the "hp" variable on the "obj_mainchara" object.
-    char formatted[strlen(scopeName) + 1 + strlen(varName) + 1];
-    snprintf(formatted, sizeof(formatted), "%s.%s", scopeName, varName);
-    if (shgeti(traceMap, formatted) != -1) return true;
+    size_t formattedSize = strlen(scopeName) + 1 + strlen(varName) + 1;
+    char *formatted = (char *)safeMalloc(formattedSize);
+    snprintf(formatted, formattedSize, "%s.%s", scopeName, varName);
+    if (shgeti(traceMap, formatted) != -1) {
+        free(formatted);
+        return true;
+    }
+    free(formatted);
     if (altScopeName != nullptr) {
-        char altFormatted[strlen(altScopeName) + 1 + strlen(varName) + 1];
-        snprintf(altFormatted, sizeof(altFormatted), "%s.%s", altScopeName, varName);
-        if (shgeti(traceMap, altFormatted) != -1) return true;
+        size_t altFormattedSize = strlen(altScopeName) + 1 + strlen(varName) + 1;
+        char *altFormatted = (char *)safeMalloc(altFormattedSize);
+        snprintf(altFormatted, altFormattedSize, "%s.%s", altScopeName, varName);
+        if (shgeti(traceMap, altFormatted) != -1) {
+            free(altFormatted);
+            return true;
+        }
+        free(altFormatted);
     }
     return false;
 }
@@ -371,3 +406,5 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     free(rvalueAsString);
 }
 #endif
+
+#endif /* _BS_VM_H_ */

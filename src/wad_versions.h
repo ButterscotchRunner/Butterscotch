@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_WAD_VERSIONS_H_
+#define _BS_WAD_VERSIONS_H_
 
 // To avoid unused code in production builds that are only used for a single game (example: PlayStation 2 target), we can enable/disable specific WAD versions
 // to remove unused instructions on the hot bytecode interpreter loop.
@@ -63,3 +64,5 @@
 #else
 #  error "You need to build Butterscotch with at least one WAD version enabled!"
 #endif
+
+#endif /* _BS_WAD_VERSIONS_H_ */

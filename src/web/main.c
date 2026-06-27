@@ -126,33 +126,11 @@ void* loop() {
         int32_t gameW = (int32_t) gRunner->dataWin->gen8.defaultWindowWidth;
         int32_t gameH = (int32_t) gRunner->dataWin->gen8.defaultWindowHeight;
 
-        // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-        // It is a bit hard to understand, but here's how it works:
-        // The Port X/Port Y controls the position of the game viewport within the application surface.
-        // The Port W/Port H controls the size of the game viewport within the application surface.
-        // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-        // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-        float displayScaleX;
-        float displayScaleY;
-
         Runner_drawPre(gRunner, 640, 480);
-        Runner_computeViewDisplayScale(gRunner, gameW, gameH, &displayScaleX, &displayScaleY);
 
-        Runner_beginFrame(gRunner, gameW, gameH, 640, 480);
+        Runner_beginFrame(gRunner, gameW, gameH, 640, 480, 640, 480);
 
-        // Clear FBO with room background color
-        if (gRunner->drawBackgroundColor) {
-            int rInt = BGR_R(gRunner->backgroundColor);
-            int gInt = BGR_G(gRunner->backgroundColor);
-            int bInt = BGR_B(gRunner->backgroundColor);
-            int aInt = BGR_A(gRunner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        Runner_drawViews(gRunner, gameW, gameH, displayScaleX, displayScaleY, false);
+        Runner_drawViews(gRunner, gameW, gameH, false);
         gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
         Runner_drawPost(gRunner, 640, 480);
         gRunner->renderer->vtable->endFrameEnd(gRunner->renderer);
@@ -286,7 +264,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     const char* lastSlash = strrchr(gamePath, '/');
     if (lastSlash != nullptr) {
         size_t len = (size_t) (lastSlash - gamePath + 1);
-        bundleDir = safeMalloc(len + 1);
+        bundleDir = (char *)safeMalloc(len + 1);
         memcpy(bundleDir, gamePath, len);
         bundleDir[len] = '\0';
     } else {
@@ -295,7 +273,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, savesPath);
     free(bundleDir);
 
-    gWebAudio = WebAudioSystem_create(gAudioSampleRate);
+    gWebAudio = WebAudioSystem_create(dataWin, gAudioSampleRate);
     AudioSystem* audioSystem = (AudioSystem*) gWebAudio;
 
     // Initialize the runner

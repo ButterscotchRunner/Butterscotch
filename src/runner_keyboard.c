@@ -9,7 +9,7 @@ static bool isValidKey(int32_t key) {
 }
 
 RunnerKeyboardState* RunnerKeyboard_create(void) {
-    RunnerKeyboardState* kb = safeCalloc(1, sizeof(RunnerKeyboardState));
+    RunnerKeyboardState* kb = (RunnerKeyboardState *)safeCalloc(1, sizeof(RunnerKeyboardState));
     kb->lastKey = VK_NOKEY;
     kb->lastChar[0] = 0;
     kb->lastChar[1] = 0;

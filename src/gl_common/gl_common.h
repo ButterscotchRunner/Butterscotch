@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GL_COMMON_H_
+#define _BS_GL_COMMON_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -56,3 +57,5 @@ GLenum GLCommon_blendModeToSFactor(int mode);
 
 // Maps a bm_* mode constant to its conventional destination blend factor.
 GLenum GLCommon_blendModeToDFactor(int mode);
+
+#endif /* _BS_GL_COMMON_H_ */

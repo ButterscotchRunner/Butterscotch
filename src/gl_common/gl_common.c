@@ -50,10 +50,10 @@ uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceT
 
     uint32_t newIndex = *count;
     (*count)++;
-    *surfaces = safeRealloc(*surfaces,       *count * sizeof(GLuint));
-    *surfaceTexture = safeRealloc(*surfaceTexture, *count * sizeof(GLuint));
-    *surfaceWidth = safeRealloc(*surfaceWidth,   *count * sizeof(int32_t));
-    *surfaceHeight = safeRealloc(*surfaceHeight,  *count * sizeof(int32_t));
+    *surfaces = (GLuint *)safeRealloc(*surfaces, *count * sizeof(GLuint));
+    *surfaceTexture = (GLuint *)safeRealloc(*surfaceTexture, *count * sizeof(GLuint));
+    *surfaceWidth = (int32_t *)safeRealloc(*surfaceWidth,   *count * sizeof(int32_t));
+    *surfaceHeight = (int32_t *)safeRealloc(*surfaceHeight,  *count * sizeof(int32_t));
     (*surfaces)[newIndex]       = 0;
     (*surfaceTexture)[newIndex] = 0;
     (*surfaceWidth)[newIndex]   = 0;
@@ -125,7 +125,7 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     glBindFramebuffer(GL_FRAMEBUFFER, surfaces[surfaceId]);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
-    uint8_t* tmp = safeMalloc((size_t) w * (size_t) h * 4);
+    uint8_t* tmp = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
 
     // OpenGL reads bottom-up; native expects y=0 at the top
@@ -145,6 +145,7 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
 GLenum GLCommon_blendFactorToGL(int factor) {
     switch (factor) {
         case bm_zero:           return GL_ZERO;
+        default:
         case bm_one:            return GL_ONE;
         case bm_src_color:      return GL_SRC_COLOR;
         case bm_inv_src_color:  return GL_ONE_MINUS_SRC_COLOR;
@@ -155,42 +156,41 @@ GLenum GLCommon_blendFactorToGL(int factor) {
         case bm_dest_color:     return GL_DST_COLOR;
         case bm_inv_dest_color: return GL_ONE_MINUS_DST_COLOR;
         case bm_src_alpha_sat:  return GL_SRC_ALPHA_SATURATE;
-        default:                return GL_ONE;
     }
 }
 
 GLenum GLCommon_blendModeToEquation(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_FUNC_ADD;
         case bm_add:              return GL_FUNC_ADD;
         case bm_subtract:         return GL_FUNC_ADD;
         case bm_reverse_subtract: return GL_FUNC_REVERSE_SUBTRACT;
         case bm_min:              return GL_MIN;
         case bm_max:              return GL_FUNC_ADD;
-        default:                  return GL_FUNC_ADD;
     }
 }
 
 GLenum GLCommon_blendModeToSFactor(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_SRC_ALPHA;
         case bm_add:              return GL_SRC_ALPHA;
         case bm_subtract:         return GL_ZERO;
         case bm_reverse_subtract: return GL_SRC_ALPHA;
         case bm_min:              return GL_ONE;
         case bm_max:              return GL_SRC_ALPHA;
-        default:                  return GLCommon_blendFactorToGL(mode);
     }
 }
 
 GLenum GLCommon_blendModeToDFactor(int mode) {
     switch (mode) {
+        default:
         case bm_normal:           return GL_ONE_MINUS_SRC_ALPHA;
         case bm_add:              return GL_ONE;
         case bm_subtract:         return GL_ONE_MINUS_SRC_COLOR;
         case bm_reverse_subtract: return GL_ONE;
         case bm_min:              return GL_ONE;
         case bm_max:              return GL_ONE_MINUS_SRC_COLOR;
-        default:                  return GLCommon_blendFactorToGL(mode);
     }
 }

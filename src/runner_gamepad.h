@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_GAMEPAD_H_
+#define _BS_RUNNER_GAMEPAD_H_
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -75,3 +76,5 @@ int RunnerGamepad_getAxisCount(RunnerGamepadState* gp, int device);
 int RunnerGamepad_getButtonCount(RunnerGamepadState* gp, int device);
 int RunnerGamepad_getHatCount(RunnerGamepadState* gp, int device);
 int RunnerGamepad_getHatValue(RunnerGamepadState* gp, int device, int hat);
+
+#endif /* _BS_RUNNER_GAMEPAD_H_ */

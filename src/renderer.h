@@ -1,9 +1,10 @@
-#pragma once
+#ifndef _BS_RENDERER_H_
+#define _BS_RENDERER_H_
 
 #include "common.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <math.h>
+#include "math_compat.h"
 #include "matrix_math.h"
 #include "data_win.h"
 #include "instance.h"
@@ -105,12 +106,14 @@ typedef struct {
     void (*gpuSetFog)(Renderer* renderer, bool enable, uint32_t color);
     // Optional: platform-specific tile rendering (nullptr = use default drawSpritePart path)
     void (*drawTile)(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY);
-    void (*drawTiled)(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha);
+    void (*drawSpriteTiled)(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha);
     // Surface Functions
     int32_t (*createSurface)(Renderer* renderer, int32_t width, int32_t height);
     bool (*surfaceExists)(Renderer* renderer, int32_t surfaceID);
     // Bind the given surface as the active render target. Pass renderer->runner->applicationSurfaceId to bind the application surface.
-    bool (*setRenderTarget)(Renderer* renderer, int32_t surfaceID);
+    // implicitApplicationSurface is only valid if the surfaceID is the runner->applicationSurfaceId, it means that it was implicitly set (example: stack was empty) instead of explicitly (example: GML code using surface_set_target(application_surface))
+    // The idea is that when implicitApplicationSurface is set AND the surfaceId is runner->applicationSurfaceId, you MUST restore the previousViewMatrix
+    bool (*setRenderTarget)(Renderer* renderer, int32_t surfaceID, bool implicitApplicationSurface);
     // Lazy allocation hook called every frame by Runner_beginFrame.
     // Creates the application_surface on the first frame (and after application_surface_enable(false) -> true cycles).
     // Resizes in place if the requested dimensions changed.
@@ -119,6 +122,8 @@ typedef struct {
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
     void (*drawSurface)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
+    // Tiles the whole surface across the room (always tileX=tileY=true). Only the modern GL renderer draws; legacy/console renderers stub it.
+    void (*drawSurfaceTiled)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha);
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
     void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
     void (*surfaceCopy)(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part);
@@ -144,7 +149,7 @@ typedef struct {
     bool (*textureGetUVs)(Renderer* renderer, uint32_t texID, float* outUVs);
     void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
-    bool (*shadersSupported)(Renderer* renderer);
+    bool (*shadersSupported)(void);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===
@@ -526,7 +531,7 @@ static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpag
     DataWin* dw = renderer->dataWin;
     if (0 > tpagIndex || (uint32_t) tpagIndex >= dw->tpag.count) return;
 
-    renderer->vtable->drawTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, 0xFFFFFFu, alpha);
+    renderer->vtable->drawSpriteTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, 0xFFFFFFu, alpha);
 }
 
 // Draws a tiled sprite across the room
@@ -539,7 +544,7 @@ static inline void Renderer_drawSpriteTiled(Renderer* renderer, int32_t spriteIn
     float originX = (float) sprite->originX;
     float originY = (float) sprite->originY;
 
-    renderer->vtable->drawTiled(renderer, tpagIndex, originX, originY, x, y, xscale, yscale, true, true, roomW, roomH, color, alpha);
+    renderer->vtable->drawSpriteTiled(renderer, tpagIndex, originX, originY, x, y, xscale, yscale, true, true, roomW, roomH, color, alpha);
 }
 
 // Default draw: draws instance's sprite using its image_* properties
@@ -662,3 +667,5 @@ static inline void Renderer_drawCircleColor(Renderer* renderer, float cx, float 
 static inline void Renderer_drawCircle(Renderer* renderer, float cx, float cy, float radius, bool outline) {
     Renderer_drawCircleColor(renderer, cx, cy, radius, renderer->drawColor, renderer->drawColor, outline);
 }
+
+#endif /* _BS_RENDERER_H_ */

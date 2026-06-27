@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RVALUE_H_
+#define _BS_RVALUE_H_
 #include <stdint.h>
 #include "common.h"
 #include <stdio.h>
@@ -35,6 +36,7 @@ uint32_t Instance_getInstanceId(struct Instance* inst);
 #define GML_TYPE_INT16    0xF
 
 // ===[ Asset Reference Types ]===
+// See yyTypes.js for reference
 typedef enum {
     ASSET_TYPE_OBJECT = 0,
     ASSET_TYPE_SPRITE = 1,
@@ -48,11 +50,14 @@ typedef enum {
     ASSET_TYPE_SEQUENCE = 9,
     ASSET_TYPE_ANIMCURVE = 10,
     ASSET_TYPE_PARTICLESYSTEM = 11,
-    ASSET_TYPE_UNKNOWN = 12,
+    ASSET_TYPE_TILEMAP = 12,
     ASSET_TYPE_TILESET = 13,
+    ASSET_TYPE_INSTANCE = 14,
+    ASSET_TYPE_PARTICLESYSTEMINSTANCE = 15
 } AssetRefType;
 
 // ===[ RValue - Tagged Union ]===
+// When adding new elements to here, don't forget to update the "typeof" builtin!
 typedef enum {
     RVALUE_UNDEFINED = 0,
     RVALUE_STRING = 1,
@@ -88,7 +93,7 @@ struct RValue {
     bool ownsReference;
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
     uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
-} __attribute__((aligned(8)));
+} BS_ALIGN(8);
 
 static inline RValue RValue_makeReal(GMLReal val) {
     RValue rv = {0};
@@ -162,7 +167,7 @@ static inline RValue RValue_makeUndefined(void) {
 }
 
 // Takes ownership: refCount is NOT bumped (caller hands off its ref). The returned RValue decRefs on free.
-// Use this when you have a freshly-allocated array (GMLArray_alloc) or after a GMLArray_incRef.
+// Use this when you have a freshly-allocated array (GMLArray_create) or after a GMLArray_incRef.
 static inline RValue RValue_makeArray(GMLArray* arr) {
     RValue rv = {0};
     rv.type = RVALUE_ARRAY;
@@ -339,7 +344,7 @@ static inline char* RValue_toStringFancy(RValue val) {
 
             // length + quotes (2) + null terminator
             int newLength = strlen(valueAsString) + 3;
-            char* valueWithQuotes = safeCalloc(newLength, sizeof(char));
+            char* valueWithQuotes = (char *)safeCalloc(newLength, sizeof(char));
             snprintf(valueWithQuotes, newLength, "\"%s\"", valueAsString);
 
             free(valueAsString);
@@ -372,7 +377,7 @@ static inline char* RValue_toStringTyped(RValue val) {
         case RVALUE_STRING: {
             const char* str = val.string != nullptr ? val.string : "";
             size_t needed = strlen(str) + 3;
-            char* result = safeCalloc(needed, sizeof(char));
+            char* result = (char *)safeCalloc(needed, sizeof(char));
             snprintf(result, needed, "\"%s\"", str);
             return result;
         }
@@ -511,3 +516,5 @@ static inline void RValue_writeIntoSlotStealingOwnershipOrCopying(RValue* slot, 
     RValue_free(slot);
     *slot = target;
 }
+
+#endif /* _BS_RVALUE_H_ */

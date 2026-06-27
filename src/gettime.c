@@ -55,13 +55,7 @@ uint64_t nowNanos(void) {
     if (mach_time_factor == 0.0) {
         mach_timebase_info_data_t machinfo;
         mach_timebase_info(&machinfo);
-#if defined(__x86_64__) || defined(__i386__)
-        /* On x86 this path should always be taken, and never on other architectures */
-        if (machinfo.numer == machinfo.denom)
-            mach_time_factor = 1.0;
-        else
-#endif
-            mach_time_factor = (double)machinfo.numer / machinfo.denom;
+        mach_time_factor = (double)machinfo.numer / machinfo.denom;
     }
     return mach_absolute_time() * mach_time_factor;
 #elif defined(CLOCK_MONOTONIC)

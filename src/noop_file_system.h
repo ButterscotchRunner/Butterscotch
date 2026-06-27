@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_NOOP_FILE_SYSTEM_H_
+#define _BS_NOOP_FILE_SYSTEM_H_
 
 #include "common.h"
 #include "file_system.h"
@@ -8,3 +9,5 @@
 // Use this as a fallback while you don't have a proper file system implementation for your target!
 FileSystem* NoopFileSystem_create(void);
 void NoopFileSystem_destroy(FileSystem* fs);
+
+#endif /* _BS_NOOP_FILE_SYSTEM_H_ */

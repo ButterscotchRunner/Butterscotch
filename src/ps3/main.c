@@ -88,6 +88,8 @@ bool shouldExit = false;
 // ===[ MAIN ]===
 
 static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
+    (void)param;
+    (void)userdata;
     switch (status) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
@@ -156,7 +158,8 @@ char *str_replace(char *orig, char *rep, char *with) {
 static char buffer[9999];
 int main(int argc, char* argv[]) {
     printf("%s\n", argv[0]);
-    strcpy(buffer, argv[0]);
+    if (argc > 0)
+        strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
 	char* tmp2 = str_replace(tmp, "butterscotch.self", "");
     char* tmp3 = str_replace(tmp2, "EBOOT.BIN", "");
@@ -216,8 +219,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     vm->opcodeProfilerEnabled = true;
     if (vm->opcodeProfilerEnabled) {
-        vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-        vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
     }
 #endif
 
@@ -230,7 +233,7 @@ int main(int argc, char* argv[]) {
             lastSlash = lastBackslash;
         if (lastSlash != nullptr) {
             size_t len = (size_t) (lastSlash - dataWinPath + 1);
-            dataWinDir = safeMalloc(len + 1);
+            dataWinDir = (char *)safeMalloc(len + 1);
             memcpy(dataWinDir, dataWinPath, len);
             dataWinDir[len] = '\0';
         } else {
@@ -247,7 +250,7 @@ int main(int argc, char* argv[]) {
     // Load TEXTURES.BIN
     {
         size_t dirLen = strlen(dataWinDir);
-        char* texturesBinPath = safeMalloc(dirLen + strlen("textures.bin") + 1);
+        char* texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 1);
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
@@ -297,7 +300,6 @@ int main(int argc, char* argv[]) {
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
     double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
-    runner->gameStartTime = nowNanos();
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -395,34 +397,12 @@ int main(int argc, char* argv[]) {
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
         int32_t gameH = (int32_t) gen8->defaultWindowHeight;
 
-        // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-        // It is a bit hard to understand, but here's how it works:
-        // The Port X/Port Y controls the position of the game viewport within the application surface.
-        // The Port W/Port H controls the size of the game viewport within the application surface.
-        // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-        // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-        float displayScaleX;
-        float displayScaleY;
-
         Runner_drawPre(runner, fbWidth, fbHeight);
-        Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
-        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
-
-        // Clear FBO with room background color
-        if (runner->drawBackgroundColor) {
-            int rInt = BGR_R(runner->backgroundColor);
-            int gInt = BGR_G(runner->backgroundColor);
-            int bInt = BGR_B(runner->backgroundColor);
-            int aInt = BGR_A(runner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
+        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
 
         double drawStart = PS3_GET_TIME;
-        Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+        Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight);
         renderer->vtable->endFrameEnd(renderer);

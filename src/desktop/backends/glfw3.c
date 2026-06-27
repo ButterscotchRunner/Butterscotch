@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include <math.h>
+#include "math_compat.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -16,6 +16,7 @@
 #include "input_recording.h"
 #include "desktop/platformdefs.h"
 #include "gettime.h"
+#include "runner_mouse.h"
 
 static GLFWwindow *window;
 static Runner *g_runner;
@@ -25,6 +26,56 @@ static Runner *g_runner;
 static void framebufferToLogical(float xs, float ys, int fbW, int fbH, int* outW, int* outH) {
     *outW = (xs > 0.0f) ? (int) ceilf((float) fbW / xs) : fbW;
     *outH = (ys > 0.0f) ? (int) ceilf((float) fbH / ys) : fbH;
+}
+
+static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
+        
+#ifndef NDEBUG
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+        
+        return glfwCreateWindow(reqW, reqH, title, NULL, NULL);
+    }
+
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        GLFWwindow *window;
+
+        glfwDefaultWindowHints();
+
+#ifndef NDEBUG
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLCommon_versions[i].major);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        } else {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                } else {
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+                }
+            } else {
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+            }
+        }
+
+        window = glfwCreateWindow(reqW, reqH, title, NULL, NULL);
+        if (window) {
+            return window;
+        }
+
+    }
+
+    return NULL;
 }
 
 void platformSetWindowTitle(const char* title) {
@@ -176,26 +227,6 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-    if (gfx == SOFTWARE) {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    } else {
-#ifdef ENABLE_GLES
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    }
-
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "r");
@@ -223,7 +254,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+    window = tryOpenWindow(reqW, reqH, title);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
@@ -252,9 +283,40 @@ void platformExit(void) {
     glfwTerminate();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    if (cursorType == GML_CR_NONE) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        return;
+    }
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    int glfwShape;
+    switch (cursorType) {
+        case GML_CR_CROSS:  glfwShape = GLFW_CROSSHAIR_CURSOR; break;
+        case GML_CR_BEAM:  glfwShape = GLFW_IBEAM_CURSOR; break;
+        case GML_CR_SIZE_NS:  glfwShape = GLFW_VRESIZE_CURSOR; break;
+        case GML_CR_SIZE_WE:  glfwShape = GLFW_HRESIZE_CURSOR; break;
+        case GML_CR_DRAG: glfwShape = GLFW_HAND_CURSOR; break;
+        case GML_CR_HANDPOINT: glfwShape = GLFW_HAND_CURSOR; break;
+        #if (GLFW_VERSION_MINOR >= 4)
+        case GML_CR_SIZE_ALL: glfwShape = GLFW_RESIZE_ALL_CURSOR; break;
+        case GML_CR_SIZE_NWSE:  glfwShape = GLFW_RESIZE_NWSE_CURSOR; break;
+        case GML_CR_SIZE_NESW:  glfwShape = GLFW_RESIZE_NESW_CURSOR; break;
+        #endif
+        default:  glfwShape = GLFW_ARROW_CURSOR; break;
+    }
+
+    GLFWcursor* cursor = glfwCreateStandardCursor(glfwShape);
+    if (cursor) {
+        glfwSetCursor(window, cursor);
+    }
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
@@ -287,7 +349,7 @@ void platformSwapBuffers(void) {
 }
 
 void *platformGetProcAddress(const char *name) {
-    return glfwGetProcAddress(name);
+    return (void *)glfwGetProcAddress(name);
 }
 
 enum {

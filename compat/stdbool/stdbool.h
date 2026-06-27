@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_STDBOOL_H_
+#define _BS_STDBOOL_H_
 
 #ifdef __cplusplus
 
@@ -15,3 +16,5 @@
 #endif
 
 #define __bool_true_false_are_defined 1
+
+#endif /* _BS_STDBOOL_H_ */

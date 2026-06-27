@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INI_H_
+#define _BS_INI_H_
 
 #include "common.h"
 #include <stddef.h>
@@ -41,3 +42,5 @@ void Ini_deleteSection(IniFile* ini, const char* section);
 // ===[ Serialization ]===
 
 char* Ini_serialize(const IniFile* ini, size_t initialCapacity);
+
+#endif /* _BS_INI_H_ */

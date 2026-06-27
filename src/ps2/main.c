@@ -63,7 +63,7 @@ static int MAX_MEMORY_BYTES = 0;
 static int heapCeilingBytes = 0;
 
 // 256-byte aligned buffers for libpad (one per port)
-static char padBuf[2][256] __attribute__((aligned(64)));
+static char padBuf[2][256] BS_ALIGN(64);
 
 // Controller button to GML key mapping
 typedef struct {
@@ -89,13 +89,13 @@ static bool padWasStable[2] = {false, false};
 static bool gamepadApiEnabled = false;
 
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
-    JsonValue* mappingsObj = JsonReader_getObject(configRoot, key);
+    JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
     int count = JsonReader_objectLength(mappingsObj);
-    PadMapping* mappings = safeMalloc(sizeof(PadMapping) * count);
+    PadMapping* mappings = (PadMapping *)safeMalloc(sizeof(PadMapping) * count);
     repeat(count, i) {
-        const char* padButtonStr = JsonReader_getObjectKey(mappingsObj, i);
-        JsonValue* gmlKeyVal = JsonReader_getObjectValue(mappingsObj, i);
+        const char* padButtonStr = JsonReader_getJsonKeyByIndex(mappingsObj, i);
+        JsonValue* gmlKeyVal = JsonReader_getJsonValueByIndex(mappingsObj, i);
         mappings[i].padButton = (uint16_t) atoi(padButtonStr);
         mappings[i].gmlKey = (int32_t) JsonReader_getInt(gmlKeyVal);
         printf("CONFIG.JSN: %s mapping pad=%d -> gmlKey=%d\n", logLabel, mappings[i].padButton, mappings[i].gmlKey);
@@ -238,6 +238,7 @@ static unsigned int hidUsageToAsciiChar(uint8_t hid, bool shift) {
 
 
 int main(int argc, char* argv[]) {
+    (void)argc;
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
@@ -374,7 +375,7 @@ int main(int argc, char* argv[]) {
         long configSize = ftell(configFile);
         fseek(configFile, 0, SEEK_SET);
 
-        char* configJsonText = safeMalloc((size_t) configSize + 1);
+        char* configJsonText = (char *)safeMalloc((size_t) configSize + 1);
         size_t configBytesRead = fread(configJsonText, 1, (size_t) configSize, configFile);
         configJsonText[configBytesRead] = '\0';
         fclose(configFile);
@@ -389,9 +390,9 @@ int main(int argc, char* argv[]) {
         while (true) {}
     }
 
-    bool lazyLoadRooms = JsonReader_getBool(JsonReader_getObject(configRoot, "lazyLoadRooms"));
+    bool lazyLoadRooms = JsonReader_getBool(JsonReader_getJsonValueByKey(configRoot, "lazyLoadRooms"));
     StringBooleanEntry* eagerRooms = nullptr; // stb_ds string-keyed set; keys borrowed from configRoot
-    JsonValue* eagerArr = JsonReader_getObject(configRoot, "eagerlyLoadedRooms");
+    JsonValue* eagerArr = JsonReader_getJsonValueByKey(configRoot, "eagerlyLoadedRooms");
     int n = JsonReader_arrayLength(eagerArr);
     repeat(n, i) {
         const char* name = JsonReader_getString(JsonReader_getArrayElement(eagerArr, i));
@@ -473,7 +474,7 @@ int main(int argc, char* argv[]) {
     // ===[ Initialize Renderer ]===
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Initializing renderer...", true);
 
-    int64_t eeAtlasCacheBytes = JsonReader_getInt(JsonReader_getObject(configRoot, "eeAtlasCacheBytes"));
+    int64_t eeAtlasCacheBytes = JsonReader_getInt(JsonReader_getJsonValueByKey(configRoot, "eeAtlasCacheBytes"));
     Renderer* renderer = GsRenderer_create(gsGlobal, eeAtlasCacheBytes);
 
     // ===[ Initialize Audio System ]===
@@ -487,10 +488,9 @@ int main(int argc, char* argv[]) {
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Creating runner...", true);
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem);
-    runner->gameStartTime = nowNanos();
 
     // Parse disabledObjects from CONFIG.JSN
-    JsonValue* disabledObjectsArr = JsonReader_getObject(configRoot, "disabledObjects");
+    JsonValue* disabledObjectsArr = JsonReader_getJsonValueByKey(configRoot, "disabledObjects");
     if (disabledObjectsArr != nullptr && JsonReader_isArray(disabledObjectsArr)) {
         sh_new_strdup(runner->disabledObjects);
         int disabledCount = JsonReader_arrayLength(disabledObjectsArr);
@@ -508,9 +508,9 @@ int main(int argc, char* argv[]) {
     parsePadMappings(configRoot, "controller1Mappings", &pad1Mappings, &pad1MappingCount, "controller1");
     parsePadMappings(configRoot, "controller2Mappings", &pad2Mappings, &pad2MappingCount, "controller2");
 
-    JsonValue* gamepadObj = JsonReader_getObject(configRoot, "gamepad");
+    JsonValue* gamepadObj = JsonReader_getJsonValueByKey(configRoot, "gamepad");
     if (gamepadObj != nullptr && JsonReader_isObject(gamepadObj)) {
-        gamepadApiEnabled = JsonReader_getBool(JsonReader_getObject(gamepadObj, "enabled"));
+        gamepadApiEnabled = JsonReader_getBool(JsonReader_getJsonValueByKey(gamepadObj, "enabled"));
     }
     if (gamepadApiEnabled) {
         printf("CONFIG.JSN: GameMaker gamepad API enabled\n");
@@ -550,9 +550,8 @@ int main(int argc, char* argv[]) {
     StartTimerSystemTime();
 
     // ===[ Main Loop ]===
-    bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getObject(configRoot, "debugOverlayEnabled"));
+    bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getJsonValueByKey(configRoot, "debugOverlayEnabled"));
     PS2Overlay_setDebugOverlayState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
-    uint16_t prevOverlayPadButtons = 0xFFFF;
 
     u64 lastFrameStartTime = GetTimerSystemTime(); // for delta_time
     while (!runner->shouldExit) {
@@ -630,9 +629,9 @@ int main(int argc, char* argv[]) {
 
         // Reset global interact state because I HATE when I get stuck while moving through rooms
         if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
-            int32_t interactVarId = shget(runner->vmContext->globalVarNameMap, "interact");
+            int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
-            runner->vmContext->globalVars[interactVarId] = RValue_makeInt32(0);
+            Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
             printf("Changed global.interact [%d] value!\n", interactVarId);
         }
 
@@ -646,21 +645,11 @@ int main(int argc, char* argv[]) {
         gsKit_clear(gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
 
         Runner_drawPre(runner, 640, 448);
-        Runner_beginFrame(runner, gameW, gameH, 640, 448);
-
-        // Clear with room background color
-        if (runner->drawBackgroundColor) {
-            uint8_t bgR = BGR_R(runner->backgroundColor);
-            uint8_t bgG = BGR_G(runner->backgroundColor);
-            uint8_t bgB = BGR_B(runner->backgroundColor);
-            // Force opaque for the background to avoid PrimAlphaEnable causing issues.
-            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, 0x80, 0x00);
-            gsKit_prim_sprite(gsGlobal, 0, 0, 640, 448, 0, bgColor);
-        }
+        Runner_beginFrame(runner, gameW, gameH, 640, 448, 640, 448);
 
         // Render views
         u64 drawStartTime = GetTimerSystemTime();
-        Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
+        Runner_drawViews(runner, gameW, gameH, false);
         runner->viewCurrent = 0;
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, 640, 448);

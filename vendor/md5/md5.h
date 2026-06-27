@@ -23,7 +23,8 @@ These notices must be retained in any copies of any part of this
 documentation and/or software.
  */
 
-#pragma once
+#ifndef _BS_MD5_H_
+#define _BS_MD5_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -47,3 +48,5 @@ typedef struct {
 void MD5Init(MD5_CTX *);
 void MD5Update(MD5_CTX *, const unsigned char *, unsigned int);
 void MD5Final(unsigned char [16], MD5_CTX *);
+
+#endif /* _BS_MD5_H_ */

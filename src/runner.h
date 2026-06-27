@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_H_
+#define _BS_RUNNER_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -178,13 +179,12 @@ typedef struct {
     float offsetY;
 } TileLayerState;
 
-// Mutable background element on a dynamically-created layer (layer_background_create).
-// For parsed room layers, RoomLayerBackgroundData is used directly and this struct is unused.
+// Runtime background element on a layer
 typedef struct {
     int32_t spriteIndex; // SPRT index (-1 = none)
     bool visible;
-    bool htiled;
-    bool vtiled;
+    bool hTiled;
+    bool vTiled;
     bool stretch;
     float xScale;
     float yScale;
@@ -197,6 +197,7 @@ typedef struct {
 
 // Mutable sprite element on an Assets layer. Populated from RoomLayerAssetsData.sprites at room init, can be removed at runtime via layer_sprite_destroy (used by language variant selection).
 typedef struct {
+    const char* name; // not owned, can be null if dynamically created
     int32_t spriteIndex; // SPRT index (-1 = none/destroyed)
     int32_t x;
     int32_t y;
@@ -224,8 +225,7 @@ typedef struct {
     bool visible;
     float alpha; // GameMaker-HTML5's m_imageAlpha
     uint32_t blend; // GameMaker-HTML5's m_imageBlend
-    RuntimeBackgroundElement* backgroundElement; // owned; only set for Background elements created via layer_background_create
-    RoomLayerBackgroundData* parsedBackgroundData; // borrowed, points into the parsed RoomLayer; only set for a parsed Background layer's element
+    RuntimeBackgroundElement* backgroundElement; // owned; set for every background element
     RuntimeSpriteElement* spriteElement; // owned; nullptr if type != Sprite
     RoomTile* tileElement; // borrowed, points into RoomLayerAssetsData->legacyTiles; nullptr if type != Tile
     RoomLayerTilesData* tilemapData; // borrowed, points into the parsed RoomLayer; nullptr if type != Tilemap
@@ -301,6 +301,13 @@ typedef struct {
     DsPriorityItem* items; // stb_ds dynamic array of DsPriorityItems
     bool freed;    // true when the slot is destroyed and available for reuse by ds_priority_queue_create
 } DsPriority;
+
+typedef struct {
+    RValue* items; // malloc'd array of items
+    int32_t width;
+    int32_t height;
+    bool freed; // true when the slot is destroyed and available for reuse by ds_grid_create
+} DsGrid;
 
 // ===[ GML Buffer System ]===
 
@@ -483,6 +490,8 @@ struct Runner {
     int32_t oldApplicationHeight;
     int32_t widescreenExtraWidth;
     int32_t widescreenExtraHeight;
+    float displayScaleX;
+    float displayScaleY;
     float freeCamPanX, freeCamPanY, freeCamZoom; // Visual-only free camera.
     // ID returned by renderer->vtable->ensureApplicationSurface each frame. Real surface ID on GL/GL-legacy,
     // APPLICATION_SURFACE_ID (-1) on PS2. This is what BUILTIN_VAR_APPLICATION_SURFACE returns to GML.
@@ -491,6 +500,8 @@ struct Runner {
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
     bool (*windowHasFocus)(void);
+    void (*setCursor)(int32_t cursorType);
+    int32_t currentCursor;  // last value passed to window_set_cursor
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
@@ -515,17 +526,13 @@ struct Runner {
     Drawable* cachedDrawables; // stb_ds array
     bool drawableListStructureDirty;
     bool drawableListSortDirty;
-    // Dummy instance to serve as "self" during GLOB script execution
-    // In WAD version 17+, global init scripts store method values on "self" via Pop.v.v
-    // The real runner uses a persistent YYObjectBase for this, the YYObjectBase is a "parent" of Instance
-    // For now, we'll use a dummy Instance with objectIndex = STRUCT_OBJECT_INDEX as a hack
-    Instance* globalScopeInstance;
     // Struct instances created by @@NewGMLObject@@. Reuses Instance with objectIndex=STRUCT_OBJECT_INDEX.
     // Tracked separately so event/step/draw iteration over runner->instances stays clean.
     Instance** structInstances;
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
     double deltaTime;
+    char* windowTitle;
 
     // ===[ Builtin function state ]===
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
@@ -533,6 +540,7 @@ struct Runner {
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
     DsStack* dsStackPool; // stb_ds array of DsStack    
     DsPriority* dsPriorityPool; // stb_ds array of DsPriority
+    DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 
@@ -634,13 +642,12 @@ void Runner_setHealth(Runner* runner, GMLReal value);
 void Runner_draw(Runner* runner);
 // Ensures the application_surface exists at the right size, mirrors the renderer's ID into runner+renderer state, then
 // invokes renderer->vtable->beginFrame. Every platform main should call this instead of beginFrame directly.
-void Runner_beginFrame(Runner* runner, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+void Runner_beginFrame(Runner* runner, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t framebufferW, int32_t framebufferH);
 void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t targetW, int32_t targetH);
 void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH);
 void Runner_drawPost(Runner* runner, int32_t windowW, int32_t windowH);
-void Runner_drawBackgrounds(Runner* runner, bool foreground);
 void Runner_computeViewDisplayScale(Runner* runner, int32_t gameW, int32_t gameH, float* outScaleX, float* outScaleY);
-void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, float displayScaleX, float displayScaleY, bool debugShowCollisionMasks);
+void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugShowCollisionMasks);
 void Runner_updateMousePosition(Runner* runner, int32_t windowWidth, int32_t windowHeight, double mouseXInWindow, double mouseYInWindow);
 // Converts the cached screen-space cursor (RunnerMouseState.screenX/screenY) to room/world coordinates using the LIVE camera/view state.
 void Runner_getMouseRoomPosition(Runner* runner, GMLReal* outX, GMLReal* outY);
@@ -693,6 +700,7 @@ int32_t Runner_surfaceGetTarget(Runner* runner);
 void Runner_dumpState(Runner* runner);
 char* Runner_dumpStateJson(Runner* runner);
 void Runner_free(Runner* runner);
+RuntimeLayer* Runner_findRuntimeLayerByName(Runner* runner, char* name);
 RuntimeLayer* Runner_findRuntimeLayerById(Runner* runner, int32_t id);
 RoomLayer* Runner_findRoomLayerById(Room* room, int32_t id);
 RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t elementId, RuntimeLayer** outLayer);
@@ -710,7 +718,11 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
             fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
         }
     }
+#else
+    (void)runner;
 #endif
 
     instance->active = active;
 }
+
+#endif /* _BS_RUNNER_H_ */

@@ -8,7 +8,10 @@ project(butterscotch C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra -Werror -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=unused-const-variable -Wno-error=unused-function)
+add_compile_options(-Wall -Wextra -Wvla)
+if(WERROR)
+    add_compile_options(-Werror)
+endif()
 
 set(PLATFORM "desktop" CACHE STRING "Platform backend")
 set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
@@ -93,12 +96,6 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
-# OpenGL ES 3.0 / WebGL2 compatibility
-option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
-if (ENABLE_GLES AND ENABLE_LEGACY_GL)
-    set(ENABLE_LEGACY_GL OFF)
-endif()
-
 add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
@@ -150,9 +147,8 @@ target_include_directories(butterscotch PUBLIC vendor/base64)
 
 # bzip2
 add_library(bzip2 STATIC
-    vendor/bzip2/blocksort.c
+    vendor/bzip2/bz_internal_error.c
     vendor/bzip2/bzlib.c
-    vendor/bzip2/compress.c
     vendor/bzip2/crctable.c
     vendor/bzip2/decompress.c
     vendor/bzip2/huffman.c
@@ -160,6 +156,18 @@ add_library(bzip2 STATIC
 )
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
+
+# Spatial grid logs
+option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+if(ENABLE_SPATIAL_GRID_LOGS)
+    add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+endif()
+
+# VM Exceptions logs
+option(ENABLE_VM_EXCEPTIONS_LOGS "Enable VM Exceptions logs" OFF)
+if(ENABLE_VM_EXCEPTIONS_LOGS)
+    add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
+endif()
 
 if(PLATFORM STREQUAL "desktop")
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
@@ -199,12 +207,6 @@ if(PLATFORM STREQUAL "desktop")
         add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
     endif()
 
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
     # VM unknown/stubbed function logs
     option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
     if(ENABLE_VM_STUB_LOGS)
@@ -212,14 +214,8 @@ if(PLATFORM STREQUAL "desktop")
     endif()
 
     # GLAD
-    if(ENABLE_GLES)
-        add_compile_definitions(ENABLE_GLES)
-        add_library(glad STATIC vendor/glad-gles/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad-gles/include)
-    else()
-        add_library(glad STATIC vendor/glad/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad/include)
-    endif()
+    add_library(glad STATIC vendor/glad/src/glad.c)
+    target_include_directories(glad PUBLIC vendor/glad/include)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
@@ -310,7 +306,6 @@ elseif(PLATFORM STREQUAL "web")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_DEBUG_FONT_RENDERER_H_
+#define _BS_DEBUG_FONT_RENDERER_H_
 
 #include <common.h>
 #include <gsKit.h>
@@ -18,3 +19,5 @@ typedef struct {
 DebugFontRenderer* DebugFontRenderer_create(GSGLOBAL* gsGlobal);
 void DebugFontRenderer_destroy(DebugFontRenderer* r);
 void DebugFontRenderer_printScaled(DebugFontRenderer* r, float x, float y, int z, float scale, uint64_t color, const char* text);
+
+#endif /* _BS_DEBUG_FONT_RENDERER_H_ */

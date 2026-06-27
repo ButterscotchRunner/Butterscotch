@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_DATA_WIN_H_
+#define _BS_DATA_WIN_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -199,6 +200,7 @@ typedef struct {
 typedef struct {
     bool present;
     const char* name;
+    const char* path; // nullptr for pre-GM 2024.14+ games
 } AudioGroup;
 
 typedef struct {
@@ -339,6 +341,7 @@ typedef struct {
 
 // ===[ SHDR - Shaders ]===
 typedef struct {
+    bool present;
     const char* name;
     uint32_t type;
     const char* glslES_Vertex;
@@ -419,6 +422,8 @@ typedef struct {
     // Sprite font fields (only valid when isSpriteFont is true)
     bool isSpriteFont;
     int32_t spriteIndex; // source sprite index (-1 for regular fonts)
+    // Amount to subtract from each glyph's Y at draw time, ONLY used for sprite fonts.
+    int16_t spriteOriginYAdjust;
 } Font;
 
 // Builds the ASCII fast-path lookup table from font->glyphs. Call after glyphs[] is fully populated.
@@ -944,3 +949,5 @@ bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor,
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 void GamePath_computeInternal(GamePath* path);
 PathPositionResult GamePath_getPosition(GamePath* path, float t);
+
+#endif /* _BS_DATA_WIN_H_ */

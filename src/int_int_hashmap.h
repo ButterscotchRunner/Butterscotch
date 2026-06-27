@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INT_INT_HASHMAP_H_
+#define _BS_INT_INT_HASHMAP_H_
 
 #include "common.h"
 #include "utils.h"
@@ -54,3 +55,5 @@ static inline bool IntIntHashMap_tryGet(const IntIntHashMap* map, int32_t key, u
         idx = (idx + 1) & mask;
     }
 }
+
+#endif /* _BS_INT_INT_HASHMAP_H_ */

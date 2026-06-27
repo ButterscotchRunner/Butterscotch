@@ -1,11 +1,10 @@
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
 
-#include <SDL/SDL_events.h>
 #include <SDL/SDL.h>
-#include <SDL/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -18,6 +17,7 @@
 #ifndef SDL_BUTTON_WHEELDOWN
 #define SDL_BUTTON_WHEELDOWN 5
 #endif
+#include "runner_mouse.h"
 
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
@@ -301,9 +301,16 @@ void platformExit(void) {
     SDL_Quit();
 }
 
+static void platformSetCursor(int32_t cursorType) {
+    // SDL1.2 only supports showing/hiding
+    SDL_ShowCursor(cursorType == GML_CR_NONE ? SDL_DISABLE : SDL_ENABLE);
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
+    runner->setCursor = platformSetCursor;
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 #ifdef ENABLE_SW_RENDERER
