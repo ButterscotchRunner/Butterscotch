@@ -54,7 +54,7 @@ typedef struct {
 } RunnerGamepadState;
 
 RunnerGamepadState* RunnerGamepad_create(void);
-void RunnerGamepad_free(RunnerGamepadState* gp);
+void RunnerGamepad_free(RunnerGamepadState** gp);
 
 void RunnerGamepad_beginFrame(RunnerGamepadState* gp);
 

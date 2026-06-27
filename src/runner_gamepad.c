@@ -74,8 +74,9 @@ RunnerGamepadState* RunnerGamepad_create(void) {
     return gp;
 }
 
-void RunnerGamepad_free(RunnerGamepadState* gp) {
-    free(gp);
+void RunnerGamepad_free(RunnerGamepadState** gp) {
+    free(*gp);
+    *gp = NULL;
 }
 
 void RunnerGamepad_beginFrame(RunnerGamepadState* gp) {

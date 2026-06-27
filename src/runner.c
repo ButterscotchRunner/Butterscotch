@@ -4355,7 +4355,7 @@ void Runner_free(Runner* runner) {
     arrfree(runner->gameArgs);
 
     RunnerKeyboard_free(runner->keyboard);
-    RunnerGamepad_free(runner->gamepads);
+    RunnerGamepad_free(&runner->gamepads);
     RunnerMouse_free(runner->mouse);
     free(runner);
 }
