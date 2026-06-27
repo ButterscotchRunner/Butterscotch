@@ -46,6 +46,7 @@ SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.
 
 DESKTOP_BACKEND := glfw3
 ifdef MSVC
+# miniaudio fails to build under MSVC for some reason
 AUDIO_BACKEND := none
 else
 AUDIO_BACKEND := miniaudio
