@@ -47,7 +47,7 @@ static char* joinPath(const char* basePath, const char* normalizedPath) {
     }
     size_t baseLen = strlen(basePath);
     size_t relLen = strlen(normalizedPath);
-    char* full = safeMalloc(baseLen + relLen + 1);
+    char* full = (char *)safeMalloc(baseLen + relLen + 1);
     memcpy(full, basePath, baseLen);
     memcpy(full + baseLen, normalizedPath, relLen);
     full[baseLen + relLen] = '\0';
@@ -149,7 +149,7 @@ static char* overlayReadFileText(FileSystem* fs, const char* relativePath) {
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* content = safeMalloc((size_t) size + 1);
+    char* content = (char *)safeMalloc((size_t) size + 1);
     size_t bytesRead = fread(content, 1, (size_t) size, f);
     content[bytesRead] = '\0';
     fclose(f);
@@ -186,7 +186,7 @@ static bool overlayReadFileBinary(FileSystem* fs, const char* relativePath, uint
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t* data = safeMalloc((size_t) size);
+    uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
     size_t bytesRead = fread(data, 1, (size_t) size, f);
     fclose(f);
 
@@ -216,7 +216,7 @@ typedef struct {
 } OverlayBinaryHandle;
 
 static OverlayBinaryHandle* overlayBinaryHandleNew(FILE* fp, char* fullPathTaken) {
-    OverlayBinaryHandle* h = safeMalloc(sizeof(OverlayBinaryHandle));
+    OverlayBinaryHandle* h = (OverlayBinaryHandle *)safeMalloc(sizeof(OverlayBinaryHandle));
     h->fp = fp;
     h->fullPath = fullPathTaken; // takes ownership
     return h;
@@ -361,7 +361,7 @@ static void listSingleDir(FileSystemDirEntry** list, const char* fullDir) {
         bool isDir = false;
         size_t dirLen = strlen(fullDir);
         size_t nameLen = strlen(ent->d_name);
-        char* full = safeMalloc(dirLen + nameLen + 2);
+        char* full = (char *)safeMalloc(dirLen + nameLen + 2);
         memcpy(full, fullDir, dirLen);
         full[dirLen] = '/';
         memcpy(full + dirLen + 1, ent->d_name, nameLen + 1);
@@ -410,7 +410,7 @@ static char* withTrailingSlash(const char* path) {
         if (last == '\\') out[len - 1] = '/';
         return out;
     }
-    char* out = safeMalloc(len + 2);
+    char* out = (char *)safeMalloc(len + 2);
     memcpy(out, path, len);
     out[len] = '/';
     out[len + 1] = '\0';
@@ -418,7 +418,7 @@ static char* withTrailingSlash(const char* path) {
 }
 
 OverlayFileSystem* OverlayFileSystem_create(const char* bundlePath, const char* savePath) {
-    OverlayFileSystem* fs = safeCalloc(1, sizeof(OverlayFileSystem));
+    OverlayFileSystem* fs = (OverlayFileSystem *)safeCalloc(1, sizeof(OverlayFileSystem));
     fs->base.vtable = &overlayFileSystemVtable;
     overlayFileSystemVtable.resolvePath = overlayResolvePath;
     overlayFileSystemVtable.fileExists = overlayFileExists;

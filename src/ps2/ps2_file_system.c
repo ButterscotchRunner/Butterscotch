@@ -150,7 +150,7 @@ static bool copyFile(const char* srcPath, const char* dstPath) {
     long size = ftell(src);
     fseek(src, 0, SEEK_SET);
 
-    uint8_t* data = safeMalloc((size_t) size);
+    uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
     size_t bytesRead = fread(data, 1, (size_t) size, src);
     fclose(src);
 
@@ -170,7 +170,7 @@ static bool copyFile(const char* srcPath, const char* dstPath) {
 static void copyIconIcoIfMissing(const char* dirPath) {
     size_t dirLen = strlen(dirPath);
     size_t pathLen = dirLen + 1 + 8 + 1; // "/ICON.ICO\0"
-    char* dstPath = safeMalloc(pathLen);
+    char* dstPath = (char *)safeMalloc(pathLen);
     snprintf(dstPath, pathLen, "%s/ICON.ICO", dirPath);
 
     // Check if it already exists on the memory card
@@ -198,7 +198,7 @@ static void writeIconSysIfMissing(const char* dirPath, const char* gameTitle, co
     // Build path: "dirPath/icon.sys"
     size_t dirLen = strlen(dirPath);
     size_t pathLen = dirLen + 1 + 8 + 1; // "/icon.sys\0"
-    char* iconSysPath = safeMalloc(pathLen);
+    char* iconSysPath = (char *)safeMalloc(pathLen);
     snprintf(iconSysPath, pathLen, "%s/icon.sys", dirPath);
 
     // Check if it already exists
@@ -297,7 +297,7 @@ static char* readFileText(FileSystem* fs, const char* relativePath) {
         long size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        char* content = safeMalloc((size_t) size + 1);
+        char* content = (char *)safeMalloc((size_t) size + 1);
         size_t bytesRead = fread(content, 1, (size_t) size, f);
         content[bytesRead] = '\0';
         fclose(f);
@@ -362,7 +362,7 @@ static bool ps2ReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t*
         long size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        uint8_t* data = safeMalloc((size_t) size);
+        uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
         size_t bytesRead = fread(data, 1, (size_t) size, f);
         fclose(f);
 
@@ -405,7 +405,7 @@ typedef struct {
 } Ps2BinaryHandle;
 
 static Ps2BinaryHandle* ps2BinaryHandleNew(FILE* fp, const char* resolvedPath) {
-    Ps2BinaryHandle* h = safeMalloc(sizeof(Ps2BinaryHandle));
+    Ps2BinaryHandle* h = (Ps2BinaryHandle *)safeMalloc(sizeof(Ps2BinaryHandle));
     h->fp = fp;
     h->resolvedPath = safeStrdup(resolvedPath);
     return h;
@@ -570,7 +570,7 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
     JsonValue* fileSystemObj = JsonReader_getJsonValueByKey(configRoot, "fileSystem");
     require(fileSystemObj != nullptr && JsonReader_isObject(fileSystemObj));
 
-    Ps2FileSystem* pfs = safeCalloc(1, sizeof(Ps2FileSystem));
+    Ps2FileSystem* pfs = (Ps2FileSystem *)safeCalloc(1, sizeof(Ps2FileSystem));
     pfs->base.vtable = &ps2FileSystemVtable;
     ps2FileSystemVtable.resolvePath = resolvePath;
     ps2FileSystemVtable.fileExists = fileExists;

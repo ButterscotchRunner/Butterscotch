@@ -219,8 +219,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     vm->opcodeProfilerEnabled = true;
     if (vm->opcodeProfilerEnabled) {
-        vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-        vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
     }
 #endif
 
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
             lastSlash = lastBackslash;
         if (lastSlash != nullptr) {
             size_t len = (size_t) (lastSlash - dataWinPath + 1);
-            dataWinDir = safeMalloc(len + 1);
+            dataWinDir = (char *)safeMalloc(len + 1);
             memcpy(dataWinDir, dataWinPath, len);
             dataWinDir[len] = '\0';
         } else {
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
     // Load TEXTURES.BIN
     {
         size_t dirLen = strlen(dataWinDir);
-        char* texturesBinPath = safeMalloc(dirLen + strlen("textures.bin") + 1);
+        char* texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 1);
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {

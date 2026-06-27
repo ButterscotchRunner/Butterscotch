@@ -28,6 +28,56 @@ static void framebufferToLogical(float xs, float ys, int fbW, int fbH, int* outW
     *outH = (ys > 0.0f) ? (int) ceilf((float) fbH / ys) : fbH;
 }
 
+static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
+        
+#ifndef NDEBUG
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+        
+        return glfwCreateWindow(reqW, reqH, title, NULL, NULL);
+    }
+
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        GLFWwindow *window;
+
+        glfwDefaultWindowHints();
+
+#ifndef NDEBUG
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, GLCommon_versions[i].major);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        } else {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                } else {
+                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+                }
+            } else {
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+            }
+        }
+
+        window = glfwCreateWindow(reqW, reqH, title, NULL, NULL);
+        if (window) {
+            return window;
+        }
+
+    }
+
+    return NULL;
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -177,26 +227,6 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-    if (gfx == SOFTWARE) {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    } else {
-#ifdef ENABLE_GLES
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    }
-
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "r");
@@ -224,7 +254,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    window = glfwCreateWindow(reqW, reqH, title, nullptr, nullptr);
+    window = tryOpenWindow(reqW, reqH, title);
     if (!window) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
@@ -319,7 +349,7 @@ void platformSwapBuffers(void) {
 }
 
 void *platformGetProcAddress(const char *name) {
-    return glfwGetProcAddress(name);
+    return (void *)glfwGetProcAddress(name);
 }
 
 enum {

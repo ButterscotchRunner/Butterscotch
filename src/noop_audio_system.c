@@ -78,7 +78,7 @@ static bool noopDestroyStream(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int3
 static AudioSystemVtable noopVtable;
 
 NoopAudioSystem* NoopAudioSystem_create(void) {
-    NoopAudioSystem* audio = safeCalloc(1, sizeof(NoopAudioSystem));
+    NoopAudioSystem* audio = (NoopAudioSystem *)safeCalloc(1, sizeof(NoopAudioSystem));
     noopVtable.init = noopInit,
     noopVtable.destroy = noopDestroy,
     noopVtable.update = noopUpdate,

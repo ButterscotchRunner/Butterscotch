@@ -9,7 +9,7 @@
 #include "int_rvalue_hashmap.h"
 
 Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y) {
-    Instance* inst = safeCalloc(1, sizeof(Instance));
+    Instance* inst = (Instance *)safeCalloc(1, sizeof(Instance));
     inst->instanceId = instanceId;
     inst->objectIndex = objectIndex;
     inst->refCount = 0;

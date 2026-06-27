@@ -26,5 +26,34 @@ enum GraphicsAPI {
 };
 
 extern enum GraphicsAPI gfx;
+extern bool wantGLES;
 
 extern InputRecording *globalInputRecording;
+
+// ===[ GL Versions ]===
+static const struct {
+    uint8_t major, minor;
+    bool gles;
+} GLCommon_versions[] = {
+    /* Desktop GL */
+    { 4, 6, false },
+    { 4, 5, false },
+    { 4, 4, false },
+    { 4, 3, false },
+    { 4, 2, false },
+    { 4, 1, false },
+    { 4, 0, false },
+    { 3, 3, false },
+    { 3, 2, false },
+    { 3, 1, false },
+    { 3, 0, false },
+    { 2, 1, false },
+    { 2, 0, false },
+#ifndef USE_GLFW2
+    /* GLES */
+    { 3, 2, true  },
+    { 3, 1, true  },
+    { 3, 0, true  },
+    { 2, 0, true  },
+#endif
+};

@@ -74,6 +74,9 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+
+    bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
+    bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);

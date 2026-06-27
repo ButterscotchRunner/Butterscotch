@@ -1,10 +1,7 @@
-#include <SDL3/SDL_timer.h>
+#include <ctype.h>
 #include <stdio.h>
 
-#include <SDL3/SDL_events.h>
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_video.h>
-#include <SDL3/SDL_mouse.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -36,6 +33,80 @@ static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
     [SDL_GAMEPAD_BUTTON_DPAD_LEFT]      = 14,
     [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
 };
+
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
+    if (gfx == SOFTWARE) {
+        return SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+    }
+    if (gfx == LEGACY_GL) {
+        SDL_GL_ResetAttributes();
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+        
+        SDL_Window *newWindow = SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+        SDL_GL_ResetAttributes();
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {            
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+            }
+        }
+        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            reqW,
+            reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        
+    }
+    return NULL;
+}
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -86,47 +157,28 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         openControllers[i] = NULL;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-#ifdef ENABLE_GLES
-#ifdef SDL_GL_CONTEXT_PROFILE_MASK
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#endif
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#endif
-    }
-
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
     fbWidth = reqW;
     fbHeight = reqH;
-    window = SDL_CreateWindow(
-        title,
-        fbWidth,
-        fbHeight,
-        flags
-    );
+
+    window = tryOpenWindow(fbWidth, fbHeight, title, flags);
+    
+    if (!window && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
+    
     if (!window && gfx == SOFTWARE) {
-        SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
-        const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id);
+        const SDL_DisplayMode *mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
         if (mode != NULL) {
-            fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
-                    reqW, reqH, mode->w, mode->h, SDL_GetError());
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                        "Warning: %dx%d unavailable, falling back to %dx%d: %s",
+                        fbWidth, fbHeight, mode->w, mode->h, SDL_GetError());
+            
             fbWidth = mode->w;
             fbHeight = mode->h;
-            window = SDL_CreateWindow(
-                title,
-                fbWidth,
-                fbHeight,
-                flags
-            );
+            
+            window = SDL_CreateWindow(title, fbWidth, fbHeight, flags);
         }
     }
     if (!window) {
@@ -134,10 +186,6 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!SDL_GL_CreateContext(window)) {
-            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-            return false;
-        }
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else
         scr = SDL_GetWindowSurface(window);
