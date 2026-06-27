@@ -141,7 +141,8 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 
 static void platformSetWindowFullscreen(bool fullscreen) {
 	if (!window) return;
-	gFullscreen = SDL_SetWindowFullscreen(window, fullscreen) ? fullscreen : gFullscreen; // Assign "fullscreen" if success, "gFullscreen" on failure to not modify
+    if (SDL_SetWindowFullscreen(window, fullscreen))
+	    gFullscreen = fullscreen;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
