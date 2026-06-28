@@ -36,6 +36,7 @@ typedef struct {
 typedef struct {
     AudioSystem base;
     ma_engine engine;
+    ma_device device;
     SoundInstance instances[MAX_SOUND_INSTANCES];
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
