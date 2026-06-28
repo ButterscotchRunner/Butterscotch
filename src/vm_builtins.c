@@ -1950,6 +1950,15 @@ static int compareReals(const void* a, const void* b) {
     return 0;
 }
 
+static RValue builtin_mean(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal result = 0.0;
+    repeat(argCount, i) {
+        result += RValue_toReal(args[i]);
+    }
+    return RValue_makeReal(result / argCount);
+}
+
 static RValue builtin_median(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     // GMS docs cap median at 16 args; 32-element stack buffer gives 2x margin, with malloc fallback for safety.
@@ -15459,6 +15468,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sign", builtin_sign);
     VM_registerBuiltin(ctx, "max", builtin_max);
     VM_registerBuiltin(ctx, "min", builtin_min);
+    VM_registerBuiltin(ctx, "mean", builtin_mean);
     VM_registerBuiltin(ctx, "median", builtin_median);
     VM_registerBuiltin(ctx, "power", builtin_power);
     VM_registerBuiltin(ctx, "sqrt", builtin_sqrt);
