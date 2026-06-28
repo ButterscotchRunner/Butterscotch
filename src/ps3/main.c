@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
-	char* tmp2 = str_replace(tmp, "butterscotch.self", "");
+    char* tmp2 = str_replace(tmp, "butterscotch.self", "");
     char* tmp3 = str_replace(tmp2, "EBOOT.BIN", "");
     char* dataWinPath = malloc(strlen(tmp3) + strlen("data.win") + 1);
     if (!dataWinPath) {
@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
     strcat(dataWinPath, "data.win");
     free(tmp);
     free(tmp2);
-	free(tmp3);
+    free(tmp3);
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
@@ -448,8 +448,8 @@ int main(int argc, char* argv[]) {
     DataWin_free(dataWin);
 
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
-	gcmSetWaitFlip(context);
-	rsxFinish(context,1);
+    gcmSetWaitFlip(context);
+    rsxFinish(context,1);
     printf("Bye! :3\n");
     return 0;
 }
