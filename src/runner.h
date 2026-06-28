@@ -499,7 +499,7 @@ struct Runner {
     void (*setWindowTitle)(const char* title);
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
-	bool (*getWindowFullscreen)(void);
+    bool (*getWindowFullscreen)(void);
     void (*setWindowFullscreen)(bool fullscreen);
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);

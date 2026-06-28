@@ -122,7 +122,7 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static bool platformGetWindowFullscreen() {
+static bool platformGetWindowFullscreen(void) {
     return gFullscreen;
 }
 
@@ -140,9 +140,9 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 }
 
 static void platformSetWindowFullscreen(bool fullscreen) {
-	if (!window) return;
+    if (!window) return;
     if (SDL_SetWindowFullscreen(window, fullscreen))
-	    gFullscreen = fullscreen;
+        gFullscreen = fullscreen;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -241,9 +241,9 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
-	runner->getWindowFullscreen = platformGetWindowFullscreen;
-	runner->setWindowFullscreen = platformSetWindowFullscreen;
 }
 
 #ifdef ENABLE_SW_RENDERER

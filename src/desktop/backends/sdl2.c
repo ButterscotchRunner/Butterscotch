@@ -119,8 +119,8 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static bool platformGetWindowFullscreen() {
-	return gFullscreen;
+static bool platformGetWindowFullscreen(void) {
+    return gFullscreen;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
@@ -322,9 +322,9 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
-	runner->getWindowFullscreen = platformGetWindowFullscreen;
-	runner->setWindowFullscreen = platformSetWindowFullscreen;
 }
 
 #ifdef ENABLE_SW_RENDERER

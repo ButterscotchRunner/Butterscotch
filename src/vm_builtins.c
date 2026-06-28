@@ -7641,8 +7641,8 @@ static RValue builtin_window_set_fullscreen(VMContext* ctx, RValue* args, MAYBE_
 
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->setWindowFullscreen != nullptr) {
-		runner->setWindowFullscreen(RValue_toBool(args[0]));
-	}
+        runner->setWindowFullscreen(RValue_toBool(args[0]));
+    }
 
     return RValue_makeUndefined();
 }
@@ -15885,7 +15885,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Window
     VM_registerBuiltin(ctx, "window_get_fullscreen", builtin_window_get_fullscreen);
     VM_registerBuiltin(ctx, "window_set_fullscreen", builtin_window_set_fullscreen);
-	VM_registerBuiltin(ctx, "window_get_borderless_fullscreen", builtin_window_get_fullscreen);
+    VM_registerBuiltin(ctx, "window_get_borderless_fullscreen", builtin_window_get_fullscreen);
     VM_registerBuiltin(ctx, "window_enable_borderless_fullscreen", builtin_window_set_fullscreen);
     VM_registerBuiltin(ctx, "window_set_caption", builtin_window_set_caption);
     VM_registerBuiltin(ctx, "window_get_caption", builtin_window_get_caption);

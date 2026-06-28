@@ -106,9 +106,9 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-static bool platformGetWindowFullscreen() {
-	if (!window) return false;
-	return glfwGetWindowMonitor(window) != nullptr;
+static bool platformGetWindowFullscreen(void) {
+    if (!window) return false;
+    return glfwGetWindowMonitor(window) != nullptr;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
@@ -122,26 +122,26 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 }
 
 void platformSetWindowFullscreen(bool fullscreen) {
-	static int savedWindowY = 0;
-	static int savedWindowX = 0;
+    static int savedWindowY = 0;
+    static int savedWindowX = 0;
 
-	int32_t w = 0;
-	int32_t h = 0;
-	platformGetWindowSize(&w, &h);
+    int32_t w = 0;
+    int32_t h = 0;
+    platformGetWindowSize(&w, &h);
 
-	int refreshRate = glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate;
+    int refreshRate = glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate;
 
-	if (fullscreen) {
-		glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
-		glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, w, h, refreshRate);
-	} else {
-		bool fullscreen = false;
-		platformGetWindowFullscreen(&fullscreen);
-		if (fullscreen) {
-			glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
-		}
-		glfwSetWindowMonitor(window, nullptr, savedWindowX, savedWindowY, w, h, refreshRate);
-	}
+    if (fullscreen) {
+        glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
+        glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, w, h, refreshRate);
+    } else {
+        bool fullscreen = false;
+        platformGetWindowFullscreen(&fullscreen);
+        if (fullscreen) {
+            glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
+        }
+        glfwSetWindowMonitor(window, nullptr, savedWindowX, savedWindowY, w, h, refreshRate);
+    }
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -344,9 +344,9 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
-	runner->getWindowFullscreen = platformGetWindowFullscreen;
-	runner->setWindowFullscreen = platformSetWindowFullscreen;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)
         glfwSetWindowSizeCallback(window, resizeCallback);
