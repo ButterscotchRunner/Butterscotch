@@ -20,6 +20,7 @@
 #include "runner_mouse.h"
 
 static Runner *g_runner;
+static bool gFullscreen = false;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Joystick* openJoysticks[MAX_GAMEPADS];
@@ -207,6 +208,10 @@ void platformSetWindowTitle(const char* title) {
     SDL_WM_SetCaption(windowTitle, NULL);
 }
 
+static bool platformGetWindowFullscreen(void) {
+    return gFullscreen;
+}
+
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
     *outW = fbWidth;
@@ -269,6 +274,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if(!headless) {
         scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
         if (!scr && gfx == SOFTWARE) {
+            gFullscreen = true;
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
                 fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
@@ -310,6 +316,7 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 
