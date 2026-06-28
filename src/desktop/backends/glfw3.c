@@ -135,9 +135,7 @@ void platformSetWindowFullscreen(bool fullscreen) {
         glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
         glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, w, h, refreshRate);
     } else {
-        bool fullscreen = false;
-        platformGetWindowFullscreen(&fullscreen);
-        if (fullscreen) {
+        if (platformGetWindowFullscreen()) {
             glfwGetWindowPos(window, &savedWindowX, &savedWindowY);
         }
         glfwSetWindowMonitor(window, nullptr, savedWindowX, savedWindowY, w, h, refreshRate);
