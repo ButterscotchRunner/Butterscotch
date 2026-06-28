@@ -100,10 +100,24 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
 
+    ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
+    deviceConfig.playback.format   = ma_format_f32;
+    deviceConfig.playback.channels = 2;
+    deviceConfig.periods           = 3;
+    deviceConfig.periodSizeInMilliseconds = 10;
+    deviceConfig.dataCallback = ma_engine_data_callback_internal;
+    deviceConfig.pUserData    = &ma->engine;
+    ma_result deviceResult = ma_device_init(NULL, &deviceConfig, &ma->device);
+    if (deviceResult != MA_SUCCESS) {
+        fprintf(stderr, "Audio: Failed to initialize playback device (error %d)\n", deviceResult);
+        return;
+    }
     ma_engine_config config = ma_engine_config_init();
+    config.pDevice = &ma->device;
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
         fprintf(stderr, "Audio: Failed to initialize miniaudio engine (error %d)\n", result);
+        ma_device_uninit(&ma->device);
         return;
     }
 
@@ -142,6 +156,7 @@ static void maDestroy(AudioSystem* audio) {
     }
     arrfree(ma->base.audioGroups);
 
+    ma_device_uninit(&ma->device);
     ma_engine_uninit(&ma->engine);
     free(ma);
 }
