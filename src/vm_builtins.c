@@ -4093,7 +4093,7 @@ static RValue builtin_os_get_region(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RV
     return RValue_makeOwnedString(safeStrdup("US"));
 }
 
-STUB_RETURN_FALSE(os_is_paused);
+STUB_RETURN_FALSE(os_is_paused)
 
 // ===[ XBOX ONE FUNCTIONS ]===
 
@@ -4106,13 +4106,13 @@ static RValue builtin_xboxone_show_account_picker(MAYBE_UNUSED VMContext* ctx, R
     return RValue_makeReal((GMLReal) asyncId);
 }
 
-STUB_RETURN_TRUE(xboxone_user_is_signed_in);
-STUB_RETURN_FALSE(xboxone_is_suspending);
-STUB_RETURN_FALSE(xboxone_is_constrained);
-STUB_RETURN_ZERO(xboxone_suspend);
-STUB_RETURN_ZERO(xboxone_set_savedata_user);
-STUB_RETURN_ZERO(xboxone_stats_add_user);
-STUB_RETURN_ZERO(xboxone_achievements_set_progress);
+STUB_RETURN_TRUE(xboxone_user_is_signed_in)
+STUB_RETURN_FALSE(xboxone_is_suspending)
+STUB_RETURN_FALSE(xboxone_is_constrained)
+STUB_RETURN_ZERO(xboxone_suspend)
+STUB_RETURN_ZERO(xboxone_set_savedata_user)
+STUB_RETURN_ZERO(xboxone_stats_add_user)
+STUB_RETURN_ZERO(xboxone_achievements_set_progress)
 
 static RValue builtin_environment_get_variable(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     char* name = RValue_toString(args[0]);
