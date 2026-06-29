@@ -233,8 +233,9 @@ static inline bool Collision_circleOverlapsInstance(Runner* runner, Instance* in
     return dx * dx + dy * dy <= rSq;
 }
 
-// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2]. Returns true if the segment intersects the rect.
-static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2].
+// Returns true if the segment intersects the rect, and writes the clipped parametric range to *outTEnter/*outTExit.
+static inline bool Collision_segmentVsAARectClip(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2, GMLReal* outTEnter, GMLReal* outTExit) {
     GMLReal tEnter = 0.0, tExit = 1.0;
     GMLReal dx = x2 - x1, dy = y2 - y1;
     GMLReal p[4] = { -dx, dx, -dy, dy };
@@ -252,7 +253,14 @@ static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2,
         }
         if (tEnter > tExit) return false;
     }
+    *outTEnter = tEnter;
+    *outTExit = tExit;
     return true;
+}
+
+static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+    GMLReal tEnter, tExit;
+    return Collision_segmentVsAARectClip(x1, y1, x2, y2, rx1, ry1, rx2, ry2, &tEnter, &tExit);
 }
 
 // Line segment (x1,y1)-(x2,y2) vs instance collision rect.
