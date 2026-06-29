@@ -13678,8 +13678,7 @@ static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int
         return RValue_makeBool(false);
     }
 
-    int32_t cellIndex = (cellY * data->tilesX) + cellX;
-    data->tileData[cellIndex] = cell;
+    data->tileData[coerceTileCellsToTilemapBoundsAndConvertToArrayIndex(cellX, cellY, data)] = cell;
     return RValue_makeBool(true);
 }
 
