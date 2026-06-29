@@ -162,7 +162,7 @@ typedef struct {
     void (*textureSetStage)(Renderer* renderer, int32_t slot, uint32_t texID);
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
     bool (*shadersSupported)(void);
-    void (*setMatrix)(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix);
+    void (*setMatrix)(Renderer* renderer, int32_t matrixType, Matrix4f matrix);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===

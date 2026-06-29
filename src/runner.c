@@ -1191,7 +1191,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
 
                 runner->viewCurrent = (int32_t) vi;
-                runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+                runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
                 runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
 
 
@@ -1215,7 +1215,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
-            runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+            runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Runner_draw(runner);
@@ -1231,7 +1231,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     if (!anyViewRendered) {
         runner->viewCurrent = 0;
         GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
-        runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+        runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
         // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
         // When views aren't used, the room width/height is used
         int32_t viewX, viewY, viewW, viewH;
@@ -1270,7 +1270,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
-    runner->renderer->CameraCurrent = runner->views[runner->viewCurrent].cameraId;
+    runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
 }
 
 // ===[ Instance Creation Helper ]===

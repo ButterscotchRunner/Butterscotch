@@ -1572,32 +1572,32 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_VIEW_XVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) {
-            camera->viewX = RValue_toReal(val);
-           Runner_updateCameraViewSimple(camera);
+                camera->viewX = RValue_toReal(val);
+                Runner_updateCameraViewSimple(camera);
             }
             return;
         }
         case BUILTIN_VAR_VIEW_YVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) {
-            camera->viewY = RValue_toInt32(val);
-           Runner_updateCameraViewSimple(camera);
+                camera->viewY = RValue_toInt32(val);
+                Runner_updateCameraViewSimple(camera);
             }
             return;
         }
         case BUILTIN_VAR_VIEW_WVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) {
-            camera->viewWidth = RValue_toInt32(val);
-           Runner_updateCameraViewSimple(camera);
+                camera->viewWidth = RValue_toInt32(val);
+                Runner_updateCameraViewSimple(camera);
             }
             return;
         }
         case BUILTIN_VAR_VIEW_HVIEW: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) {
-            camera->viewHeight = RValue_toInt32(val);
-           Runner_updateCameraViewSimple(camera);
+                camera->viewHeight = RValue_toInt32(val);
+                Runner_updateCameraViewSimple(camera);
             }
             return;
         }
@@ -1625,8 +1625,8 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_VIEW_ANGLE: {
             GMLCamera* camera = Runner_getCameraForView(runner, arrayIndex);
             if (camera != nullptr) {
-            camera->viewAngle = (float) RValue_toReal(val);
-           Runner_updateCameraViewSimple(camera);
+                camera->viewAngle = (float) RValue_toReal(val);
+                Runner_updateCameraViewSimple(camera);
             }
             return;
         }
@@ -3525,7 +3525,7 @@ static RValue builtin_camera_set_view_pos(VMContext* ctx, RValue* args, int32_t 
     if (camera != nullptr) {
         camera->viewX = RValue_toReal(args[1]);
         camera->viewY = RValue_toReal(args[2]);
-       Runner_updateCameraViewSimple(camera);
+        Runner_updateCameraViewSimple(camera);
     }
     return RValue_makeUndefined();
 }
@@ -3618,7 +3618,7 @@ static RValue builtin_camera_set_view_size(VMContext* ctx, RValue* args, int32_t
     if (camera != nullptr) {
         camera->viewWidth = RValue_toInt32(args[1]);
         camera->viewHeight = RValue_toInt32(args[2]);
-       Runner_updateCameraViewSimple(camera);
+        Runner_updateCameraViewSimple(camera);
     }
     return RValue_makeUndefined();
 }
@@ -3638,10 +3638,9 @@ static RValue builtin_camera_set_view_angle(VMContext* ctx, RValue* args, int32_
     if (2 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
-    if (camera != nullptr)
-    { 
-    camera->viewAngle = (float) RValue_toReal(args[1]);
-   Runner_updateCameraViewSimple(camera);
+    if (camera != nullptr) { 
+        camera->viewAngle = (float) RValue_toReal(args[1]);
+        Runner_updateCameraViewSimple(camera);
     }
     return RValue_makeUndefined();
 }
@@ -3706,8 +3705,7 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
     if (argCount > 8) camera->borderX = (uint32_t) RValue_toInt32(args[8]);
     if (argCount > 9) camera->borderY = (uint32_t) RValue_toInt32(args[9]);
 
-
-   Runner_updateCameraViewSimple(camera);
+    Runner_updateCameraViewSimple(camera);
     
     return RValue_makeReal(id);
 }
@@ -3743,7 +3741,7 @@ static RValue builtin_view_set_camera(VMContext* ctx, RValue* args, int32_t argC
 static RValue builtin_camera_get_active(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->viewCurrent >= 0 && MAX_VIEWS > runner->viewCurrent) {
-        return RValue_makeReal(runner->renderer->CameraCurrent);
+        return RValue_makeReal(runner->renderer->cameraCurrent);
     }
     return RValue_makeReal(-1);
 }
@@ -3762,7 +3760,7 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera != nullptr) {
         runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
-        runner->renderer->CameraCurrent = RValue_toInt32(args[0]);
+        runner->renderer->cameraCurrent = RValue_toInt32(args[0]);
     }
     return RValue_makeUndefined();
 }

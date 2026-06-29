@@ -509,14 +509,14 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
     GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
 
-        Matrix4f FlippedClip[MATRICES_MAX];
-        for (int32_t i = 0; i < MATRICES_MAX; i++) {
-            FlippedClip[i] = renderer->gmlMatrices[i];
-            Matrix4f_flipClipY(&FlippedClip[i]);
-        }
+    Matrix4f flippedClip[MATRICES_MAX];
+    for (int32_t i = 0; i < MATRICES_MAX; i++) {
+        flippedClip[i] = renderer->gmlMatrices[i];
+        Matrix4f_flipClipY(&flippedClip[i]);
+    }
 
     if (gmMatricesUniform != nullptr) {
-        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, FlippedClip[0].m);
+        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, flippedClip[0].m);
     }
     if (gmFogColourUniform != nullptr) {
         glUniform1i(gmFogColourUniform->location, gl->fogColor);
@@ -548,13 +548,13 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
         GLShaderUniform* uAlphaTestEnabled = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestEnabled");
         GLShaderUniform* uTexture = findShaderUniformByName(gl->defaultShaderProgram, "uTexture");
-        Matrix4f FlippedClip[MATRICES_MAX];
+        Matrix4f flippedClip[MATRICES_MAX];
         for (int32_t i = 0; i < MATRICES_MAX; i++) {
-            FlippedClip[i] = renderer->gmlMatrices[i];
-            Matrix4f_flipClipY(&FlippedClip[i]);
+            flippedClip[i] = renderer->gmlMatrices[i];
+            Matrix4f_flipClipY(&flippedClip[i]);
         }
 
-        glUniformMatrix4fv(uWorldViewProjection->location, 1, GL_FALSE, FlippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
+        glUniformMatrix4fv(uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
         glUniform4f(uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
         glUniform1f(uAlphaTestRef->location, gl->alphaTestRef);
         glUniform1i(uAlphaTestEnabled->location, gl->alphaTestEnable);
@@ -680,13 +680,13 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     glEnable(GL_SCISSOR_TEST);
     glScissor(portX, portY, portW, portH);
 
-    int32_t ViewCurrent = 0;
+    int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
-    ViewCurrent = renderer->runner->viewCurrent;
+    viewCurrent = renderer->runner->viewCurrent;
     }
-    RuntimeView* view = &renderer->runner->views[ViewCurrent];
-    gl->base.CameraCurrent = view->cameraId;
-    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
+    RuntimeView* view = &renderer->runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
     glShaderSettingsRefresh(renderer);
@@ -723,7 +723,7 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
 
     glEnable(GL_SCISSOR_TEST);
     //I dunno hopefully this is at least somewhat correct...
-    gl->base.CameraCurrent = GUI_CAMERA;
+    gl->base.cameraCurrent = GUI_CAMERA;
     GMLCamera* camera = &renderer->runner->guiCamera;
     camera->allocated = true;
     camera->viewX = 0.0;
@@ -760,7 +760,7 @@ static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, M
     flushBatch(gl);
 
     // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
-    gl->base.CameraCurrent = GUI_CAMERA;
+    gl->base.cameraCurrent = GUI_CAMERA;
     GMLCamera* camera = &renderer->runner->guiCamera;
     camera->allocated = true;
     camera->viewX = 0.0;
@@ -2036,13 +2036,13 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
 
-    int32_t ViewCurrent = 0;
+    int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
-    ViewCurrent = renderer->runner->viewCurrent;
+    viewCurrent = renderer->runner->viewCurrent;
     }
-    RuntimeView* view = &renderer->runner->views[ViewCurrent];
-    gl->base.CameraCurrent = view->cameraId;
-    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
+    RuntimeView* view = &renderer->runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
@@ -2075,7 +2075,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     float y = (float) gl->surfaceHeight[surfaceId] * 0.5f;
     Matrix4f_identity(&viewMatrix);
     Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    gl->base.CameraCurrent = SURFACE_CAMERA;
+    gl->base.cameraCurrent = SURFACE_CAMERA;
 
     GMLCamera* camera =  &renderer->runner->surfaceCamera;
 
@@ -2653,10 +2653,10 @@ static bool glShadersSupported(void) {
     return true;
 }
 
-static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix) {
+static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    renderer->gmlMatrices[MatrixType] = Matrix;
+    renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
     //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
     Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
@@ -2759,6 +2759,6 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
     gl->base.currentShader = -1;
-    gl->base.CameraCurrent = 0;
+    gl->base.cameraCurrent = 0;
     return (Renderer*) gl;
 }
