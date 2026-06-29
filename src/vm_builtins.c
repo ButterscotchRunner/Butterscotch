@@ -12925,6 +12925,30 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     return RValue_makeUndefined();
 }
 
+static RValue builtin_layer_script_begin(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t scriptIndex = RValue_toInt32(args[1]);
+    
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
+    if (runtimeLayer == nullptr) return RValue_makeUndefined();
+    
+    runtimeLayer->beginScript = scriptIndex;
+    
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_script_end(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t scriptIndex = RValue_toInt32(args[1]);
+    
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
+    if (runtimeLayer == nullptr) return RValue_makeUndefined();
+    
+    runtimeLayer->endScript = scriptIndex;
+    
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_layer_background_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t layerId = resolveLayerIdArg(runner, args[0]);
@@ -16579,6 +16603,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #endif
     VM_registerBuiltin(ctx, "layer_create", builtin_layer_create);
     VM_registerBuiltin(ctx, "layer_destroy", builtin_layer_destroy);
+    VM_registerBuiltin(ctx, "layer_script_begin", builtin_layer_script_begin);
+    VM_registerBuiltin(ctx, "layer_script_end", builtin_layer_script_end);
     VM_registerBuiltin(ctx, "layer_background_create", builtin_layer_background_create);
     VM_registerBuiltin(ctx, "layer_background_exists", builtin_layer_background_exists);
     VM_registerBuiltin(ctx, "layer_background_visible", builtin_layer_background_visible);

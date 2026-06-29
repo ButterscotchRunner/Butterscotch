@@ -244,6 +244,8 @@ typedef struct {
     float vSpeed;
     bool dynamic; // true = created at runtime via layer_create
     char* dynamicName; // owned
+    int32_t beginScript;
+    int32_t endScript;
     RuntimeLayerElement* elements; // stb_ds array
 } RuntimeLayer;
 
