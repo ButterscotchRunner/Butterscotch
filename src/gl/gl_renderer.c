@@ -567,15 +567,15 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
 }
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, const Matrix4f* ViewMatrix,const Matrix4f* ProjectionMatrix) {
+static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,const Matrix4f* projectionMatrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
     
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
 
     Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f View = *ViewMatrix;
-    Matrix4f Projection = *ProjectionMatrix;
+    Matrix4f View = *viewMatrix;
+    Matrix4f Projection = *projectionMatrix;
 
     Matrix4f WorldView;
     Matrix4f_multiply(&WorldView, &View, &World);
@@ -691,7 +691,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     RuntimeView* view = &renderer->runner->views[ViewCurrent];
     gl->base.CameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.CameraCurrent);
-    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
@@ -741,17 +741,17 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     camera->objectId = -1;
     camera->viewAngle = 0;
 
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
 
-    Matrix4f ViewMatrix;
+    Matrix4f viewMatrix;
     float x = (float) guiW * 0.5f;
     float y = (float) guiH * 0.5f;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    camera->ViewMatrix = ViewMatrix;
-    camera->ProjectionMatrix = ProjectionMatrix;
-    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
 
     glActiveTexture(GL_TEXTURE1);
@@ -779,17 +779,17 @@ static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, M
     camera->viewAngle = 0;
 
     //yeah no I have no idea how to do the GUI
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
-    if (renderingToUserSurface) Matrix4f_flipClipY(&ProjectionMatrix);
-    Matrix4f ViewMatrix;
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projectionMatrix);
+    Matrix4f viewMatrix;
     float x = (float) guiW * 0.5f;
     float y = (float) guiH * 0.5f;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    camera->ViewMatrix = ViewMatrix;
-    camera->ProjectionMatrix = ProjectionMatrix;
-    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 }
 
 static void glEndGUI(Renderer* renderer) {
@@ -2057,7 +2057,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
 
-        glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
         return true;
     }
@@ -2067,18 +2067,18 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     //the surface belongs to the view we are rending, we use the view's camera.
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer,&camera->ViewMatrix,&camera->ProjectionMatrix);
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
     return true;
     } else {
     //camera will use full surface.
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) gl->surfaceWidth[surfaceId], -((float) gl->surfaceHeight[surfaceId]), 32000.0, 0.0);
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) gl->surfaceWidth[surfaceId], -((float) gl->surfaceHeight[surfaceId]), 32000.0, 0.0);
 
-    Matrix4f ViewMatrix;
+    Matrix4f viewMatrix;
     float x = (float) gl->surfaceWidth[surfaceId] * 0.5f;
     float y = (float) gl->surfaceHeight[surfaceId] * 0.5f;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     gl->base.CameraCurrent = SURFACE_CAMERA;
 
     GMLCamera* camera =  &renderer->runner->surfaceCamera;
@@ -2095,11 +2095,11 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     camera->objectId = -1;
     camera->viewAngle = 0;
 
-    camera->ProjectionMatrix = ProjectionMatrix;
-    camera->ViewMatrix = ViewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    camera->viewMatrix = viewMatrix;
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &ViewMatrix,&ProjectionMatrix);
+    glApplyProjection(renderer, &viewMatrix,&projectionMatrix);
     return true;
     }
 

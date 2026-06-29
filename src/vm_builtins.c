@@ -218,23 +218,23 @@ static DsStack* dsStackGet(Runner* runner, int32_t id) {
     return &runner->dsStackPool[id];
 }
 
-static void UpdateCameraViewSimple(GMLCamera* camera) {
+static void updateCameraViewSimple(GMLCamera* camera) {
 
     float x = camera->viewX + camera->viewWidth/2;
     float y = camera->viewY + camera->viewHeight/2;
-    Matrix4f ViewMatrix;
-    Matrix4f_identity(&ViewMatrix);
-    Matrix4f_LookAt(&ViewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&ViewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&ViewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&ViewMatrix, -x, -y, 0.0f);
+    Matrix4f viewMatrix;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
 
-    Matrix4f ProjectionMatrix;
-    Matrix4f_Orthographic(&ProjectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
     
 
-    camera->ViewMatrix = ViewMatrix;
-    camera->ProjectionMatrix = ProjectionMatrix;
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
 
 }
 
@@ -3559,7 +3559,7 @@ static RValue builtin_camera_set_view_mat(VMContext* ctx, RValue* args, int32_t 
     if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
-    camera->ViewMatrix = m;
+    camera->viewMatrix = m;
     return RValue_makeUndefined();
 }
 
@@ -3567,14 +3567,14 @@ static RValue builtin_camera_get_view_mat(VMContext* ctx, RValue* args, int32_t 
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera == nullptr) return RValue_makeUndefined();
-    return RValue_makeArray(matrixToGml(&camera->ViewMatrix));
+    return RValue_makeArray(matrixToGml(&camera->viewMatrix));
 }
 
 static RValue builtin_camera_get_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera == nullptr) return RValue_makeUndefined();
-    return RValue_makeArray(matrixToGml(&camera->ProjectionMatrix));
+    return RValue_makeArray(matrixToGml(&camera->projectionMatrix));
 }
 
 static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3584,8 +3584,8 @@ static RValue builtin_camera_set_proj_mat(VMContext* ctx, RValue* args, int32_t 
     if (camera == nullptr || !rvalueIsMatrix(args[1])) return RValue_makeUndefined();
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
-    camera->ProjectionMatrix = m;
-    camera->ProjectionMatrix.m[Matrix_getIndex(1, 1)] = -m.m[Matrix_getIndex(1, 1)];
+    camera->projectionMatrix = m;
+    camera->projectionMatrix.m[Matrix_getIndex(1, 1)] = -m.m[Matrix_getIndex(1, 1)];
     return RValue_makeUndefined();
 }
 
@@ -3782,7 +3782,7 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera != nullptr) {
-        runner->renderer->vtable->applyProjection(runner->renderer, &camera->ViewMatrix, &camera->ProjectionMatrix);
+        runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
         runner->renderer->CameraCurrent = RValue_toInt32(args[0]);
     }
     return RValue_makeUndefined();
