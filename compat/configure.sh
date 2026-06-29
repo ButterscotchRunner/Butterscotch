@@ -50,11 +50,11 @@ configlog() {
 }
 
 define() {
-    config "DEFINES += \$(DEFINE)%s" "$1"
+    config "DEFINES += \$(DEFINE)$1"
 }
 
 include() {
-    config "INCLUDES += \$(INCLUDE)%s" "$1"
+    config "INCLUDES += \$(INCLUDE)$1"
 }
 
 check() {
