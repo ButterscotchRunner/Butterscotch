@@ -46,6 +46,26 @@ static void freeRuntimeLayersArray(RuntimeLayer** runtimeLayerArray) {
     *runtimeLayerArray = nullptr;
 }
 
+void Runner_updateCameraViewSimple(GMLCamera* camera) {
+
+    float x = camera->viewX + camera->viewWidth/2;
+    float y = camera->viewY + camera->viewHeight/2;
+    Matrix4f viewMatrix;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
+
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    
+
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+
+}
+
 // ===[ Helper: Find event action in object hierarchy ]===
 // Resolves the handler for (objectIndex, eventType, eventSubtype) via the precomputed ResolvedEventTable.
 // Returns the CODE chunk handler id, or -1 if the object does not respond.
@@ -3288,6 +3308,7 @@ static void updateViews(Runner* runner) {
             int32_t iy = (int32_t) GMLReal_floor(target->y);
             camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width);
             camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height);
+            Runner_updateCameraViewSimple(camera);
         }
     }
 }
