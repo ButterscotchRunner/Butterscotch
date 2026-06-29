@@ -340,6 +340,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "image_speed", BUILTIN_VAR_IMAGE_SPEED },
     { "image_xscale", BUILTIN_VAR_IMAGE_XSCALE },
     { "image_yscale", BUILTIN_VAR_IMAGE_YSCALE },
+    { "infinity", BUILTIN_VAR_INFINITY },    
     { "instance_count", BUILTIN_VAR_INSTANCE_COUNT },
     { "instance_id", BUILTIN_VAR_INSTANCE_ID },
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
@@ -1114,6 +1115,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeBool(false);
         case BUILTIN_VAR_PI:
             return RValue_makeReal(3.14159265358979323846);
+        case BUILTIN_VAR_INFINITY:
+            return RValue_makeReal(INFINITY);
         case BUILTIN_VAR_UNDEFINED:
             return RValue_makeUndefined();
 

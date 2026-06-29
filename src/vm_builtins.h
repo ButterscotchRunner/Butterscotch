@@ -196,6 +196,7 @@ typedef enum {
     // Constants
     BUILTIN_VAR_TRUE,
     BUILTIN_VAR_FALSE,
+    BUILTIN_VAR_INFINITY,
     BUILTIN_VAR_PI,
     BUILTIN_VAR_UNDEFINED,
 
