@@ -2855,7 +2855,7 @@ static void dispatchMouseEvents(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapshotBase + instCount);
     memcpy(&runner->instanceSnapshots[snapshotBase], runner->instances, (size_t) instCount * sizeof(Instance*));
 
-    // Per-instance mouse-over flags (stack-allocated for typical room sizes, heap for large rooms)
+    // Per-instance mouse-over flags
     bool* isOver = (bool*) safeMalloc((size_t) instCount * sizeof(bool));
 
     // Compute whether the mouse is currently over each instance's mask.
