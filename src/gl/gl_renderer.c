@@ -259,13 +259,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    Matrix4f World;
-    Matrix4f_identity(&World);
-    renderer->gmlMatrices[MATRIX_WORLD] = World;
-
-    Matrix4f World;
-    Matrix4f_identity(&World);
-    renderer->gmlMatrices[MATRIX_WORLD] = World;
+    Matrix4f world;
+    Matrix4f_identity(&world);
+    renderer->gmlMatrices[MATRIX_WORLD] = world;
 
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
     const char* versionStr = (const char*) glGetString(GL_VERSION);
@@ -573,20 +569,20 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
 
-    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f View = *viewMatrix;
-    Matrix4f Projection = *projectionMatrix;
+    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f view = *viewMatrix;
+    Matrix4f projection = *projectionMatrix;
 
-    Matrix4f WorldView;
-    Matrix4f_multiply(&WorldView, &View, &World);
+    Matrix4f worldView;
+    Matrix4f_multiply(&worldView, &view, &world);
 
-    Matrix4f WorldViewProjection;
-    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldView);
+    Matrix4f worldViewProjection;
+    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
   
-    renderer->gmlMatrices[MATRIX_VIEW] = View;   
-    renderer->gmlMatrices[MATRIX_PROJECTION] = Projection;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
+    renderer->gmlMatrices[MATRIX_VIEW] = view;   
+    renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
     //oh my I hope it's good enough.
     glShaderSettingsRefresh(renderer);    
 }
@@ -2663,18 +2659,18 @@ static void glSetMatrix(Renderer* renderer, int32_t MatrixType, Matrix4f Matrix)
     renderer->gmlMatrices[MatrixType] = Matrix;
     //yeah just recalculate everything when we change a matrix
     //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
-    Matrix4f World = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f View = renderer->gmlMatrices[MATRIX_VIEW];
-    Matrix4f Projection = renderer->gmlMatrices[MATRIX_PROJECTION];
+    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f view = renderer->gmlMatrices[MATRIX_VIEW];
+    Matrix4f projection = renderer->gmlMatrices[MATRIX_PROJECTION];
 
-    Matrix4f WorldView;
-    Matrix4f_multiply(&WorldView, &View, &World);
+    Matrix4f worldView;
+    Matrix4f_multiply(&worldView, &view, &world);
 
-    Matrix4f WorldViewProjection;
-    Matrix4f_multiply(&WorldViewProjection, &Projection, &WorldView);
+    Matrix4f worldViewProjection;
+    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
   
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = WorldView;   
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = WorldViewProjection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
 
     glShaderSettingsRefresh(renderer);
