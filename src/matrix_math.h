@@ -52,19 +52,8 @@ static inline Matrix4f* Matrix4f_multiply(Matrix4f* dest, const Matrix4f* a, con
     return dest;
 }
 
-static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float x_from, float y_from, float z_from, float x_to, float y_to, float z_to, float x_up, float y_up, float z_up) {
+static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float xFrom, float yFrom, float zFrom, float xTo, float yTo, float zTo, float xUp, float yUp, float zUp) {
 
-    double xFrom = x_from;
-    double yFrom = y_from;
-    double zFrom = z_from;
-
-    double xTo = x_to;
-    double yTo = y_to;
-    double zTo = z_to;
-
-    double xUp = x_up;
-    double yUp = y_up;
-    double zUp = z_up;
     double magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
     xUp /= magUp;
     yUp /= magUp;
