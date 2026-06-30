@@ -1,5 +1,6 @@
 #include "vm_builtins.h"
 #include "binary_utils.h"
+#include "gml_array.h"
 #include "instance.h"
 #include "json_reader.h"
 #include "json_writer.h"
@@ -6315,7 +6316,6 @@ static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     int32_t soundIndex = RValue_toInt32(args[0]);
     if (0 > soundIndex) return RValue_makeString("<undefined>");
 
-    int i;
     repeat(arrlen(audio->audioGroups), i) {
         DataWin* dw = audio->audioGroups[i];
         if (dw->sond.count <= (uint32_t) soundIndex) {
@@ -15491,6 +15491,32 @@ static RValue builtin_asset_get_index(VMContext* ctx, RValue* args, int32_t argC
     return RValue_makeReal(value);
 }
 
+static RValue builtin_gpu_get_blendmode(VMContext* ctx, RValue* args, int32_t argCount) {
+    return RValue_makeInt32(ctx->runner->renderer->vtable->gpuGetBlendMode(ctx->runner->renderer));
+}
+
+static RValue builtin_gpu_get_blendmode_ext(VMContext* ctx, RValue* args, int32_t argCount) {
+    BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
+    
+    RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 2));
+    GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
+    GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
+    
+    return arr;
+}
+
+static RValue builtin_gpu_get_blendmode_ext_sepalpha(VMContext* ctx, RValue* args, int32_t argCount) {
+    BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
+    
+    RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 4));
+    GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
+    GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
+    GMLArray_setOnArrayRef(&arr, 2, RValue_makeInt32(factors.srcAlpha));
+    GMLArray_setOnArrayRef(&arr, 3, RValue_makeInt32(factors.dstAlpha));
+    
+    return arr;
+}
+
 static RValue builtin_gpu_set_blendmode(VMContext* ctx, RValue* args, int32_t argCount) {
     int mode = RValue_toReal(args[0]);
     ctx->runner->renderer->vtable->gpuSetBlendMode(ctx->runner->renderer, mode);
@@ -16903,6 +16929,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     }
     VM_registerBuiltin(ctx, "object_is_ancestor", builtin_object_is_ancestor);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode", builtin_gpu_get_blendmode);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode_ext", builtin_gpu_get_blendmode_ext);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode_ext_sepalpha", builtin_gpu_get_blendmode_ext_sepalpha);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext_sepalpha", builtin_gpu_set_blendmode_ext_sepalpha);
@@ -16911,6 +16940,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_set_colourwriteenable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_get_colourwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
     if (!isGMS2) {

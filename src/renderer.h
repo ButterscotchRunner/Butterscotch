@@ -66,6 +66,13 @@ typedef struct Runner Runner;
 #endif
 
 typedef struct {
+    int32_t src;
+    int32_t dst;
+    int32_t srcAlpha;
+    int32_t dstAlpha;
+} BlendFactors;
+
+typedef struct {
     void (*init)(Renderer* renderer, DataWin* dataWin);
     void (*destroy)(Renderer* renderer);
     void (*beginFrame)(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
@@ -94,6 +101,8 @@ typedef struct {
     void (*clearScreen)(Renderer* renderer, uint32_t color, float alpha);
     int32_t (*createSpriteFromSurface)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig);
     void (*deleteSprite)(Renderer* renderer, int32_t spriteIndex);
+    BlendFactors (*gpuGetBlendFactors)(Renderer* renderer);
+    int32_t (*gpuGetBlendMode)(Renderer* renderer);
     void (*gpuSetBlendMode)(Renderer* renderer, int32_t mode);
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha);
     void (*gpuSetBlendEnable)(Renderer* renderer, bool enable);
@@ -172,6 +181,7 @@ struct Renderer {
     Runner* runner;
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
+    BlendFactors blendFactors;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
