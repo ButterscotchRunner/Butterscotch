@@ -6315,11 +6315,16 @@ static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     int32_t soundIndex = RValue_toInt32(args[0]);
     if (0 > soundIndex) return RValue_makeString("<undefined>");
 
-    DataWin* dw = audio->audioGroups[0];
-    if (dw->sond.count <= (uint32_t) soundIndex)
-        return RValue_makeString("<undefined>");
-
-    return RValue_makeString(dw->sond.sounds[soundIndex].name);
+    int i;
+    repeat(arrlen(audio->audioGroups), i) {
+        DataWin* dw = audio->audioGroups[i];
+        if (dw->sond.count <= (uint32_t) soundIndex) {
+            continue;
+        } else {
+            return RValue_makeString(dw->sond.sounds[soundIndex].name);
+        }
+    }
+    return RValue_makeString("<undefined>");
 }
 
 // same as builtin_sound_play with loop enabled
