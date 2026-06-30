@@ -10623,6 +10623,42 @@ static RValue builtin_sprite_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED
     return RValue_makeString(name != nullptr ? name : "<undefined>");
 }
 
+// sprite_set_bbox_mode(sprite_index, mode)
+static RValue builtin_sprite_set_bbox_mode(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 2) return RValue_makeUndefined();
+
+    int32_t spriteIndex = RValue_toInt32(args[0]);
+    uint32_t mode = (uint32_t) RValue_toReal(args[1]);
+
+    Runner* runner = ctx->runner;
+    DataWin* dw = runner->dataWin;
+
+    if (spriteIndex < 0 || (uint32_t)spriteIndex >= dw->sprt.count) {
+        return RValue_makeUndefined();
+    }
+
+    Sprite* spr = &dw->sprt.sprites[spriteIndex];
+
+    if (spr->bboxMode == mode) {
+        return RValue_makeUndefined();
+    }
+
+    spr->bboxMode = mode;
+
+    int32_t instanceCount = (int32_t)arrlen(runner->instances);
+    for (int32_t i = 0; i < instanceCount; i++) {
+        Instance* inst = runner->instances[i];
+        if (!inst->active || inst->destroyed) continue;
+
+        int32_t activeMask = (inst->maskIndex >= 0) ? inst->maskIndex : inst->spriteIndex;  
+        if (activeMask == spriteIndex) {
+            SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
+        }
+    }
+
+    return RValue_makeUndefined();
+}
+
 // sprite_set_offset(sprite_index, xoff, yoff)
 static RValue builtin_sprite_set_offset(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
@@ -16502,6 +16538,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_bbox_right", builtin_sprite_get_bbox_right);
     VM_registerBuiltin(ctx, "sprite_get_bbox_top", builtin_sprite_get_bbox_top);
     VM_registerBuiltin(ctx, "sprite_get_bbox_bottom", builtin_sprite_get_bbox_bottom);
+    VM_registerBuiltin(ctx, "sprite_set_bbox_mode", builtin_sprite_set_bbox_mode);
     VM_registerBuiltin(ctx, "sprite_set_offset", builtin_sprite_set_offset);
     VM_registerBuiltin(ctx, "sprite_create_from_surface", builtin_sprite_create_from_surface);
     VM_registerBuiltin(ctx, "sprite_delete", builtin_sprite_delete);

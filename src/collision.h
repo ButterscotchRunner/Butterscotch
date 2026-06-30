@@ -36,10 +36,10 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
     Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (spr == nullptr) return (InstanceBBox){0, 0, 0, 0, false};
 
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = (spr->bboxMode == 1) ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = (spr->bboxMode == 1) ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
 
@@ -115,10 +115,10 @@ static inline InstanceOBB Collision_instanceOBB(Sprite* spr, Instance* inst) {
     InstanceOBB obb;
     obb.x = inst->x;
     obb.y = inst->y;
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = spr->bboxMode == 1 ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = spr->bboxMode == 1 ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
     obb.lx0 = inst->imageXscale * (marginL - originX);
