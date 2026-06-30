@@ -10251,6 +10251,22 @@ static RValue builtin_draw_get_font(VMContext* ctx, MAYBE_UNUSED RValue* args, M
     return RValue_makeInt32(-1);
 }
 
+static RValue builtin_draw_get_halign(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeInt32(runner->renderer->drawHalign);
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_draw_get_valign(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeInt32(runner->renderer->drawValign);
+    }
+    return RValue_makeInt32(-1);
+}
+
 static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
 
@@ -16503,6 +16519,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_color", builtin_draw_get_color);
     VM_registerBuiltin(ctx, "draw_get_alpha", builtin_draw_get_alpha);
     VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
+    VM_registerBuiltin(ctx, "draw_get_halign", builtin_draw_get_halign);
+    VM_registerBuiltin(ctx, "draw_get_valign", builtin_draw_get_valign);
+    
 
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
