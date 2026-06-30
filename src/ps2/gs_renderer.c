@@ -2377,10 +2377,10 @@ static u64 gmsBlendModeToGSAlpha(int32_t mode) {
 static BlendFactors gsGpuGetBlendFactors(Renderer* renderer) {
     GsRenderer* gs = (GsRenderer*)renderer;
     return (BlendFactors){
-        gl->currentSFactor, 
-        gl->currentDFactor, 
-        gl->currentSFactorAlpha, 
-        gl->currentDFactorAlpha
+        gs->currentSFactor, 
+        gs->currentDFactor, 
+        gs->currentSFactorAlpha, 
+        gs->currentDFactorAlpha
     };
 }
 
