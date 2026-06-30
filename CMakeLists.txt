@@ -704,10 +704,23 @@ elseif(PLATFORM STREQUAL "libretro")
         target_sources(butterscotch PRIVATE
             src/gl/gl_renderer.c
             src/gl_common/gl_common.c
-            src/libretro/libretro-common/glsym/glsym_es3.c
             src/libretro/libretro-common/glsm/glsm.c
             src/libretro/libretro-common/glsym/rglgen.c
         )
+
+        if(USING_GLES)
+            target_sources(butterscotch PRIVATE src/libretro/libretro-common/glsym/glsym_es3.c)
+            target_compile_definitions(butterscotch PRIVATE HAVE_OPENGLES HAVE_OPENGLES3)
+            find_library(GLES2_LIB GLESv2)
+            target_link_libraries(butterscotch PRIVATE ${GLES2_LIB})
+            target_compile_definitions(butterscotch PRIVATE GLclampd=GLclampf)
+        else()
+            target_sources(butterscotch PRIVATE src/libretro/libretro-common/glsym/glsym_gl.c)
+            target_compile_definitions(butterscotch PRIVATE HAVE_OPENGL)
+            find_package(OpenGL REQUIRED)
+            target_link_libraries(butterscotch PRIVATE OpenGL::GL)
+        endif()
+
         set_source_files_properties(
             src/libretro/libretro-common/glsm/glsm.c
             PROPERTIES COMPILE_OPTIONS "-w"
@@ -716,13 +729,7 @@ elseif(PLATFORM STREQUAL "libretro")
             ${CMAKE_SOURCE_DIR}/src/gl
             ${CMAKE_SOURCE_DIR}/src/gl_common
         )
-        target_compile_definitions(butterscotch PRIVATE HAVE_OPENGLES HAVE_OPENGLES3)
-        add_compile_definitions(ENABLE_GLES)
 
-        find_library(GLES2_LIB GLESv2)
-        target_link_libraries(butterscotch PRIVATE ${GLES2_LIB})
-
-        target_compile_definitions(butterscotch PRIVATE GLclampd=GLclampf)
     endif()
     target_sources(butterscotch PRIVATE
         src/image/image_decoder.c
