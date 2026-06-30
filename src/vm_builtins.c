@@ -6307,6 +6307,21 @@ static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
     return RValue_makeReal((GMLReal) instanceId);
 }
 
+static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr || audio->vtable == nullptr || 1 > argCount) return RValue_makeString("<undefined>");
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeString("<undefined>");
+
+    int32_t soundIndex = RValue_toInt32(args[0]);
+    if (0 > soundIndex) return RValue_makeString("<undefined>");
+
+    DataWin* dw = audio->audioGroups[0];
+    if (dw->sond.count <= (uint32_t) soundIndex)
+        return RValue_makeString("<undefined>");
+
+    return RValue_makeString(dw->sond.sounds[soundIndex].name);
+}
+
 // same as builtin_sound_play with loop enabled
 static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
@@ -16195,6 +16210,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Audio
     VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audio_system_is_available);
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
+    VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
