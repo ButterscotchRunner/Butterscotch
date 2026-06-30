@@ -16911,7 +16911,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
-    VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_get_colourwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
     if (!isGMS2) {
         VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);
