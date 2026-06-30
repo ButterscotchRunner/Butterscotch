@@ -1,1 +1,7 @@
 #include <glsm/glsmsym.h>
+#define glDeleteFramebuffersEXT glDeleteFramebuffers
+#define glFramebufferTexture2DEXT glFramebufferTexture2D
+#define glBindFramebufferEXT glBindFramebuffer
+#define glGenFramebuffersEXT glGenFramebuffers
+#define glDeleteVertexArraysOES glDeleteVertexArrays
+#define glGenVertexArraysOES glGenVertexArrays
