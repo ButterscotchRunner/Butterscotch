@@ -9,6 +9,7 @@
 #define WEB_SOUND_INSTANCE_ID_BASE 100000
 #define WEB_MAX_AUDIO_STREAMS 32
 #define WEB_AUDIO_STREAM_INDEX_BASE 300000
+#define MAX_LISTENERS 4
 
 typedef struct {
     bool active;
