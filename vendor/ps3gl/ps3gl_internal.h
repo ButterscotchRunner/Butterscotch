@@ -197,6 +197,8 @@ struct ps3gl_opengl_state
 	GLenum blend_equation;
 	GLenum blend_func_sfactor;
 	GLenum blend_func_dfactor;
+	GLenum blend_func_sfactor_alpha;
+	GLenum blend_func_dfactor_alpha;
 
 	// Matrices
 	GLuint matrix_mode;

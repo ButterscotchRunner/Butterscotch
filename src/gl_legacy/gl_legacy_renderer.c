@@ -1384,8 +1384,8 @@ static void glGpuSetBlendMode(MAYBE_UNUSED Renderer* renderer, int32_t mode) {
     glBlendFunc(GLCommon_blendModeToSFactor(mode), GLCommon_blendModeToDFactor(mode));
 }
 
-static void glGpuSetBlendModeExt(MAYBE_UNUSED Renderer* renderer, int32_t sfactor, int32_t dfactor) {
-    glBlendFunc(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor));
+static void glGpuSetBlendModeExt(MAYBE_UNUSED Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
+    glBlendFuncSeparate(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor), GLCommon_blendFactorToGL(sfactor_alpha), GLCommon_blendFactorToGL(dfactor_alpha));
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {

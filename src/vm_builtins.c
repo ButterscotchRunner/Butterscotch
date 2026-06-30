@@ -12900,6 +12900,8 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
     runtimeLayer.visible = true;
     runtimeLayer.dynamic = true;
     runtimeLayer.dynamicName = name, // ownership transferred
+    runtimeLayer.beginScript = -1;
+    runtimeLayer.endScript = -1;
     arrput(runner->runtimeLayers, runtimeLayer);
     runner->drawableListStructureDirty = true;
     return RValue_makeReal((GMLReal) id);
@@ -13031,6 +13033,17 @@ static RValue builtin_layer_background_visible(VMContext* ctx, RValue* args, MAY
     int32_t id = RValue_toInt32(args[0]);
     bool visible = RValue_toBool(args[1]);
     setBackgroundLayerField(id, visible, visible);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_background_speed(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    bool speed = RValue_toBool(args[1]);
+    RuntimeLayer* owner = nullptr;
+    Runner_findLayerElementById(runner, id, &owner);
+    owner->hSpeed = speed;
+    owner->vSpeed = speed;
     return RValue_makeUndefined();
 }
 
@@ -13410,6 +13423,24 @@ static RValue builtin_layer_sprite_get_speed(VMContext* ctx, RValue* args, MAYBE
     if (!isValidLayerSpriteElement(el))
         return RValue_makeReal(0.0);
     return RValue_makeReal((GMLReal) el->spriteElement->animationSpeed);
+}
+
+static RValue builtin_layer_sprite_speed(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (isValidLayerSpriteElement(el))
+        el->spriteElement->animationSpeed = RValue_toReal(args[1]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_sprite_blend(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (isValidLayerSpriteElement(el))
+        el->blend = RValue_toBool(args[1]);
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_sprite_get_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -15397,7 +15428,16 @@ static RValue builtin_gpu_set_blendmode(VMContext* ctx, RValue* args, int32_t ar
 static RValue builtin_gpu_set_blendmode_ext(VMContext* ctx, RValue* args, int32_t argCount) {
     int sfactor = RValue_toReal(args[0]);
     int dfactor = RValue_toReal(args[1]);
-    ctx->runner->renderer->vtable->gpuSetBlendModeExt(ctx->runner->renderer, sfactor, dfactor);
+    ctx->runner->renderer->vtable->gpuSetBlendModeExt(ctx->runner->renderer, sfactor, dfactor, sfactor, dfactor);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_gpu_set_blendmode_ext_sepalpha(VMContext* ctx, RValue* args, int32_t argCount) {
+    int sfactor = RValue_toReal(args[0]);
+    int dfactor = RValue_toReal(args[1]);
+    int sfactor_alpha = RValue_toReal(args[2]);
+    int dfactor_alpha = RValue_toReal(args[3]);
+    ctx->runner->renderer->vtable->gpuSetBlendModeExt(ctx->runner->renderer, sfactor, dfactor, sfactor_alpha, dfactor_alpha);
     return RValue_makeUndefined();
 }
 
@@ -15677,6 +15717,13 @@ static RValue builtin_sprite_get_speed(VMContext* ctx, RValue* args, MAYBE_UNUSE
     if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count)
         return RValue_makeReal(0.0);
     return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].gms2PlaybackSpeed);
+}
+
+static RValue builtin_sprite_get_speed_type(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count)
+        return RValue_makeReal(0.0);
+    return RValue_makeReal((GMLReal) ctx->dataWin->sprt.sprites[spriteIndex].gms2PlaybackSpeedType);
 }
 
 static RValue builtin_font_get_uvs(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -16576,6 +16623,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_get_angle", builtin_layer_sprite_get_angle);
     VM_registerBuiltin(ctx, "layer_sprite_get_alpha", builtin_layer_sprite_get_alpha);
     VM_registerBuiltin(ctx, "layer_sprite_get_blend", builtin_layer_sprite_get_blend);
+    VM_registerBuiltin(ctx, "layer_sprite_speed", builtin_layer_sprite_speed);
+    VM_registerBuiltin(ctx, "layer_sprite_blend", builtin_layer_sprite_blend);
     VM_registerBuiltin(ctx, "layer_sprite_destroy", builtin_layer_sprite_destroy);
     VM_registerBuiltin(ctx, "layer_tile_visible", builtin_layer_tile_visible);
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -16608,6 +16657,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_create", builtin_layer_background_create);
     VM_registerBuiltin(ctx, "layer_background_exists", builtin_layer_background_exists);
     VM_registerBuiltin(ctx, "layer_background_visible", builtin_layer_background_visible);
+    VM_registerBuiltin(ctx, "layer_background_speed", builtin_layer_background_speed);
     VM_registerBuiltin(ctx, "layer_background_htiled", builtin_layer_background_htiled);
     VM_registerBuiltin(ctx, "layer_background_vtiled", builtin_layer_background_vtiled);
     VM_registerBuiltin(ctx, "layer_background_xscale", builtin_layer_background_xscale);
@@ -16778,6 +16828,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
+    VM_registerBuiltin(ctx,"gpu_set_blendmode_ext_sepalpha", builtin_gpu_set_blendmode_ext_sepalpha);
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
@@ -16812,6 +16863,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_uvs", builtin_sprite_get_uvs);
     VM_registerBuiltin(ctx, "sprite_get_texture", builtin_sprite_get_texture);
     VM_registerBuiltin(ctx, "sprite_get_speed", builtin_sprite_get_speed);
+    VM_registerBuiltin(ctx, "sprite_get_speed_type", builtin_sprite_get_speed_type);
     VM_registerBuiltin(ctx, "font_get_uvs", builtin_font_get_uvs);
     VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
     VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);

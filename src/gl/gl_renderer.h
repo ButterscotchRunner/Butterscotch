@@ -4,7 +4,7 @@
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
 #else
 #include <glad/glad.h>

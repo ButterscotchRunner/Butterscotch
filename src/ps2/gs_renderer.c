@@ -2380,7 +2380,7 @@ static void gsGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     gsCommitBlend(gs);
 }
 
-static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor) {
+static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, MAYBE_UNUSED int32_t sfactor_alpha, MAYBE_UNUSED int32_t dfactor_alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
     u64 alpha;
     if (!gmsFactorPairToGSAlpha(sfactor, dfactor, &alpha) && !gs->blendModeWarned) {

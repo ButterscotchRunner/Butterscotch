@@ -891,6 +891,21 @@ void Runner_draw(Runner* runner) {
             // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
             RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
+            VMContext* ctx = runner->vmContext;
+            Instance* savedInstance = ctx->currentInstance;
+            int32_t savedEventType = ctx->currentEventType;
+            int32_t savedEventSubtype = ctx->currentEventSubtype;
+            
+            ctx->currentInstance = ctx->globalScopeInstance;
+            ctx->currentEventType = EVENT_DRAW;
+            ctx->currentEventSubtype = DRAW_NORMAL;
+            
+            if (runtimeLayer->beginScript >= 0)
+                VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
+            
+            ctx->currentInstance = savedInstance;
+            ctx->currentEventType = savedEventType;
+            ctx->currentEventSubtype = savedEventSubtype;
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
 
@@ -993,6 +1008,16 @@ void Runner_draw(Runner* runner) {
             } else if (parsedLayer->type == RoomLayerType_Effect) {
                 // TODO: Implement post-processing effect layers!
             }
+            ctx->currentInstance = ctx->globalScopeInstance;
+            ctx->currentEventType = EVENT_DRAW;
+            ctx->currentEventSubtype = DRAW_NORMAL;
+            
+            if (runtimeLayer->endScript >= 0)
+                VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
+            
+            ctx->currentInstance = savedInstance;
+            ctx->currentEventType = savedEventType;
+            ctx->currentEventSubtype = savedEventSubtype;
         }
     }
 
@@ -1437,6 +1462,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         runtimeLayer.hSpeed = layerSource->hSpeed;
         runtimeLayer.vSpeed = layerSource->vSpeed;
         runtimeLayer.dynamic = false;
+        runtimeLayer.beginScript = -1;
+        runtimeLayer.endScript = -1;
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
     }
@@ -1583,6 +1610,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 runtimeLayer.visible = true;
                 runtimeLayer.dynamic = true;
                 runtimeLayer.dynamicName = safeStrdup(oldLayerName);
+                runtimeLayer.beginScript = -1;
+                runtimeLayer.endScript = -1;
                 arrput(runner->runtimeLayers, runtimeLayer);
                 newLayerId = (int32_t) runtimeLayer.id;
                 newLayerDepth = runtimeLayer.depth;

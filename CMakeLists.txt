@@ -104,7 +104,12 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
-add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+if(PLATFORM STREQUAL "android")
+    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+else()
+    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+endif()
+
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 if(AUDIO_BACKEND STREQUAL "openal")
@@ -374,6 +379,59 @@ elseif(PLATFORM STREQUAL "web-meta")
             "-sALLOW_MEMORY_GROWTH=1"
             "-sFORCE_FILESYSTEM=1"
     )
+elseif(PLATFORM STREQUAL "android")
+    if (NOT ENABLE_MODERN_GL)
+        message(FATAL_ERROR "Android requires modern gl!")
+    endif()
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    add_compile_definitions(ENABLE_GLES PLATFORM_ANDROID)
+
+    # Butterscotch VM/interpreter profiler
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
+    if(ENABLE_VM_GML_PROFILER)
+        add_compile_definitions(ENABLE_VM_GML_PROFILER)
+    endif()
+
+    # Butterscotch VM/interpreter tracing
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
+    if(ENABLE_VM_TRACING)
+        add_compile_definitions(ENABLE_VM_TRACING)
+    endif()
+
+    # Butterscotch VM opcode count profiler
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
+    if(ENABLE_VM_OPCODE_PROFILER)
+        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
+    endif()
+
+    # Spatial grid logs
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    if(ENABLE_SPATIAL_GRID_LOGS)
+        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+    endif()
+
+    # VM unknown/stubbed function logs
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
+    if(ENABLE_VM_STUB_LOGS)
+        add_compile_definitions(ENABLE_VM_STUB_LOGS)
+    endif()
+
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+    # stb_vorbis (for miniaudio's OGG decoding)
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+    # bzip2
+    target_link_libraries(butterscotch PRIVATE bzip2)
+
+    # Android NDK system libraries:
+    # - log: __android_log_*
+    # - GLESv3: OpenGL ES 3.0 functions
+    # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
+    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
