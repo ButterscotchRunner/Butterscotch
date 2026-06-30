@@ -12,7 +12,7 @@
 #include "runner_keyboard.h"
 #include "runner_mouse.h"
 #include "runner_gamepad.h"
-#ifdef ENABLE_GLES
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
 #include "gl/gl_renderer.h"
 #else
 #include "sw_renderer.h"
@@ -143,10 +143,13 @@ static void context_reset(void)
   }
 #endif
 
-#ifdef ENABLE_GLES
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
   g_renderer = GLRenderer_create();
   GLRenderer* gl = (GLRenderer*)g_renderer;
   gl->hostFramebuffer = glsm_get_current_framebuffer();
+#if defined(HAVE_OPENGLES)
+  gl->isGLES = true;
+#endif
 #endif
 
   MaAudioSystem* maAudio = MaAudioSystem_create(g_dataWin);
@@ -171,7 +174,7 @@ static void context_reset(void)
   else
   {
     hw_context_valid = true;
-    log_cb(RETRO_LOG_INFO, "butterscotch: GLES3 renderer ready\n");
+    log_cb(RETRO_LOG_INFO, "butterscotch: GL renderer ready\n");
   }
 
   if (g_runner)
@@ -409,14 +412,14 @@ void retro_init(void)
   params.context_destroy = context_destroy;
   params.environ_cb      = environ_cb;
   params.stencil         = false;
-  params.major           = 3;
-  params.minor           = 0;
-  params.context_type    = RETRO_HW_CONTEXT_OPENGLES3;
-
+#if defined(HAVE_OPENGLES)
+  params.context_type = RETRO_HW_CONTEXT_OPENGLES_VERSION;
+#else
+  params.context_type = RETRO_HW_CONTEXT_OPENGL;
+#endif
   use_hw_renderer = glsm_ctl(GLSM_CTL_STATE_CONTEXT_INIT, &params);
   if (!use_hw_renderer)
-      log_cb(RETRO_LOG_WARN,
-              "butterscotch: missing opengles 3 support \n");
+      log_cb(RETRO_LOG_WARN, "butterscotch: missing opengl support \n");
 #endif
   enum retro_pixel_format pixfmt = RETRO_PIXEL_FORMAT_XRGB8888;
   environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &pixfmt);
@@ -496,7 +499,7 @@ bool retro_load_game(const struct retro_game_info *game)
 
   fbWidth  = g_gen8->defaultWindowWidth  > 0 ? (int32_t)g_gen8->defaultWindowWidth  : 640;
   fbHeight = g_gen8->defaultWindowHeight > 0 ? (int32_t)g_gen8->defaultWindowHeight : 480;
-#if !defined(ENABLE_GLES)
+#if !defined(HAVE_OPENGL) && !defined(HAVE_OPENGLES)
   g_renderer = SWRenderer_create();
   if (!g_renderer)
   {
