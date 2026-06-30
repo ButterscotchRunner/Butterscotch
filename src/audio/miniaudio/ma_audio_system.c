@@ -124,11 +124,21 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 
+    repeat(MAX_LISTENERS, i) {
+        ma_sound_group_init(&ma->engine, 0, NULL, &ma->listenerGroups[i]);
+        ma_sound_group_set_volume(&ma->listenerGroups[i], 1.0f);
+        ma->listenerGains[i] = 1.0f;
+    }
+
     fprintf(stderr, "Audio: miniaudio engine initialized\n");
 }
 
 static void maDestroy(AudioSystem* audio) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
+
+    repeat(MAX_LISTENERS, i) {
+        ma_sound_group_uninit(&ma->listenerGroups[i]);
+    }
 
     // Uninit all active sound instances
     repeat(MAX_SOUND_INSTANCES, i) {
@@ -232,7 +242,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     if (isStream) {
         // Stream audio: load from file path stored in stream entry
-        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
+        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
             fprintf(stderr, "Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
@@ -261,7 +271,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             }
             slot->ownsDecoder = true;
 
-            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, nullptr, &slot->maSound);
+            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, &ma->listenerGroups[0], &slot->maSound);
             if (result != MA_SUCCESS) {
                 fprintf(stderr, "Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
                 ma_decoder_uninit(&slot->decoder);
@@ -275,7 +285,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                 return -1;
             }
 
-            result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
+            result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
                 fprintf(stderr, "Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
                 free(path);
@@ -701,6 +711,13 @@ static void maSetMasterGain(AudioSystem* audio, float gain) {
     ma_engine_set_volume(&ma->engine, gain);
 }
 
+static void maSetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    if (id < 0 || id >= MAX_LISTENERS) return;
+    ma->listenerGains[id] = gain;
+    ma_sound_group_set_volume(&ma->listenerGroups[id], gain);
+}
+
 static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {
     // miniaudio handles channel management internally, this is a no-op
 }
@@ -842,6 +859,7 @@ MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
     maAudioSystemVtable.setTrackPosition = maSetTrackPosition;
     maAudioSystemVtable.getSoundLength = maGetSoundLength;
     maAudioSystemVtable.setMasterGain = maSetMasterGain;
+    maAudioSystemVtable.setMasterGainForListener = maSetMasterGainForListener;
     maAudioSystemVtable.setChannelCount = maSetChannelCount;
     maAudioSystemVtable.groupLoad = maGroupLoad;
     maAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;

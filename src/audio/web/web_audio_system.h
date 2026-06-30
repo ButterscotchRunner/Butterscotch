@@ -39,6 +39,8 @@ typedef struct {
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
     WebAudioStreamEntry streams[WEB_MAX_AUDIO_STREAMS];
+    ma_sound_group listenerGroups[MAX_LISTENERS];
+    float listenerGains[MAX_LISTENERS];
 } WebAudioSystem;
 
 // Creates a no-device miniaudio engine that mixes into a buffer when WebAudioSystem_pullFrames is called.

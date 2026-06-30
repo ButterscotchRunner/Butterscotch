@@ -1269,6 +1269,12 @@ static void ps2SetMasterGain(AudioSystem* audio, float gain) {
     ps2->masterGain = gain;
 }
 
+static void ps2SetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    if (id != 0) return;
+    Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
+    ps2->masterGain = gain;
+}
+
 static void ps2SetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {
     // No-op: software mixer handles all channels internally
 }
@@ -1340,6 +1346,7 @@ Ps2AudioSystem* Ps2AudioSystem_create(void) {
     ps2AudioSystemVtable.setTrackPosition = ps2SetTrackPosition;
     ps2AudioSystemVtable.getSoundLength = ps2GetSoundLength;
     ps2AudioSystemVtable.setMasterGain = ps2SetMasterGain;
+    ps2AudioSystemVtable.setMasterGainForListener = ps2SetMasterGainForListener;
     ps2AudioSystemVtable.setChannelCount = ps2SetChannelCount;
     ps2AudioSystemVtable.groupLoad = ps2GroupLoad;
     ps2AudioSystemVtable.groupIsLoaded = ps2GroupIsLoaded;

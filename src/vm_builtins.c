@@ -341,7 +341,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "image_speed", BUILTIN_VAR_IMAGE_SPEED },
     { "image_xscale", BUILTIN_VAR_IMAGE_XSCALE },
     { "image_yscale", BUILTIN_VAR_IMAGE_YSCALE },
-    { "infinity", BUILTIN_VAR_INFINITY },    
+    { "infinity", BUILTIN_VAR_INFINITY },
     { "instance_count", BUILTIN_VAR_INSTANCE_COUNT },
     { "instance_id", BUILTIN_VAR_INSTANCE_ID },
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
@@ -2232,7 +2232,7 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
     if (2 > argCount) return RValue_makeInt32(0);
     char* substr = RValue_toString(args[0]);
     char* str = RValue_toString(args[1]);
-    
+
     bool ret = (strncmp(str, substr, strlen(substr)) == 0);
 
     free(substr);
@@ -6469,6 +6469,15 @@ static RValue builtin_audio_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUS
     return RValue_makeUndefined();
 }
 
+static RValue builtin_audio_set_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t id = RValue_toInt32(args[0]);
+    float gain = (float) RValue_toReal(args[1]);
+    audio->vtable->setMasterGainForListener(audio, gain, id);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_audio_group_load(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
     if (audio == nullptr) return RValue_makeUndefined();
@@ -10686,7 +10695,7 @@ static RValue builtin_sprite_set_bbox_mode(VMContext* ctx, RValue* args, int32_t
         Instance* inst = runner->instances[i];
         if (!inst->active || inst->destroyed) continue;
 
-        int32_t activeMask = (inst->maskIndex >= 0) ? inst->maskIndex : inst->spriteIndex;  
+        int32_t activeMask = (inst->maskIndex >= 0) ? inst->maskIndex : inst->spriteIndex;
         if (activeMask == spriteIndex) {
             SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
         }
@@ -13002,24 +13011,24 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
 static RValue builtin_layer_script_begin(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
     int32_t scriptIndex = RValue_toInt32(args[1]);
-    
+
     RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
     if (runtimeLayer == nullptr) return RValue_makeUndefined();
-    
+
     runtimeLayer->beginScript = scriptIndex;
-    
+
     return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_script_end(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
     int32_t scriptIndex = RValue_toInt32(args[1]);
-    
+
     RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
     if (runtimeLayer == nullptr) return RValue_makeUndefined();
-    
+
     runtimeLayer->endScript = scriptIndex;
-    
+
     return RValue_makeUndefined();
 }
 
@@ -13361,7 +13370,7 @@ static RValue builtin_layer_element_move(VMContext* ctx, RValue* args, MAYBE_UNU
             break;
         }
     }
-    
+
     return RValue_makeUndefined();
 }
 
@@ -15497,23 +15506,23 @@ static RValue builtin_gpu_get_blendmode(VMContext* ctx, RValue* args, int32_t ar
 
 static RValue builtin_gpu_get_blendmode_ext(VMContext* ctx, RValue* args, int32_t argCount) {
     BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
-    
+
     RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 2));
     GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
     GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
-    
+
     return arr;
 }
 
 static RValue builtin_gpu_get_blendmode_ext_sepalpha(VMContext* ctx, RValue* args, int32_t argCount) {
     BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
-    
+
     RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 4));
     GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
     GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
     GMLArray_setOnArrayRef(&arr, 2, RValue_makeInt32(factors.srcAlpha));
     GMLArray_setOnArrayRef(&arr, 3, RValue_makeInt32(factors.dstAlpha));
-    
+
     return arr;
 }
 
@@ -16254,6 +16263,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_sound_get_gain", builtin_audio_sound_get_gain);
     VM_registerBuiltin(ctx, "audio_sound_get_pitch", builtin_audio_sound_get_pitch);
     VM_registerBuiltin(ctx, "audio_master_gain", builtin_audio_master_gain);
+    VM_registerBuiltin(ctx, "audio_set_master_gain", builtin_audio_set_master_gain);
     VM_registerBuiltin(ctx, "audio_group_load", builtin_audio_group_load);
     VM_registerBuiltin(ctx, "audio_group_is_loaded", builtin_audio_group_is_loaded);
     if (!isGMS2) {
@@ -16568,7 +16578,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
     VM_registerBuiltin(ctx, "draw_get_halign", builtin_draw_get_halign);
     VM_registerBuiltin(ctx, "draw_get_valign", builtin_draw_get_valign);
-    
+
 
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
