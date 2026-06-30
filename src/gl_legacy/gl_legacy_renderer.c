@@ -1400,18 +1400,27 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
     gl->currentDFactor = GLCommon_blendModeToDFactor(mode);
+    gl->currentSFactorAlpha = gl->currentSFactor; 
+    gl->currentDFactorAlpha = gl->currentDFactor;
     glBlendEquation(GLCommon_blendModeToEquation(mode));
     glBlendFunc(gl->currentSFactor, gl->currentDFactor);
 }
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    
     gl->currentBlendMode = bm_complex;
-    gl->currentSFactor = GLCommon_blendFactorToGL(sfactor);
-    gl->currentDFactor = GLCommon_blendFactorToGL(dfactor);
-    gl->currentSFactorAlpha = GLCommon_blendFactorToGL(sfactor_alpha);
-    gl->currentDFactorAlpha = GLCommon_blendFactorToGL(dfactor_alpha);
-    glBlendFuncSeparate(gl->currentSFactor, gl->currentDFactor, gl->currentSFactorAlpha, gl->currentDFactorAlpha);
+    gl->currentSFactor = sfactor;
+    gl->currentDFactor = dfactor;
+    gl->currentSFactorAlpha = sfactor_alpha;
+    gl->currentDFactorAlpha = dfactor_alpha;
+    
+    glBlendFuncSeparate(
+        GLCommon_blendFactorToGL(sfactor), 
+        GLCommon_blendFactorToGL(dfactor), 
+        GLCommon_blendFactorToGL(sfactor_alpha), 
+        GLCommon_blendFactorToGL(dfactor_alpha)
+    );
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
