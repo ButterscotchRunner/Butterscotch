@@ -148,6 +148,7 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 * --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
 * --save-folder <directory>              - Set the directory will save files will be stored
 * --game-args <args>                     - Arguments to pass to the game
+* --profile-opcodes                      - Rank which GML opcodes were executed the most
 
 ## Debug Features
 
