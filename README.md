@@ -130,6 +130,7 @@ The GLFW target has a lot of nifty CLI parameters that you can use to trace and 
 * `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
 * `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
 * `--print-declared-functions`: Prints all declared GML scripts by the game.
+* `--print-unknown-functions`: Prints all GML scripts currently unimplemented in Butterscotch by the game. 
 * `--print-objects`: Prints all objects definitions of the game.
 * `--disassemble`: Dissassembles a specific script.
 * `--record-inputs`: Records user inputs.
