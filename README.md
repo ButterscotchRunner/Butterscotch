@@ -103,53 +103,53 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 The desktop target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
 ```
-* --help                                 - Show this message
-* --screenshot <filename>                - Specify the filename for screenshots
-* --screenshot-at-frame <frame>          - Take a screenshot at the specified frame
-* --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
-* --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
-* --headless                             - Launch without a window
-* --print-rooms                          - Print all rooms in the game and exit
-* --print-objects                        - Print all objects in the game and exit
-* --print-shaders                        - Print all shaders in the game and exit
-* --print-declared-functions             - Print all declared functions in the game and exit
-* --print-unknown-functions              - Print all unknown functions used by the game and exit
-* --trace-variable-reads                 - Trace variable reads
-* --trace-variable-writes                - Trace variable writes
-* --trace-function-calls                 - Trace function calls
-* --trace-alarms                         - Trace alarms
-* --trace-instance-lifecycles            - Trace instance creations and deletions
-* --trace-events                         - Trace events
-* --trace-collisions                     - Trace collisions between instances
-* --trace-event-inherited                - Trace event inherited calls
-* --trace-tiles                          - Trace drawn tiles
-* --trace-opcodes                        - Trace opcodes
-* --trace-stack                          - Trace stack
-* --trace-frames                         - Log frametimes
-* --always-log-unknown-functions         - Always log unknown function calls instead of once per script
-* --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script
-* --exit-at-frame <frame>                - Exit at the specified frame
-* --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame
-* --dump-frame <frame>                   - Dump the runner state at the specified frame
-* --dump-frame-json <frame>              - Dump the runner state in json at the specified frame
-* --dump-frame-json-file <file>          - Specify an output file for runner state dumps
-* --speed <speed>                        - Set a normal speed multiplier
-* --fast-forward-speed <speed>           - Set a fast-forward speed multiplier
-* --seed <seed>                          - Seed for the random number generator
-* --debug                                - Enable debug mode
-* --disassemble <script>                 - Disassemble the specified script and print to console (\* disassembles all)
-* --record-inputs <file>                 - Record all keyboard inputs to a file
-* --playback-inputs <file>               - Playback input from file
-* --renderer <renderer>                  - Set the rendering API
-* --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage
-* --eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory
-* --os-type <os>                         - Set the reported OS type
-* --window-size <dimentions>             - Set a custom window size
-* --widescreen-hack <aspect ratio>       - Set a custom aspect ratio
-* --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
-* --save-folder <directory>              - Set the directory will save files will be stored
-* --game-args <args>                     - Arguments to pass to the game
-* --profile-opcodes                      - Rank which GML opcodes were executed the most
+--help                                 - Show this message
+--screenshot <filename>                - Specify the filename for screenshots
+--screenshot-at-frame <frame>          - Take a screenshot at the specified frame
+--screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
+--screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
+--headless                             - Launch without a window
+--print-rooms                          - Print all rooms in the game and exit
+--print-objects                        - Print all objects in the game and exit
+--print-shaders                        - Print all shaders in the game and exit
+--print-declared-functions             - Print all declared functions in the game and exit
+--print-unknown-functions              - Print all unknown functions used by the game and exit
+--trace-variable-reads                 - Trace variable reads
+--trace-variable-writes                - Trace variable writes
+--trace-function-calls                 - Trace function calls
+--trace-alarms                         - Trace alarms
+--trace-instance-lifecycles            - Trace instance creations and deletions
+--trace-events                         - Trace events
+--trace-collisions                     - Trace collisions between instances
+--trace-event-inherited                - Trace event inherited calls
+--trace-tiles                          - Trace drawn tiles
+--trace-opcodes                        - Trace opcodes
+--trace-stack                          - Trace stack
+--trace-frames                         - Log frametimes
+--always-log-unknown-functions         - Always log unknown function calls instead of once per script
+--always-log-stubbed-functions         - Always log stubbed function calls instead of once per script
+--exit-at-frame <frame>                - Exit at the specified frame
+--trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame
+--dump-frame <frame>                   - Dump the runner state at the specified frame
+--dump-frame-json <frame>              - Dump the runner state in json at the specified frame
+--dump-frame-json-file <file>          - Specify an output file for runner state dumps
+--speed <speed>                        - Set a normal speed multiplier
+--fast-forward-speed <speed>           - Set a fast-forward speed multiplier
+--seed <seed>                          - Seed for the random number generator
+--debug                                - Enable debug mode
+--disassemble <script>                 - Disassemble the specified script and print to console (\* disassembles all)
+--record-inputs <file>                 - Record all keyboard inputs to a file
+--playback-inputs <file>               - Playback input from file
+--renderer <renderer>                  - Set the rendering API
+--lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage
+--eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory
+--os-type <os>                         - Set the reported OS type
+--window-size <dimentions>             - Set a custom window size
+--widescreen-hack <aspect ratio>       - Set a custom aspect ratio
+--profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
+--save-folder <directory>              - Set the directory will save files will be stored
+--game-args <args>                     - Arguments to pass to the game
+--profile-opcodes                      - Rank which GML opcodes were executed the most
 ```
 
 ## Debug Features
