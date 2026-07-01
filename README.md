@@ -100,43 +100,54 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 
 ## CLI parameters
 
-The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
+The desktop target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
-* `--debug`: Enables debugging hotkeys.
-* `--speed`: Speed multiplier.
-* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle).
-* `--widescreen-hack`: Forces a game to run in widescreen (example: `--widescreen-hack=16:9`).
-* `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
-* `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
-* `--screenshot-surfaces=file_%d.%d.png`: Screenshots all surfaces (framebuffers), requires `--screenshot-surfaces-at-frame`.
-* `--screenshot-surfaces-at-frame=Frame`: Screenshots all surfaces (framebuffers) at a specific frame. Can be used multiple times.
-* `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
-* `--trace-variable-reads`: Traces variable reads.
-* `--trace-variable-writes`: Traces variable writes.
-* `--trace-function-calls`: Traces function calls.
-* `--trace-alarms`: Traces alarms.
-* `--trace-instance-lifecycles`: Traces instance creations and deletions.
-* `--trace-events`: Traces events.
-* `--trace-event-inherited`: Traces event inherited calls.
-* `--trace-tiles`: Traces drawn tiles.
-* `--trace-collisions`: Traces collisions between instances.
-* `--trace-opcodes`: Traces opcodes.
-* `--trace-stack`: Traces stack.
-* `--trace-frames`: Logs when a frame starts and when a frame ends, including how much time it took to process each frame.
-* `--always-log-unknown-functions`: When enabled, Butterscotch will always log unknown functions instead of logging them once per script.
-* `--always-log-stubbed-functions`: When enabled, Butterscotch will always log stubbed functions instead of logging them once per script.
-* `--trace-bytecode-after-frame`: When set, controls when `--trace-opcodes` and `--trace-stack` will start logging. Useful when debugging interpreter-heavy scripts.
-* `--exit-at-frame=Frame`: Automatically exit the runner after X frames.
-* `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
-* `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
-* `--print-declared-functions`: Prints all declared GML scripts by the game.
-* `--print-objects`: Prints all objects definitions of the game.
-* `--disassemble`: Dissassembles a specific script.
-* `--record-inputs`: Records user inputs.
-* `--playback-inputs`: Playbacks user inputs.
-* `--os-type`: Allows changing the built-in `os_type` value. The default is Windows. Example: When running Undertale Xbox, you would need to set it to `--os-type xboxone`.
-* `--profile-gml-scripts`: Logs which GML scripts are the heaviest in terms of time and executed instructions.
-* `--profile-opcodes`: Ranks which GML opcodes were executed the most.
+* --help                                 - Show this message
+* --screenshot <filename>                - Specify the filename for screenshots
+* --screenshot-at-frame <frame>          - Take a screenshot at the specified frame
+* --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
+* --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
+* --headless                             - Launch without a window
+* --print-rooms                          - Print all rooms in the game and exit
+* --print-objects                        - Print all objects in the game and exit
+* --print-shaders                        - Print all shaders in the game and exit
+* --print-declared-functions             - Print all declared functions in the game and exit
+* --print-unknown-functions              - Print all unknown functions used by the game and exit
+* --trace-variable-reads                 - Trace variable reads
+* --trace-variable-writes                - Trace variable writes
+* --trace-function-calls                 - Trace function calls
+* --trace-alarms                         - Trace alarms
+* --trace-instance-lifecycles            - Trace instance creations and deletions
+* --trace-events                         - Trace events
+* --trace-collisions                     - Trace collisions between instances
+* --trace-event-inherited                - Trace event inherited calls
+* --trace-tiles                          - Trace drawn tiles
+* --trace-opcodes                        - Trace opcodes
+* --trace-stack                          - Trace stack
+* --trace-frames                         - Log frametimes
+* --always-log-unknown-functions         - Always log unknown function calls instead of once per script
+* --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script
+* --exit-at-frame <frame>                - Exit at the specified frame
+* --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame
+* --dump-frame <frame>                   - Dump the runner state at the specified frame
+* --dump-frame-json <frame>              - Dump the runner state in json at the specified frame
+* --dump-frame-json-file <file>          - Specify an output file for runner state dumps
+* --speed <speed>                        - Set a normal speed multiplier
+* --fast-forward-speed <speed>           - Set a fast-forward speed multiplier
+* --seed <seed>                          - Seed for the random number generator
+* --debug                                - Enable debug mode
+* --disassemble <script>                 - Disassemble the specified script and print to console (\* disassembles all)
+* --record-inputs <file>                 - Record all keyboard inputs to a file
+* --playback-inputs <file>               - Playback input from file
+* --renderer <renderer>                  - Set the rendering API
+* --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage
+* --eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory
+* --os-type <os>                         - Set the reported OS type
+* --window-size <dimentions>             - Set a custom window size
+* --widescreen-hack <aspect ratio>       - Set a custom aspect ratio
+* --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
+* --save-folder <directory>              - Set the directory will save files will be stored
+* --game-args <args>                     - Arguments to pass to the game
 
 ## Debug Features
 
