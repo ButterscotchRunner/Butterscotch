@@ -30,6 +30,12 @@ typedef struct {
     GLShaderUniform* uniforms;
 } GMLShader;
 
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} Vertex;
+
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
@@ -45,7 +51,7 @@ typedef struct {
     uint32_t fogColor; // BGR
 
     GLuint vao, vbo, ebo;
-    float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats
+    Vertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
 
     BatchType batchType;
     int32_t batchCount;

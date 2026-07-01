@@ -20,7 +20,6 @@
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
-#define FLOATS_PER_VERTEX 8  // x, y, u, v, r, g, b, a
 #define VERTICES_PER_TRIANGLE 3
 #define VERTICES_PER_QUAD 4
 #define INDICES_PER_QUAD 6
@@ -118,6 +117,12 @@ static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
 #define glDeleteFramebuffers rt_glDeleteFramebuffers
 #endif
 
+static inline uint8_t floatToUnormByte(float v) {
+    if (v <= 0.0f) return 0;
+    if (v >= 1.0f) return 255;
+    return (uint8_t)(v * 255.0f + 0.5f);
+}
+
 // ===[ Shader Compilation ]===
 
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
@@ -197,18 +202,18 @@ static void flushBatch(GLRenderer* gl) {
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * FLOATS_PER_VERTEX * sizeof(float), gl->vertexData);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
-        int32_t stride = FLOATS_PER_VERTEX * sizeof(float);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+        int32_t stride = sizeof(Vertex);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
         glEnableVertexAttribArray(2);
     }
 
@@ -466,7 +471,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glGenBuffers(1, &gl->ebo);
 
     // VBO: sized for max quads
-    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * (int32_t) sizeof(float);
+    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 
@@ -483,18 +488,18 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     if (hasVAO()) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
-        int32_t stride = FLOATS_PER_VERTEX * (int32_t) sizeof(float);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) 0);
+        int32_t stride = sizeof(Vertex);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*) (4 * sizeof(float)));
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) (2 * sizeof(float)));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
         glEnableVertexAttribArray(2);
         glBindVertexArray(0);
     }
 
     // Allocate CPU-side vertex buffer
-    gl->vertexData = (float *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX * sizeof(float));
+    gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
     gl->textureCount = dataWin->txtr.count;
@@ -891,167 +896,74 @@ static bool resolveSpriteTexture(GLRenderer* gl, int32_t tpagIndex, TexturePageI
 // Emits a single textured quad into the batch given 4 final screen-space corners (TL, TR, BR, BL), 4 UVs forming a rect (u0,v0)-(u1,v1), and a flat color/alpha.
 // Handles texture rebinding and batch flushing.
 static void emitTexturedQuad(
-    GLRenderer* gl,
-    GLuint texId,
-    float x0,
-    float y0,
-    float x1,
-    float y1,
-    float x2,
-    float y2,
-    float x3,
-    float y3,
-    float u0,
-    float v0,
-    float u1,
-    float v1,
-    float r0,
-    float g0,
-    float b0,
-    float r1,
-    float g1,
-    float b1,
-    float r2,
-    float g2,
-    float b2,
-    float r3,
-    float g3,
-    float b3,
+    GLRenderer* gl, GLuint texId,
+    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+    float u0, float v0, float u1, float v1,
+    uint8_t r0, uint8_t g0, uint8_t b0,
+    uint8_t r1, uint8_t g1, uint8_t b1,
+    uint8_t r2, uint8_t g2, uint8_t b2,
+    uint8_t r3, uint8_t g3, uint8_t b3,
     float alpha
- ) {
+) {
     flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, texId);
 
-    float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD * FLOATS_PER_VERTEX;
+    Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD;
+    uint8_t ca = floatToUnormByte(alpha);
 
-    // Vertex 0: top-left
-    verts[0] = x0; verts[1] = y0; verts[2] = u0; verts[3] = v0;
-    verts[4] = r0;  verts[5] = g0;  verts[6] = b0;  verts[7] = alpha;
-
-    // Vertex 1: top-right
-    verts[8]  = x1; verts[9]  = y1; verts[10] = u1; verts[11] = v0;
-    verts[12] = r1;  verts[13] = g1;  verts[14] = b1;  verts[15] = alpha;
-
-    // Vertex 2: bottom-right
-    verts[16] = x2; verts[17] = y2; verts[18] = u1; verts[19] = v1;
-    verts[20] = r2;  verts[21] = g2;  verts[22] = b2;  verts[23] = alpha;
-
-    // Vertex 3: bottom-left
-    verts[24] = x3; verts[25] = y3; verts[26] = u0; verts[27] = v1;
-    verts[28] = r3;  verts[29] = g3;  verts[30] = b3;  verts[31] = alpha;
+    verts[0].x = x0; verts[0].y = y0; verts[0].u = u0; verts[0].v = v0; verts[0].r = r0; verts[0].g = g0; verts[0].b = b0; verts[0].a = ca;
+    verts[1].x = x1; verts[1].y = y1; verts[1].u = u1; verts[1].v = v0; verts[1].r = r1; verts[1].g = g1; verts[1].b = b1; verts[1].a = ca;
+    verts[2].x = x2; verts[2].y = y2; verts[2].u = u1; verts[2].v = v1; verts[2].r = r2; verts[2].g = g2; verts[2].b = b2; verts[2].a = ca;
+    verts[3].x = x3; verts[3].y = y3; verts[3].u = u0; verts[3].v = v1; verts[3].r = r3; verts[3].g = g3; verts[3].b = b3; verts[3].a = ca;
 
     gl->batchCount++;
 }
 
 static void drawMultiColoredTextureWithTransform(
-    GLRenderer* renderer,
-    GLuint textureId,
-    Matrix4f transform,
-    // Locals = the coordinate in relation to the sprite "frame" itself, includes originX/originY and trimmed transparency
-    float localX0,
-    float localY0,
-    float localX1,
-    float localY1,
-    float u0,
-    float v0,
-    float u1,
-    float v1,
-    float r0,
-    float g0,
-    float b0,
-    float r1,
-    float g1,
-    float b1,
-    float r2,
-    float g2,
-    float b2,
-    float r3,
-    float g3,
-    float b3,
+    GLRenderer* renderer, GLuint textureId, Matrix4f transform,
+    float localX0, float localY0, float localX1, float localY1,
+    float u0, float v0, float u1, float v1,
+    uint8_t r0, uint8_t g0, uint8_t b0,
+    uint8_t r1, uint8_t g1, uint8_t b1,
+    uint8_t r2, uint8_t g2, uint8_t b2,
+    uint8_t r3, uint8_t g3, uint8_t b3,
     float alpha
 ) {
-    // Transform 4 corners
     float x0, y0, x1, y1, x2, y2, x3, y3;
-    Matrix4f_transformPoint(&transform, localX0, localY0, &x0, &y0); // top-left
-    Matrix4f_transformPoint(&transform, localX1, localY0, &x1, &y1); // top-right
-    Matrix4f_transformPoint(&transform, localX1, localY1, &x2, &y2); // bottom-right
-    Matrix4f_transformPoint(&transform, localX0, localY1, &x3, &y3); // bottom-left
+    Matrix4f_transformPoint(&transform, localX0, localY0, &x0, &y0);
+    Matrix4f_transformPoint(&transform, localX1, localY0, &x1, &y1);
+    Matrix4f_transformPoint(&transform, localX1, localY1, &x2, &y2);
+    Matrix4f_transformPoint(&transform, localX0, localY1, &x3, &y3);
 
     emitTexturedQuad(
-        renderer,
-        textureId,
-        x0,
-        y0,
-        x1,
-        y1,
-        x2,
-        y2,
-        x3,
-        y3,
-        u0,
-        v0,
-        u1,
-        v1,
-        r0,
-        g0,
-        b0,
-        r1,
-        g1,
-        b1,
-        r2,
-        g2,
-        b2,
-        r3,
-        g3,
-        b3,
+        renderer, textureId,
+        x0, y0, x1, y1, x2, y2, x3, y3,
+        u0, v0, u1, v1,
+        r0, g0, b0,
+        r1, g1, b1,
+        r2, g2, b2,
+        r3, g3, b3,
         alpha
     );
 }
 
 static void drawTextureWithTransform(
-    GLRenderer* renderer,
-    GLuint textureId,
-    Matrix4f transform,
-    // Locals = the coordinate in relation to the sprite "frame" itself, includes originX/originY and trimmed transparency
-    float localX0,
-    float localY0,
-    float localX1,
-    float localY1,
-    float u0,
-    float v0,
-    float u1,
-    float v1,
-    uint32_t color,
-    float alpha
+    GLRenderer* renderer, GLuint textureId, Matrix4f transform,
+    float localX0, float localY0, float localX1, float localY1,
+    float u0, float v0, float u1, float v1,
+    uint32_t color, float alpha
 ) {
-    // Convert BGR color to RGB floats
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    uint8_t r = (uint8_t) BGR_R(color);
+    uint8_t g = (uint8_t) BGR_G(color);
+    uint8_t b = (uint8_t) BGR_B(color);
 
     drawMultiColoredTextureWithTransform(
-        renderer,
-        textureId,
-        transform,
-        localX0,
-        localY0,
-        localX1,
-        localY1,
-        u0,
-        v0,
-        u1,
-        v1,
-        r,
-        g,
-        b,
-        r,
-        g,
-        b,
-        r,
-        g,
-        b,
-        r,
-        g,
-        b,
+        renderer, textureId, transform,
+        localX0, localY0, localX1, localY1,
+        u0, v0, u1, v1,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
         alpha
     );
 }
@@ -1211,9 +1123,7 @@ static void drawTiled(
     }
     if (startX >= endX || startY >= endY) return;
 
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
 
     // Integer tile counts avoid FP-comparison drift; the inner break handles overshoot at the boundary
     int32_t tilesX = (int32_t) ((endX - startX) / tileW) + 1;
@@ -1307,10 +1217,8 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     float u1 = (float) (tpag->sourceX + srcOffX + srcW) / (float) texW;
     float v1 = (float) (tpag->sourceY + srcOffY + srcH) / (float) texH;
 
-    // Convert BGR color to RGB floats
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    // Convert BGR color to RGB bytes
+    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
 
     // Quad corners (no origin offset - draw_sprite_part ignores sprite origin)
     float cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3;
@@ -1349,7 +1257,7 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
     float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
 
-    emitTexturedQuad(gl, texId, x1, y1, x2, y2, x3, y3, x4, y4, u0, v0, u1, v1, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, alpha);
+    emitTexturedQuad(gl, texId, x1, y1, x2, y2, x3, y3, x4, y4, u0, v0, u1, v1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, alpha);
 }
 
 // Emits a single colored quad into the batch using the white pixel texture
@@ -1363,18 +1271,18 @@ static void emitMultiColoredQuad(
     float y2,
     float x3,
     float y3,
-    float r0,
-    float g0,
-    float b0,
-    float r1,
-    float g1,
-    float b1,
-    float r2,
-    float g2,
-    float b2,
-    float r3,
-    float g3,
-    float b3,
+    uint8_t r0,
+    uint8_t g0,
+    uint8_t b0,
+    uint8_t r1,
+    uint8_t g1,
+    uint8_t b1,
+    uint8_t r2,
+    uint8_t g2,
+    uint8_t b2,
+    uint8_t r3,
+    uint8_t g3,
+    uint8_t b3,
     float a
 ) {
     emitTexturedQuad(
@@ -1419,9 +1327,9 @@ static void emitColoredQuad(
     float y2,
     float x3,
     float y3,
-    float r,
-    float g,
-    float b,
+    uint8_t r,
+    uint8_t g,
+    uint8_t b,
     float a
 ) {
     emitTexturedQuad(
@@ -1463,18 +1371,18 @@ static void emitMultiColoredRectangle(
     float y0,
     float x1,
     float y1,
-    float r0,
-    float g0,
-    float b0,
-    float r1,
-    float g1,
-    float b1,
-    float r2,
-    float g2,
-    float b2,
-    float r3,
-    float g3,
-    float b3,
+    uint8_t r0,
+    uint8_t g0,
+    uint8_t b0,
+    uint8_t r1,
+    uint8_t g1,
+    uint8_t b1,
+    uint8_t r2,
+    uint8_t g2,
+    uint8_t b2,
+    uint8_t r3,
+    uint8_t g3,
+    uint8_t b3,
     float a
 ) {
     emitMultiColoredQuad(
@@ -1514,9 +1422,9 @@ static void emitColoredRectangle(
     float y0,
     float x1,
     float y1,
-    float r,
-    float g,
-    float b,
+    uint8_t r,
+    uint8_t g,
+    uint8_t b,
     float a
 ) {
     emitMultiColoredRectangle(gl, x0, y0, x1, y1, r, g, b, r, g, b, r, g, b, r, g, b, a);
@@ -1525,9 +1433,7 @@ static void emitColoredRectangle(
 static void glDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
 
     if (outline) {
         // Draw 4 one-pixel-wide edges: top, bottom, left, right
@@ -1546,9 +1452,7 @@ static void glDrawRectangle(Renderer* renderer, float x1, float y1, float x2, fl
 static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
 
     // Compute perpendicular offset for line thickness
     float dx = x2 - x1;
@@ -1566,13 +1470,8 @@ static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y
 static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    float r1 = (float) BGR_R(color1) / 255.0f;
-    float g1 = (float) BGR_G(color1) / 255.0f;
-    float b1 = (float) BGR_B(color1) / 255.0f;
-
-    float r2 = (float) BGR_R(color2) / 255.0f;
-    float g2 = (float) BGR_G(color2) / 255.0f;
-    float b2 = (float) BGR_B(color2) / 255.0f;
+    uint8_t r1 = (uint8_t) BGR_R(color1), g1 = (uint8_t) BGR_G(color1), b1 = (uint8_t) BGR_B(color1);
+    uint8_t r2 = (uint8_t) BGR_R(color2), g2 = (uint8_t) BGR_G(color2), b2 = (uint8_t) BGR_B(color2);
 
     // Compute perpendicular offset for line thickness
     float dx = x2 - x1;
@@ -1613,21 +1512,10 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
 static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    float r1 = (float) BGR_R(color1) / 255.0f;
-    float g1 = (float) BGR_G(color1) / 255.0f;
-    float b1 = (float) BGR_B(color1) / 255.0f;
-
-    float r2 = (float) BGR_R(color2) / 255.0f;
-    float g2 = (float) BGR_G(color2) / 255.0f;
-    float b2 = (float) BGR_B(color2) / 255.0f;
-
-    float r3 = (float) BGR_R(color3) / 255.0f;
-    float g3 = (float) BGR_G(color3) / 255.0f;
-    float b3 = (float) BGR_B(color3) / 255.0f;
-
-    float r4 = (float) BGR_R(color4) / 255.0f;
-    float g4 = (float) BGR_G(color4) / 255.0f;
-    float b4 = (float) BGR_B(color4) / 255.0f;
+    uint8_t r1 = (uint8_t) BGR_R(color1), g1 = (uint8_t) BGR_G(color1), b1 = (uint8_t) BGR_B(color1);
+    uint8_t r2 = (uint8_t) BGR_R(color2), g2 = (uint8_t) BGR_G(color2), b2 = (uint8_t) BGR_B(color2);
+    uint8_t r3 = (uint8_t) BGR_R(color3), g3 = (uint8_t) BGR_G(color3), b3 = (uint8_t) BGR_B(color3);
+    uint8_t r4 = (uint8_t) BGR_R(color4), g4 = (uint8_t) BGR_G(color4), b4 = (uint8_t) BGR_B(color4);
 
     if (outline) {
         // Draw 4 one-pixel-wide edges: top, bottom, left, right
@@ -1671,35 +1559,13 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
 
         // Woo, pointers!
         // This gets the vertex data for the new triangle batch
-        float* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE * FLOATS_PER_VERTEX;
-
-        verts[0] = x1;
-        verts[1] = y1;
-        verts[2] = 0.0f;
-        verts[3] = 0.0f;
-        verts[4] = (float) BGR_R(color1) / 255.0f;
-        verts[5] = (float) BGR_G(color1) / 255.0f;
-        verts[6] = (float) BGR_B(color1) / 255.0f;
-        verts[7] = alpha;
-
-        verts[8]  = x2;
-        verts[9]  = y2;
-        verts[10] = 0.0f;
-        verts[11] = 0.0f;
-        verts[12] = (float) BGR_R(color2) / 255.0f;
-        verts[13] = (float) BGR_G(color2) / 255.0f;
-        verts[14] = (float) BGR_B(color2) / 255.0f;
-        verts[15] = alpha;
-
-        verts[16] = x3;
-        verts[17] = y3;
-        verts[18] = 0.0f;
-        verts[19] = 0.0f;
-        verts[20] = (float) BGR_R(color3) / 255.0f;
-        verts[21] = (float) BGR_G(color3) / 255.0f;
-        verts[22] = (float) BGR_B(color3) / 255.0f;
-        verts[23] = alpha;
-
+        Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE;
+        uint8_t ca = floatToUnormByte(alpha);
+        
+        verts[0].x = x1; verts[0].y = y1; verts[0].u = 0.0f; verts[0].v = 0.0f; verts[0].r = (uint8_t) BGR_R(color1); verts[0].g = (uint8_t) BGR_G(color1); verts[0].b = (uint8_t) BGR_B(color1); verts[0].a = ca;
+        verts[1].x = x2; verts[1].y = y2; verts[1].u = 0.0f; verts[1].v = 0.0f; verts[1].r = (uint8_t) BGR_R(color2); verts[1].g = (uint8_t) BGR_G(color2); verts[1].b = (uint8_t) BGR_B(color2); verts[1].a = ca;
+        verts[2].x = x3; verts[2].y = y3; verts[2].u = 0.0f; verts[2].v = 0.0f; verts[2].r = (uint8_t) BGR_R(color3); verts[2].g = (uint8_t) BGR_G(color3); verts[2].b = (uint8_t) BGR_B(color3); verts[2].a = ca;
+        
         gl->batchCount++;
     }
 }
@@ -1889,21 +1755,10 @@ static void drawText(
                     c4 = Color_lerp(_c4, _c3, leftFrac);
                 }
 
-                float r0 = (float) BGR_R(c1) / 255.0f;
-                float g0 = (float) BGR_G(c1) / 255.0f;
-                float b0 = (float) BGR_B(c1) / 255.0f;
-
-                float r1 = (float) BGR_R(c2) / 255.0f;
-                float g1 = (float) BGR_G(c2) / 255.0f;
-                float b1 = (float) BGR_B(c2) / 255.0f;
-
-                float r2 = (float) BGR_R(c3) / 255.0f;
-                float g2 = (float) BGR_G(c3) / 255.0f;
-                float b2 = (float) BGR_B(c3) / 255.0f;
-
-                float r3 = (float) BGR_R(c4) / 255.0f;
-                float g3 = (float) BGR_G(c4) / 255.0f;
-                float b3 = (float) BGR_B(c4) / 255.0f;
+                uint8_t r0 = (uint8_t) BGR_R(c1), g0 = (uint8_t) BGR_G(c1), b0 = (uint8_t) BGR_B(c1);
+                uint8_t r1 = (uint8_t) BGR_R(c2), g1 = (uint8_t) BGR_G(c2), b1 = (uint8_t) BGR_B(c2);
+                uint8_t r2 = (uint8_t) BGR_R(c3), g2 = (uint8_t) BGR_G(c3), b2 = (uint8_t) BGR_B(c3);
+                uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
                 if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
