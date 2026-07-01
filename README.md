@@ -150,6 +150,8 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --save-folder <directory>              - Set the directory will save files will be stored
 --game-args <args>                     - Arguments to pass to the game
 --profile-opcodes                      - Rank which GML opcodes were executed the most
+--lazy-textures                        - Load textures into VRAM on first use, improving startup times
+--load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
 ```
 
 ## Debug Features
