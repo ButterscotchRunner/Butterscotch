@@ -102,6 +102,7 @@ Then run Butterscotch with `./butterscotch /path/to/data.win`!
 
 The desktop target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
+```
 * --help                                 - Show this message
 * --screenshot <filename>                - Specify the filename for screenshots
 * --screenshot-at-frame <frame>          - Take a screenshot at the specified frame
@@ -149,6 +150,7 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 * --save-folder <directory>              - Set the directory will save files will be stored
 * --game-args <args>                     - Arguments to pass to the game
 * --profile-opcodes                      - Rank which GML opcodes were executed the most
+```
 
 ## Debug Features
 
