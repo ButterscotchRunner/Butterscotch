@@ -35,6 +35,7 @@
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
 #endif
+#include "gl_wrappers.h"
 #endif
 #ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"

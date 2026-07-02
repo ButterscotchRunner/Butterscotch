@@ -53,35 +53,7 @@ static bool hasFBO() {
 #endif
 }
 
-#ifndef PLATFORM_PS3
-static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
-    if (glGenFramebuffers) glGenFramebuffers(n, ids);
-    else glGenFramebuffersEXT(n, ids);
-}
-#undef glGenFramebuffers
-#define glGenFramebuffers rt_glGenFramebuffers
-
-static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
-    if (glBindFramebuffer) glBindFramebuffer(target, fb);
-    else glBindFramebufferEXT(target, fb);
-}
-#undef glBindFramebuffer
-#define glBindFramebuffer rt_glBindFramebuffer
-
-static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
-    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
-    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
-}
-#undef glFramebufferTexture2D
-#define glFramebufferTexture2D rt_glFramebufferTexture2D
-
-static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
-    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
-    else glDeleteFramebuffersEXT(n, ids);
-}
-#undef glDeleteFramebuffers
-#define glDeleteFramebuffers rt_glDeleteFramebuffers
-#endif
+#include "gl_wrappers.h"
 
 // ===[ Helpers ]===
 

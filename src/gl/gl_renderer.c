@@ -67,56 +67,7 @@ static bool hasVAO() {
 #endif
 }
 
-#if !defined(__EMSCRIPTEN__)
-static void rt_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray) glBindVertexArray(vao);
-    else glBindVertexArrayOES(vao);
-}
-#undef glBindVertexArray
-#define glBindVertexArray rt_glBindVertexArray
-
-static void rt_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays) glGenVertexArrays(n, arrays);
-    else glGenVertexArraysOES(n, arrays);
-}
-#undef glGenVertexArrays
-#define glGenVertexArrays rt_glGenVertexArrays
-
-static void rt_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
-    if (glDeleteVertexArrays) glDeleteVertexArrays(n, arrays);
-    else glDeleteVertexArraysOES(n, arrays);
-}
-#undef glDeleteVertexArrays
-#define glDeleteVertexArrays rt_glDeleteVertexArrays
-
-static void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
-    if (glGenFramebuffers) glGenFramebuffers(n, ids);
-    else glGenFramebuffersEXT(n, ids);
-}
-#undef glGenFramebuffers
-#define glGenFramebuffers rt_glGenFramebuffers
-
-static void rt_glBindFramebuffer(GLenum target, GLuint fb) {
-    if (glBindFramebuffer) glBindFramebuffer(target, fb);
-    else glBindFramebufferEXT(target, fb);
-}
-#undef glBindFramebuffer
-#define glBindFramebuffer rt_glBindFramebuffer
-
-static void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
-    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
-    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
-}
-#undef glFramebufferTexture2D
-#define glFramebufferTexture2D rt_glFramebufferTexture2D
-
-static void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
-    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
-    else glDeleteFramebuffersEXT(n, ids);
-}
-#undef glDeleteFramebuffers
-#define glDeleteFramebuffers rt_glDeleteFramebuffers
-#endif
+#include "gl_wrappers.h"
 
 // ===[ Shader Compilation ]===
 
