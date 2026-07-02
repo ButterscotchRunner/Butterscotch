@@ -2995,7 +2995,7 @@ static RValue builtin_matrix_set(MAYBE_UNUSED VMContext *ctx, RValue *args, int3
     Matrix4f m;
     matrixFromGml(&m, args[1].array);
     if (Matrix < 0 || Matrix > 2) return RValue_makeUndefined();
-    if (ctx->runner->renderer != nullptr) {
+    if (ctx->runner->renderer->vtable->setMatrix != nullptr) {
         ctx->runner->renderer->vtable->setMatrix(ctx->runner->renderer, Matrix, m);
     }
 

@@ -510,10 +510,10 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
 
     Matrix4f flippedClip[MATRICES_MAX];
-    for (int32_t i = 0; i < MATRICES_MAX; i++) {
-        flippedClip[i] = renderer->gmlMatrices[i];
-        Matrix4f_flipClipY(&flippedClip[i]);
-    }
+    memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
+
+    Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
+    Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
 
     if (gmMatricesUniform != nullptr) {
         glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, flippedClip[0].m);
@@ -549,10 +549,10 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         GLShaderUniform* uAlphaTestEnabled = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestEnabled");
         GLShaderUniform* uTexture = findShaderUniformByName(gl->defaultShaderProgram, "uTexture");
         Matrix4f flippedClip[MATRICES_MAX];
-        for (int32_t i = 0; i < MATRICES_MAX; i++) {
-            flippedClip[i] = renderer->gmlMatrices[i];
-            Matrix4f_flipClipY(&flippedClip[i]);
-        }
+        memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
+        //I was making the Legacy OpenGL renderer work with the projections, then I realized I think I only need to flip the Projection(s) and not the other ones
+        Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
+        Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
 
         glUniformMatrix4fv(uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
         glUniform4f(uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
