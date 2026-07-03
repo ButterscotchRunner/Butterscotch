@@ -612,7 +612,7 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
 	
 	if (dy < swr->portY) return;
 	if (dy >= swr->maxY) return;
-	if (dx < swr->portX) { dw += dx; dx = swr->portX; }
+	if (dx < swr->portX) { dw += dx - swr->portX; dx = swr->portX; }
 	if (dx + dw >= swr->maxX) dw = swr->maxX - dx;
 	if (dw <= 0) return;
 	
@@ -675,7 +675,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
 	
 	if (dx < swr->portX) return;
 	if (dx >= swr->maxX) return;
-	if (dy < swr->portY) { dh += dy; dy = swr->portY; }
+	if (dy < swr->portY) { dh += dy - swr->portY; dy = swr->portY; }
 	if (dy + dh >= swr->maxY) dh = swr->maxY - dy;
 	if (dh <= 0) return;
 	
