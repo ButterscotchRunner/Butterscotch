@@ -54,24 +54,24 @@ static inline Matrix4f* Matrix4f_multiply(Matrix4f* dest, const Matrix4f* a, con
 
 static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float xFrom, float yFrom, float zFrom, float xTo, float yTo, float zTo, float xUp, float yUp, float zUp) {
 
-    double magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    float magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
     xUp /= magUp;
     yUp /= magUp;
     zUp /= magUp;
 
-    double xLook = xTo - xFrom;
-    double yLook = yTo - yFrom;
-    double zLook = zTo - zFrom;
-    double magLook = sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
+    float xLook = xTo - xFrom;
+    float yLook = yTo - yFrom;
+    float zLook = zTo - zFrom;
+    float magLook = sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
     xLook /= magLook;
     yLook /= magLook;
     zLook /= magLook;
 
     // normalised cross product between Up and Look
-    double xRight = yUp * zLook - zUp * yLook;
-    double yRight = zUp * xLook - xUp * zLook;
-    double zRight = xUp * yLook - yUp * xLook;
-    double magRight = sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
+    float xRight = yUp * zLook - zUp * yLook;
+    float yRight = zUp * xLook - xUp * zLook;
+    float zRight = xUp * yLook - yUp * xLook;
+    float magRight = sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
     xRight /= magRight;
     yRight /= magRight;
     zRight /= magRight;
@@ -85,7 +85,7 @@ static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float xFrom, float yFrom
     yUp /= magUp;
     zUp /= magUp;
 
-    double x, y, z;
+    float x, y, z;
     x = xFrom * xRight + yFrom * yRight + zFrom * zRight;
     y = xFrom * xUp + yFrom * yUp + zFrom * zUp;
     z = xFrom * xLook + yFrom * yLook + zFrom * zLook;
