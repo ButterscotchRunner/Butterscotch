@@ -2424,6 +2424,13 @@ void Runner_initFirstRoom(Runner* runner) {
 
     runner->gameStartTime = nowNanos();
 
+    // GameMaker Studio (as of 2024.14) applies an offset of 1 virtual pixel to certain
+    // primitives if this flag isn't set.
+    runner->applyOffsetForPrimitives = true;
+    if (dataWin->optn.info & 0x800000000LL) {
+        runner->applyOffsetForPrimitives = false;
+    }
+
     // Run global init scripts with the global scope instance as "self"
     // In GMS 2.3+ (BC17), GLOB scripts store function declarations on "self" via Pop.v.v
     runner->vmContext->currentInstance = runner->vmContext->globalScopeInstance;

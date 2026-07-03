@@ -9675,6 +9675,10 @@ static RValue builtin_draw_rectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     bool outline = RValue_toBool(args[4]);
+    if (runner->applyOffsetForPrimitives) {
+        x1 += 1.0f; y1 += 1.0f;
+        x2 += 1.0f; y2 += 1.0f;
+    }
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, runner->renderer->drawColor, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
@@ -9692,6 +9696,11 @@ static RValue builtin_draw_rectangle_color(VMContext* ctx, RValue* args, MAYBE_U
     uint32_t color3 = (uint32_t) RValue_toInt32(args[6]);
     uint32_t color4 = (uint32_t) RValue_toInt32(args[7]);
     bool outline = RValue_toBool(args[8]);
+
+    if (runner->applyOffsetForPrimitives) {
+        x1 += 1.0f; y1 += 1.0f;
+        x2 += 1.0f; y2 += 1.0f;
+    }
 
     runner->renderer->vtable->drawRectangleColor(runner->renderer, x1, y1, x2, y2, color1, color2, color3, color4, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
@@ -10142,6 +10151,10 @@ static RValue builtin_draw_line(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
         float y1 = (float) RValue_toReal(args[1]);
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, 1.0f, runner->renderer->drawColor, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10157,6 +10170,10 @@ static RValue builtin_draw_line_colour(VMContext* ctx, RValue* args, MAYBE_UNUSE
         float y2 = (float) RValue_toReal(args[3]);
         float col1 = (float) RValue_toReal(args[4]);
         float col2 = (float) RValue_toReal(args[5]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLineColor(runner->renderer, x1, y1, x2, y2, 1.0f, col1, col2, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10171,6 +10188,10 @@ static RValue builtin_draw_line_width(VMContext* ctx, RValue* args, MAYBE_UNUSED
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
         float w = (float) RValue_toReal(args[4]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, w, runner->renderer->drawColor, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10187,6 +10208,10 @@ static RValue builtin_draw_line_width_colour(VMContext* ctx, RValue* args, MAYBE
         float w = (float) RValue_toReal(args[4]);
         uint32_t col1 = (uint32_t) RValue_toInt32(args[5]);
         uint32_t col2 = (uint32_t) RValue_toInt32(args[6]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLineColor(runner->renderer, x1, y1, x2, y2, w, col1, col2, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10204,6 +10229,11 @@ static RValue builtin_draw_triangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         float y3 = (float) RValue_toReal(args[5]);
         bool outline = (float) RValue_toBool(args[6]);
         uint32_t color = runner->renderer->drawColor;
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+            x3 += 1.0f; y3 += 1.0f;
+        }
         runner->renderer->vtable->drawTriangle(runner->renderer, x1, y1, x2, y2, x3, y3, color, color, color, runner->renderer->drawAlpha, outline);
     }
     return RValue_makeUndefined();
@@ -10223,6 +10253,11 @@ static RValue builtin_draw_triangle_color(VMContext* ctx, RValue* args, MAYBE_UN
         uint32_t col2 = (uint32_t) RValue_toInt32(args[7]);
         uint32_t col3 = (uint32_t) RValue_toInt32(args[8]);
         bool outline = RValue_toBool(args[9]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+            x3 += 1.0f; y3 += 1.0f;
+        }
         runner->renderer->vtable->drawTriangle(runner->renderer, x1, y1, x2, y2, x3, y3, col1, col2, col3, runner->renderer->drawAlpha, outline);
     }
     return RValue_makeUndefined();
@@ -10236,6 +10271,9 @@ static RValue builtin_draw_circle(VMContext* ctx, RValue* args, MAYBE_UNUSED int
         float y = (float) RValue_toReal(args[1]);
         float r = (float) RValue_toReal(args[2]);
         bool outline = RValue_toBool(args[3]);
+        if (runner->applyOffsetForPrimitives) {
+            x += 1.0f; y += 1.0f;
+        }
         Renderer_drawCircle(runner->renderer, x, y, r, outline);
     }
     return RValue_makeUndefined();
@@ -10266,6 +10304,10 @@ static RValue builtin_draw_ellipse(VMContext* ctx, RValue* args, MAYBE_UNUSED in
         float y2 = (float) RValue_toReal(args[3]);
         bool outline = RValue_toBool(args[4]);
         uint32_t color = runner->renderer->drawColor;
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         Renderer_drawEllipseColor(runner->renderer, (x1 + x2) * 0.5f, (y1 + y2) * 0.5f, (x2 - x1) * 0.5f, (y2 - y1) * 0.5f, color, color, outline);
     }
     return RValue_makeUndefined();
@@ -10282,6 +10324,10 @@ static RValue builtin_draw_ellipse_color(VMContext* ctx, RValue* args, MAYBE_UNU
         uint32_t col1 = (uint32_t) RValue_toInt32(args[4]);
         uint32_t col2 = (uint32_t) RValue_toInt32(args[5]);
         bool outline = RValue_toBool(args[6]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         Renderer_drawEllipseColor(runner->renderer, (x1 + x2) * 0.5f, (y1 + y2) * 0.5f, (x2 - x1) * 0.5f, (y2 - y1) * 0.5f, col1, col2, outline);
     }
     return RValue_makeUndefined();
