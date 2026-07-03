@@ -382,6 +382,10 @@ static int32_t SDLKeyToGml(int sdlkey) {
         case SDLK_DOWN:      return VK_DOWN;
         case SDLK_LEFT:      return VK_LEFT;
         case SDLK_RIGHT:     return VK_RIGHT;
+		case SDLK_KP2: case SDLK_KP5: return VK_DOWN;
+		case SDLK_KP4: return VK_LEFT;
+		case SDLK_KP6: return VK_RIGHT;
+		case SDLK_KP8: return VK_UP;
         case SDLK_F1:        return VK_F1;
         case SDLK_F2:        return VK_F2;
         case SDLK_F3:        return VK_F3;

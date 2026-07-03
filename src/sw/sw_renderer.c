@@ -224,8 +224,8 @@ FORCE_INLINE int swrCeiling(float x)
 
 static SWTexture* swrCreateTexture(const uint8_t* srcBuffer, int width, int height)
 {
-	SWTexture* txt = safeMalloc(sizeof(SWTexture));
-	txt->buffer = safeMalloc(width * height * sizeof(uintpixel_t));
+	SWTexture* txt = (SWTexture*) safeMalloc(sizeof(SWTexture));
+	txt->buffer = (uintpixel_t*) safeMalloc(width * height * sizeof(uintpixel_t));
 	
 	const uint32_t* rgbaSrc = (const uint32_t*) srcBuffer;
 
@@ -357,17 +357,17 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
 	swr->textureCount = dataWin->txtr.count;
 	swr->surfaceCount = SURFACE_MAX_COUNT;
 	swr->totalTextureCount = swr->textureCount + swr->surfaceCount;
-	swr->textures = safeCalloc(swr->totalTextureCount, sizeof(SWTexture*));
+	swr->textures = (SWTexture**) safeCalloc(swr->totalTextureCount, sizeof(SWTexture*));
 	
 	//allocate texture LRU cache to allow for dynamic unloading of textures
-	swr->textureIndexLRU = safeCalloc(TEXTURE_LRU_LENGTH, sizeof(uint32_t));
+	swr->textureIndexLRU = (uint32_t*) safeCalloc(TEXTURE_LRU_LENGTH, sizeof(uint32_t));
 	swr->textureIndexLRUHead = 0;
 	swr->textureIndexLRUTail = 0;
 	
 	//HACK: this isn't good, really.  This should seriously be refactored.
 	//expand datawin's tpag items list to include our surface count.
 	swr->originalTPagCount = dataWin->tpag.count;
-	dataWin->tpag.items = safeRealloc(dataWin->tpag.items, sizeof(TexturePageItem) * (dataWin->tpag.count + swr->surfaceCount));
+	dataWin->tpag.items = (TexturePageItem*) safeRealloc(dataWin->tpag.items, sizeof(TexturePageItem) * (dataWin->tpag.count + swr->surfaceCount));
 	dataWin->tpag.count += swr->surfaceCount;
 	
 	swr->originalSpriteCount = dataWin->sprt.count;
@@ -400,7 +400,7 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
 	{
 		//allocate frame buffer
 		free(swr->fb);
-		swr->fb = safeMalloc(windowW * windowH * sizeof(uintpixel_t));
+		swr->fb = (uintpixel_t*) safeMalloc(windowW * windowH * sizeof(uintpixel_t));
 		swr->fbPitch = windowW;
 		swr->width = windowW;
 		swr->height = windowH;
@@ -1589,6 +1589,8 @@ static void swrDrawText(SWRenderer* swr, const char* text, float x, float y, flo
 	Font* font = &dwin->font.fonts[fontIndex];
 	
 	SwrFontState fontState;
+	memset(&fontState, 0, sizeof fontState); // silence warning treated as error
+	
 	if (!swrResolveFontState(swr, dwin, font, &fontState)) return;
 	
 	// TODO: do we need to mirror the way the text scrolls too?!
@@ -2067,7 +2069,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
 	sprite->originX = xorig;
 	sprite->originY = yorig;
 	sprite->textureCount = 1;
-	sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+	sprite->tpagIndices = (int32_t*) safeMalloc(sizeof(int32_t));
 	sprite->tpagIndices[0] = (int32_t) tpagIndex;
 	sprite->maskCount = 0;
 	sprite->masks = nullptr;
@@ -2267,7 +2269,7 @@ static void SWRenderer_shaderSetUniformI(Renderer* renderer, int32_t handle, int
 
 Renderer* SWRenderer_create(void)
 {
-	SWRenderer* swr = safeCalloc(1, sizeof(SWRenderer));
+	SWRenderer* swr = (SWRenderer*) safeCalloc(1, sizeof(SWRenderer));
 	swr->base.vtable = &swrVtable;
 	swrVtable.init                     = SWRenderer_init;
 	swrVtable.destroy                  = SWRenderer_destroy;
