@@ -1374,7 +1374,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
 			xmid2 = xup + (xleft - xup) * (ymid - yup) / (yleft - yup);
 	}
 	
-	for (int y = yup; y <= ymax; y++)
+	for (int y = yup; y < ymax; y++)
 	{
 		if (y < 0) continue;
 		if (y >= swr->height) break;
@@ -1412,7 +1412,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
 		if (x1 > x2) continue;
 		
 		uintpixel_t* line = &swr->fb[y * swr->width];
-		for (int x = x1; x <= x2; x++) {
+		for (int x = x1; x < x2; x++) {
 			alphaBlend(&line[x], color1, alpha);
 		}
 	}
