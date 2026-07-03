@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS2_UTILS_H_
+#define _BS_PS2_UTILS_H_
 
 #include "common.h"
 #include <gsKit.h>
@@ -31,3 +32,5 @@ char* PS2Utils_createDevicePath(const char* path);
 // so gprof can write gmon.out to mass: when not running from host:
 void PS2Utils_loadMassStorageDrivers();
 #endif
+
+#endif /* _BS_PS2_UTILS_H_ */

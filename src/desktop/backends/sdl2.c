@@ -1,8 +1,7 @@
+#include <ctype.h>
 #include <stdio.h>
 
-#include <SDL2/SDL_events.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -13,6 +12,84 @@
 static Runner *g_runner;
 static SDL_Surface* scr;
 static SDL_Window *window;
+static SDL_GameController* openControllers[MAX_GAMEPADS];
+
+static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
+    if (gfx == SOFTWARE) {
+        return SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+    }
+    if (gfx == LEGACY_GL) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+        
+        SDL_Window *newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {        
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {            
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+            }
+        }
+        
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+        
+    }
+    return NULL;
+}
 
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
@@ -29,7 +106,11 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     } else {
         int w = 0;
         int h = 0;
+#if SDL_VERSION_ATLEAST(2, 0, 1)
         SDL_GL_GetDrawableSize(window, &w, &h);
+#else
+        SDL_GetWindowSize(window, &w, &h);
+#endif
         if (w <= 0 || h <= 0) return false;
         *outW = w;
         *outH = h;
@@ -85,42 +166,31 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
     }
 
-    if (gfx == LEGACY_GL) {
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-    } else if (gfx == MODERN_GL) {
-#ifdef ENABLE_GLES
-#ifdef SDL_GL_CONTEXT_PROFILE_MASK
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#endif
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#endif
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        openControllers[i] = NULL;
     }
-
+  
     Uint32 flags;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN | SDL_WINDOW_ALLOW_HIGHDPI;
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-
-    window = SDL_CreateWindow(
-            title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
-            flags
-    );
+        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+#if SDL_VERSION_ATLEAST(2, 0, 1)
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+    
+    window = tryOpenWindow(reqW, reqH, title, flags);
+    
+    if (!window && gfx != SOFTWARE) {
+        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
+    
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
@@ -142,21 +212,31 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
-        if (!SDL_GL_CreateContext(window)) {
-            fprintf(stderr, "Fatal: Could not create GL context: %s\n", SDL_GetError());
-            return false;
-        }
         SDL_GL_SetSwapInterval(0); // disable vsync
-    } else
+    } else {
         scr = SDL_GetWindowSurface(window);
-
+    }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
+
+    // init gamepad mappings
+    const char* dbPath = "gamecontrollerdb.txt";
+    if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
+        fprintf(stderr, "Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+    } else {
+        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
+    }
 
     return true;
 }
 
 void platformExit(void) {
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        if (openControllers[i]) {
+            SDL_GameControllerClose(openControllers[i]);
+            openControllers[i] = NULL;
+        }
+    }
     SDL_Quit();
 }
 
@@ -318,6 +398,57 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
     }
 }
 
+enum {
+    IDX_LT = 6,
+    IDX_RT = 7,
+};
+
+static void mapSdl2ToGml(SDL_GameController* gc, GamepadSlot* slot) {
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_A)) slot->buttonDown[0] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_B)) slot->buttonDown[1] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_X)) slot->buttonDown[2] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_Y)) slot->buttonDown[3] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) slot->buttonDown[4] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) slot->buttonDown[5] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_BACK)) slot->buttonDown[8] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_START)) slot->buttonDown[9] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_GUIDE)) slot->buttonDown[16] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSTICK)) slot->buttonDown[10] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSTICK)) slot->buttonDown[11] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_UP)) slot->buttonDown[12] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_DOWN)) slot->buttonDown[13] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) slot->buttonDown[14] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) slot->buttonDown[15] = true;
+
+    float lt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) / 32767.0f;
+    float rt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) / 32767.0f;
+    if (lt < 0.0f) lt = 0.0f;
+    if (rt < 0.0f) rt = 0.0f;
+    slot->buttonValue[IDX_LT] = lt;
+    slot->buttonValue[IDX_RT] = rt;
+    if (lt >= slot->triggerThreshold) slot->buttonDown[IDX_LT] = true;
+    if (rt >= slot->triggerThreshold) slot->buttonDown[IDX_RT] = true;
+
+    float lh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX) / 32767.0f;
+    float lv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY) / 32767.0f;
+    float rh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTX) / 32767.0f;
+    float rv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTY) / 32767.0f;
+
+    slot->axisValue[0] = lh;
+    slot->axisValue[1] = lv;
+    slot->axisValue[2] = rh;
+    slot->axisValue[3] = rv;
+
+    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
+        if (i == IDX_LT || i == IDX_RT) continue;
+        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
+    }
+}
+
 bool platformHandleEvents(void) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -326,6 +457,7 @@ bool platformHandleEvents(void) {
                 if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
             case SDL_WINDOWEVENT:
             case SDL_QUIT:
+                break;
         }
         switch(e.type) {
             case SDL_KEYDOWN:
@@ -358,8 +490,85 @@ bool platformHandleEvents(void) {
                 if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED && gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
+            case SDL_CONTROLLERDEVICEADDED: {
+                int device_index = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i] == NULL) {
+                        openControllers[i] = SDL_GameControllerOpen(device_index);
+                        break;
+                    }
+                }
+                break;
+            }
+            case SDL_CONTROLLERDEVICEREMOVED: {
+                int instance_id = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i]) {
+                        SDL_Joystick* joy = SDL_GameControllerGetJoystick(openControllers[i]);
+                        if (joy && SDL_JoystickInstanceID(joy) == instance_id) {
+                            SDL_GameControllerClose(openControllers[i]);
+                            openControllers[i] = NULL;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
             case SDL_QUIT:
                 return true;
+                break;
+            default:
+                break;
+        }
+    }
+
+    g_runner->gamepads->connectedCount = 0;
+    for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+        GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
+        SDL_GameController* gc = openControllers[slotIdx];
+
+        memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
+        memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
+        memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
+        memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
+        memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
+        memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+        if (gc && SDL_GameControllerGetAttached(gc)) {
+            slot->connected = true;
+            slot->jid = slotIdx;
+
+            const char* name = SDL_GameControllerName(gc);
+            if (name != NULL) {
+                strncpy(slot->description, name, sizeof(slot->description) - 1);
+                slot->description[sizeof(slot->description) - 1] = '\0';
+            } else {
+                slot->description[0] = '\0';
+            }
+
+            char guidStr[64] = {0};
+            SDL_Joystick* joy = SDL_GameControllerGetJoystick(gc);
+            if (joy) {
+                SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guidStr, sizeof(guidStr));
+            }
+            strncpy(slot->guid, guidStr, sizeof(slot->guid) - 1);
+            slot->guid[sizeof(slot->guid) - 1] = '\0';
+
+            mapSdl2ToGml(gc, slot);
+
+            for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                bool wasDown = slot->buttonDownPrev[btn];
+                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
+                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+            }
+            g_runner->gamepads->connectedCount++;
+        } else {
+            if (gc) {
+                SDL_GameControllerClose(gc);
+                openControllers[slotIdx] = NULL;
+            }
+            slot->connected = false;
+            slot->guid[0] = '\0';
         }
     }
 

@@ -18,6 +18,44 @@
 
 static Runner *g_runner;
 
+static bool tryOpenWindow(int reqW, int reqH) {
+#ifdef GLFW_OPENGL_VERSION_MAJOR
+    if (gfx == SOFTWARE || gfx == LEGACY_GL) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
+        return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+    }
+
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
+            
+        if (GLCommon_versions[i].major >= 3) {
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+            if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            } else {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+            }
+        } else {
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, 0);
+        }
+
+#ifndef NDEBUG
+        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+        if (glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0) {
+            return true;
+        }
+        glfwCloseWindow();
+    }
+
+    return false;
+#else
+    return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -152,52 +190,13 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-#ifdef ENABLE_GLES
-        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-#else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    }
-#endif
-
     // Init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
         return false;
     }
 
-#ifdef GLFW_OPENGL_VERSION_MAJOR
-    if (gfx == SOFTWARE) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0);
-    } else if (gfx == LEGACY_GL) {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-    } else {
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
-        glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwOpenWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-    }
-#endif
-
-    int window = glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW);
-    if (!window) {
+    if (!tryOpenWindow(reqW, reqH)) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;

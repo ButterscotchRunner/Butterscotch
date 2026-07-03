@@ -8,7 +8,16 @@ project(butterscotch C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra -Werror)
+if(MSVC)
+    if(WERROR)
+        add_compile_options(/WX)
+    endif()
+else()
+    add_compile_options(-Wall -Wextra -Wvla)
+    if(WERROR)
+        add_compile_options(-Werror)
+    endif()
+endif()
 
 set(PLATFORM "desktop" CACHE STRING "Platform backend")
 set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
@@ -36,6 +45,8 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
+    elseif(MSVC)
+        set(AUDIO_BACKEND "none") # miniaudio fails to build under MSVC for some reason
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -97,13 +108,12 @@ endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
-# OpenGL ES 3.0 / WebGL2 compatibility
-option(ENABLE_GLES "Build the gl_renderer against OpenGL ES 3.0 / WebGL2 instead of desktop GL 4.1 Core" OFF)
-if (ENABLE_GLES AND ENABLE_LEGACY_GL)
-    set(ENABLE_LEGACY_GL OFF)
+if(PLATFORM STREQUAL "android")
+    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+else()
+    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
 
-add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 if(AUDIO_BACKEND STREQUAL "openal")
@@ -154,9 +164,8 @@ target_include_directories(butterscotch PUBLIC vendor/base64)
 
 # bzip2
 add_library(bzip2 STATIC
-    vendor/bzip2/blocksort.c
+    vendor/bzip2/bz_internal_error.c
     vendor/bzip2/bzlib.c
-    vendor/bzip2/compress.c
     vendor/bzip2/crctable.c
     vendor/bzip2/decompress.c
     vendor/bzip2/huffman.c
@@ -164,6 +173,18 @@ add_library(bzip2 STATIC
 )
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
+
+# Spatial grid logs
+option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+if(ENABLE_SPATIAL_GRID_LOGS)
+    add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+endif()
+
+# VM Exceptions logs
+option(ENABLE_VM_EXCEPTIONS_LOGS "Enable VM Exceptions logs" OFF)
+if(ENABLE_VM_EXCEPTIONS_LOGS)
+    add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
+endif()
 
 if(PLATFORM STREQUAL "desktop")
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
@@ -191,6 +212,10 @@ if(PLATFORM STREQUAL "desktop")
     endif()
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    if (MSVC)
+        target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
+        add_compile_definitions(NO_STRTOK_R)
+    endif()
 
     # Butterscotch VM/interpreter profiler
     option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
@@ -210,12 +235,6 @@ if(PLATFORM STREQUAL "desktop")
         add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
     endif()
 
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
     # VM unknown/stubbed function logs
     option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
     if(ENABLE_VM_STUB_LOGS)
@@ -224,25 +243,19 @@ if(PLATFORM STREQUAL "desktop")
 
     # GLAD
     if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL OR DESKTOP_BACKEND STREQUAL "glfw3" OR DESKTOP_BACKEND STREQUAL "glfw2")
-        if(ENABLE_GLES)
-            add_compile_definitions(ENABLE_GLES)
-            add_library(glad STATIC vendor/glad-gles/src/glad.c)
-            target_include_directories(glad PUBLIC vendor/glad-gles/include)
-        else()
-            add_library(glad STATIC vendor/glad/src/glad.c)
-            target_include_directories(glad PUBLIC vendor/glad/include)
-        endif()
+        add_library(glad STATIC vendor/glad/src/glad.c)
+        target_include_directories(glad PUBLIC vendor/glad/include)
         set(PLATFORM_LIBRARIES glad)
     endif()
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    # stb_vorbis
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-
-    set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m bzip2 stb_ds sha1 stb_vorbis)
-    if(MINGW)
+    set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} bzip2 stb_ds sha1 stb_vorbis)
+    if(NOT MSVC)
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
+    endif()
+    if(WIN32)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
     elseif(NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} dl)
@@ -259,6 +272,10 @@ if(PLATFORM STREQUAL "desktop")
             target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
             target_link_options(butterscotch PRIVATE -static)
             set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+        elseif(MSVC)
+            target_compile_definitions(butterscotch PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+            find_package(glfw3 CONFIG REQUIRED)
+            set(BACKEND_LIBRARIES glfw opengl32 gdi32 winmm)
         else()
             find_package(PkgConfig REQUIRED)
             pkg_check_modules(GLFW3 REQUIRED glfw3)
@@ -266,13 +283,6 @@ if(PLATFORM STREQUAL "desktop")
             target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
             set(BACKEND_LIBRARIES ${GLFW3_LIBRARIES})
         endif()
-
-        #gamecontrollerdb
-        add_custom_command(TARGET butterscotch POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
-                $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-        )
     elseif(DESKTOP_BACKEND STREQUAL "glfw2")
         add_compile_definitions(USE_GLFW2)
 
@@ -314,10 +324,17 @@ if(PLATFORM STREQUAL "desktop")
         set(ENABLE_ASAN_DEFAULT OFF)
     endif()
     set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(butterscotch PRIVATE -fsanitize=address)
     endif()
+
+    #gamecontrollerdb
+    add_custom_command(TARGET butterscotch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
+            $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
+    )
 elseif(PLATFORM STREQUAL "web")
     if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Web requires modern gl!")
@@ -327,7 +344,6 @@ elseif(PLATFORM STREQUAL "web")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
@@ -377,6 +393,59 @@ elseif(PLATFORM STREQUAL "web-meta")
             "-sALLOW_MEMORY_GROWTH=1"
             "-sFORCE_FILESYSTEM=1"
     )
+elseif(PLATFORM STREQUAL "android")
+    if (NOT ENABLE_MODERN_GL)
+        message(FATAL_ERROR "Android requires modern gl!")
+    endif()
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    add_compile_definitions(ENABLE_GLES PLATFORM_ANDROID)
+
+    # Butterscotch VM/interpreter profiler
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
+    if(ENABLE_VM_GML_PROFILER)
+        add_compile_definitions(ENABLE_VM_GML_PROFILER)
+    endif()
+
+    # Butterscotch VM/interpreter tracing
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
+    if(ENABLE_VM_TRACING)
+        add_compile_definitions(ENABLE_VM_TRACING)
+    endif()
+
+    # Butterscotch VM opcode count profiler
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
+    if(ENABLE_VM_OPCODE_PROFILER)
+        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
+    endif()
+
+    # Spatial grid logs
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    if(ENABLE_SPATIAL_GRID_LOGS)
+        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
+    endif()
+
+    # VM unknown/stubbed function logs
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
+    if(ENABLE_VM_STUB_LOGS)
+        add_compile_definitions(ENABLE_VM_STUB_LOGS)
+    endif()
+
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+    # stb_vorbis (for miniaudio's OGG decoding)
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+    # bzip2
+    target_link_libraries(butterscotch PRIVATE bzip2)
+
+    # Android NDK system libraries:
+    # - log: __android_log_*
+    # - GLESv3: OpenGL ES 3.0 functions
+    # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
+    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})

@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
-	char* tmp2 = str_replace(tmp, "butterscotch.self", "");
+    char* tmp2 = str_replace(tmp, "butterscotch.self", "");
     char* tmp3 = str_replace(tmp2, "EBOOT.BIN", "");
     char* dataWinPath = malloc(strlen(tmp3) + strlen("data.win") + 1);
     if (!dataWinPath) {
@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
     strcat(dataWinPath, "data.win");
     free(tmp);
     free(tmp2);
-	free(tmp3);
+    free(tmp3);
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
@@ -219,8 +219,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     vm->opcodeProfilerEnabled = true;
     if (vm->opcodeProfilerEnabled) {
-        vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-        vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
     }
 #endif
 
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
             lastSlash = lastBackslash;
         if (lastSlash != nullptr) {
             size_t len = (size_t) (lastSlash - dataWinPath + 1);
-            dataWinDir = safeMalloc(len + 1);
+            dataWinDir = (char *)safeMalloc(len + 1);
             memcpy(dataWinDir, dataWinPath, len);
             dataWinDir[len] = '\0';
         } else {
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
     // Load TEXTURES.BIN
     {
         size_t dirLen = strlen(dataWinDir);
-        char* texturesBinPath = safeMalloc(dirLen + strlen("textures.bin") + 1);
+        char* texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 1);
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
@@ -300,7 +300,6 @@ int main(int argc, char* argv[]) {
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
     double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
-    runner->gameStartTime = nowNanos();
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -402,18 +401,6 @@ int main(int argc, char* argv[]) {
 
         Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
 
-        // Clear FBO with room background color
-        if (runner->drawBackgroundColor) {
-            int rInt = BGR_R(runner->backgroundColor);
-            int gInt = BGR_G(runner->backgroundColor);
-            int bInt = BGR_B(runner->backgroundColor);
-            int aInt = BGR_A(runner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
-
         double drawStart = PS3_GET_TIME;
         Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
         renderer->vtable->endFrameInit(renderer);
@@ -461,8 +448,8 @@ int main(int argc, char* argv[]) {
     DataWin_free(dataWin);
 
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
-	gcmSetWaitFlip(context);
-	rsxFinish(context,1);
+    gcmSetWaitFlip(context);
+    rsxFinish(context,1);
     printf("Bye! :3\n");
     return 0;
 }

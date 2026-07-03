@@ -9,10 +9,14 @@
 #include "stb_vorbis.c"
 
 #define MINIAUDIO_IMPLEMENTATION
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 #include "miniaudio.h"
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 #include "ma_audio_system.h"
 #include "data_win.h"
@@ -96,10 +100,24 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
 
+    ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
+    deviceConfig.playback.format   = ma_format_f32;
+    deviceConfig.playback.channels = 2;
+    deviceConfig.periods           = 3;
+    deviceConfig.periodSizeInMilliseconds = 10;
+    deviceConfig.dataCallback = ma_engine_data_callback_internal;
+    deviceConfig.pUserData    = &ma->engine;
+    ma_result deviceResult = ma_device_init(NULL, &deviceConfig, &ma->device);
+    if (deviceResult != MA_SUCCESS) {
+        fprintf(stderr, "Audio: Failed to initialize playback device (error %d)\n", deviceResult);
+        return;
+    }
     ma_engine_config config = ma_engine_config_init();
+    config.pDevice = &ma->device;
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
         fprintf(stderr, "Audio: Failed to initialize miniaudio engine (error %d)\n", result);
+        ma_device_uninit(&ma->device);
         return;
     }
 
@@ -138,6 +156,7 @@ static void maDestroy(AudioSystem* audio) {
     }
     arrfree(ma->base.audioGroups);
 
+    ma_device_uninit(&ma->device);
     ma_engine_uninit(&ma->engine);
     free(ma);
 }
@@ -693,11 +712,11 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         char* buf;
         if (audioGroupEntry->path == nullptr) {
             int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-            buf = safeMalloc(sz + 1);
+            buf = (char *)safeMalloc(sz + 1);
             snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
         } else {
             size_t length = strlen(audioGroupEntry->path);
-            buf = safeMalloc(length + 1);
+            buf = (char *)safeMalloc(length + 1);
             memcpy(buf, audioGroupEntry->path, length);
             buf[length] = '\0';
         }
@@ -707,6 +726,8 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
             fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
             free(buf);
+            DataWin* dw = (DataWin *)safeCalloc(1, sizeof(DataWin));
+            arrput(audio->audioGroups, dw);
             return;
         }
 
@@ -798,7 +819,7 @@ static AudioSystemVtable maAudioSystemVtable;
 // ===[ Lifecycle ]===
 
 MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
-    MaAudioSystem* ma = safeCalloc(1, sizeof(MaAudioSystem));
+    MaAudioSystem* ma = (MaAudioSystem *)safeCalloc(1, sizeof(MaAudioSystem));
     ma->base.dw = dataWin;
     maAudioSystemVtable.init = maInit;
     maAudioSystemVtable.destroy = maDestroy;

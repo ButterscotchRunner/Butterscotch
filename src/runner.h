@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_H_
+#define _BS_RUNNER_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -196,6 +197,7 @@ typedef struct {
 
 // Mutable sprite element on an Assets layer. Populated from RoomLayerAssetsData.sprites at room init, can be removed at runtime via layer_sprite_destroy (used by language variant selection).
 typedef struct {
+    const char* name; // not owned, can be null if dynamically created
     int32_t spriteIndex; // SPRT index (-1 = none/destroyed)
     int32_t x;
     int32_t y;
@@ -299,6 +301,13 @@ typedef struct {
     DsPriorityItem* items; // stb_ds dynamic array of DsPriorityItems
     bool freed;    // true when the slot is destroyed and available for reuse by ds_priority_queue_create
 } DsPriority;
+
+typedef struct {
+    RValue* items; // malloc'd array of items
+    int32_t width;
+    int32_t height;
+    bool freed; // true when the slot is destroyed and available for reuse by ds_grid_create
+} DsGrid;
 
 // ===[ GML Buffer System ]===
 
@@ -517,11 +526,6 @@ struct Runner {
     Drawable* cachedDrawables; // stb_ds array
     bool drawableListStructureDirty;
     bool drawableListSortDirty;
-    // Dummy instance to serve as "self" during GLOB script execution
-    // In WAD version 17+, global init scripts store method values on "self" via Pop.v.v
-    // The real runner uses a persistent YYObjectBase for this, the YYObjectBase is a "parent" of Instance
-    // For now, we'll use a dummy Instance with objectIndex = STRUCT_OBJECT_INDEX as a hack
-    Instance* globalScopeInstance;
     // Struct instances created by @@NewGMLObject@@. Reuses Instance with objectIndex=STRUCT_OBJECT_INDEX.
     // Tracked separately so event/step/draw iteration over runner->instances stays clean.
     Instance** structInstances;
@@ -536,6 +540,7 @@ struct Runner {
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
     DsStack* dsStackPool; // stb_ds array of DsStack    
     DsPriority* dsPriorityPool; // stb_ds array of DsPriority
+    DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
 
@@ -695,6 +700,7 @@ int32_t Runner_surfaceGetTarget(Runner* runner);
 void Runner_dumpState(Runner* runner);
 char* Runner_dumpStateJson(Runner* runner);
 void Runner_free(Runner* runner);
+RuntimeLayer* Runner_findRuntimeLayerByName(Runner* runner, char* name);
 RuntimeLayer* Runner_findRuntimeLayerById(Runner* runner, int32_t id);
 RoomLayer* Runner_findRoomLayerById(Room* room, int32_t id);
 RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t elementId, RuntimeLayer** outLayer);
@@ -718,3 +724,5 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 
     instance->active = active;
 }
+
+#endif /* _BS_RUNNER_H_ */

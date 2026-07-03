@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_EVENT_TABLE_H_
+#define _BS_EVENT_TABLE_H_
 
 #include "common.h"
 #include "data_win.h"
@@ -106,3 +107,5 @@ static inline int32_t ResolvedEventTable_lookup(const ResolvedEventTable* t, int
     if (outOwner != nullptr) *outOwner = -1;
     return -1;
 }
+
+#endif /* _BS_EVENT_TABLE_H_ */

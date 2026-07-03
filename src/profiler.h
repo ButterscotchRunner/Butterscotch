@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PROFILER_H_
+#define _BS_PROFILER_H_
 
 #include <common.h>
 #include <stdint.h>
@@ -55,3 +56,5 @@ void Profiler_reset(Profiler* p);
 static inline void Profiler_tickInstruction(Profiler* p) {
     if (p != nullptr) p->instructionCount++;
 }
+
+#endif /* _BS_PROFILER_H_ */

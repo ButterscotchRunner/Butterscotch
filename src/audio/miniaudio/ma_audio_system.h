@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_MA_AUDIO_SYSTEM_H_
+#define _BS_MA_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -35,6 +36,7 @@ typedef struct {
 typedef struct {
     AudioSystem base;
     ma_engine engine;
+    ma_device device;
     SoundInstance instances[MAX_SOUND_INSTANCES];
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
@@ -42,3 +44,5 @@ typedef struct {
 } MaAudioSystem;
 
 MaAudioSystem* MaAudioSystem_create(DataWin* dataWin);
+
+#endif /* _BS_MA_AUDIO_SYSTEM_H_ */

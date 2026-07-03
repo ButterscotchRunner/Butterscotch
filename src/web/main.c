@@ -130,18 +130,6 @@ void* loop() {
 
         Runner_beginFrame(gRunner, gameW, gameH, 640, 480, 640, 480);
 
-        // Clear FBO with room background color
-        if (gRunner->drawBackgroundColor) {
-            int rInt = BGR_R(gRunner->backgroundColor);
-            int gInt = BGR_G(gRunner->backgroundColor);
-            int bInt = BGR_B(gRunner->backgroundColor);
-            int aInt = BGR_A(gRunner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
-
         Runner_drawViews(gRunner, gameW, gameH, false);
         gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
         Runner_drawPost(gRunner, 640, 480);
@@ -276,7 +264,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     const char* lastSlash = strrchr(gamePath, '/');
     if (lastSlash != nullptr) {
         size_t len = (size_t) (lastSlash - gamePath + 1);
-        bundleDir = safeMalloc(len + 1);
+        bundleDir = (char *)safeMalloc(len + 1);
         memcpy(bundleDir, gamePath, len);
         bundleDir[len] = '\0';
     } else {

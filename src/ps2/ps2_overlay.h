@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS2_OVERLAY_H_
+#define _BS_PS2_OVERLAY_H_
 
 #include <gsKit.h>
 
@@ -52,3 +53,5 @@ void PS2Overlay_statusScreenCallback(const char* chunkName, int chunkIndex, int 
 
 void PS2Overlay_drawStatusScreen(const char* gameName, const char* statusText, bool includeChunkStats);
 void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner, float tick, float step, float draw, float audio, bool speedCapRemoved);
+
+#endif /* _BS_PS2_OVERLAY_H_ */

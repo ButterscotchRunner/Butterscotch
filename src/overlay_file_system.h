@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_OVERLAY_FILE_SYSTEM_H_
+#define _BS_OVERLAY_FILE_SYSTEM_H_
 
 #include "common.h"
 #include "file_system.h"
@@ -20,3 +21,5 @@ typedef struct {
 
 OverlayFileSystem* OverlayFileSystem_create(const char* bundlePath, const char* savePath);
 void OverlayFileSystem_destroy(OverlayFileSystem* fs);
+
+#endif /* _BS_OVERLAY_FILE_SYSTEM_H_ */

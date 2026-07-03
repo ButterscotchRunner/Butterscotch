@@ -7,7 +7,7 @@
 
 static void allocEmpty(IntIntHashMap* map, uint32_t capacity) {
     // memset 0xFF makes every key int32_t = -1 (the empty sentinel). The value bytes also become 0xFF but are unread for empty slots, so no harm.
-    map->entries = safeMalloc(capacity * sizeof(IntIntEntry));
+    map->entries = (IntIntEntry *)safeMalloc(capacity * sizeof(IntIntEntry));
     memset(map->entries, 0xFF, capacity * sizeof(IntIntEntry));
     map->capacity = capacity;
     map->mask = capacity - 1;

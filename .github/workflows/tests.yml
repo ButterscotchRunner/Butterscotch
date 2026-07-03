@@ -10,6 +10,8 @@ jobs:
   butterscotch-linux-x86_64:
     name: Butterscotch Tests (GLFW/Linux x86_64)
     runs-on: ubuntu-latest
+    env:
+      DOWNLOAD_COMMERCIAL_GAMES: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,10 +39,35 @@ jobs:
       - name: Install Xvfb
         run: sudo apt-get install -y xvfb
 
+      - name: Download Commercial Games
+        if: env.DOWNLOAD_COMMERCIAL_GAMES == 'true'
+        env:
+          COMMERCIAL_GAMES_URL: ${{ secrets.COMMERCIAL_GAMES_URL }}
+        run: |
+          games=(
+            undertale-ptbr-winpack
+            underfavela
+            deltarune-chapter4-105-beta
+          )
+          for game in "${games[@]}"; do
+            echo "Downloading $game..."
+            curl --fail --silent --show-error --location --output "tests/$game.zip" "$COMMERCIAL_GAMES_URL/$game.zip"
+            unzip -q "tests/$game.zip" -d "tests/$game"
+          done
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run Butterscotch test suite
         working-directory: tests/Flowey
         run: |
-          xvfb-run -a ./gradlew --no-daemon run --args="--test-suite ${{ github.workspace }}/tests/tests.conf --butterscotch-path ${{ github.workspace }}/build/butterscotch"
+          xvfb-run -a ./gradlew --no-daemon run --args="--test-suite ${{ github.workspace }}/tests/tests.conf --butterscotch-path ${{ github.workspace }}/build/butterscotch --skip-commercial-games=${{ env.DOWNLOAD_COMMERCIAL_GAMES != 'true' }}"
+
+      - name: Upload test screenshots
+        if: always()          # the test step exits 1 on failure; run regardless
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots
+          path: |
+            tests/**/actual.*.png
+          if-no-files-found: ignore

@@ -6,16 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool isValidButtonVirtual(int_fast8_t button) {
+static bool isValidButtonVirtual(int32_t button) {
     return button >= -1 && GML_MOUSE_BUTTONS > button;
 }
 
-static bool isValidButton(int_fast8_t button) {
+static bool isValidButton(int32_t button) {
     return button >= 1 && GML_MOUSE_BUTTONS > button;
 }
 
 RunnerMouseState* RunnerMouse_create(void) {
-    RunnerMouseState* m = safeCalloc(1, sizeof(RunnerMouseState));
+    RunnerMouseState* m = (RunnerMouseState *)safeCalloc(1, sizeof(RunnerMouseState));
     return m;
 }
 

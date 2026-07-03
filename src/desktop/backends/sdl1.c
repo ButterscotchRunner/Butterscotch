@@ -1,9 +1,10 @@
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
 
-#include <SDL/SDL_events.h>
 #include <SDL/SDL.h>
-#include <SDL/SDL_video.h>
 
 #include "common.h"
 #include "input_recording.h"
@@ -21,7 +22,185 @@
 static Runner *g_runner;
 static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
+static SDL_Joystick* openJoysticks[MAX_GAMEPADS];
 
+typedef struct {
+    bool valid;
+    int max_button;
+    int max_axis;
+    int max_hat;
+
+    int button_map[GP_BUTTON_COUNT];
+    int axis_map[GP_AXIS_COUNT];
+    int hat_map[GP_BUTTON_COUNT];
+    int hat_mask[GP_BUTTON_COUNT];
+    int axis_button_map[GP_BUTTON_COUNT];
+    float axis_button_sign[GP_BUTTON_COUNT];
+} GamepadMapping;
+
+static GamepadMapping joystickMappings[MAX_GAMEPADS];
+
+static void parseMappingField(GamepadMapping* mapping, const char* key, const char* val) {
+    int gml_btn = -1;
+    int gml_axis = -1;
+
+    if (strcmp(key, "a") == 0) gml_btn = 0;
+    else if (strcmp(key, "b") == 0) gml_btn = 1;
+    else if (strcmp(key, "x") == 0) gml_btn = 2;
+    else if (strcmp(key, "y") == 0) gml_btn = 3;
+    else if (strcmp(key, "leftshoulder") == 0) gml_btn = 4;
+    else if (strcmp(key, "rightshoulder") == 0) gml_btn = 5;
+    else if (strcmp(key, "lefttrigger") == 0) gml_btn = 6;
+    else if (strcmp(key, "righttrigger") == 0) gml_btn = 7;
+    else if (strcmp(key, "back") == 0) gml_btn = 8;
+    else if (strcmp(key, "start") == 0) gml_btn = 9;
+    else if (strcmp(key, "leftstick") == 0) gml_btn = 10;
+    else if (strcmp(key, "rightstick") == 0) gml_btn = 11;
+    else if (strcmp(key, "dpup") == 0) gml_btn = 12;
+    else if (strcmp(key, "dpdown") == 0) gml_btn = 13;
+    else if (strcmp(key, "dpleft") == 0) gml_btn = 14;
+    else if (strcmp(key, "dpright") == 0) gml_btn = 15;
+    else if (strcmp(key, "guide") == 0) gml_btn = 16;
+    else if (strcmp(key, "leftx") == 0) gml_axis = 0;
+    else if (strcmp(key, "lefty") == 0) gml_axis = 1;
+    else if (strcmp(key, "rightx") == 0) gml_axis = 2;
+    else if (strcmp(key, "righty") == 0) gml_axis = 3;
+
+    if (gml_btn == -1 && gml_axis == -1) return;
+
+    if (val[0] == 'b') {
+        int b = atoi(val + 1);
+        if (gml_btn != -1) {
+            mapping->button_map[gml_btn] = b;
+            if (b > mapping->max_button) mapping->max_button = b;
+        }
+    } else if (val[0] == 'a') {
+        int a = atoi(val + 1);
+        if (gml_axis != -1) {
+            mapping->axis_map[gml_axis] = a;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        } else if (gml_btn != -1) {
+            mapping->axis_button_map[gml_btn] = a;
+            mapping->axis_button_sign[gml_btn] = 1.0f;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        }
+    } else if (val[0] == '+' && val[1] == 'a') {
+        int a = atoi(val + 2);
+        if (gml_btn != -1) {
+            mapping->axis_button_map[gml_btn] = a;
+            mapping->axis_button_sign[gml_btn] = 1.0f;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        } else if (gml_axis != -1) {
+            mapping->axis_map[gml_axis] = a;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        }
+    } else if (val[0] == '-' && val[1] == 'a') {
+        int a = atoi(val + 2);
+        if (gml_btn != -1) {
+            mapping->axis_button_map[gml_btn] = a;
+            mapping->axis_button_sign[gml_btn] = -1.0f;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        } else if (gml_axis != -1) {
+            mapping->axis_map[gml_axis] = a;
+            if (a > mapping->max_axis) mapping->max_axis = a;
+        }
+    } else if (val[0] == 'h') {
+        int h = atoi(val + 1);
+        const char* dot = strchr(val, '.');
+        if (dot && gml_btn != -1) {
+            int dir = atoi(dot + 1);
+            mapping->hat_map[gml_btn] = h;
+            mapping->hat_mask[gml_btn] = dir;
+            if (h > mapping->max_hat) mapping->max_hat = h;
+        }
+    }
+}
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#define MAPPING_PLATFORM_STR "platform:Windows"
+#elif defined(__APPLE__)
+    #include <TargetConditionals.h>
+    #if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+        #define MAPPING_PLATFORM_STR "platform:iOS"
+    #else
+        #define MAPPING_PLATFORM_STR "platform:Mac OS X"
+    #endif
+#elif defined(__ANDROID__)
+#define MAPPING_PLATFORM_STR "platform:Android"
+#elif defined(__linux__) || defined(__gnu_linux__)
+#define MAPPING_PLATFORM_STR "platform:Linux"
+#else
+#define MAPPING_PLATFORM_STR "platform:Unknown" //Gamepad wont work at all here
+#endif
+
+static void loadGamepadMappings(void) {
+    const char* dbPath = "gamecontrollerdb.txt";
+    FILE* f = fopen(dbPath, "r");
+    if (!f) {
+        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
+        return;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), f)) {
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = '\0';
+        }
+        if (len == 0 || line[0] == '#') continue;
+
+        char* guid = line;
+        char* name = strchr(guid, ',');
+        if (!name) continue;
+        *name++ = '\0';
+
+        char* mapping_str = strchr(name, ',');
+        if (!mapping_str) continue;
+        *mapping_str++ = '\0';
+
+        if (strstr(mapping_str, "platform:") != NULL && strstr(mapping_str, MAPPING_PLATFORM_STR) == NULL) {
+            continue;
+        }
+
+        GamepadMapping temp;
+        temp.valid = true;
+        temp.max_button = -1;
+        temp.max_axis = -1;
+        temp.max_hat = -1;
+        for (int i = 0; i < GP_BUTTON_COUNT; i++) {
+            temp.button_map[i] = -1;
+            temp.hat_map[i] = -1;
+            temp.hat_mask[i] = -1;
+            temp.axis_button_map[i] = -1;
+            temp.axis_button_sign[i] = 1.0f;
+        }
+        for (int i = 0; i < GP_AXIS_COUNT; i++) {
+            temp.axis_map[i] = -1;
+        }
+
+        char* token = strtok(mapping_str, ",");
+        while (token) {
+            char* colon = strchr(token, ':');
+            if (colon) {
+                *colon = '\0';
+                parseMappingField(&temp, token, colon + 1);
+            }
+            token = strtok(NULL, ",");
+        }
+
+        for (int i = 0; i < MAX_GAMEPADS; i++) {
+            SDL_Joystick* joy = openJoysticks[i];
+            if (joy && !joystickMappings[i].valid) {
+                const char* jname = SDL_JoystickName(i);
+                if (jname && strcasecmp(jname, name) == 0) {
+                    joystickMappings[i] = temp;
+                    fprintf(stderr, "Gamepad: Mapped '%s' (slot %d)\n", jname, i);
+                }
+            }
+        }
+    }
+    fclose(f);
+}
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
@@ -66,10 +245,24 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     }
 
     // Init SDL
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER)) {
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_JOYSTICK)) {
         fprintf(stderr, "Failed to initialize SDL\n");
         return false;
     }
+
+    SDL_JoystickEventState(SDL_IGNORE);
+    int numJoysticks = SDL_NumJoysticks();
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        memset(&joystickMappings[i], 0, sizeof(GamepadMapping));
+        joystickMappings[i].valid = false;
+
+        if (i < numJoysticks) {
+            openJoysticks[i] = SDL_JoystickOpen(i);
+        } else {
+            openJoysticks[i] = NULL;
+        }
+    }
+    loadGamepadMappings();
 
     fbWidth = reqW;
     fbHeight = reqH;
@@ -99,6 +292,12 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 }
 
 void platformExit(void) {
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        if (openJoysticks[i]) {
+            SDL_JoystickClose(openJoysticks[i]);
+            openJoysticks[i] = NULL;
+        }
+    }
     SDL_Quit();
 }
 
@@ -205,6 +404,44 @@ static int32_t SDLKeyToGml(int sdlkey) {
     }
 }
 
+static void platformResetJoysticks(void) {
+    char oldNames[MAX_GAMEPADS][256] = {0};
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        if (openJoysticks[i]) {
+            const char* name = SDL_JoystickName(i);
+            if (name) {
+                strncpy(oldNames[i], name, sizeof(oldNames[i]) - 1);
+            }
+            SDL_JoystickClose(openJoysticks[i]);
+            openJoysticks[i] = NULL;
+        }
+    }
+    
+    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+    SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+    SDL_JoystickEventState(SDL_IGNORE);
+    
+    int numJoysticks = SDL_NumJoysticks();
+    bool needsRemap = false;
+    for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; i++) {
+        openJoysticks[i] = SDL_JoystickOpen(i);
+        const char* newName = SDL_JoystickName(i);
+        if (!newName) newName = "";
+        if (strcmp(oldNames[i], newName) != 0) {
+            joystickMappings[i].valid = false;
+            needsRemap = true;
+        }
+    }
+    
+    for (int i = numJoysticks; i < MAX_GAMEPADS; i++) {
+        joystickMappings[i].valid = false;
+    }
+    
+    if (needsRemap) {
+        loadGamepadMappings();
+    }
+}
+
 static int32_t SDLMouseButtonToGml(int sdlButton) {
     switch (sdlButton) {
         case SDL_BUTTON_LEFT: return GML_MB_LEFT;
@@ -215,9 +452,93 @@ static int32_t SDLMouseButtonToGml(int sdlButton) {
 }
 
 bool platformHandleEvents(void) {
+    SDL_JoystickUpdate();
+
+    g_runner->gamepads->connectedCount = 0;
+    for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+        GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
+        SDL_Joystick* joy = openJoysticks[slotIdx];
+
+        memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
+        memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
+        memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
+        memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
+        memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
+        memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+        if (joy != NULL) {
+            slot->connected = true;
+            slot->jid = slotIdx;
+
+            const char* name = SDL_JoystickName(slotIdx);
+            if (name != NULL) {
+                strncpy(slot->description, name, sizeof(slot->description) - 1);
+                slot->description[sizeof(slot->description) - 1] = '\0';
+            } else {
+                slot->description[0] = '\0';
+            }
+
+            slot->guid[0] = '\0';
+
+            GamepadMapping* map = &joystickMappings[slotIdx];
+
+            if (map->valid) {
+                for (int btn = 0; btn < GP_BUTTON_COUNT; btn++) {
+                    if (map->button_map[btn] != -1) {
+                        if (SDL_JoystickGetButton(joy, map->button_map[btn])) {
+                            slot->buttonDown[btn] = true;
+                            slot->buttonValue[btn] = 1.0f;
+                        }
+                    }
+                    if (map->hat_map[btn] != -1) {
+                        Uint8 hat = SDL_JoystickGetHat(joy, map->hat_map[btn]);
+                        if (hat & map->hat_mask[btn]) {
+                            slot->buttonDown[btn] = true;
+                            slot->buttonValue[btn] = 1.0f;
+                        }
+                    }
+                    if (map->axis_button_map[btn] != -1) {
+                        Sint16 val = SDL_JoystickGetAxis(joy, map->axis_button_map[btn]);
+                        float norm = val / 32767.0f;
+                        if (map->axis_button_sign[btn] < 0) norm = -norm;
+                        if (norm < 0.0f) norm = 0.0f;
+                        
+                        if (norm > slot->buttonValue[btn]) {
+                            slot->buttonValue[btn] = norm;
+                        }
+                        if (slot->buttonValue[btn] >= slot->triggerThreshold) {
+                            slot->buttonDown[btn] = true;
+                        }
+                    }
+                }
+
+                for (int a = 0; a < GP_AXIS_COUNT; a++) {
+                    if (map->axis_map[a] != -1) {
+                        Sint16 val = SDL_JoystickGetAxis(joy, map->axis_map[a]);
+                        slot->axisValue[a] = val / 32767.0f;
+                    }
+                }
+            }
+
+            for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                bool wasDown = slot->buttonDownPrev[btn];
+                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
+                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+            }
+            g_runner->gamepads->connectedCount++;
+        } else {
+            slot->connected = false;
+        }
+    }
+
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch(e.type) {
+            case SDL_ACTIVEEVENT:
+                if ((e.active.state & SDL_APPINPUTFOCUS) && e.active.gain) {
+                    platformResetJoysticks();
+                }
+                break;
             case SDL_KEYDOWN:
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;

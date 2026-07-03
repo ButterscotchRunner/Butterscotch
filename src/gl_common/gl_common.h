@@ -1,9 +1,10 @@
-#pragma once
+#ifndef _BS_GL_COMMON_H_
+#define _BS_GL_COMMON_H_
 
 #include "common.h"
 #include <stdint.h>
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_PS3
 #include "ps3gl.h"
@@ -56,3 +57,5 @@ GLenum GLCommon_blendModeToSFactor(int mode);
 
 // Maps a bm_* mode constant to its conventional destination blend factor.
 GLenum GLCommon_blendModeToDFactor(int mode);
+
+#endif /* _BS_GL_COMMON_H_ */

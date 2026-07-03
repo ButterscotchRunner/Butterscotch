@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS3GL_INTERNAL_H_
+#define _BS_PS3GL_INTERNAL_H_
 
 #include "GL/gl.h"
 #include <vectormath/c/vectormath_aos.h>
@@ -196,6 +197,8 @@ struct ps3gl_opengl_state
 	GLenum blend_equation;
 	GLenum blend_func_sfactor;
 	GLenum blend_func_dfactor;
+	GLenum blend_func_sfactor_alpha;
+	GLenum blend_func_dfactor_alpha;
 
 	// Matrices
 	GLuint matrix_mode;
@@ -314,3 +317,5 @@ static inline void rsxSetFragmentProgramParameterF32Vec4(gcmContextData *context
 			GCM_LOCATION_RSX);
 	}
 }
+
+#endif /* _BS_PS3GL_INTERNAL_H_ */

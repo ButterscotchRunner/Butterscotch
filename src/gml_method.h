@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GML_METHOD_H_
+#define _BS_GML_METHOD_H_
 #include <stdint.h>
 
 // Forward declarations
@@ -31,3 +32,5 @@ GMLMethod* GMLMethod_createUnresolved(const char* name, int32_t boundInstanceId)
 void GMLMethod_incRef(GMLMethod* m);
 // Decrement refCount. If it reaches 0, frees the struct. Safe on nullptr.
 void GMLMethod_decRef(GMLMethod* m);
+
+#endif /* _BS_GML_METHOD_H_ */

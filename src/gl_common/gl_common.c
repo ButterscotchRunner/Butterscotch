@@ -8,6 +8,8 @@
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
 
+#include "gl_wrappers.h"
+
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {
@@ -50,10 +52,10 @@ uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceT
 
     uint32_t newIndex = *count;
     (*count)++;
-    *surfaces = safeRealloc(*surfaces,       *count * sizeof(GLuint));
-    *surfaceTexture = safeRealloc(*surfaceTexture, *count * sizeof(GLuint));
-    *surfaceWidth = safeRealloc(*surfaceWidth,   *count * sizeof(int32_t));
-    *surfaceHeight = safeRealloc(*surfaceHeight,  *count * sizeof(int32_t));
+    *surfaces = (GLuint *)safeRealloc(*surfaces, *count * sizeof(GLuint));
+    *surfaceTexture = (GLuint *)safeRealloc(*surfaceTexture, *count * sizeof(GLuint));
+    *surfaceWidth = (int32_t *)safeRealloc(*surfaceWidth,   *count * sizeof(int32_t));
+    *surfaceHeight = (int32_t *)safeRealloc(*surfaceHeight,  *count * sizeof(int32_t));
     (*surfaces)[newIndex]       = 0;
     (*surfaceTexture)[newIndex] = 0;
     (*surfaceWidth)[newIndex]   = 0;
@@ -125,7 +127,7 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     glBindFramebuffer(GL_FRAMEBUFFER, surfaces[surfaceId]);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
-    uint8_t* tmp = safeMalloc((size_t) w * (size_t) h * 4);
+    uint8_t* tmp = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
 
     // OpenGL reads bottom-up; native expects y=0 at the top

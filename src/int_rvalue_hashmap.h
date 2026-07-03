@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INT_RVALUE_HASHMAP_H_
+#define _BS_INT_RVALUE_HASHMAP_H_
 
 #include "common.h"
 #include "utils.h"
@@ -74,3 +75,5 @@ static inline bool IntRValueHashMap_contains(const IntRValueHashMap* map, int32_
         idx = (idx + 1) & mask;
     }
 }
+
+#endif /* _BS_INT_RVALUE_HASHMAP_H_ */

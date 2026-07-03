@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS3GL_H_
+#define _BS_PS3GL_H_
 
 #define GL_GLEXT_PROTOTYPES
 #include "GL/gl.h"
@@ -18,3 +19,5 @@ typedef char GLchar;
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* _BS_PS3GL_H_ */

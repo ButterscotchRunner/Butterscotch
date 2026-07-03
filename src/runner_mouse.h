@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_MOUSE_H_
+#define _BS_RUNNER_MOUSE_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -60,3 +61,5 @@ int32_t RunnerMouse_getLastButton(RunnerMouseState* m);
 void RunnerMouse_onWheel(RunnerMouseState* m, double yoffset);
 bool RunnerMouse_getWheelUp(RunnerMouseState* m);
 bool RunnerMouse_getWheelDown(RunnerMouseState* m);
+
+#endif /* _BS_RUNNER_MOUSE_H_ */
