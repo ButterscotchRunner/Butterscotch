@@ -1733,10 +1733,10 @@ static void SWRenderer_drawTextColor(Renderer* renderer, const char* text, float
 	swrDrawText(swr, text, x, y, xscale, yscale, angleDeg, c1, renderer->drawAlpha, lineSeparation);
 }
 
-static void SWRenderer_drawTiled(Renderer* renderer, int32_t tpagIndex,
-								 float originX, float originY, float x, float y,
-								 float xscale, float yscale, bool tileX, bool tileY,
-								 float roomW, float roomH, uint32_t color, float alpha)
+static void SWRenderer_drawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
+									   float originX, float originY, float x, float y,
+									   float xscale, float yscale, bool tileX, bool tileY,
+									   float roomW, float roomH, uint32_t color, float alpha)
 {
 	SWRenderer* swr = (SWRenderer*) renderer;
 	DataWin* dwin = renderer->dataWin;
@@ -1803,6 +1803,18 @@ static void SWRenderer_drawTiled(Renderer* renderer, int32_t tpagIndex,
 	}
 }
 
+static void SWRenderer_drawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha)
+{
+	(void) renderer;
+	(void) surfaceID;
+	(void) x; (void) y;
+	(void) xscale; (void) yscale;
+	(void) roomW; (void) roomH;
+	(void) color; (void) alpha;
+	
+	UNIMP2();
+}
+
 static void SWRenderer_flush(Renderer* renderer)
 {
 	(void)renderer;
@@ -1821,10 +1833,10 @@ static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
 	(void)renderer; (void)mode;
 }
 
-static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor)
+static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha)
 {
 	UNIMP();
-	(void)renderer; (void)sfactor; (void)dfactor;
+	(void)renderer; (void)sfactor; (void)dfactor; (void)sfactor_alpha; (void)dfactor_alpha;
 }
 
 static void SWRenderer_gpuSetBlendEnable(Renderer* renderer, bool enable)
@@ -2290,8 +2302,8 @@ Renderer* SWRenderer_create(void)
 	swrVtable.gpuGetColorWriteEnable   = SWRenderer_gpuGetColorWriteEnable;
 	swrVtable.gpuGetBlendEnable        = SWRenderer_gpuGetBlendEnable;
 	swrVtable.gpuSetFog                = SWRenderer_gpuSetFog;
-	swrVtable.drawTile                 = NULL;
-	swrVtable.drawTiled                = SWRenderer_drawTiled;
+	swrVtable.drawSpriteTiled          = SWRenderer_drawSpriteTiled;
+	swrVtable.drawSurfaceTiled         = SWRenderer_drawSurfaceTiled;
 	swrVtable.createSurface            = SWRenderer_createSurface;
 	swrVtable.surfaceExists            = SWRenderer_surfaceExists;
 	swrVtable.setRenderTarget          = SWRenderer_setRenderTarget;
@@ -2318,6 +2330,9 @@ Renderer* SWRenderer_create(void)
 	swrVtable.shaderSetUniformI        = SWRenderer_shaderSetUniformI;
 	swrVtable.shaderIsCompiled         = SWRenderer_shaderIsCompiled;
 	swrVtable.shadersSupported         = SWRenderer_shadersSupported;
+	
+	swrVtable.drawTile                 = NULL;
+	
 	swr->base.drawColor = 0xFFFFFF;
 	swr->base.drawAlpha = 1.0f;
 	swr->base.drawFont = -1;
