@@ -51,7 +51,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     return (glGenFramebuffers || glGenFramebuffersEXT);
 #else
     return true;
@@ -59,7 +59,7 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     return (glGenVertexArrays || glGenVertexArraysOES);
 #else
     return true;
