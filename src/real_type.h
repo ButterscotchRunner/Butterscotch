@@ -26,6 +26,7 @@ typedef float GMLReal;
 #define GMLReal_pow powf
 #define GMLReal_log logf
 #define GMLReal_log2 log2f
+#define GMLReal_log10 log10f
 #define GMLReal_fmax fmaxf
 #define GMLReal_fmin fminf
 #define GMLReal_nextafter nextafterf
@@ -51,6 +52,7 @@ typedef double GMLReal;
 #define GMLReal_pow pow
 #define GMLReal_log log
 #define GMLReal_log2 log2
+#define GMLReal_log10 log10
 #define GMLReal_fmax fmax
 #define GMLReal_fmin fmin
 #define GMLReal_nextafter nextafter
