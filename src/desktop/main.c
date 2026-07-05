@@ -212,6 +212,7 @@ typedef struct {
     bool lazyRooms;
     StringBooleanEntry* eagerRooms; // stb_ds string-keyed set of room names
     bool lazyTextures;
+    bool lazyTxtrPages;
     DataWinLoadType loadType;
     int profilerFramesBetween; // 0 = disabled
 #ifdef ENABLE_VM_OPCODE_PROFILER
@@ -458,6 +459,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
         {"load-type", required_argument, nullptr, 999},
+        {"lazy-txtr-pages", no_argument, nullptr, 1001},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -747,6 +749,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             }
+            case 1001:
+                args->lazyTxtrPages = true;
+                break;
             default:
                 printUsage(argv[0]);
                 exit(1);
@@ -1009,6 +1014,7 @@ int main(int argc, char* argv[]) {
         options.skipLoadingPreciseMasksForNonPreciseSprites = true;
         options.loadType = args.loadType;
         options.lazyLoadRooms = args.lazyRooms;
+        options.lazyLoadTxtrPages = args.lazyTxtrPages;
         options.eagerlyLoadedRooms = args.eagerRooms;
         DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 

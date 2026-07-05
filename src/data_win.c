@@ -2715,7 +2715,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseStrg && memcmp(chunkName, "STRG", 4) == 0) {
             parseSTRG(&reader, dw);
         } else if (options.parseTxtr && memcmp(chunkName, "TXTR", 4) == 0) {
-            parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTextures);
+            parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTxtrPages);
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
             parseAUDO(&reader, dw);
         } else {
@@ -2748,8 +2748,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
     // If lazy-loading rooms, keep the file handle open for DataWin_loadRoomPayload, otherwise close it now
     dw->lazyLoadRooms = options.lazyLoadRooms;
-    dw->lazyLoadTextures = options.lazyLoadTextures;
-    if (options.lazyLoadRooms || options.lazyLoadTextures) {
+    dw->lazyLoadTxtrPages = options.lazyLoadTxtrPages;
+    if (options.lazyLoadRooms || options.lazyLoadTxtrPages) {
         dw->lazyLoadFile = file;
         dw->lazyLoadFilePath = safeStrdup(filePath);
         dw->fileSize = (size_t) fileSize;
@@ -2971,7 +2971,7 @@ void DataWin_free(DataWin* dw) {
     free(dw->strgBuffer);
     free(dw->bytecodeBuffer);
 
-    // Close the lazy-load file handle (only open when lazyLoadRooms/lazyLoadTextures was enabled)
+    // Close the lazy-load file handle (only open when lazyLoadRooms/lazyLoadTxtrPages was enabled)
     if (dw->lazyLoadFile != nullptr) {
         fclose(dw->lazyLoadFile);
         dw->lazyLoadFile = nullptr;
