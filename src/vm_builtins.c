@@ -1936,6 +1936,15 @@ static RValue builtin_max(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(result);
 }
 
+static RValue builtin_max3(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(0.0);
+    GMLReal x = RValue_toReal(args[0]);
+    GMLReal y = RValue_toReal(args[1]);
+    GMLReal z = RValue_toReal(args[2]);
+    GMLReal result = (x > y) ? ((x > z) ? x : z) : ((y > z) ? y : z);
+    return RValue_makeReal(result);
+}
+
 static RValue builtin_min(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal result = INFINITY;
@@ -16304,6 +16313,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "frac", builtin_frac);
     VM_registerBuiltin(ctx, "sign", builtin_sign);
     VM_registerBuiltin(ctx, "max", builtin_max);
+    VM_registerBuiltin(ctx, "max3", builtin_max3);
     VM_registerBuiltin(ctx, "min", builtin_min);
     VM_registerBuiltin(ctx, "mean", builtin_mean);
     VM_registerBuiltin(ctx, "median", builtin_median);
