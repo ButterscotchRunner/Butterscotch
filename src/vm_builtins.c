@@ -10356,6 +10356,46 @@ static RValue builtin_draw_triangle_color(VMContext* ctx, RValue* args, MAYBE_UN
     return RValue_makeUndefined();
 }
 
+// draw_arrow(x1, y1, x2, y2, size)
+static RValue builtin_draw_arrow(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 5) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    
+    float x1 = (float) RValue_toReal(args[0]);
+    float y1 = (float) RValue_toReal(args[1]);
+    float x2 = (float) RValue_toReal(args[2]);
+    float y2 = (float) RValue_toReal(args[3]);
+    float size = (float) RValue_toReal(args[4]);
+    
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float dd = (float) GMLReal_sqrt(dx * dx + dy * dy);
+    
+    if (dd != 0.0) {    
+        if (size > dd) {
+            size = dd;
+        }
+        
+        float xx = size * dx / dd;
+        float yy = size * dy / dd;
+        uint32_t color = runner->renderer->drawColor;
+        float alpha = runner->renderer->drawAlpha;
+
+        runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, color, color, alpha);
+        
+        float tx1 = x2 - xx - yy / 3.0;
+        float ty1 = y2 - yy + xx / 3.0;
+        float tx2 = x2;
+        float ty2 = y2;
+        float tx3 = x2 - xx + yy / 3.0;
+        float ty3 = y2 - yy - xx / 3.0;
+        
+        runner->renderer->vtable->drawTriangle(runner->renderer, tx1, ty1, tx2, ty2, tx3, ty3, color, color, color, alpha, false);
+    }
+    
+    return RValue_makeUndefined();
+}
+
 // draw_circle(x, y, r, outline)
 static RValue builtin_draw_circle(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -16837,6 +16877,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_triangle", builtin_draw_triangle);
     VM_registerBuiltin(ctx, "draw_triangle_colour", builtin_draw_triangle_color);
     VM_registerBuiltin(ctx, "draw_triangle_color", builtin_draw_triangle_color);
+    VM_registerBuiltin(ctx, "draw_arrow", builtin_draw_arrow);    
     VM_registerBuiltin(ctx, "draw_circle", builtin_draw_circle);
     VM_registerBuiltin(ctx, "draw_circle_colour", builtin_draw_circle_color);
     VM_registerBuiltin(ctx, "draw_circle_color", builtin_draw_circle_color);
