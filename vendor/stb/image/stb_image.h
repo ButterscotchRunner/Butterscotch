@@ -777,6 +777,10 @@ static int stbi__sse2_available(void)
 #endif
 #endif
 
+#ifdef __ARM_NEON__
+#define STBI_NEON
+#endif
+
 // ARM NEON
 #if defined(STBI_NO_SIMD) && defined(STBI_NEON)
 #undef STBI_NEON
