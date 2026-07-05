@@ -2632,6 +2632,40 @@ static RValue builtin_dot_product_3d(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     return RValue_makeReal(x1 * x2 + y1 * y2 + z1 * z2);
 }
 
+static RValue builtin_dot_product_3d_normalised(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (6 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal z1 = RValue_toReal(args[2]);
+    GMLReal x2 = RValue_toReal(args[3]);
+    GMLReal y2 = RValue_toReal(args[4]);
+    GMLReal z2 = RValue_toReal(args[5]);
+
+    GMLReal len1 = GMLReal_sqrt(x1 * x1 + y1 * y1 + z1 * z1);
+    GMLReal len2 = GMLReal_sqrt(x2 * x2 + y2 * y2 + z2 * z2);
+    
+    if (len1 == 0.0 || len2 == 0.0) return RValue_makeReal(0.0); 
+
+    GMLReal dot = x1 * x2 + y1 * y2 + z1 * z2;
+    return RValue_makeReal(dot / (len1 * len2));
+}
+
+static RValue builtin_dot_product_normalised(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (4 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+
+    GMLReal len1 = GMLReal_sqrt(x1 * x1 + y1 * y1);
+    GMLReal len2 = GMLReal_sqrt(x2 * x2 + y2 * y2);
+    
+    if (len1 == 0.0 || len2 == 0.0) return RValue_makeReal(0.0); 
+
+    GMLReal dot = x1 * x2 + y1 * y2;
+    return RValue_makeReal(dot / (len1 * len2));
+}
+
 static RValue builtin_point_distance(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (4 > argCount) return RValue_makeReal(0.0);
     GMLReal dx = RValue_toReal(args[2]) - RValue_toReal(args[0]);
@@ -16237,6 +16271,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tan", builtin_tan);
     VM_registerBuiltin(ctx, "dot_product", builtin_dot_product);
     VM_registerBuiltin(ctx, "dot_product_3d", builtin_dot_product_3d);
+    VM_registerBuiltin(ctx, "dot_product_3d_normalised", builtin_dot_product_3d_normalised);
+    VM_registerBuiltin(ctx, "dot_product_normalised", builtin_dot_product_normalised);    
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
     VM_registerBuiltin(ctx, "point_in_rectangle", builtin_point_in_rectangle);
     VM_registerBuiltin(ctx, "point_in_circle", builtin_point_in_circle);
