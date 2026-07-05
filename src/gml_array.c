@@ -5,23 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void ensureRowCapacity(GMLArray* arr, int32_t minRows) {
-    if (arr->rowCapacity >= minRows) return;
-    int32_t newCap = arr->rowCapacity > 0 ? arr->rowCapacity : 4;
+static void ensureLegacyRowCapacity(GMLArray* arr, int32_t minRows) {
+    require(arr->type == GML_LEGACY_ARRAY);
+    if (arr->legacy.rowCapacity >= minRows) return;
+    int32_t newCap = arr->legacy.rowCapacity > 0 ? arr->legacy.rowCapacity : 4;
     while (minRows > newCap) newCap *= 2;
-    arr->rows = safeRealloc(arr->rows, (uint32_t) newCap * sizeof(GMLArrayRow));
-    for (int32_t i = arr->rowCapacity; newCap > i; i++) {
-        arr->rows[i] = (GMLArrayRow){ .length = 0, .capacity = 0, .data = nullptr };
-    }
-    arr->rowCapacity = newCap;
+    arr->legacy.rows = (GMLArrayRow *)safeRealloc(arr->legacy.rows, (uint32_t) newCap * sizeof(GMLArrayRow));
+    memset(arr->legacy.rows + arr->legacy.rowCapacity, 0, (newCap - arr->legacy.rowCapacity) * sizeof(GMLArrayRow));
+    arr->legacy.rowCapacity = newCap;
 }
 
-static void growRow(GMLArrayRow* row, int32_t minLength) {
+static void growLegacyRow(GMLArrayRow* row, int32_t minLength) {
     if (row->length >= minLength) return;
     if (minLength > row->capacity) {
         int32_t newCap = row->capacity > 0 ? row->capacity : 4;
         while (minLength > newCap) newCap *= 2;
-        row->data = safeRealloc(row->data, (uint32_t) newCap * sizeof(RValue));
+        row->data = (RValue *)safeRealloc(row->data, (uint32_t) newCap * sizeof(RValue));
         row->capacity = newCap;
     }
     // GameMaker fills uninitialized array slots with 0 (real).
@@ -32,15 +31,16 @@ static void growRow(GMLArrayRow* row, int32_t minLength) {
     row->length = minLength;
 }
 
-GMLArray* GMLArray_create(int32_t initialLength) {
-    GMLArray* arr = safeCalloc(1, sizeof(GMLArray));
+GMLArray* GMLArray_create(int32_t wadVersion, int32_t initialLength) {
+    GMLArrayType type = wadVersion >= 17 ? GML_MODERN_ARRAY : GML_LEGACY_ARRAY;
+#ifndef ENABLE_WAD17
+    require(type == GML_LEGACY_ARRAY);
+#endif
+    GMLArray* arr = (GMLArray *)safeCalloc(1, sizeof(GMLArray));
     arr->refCount = 1;
+    arr->type = type;
     arr->owner = nullptr;
-    if (initialLength > 0) {
-        ensureRowCapacity(arr, 1);
-        growRow(&arr->rows[0], initialLength);
-        arr->rowCount = 1;
-    }
+    GMLArray_growTo(arr, initialLength);
     return arr;
 }
 
@@ -55,55 +55,49 @@ void GMLArray_decRef(GMLArray* arr) {
     arr->refCount--;
     if (arr->refCount > 0) return;
 
-    repeat(arr->rowCount, r) {
-        GMLArrayRow* row = &arr->rows[r];
-        repeat(row->length, c) {
-            RValue_free(&row->data[c]);
+    if (arr->type == GML_LEGACY_ARRAY) {
+        repeat(arr->legacy.rowCount, r) {
+            GMLArrayRow* row = &arr->legacy.rows[r];
+            repeat(row->length, c) {
+                RValue_free(&row->data[c]);
+            }
+            free(row->data);
         }
-        free(row->data);
+        free(arr->legacy.rows);
+    } else {
+        repeat(arr->modern.length, r) {
+            RValue_free(&arr->modern.data[r]);
+        }
+        free(arr->modern.data);
     }
-    free(arr->rows);
     free(arr);
 }
 
 GMLArray* GMLArray_clone(GMLArray* src, void* newOwner) {
     if (src == nullptr) return nullptr;
-    GMLArray* dst = safeCalloc(1, sizeof(GMLArray));
+    GMLArray* dst = (GMLArray *)safeCalloc(1, sizeof(GMLArray));
     dst->refCount = 1;
     dst->owner = newOwner;
-    if (src->rowCount > 0) {
-        ensureRowCapacity(dst, src->rowCount);
-        dst->rowCount = src->rowCount;
-        repeat(src->rowCount, r) {
-            GMLArrayRow* srcRow = &src->rows[r];
-            GMLArrayRow* dstRow = &dst->rows[r];
-            if (srcRow->length == 0) continue;
-            growRow(dstRow, srcRow->length);
-            repeat(srcRow->length, c) {
-                RValue srcVal = srcRow->data[c];
-                // Duplicate owned strings: for nested arrays, share the inner array (bump refCount).
-                // Inner arrays get their own CoW check on first write through the new outer slot.
-                if (srcVal.type == RVALUE_STRING && srcVal.ownsReference && srcVal.string != nullptr) {
-                    dstRow->data[c] = RValue_makeOwnedString(safeStrdup(srcVal.string));
-                } else if (srcVal.type == RVALUE_ARRAY && srcVal.array != nullptr) {
-                    GMLArray_incRef(srcVal.array);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
-                } else if (srcVal.type == RVALUE_METHOD && srcVal.method != nullptr) {
-                    GMLMethod_incRef(srcVal.method);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-#endif
-                } else if (srcVal.type == RVALUE_STRUCT && srcVal.structInst != nullptr) {
-                    Instance_structIncRef(srcVal.structInst);
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = true;
-                } else {
-                    dstRow->data[c] = srcVal;
-                    dstRow->data[c].ownsReference = false;
+    dst->type = src->type;
+    if (src->type == GML_LEGACY_ARRAY) {
+        if (src->legacy.rowCount > 0) {
+            ensureLegacyRowCapacity(dst, src->legacy.rowCount);
+            dst->legacy.rowCount = src->legacy.rowCount;
+            repeat(src->legacy.rowCount, r) {
+                GMLArrayRow* srcRow = &src->legacy.rows[r];
+                GMLArrayRow* dstRow = &dst->legacy.rows[r];
+                if (srcRow->length == 0) continue;
+                growLegacyRow(dstRow, srcRow->length);
+                repeat(srcRow->length, c) {
+                    RValue srcVal = srcRow->data[c];
+                    dstRow->data[c] = RValue_makeIndependent(srcVal);
                 }
             }
+        }
+    } else {
+        GMLArray_growTo(dst, src->modern.length);
+        repeat(src->modern.length, i) {
+            dst->modern.data[i] = RValue_makeIndependent(src->modern.data[i]);
         }
     }
     return dst;
@@ -111,11 +105,26 @@ GMLArray* GMLArray_clone(GMLArray* src, void* newOwner) {
 
 void GMLArray_growTo(GMLArray* arr, int32_t minLength) {
     if (arr == nullptr || minLength <= 0) return;
-    int32_t idx = minLength - 1;
-    int32_t row = idx / GML_ARRAY_STRIDE;
-    int32_t col = idx % GML_ARRAY_STRIDE;
-    ensureRowCapacity(arr, row + 1);
-    if (row + 1 > arr->rowCount) arr->rowCount = row + 1;
-    growRow(&arr->rows[row], col + 1);
+    if (arr->type == GML_LEGACY_ARRAY) {
+        int32_t idx = minLength - 1;
+        int32_t row = idx / GML_LEGACY_ARRAY_STRIDE;
+        int32_t col = idx % GML_LEGACY_ARRAY_STRIDE;
+        ensureLegacyRowCapacity(arr, row + 1);
+        if (row + 1 > arr->legacy.rowCount) arr->legacy.rowCount = row + 1;
+        growLegacyRow(&arr->legacy.rows[row], col + 1);
+    } else {
+        if (arr->modern.length > minLength) return; // never shrink; already long enough
+        if (minLength > arr->modern.capacity) {
+            int32_t newCap = arr->modern.capacity > 0 ? arr->modern.capacity : 4;
+            while (minLength > newCap) newCap *= 2; // geometric growth -> amortized O(1) appends
+            arr->modern.data = (RValue *)safeRealloc(arr->modern.data, (uint32_t) newCap * sizeof(RValue));
+            arr->modern.capacity = newCap;
+        }
+        // GameMaker fills uninitialized array slots with 0 (real)
+        // Example: If you do "a[10] = 1", all values between 0..9 in the array MUST be read back as 0
+        for (int32_t i = arr->modern.length; minLength > i; i++) {
+            arr->modern.data[i] = RValue_makeReal(0);
+        }
+        arr->modern.length = minLength;
+    }
 }
-

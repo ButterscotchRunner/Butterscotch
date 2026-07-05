@@ -9,7 +9,7 @@ on:
 jobs:
   build-glfw-linux-x86_64:
     name: Build (GLFW/Linux x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +23,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
 
       - name: Configure
-        run: cmake -B build -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -36,7 +36,7 @@ jobs:
 
   build-glfw-windows-x86_64:
     name: Build (GLFW/Windows x86_64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +71,7 @@ jobs:
           sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/x86_64-w64-mingw32/include/
 
       - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -84,7 +84,7 @@ jobs:
 
   build-glfw-linux-x86:
     name: Build (GLFW/Linux x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -114,7 +114,7 @@ jobs:
       - name: Configure
         run: |
           export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -127,7 +127,7 @@ jobs:
 
   build-glfw-windows-x86:
     name: Build (GLFW/Windows x86)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -163,10 +163,11 @@ jobs:
       - name: Build
         run: |
           PATH="$PWD/artifacts/windows/build/toolchain-i486/bin:$PATH" make \
+              NO_COLOR=1 \
+              VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
-              OS=Windows \
-              USE_GLFW2=1 \
-              GLFW_LIBS='-lglfw -lopengl32' \
+              DESKTOP_BACKEND=glfw2 \
+              GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic' \
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
               BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
@@ -181,7 +182,7 @@ jobs:
 
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ps2dev/ps2dev:latest
     strategy:
@@ -191,15 +192,15 @@ jobs:
           - label: ""
             artifact: butterscotch-ps2
             extra_flags: ""
-          - label: " [Bytecode Version 14]"
-            artifact: butterscotch-ps2-bc14
-            extra_flags: "-DENABLE_BC14=ON -DENABLE_BC16=OFF -DENABLE_BC17=OFF"
-          - label: " [Bytecode Version 16]"
-            artifact: butterscotch-ps2-bc16
-            extra_flags: "-DENABLE_BC14=OFF -DENABLE_BC16=ON -DENABLE_BC17=OFF"
-          - label: " [Bytecode Version 17]"
-            artifact: butterscotch-ps2-bc17
-            extra_flags: "-DENABLE_BC14=OFF -DENABLE_BC16=OFF -DENABLE_BC17=ON"
+          - label: " [WAD Version 14]"
+            artifact: butterscotch-ps2-wad14
+            extra_flags: "-DENABLE_WAD14=ON -DENABLE_WAD16=OFF -DENABLE_WAD17=OFF"
+          - label: " [WAD Version 16]"
+            artifact: butterscotch-ps2-wad16
+            extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=ON -DENABLE_WAD17=OFF"
+          - label: " [WAD Version 17]"
+            artifact: butterscotch-ps2-wad17
+            extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=OFF -DENABLE_WAD17=ON"
     steps:
       - name: Install build tools
         run: apk add --no-cache cmake make gmp-dev mpfr-dev mpc1-dev git
@@ -218,7 +219,7 @@ jobs:
         run: |
           mkdir -p build
           export CFLAGS="-fopt-info-inline-optimized=$PWD/build/inline_report.txt"
-          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DPLATFORM=ps2 ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: |
@@ -310,7 +311,7 @@ jobs:
 
   build-web:
     name: Build (Web)${{ matrix.label }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -338,7 +339,7 @@ jobs:
           version: latest
 
       - name: Configure
-        run: emcmake cmake -B build -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: emcmake cmake -B build -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -351,13 +352,13 @@ jobs:
 
   build-ps3:
     name: Build (PS3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: scummvm/dockerized-toolchains:ps3
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -B build -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
 
       - name: Build bzip2 for PS3
         run: |
@@ -371,10 +372,51 @@ jobs:
         run: |
           cmake --build build -j$(nproc)
           sprxlinker build/butterscotch.elf
-          make_self build/butterscotch.elf build/butterscotch.self
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-ps3
-          path: build/butterscotch.self
+          path: build/butterscotch.elf
+
+  build-old-gcc:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC 3.0
+            compiler: gcc-3.0
+            flags: '-std=gnu99 -w'
+          - name: GCC 2.95
+            compiler: g++-2.95
+            flags: '-w'
+    name: Build (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create Debian Woody chroot
+        run: |
+          sudo apt-get install --no-install-recommends -y debootstrap
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: butterscotch
+
+      - name: Build
+        run: |
+          sudo mv butterscotch ~/woody
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+
+  build-cxx:
+    name: Build as C++
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libglfw3-dev
+
+      - name: Build
+        run: make CC='g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1

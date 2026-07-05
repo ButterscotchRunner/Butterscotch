@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_COLLISION_H_
+#define _BS_COLLISION_H_
 
 #include "common.h"
 #include "data_win.h"
@@ -6,14 +7,14 @@
 #include "runner.h"
 #include "vm.h"
 
-#include <math.h>
+#include "math_compat.h"
 
 // Checks if an instance matches a collision target.
-// target >= 100000: instance ID (match specific instance)
+// target >= INSTANCE_ID_BASE: instance ID (match specific instance)
 // target == INSTANCE_ALL (-3): match any instance
-// target >= 0 && < 100000: object index (match via parent chain)
+// target >= 0 && < INSTANCE_ID_BASE: object index (match via parent chain)
 static inline bool Collision_matchesTarget(DataWin* dataWin, Instance* inst, int32_t target) {
-    if (target >= 100000) return inst->instanceId == (uint32_t) target;
+    if (target >= INSTANCE_ID_BASE) return inst->instanceId == (uint32_t) target;
     if (target == INSTANCE_ALL) return true;
     return VM_isObjectOrDescendant(dataWin, inst->objectIndex, target);
 }
@@ -314,8 +315,13 @@ static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLRea
         // Pick mask for current frame
         uint32_t frameIdx = ((uint32_t) inst->imageIndex) % spr->maskCount;
         uint8_t* mask = spr->masks[frameIdx];
-        uint32_t bytesPerRow = (spr->width + 7) / 8;
-        return (mask[iy * bytesPerRow + (ix >> 3)] & (1 << (7 - (ix & 7)))) != 0;
+        // Masks are stored at maskWidth x maskHeight starting at (maskOffsetX, maskOffsetY) in sprite-local space.
+        // Pre-2024.6 this is the full sprite with zero offset; 2024.6+ it is the bounding box.
+        int32_t mx = ix - spr->maskOffsetX;
+        int32_t my = iy - spr->maskOffsetY;
+        if (0 > mx || 0 > my || mx >= (int32_t) spr->maskWidth || my >= (int32_t) spr->maskHeight) return false;
+        uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+        return (mask[my * bytesPerRow + (mx >> 3)] & (1 << (7 - (mx & 7)))) != 0;
     }
 
     return true;
@@ -426,3 +432,5 @@ static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a
 
     return false;
 }
+
+#endif /* _BS_COLLISION_H_ */

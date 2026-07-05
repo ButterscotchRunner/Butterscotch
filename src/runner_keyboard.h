@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_RUNNER_KEYBOARD_H_
+#define _BS_RUNNER_KEYBOARD_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -17,6 +18,9 @@
 #define VK_PAGEDOWN 34
 
 // if windows.h was included, use *its* definitions for the most part.
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #ifndef VK_TAB
 
 #define VK_TAB       9
@@ -55,6 +59,8 @@ typedef struct RunnerKeyboardState {
     int32_t keyMap[GML_KEY_COUNT];   // keyboard_set_map: incoming key -> reported key (identity by default)
     int32_t lastKey;                 // Last key pressed (for keyboard_key variable)
     char lastChar[2];                // Last character pressed (for keyboard_char variable)
+    char string[1024];               // Accumulated string from keyboard_string variable
+    int32_t stringLen;
 } RunnerKeyboardState;
 
 // Lifecycle
@@ -87,3 +93,5 @@ void RunnerKeyboard_clear(RunnerKeyboardState* kb, int32_t gmlKeyCode);
 void RunnerKeyboard_setMap(RunnerKeyboardState* kb, int32_t fromKey, int32_t toKey);
 int32_t RunnerKeyboard_getMap(RunnerKeyboardState* kb, int32_t fromKey);
 void RunnerKeyboard_unsetMap(RunnerKeyboardState* kb);
+
+#endif /* _BS_RUNNER_KEYBOARD_H_ */

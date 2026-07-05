@@ -1,7 +1,12 @@
+<div align="center">
+<img width="256" height="256" alt="Butterscotch Logo" src="https://github.com/user-attachments/assets/ef8bdd5c-d407-4b3c-a4d5-07b25e8bbc70" />
+</div>
+
 <h1 align="center">🥧 Butterscotch 🥧</h1>
 
 <!-- Badges, about the GitHub repository itself -->
 <p align="center">
+<a href="https://github.com/ButterscotchRunner/CompatibilityList"><img src="https://img.shields.io/badge/butterscotch-compatibility_list-green"></a>
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
@@ -22,17 +27,26 @@ And that's where Butterscotch comes in! Butterscotch is an open source re-implem
 
 ## Game Compatibility
 
-Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, Bytecode Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
+Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, WAD Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
 
 While our target is Undertale v1.08, that doesn't mean that other games CAN'T run in Butterscotch! Because Butterscotch is a runner and not a Undertale port/remake, you CAN run other GameMaker: Studio games with it and, as long as the game is compiled with GameMaker: Studio 1.4.1804 and they only use GML variables and functions that Butterscotch supports, it should work fine.
 
-Butterscotch supports the following bytecode versions:
+Butterscotch supports the following WAD versions:
 
-* Bytecode Version 13
-* Bytecode Version 14
-* Bytecode Version 15
-* Bytecode Version 16
-* Bytecode Version 17
+* WAD Version 8 (GameMaker: Studio 1.0.198+)
+* WAD Version 9 (GameMaker: Studio 1.0.527+)
+* WAD Version 10 (GameMaker: Studio 1.1.609+)
+* WAD Version 11 (GameMaker: Studio 1.1.754+)
+* WAD Version 12 (GameMaker: Studio 1.1.867+)
+* WAD Version 13 (GameMaker: Studio 1.1.917+)
+* WAD Version 14 (GameMaker: Studio 1.4.1464+)
+* WAD Version 15 (GameMaker: Studio 1.4.1675+)
+* WAD Version 16 (GameMaker: Studio 1.4.1767+)
+* WAD Version 17 (GameMaker: Studio 2.2+)
+
+Other modding tools, such as UndertaleModTool, calls it "bytecode version" instead of "WAD version". We decided to go with WAD version instead because there are GameMaker: Studio versions (WAD version 6 and 7) that DO NOT use bytecode altogether, so calling it "bytecode version" is not quite correct, and because that's what the YoYo Runner calls it under the hood.
+
+Versions before GameMaker: Studio 1.0.198 (that is, pre-WAD version 8) uses raw GML code interpreted on load, so these versions would require a GML compiler to be supported in Butterscotch.
 
 However, that doesn't mean that a game that uses a compatible version WILL run! The bytecode support is still a WIP, and Butterscotch may have quirks that the original GameMaker: Studio runner may not have.
 
@@ -43,14 +57,29 @@ Of course, there are exceptions that break game compatibility altogether:
 
 ## Supported Platforms
 
-* Linux (GLFW, OpenGL)
-* macOS (GLFW, OpenGL)
-* Windows (GLFW, OpenGL, MinGW)
-* Web (WASM, Emscripten, WebGL2)
-* PlayStation 2 (ps2sdk, gsKit)
-* PlayStation 3 (PSL1GHT, PS3GL)
-* Haiku (GLFW)
+* Windows
+* Web
+* PlayStation 2
+* PlayStation 3
 * ...and maybe more in the future!
+
+Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
+* Linux with glibc as old as about ~1996
+* FreeBSD as old as 2.2.8
+* Haiku
+
+The following backends are available for desktop platforms (Windows and POSIX systems).
+* GLFW 2
+* GLFW 3
+* SDL 1.2
+* SDL 2
+* SDL 3
+
+The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+* GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
+* Clang 1.1 and up
+* TinyCC 0.9.27 and up
+* MSVC 19.29.30159 and up
 
 ## Community Ports
 
@@ -61,53 +90,69 @@ Of course, there are exceptions that break game compatibility altogether:
 
 ```bash
 mkdir build && cd build
-cmake -DPLATFORM=glfw -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DPLATFORM=desktop -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
 make
 ```
 
-If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DPLATFORM=glfw`
+If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DDESKTOP_BACKEND=glfw3`
 
 Then run Butterscotch with `./butterscotch /path/to/data.win`!
 
 ## CLI parameters
 
-The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
+The desktop target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
-* `--debug`: Enables debugging hotkeys
-* `--speed`: Speed multiplier
-* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle)
-* `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
-* `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
-* `--screenshot-surfaces=file_%d.%d.png`: Screenshots all surfaces (framebuffers), requires `--screenshot-surfaces-at-frame`.
-* `--screenshot-surfaces-at-frame=Frame`: Screenshots all surfaces (framebuffers) at a specific frame. Can be used multiple times.
-* `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
-* `--print-rooms`: Prints all the rooms in the `data.win` file and exits.
-* `--print-declared-functions`: Prints all the declared functions (scripts, object events, etc) in the `data.win` file and exists.
-* `--trace-variable-reads`: Traces variable reads
-* `--trace-variable-writes`: Traces variable writes
-* `--trace-function-calls`: Traces function calls
-* `--trace-alarms`: Traces alarms
-* `--trace-instance-lifecycles`: Traces instance creations and deletions
-* `--trace-events`: Traces events
-* `--trace-event-inherited`: Traces event inherited calls
-* `--trace-tiles`: Traces drawn tiles
-* `--trace-collisions`: Traces collisions between instances
-* `--trace-opcodes`: Traces opcodes
-* `--trace-stack`: Traces stack
-* `--trace-frames`: Logs when a frame starts and when a frame ends, including how much time it took to process each frame.
-* `--always-log-unknown-functions`: When enabled, Butterscotch will always log unknown functions instead of logging them once per script.
-* `--always-log-stubbed-functions`: When enabled, Butterscotch will always log stubbed functions instead of logging them once per script.
-* `--trace-bytecode-after-frame`: When set, controls when `--trace-opcodes` and `--trace-stack` will start logging. Useful when debugging interpreter-heavy scripts.
-* `--exit-at-frame=Frame`: Automatically exit the runner after X frames.
-* `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
-* `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
-* `--print-declared-functions`: Prints all declared GML scripts by the game
-* `--disassemble`: Dissassembles a specific script
-* `--record-inputs`: Records user inputs
-* `--playback-inputs`: Playbacks user inputs
-* `--os-type`: Allows changing the built-in `os_type` value. The default is Windows. Example: When running Undertale Xbox, you would need to set it to `--os-type xboxone`.
-* `--profile-gml-scripts`: Logs which GML scripts are the heaviest in terms of time and executed instructions.
-* `--profile-opcodes`: Ranks which GML opcodes were executed the most.
+```
+--help                                 - Show this message
+--screenshot <filename>                - Specify the filename for screenshots
+--screenshot-at-frame <frame>          - Take a screenshot at the specified frame
+--screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
+--screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
+--headless                             - Launch without a window
+--print-rooms                          - Print all rooms in the game and exit
+--print-objects                        - Print all objects in the game and exit
+--print-shaders                        - Print all shaders in the game and exit
+--print-declared-functions             - Print all declared functions in the game and exit
+--print-unknown-functions              - Print all unknown functions used by the game and exit
+--trace-variable-reads                 - Trace variable reads
+--trace-variable-writes                - Trace variable writes
+--trace-function-calls                 - Trace function calls
+--trace-alarms                         - Trace alarms
+--trace-instance-lifecycles            - Trace instance creations and deletions
+--trace-events                         - Trace events
+--trace-collisions                     - Trace collisions between instances
+--trace-event-inherited                - Trace event inherited calls
+--trace-tiles                          - Trace drawn tiles
+--trace-opcodes                        - Trace opcodes
+--trace-stack                          - Trace stack
+--trace-frames                         - Log frametimes
+--always-log-unknown-functions         - Always log unknown function calls instead of once per script
+--always-log-stubbed-functions         - Always log stubbed function calls instead of once per script
+--exit-at-frame <frame>                - Exit at the specified frame
+--trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame
+--dump-frame <frame>                   - Dump the runner state at the specified frame
+--dump-frame-json <frame>              - Dump the runner state in json at the specified frame
+--dump-frame-json-file <file>          - Specify an output file for runner state dumps
+--speed <speed>                        - Set a normal speed multiplier
+--fast-forward-speed <speed>           - Set a fast-forward speed multiplier
+--seed <seed>                          - Seed for the random number generator
+--debug                                - Enable debug mode
+--disassemble <script>                 - Disassemble the specified script and print to console (\* disassembles all)
+--record-inputs <file>                 - Record all keyboard inputs to a file
+--playback-inputs <file>               - Playback input from file
+--renderer <renderer>                  - Set the rendering API
+--lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage
+--eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory
+--os-type <os>                         - Set the reported OS type
+--window-size <dimentions>             - Set a custom window size
+--widescreen-hack <aspect ratio>       - Set a custom aspect ratio
+--profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
+--save-folder <directory>              - Set the directory will save files will be stored
+--game-args <args>                     - Arguments to pass to the game
+--profile-opcodes                      - Rank which GML opcodes were executed the most
+--lazy-textures                        - Load textures into VRAM on first use, improving startup times
+--load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
+```
 
 ## Debug Features
 
@@ -137,7 +182,7 @@ Having a transpiler also have other disadvantages:
 
 ## Screenshots
 
-### Undertale (GLFW) [Bytecode Version 16]
+### Undertale (GLFW) [WAD Version 16]
 
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/6651cc2e-0d6d-4354-b98d-081e84a981df" />
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/1d6edc51-2829-4f8f-b900-393f21a6655b" />
@@ -152,47 +197,58 @@ Having a transpiler also have other disadvantages:
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/e5c67781-0ffc-43c8-9c7d-333254eed704" />
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/93900e3c-79b5-4a05-bd6c-d68814e9e101" />
 
-### Undertale (PlayStation 2) [Bytecode Version 16]
+### Undertale (PlayStation 2) [WAD Version 16]
 
 Here's a video :3 https://youtu.be/PuzBxe0VGtY
 
 Here's also another video, this time showing off the Asriel Dreemurr final battle https://youtu.be/vkQMqXr0MQE
 
-### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [Bytecode Version 16]
+### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [WAD Version 16]
 
 Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 
-### DELTARUNE Chapter 2 (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter 2 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d0df9858-ad2b-4642-9f32-a542d1d942e0" />
 
-### DELTARUNE Chapter 2 (PlayStation 2) [Bytecode Version 17]
+### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/uuN72Hv50d4
 
-### DELTARUNE Chapter 3 (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter 3 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/7b49d434-e66f-4ee3-bfe8-c0b4f45ceeb7" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/afbe62ad-4706-4882-a9c9-6c239ed57c69" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d83c9f8c-e9b9-410e-8d3d-3663ede23fab" />
 
-### DELTARUNE Chapter 3 (PlayStation 2) [Bytecode Version 17]
+### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/c9r79sQABYg
 
-### DELTARUNE Chapter Selector (GLFW) [Bytecode Version 17]
+### DELTARUNE Chapter Selector (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/b8a848df-fd1c-49b7-9602-e8020ac86d5d" />
 
-### Undertale 10th Anniversary (GLFW) [Bytecode Version 17]
+### Undertale 10th Anniversary (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ec0c64e-23f1-4bb1-8291-6aaf626a690f" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ea7d078-784d-4861-aeb1-4ee2d1d70508" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/45eb5be9-5e7b-4930-bb7e-2f2c49c76a49" />
 
-### AM2R (GLFW) [Bytecode Version 14]
+### NXTALE (Undertale for Xbox One) (GLFW) [WAD Version 17]
+
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/7c4e2224-76e4-495e-8382-fad2dbdef207" />
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/6af34191-66c6-44dd-8712-907641520073" />
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/150aec4c-8cfb-4cef-9db0-f339158b0d14" />
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/4e3489e8-11de-4c8c-953c-f7b776bb4eb8" />
+
+### AM2R (GLFW) [WAD Version 14]
 
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3e46dfed-487c-4d91-9cd5-c71adc7a6cb5" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/4a4b6da1-dae4-4d0f-8611-12e7a1fc8d8c" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/d522be68-1003-4208-bf6b-d59a004606ba" />
 
+### GameMaker: Studio Platformer Demo (GLFW) [WAD Version 10]
+
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/e8cd174c-5113-416b-9e3a-c4029e1e3176" />
+<img width="160" alt="image" src="https://github.com/user-attachments/assets/3702a261-01fe-4b04-9e6c-b69336c2ce46" />

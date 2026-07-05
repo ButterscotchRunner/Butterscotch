@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_IMAGE_DECODER_H_
+#define _BS_IMAGE_DECODER_H_
 
 #include <common.h>
 #include <stdint.h>
@@ -9,3 +10,5 @@
 // Returns a malloc'd buffer of size (*outW) * (*outH) * 4 bytes, or nullptr on failure.
 // Caller is responsible for free()ing the returned buffer.
 uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm2022_5, int* outW, int* outH);
+
+#endif /* _BS_IMAGE_DECODER_H_ */

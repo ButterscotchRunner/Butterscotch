@@ -1,24 +1,48 @@
-#pragma once
+#ifndef _BS_GL_RENDERER_H_
+#define _BS_GL_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
 #else
 #include <glad/glad.h>
 #endif
 
+typedef enum {
+    BATCHTYPE_QUAD,
+    BATCHTYPE_TRIANGLE
+} BatchType;
+
 // ===[ GLRenderer Struct ]===
+typedef struct {
+    char* name; // owned
+    int32_t location;
+    GLenum type;
+    uint32_t samplerSlot;
+} GLShaderUniform;
+
+typedef struct {
+    GLuint shaderId;
+    bool compiled;
+    uint32_t uniformCount;
+    GLShaderUniform* uniforms;
+} GMLShader;
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} Vertex;
+
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
 
-    GLuint shaderProgram;
-    GLint uProjection;
-    GLint uTexture;
-    GLint uAlphaTestRef;
-    GLint uFogColor;
+    GMLShader* defaultShaderProgram;
+    GMLShader* gmlShaders;
+    uint32_t gmlShaderCount;
 
     bool alphaTestEnable;
     float alphaTestRef;
@@ -27,9 +51,10 @@ typedef struct {
     uint32_t fogColor; // BGR
 
     GLuint vao, vbo, ebo;
-    float* vertexData; // MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX floats
+    Vertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
 
-    int32_t quadCount;
+    BatchType batchType;
+    int32_t batchCount;
     GLuint currentTextureId;
 
     GLuint* glTextures;       // one GL texture per TXTR page
@@ -45,6 +70,8 @@ typedef struct {
     int32_t gameW; // game width (matches the application_surface size)
     int32_t gameH; // game height (matches the application_surface size)
 
+    GLuint hostFramebuffer; // present target for the composited frame, where 0 == the window
+
     // Original counts from data.win (dynamic slots start at these indices)
     uint32_t originalTexturePageCount;
     uint32_t originalTpagCount;
@@ -54,6 +81,12 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+
+    bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
+    bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 } GLRenderer;
 
+bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);
+
+#endif /* _BS_GL_RENDERER_H_ */

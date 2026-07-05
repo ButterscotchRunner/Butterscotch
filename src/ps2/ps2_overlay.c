@@ -9,7 +9,6 @@
 
 // ===[ Loading Screen ]===
 
-static const int PROFILER_WINDOW_FRAMES = 60;
 static bool gPS2OverlayInitialized = false;
 static PS2Overlay gOverlay = { 0 };
 
@@ -113,6 +112,8 @@ void PS2Overlay_setDebugOverlayState(DebugOverlayState state, Runner* runner) {
     Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getDebugOverlayState() == STATS_ENABLED_WITH_PROFILER);
     gOverlay.profilerFramesInWindow = 0;
     gOverlay.profilerOverlayText[0] = '\0';
+#else
+    (void)runner;
 #endif
 }
 
@@ -124,6 +125,8 @@ void PS2Overlay_toggleDebugOverlay(Runner* runner) {
     Profiler_setEnabled(&runner->vmContext->profiler, PS2Overlay_getDebugOverlayState() == STATS_ENABLED_WITH_PROFILER);
     gOverlay.profilerFramesInWindow = 0;
     gOverlay.profilerOverlayText[0] = '\0';
+#else
+    (void)runner;
 #endif
 }
 
@@ -251,7 +254,7 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
     AtlasSizeBucket sizeBuckets[8] = { 0 };
     uint32_t sizeBucketCount = 0;
 
-    repeat(gsRenderer->atlasCount, ai) {
+    for (uint16_t ai = 0; ai < gsRenderer->atlasCount; ++ai) {
         bool resident = gsRenderer->atlasToChunk[ai] >= 0;
         if (resident) vramAtlasCount++;
         if (gsRenderer->eeCacheEntries[ai].atlasId >= 0) eeramAtlasCount++;
@@ -316,7 +319,7 @@ void PS2Overlay_drawDebugOverlay(const Renderer* renderer, const Runner* runner,
     }
 
     int pinned = 0;
-    repeat(gsRenderer->chunkCount, i) {
+    for (uint32_t i = 0; i < gsRenderer->chunkCount; ++i) {
         if (gsRenderer->chunks[i].snapshotIdx != -1 || gsRenderer->chunks[i].surfaceIdx != -1)
             pinned++;
     }

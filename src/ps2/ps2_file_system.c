@@ -150,7 +150,7 @@ static bool copyFile(const char* srcPath, const char* dstPath) {
     long size = ftell(src);
     fseek(src, 0, SEEK_SET);
 
-    uint8_t* data = safeMalloc((size_t) size);
+    uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
     size_t bytesRead = fread(data, 1, (size_t) size, src);
     fclose(src);
 
@@ -170,7 +170,7 @@ static bool copyFile(const char* srcPath, const char* dstPath) {
 static void copyIconIcoIfMissing(const char* dirPath) {
     size_t dirLen = strlen(dirPath);
     size_t pathLen = dirLen + 1 + 8 + 1; // "/ICON.ICO\0"
-    char* dstPath = safeMalloc(pathLen);
+    char* dstPath = (char *)safeMalloc(pathLen);
     snprintf(dstPath, pathLen, "%s/ICON.ICO", dirPath);
 
     // Check if it already exists on the memory card
@@ -198,7 +198,7 @@ static void writeIconSysIfMissing(const char* dirPath, const char* gameTitle, co
     // Build path: "dirPath/icon.sys"
     size_t dirLen = strlen(dirPath);
     size_t pathLen = dirLen + 1 + 8 + 1; // "/icon.sys\0"
-    char* iconSysPath = safeMalloc(pathLen);
+    char* iconSysPath = (char *)safeMalloc(pathLen);
     snprintf(iconSysPath, pathLen, "%s/icon.sys", dirPath);
 
     // Check if it already exists
@@ -297,7 +297,7 @@ static char* readFileText(FileSystem* fs, const char* relativePath) {
         long size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        char* content = safeMalloc((size_t) size + 1);
+        char* content = (char *)safeMalloc((size_t) size + 1);
         size_t bytesRead = fread(content, 1, (size_t) size, f);
         content[bytesRead] = '\0';
         fclose(f);
@@ -362,7 +362,7 @@ static bool ps2ReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t*
         long size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        uint8_t* data = safeMalloc((size_t) size);
+        uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
         size_t bytesRead = fread(data, 1, (size_t) size, f);
         fclose(f);
 
@@ -405,7 +405,7 @@ typedef struct {
 } Ps2BinaryHandle;
 
 static Ps2BinaryHandle* ps2BinaryHandleNew(FILE* fp, const char* resolvedPath) {
-    Ps2BinaryHandle* h = safeMalloc(sizeof(Ps2BinaryHandle));
+    Ps2BinaryHandle* h = (Ps2BinaryHandle *)safeMalloc(sizeof(Ps2BinaryHandle));
     h->fp = fp;
     h->resolvedPath = safeStrdup(resolvedPath);
     return h;
@@ -486,56 +486,49 @@ static void ps2BinaryRewrite(MAYBE_UNUSED FileSystem* fs, void* handle) {
 
 //Directory, pretty much stubbed
 static bool ps2DirectoryExists(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
 }
 
 static bool ps2CreateDirectory(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
 }
 
 static bool ps2DeleteDirectory(FileSystem* fs, const char* relativePath) {
+    (void)fs;
+    (void)relativePath;
     return true;
+}
+
+static FileSystemDirEntry* ps2ListDirectory(FileSystem* fs, const char* relativeDirPath) {
+    (void)fs;
+    (void)relativeDirPath;
+    return nullptr;
 }
 
 // ===[ Vtable ]===
 
-static FileSystemVtable ps2FileSystemVtable = {
-    .resolvePath = resolvePath,
-    .fileExists = fileExists,
-    .readFileText = readFileText,
-    .writeFileText = writeFileText,
-    .deleteFile = deleteFile,
-    .readFileBinary = ps2ReadFileBinary,
-    .writeFileBinary = ps2WriteFileBinary,
-    .binaryOpen = ps2BinaryOpen,
-    .binaryClose = ps2BinaryClose,
-    .binaryRead = ps2BinaryRead,
-    .binaryWrite = ps2BinaryWrite,
-    .binaryTell = ps2BinaryTell,
-    .binarySeek = ps2BinarySeek,
-    .binarySize = ps2BinarySize,
-    .binaryRewrite = ps2BinaryRewrite,
-    .directoryExists = ps2DirectoryExists,
-    .createDirectory = ps2CreateDirectory,
-    .deleteDirectory = ps2DeleteDirectory,
-};
+static FileSystemVtable ps2FileSystemVtable;
 
 // ===[ Lifecycle ]===
 
 static SaveIconConfig parseSaveIconConfig(JsonValue* configRoot) {
-    JsonValue* saveIconObj = JsonReader_getObject(configRoot, "saveIcon");
+    JsonValue* saveIconObj = JsonReader_getJsonValueByKey(configRoot, "saveIcon");
     requireNotNullMessage(saveIconObj, "CONFIG.JSN is missing the 'saveIcon' section");
     require(JsonReader_isObject(saveIconObj));
 
     SaveIconConfig config = {0};
 
     // bgAlpha (0x00-0x80)
-    JsonValue* bgAlphaVal = JsonReader_getObject(saveIconObj, "bgAlpha");
+    JsonValue* bgAlphaVal = JsonReader_getJsonValueByKey(saveIconObj, "bgAlpha");
     requireNotNullMessage(bgAlphaVal, "saveIcon.bgAlpha is missing");
     config.bgAlpha = (uint32_t) JsonReader_getDouble(bgAlphaVal);
 
     // bgColors: array of 4 arrays of 3 ints [R, G, B] (A is always 0)
-    JsonValue* bgColorsArr = JsonReader_getObject(saveIconObj, "bgColors");
+    JsonValue* bgColorsArr = JsonReader_getJsonValueByKey(saveIconObj, "bgColors");
     requireNotNullMessage(bgColorsArr, "saveIcon.bgColors is missing");
     require(JsonReader_isArray(bgColorsArr) && JsonReader_arrayLength(bgColorsArr) == 4);
     repeat(4, i) {
@@ -545,7 +538,7 @@ static SaveIconConfig parseSaveIconConfig(JsonValue* configRoot) {
     }
 
     // lightDirs: array of 3 arrays of 3 floats [X, Y, Z] (W is always 0.0)
-    JsonValue* lightDirsArr = JsonReader_getObject(saveIconObj, "lightDirs");
+    JsonValue* lightDirsArr = JsonReader_getJsonValueByKey(saveIconObj, "lightDirs");
     requireNotNullMessage(lightDirsArr, "saveIcon.lightDirs is missing");
     require(JsonReader_isArray(lightDirsArr) && JsonReader_arrayLength(lightDirsArr) == 3);
     repeat(3, i) {
@@ -555,7 +548,7 @@ static SaveIconConfig parseSaveIconConfig(JsonValue* configRoot) {
     }
 
     // lightColors: array of 3 arrays of 3 floats [R, G, B] (A is always 0.0)
-    JsonValue* lightColorsArr = JsonReader_getObject(saveIconObj, "lightColors");
+    JsonValue* lightColorsArr = JsonReader_getJsonValueByKey(saveIconObj, "lightColors");
     requireNotNullMessage(lightColorsArr, "saveIcon.lightColors is missing");
     require(JsonReader_isArray(lightColorsArr) && JsonReader_arrayLength(lightColorsArr) == 3);
     repeat(3, i) {
@@ -565,7 +558,7 @@ static SaveIconConfig parseSaveIconConfig(JsonValue* configRoot) {
     }
 
     // ambient: array of 3 floats [R, G, B] (A is always 0.0)
-    JsonValue* ambientArr = JsonReader_getObject(saveIconObj, "ambient");
+    JsonValue* ambientArr = JsonReader_getJsonValueByKey(saveIconObj, "ambient");
     requireNotNullMessage(ambientArr, "saveIcon.ambient is missing");
     JsonReader_readFloatArray(ambientArr, config.ambient, 3);
     config.ambient[3] = 0.0f; // A = 0
@@ -574,11 +567,30 @@ static SaveIconConfig parseSaveIconConfig(JsonValue* configRoot) {
 }
 
 FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
-    JsonValue* fileSystemObj = JsonReader_getObject(configRoot, "fileSystem");
+    JsonValue* fileSystemObj = JsonReader_getJsonValueByKey(configRoot, "fileSystem");
     require(fileSystemObj != nullptr && JsonReader_isObject(fileSystemObj));
 
-    Ps2FileSystem* pfs = safeCalloc(1, sizeof(Ps2FileSystem));
+    Ps2FileSystem* pfs = (Ps2FileSystem *)safeCalloc(1, sizeof(Ps2FileSystem));
     pfs->base.vtable = &ps2FileSystemVtable;
+    ps2FileSystemVtable.resolvePath = resolvePath;
+    ps2FileSystemVtable.fileExists = fileExists;
+    ps2FileSystemVtable.readFileText = readFileText;
+    ps2FileSystemVtable.writeFileText = writeFileText;
+    ps2FileSystemVtable.deleteFile = deleteFile;
+    ps2FileSystemVtable.readFileBinary = ps2ReadFileBinary;
+    ps2FileSystemVtable.writeFileBinary = ps2WriteFileBinary;
+    ps2FileSystemVtable.binaryOpen = ps2BinaryOpen;
+    ps2FileSystemVtable.binaryClose = ps2BinaryClose;
+    ps2FileSystemVtable.binaryRead = ps2BinaryRead;
+    ps2FileSystemVtable.binaryWrite = ps2BinaryWrite;
+    ps2FileSystemVtable.binaryTell = ps2BinaryTell;
+    ps2FileSystemVtable.binarySeek = ps2BinarySeek;
+    ps2FileSystemVtable.binarySize = ps2BinarySize;
+    ps2FileSystemVtable.binaryRewrite = ps2BinaryRewrite;
+    ps2FileSystemVtable.directoryExists = ps2DirectoryExists;
+    ps2FileSystemVtable.createDirectory = ps2CreateDirectory;
+    ps2FileSystemVtable.deleteDirectory = ps2DeleteDirectory;
+    ps2FileSystemVtable.listDirectory = ps2ListDirectory;
     pfs->gameTitle = safeStrdup(gameTitle);
     pfs->saveIconConfig = parseSaveIconConfig(configRoot);
     pfs->mappings = nullptr;
@@ -586,8 +598,8 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
 
     int entryCount = JsonReader_objectLength(fileSystemObj);
     repeat(entryCount, i) {
-        const char* gameFileName = JsonReader_getObjectKey(fileSystemObj, i);
-        JsonValue* pathArray = JsonReader_getObjectValue(fileSystemObj, i);
+        const char* gameFileName = JsonReader_getJsonKeyByIndex(fileSystemObj, i);
+        JsonValue* pathArray = JsonReader_getJsonValueByIndex(fileSystemObj, i);
 
         require(JsonReader_isArray(pathArray));
 

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_REAL_TYPE_H_
+#define _BS_REAL_TYPE_H_
 
 #include "common.h"
 #include <math.h>
@@ -12,6 +13,7 @@ typedef float GMLReal;
 #define GMLReal_sin sinf
 #define GMLReal_cos cosf
 #define GMLReal_tan tanf
+#define GMLReal_acos acosf
 #define GMLReal_asin asinf
 #define GMLReal_atan atanf
 #define GMLReal_atan2 atan2f
@@ -35,6 +37,7 @@ typedef double GMLReal;
 #define GMLReal_sin sin
 #define GMLReal_cos cos
 #define GMLReal_tan tan
+#define GMLReal_acos acos
 #define GMLReal_asin asin
 #define GMLReal_atan atan
 #define GMLReal_atan2 atan2
@@ -65,3 +68,5 @@ static inline GMLReal GMLReal_bankersRound(GMLReal v) {
     int64_t fi = (int64_t) f;
     return (fi & 1) == 0 ? f : f + 1.0;
 }
+
+#endif /* _BS_REAL_TYPE_H_ */

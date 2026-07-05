@@ -1,11 +1,15 @@
 #include "gs_renderer.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <gsInline.h>
+#pragma GCC diagnostic pop
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <kernel.h>
-#include <gsInline.h>
 
 #include "binary_reader.h"
 #include "binary_utils.h"
@@ -15,9 +19,17 @@
 #include "matrix_math.h"
 
 #ifdef ENABLE_PS2_RENDERER_LOGS
-#define rendererPrintf(...) fprintf(stderr, __VA_ARGS__)
+static void rendererPrintf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
 #else
-#define rendererPrintf(...) ((void) 0)
+static void _rendererPrintf(const char* fmt, ...) {
+    (void)fmt;
+}
+#define rendererPrintf if (0) _rendererPrintf
 #endif
 
 // ===[ Constants ]===
@@ -85,12 +97,12 @@ static void loadAtlas(GsRenderer* gs) {
     gs->atlasCount = BinaryReader_readUint16(&reader);
 
     // Parse atlas table
-    gs->atlasOffsets = safeMalloc(gs->atlasCount * sizeof(uint32_t));
-    gs->atlasWidth = safeMalloc(gs->atlasCount * sizeof(uint16_t));
-    gs->atlasHeight = safeMalloc(gs->atlasCount * sizeof(uint16_t));
-    gs->atlasBpp = safeMalloc(gs->atlasCount * sizeof(uint8_t));
-    gs->atlasDataSizes = safeMalloc(gs->atlasCount * sizeof(uint32_t));
-    gs->atlasCompressionType = safeMalloc(gs->atlasCount * sizeof(uint8_t));
+    gs->atlasOffsets = (uint32_t *)safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasWidth = (uint16_t *)safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasHeight = (uint16_t *)safeMalloc(gs->atlasCount * sizeof(uint16_t));
+    gs->atlasBpp = (uint8_t *)safeMalloc(gs->atlasCount * sizeof(uint8_t));
+    gs->atlasDataSizes = (uint32_t *)safeMalloc(gs->atlasCount * sizeof(uint32_t));
+    gs->atlasCompressionType = (uint8_t *)safeMalloc(gs->atlasCount * sizeof(uint8_t));
     repeat(gs->atlasCount, i) {
         gs->atlasOffsets[i] = BinaryReader_readUint32(&reader);
         gs->atlasWidth[i] = BinaryReader_readUint16(&reader);
@@ -105,7 +117,7 @@ static void loadAtlas(GsRenderer* gs) {
     }
 
     // Parse TPAG entries
-    gs->atlasTPAGEntries = safeMalloc(gs->atlasTPAGCount * sizeof(AtlasTPAGEntry));
+    gs->atlasTPAGEntries = (AtlasTPAGEntry *)safeMalloc(gs->atlasTPAGCount * sizeof(AtlasTPAGEntry));
 
     repeat(gs->atlasTPAGCount, i) {
         AtlasTPAGEntry* entry = &gs->atlasTPAGEntries[i];
@@ -122,7 +134,7 @@ static void loadAtlas(GsRenderer* gs) {
     }
 
     // Parse tile entries
-    gs->atlasTileEntries = safeMalloc(gs->atlasTileCount * sizeof(AtlasTileEntry));
+    gs->atlasTileEntries = (AtlasTileEntry *)safeMalloc(gs->atlasTileCount * sizeof(AtlasTileEntry));
 
     repeat(gs->atlasTileCount, i) {
         AtlasTileEntry* entry = &gs->atlasTileEntries[i];
@@ -149,11 +161,16 @@ static void loadAtlas(GsRenderer* gs) {
     gs->tileEntryMap = nullptr;
     repeat(gs->atlasTileCount, i) {
         AtlasTileEntry* entry = &gs->atlasTileEntries[i];
-        TileLookupKey key = { .bgDef = entry->bgDef, .srcX = entry->srcX, .srcY = entry->srcY, .srcW = entry->srcW, .srcH = entry->srcH };
+        TileLookupKey key = {0};
+        key.bgDef = entry->bgDef;
+        key.srcX = entry->srcX;
+        key.srcY = entry->srcY;
+        key.srcW = entry->srcW;
+        key.srcH = entry->srcH;
         hmput(gs->tileEntryMap, key, entry);
     }
 
-    gs->atlasToChunk = safeMalloc(gs->atlasCount * sizeof(int16_t));
+    gs->atlasToChunk = (int16_t *)safeMalloc(gs->atlasCount * sizeof(int16_t));
     repeat(gs->atlasCount, i) {
         gs->atlasToChunk[i] = -1;
     }
@@ -182,7 +199,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         gs->clut4Count = clut4FileSize / CLUT4_ENTRY_SIZE;
         fprintf(stderr, "GsRenderer: CLUT4.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut4Count, clut4FileSize);
 
-        gs->clut4VramAddrs = safeMalloc(gs->clut4Count * sizeof(uint32_t));
+        gs->clut4VramAddrs = (uint32_t *)safeMalloc(gs->clut4Count * sizeof(uint32_t));
 
         repeat(gs->clut4Count, i) {
             // gsKit uploads 4bpp CLUTs as 8x2 CT32 (16 entries in 8-wide, 2-tall grid)
@@ -210,7 +227,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         gs->clut8Count = clut8FileSize / CLUT8_ENTRY_SIZE;
         fprintf(stderr, "GsRenderer: CLUT8.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut8Count, clut8FileSize);
 
-        gs->clut8VramAddrs = safeMalloc(gs->clut8Count * sizeof(uint32_t));
+        gs->clut8VramAddrs = (uint32_t *)safeMalloc(gs->clut8Count * sizeof(uint32_t));
 
         repeat(gs->clut8Count, i) {
             // gsKit uploads 8bpp CLUTs as 16x16 CT32 (256 entries in 16-wide, 16-tall grid)
@@ -253,7 +270,7 @@ static void initTextureCache(GsRenderer* gs) {
     uint32_t availableVram = GS_VRAM_SIZE - gs->textureVramBase;
     gs->chunkCount = availableVram / VRAM_CHUNK_SIZE;
 
-    gs->chunks = safeMalloc(gs->chunkCount * sizeof(VRAMChunk));
+    gs->chunks = (VRAMChunk *)safeMalloc(gs->chunkCount * sizeof(VRAMChunk));
     forEach(VRAMChunk, chunk, gs->chunks, gs->chunkCount) {
         chunk->atlasId = -1;
         chunk->snapshotIdx = -1;
@@ -462,7 +479,7 @@ static void initEeCache(GsRenderer* gs) {
     gs->eeCacheBumpPtr = 0;
     gs->eeCache = (uint8_t*) safeMemalign(128, gs->eeAtlasCacheBytes);
 
-    gs->eeCacheEntries = safeMalloc(gs->atlasCount * sizeof(EeAtlasCacheEntry));
+    gs->eeCacheEntries = (EeAtlasCacheEntry *)safeMalloc(gs->atlasCount * sizeof(EeAtlasCacheEntry));
     repeat(gs->atlasCount, i) {
         gs->eeCacheEntries[i].atlasId = -1;
         gs->eeCacheEntries[i].offset = 0;
@@ -910,7 +927,12 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
 
 // Finds a tile entry by (bgDef, srcX, srcY, srcW, srcH). Returns nullptr if not found.
 static AtlasTileEntry* findTileEntry(GsRenderer* gs, int16_t bgDef, uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH) {
-    TileLookupKey key = { .bgDef = bgDef, .srcX = srcX, .srcY = srcY, .srcW = srcW, .srcH = srcH };
+    TileLookupKey key = {0};
+    key.bgDef = bgDef;
+    key.srcX = srcX;
+    key.srcY = srcY;
+    key.srcW = srcW;
+    key.srcH = srcH;
     ptrdiff_t idx = hmgeti(gs->tileEntryMap, key);
     if (idx == -1) return nullptr;
     return gs->tileEntryMap[idx].value;
@@ -1135,11 +1157,12 @@ static void gsEndView(MAYBE_UNUSED Renderer* renderer) {
     // No-op
 }
 
-static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH) {
-    GsRenderer* gs = (GsRenderer*) renderer;
-    gs->viewX = 0;
-    gs->viewY = 0;
+static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED const Matrix4f* worldToClip) {
+    // No-op
+}
 
+static void gsSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
+    GsRenderer* gs = (GsRenderer*) renderer;
     if (guiW > 0 && guiH > 0) {
         gs->scaleX = 640.0f / (float) guiW;
         gs->scaleY = gs->scaleX;
@@ -1151,6 +1174,14 @@ static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNU
     float renderedH = (float) guiH * gs->scaleY;
     gs->offsetX = 0.0f;
     gs->offsetY = (448.0f - renderedH) / 2.0f;
+}
+
+// targetSurfaceId is unused here because the renderer always draws to the screen buffer here
+static void gsBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED int32_t targetSurfaceId) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    gs->viewX = 0;
+    gs->viewY = 0;
+    gsSetGuiProjection(renderer, guiW, guiH, portW, portH, false);
 }
 
 static void gsEndGUI(MAYBE_UNUSED Renderer* renderer) {
@@ -1302,7 +1333,7 @@ static void gsDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     }
 }
 
-static void gsDrawTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
+static void gsDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1835,8 +1866,10 @@ static bool gsResolveGlyph(GsRenderer* gs, DataWin* dw, GsFontState* state, Font
         *outU1 = *outU0 + (float) glyph->sourceWidth * gRatioX;
         *outV1 = *outV0 + (float) glyph->sourceHeight * gRatioY;
 
+        // Sprite-font glyphs sit at the cell offset; GM 2023.2+ subtracts the sprite origin, pre-2023.2 it cancels.
+        // (See GameMaker-HTML5's commit a7c5b909209d5a28602fedfe2031965386a99921)
         *outLocalX0 = cursorX + (float) glyph->offset;
-        *outLocalY0 = cursorY + (float) ((int32_t) glyphTpag->targetY - sprite->originY);
+        *outLocalY0 = cursorY + (float) (int32_t) glyphTpag->targetY - (float) font->spriteOriginYAdjust;
     } else {
         *outTex = state->tex;
 
@@ -2101,14 +2134,14 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
     }
 }
 
-static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, bool outline)
+static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline)
 {
     GsRenderer* gs = (GsRenderer*) renderer;
     if(outline)
     {
-        gsDrawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, 1.0);
-        gsDrawLine(renderer, x2, y2, x3, y3, 1, renderer->drawColor, 1.0);
-        gsDrawLine(renderer, x3, y3, x1, y1, 1, renderer->drawColor, 1.0);
+        gsDrawLine(renderer, x1, y1, x2, y2, 1, color1, alpha);
+        gsDrawLine(renderer, x2, y2, x3, y3, 1, color2, alpha);
+        gsDrawLine(renderer, x3, y3, x1, y1, 1, color3, alpha);
     } else {
         float sx1 = (x1 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
         float sy1 = (y1 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
@@ -2117,12 +2150,11 @@ static void gsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         float sx3 = (x3 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
         float sy3 = (y3 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
 
-        float r = (float) BGR_R(renderer->drawColor);
-        float g = (float) BGR_G(renderer->drawColor);
-        float b = (float) BGR_B(renderer->drawColor);
-
-        u64 triColor = GS_SETREG_RGBAQ(r, g, b, alphaToGS(renderer->drawAlpha), 0x00);
-        gsKit_prim_triangle_gouraud_3d(gs->gsGlobal, sx1, sy1, 0,sx2, sy2, 0,sx3, sy3, 0,triColor, triColor, triColor);
+        uint8_t a = alphaToGS(alpha);
+        u64 triColor1 = GS_SETREG_RGBAQ(BGR_R(color1), BGR_G(color1), BGR_B(color1), a, 0x00);
+        u64 triColor2 = GS_SETREG_RGBAQ(BGR_R(color2), BGR_G(color2), BGR_B(color2), a, 0x00);
+        u64 triColor3 = GS_SETREG_RGBAQ(BGR_R(color3), BGR_G(color3), BGR_B(color3), a, 0x00);
+        gsKit_prim_triangle_gouraud_3d(gs->gsGlobal, sx1, sy1, 0,sx2, sy2, 0,sx3, sy3, 0,triColor1, triColor2, triColor3);
     }
 }
 
@@ -2246,7 +2278,7 @@ static int32_t gsCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
-    sprite->tpagIndices = safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices = (int32_t *)safeMalloc(sizeof(int32_t));
     sprite->tpagIndices[0] = (int32_t) tpagIndex;
     sprite->maskCount = 0;
     sprite->masks = nullptr;
@@ -2348,7 +2380,7 @@ static void gsGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     gsCommitBlend(gs);
 }
 
-static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor) {
+static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, MAYBE_UNUSED int32_t sfactor_alpha, MAYBE_UNUSED int32_t dfactor_alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
     u64 alpha;
     if (!gmsFactorPairToGSAlpha(sfactor, dfactor, &alpha) && !gs->blendModeWarned) {
@@ -2664,10 +2696,10 @@ static int32_t gsEnsureApplicationSurface(MAYBE_UNUSED Renderer* renderer, MAYBE
     return APPLICATION_SURFACE_ID;
 }
 
-static bool gsSetRenderTarget(Renderer* renderer, int32_t surfaceID) {
+static bool gsSetRenderTarget(Renderer* renderer, int32_t surfaceID, bool implicitApplicationSurface) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
-    if (surfaceID == APPLICATION_SURFACE_ID) {
+    if (surfaceID == APPLICATION_SURFACE_ID && implicitApplicationSurface) {
         if (gs->currentSurface == -1) return true; // already on the main FB
         bool wasPhantom = gs->surfaces[gs->currentSurface].chunkCount == 0;
         if (wasPhantom) {
@@ -2768,6 +2800,10 @@ static float gsGetSurfaceHeight(Renderer* renderer, int32_t surfaceID) {
     return (float) gs->surfaces[surfaceID].height;
 }
 
+static void gsDrawSurfaceTiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
+    // No-op
+}
+
 static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
@@ -2849,7 +2885,11 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     // Restore default REPEAT so subsequent atlas draws aren't stuck on this region.
     gsKit_set_clamp(gs->gsGlobal, GS_CMODE_REPEAT);
 }
-static void gsSurfaceResize(MAYBE_UNUSED Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+static void gsSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+    (void)renderer;
+    (void)surfaceID;
+    (void)width;
+    (void)height;
     // No-op: PS2 doesn't actually resize anything
 }
 
@@ -2859,7 +2899,7 @@ static void gsSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     if (gs->currentSurface == surfaceID) {
         // Caller is freeing the surface while it's still bound as target. Pop back to the main FB first to keep gsGlobal coherent.
         rendererPrintf("GsRenderer: surface_free %d while bound; auto-popping to main FB\n", surfaceID);
-        gsSetRenderTarget(renderer, APPLICATION_SURFACE_ID);
+        gsSetRenderTarget(renderer, APPLICATION_SURFACE_ID, true);
     }
 
     Surface* s = &gs->surfaces[surfaceID];
@@ -2943,60 +2983,160 @@ static bool gsSurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int
 
 // ===[ Vtable ]===
 
-static RendererVtable gsVtable = {
-    .init = gsInit,
-    .destroy = gsDestroy,
-    .beginFrame = gsBeginFrame,
-    .endFrameInit = gsEndFrameInit,
-    .endFrameEnd = gsEndFrameEnd,
-    .beginView = gsBeginView,
-    .endView = gsEndView,
-    .beginGUI = gsBeginGUI,
-    .endGUI = gsEndGUI,
-    .drawSprite = gsDrawSprite,
-    .drawSpritePos = gsDrawSpritePos,
-    .drawSpritePart = gsDrawSpritePart,
-    .drawRectangle = gsDrawRectangle,
-    .drawRectangleColor = gsDrawRectangleColor,
-    .drawLine = gsDrawLine,
-    .drawLineColor = gsDrawLineColor,
-    .drawText = gsDrawText,
-    .drawTextColor = gsDrawTextColor,
-    .drawTriangle = gsDrawTriangle,
-    .flush = gsFlush,
-    .clearScreen = gsClearScreen,
-    .createSpriteFromSurface = gsCreateSpriteFromSurface,
-    .deleteSprite = gsDeleteSprite,
-    .gpuSetBlendMode = gsGpuSetBlendMode,
-    .gpuSetBlendModeExt = gsGpuSetBlendModeExt,
-    .gpuSetBlendEnable = gsGpuSetBlendEnable,
-    .gpuGetBlendEnable = gsGpuGetBlendEnable,
-    .gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable,
-    .gpuSetAlphaTestRef = gsGpuSetAlphaTestRef,
-    .gpuSetColorWriteEnable = gsGpuSetColorWriteEnable,
-    .gpuGetColorWriteEnable = gsGpuGetColorWriteEnable,
-    .drawTile = gsDrawTile,
-    .drawTiled = gsDrawTiled,
-    .drawTiledPart = gsDrawTiledPart,
-    .createSurface = gsCreateSurface,
-    .surfaceExists = gsSurfaceExists,
-    .setRenderTarget = gsSetRenderTarget,
-    .ensureApplicationSurface = gsEnsureApplicationSurface,
-    .getSurfaceWidth = gsGetSurfaceWidth,
-    .getSurfaceHeight = gsGetSurfaceHeight,
-    .drawSurface = gsDrawSurface,
-    .surfaceResize = gsSurfaceResize,
-    .surfaceFree = gsSurfaceFree,
-    .surfaceCopy = gsSurfaceCopy,
-    .surfaceGetPixels = gsSurfaceGetPixels,
-};
+// Decode a texture handle produced by gsSpriteGetTexture back into its page dimensions and sub-rect (in texels).
+// Returns false for the 0 ("no texture") handle or an unresolvable one.
+static bool gsResolveTextureHandle(GsRenderer* gs, uint32_t texHandle, uint16_t* outPageW, uint16_t* outPageH, uint16_t* outSubX, uint16_t* outSubY, uint16_t* outSubW, uint16_t* outSubH) {
+    if (texHandle == 0) return false;
+    int32_t tpagIndex = (int32_t) texHandle - 1;
+    if (tpagIndex < 0) return false;
+
+    int32_t snapshotIdx = tpagSnapshotIndex(gs, tpagIndex);
+    if (snapshotIdx >= 0) {
+        SnapshotChunk* chunk = &gs->snapshotChunks[snapshotIdx];
+        *outPageW = chunk->width;
+        *outPageH = chunk->height;
+        *outSubX = 0;
+        *outSubY = 0;
+        *outSubW = chunk->width;
+        *outSubH = chunk->height;
+        return true;
+    }
+
+    if ((uint32_t) tpagIndex >= gs->atlasTPAGCount) return false;
+    AtlasTPAGEntry* entry = &gs->atlasTPAGEntries[tpagIndex];
+    if (entry->atlasId == 0xFFFF) return false;
+    *outPageW = gs->atlasWidth[entry->atlasId];
+    *outPageH = gs->atlasHeight[entry->atlasId];
+    *outSubX = entry->atlasX;
+    *outSubY = entry->atlasY;
+    *outSubW = entry->width;
+    *outSubH = entry->height;
+    return true;
+}
+
+static uint32_t gsSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    if (tpagIndex < 0) return 0;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, (uint32_t) (tpagIndex + 1), &pw, &ph, &sx, &sy, &sw, &sh)) return 0;
+    return (uint32_t) (tpagIndex + 1);
+}
+
+static uint32_t gsSurfaceGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) {
+    return 0;
+}
+
+static float gsTextureGetTexelWidth(Renderer* renderer, uint32_t texHandle) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || pw == 0) return 1.0f;
+    return 1.0f / (float) pw;
+}
+
+static float gsTextureGetTexelHeight(Renderer* renderer, uint32_t texHandle) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || ph == 0) return 1.0f;
+    return 1.0f / (float) ph;
+}
+
+static bool gsTextureGetUVs(Renderer* renderer, uint32_t texHandle, float* outUVs) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    uint16_t pw, ph, sx, sy, sw, sh;
+    if (!gsResolveTextureHandle(gs, texHandle, &pw, &ph, &sx, &sy, &sw, &sh) || pw == 0 || ph == 0) return false;
+    float divW = 1.0f / (float) pw;
+    float divH = 1.0f / (float) ph;
+    outUVs[0] = (float) sx * divW;              // left
+    outUVs[1] = (float) sy * divH;              // top
+    outUVs[2] = (float) (sx + sw) * divW;       // right
+    outUVs[3] = (float) (sy + sh) * divH;       // bottom
+    return true;
+}
+
+static void gsTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texHandle) {
+}
+
+static void gsGpuSetShader(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex) {}
+static void gsGpuResetShader(MAYBE_UNUSED Renderer* renderer) {}
+static int32_t gsShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static int32_t gsShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
+static void gsShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
+static void gsShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
+static void gsShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
+static bool gsShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
+static bool gsShadersSupported(void) { return false; }
+
+static RendererVtable gsVtable;
 
 // ===[ Public API ]===
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
-    GsRenderer* gs = safeCalloc(1, sizeof(GsRenderer));
+    GsRenderer* gs = (GsRenderer *)safeCalloc(1, sizeof(GsRenderer));
     gs->eeAtlasCacheBytes = eeAtlasCacheMiB;
     gs->base.vtable = &gsVtable;
+    gsVtable.init = gsInit;
+    gsVtable.destroy = gsDestroy;
+    gsVtable.beginFrame = gsBeginFrame;
+    gsVtable.endFrameInit = gsEndFrameInit;
+    gsVtable.endFrameEnd = gsEndFrameEnd;
+    gsVtable.beginView = gsBeginView;
+    gsVtable.endView = gsEndView;
+    gsVtable.applyProjection = gsApplyProjection;
+    gsVtable.beginGUI = gsBeginGUI;
+    gsVtable.setGuiProjection = gsSetGuiProjection;
+    gsVtable.endGUI = gsEndGUI;
+    gsVtable.drawSprite = gsDrawSprite;
+    gsVtable.drawSpritePos = gsDrawSpritePos;
+    gsVtable.drawSpritePart = gsDrawSpritePart;
+    gsVtable.drawRectangle = gsDrawRectangle;
+    gsVtable.drawRectangleColor = gsDrawRectangleColor;
+    gsVtable.drawLine = gsDrawLine;
+    gsVtable.drawLineColor = gsDrawLineColor;
+    gsVtable.drawText = gsDrawText;
+    gsVtable.drawTextColor = gsDrawTextColor;
+    gsVtable.drawTriangle = gsDrawTriangle;
+    gsVtable.flush = gsFlush;
+    gsVtable.clearScreen = gsClearScreen;
+    gsVtable.createSpriteFromSurface = gsCreateSpriteFromSurface;
+    gsVtable.deleteSprite = gsDeleteSprite;
+    gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
+    gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
+    gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
+    gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
+    gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
+    gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
+    gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;
+    gsVtable.drawTile = gsDrawTile;
+    gsVtable.drawSpriteTiled = gsDrawSpriteTiled;
+    gsVtable.drawTiledPart = gsDrawTiledPart;
+    gsVtable.createSurface = gsCreateSurface;
+    gsVtable.surfaceExists = gsSurfaceExists;
+    gsVtable.setRenderTarget = gsSetRenderTarget;
+    gsVtable.ensureApplicationSurface = gsEnsureApplicationSurface;
+    gsVtable.getSurfaceWidth = gsGetSurfaceWidth;
+    gsVtable.getSurfaceHeight = gsGetSurfaceHeight;
+    gsVtable.drawSurface = gsDrawSurface;
+    gsVtable.drawSurfaceTiled = gsDrawSurfaceTiled;
+    gsVtable.surfaceResize = gsSurfaceResize;
+    gsVtable.surfaceFree = gsSurfaceFree;
+    gsVtable.surfaceCopy = gsSurfaceCopy;
+    gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
+    gsVtable.spriteGetTexture = gsSpriteGetTexture;
+    gsVtable.surfaceGetTexture = gsSurfaceGetTexture;
+    gsVtable.textureGetTexelWidth = gsTextureGetTexelWidth;
+    gsVtable.textureGetTexelHeight = gsTextureGetTexelHeight;
+    gsVtable.textureGetUVs = gsTextureGetUVs;
+    gsVtable.textureSetStage = gsTextureSetStage;
+    gsVtable.gpuSetShader = gsGpuSetShader;
+    gsVtable.gpuResetShader = gsGpuResetShader;
+    gsVtable.shaderGetUniform = gsShaderGetUniform;
+    gsVtable.shaderGetSamplerIndex = gsShaderGetSamplerIndex;
+    gsVtable.shaderSetUniformF = gsShaderSetUniformF;
+    gsVtable.shaderSetUniformFArray = gsShaderSetUniformFArray;
+    gsVtable.shaderSetUniformI = gsShaderSetUniformI;
+    gsVtable.shaderIsCompiled = gsShaderIsCompiled;
+    gsVtable.shadersSupported = gsShadersSupported;
     gs->gsGlobal = gsGlobal;
     gs->scaleX = 2.0f;
     gs->scaleY = 2.0f;

@@ -1,5 +1,6 @@
 #include "overlay_file_system.h"
 #include "utils.h"
+#include "stb_ds.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,12 +10,18 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #define overlayMkdir(path) _mkdir(path)
 #define overlayRmdir(path) _rmdir(path)
 #else
 #include <unistd.h>
+#include <dirent.h>
 #define overlayMkdir(path) mkdir((path), 0777)
 #define overlayRmdir(path) rmdir(path)
+#endif
+
+#if defined(_MSC_VER) && !defined(S_ISDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 
 // ===[ Helpers ]===
@@ -44,7 +51,7 @@ static char* joinPath(const char* basePath, const char* normalizedPath) {
     }
     size_t baseLen = strlen(basePath);
     size_t relLen = strlen(normalizedPath);
-    char* full = safeMalloc(baseLen + relLen + 1);
+    char* full = (char *)safeMalloc(baseLen + relLen + 1);
     memcpy(full, basePath, baseLen);
     memcpy(full + baseLen, normalizedPath, relLen);
     full[baseLen + relLen] = '\0';
@@ -146,7 +153,7 @@ static char* overlayReadFileText(FileSystem* fs, const char* relativePath) {
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* content = safeMalloc((size_t) size + 1);
+    char* content = (char *)safeMalloc((size_t) size + 1);
     size_t bytesRead = fread(content, 1, (size_t) size, f);
     content[bytesRead] = '\0';
     fclose(f);
@@ -183,7 +190,7 @@ static bool overlayReadFileBinary(FileSystem* fs, const char* relativePath, uint
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    uint8_t* data = safeMalloc((size_t) size);
+    uint8_t* data = (uint8_t *)safeMalloc((size_t) size);
     size_t bytesRead = fread(data, 1, (size_t) size, f);
     fclose(f);
 
@@ -213,7 +220,7 @@ typedef struct {
 } OverlayBinaryHandle;
 
 static OverlayBinaryHandle* overlayBinaryHandleNew(FILE* fp, char* fullPathTaken) {
-    OverlayBinaryHandle* h = safeMalloc(sizeof(OverlayBinaryHandle));
+    OverlayBinaryHandle* h = (OverlayBinaryHandle *)safeMalloc(sizeof(OverlayBinaryHandle));
     h->fp = fp;
     h->fullPath = fullPathTaken; // takes ownership
     return h;
@@ -314,28 +321,85 @@ static bool overlayDeleteDirectory(FileSystem* fs, const char* relativePath) {
     return result == 0;
 }
 
+// ===[ Directory Enumeration ]===
+
+// Appends an entry, deduping by name.
+static void dirListPush(FileSystemDirEntry** list, const char* name, bool isDirectory) {
+    repeat(arrlen(*list), i) {
+        if (strcmp((*list)[i].name, name) == 0) return;
+    }
+    FileSystemDirEntry entry = {0};
+    entry.name = safeStrdup(name);
+    entry.isDirectory = isDirectory;
+    arrput(*list, entry);
+}
+
+// Enumerates a single on-disk directory, appending its entries to the list. Missing directories are silently skipped.
+static void listSingleDir(FileSystemDirEntry** list, const char* fullDir) {
+#ifdef _WIN32
+    // FindFirstFileA wants a "<dir>/*" search pattern.
+    size_t dirLen = strlen(fullDir);
+    char* search = safeMalloc(dirLen + 3);
+    memcpy(search, fullDir, dirLen);
+    search[dirLen] = '/';
+    search[dirLen + 1] = '*';
+    search[dirLen + 2] = '\0';
+    WIN32_FIND_DATAA findData;
+    HANDLE h = FindFirstFileA(search, &findData);
+    free(search);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const char* name = findData.cFileName;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        bool isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        dirListPush(list, name, isDir);
+    } while (FindNextFileA(h, &findData));
+    FindClose(h);
+#else
+    DIR* dir = opendir(fullDir);
+    if (dir == nullptr) return;
+    struct dirent* ent;
+    while ((ent = readdir(dir)) != nullptr) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+        // d_type may be DT_UNKNOWN on some filesystems, so stat to be sure.
+        bool isDir = false;
+        size_t dirLen = strlen(fullDir);
+        size_t nameLen = strlen(ent->d_name);
+        char* full = (char *)safeMalloc(dirLen + nameLen + 2);
+        memcpy(full, fullDir, dirLen);
+        full[dirLen] = '/';
+        memcpy(full + dirLen + 1, ent->d_name, nameLen + 1);
+        struct stat st;
+        if (stat(full, &st) == 0) isDir = S_ISDIR(st.st_mode);
+        free(full);
+        dirListPush(list, ent->d_name, isDir);
+    }
+    closedir(dir);
+#endif
+}
+
+static FileSystemDirEntry* overlayListDirectory(FileSystem* fs, const char* relativeDirPath) {
+    OverlayFileSystem* ofs = (OverlayFileSystem*) fs;
+    char* normalized = normalizePath(relativeDirPath);
+    FileSystemDirEntry* list = nullptr;
+    if (isAbsolute(normalized)) {
+        listSingleDir(&list, normalized);
+    } else {
+        // Save area first so it wins on dedupe, matching the read overlay (save shadows bundle).
+        char* saveFull = joinPath(ofs->savePath, normalized);
+        listSingleDir(&list, saveFull);
+        free(saveFull);
+        char* bundleFull = joinPath(ofs->bundlePath, normalized);
+        listSingleDir(&list, bundleFull);
+        free(bundleFull);
+    }
+    free(normalized);
+    return list;
+}
+
 // ===[ Vtable ]===
 
-static FileSystemVtable overlayFileSystemVtable = {
-    .resolvePath = overlayResolvePath,
-    .fileExists = overlayFileExists,
-    .readFileText = overlayReadFileText,
-    .writeFileText = overlayWriteFileText,
-    .deleteFile = overlayDeleteFile,
-    .readFileBinary = overlayReadFileBinary,
-    .writeFileBinary = overlayWriteFileBinary,
-    .binaryOpen = overlayBinaryOpen,
-    .binaryClose = overlayBinaryClose,
-    .binaryRead = overlayBinaryRead,
-    .binaryWrite = overlayBinaryWrite,
-    .binaryTell = overlayBinaryTell,
-    .binarySeek = overlayBinarySeek,
-    .binarySize = overlayBinarySize,
-    .binaryRewrite = overlayBinaryRewrite,
-    .directoryExists = overlayDirectoryExists,
-    .createDirectory = overlayCreateDirectory,
-    .deleteDirectory = overlayDeleteDirectory,
-};
+static FileSystemVtable overlayFileSystemVtable;
 
 // ===[ Lifecycle ]===
 
@@ -349,7 +413,7 @@ static char* withTrailingSlash(const char* path) {
         if (last == '\\') out[len - 1] = '/';
         return out;
     }
-    char* out = safeMalloc(len + 2);
+    char* out = (char *)safeMalloc(len + 2);
     memcpy(out, path, len);
     out[len] = '/';
     out[len + 1] = '\0';
@@ -357,8 +421,27 @@ static char* withTrailingSlash(const char* path) {
 }
 
 OverlayFileSystem* OverlayFileSystem_create(const char* bundlePath, const char* savePath) {
-    OverlayFileSystem* fs = safeCalloc(1, sizeof(OverlayFileSystem));
+    OverlayFileSystem* fs = (OverlayFileSystem *)safeCalloc(1, sizeof(OverlayFileSystem));
     fs->base.vtable = &overlayFileSystemVtable;
+    overlayFileSystemVtable.resolvePath = overlayResolvePath;
+    overlayFileSystemVtable.fileExists = overlayFileExists;
+    overlayFileSystemVtable.readFileText = overlayReadFileText;
+    overlayFileSystemVtable.writeFileText = overlayWriteFileText;
+    overlayFileSystemVtable.deleteFile = overlayDeleteFile;
+    overlayFileSystemVtable.readFileBinary = overlayReadFileBinary;
+    overlayFileSystemVtable.writeFileBinary = overlayWriteFileBinary;
+    overlayFileSystemVtable.binaryOpen = overlayBinaryOpen;
+    overlayFileSystemVtable.binaryClose = overlayBinaryClose;
+    overlayFileSystemVtable.binaryRead = overlayBinaryRead;
+    overlayFileSystemVtable.binaryWrite = overlayBinaryWrite;
+    overlayFileSystemVtable.binaryTell = overlayBinaryTell;
+    overlayFileSystemVtable.binarySeek = overlayBinarySeek;
+    overlayFileSystemVtable.binarySize = overlayBinarySize;
+    overlayFileSystemVtable.binaryRewrite = overlayBinaryRewrite;
+    overlayFileSystemVtable.directoryExists = overlayDirectoryExists;
+    overlayFileSystemVtable.createDirectory = overlayCreateDirectory;
+    overlayFileSystemVtable.deleteDirectory = overlayDeleteDirectory;
+    overlayFileSystemVtable.listDirectory = overlayListDirectory;
     fs->bundlePath = withTrailingSlash(bundlePath);
     fs->savePath = withTrailingSlash(savePath);
     return fs;

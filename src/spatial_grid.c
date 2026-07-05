@@ -6,7 +6,7 @@
 #include "utils.h"
 
 SpatialGrid* SpatialGrid_create(uint32_t roomWidth, uint32_t roomHeight) {
-    SpatialGrid* grid = safeCalloc(1, sizeof(SpatialGrid));
+    SpatialGrid* grid = (SpatialGrid *)safeCalloc(1, sizeof(SpatialGrid));
 
     // +1 to avoid truncation
     uint32_t gridWidth = (roomWidth / SPATIAL_GRID_CELL_SIZE) + 1;
@@ -18,7 +18,7 @@ SpatialGrid* SpatialGrid_create(uint32_t roomWidth, uint32_t roomHeight) {
     grid->gridWidth = gridWidth;
     grid->gridHeight = gridHeight;
 
-    grid->grid = safeCalloc(gridWidth * gridHeight, sizeof(Instance**));
+    grid->grid = (Instance ***)safeCalloc(gridWidth * gridHeight, sizeof(Instance**));
 
     return grid;
 }
@@ -114,14 +114,18 @@ void SpatialGrid_markInstanceAsDirty(SpatialGrid* grid, Instance* dirtyInstance)
 }
 
 SpatialGridQuery SpatialGrid_prepareQuery(Runner* runner, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, int32_t target) {
+    // We do let INSTANCE_ALL through
+    requireMessageFormatted(__FILE__, __LINE__, target >= 0 || target == INSTANCE_ALL, "SpatialGrid: [%s] Query target cannot be instance type %d!", runner->vmContext->currentCodeName, target);
+
     SpatialGridRange callerRange = SpatialGrid_computeCellRange(runner->spatialGrid, x1, y1, x2, y2);
-    bool filterByObject = target >= 0 && 100000 > target;
-    bool filterByInstanceId = target >= 100000;
+    bool filterByObject = target >= 0 && INSTANCE_ID_BASE > target;
+    bool filterByInstanceId = target >= INSTANCE_ID_BASE;
     uint32_t queryId = ++runner->collisionQueryCounter;
-    return (SpatialGridQuery) {
-        .range = callerRange,
-        .filterByObject = filterByObject,
-        .filterByInstanceId = filterByInstanceId,
-        .queryId = queryId
-    };
+    SpatialGridQuery ret = {0};
+    ret.range = callerRange;
+    ret.filterByObject = filterByObject;
+    ret.filterByInstanceId = filterByInstanceId;
+    ret.matchAll = target == INSTANCE_ALL;
+    ret.queryId = queryId;
+    return ret;
 }

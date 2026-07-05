@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INSTANCE_H_
+#define _BS_INSTANCE_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -20,14 +21,22 @@ struct Instance {
     // Reference count for GML structs (objectIndex == STRUCT_OBJECT_INDEX mode). Unused for game-object instances.
     // The runner's structInstances registry holds an implicit +1 ref while the struct is registered, so a refCount of 1 means "only the registry references this"; the per-frame sweep (Runner_sweepDeadStructs) decRefs those to free them. RValues with ownsReference=true on RVALUE_STRUCT contribute one ref each.
     int32_t refCount;
+    // When true, the struct will NOT be garbaged collected.
+    bool pinned;
     // Position of this struct in runner->structInstances (for O(1) swap-remove when freed). -1 when not registered.
     int32_t structRegistryIndex;
+    // Static variables: for a struct created by @@NewGMLObject@@, the code index of the constructor that built it (-1 otherwise).
+    // Member reads that miss the instance fallback to the constructor's shared static struct.
+    int32_t constructorCodeIndex;
+    // Static inheritance: a static struct's parent static struct or nullptr.
+    // The member-read fallback walks this chain so a child instance resolves fields declared static on a parent constructor.
+    struct Instance* staticParent;
     // Native GMS runner stores all instance built-in variables as float (32-bit),
     // even though RValues use double. This matches the native precision model.
     float x, y;
     float xprevious, yprevious;
     float xstart, ystart;
-    bool persistent, solid, active, destroyed, visible, createEventFired, outsideRoom, spatialGridDirty;
+    bool persistent, solid, active, destroyed, visible, createEventFired, outsideRoom, spatialGridDirty, mouseOver;
     // Used to track which alarms are set without looping through the entire alarm array
     uint16_t activeAlarmMask;
     int32_t maskIndex; // collision mask sprite override (-1 = use spriteIndex)
@@ -39,7 +48,8 @@ struct Instance {
 
     // Built-in instance properties
     int32_t spriteIndex;
-    float imageSpeed, imageIndex;
+    float imageSpeed;
+    float imageIndex; // Even though textureCount is unsigned, games CAN set the image_index to negative values
     float imageXscale, imageYscale, imageAngle, imageAlpha;
     uint32_t imageBlend;
     int32_t depth;
@@ -93,31 +103,20 @@ static inline RValue Instance_getSelfVar(Instance* inst, int32_t varID) {
 }
 
 // Set a self variable by varID. Frees the old value if present (decRefs owned arrays).
-// Always takes an independent reference: strings are strdup'd, arrays are incRef'd, regardless of whether the caller's RValue was owning.
+// Always takes an independent reference with RValue_makeIndependent.
 // The caller retains ownership of their original `val` and remains responsible for freeing it (via RValue_free) when done.
 static inline void Instance_setSelfVar(Instance* inst, int32_t varID, RValue val) {
     requireNotNull(inst);
     // One lookup: returns the existing slot, or inserts UNDEFINED and returns the new slot.
-    RValue* slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varID);
-    if (val.type == RVALUE_STRING && val.string != nullptr) {
-        val = RValue_makeOwnedString(safeStrdup(val.string));
-    } else if (val.type == RVALUE_ARRAY && val.array != nullptr) {
-        GMLArray_incRef(val.array);
-        val.ownsReference = true;
-#if IS_BC17_OR_HIGHER_ENABLED
-    } else if (val.type == RVALUE_METHOD && val.method != nullptr) {
-        GMLMethod_incRef(val.method);
-        val.ownsReference = true;
-#endif
-    } else if (val.type == RVALUE_STRUCT && val.structInst != nullptr) {
-        Instance_structIncRef(val.structInst);
-        val.ownsReference = true;
-    }
-    RValue_free(slot);
-    *slot = val;
+    RValue* pointerToSlot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varID);
+    RValue independentVal = RValue_makeIndependent(val);
+    RValue_free(pointerToSlot);
+    *pointerToSlot = independentVal;
 }
 
 // Recompute speed/direction from hspeed/vspeed (called when hspeed or vspeed is set)
 void Instance_computeSpeedFromComponents(Instance* inst);
 // Recompute hspeed/vspeed from speed/direction (called when speed or direction is set)
 void Instance_computeComponentsFromSpeed(Instance* inst);
+
+#endif /* _BS_INSTANCE_H_ */

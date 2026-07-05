@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_INT_RVALUE_HASHMAP_H_
+#define _BS_INT_RVALUE_HASHMAP_H_
 
 #include "common.h"
 #include "utils.h"
@@ -45,7 +46,7 @@ static inline uint32_t IntRValueHashMap_count(const IntRValueHashMap* map) {
 
 // Fast inline get. Returns a non-owning (weak) view of the value, or RVALUE_UNDEFINED if absent. Caller must NOT RValue_free the result without first strengthening it (strdup / incRef).
 static inline RValue IntRValueHashMap_get(const IntRValueHashMap* map, int32_t key) {
-    if (map->capacity == 0) return (RValue){ .type = RVALUE_UNDEFINED };
+    if (map->capacity == 0) return RValue_makeUndefined();
     const IntRValueEntry* entries = map->entries;
     uint32_t mask = map->mask;
     uint32_t idx = ((uint32_t) key * 0x9E3779B9u) & mask;
@@ -56,7 +57,7 @@ static inline RValue IntRValueHashMap_get(const IntRValueHashMap* map, int32_t k
             result.ownsReference = false;
             return result;
         }
-        if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) return (RValue){ .type = RVALUE_UNDEFINED };
+        if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) return RValue_makeUndefined();
         idx = (idx + 1) & mask;
     }
 }
@@ -74,3 +75,5 @@ static inline bool IntRValueHashMap_contains(const IntRValueHashMap* map, int32_
         idx = (idx + 1) & mask;
     }
 }
+
+#endif /* _BS_INT_RVALUE_HASHMAP_H_ */

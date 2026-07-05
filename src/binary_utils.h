@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_BINARY_UTILS_H_
+#define _BS_BINARY_UTILS_H_
 
 #include "common.h"
 #include <stdlib.h>
@@ -212,3 +213,5 @@ static inline double BinaryUtils_readFloat64Aligned(const uint8_t* data) {
     memcpy(&val, &bits, 8);
     return val;
 }
+
+#endif /* _BS_BINARY_UTILS_H_ */

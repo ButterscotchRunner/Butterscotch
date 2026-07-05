@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_DATA_WIN_H_
+#define _BS_DATA_WIN_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -11,6 +12,11 @@
 
 // Forward declaration for progress callback
 typedef struct DataWin DataWin;
+
+typedef enum {
+    DATAWINLOADTYPE_LOAD_PER_CHUNK,
+    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME
+} DataWinLoadType;
 
 typedef struct {
     bool parseGen8;
@@ -47,6 +53,8 @@ typedef struct {
     // When lazyLoadRooms is true, this list indicates which rooms should be loaded during load time instead of demand. They will also not be freed.
     StringBooleanEntry* eagerlyLoadedRooms;
 
+    DataWinLoadType loadType;
+
     // Optional progress callback, called before each chunk is parsed.
     // chunkName: 4-character chunk name (e.g. "GEN8", "SPRT")
     // chunkIndex: 0-based index of the current chunk being parsed
@@ -60,7 +68,7 @@ typedef struct {
 // ===[ GEN8 - General Info ]===
 typedef struct {
     uint8_t isDebuggerDisabled;
-    uint8_t bytecodeVersion;
+    uint8_t wadVersion;
     const char* fileName;
     const char* config;
     uint32_t lastObj;
@@ -180,6 +188,7 @@ typedef struct {
     uint32_t effects;
     float volume;
     float pitch;
+    float pan; // -1.0 = full left, 0.0 = center, +1.0 = full right. Legacy field that is not used in WAD11+.
     int32_t audioGroup;
     int32_t audioFile;
 } Sound;
@@ -193,6 +202,7 @@ typedef struct {
 typedef struct {
     bool present;
     const char* name;
+    const char* path; // nullptr for pre-GM 2024.14+ games
 } AudioGroup;
 
 typedef struct {
@@ -226,6 +236,12 @@ typedef struct {
     int32_t* tpagIndices;    // resolved TPAG indices (one per frame); -1 for unresolved
     uint32_t maskCount;       // number of collision masks (one per frame, or 0)
     uint8_t** masks;          // array of maskCount packed bit arrays (nullptr if none)
+    // Collision mask storage dimensions. Pre-2024.6 these equal the full sprite width/height with zero offset.
+    // GMS 2024.6+ stores masks at bounding-box dimensions, so the mask covers only [maskOffsetX, maskOffsetX+maskWidth).
+    uint32_t maskWidth;
+    uint32_t maskHeight;
+    int32_t maskOffsetX;      // sprite-local X of the mask's left edge (marginLeft on 2024.6+, else 0)
+    int32_t maskOffsetY;      // sprite-local Y of the mask's top edge (marginTop on 2024.6+, else 0)
     // Nine-slice (GMS2 sVersion >= 3). Present iff the sprite stored a non-zero nineSliceOffset.
     bool nineSliceEnabled;
     int32_t nsLeft;
@@ -327,6 +343,7 @@ typedef struct {
 
 // ===[ SHDR - Shaders ]===
 typedef struct {
+    bool present;
     const char* name;
     uint32_t type;
     const char* glslES_Vertex;
@@ -391,7 +408,7 @@ typedef struct {
     int32_t tpagIndex;      // resolved TPAG index, -1 if unresolved
     float scaleX;
     float scaleY;
-    int32_t ascenderOffset; // bytecodeVersion >= 17 only
+    int32_t ascenderOffset; // wadVersion >= 17 only
     uint32_t ascender;  // GMS 2022.2+ (0 when absent)
     uint32_t sdfSpread; // GMS 2023.2 nonLTS+ (0 when absent)
     uint32_t lineHeight; // GMS 2023.6+ (0 when absent)
@@ -407,6 +424,8 @@ typedef struct {
     // Sprite font fields (only valid when isSpriteFont is true)
     bool isSpriteFont;
     int32_t spriteIndex; // source sprite index (-1 for regular fonts)
+    // Amount to subtract from each glyph's Y at draw time, ONLY used for sprite fonts.
+    int16_t spriteOriginYAdjust;
 } Font;
 
 // Builds the ASCII fast-path lookup table from font->glyphs. Call after glyphs[] is fully populated.
@@ -619,6 +638,7 @@ typedef struct {
     float firstFrame;
     float animSpeed;
     uint32_t animSpeedType;
+    int32_t imageIndex;
 } RoomLayerBackgroundData;
 
 typedef struct {
@@ -800,8 +820,8 @@ typedef struct {
 } Function;
 
 typedef struct {
-    // UndertaleModTool calls this field "Index", but that's because that's how it seemingly worked in pre-bytecode version 17
-    // After bytecode version 17+, this has shown that this is actually the varID of the local variable (it matches the Variable.varID)
+    // UndertaleModTool calls this field "Index", but that's because that's how it seemingly worked in pre-WAD version 17
+    // After WAD version 17+, this has shown that this is actually the varID of the local variable (it matches the Variable.varID)
     uint32_t varID;
     const char* name;
 } LocalVar;
@@ -933,3 +953,5 @@ void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t
 void GamePath_computeInternal(GamePath* path);
 PathPositionResult GamePath_getPosition(GamePath* path, float t);
 void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId);
+
+#endif /* _BS_DATA_WIN_H_ */

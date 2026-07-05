@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GS_RENDERER_H_
+#define _BS_GS_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
@@ -195,3 +196,5 @@ typedef struct {
 } GsRenderer;
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB);
+
+#endif /* _BS_GS_RENDERER_H_ */

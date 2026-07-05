@@ -1,9 +1,10 @@
-#pragma once
+#ifndef _BS_GL_COMMON_H_
+#define _BS_GL_COMMON_H_
 
 #include "common.h"
 #include <stdint.h>
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_PS3
 #include "ps3gl.h"
@@ -18,11 +19,15 @@
 // All four outputs are pixel coordinates with (0,0) at the bottom-left of the window (OpenGL convention).
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY);
 
-// Blits the given FBO (typically the application_surface) to the default framebuffer with letterboxing.
-void GLCommon_beginLetterboxBlit(GLuint fbo);
-void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+// Blits the given FBO (typically the application_surface) into hostFbo with letterboxing (hostFbo 0 == the window).
+void GLCommon_beginLetterboxBlit(GLuint fbo, GLuint hostFbo);
+void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, GLuint hostFbo);
 
 // ===[ Surface arrays ]===
+
+// Texture handle flag distinguishing a surface texture (surface_get_texture) from a sprite (tpag+1) handle.
+// Encoded as (GL_SURFACE_TEXTURE_FLAG | surfaceID); tpag counts never approach this, so the two can't collide.
+#define GL_SURFACE_TEXTURE_FLAG 0x40000000u
 
 // Returns a free slot index, growing the surfaces arrays if all slots are in use.
 // The newly returned slot has surfaces[i] == 0 and all dimensions zeroed.
@@ -52,3 +57,5 @@ GLenum GLCommon_blendModeToSFactor(int mode);
 
 // Maps a bm_* mode constant to its conventional destination blend factor.
 GLenum GLCommon_blendModeToDFactor(int mode);
+
+#endif /* _BS_GL_COMMON_H_ */
