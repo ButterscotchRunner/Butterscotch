@@ -2425,7 +2425,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     }
 
     while (true) {
-        tex->blobData = malloc(tex->blobSize);
+        tex->blobData = (uint8_t *)malloc(tex->blobSize);
 
         if (!tex->blobData) {
             fprintf(stderr, "%s: failed to allocate texture data. trying to free a texture.\n", __func__);
