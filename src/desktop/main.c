@@ -1752,6 +1752,12 @@ int main(int argc, char* argv[]) {
                 Runner_handlePendingRoomChange(runner);
             }
 
+#ifdef HAVE_MALLINFO2
+            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_BACKSPACE)) {
+                struct mallinfo2 mi = mallinfo2();
+                fprintf(stderr, "Memory use right now: %zu bytes (%.1f MB)\n", mi.uordblks, mi.uordblks / 1024.0f / 1024.0f);
+            }
+#endif
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
                 static bool fastForwardActive = false;
