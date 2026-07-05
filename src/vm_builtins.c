@@ -10378,10 +10378,6 @@ static RValue builtin_draw_arrow(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
         
         float xx = size * dx / dd;
         float yy = size * dy / dd;
-        uint32_t color = runner->renderer->drawColor;
-        float alpha = runner->renderer->drawAlpha;
-
-        runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, color, color, alpha);
         
         float tx1 = x2 - xx - yy / 3.0;
         float ty1 = y2 - yy + xx / 3.0;
@@ -10390,6 +10386,10 @@ static RValue builtin_draw_arrow(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
         float tx3 = x2 - xx + yy / 3.0;
         float ty3 = y2 - yy - xx / 3.0;
         
+        uint32_t color = runner->renderer->drawColor;
+        float alpha = runner->renderer->drawAlpha;
+
+        runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, color, color, alpha);
         runner->renderer->vtable->drawTriangle(runner->renderer, tx1, ty1, tx2, ty2, tx3, ty3, color, color, color, alpha, false);
     }
     
