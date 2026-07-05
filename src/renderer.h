@@ -186,8 +186,7 @@ struct Renderer {
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
     BlendFactors blendFactors;
-    int32_t V_SurfaceID;
-    int32_t CameraCurrent;
+    int32_t cameraCurrent;
 };
 
 // ===[ Shared Helpers (platform-agnostic) ]===
