@@ -1579,9 +1579,9 @@ int main(int argc, char* argv[]) {
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
-                bool* currentKeyDown = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyPressed = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyReleased = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool currentKeyDown[GML_KEY_COUNT];
+                bool currentKeyPressed[GML_KEY_COUNT];
+                bool currentKeyReleased[GML_KEY_COUNT];
 
                 if (freeCamActive) {
                     // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
@@ -1602,10 +1602,6 @@ int main(int argc, char* argv[]) {
                     memcpy(runner->keyboard->keyPressed, currentKeyPressed, sizeof(runner->keyboard->keyPressed));
                     memcpy(runner->keyboard->keyReleased, currentKeyReleased, sizeof(runner->keyboard->keyReleased));
                 }
-
-                free(currentKeyDown);
-                free(currentKeyPressed);
-                free(currentKeyReleased);
 
                 if (args.profilerFramesBetween > 0 && runner->frameCount > 0 && runner->frameCount % args.profilerFramesBetween == 0) {
                     char* profilerReport = Profiler_createReport(vm->profiler, 20, args.profilerFramesBetween);
