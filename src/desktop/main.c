@@ -74,7 +74,7 @@ const GLuint *hostFramebuffer;
 #include <unistd.h>
 #endif
 
-size_t get_anon_rss_bytes(void) {
+static size_t get_anon_rss_bytes(void) {
 #ifdef __linux__
     int fd = open("/proc/self/smaps_rollup", O_RDONLY);
     if (fd < 0)
