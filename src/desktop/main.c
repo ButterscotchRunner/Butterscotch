@@ -69,6 +69,44 @@ enum GraphicsAPI gfx;
 const GLuint *hostFramebuffer;
 #endif
 
+#ifdef __linux__
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+size_t get_anon_rss_bytes(void) {
+#ifdef __linux__
+    int fd = open("/proc/self/smaps_rollup", O_RDONLY);
+    if (fd < 0)
+        return 0;
+
+    char buf[512];
+    int n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0)
+        return 0;
+    buf[n] = '\0';
+
+    char *p = buf;
+    while (*p) {
+        if (strncmp(p, "Anonymous:", 10) == 0) {
+            p += 10;
+            while (*p == ' ' || *p == '\t')
+                p++;
+            size_t kb = 0;
+            while (*p >= '0' && *p <= '9')
+                kb = kb * 10 + (size_t)(*p++ - '0');
+            return kb * 1024;
+        }
+        while (*p && *p != '\n')
+            p++;
+        if (*p)
+            p++;
+    }
+#endif
+    return 0;
+}
+
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 static int platformInitGlad(GLADloadproc load) {
     glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
@@ -1752,12 +1790,14 @@ int main(int argc, char* argv[]) {
                 Runner_handlePendingRoomChange(runner);
             }
 
-#ifdef HAVE_MALLINFO2
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_BACKSPACE)) {
-                struct mallinfo2 mi = mallinfo2();
-                fprintf(stderr, "Memory use right now: %zu bytes (%.1f MB)\n", mi.uordblks, mi.uordblks / 1024.0f / 1024.0f);
+                size_t bytes_used = get_anon_rss_bytes();
+                if (bytes_used == 0)
+                    fprintf(stderr, "Unable to get memory usage\n");
+                else
+                    fprintf(stderr, "Memory use right now: %zu bytes (%.1f MB)\n", bytes_used, bytes_used / 1024.0f / 1024.0f);
             }
-#endif
+
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
                 static bool fastForwardActive = false;
