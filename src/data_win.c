@@ -2424,42 +2424,19 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
         return;
     }
 
-    while (true) {
-        tex->blobData = (uint8_t *)malloc(tex->blobSize);
+    tex->blobData = (uint8_t *)safeMalloc(tex->blobSize);
 
-        if (!tex->blobData) {
-            fprintf(stderr, "%s: failed to allocate texture data. trying to free a texture.\n", __func__);
+    memset(tex->blobData, 0, tex->blobSize);
+    long old_seek = ftell(dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, tex->blobOffset, SEEK_SET);
+    size_t read = fread(tex->blobData, 1, tex->blobSize, dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
 
-            // TODO: use an LRU cache instead
-            bool found = false;
-            for (uint32_t i = 0; i < t->count; i++) {
-                if (t->textures[i].blobData) {
-                    fprintf(stderr, "%s: evicting texture %u to free up memory\n", __func__, i);
-                    free(t->textures[i].blobData);
-                    t->textures[i].blobData = nullptr;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found) {
-                fprintf(stderr, "%s: no textures to free. sorry bucko!\n", __func__);
-            }
-        } else {
-            memset(tex->blobData, 0, tex->blobSize);
-            long old_seek = ftell(dw->lazyLoadFile);
-            fseek(dw->lazyLoadFile, tex->blobOffset, SEEK_SET);
-            size_t read = fread(tex->blobData, 1, tex->blobSize, dw->lazyLoadFile);
-            fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
-
-            if (read != tex->blobSize) {
-                fprintf(stderr, "%s: couldn't read %u bytes to load a texture.\n", __func__, tex->blobSize);
-            }
-
-	        fprintf(stderr, "%s: loaded texture data for page %u\n", __func__, textureId);
-            break;
-        }
+    if (read != tex->blobSize) {
+        fprintf(stderr, "%s: couldn't read %u bytes to load a texture.\n", __func__, tex->blobSize);
     }
+
+    fprintf(stderr, "%s: loaded texture data for page %u\n", __func__, textureId);
 }
 
 static void parseAUDO(BinaryReader* reader, DataWin* dw) {
