@@ -1043,7 +1043,10 @@ int main(int argc, char* argv[]) {
         options.parseFunc = true;
         options.parseStrg = true;
         options.parseTxtr = true;
-        options.parseAudo = true;
+#if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
+        if (!args.headless)
+            options.parseAudo = true;
+#endif
         options.skipLoadingPreciseMasksForNonPreciseSprites = true;
         options.loadType = args.loadType;
         options.lazyLoadRooms = args.lazyRooms;
