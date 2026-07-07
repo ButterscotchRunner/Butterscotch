@@ -810,12 +810,17 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
+    free(txtr->blobData);
+    txtr->blobData = nullptr;
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    free(pixels);
+
     bool isPOT = (w & (w - 1)) == 0 && (h & (h - 1)) == 0;
     GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
 
@@ -824,7 +829,6 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
-    free(pixels);
     fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     return true;
 }

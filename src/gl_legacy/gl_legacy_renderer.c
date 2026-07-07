@@ -329,18 +329,21 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
         fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
+    free(txtr->blobData);
+    txtr->blobData = nullptr;
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    free(pixels);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    free(pixels);
 #endif
     fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     return true;
