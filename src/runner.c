@@ -1240,22 +1240,13 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
         //whenever somebody feels like it, do make that free cam thingy work with this
         //make default projection
-        Matrix4f projectionMatrix;
-        Matrix4f_Orthographic(&projectionMatrix, (float) runner->currentRoom->width, -((float) runner->currentRoom->height), 32000.0, 0.0);
-
-        Matrix4f viewMatrix;
-        float x = (float) runner->currentRoom->width * 0.5f;
-        float y = (float) runner->currentRoom->height * 0.5f;
-        Matrix4f_identity(&viewMatrix);
-        Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
         if (camera != nullptr) {
             camera->viewX = 0;
             camera->viewY = 0;
             camera->viewWidth = runner->currentRoom->width;
             camera->viewHeight = runner->currentRoom->height;
             camera->viewAngle = 0.0;
-            camera->viewMatrix = viewMatrix;
-            camera->projectionMatrix = projectionMatrix;
+            Runner_updateCameraViewSimple(camera);
         }
 
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
