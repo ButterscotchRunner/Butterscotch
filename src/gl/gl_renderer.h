@@ -82,6 +82,13 @@ typedef struct {
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
 
+    // Blending mode + factors
+    int32_t currentBlendMode;
+    int32_t currentSFactor;
+    int32_t currentDFactor;
+    int32_t currentSFactorAlpha;
+    int32_t currentDFactorAlpha;
+
     bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
     bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 } GLRenderer;

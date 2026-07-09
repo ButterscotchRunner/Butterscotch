@@ -575,6 +575,15 @@ static void webSetMasterGain(AudioSystem* audio, float gain) {
     ma_engine_set_volume(&ma->engine, gain);
 }
 
+
+static void webSetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    if (id < 0 || id >= MAX_LISTENERS) return;
+    ma->listenerGains[id] = gain;
+    ma_sound_group_set_volume(&ma->listenerGroups[id], gain);
+}
+
 static void webSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
 static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
@@ -701,6 +710,7 @@ WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate) {
     webAudioSystemVtable.setTrackPosition = webSetTrackPosition;
     webAudioSystemVtable.getSoundLength = webGetSoundLength;
     webAudioSystemVtable.setMasterGain = webSetMasterGain;
+    webAudioSystemVtable.setMasterGainForListener = webSetMasterGainForListener;
     webAudioSystemVtable.setChannelCount = webSetChannelCount;
     webAudioSystemVtable.groupLoad = webGroupLoad;
     webAudioSystemVtable.groupIsLoaded = webGroupIsLoaded;

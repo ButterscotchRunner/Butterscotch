@@ -19,7 +19,7 @@ InputRecording* InputRecording_createRecorder(const char* filePath) {
 
 InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const char* recordFilePath) {
     // Read the file contents
-    FILE* f = fopen(playbackFilePath, "r");
+    FILE* f = fopen(playbackFilePath, "rb");
     if (f == nullptr) {
         fprintf(stderr, "Error: Could not open input recording file '%s'\n", playbackFilePath);
         exit(1);
@@ -212,7 +212,7 @@ bool InputRecording_save(InputRecording* recording) {
 
     JsonWriter_endObject(&w);
 
-    FILE* f = fopen(recording->recordFilePath, "w");
+    FILE* f = fopen(recording->recordFilePath, "wb");
     if (f == nullptr) {
         fprintf(stderr, "Error: Could not write input recording to '%s'\n", recording->recordFilePath);
         JsonWriter_free(&w);

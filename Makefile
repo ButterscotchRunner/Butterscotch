@@ -40,12 +40,7 @@ HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 DESKTOP_BACKEND := glfw3
-ifdef MSVC
-# miniaudio fails to build under MSVC for some reason
-AUDIO_BACKEND := none
-else
 AUDIO_BACKEND := miniaudio
-endif
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"

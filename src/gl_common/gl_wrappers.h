@@ -1,4 +1,4 @@
-#if !defined(_BS_GL_WRAPPERS_H_) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_PS3)
+#if !defined(_BS_GL_WRAPPERS_H_) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_PS3) && !defined(__ANDROID__)
 #define _BS_GL_WRAPPERS_H_
 
 static inline void rt_glBindVertexArray(GLuint vao) {

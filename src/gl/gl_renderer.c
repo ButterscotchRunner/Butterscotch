@@ -51,7 +51,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     return (glGenFramebuffers || glGenFramebuffersEXT);
 #else
     return true;
@@ -59,7 +59,7 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     return (glGenVertexArrays || glGenVertexArraysOES);
 #else
     return true;
@@ -150,12 +150,15 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
@@ -729,11 +732,6 @@ static void glEndFrameInit(Renderer* renderer) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
     }
-
-    if (gl->isGL3) {
-        int32_t appId = gl->base.runner->applicationSurfaceId;
-        GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
-    }
 }
 
 static void glEndFrameEnd(Renderer* renderer) {
@@ -803,6 +801,8 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     DataWin* dw = gl->base.dataWin;
     Texture* txtr = &dw->txtr.textures[pageId];
 
+    DataWin_loadTxtrIfNeeded(dw, pageId);
+
     int w, h;
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
     uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
@@ -810,12 +810,17 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
+    free(txtr->blobData);
+    txtr->blobData = nullptr;
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    free(pixels);
+
     bool isPOT = (w & (w - 1)) == 0 && (h & (h - 1)) == 0;
     GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
 
@@ -824,7 +829,6 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
-    free(pixels);
     fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     return true;
 }
@@ -2230,15 +2234,50 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     fprintf(stderr, "GL: Deleted sprite %d\n", spriteIndex);
 }
 
+static BlendFactors glGpuGetBlendFactors(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    return (BlendFactors){
+        gl->currentSFactor, 
+        gl->currentDFactor, 
+        gl->currentSFactorAlpha, 
+        gl->currentDFactorAlpha
+    };
+}
+
+static int32_t glGpuGetBlendMode(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->currentBlendMode;
+}
+
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
-    flushBatch((GLRenderer*) renderer);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    gl->currentBlendMode = mode;
+    gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
+    gl->currentDFactor = GLCommon_blendModeToDFactor(mode);
+    gl->currentSFactorAlpha = gl->currentSFactor; 
+    gl->currentDFactorAlpha = gl->currentDFactor;
+
     glBlendEquation(GLCommon_blendModeToEquation(mode));
-    glBlendFunc(GLCommon_blendModeToSFactor(mode), GLCommon_blendModeToDFactor(mode));
+    glBlendFunc(gl->currentSFactor, gl->currentDFactor);
 }
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
-    flushBatch((GLRenderer*) renderer);
-    glBlendFuncSeparate(GLCommon_blendFactorToGL(sfactor), GLCommon_blendFactorToGL(dfactor), GLCommon_blendFactorToGL(sfactor_alpha), GLCommon_blendFactorToGL(dfactor_alpha));
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    gl->currentBlendMode = bm_complex;
+    gl->currentSFactor = sfactor;
+    gl->currentDFactor = dfactor;
+    gl->currentSFactorAlpha = sfactor_alpha;
+    gl->currentDFactorAlpha = dfactor_alpha;
+
+    glBlendFuncSeparate(
+        GLCommon_blendFactorToGL(sfactor), 
+        GLCommon_blendFactorToGL(dfactor), 
+        GLCommon_blendFactorToGL(sfactor_alpha), 
+        GLCommon_blendFactorToGL(dfactor_alpha)
+    );
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
@@ -2534,6 +2573,8 @@ Renderer* GLRenderer_create(void) {
     glVtable.clearScreen = glClearScreen;
     glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;
     glVtable.deleteSprite = glDeleteSprite;
+    glVtable.gpuGetBlendFactors = glGpuGetBlendFactors;
+    glVtable.gpuGetBlendMode = glGpuGetBlendMode;
     glVtable.gpuSetBlendMode = glGpuSetBlendMode;
     glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
     glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;

@@ -65,6 +65,48 @@
 
 enum GraphicsAPI gfx;
 
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+const GLuint *hostFramebuffer;
+#endif
+
+#ifdef __linux__
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+static size_t get_used_memory(void) {
+#ifdef __linux__
+    int fd = open("/proc/self/smaps_rollup", O_RDONLY);
+    if (fd < 0)
+        return 0;
+
+    char buf[512];
+    int n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0)
+        return 0;
+    buf[n] = '\0';
+
+    char *p = buf;
+    while (*p) {
+        if (strncmp(p, "Anonymous:", 10) == 0) {
+            p += 10;
+            while (*p == ' ' || *p == '\t')
+                p++;
+            size_t kb = 0;
+            while (*p >= '0' && *p <= '9')
+                kb = kb * 10 + (size_t)(*p++ - '0');
+            return kb * 1024;
+        }
+        while (*p && *p != '\n')
+            p++;
+        if (*p)
+            p++;
+    }
+#endif
+    return 0;
+}
+
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
 static int platformInitGlad(GLADloadproc load) {
     glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
@@ -848,7 +890,7 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
         writeFramebufferAsPng(gl->surfaces[surfaceId], width, height, filename, "Surface dump", false, false);
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
 }
 #endif
 
@@ -1001,10 +1043,14 @@ int main(int argc, char* argv[]) {
         options.parseFunc = true;
         options.parseStrg = true;
         options.parseTxtr = true;
-        options.parseAudo = true;
+#if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
+        if (!args.headless)
+            options.parseAudo = true;
+#endif
         options.skipLoadingPreciseMasksForNonPreciseSprites = true;
         options.loadType = args.loadType;
         options.lazyLoadRooms = args.lazyRooms;
+        options.lazyLoadTextures = args.lazyTextures;
         options.eagerlyLoadedRooms = args.eagerRooms;
         DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
@@ -1319,13 +1365,17 @@ int main(int argc, char* argv[]) {
             renderer = SWRenderer_create();
 #endif
 #ifdef ENABLE_LEGACY_GL
-        if (gfx == LEGACY_GL)
+        if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
+            static GLuint hostfb = 0;
+            hostFramebuffer = &hostfb;
+        }
 #endif
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
             ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
+            hostFramebuffer = &((GLRenderer *)renderer)->hostFramebuffer;
         }
 #endif
         if (!renderer) {
@@ -1513,7 +1563,7 @@ int main(int argc, char* argv[]) {
                     if (args.dumpJsonFilePattern != nullptr) {
                         char filename[512];
                         snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
-                        FILE* f = fopen(filename, "w");
+                        FILE* f = fopen(filename, "wb");
                         if (f != nullptr) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
@@ -1571,9 +1621,9 @@ int main(int argc, char* argv[]) {
                     printf("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
-                bool* currentKeyDown = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyPressed = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
-                bool* currentKeyReleased = (bool *)safeCalloc(GML_KEY_COUNT, sizeof(bool));
+                bool currentKeyDown[GML_KEY_COUNT];
+                bool currentKeyPressed[GML_KEY_COUNT];
+                bool currentKeyReleased[GML_KEY_COUNT];
 
                 if (freeCamActive) {
                     // THIS IS A HACK!! We don't want to pass keys to the runner, but we DO want to keep it so we can hold the arrow keys to move the camera
@@ -1594,10 +1644,6 @@ int main(int argc, char* argv[]) {
                     memcpy(runner->keyboard->keyPressed, currentKeyPressed, sizeof(runner->keyboard->keyPressed));
                     memcpy(runner->keyboard->keyReleased, currentKeyReleased, sizeof(runner->keyboard->keyReleased));
                 }
-
-                free(currentKeyDown);
-                free(currentKeyPressed);
-                free(currentKeyReleased);
 
                 if (args.profilerFramesBetween > 0 && runner->frameCount > 0 && runner->frameCount % args.profilerFramesBetween == 0) {
                     char* profilerReport = Profiler_createReport(vm->profiler, 20, args.profilerFramesBetween);
@@ -1625,7 +1671,7 @@ int main(int argc, char* argv[]) {
                     if (args.dumpJsonFilePattern != nullptr) {
                         char filename[512];
                         snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
-                        FILE* f = fopen(filename, "w");
+                        FILE* f = fopen(filename, "wb");
                         if (f != nullptr) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
@@ -1647,7 +1693,7 @@ int main(int argc, char* argv[]) {
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
                 if (gfx == LEGACY_GL || gfx == MODERN_GL) {
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
                     glClear(GL_COLOR_BUFFER_BIT);
                 }
 #endif
@@ -1719,7 +1765,7 @@ int main(int argc, char* argv[]) {
 
                 if (shouldScreenshot || RunnerKeyboard_checkPressed(runner->keyboard, VK_F5)) {
                     captureScreenshot(0, args.screenshotPattern, runner->frameCount, fbWidth, fbHeight, true);
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
                 }
 
                 // Dump all surfaces if this frame matches a requested frame
@@ -1728,7 +1774,7 @@ int main(int argc, char* argv[]) {
                 if (shouldDumpSurfaces || RunnerKeyboard_checkPressed(runner->keyboard, VK_F6)) {
                     GLRenderer* gl = (GLRenderer*) renderer;
                     dumpAllSurfaces(gl, args.screenshotSurfacesPattern, runner->frameCount);
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
                 }
 #endif
 
@@ -1748,11 +1794,19 @@ int main(int argc, char* argv[]) {
                 Runner_handlePendingRoomChange(runner);
             }
 
+            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_BACKSPACE)) {
+                size_t bytes_used = get_used_memory();
+                if (bytes_used == 0)
+                    fprintf(stderr, "Unable to get memory usage\n");
+                else
+                    fprintf(stderr, "Memory use right now: %zu bytes (%.1f MB)\n", bytes_used, bytes_used / 1024.0f / 1024.0f);
+            }
+
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
                 static bool fastForwardActive = false;
                 static bool fastForwardTabPrev = false;
-                bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, '\t');
+                bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, VK_TAB);
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
                     lastFrameTime = nowNanos();

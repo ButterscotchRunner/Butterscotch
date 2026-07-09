@@ -230,7 +230,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
-    FILE* f = fopen(dbPath, "r");
+    FILE* f = fopen(dbPath, "rb");
     if (f != NULL) {
         fseek(f, 0, SEEK_END);
         long len = ftell(f);

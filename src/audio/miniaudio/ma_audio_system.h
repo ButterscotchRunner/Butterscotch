@@ -10,6 +10,7 @@
 #define MAX_AUDIO_STREAMS 32
 // This is the index space that the native runner uses
 #define AUDIO_STREAM_INDEX_BASE 300000
+#define MAX_LISTENERS 4
 
 typedef struct {
     bool active;
@@ -41,6 +42,8 @@ typedef struct {
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
     AudioStreamEntry streams[MAX_AUDIO_STREAMS];
+    ma_sound_group listenerGroups[MAX_LISTENERS];
+    float listenerGains[MAX_LISTENERS];
 } MaAudioSystem;
 
 MaAudioSystem* MaAudioSystem_create(DataWin* dataWin);

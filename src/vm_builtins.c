@@ -1,5 +1,6 @@
 #include "vm_builtins.h"
 #include "binary_utils.h"
+#include "gml_array.h"
 #include "instance.h"
 #include "json_reader.h"
 #include "json_writer.h"
@@ -31,7 +32,7 @@
 #include "base64.h"
 #include "gettime.h"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
 
@@ -340,6 +341,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "image_speed", BUILTIN_VAR_IMAGE_SPEED },
     { "image_xscale", BUILTIN_VAR_IMAGE_XSCALE },
     { "image_yscale", BUILTIN_VAR_IMAGE_YSCALE },
+    { "infinity", BUILTIN_VAR_INFINITY },
     { "instance_count", BUILTIN_VAR_INSTANCE_COUNT },
     { "instance_id", BUILTIN_VAR_INSTANCE_ID },
     { "keyboard_key", BUILTIN_VAR_KEYBOARD_KEY },
@@ -1114,6 +1116,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeBool(false);
         case BUILTIN_VAR_PI:
             return RValue_makeReal(3.14159265358979323846);
+        case BUILTIN_VAR_INFINITY:
+            return RValue_makeReal(INFINITY);
         case BUILTIN_VAR_UNDEFINED:
             return RValue_makeUndefined();
 
@@ -2228,7 +2232,7 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
     if (2 > argCount) return RValue_makeInt32(0);
     char* substr = RValue_toString(args[0]);
     char* str = RValue_toString(args[1]);
-    
+
     bool ret = (strncmp(str, substr, strlen(substr)) == 0);
 
     free(substr);
@@ -2599,6 +2603,15 @@ static RValue builtin_lerp(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t ar
 static RValue builtin_tan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     return RValue_makeReal(GMLReal_tan(RValue_toReal(args[0])));
+}
+
+static RValue builtin_dot_product(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (4 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+    return RValue_makeReal(x1 * x2 + y1 * y2);
 }
 
 static RValue builtin_point_distance(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -6377,6 +6390,25 @@ static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
     return RValue_makeReal((GMLReal) instanceId);
 }
 
+static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr || audio->vtable == nullptr || 1 > argCount) return RValue_makeString("<undefined>");
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeString("<undefined>");
+
+    int32_t soundIndex = RValue_toInt32(args[0]);
+    if (0 > soundIndex) return RValue_makeString("<undefined>");
+
+    repeat(arrlen(audio->audioGroups), i) {
+        DataWin* dw = audio->audioGroups[i];
+        if (dw->sond.count <= (uint32_t) soundIndex) {
+            continue;
+        } else {
+            return RValue_makeString(dw->sond.sounds[soundIndex].name);
+        }
+    }
+    return RValue_makeString("<undefined>");
+}
+
 // same as builtin_sound_play with loop enabled
 static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = getAudioSystem(ctx);
@@ -6516,6 +6548,15 @@ static RValue builtin_audio_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUS
     if (audio == nullptr) return RValue_makeUndefined();
     float gain = (float) RValue_toReal(args[0]);
     audio->vtable->setMasterGain(audio, gain);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_set_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = getAudioSystem(ctx);
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t id = RValue_toInt32(args[0]);
+    float gain = (float) RValue_toReal(args[1]);
+    audio->vtable->setMasterGainForListener(audio, gain, id);
     return RValue_makeUndefined();
 }
 
@@ -9675,6 +9716,11 @@ static RValue builtin_draw_rectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     bool outline = RValue_toBool(args[4]);
+    if (runner->applyOffsetForPrimitives) {
+        x2 += 1.0f; y2 += 1.0f;
+        if (x2 == floorf(x2)) x2 += 0.01f;
+        if (y2 == floorf(x2)) y2 += 0.01f;
+    }
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, runner->renderer->drawColor, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
@@ -9692,7 +9738,11 @@ static RValue builtin_draw_rectangle_color(VMContext* ctx, RValue* args, MAYBE_U
     uint32_t color3 = (uint32_t) RValue_toInt32(args[6]);
     uint32_t color4 = (uint32_t) RValue_toInt32(args[7]);
     bool outline = RValue_toBool(args[8]);
-
+    if (runner->applyOffsetForPrimitives) {
+        x2 += 1.0f; y2 += 1.0f;
+        if (x2 == floorf(x2)) x2 += 0.01f;
+        if (y2 == floorf(x2)) y2 += 0.01f;
+    }
     runner->renderer->vtable->drawRectangleColor(runner->renderer, x1, y1, x2, y2, color1, color2, color3, color4, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
 }
@@ -10142,6 +10192,10 @@ static RValue builtin_draw_line(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
         float y1 = (float) RValue_toReal(args[1]);
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, 1.0f, runner->renderer->drawColor, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10157,6 +10211,10 @@ static RValue builtin_draw_line_colour(VMContext* ctx, RValue* args, MAYBE_UNUSE
         float y2 = (float) RValue_toReal(args[3]);
         float col1 = (float) RValue_toReal(args[4]);
         float col2 = (float) RValue_toReal(args[5]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLineColor(runner->renderer, x1, y1, x2, y2, 1.0f, col1, col2, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10171,6 +10229,10 @@ static RValue builtin_draw_line_width(VMContext* ctx, RValue* args, MAYBE_UNUSED
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
         float w = (float) RValue_toReal(args[4]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, w, runner->renderer->drawColor, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10187,6 +10249,10 @@ static RValue builtin_draw_line_width_colour(VMContext* ctx, RValue* args, MAYBE
         float w = (float) RValue_toReal(args[4]);
         uint32_t col1 = (uint32_t) RValue_toInt32(args[5]);
         uint32_t col2 = (uint32_t) RValue_toInt32(args[6]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         runner->renderer->vtable->drawLineColor(runner->renderer, x1, y1, x2, y2, w, col1, col2, runner->renderer->drawAlpha);
     }
     return RValue_makeUndefined();
@@ -10204,6 +10270,11 @@ static RValue builtin_draw_triangle(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         float y3 = (float) RValue_toReal(args[5]);
         bool outline = (float) RValue_toBool(args[6]);
         uint32_t color = runner->renderer->drawColor;
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+            x3 += 1.0f; y3 += 1.0f;
+        }
         runner->renderer->vtable->drawTriangle(runner->renderer, x1, y1, x2, y2, x3, y3, color, color, color, runner->renderer->drawAlpha, outline);
     }
     return RValue_makeUndefined();
@@ -10223,6 +10294,11 @@ static RValue builtin_draw_triangle_color(VMContext* ctx, RValue* args, MAYBE_UN
         uint32_t col2 = (uint32_t) RValue_toInt32(args[7]);
         uint32_t col3 = (uint32_t) RValue_toInt32(args[8]);
         bool outline = RValue_toBool(args[9]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+            x3 += 1.0f; y3 += 1.0f;
+        }
         runner->renderer->vtable->drawTriangle(runner->renderer, x1, y1, x2, y2, x3, y3, col1, col2, col3, runner->renderer->drawAlpha, outline);
     }
     return RValue_makeUndefined();
@@ -10236,6 +10312,9 @@ static RValue builtin_draw_circle(VMContext* ctx, RValue* args, MAYBE_UNUSED int
         float y = (float) RValue_toReal(args[1]);
         float r = (float) RValue_toReal(args[2]);
         bool outline = RValue_toBool(args[3]);
+        if (runner->applyOffsetForPrimitives) {
+            x += 1.0f; y += 1.0f;
+        }
         Renderer_drawCircle(runner->renderer, x, y, r, outline);
     }
     return RValue_makeUndefined();
@@ -10266,6 +10345,10 @@ static RValue builtin_draw_ellipse(VMContext* ctx, RValue* args, MAYBE_UNUSED in
         float y2 = (float) RValue_toReal(args[3]);
         bool outline = RValue_toBool(args[4]);
         uint32_t color = runner->renderer->drawColor;
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         Renderer_drawEllipseColor(runner->renderer, (x1 + x2) * 0.5f, (y1 + y2) * 0.5f, (x2 - x1) * 0.5f, (y2 - y1) * 0.5f, color, color, outline);
     }
     return RValue_makeUndefined();
@@ -10282,6 +10365,10 @@ static RValue builtin_draw_ellipse_color(VMContext* ctx, RValue* args, MAYBE_UNU
         uint32_t col1 = (uint32_t) RValue_toInt32(args[4]);
         uint32_t col2 = (uint32_t) RValue_toInt32(args[5]);
         bool outline = RValue_toBool(args[6]);
+        if (runner->applyOffsetForPrimitives) {
+            x1 += 1.0f; y1 += 1.0f;
+            x2 += 1.0f; y2 += 1.0f;
+        }
         Renderer_drawEllipseColor(runner->renderer, (x1 + x2) * 0.5f, (y1 + y2) * 0.5f, (x2 - x1) * 0.5f, (y2 - y1) * 0.5f, col1, col2, outline);
     }
     return RValue_makeUndefined();
@@ -10341,6 +10428,22 @@ static RValue builtin_draw_get_font(VMContext* ctx, MAYBE_UNUSED RValue* args, M
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
         return RValue_makeInt32(runner->renderer->drawFont);
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_draw_get_halign(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeInt32(runner->renderer->drawHalign);
+    }
+    return RValue_makeInt32(-1);
+}
+
+static RValue builtin_draw_get_valign(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        return RValue_makeInt32(runner->renderer->drawValign);
     }
     return RValue_makeInt32(-1);
 }
@@ -10715,6 +10818,42 @@ static RValue builtin_sprite_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED
     if (0 > spriteIndex || (uint32_t) spriteIndex >= ctx->dataWin->sprt.count) return RValue_makeString("<undefined>");
     const char* name = ctx->dataWin->sprt.sprites[spriteIndex].name;
     return RValue_makeString(name != nullptr ? name : "<undefined>");
+}
+
+// sprite_set_bbox_mode(sprite_index, mode)
+static RValue builtin_sprite_set_bbox_mode(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 2) return RValue_makeUndefined();
+
+    int32_t spriteIndex = RValue_toInt32(args[0]);
+    uint32_t mode = (uint32_t) RValue_toReal(args[1]);
+
+    Runner* runner = ctx->runner;
+    DataWin* dw = runner->dataWin;
+
+    if (spriteIndex < 0 || (uint32_t)spriteIndex >= dw->sprt.count) {
+        return RValue_makeUndefined();
+    }
+
+    Sprite* spr = &dw->sprt.sprites[spriteIndex];
+
+    if (spr->bboxMode == mode) {
+        return RValue_makeUndefined();
+    }
+
+    spr->bboxMode = mode;
+
+    int32_t instanceCount = (int32_t)arrlen(runner->instances);
+    for (int32_t i = 0; i < instanceCount; i++) {
+        Instance* inst = runner->instances[i];
+        if (!inst->active || inst->destroyed) continue;
+
+        int32_t activeMask = (inst->maskIndex >= 0) ? inst->maskIndex : inst->spriteIndex;
+        if (activeMask == spriteIndex) {
+            SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
+        }
+    }
+
+    return RValue_makeUndefined();
 }
 
 // sprite_set_offset(sprite_index, xoff, yoff)
@@ -11465,6 +11604,92 @@ static RValue builtin_collision_circle(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal((GMLReal) resultId);
 }
 
+static RValue builtin_collision_line_list(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (9 > argCount) return RValue_makeReal(0.0);
+
+    Runner* runner = ctx->runner;
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+    int32_t target = VM_resolveInstanceTarget(ctx, RValue_toInt32(args[4]));
+    int32_t prec = RValue_toInt32(args[5]);
+    int32_t notme = RValue_toInt32(args[6]);
+    int32_t listId = RValue_toInt32(args[7]);
+    // arg 8 (ordered) ignored here too; appended in iteration order
+
+    if (target == INSTANCE_NOONE) return RValue_makeReal(0.0);
+    DsList* list = dsListGet(runner, listId);
+    if (list == nullptr) return RValue_makeReal(0.0);
+
+    if (runner->collisionCompatibilityMode) {
+        x1 = compatRoundCoord(x1); y1 = compatRoundCoord(y1);
+        x2 = compatRoundCoord(x2); y2 = compatRoundCoord(y2);
+    }
+
+    GMLReal bx1 = GMLReal_fmin(x1, x2);
+    GMLReal by1 = GMLReal_fmin(y1, y2);
+    GMLReal bx2 = GMLReal_fmax(x1, x2);
+    GMLReal by2 = GMLReal_fmax(y1, y2);
+
+    Instance* self = ctx->currentInstance;
+    int32_t count = 0;
+
+    SpatialGrid_syncGrid(runner, runner->spatialGrid);
+    SpatialGridQuery query = SpatialGrid_prepareQuery(runner, bx1, by1, bx2, by2, target);
+
+    for (int32_t gx = query.range.minGridX; query.range.maxGridX >= gx; gx++) {
+        for (int32_t gy = query.range.minGridY; query.range.maxGridY >= gy; gy++) {
+            Instance** cell = runner->spatialGrid->grid[SpatialGrid_cellIndex(runner->spatialGrid, gx, gy)];
+            int32_t cellLen = (int32_t) arrlen(cell);
+            repeat(cellLen, ci) {
+                Instance* inst = cell[ci];
+                if (!inst->active) continue;
+                if (notme && inst == self) continue;
+                if (inst->lastCollisionQueryId == query.queryId) continue;
+                inst->lastCollisionQueryId = query.queryId;
+
+                if (!query.matchAll && query.filterByObject && !VM_isObjectOrDescendant(ctx->dataWin, inst->objectIndex, target)) continue;
+                if (!query.matchAll && query.filterByInstanceId && inst->instanceId != (uint32_t) target) continue;
+
+                InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
+
+                GMLReal tEnter, tExit;
+                if (!Collision_segmentVsAARectClip(x1, y1, x2, y2, bbox.left, bbox.top, bbox.right, bbox.bottom, &tEnter, &tExit)) continue;
+
+                if (prec != 0) {
+                    Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
+                    if (Collision_hasFrameMasks(spr)) {
+                        // Walk only the portion of the segment that's actually
+                        // inside the bbox (clipped by tEnter/tExit), stepping
+                        // roughly one pixel at a time, checking the mask.
+                        GMLReal dx = x2 - x1;
+                        GMLReal dy = y2 - y1;
+                        GMLReal segLen = GMLReal_sqrt(dx * dx + dy * dy);
+                        int32_t steps = (int32_t) GMLReal_ceil(segLen * (tExit - tEnter));
+                        if (steps < 1) steps = 1;
+
+                        bool found = false;
+                        for (int32_t s = 0; s <= steps && !found; s++) {
+                            GMLReal t = tEnter + (tExit - tEnter) * ((GMLReal) s / (GMLReal) steps);
+                            GMLReal px = x1 + dx * t;
+                            GMLReal py = y1 + dy * t;
+                            found = Collision_pointInInstance(spr, inst, px, py);
+                        }
+                        if (!found) continue;
+                    }
+                }
+
+                arrput(list->items, RValue_makeReal((GMLReal) inst->instanceId));
+                count++;
+            }
+        }
+    }
+
+    return RValue_makeReal((GMLReal) count);
+}
+
+
 // collision_rectangle_list(x1, y1, x2, y2, obj, prec, notme, list, ordered) -> count
 static RValue builtin_collision_rectangle_list(VMContext* ctx, RValue* args, int32_t argCount) {
     if (8 > argCount) return RValue_makeReal(0.0);
@@ -11532,6 +11757,105 @@ static RValue builtin_collision_rectangle_list(VMContext* ctx, RValue* args, int
                         for (int32_t py = startY; endY > py && !found; py++) {
                             for (int32_t px = startX; endX > px && !found; px++) {
                                 if (Collision_pointInInstance(spr, inst, (GMLReal) px + 0.5, (GMLReal) py + 0.5)) {
+                                    found = true;
+                                }
+                            }
+                        }
+                        if (!found) continue;
+                    }
+                }
+
+                arrput(list->items, RValue_makeReal((GMLReal) inst->instanceId));
+                count++;
+            }
+        }
+    }
+
+    return RValue_makeReal((GMLReal) count);
+}
+
+// collision_circle_list(x, y, radius, obj, prec, notme, list, ordered) -> count
+static RValue builtin_collision_circle_list(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (8 > argCount) return RValue_makeReal(0.0);
+
+    Runner* runner = ctx->runner;
+    GMLReal cx = RValue_toReal(args[0]);
+    GMLReal cy = RValue_toReal(args[1]);
+    GMLReal radius = RValue_toReal(args[2]);
+    int32_t targetObjIndex = VM_resolveInstanceTarget(ctx, RValue_toInt32(args[3]));
+    int32_t prec = RValue_toInt32(args[4]);
+    int32_t notme = RValue_toInt32(args[5]);
+    int32_t listId = RValue_toInt32(args[6]);
+
+    if (targetObjIndex == INSTANCE_NOONE) return RValue_makeReal(0.0);
+    DsList* list = dsListGet(runner, listId);
+    if (list == nullptr) return RValue_makeReal(0.0);
+    if (0 > radius) radius = -radius;
+    GMLReal radiusSq = radius * radius;
+
+    Instance* self = ctx->currentInstance;
+    if (runner->collisionCompatibilityMode) {
+        GMLReal qx1r = compatRoundCoord(cx - radius);
+        GMLReal qy1r = compatRoundCoord(cy - radius);
+        GMLReal qx2r = compatRoundCoord(cx + radius);
+        GMLReal qy2r = compatRoundCoord(cy + radius);
+        cx = (qx1r + qx2r) * 0.5;
+        cy = (qy1r + qy2r) * 0.5;
+        // Genuine collision_circle has qx2-qx1 == qy2-qy1 == 2r; use the smaller in case of rounding asymmetry.
+        GMLReal rx = (qx2r - qx1r) * 0.5;
+        GMLReal ry = (qy2r - qy1r) * 0.5;
+        radius = rx < ry ? rx : ry;
+        radiusSq = radius * radius;
+    }
+
+    GMLReal qx1 = cx - radius;
+    GMLReal qy1 = cy - radius;
+    GMLReal qx2 = cx + radius;
+    GMLReal qy2 = cy + radius;
+
+    SpatialGrid_syncGrid(runner, runner->spatialGrid);
+    SpatialGridQuery query = SpatialGrid_prepareQuery(runner, qx1, qy1, qx2, qy2, targetObjIndex);
+
+    int32_t count = 0;
+    for (int32_t gx = query.range.minGridX; query.range.maxGridX >= gx; gx++) {
+        for (int32_t gy = query.range.minGridY; query.range.maxGridY >= gy; gy++) {
+            Instance** cell = runner->spatialGrid->grid[SpatialGrid_cellIndex(runner->spatialGrid, gx, gy)];
+            int32_t cellLen = (int32_t) arrlen(cell);
+            repeat(cellLen, ci) {
+                Instance* inst = cell[ci];
+                if (!inst->active) continue;
+                if (notme && inst == self) continue;
+                if (inst->lastCollisionQueryId == query.queryId) continue;
+                inst->lastCollisionQueryId = query.queryId;
+
+                if (!query.matchAll && query.filterByObject && !VM_isObjectOrDescendant(ctx->dataWin, inst->objectIndex, targetObjIndex)) continue;
+                if (!query.matchAll && query.filterByInstanceId && inst->instanceId != (uint32_t) targetObjIndex) continue;
+
+                if (!Collision_circleOverlapsInstance(ctx->runner, inst, cx, cy, radius)) continue;
+
+                if (prec != 0) {
+                    Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
+                    if (Collision_hasFrameMasks(spr)) {
+                        InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
+                        GMLReal iLeft   = GMLReal_fmax(qx1, bbox.left);
+                        GMLReal iRight  = GMLReal_fmin(qx2, bbox.right);
+                        GMLReal iTop    = GMLReal_fmax(qy1, bbox.top);
+                        GMLReal iBottom = GMLReal_fmin(qy2, bbox.bottom);
+
+                        bool found = false;
+                        int32_t startX = (int32_t) GMLReal_floor(iLeft);
+                        int32_t endX   = (int32_t) GMLReal_ceil(iRight);
+                        int32_t startY = (int32_t) GMLReal_floor(iTop);
+                        int32_t endY   = (int32_t) GMLReal_ceil(iBottom);
+
+                        for (int32_t py = startY; endY > py && !found; py++) {
+                            for (int32_t px = startX; endX > px && !found; px++) {
+                                GMLReal wpx = (GMLReal) px + 0.5;
+                                GMLReal wpy = (GMLReal) py + 0.5;
+                                GMLReal ddx = wpx - cx;
+                                GMLReal ddy = wpy - cy;
+                                if (ddx * ddx + ddy * ddy > radiusSq) continue;
+                                if (Collision_pointInInstance(spr, inst, wpx, wpy)) {
                                     found = true;
                                 }
                             }
@@ -12809,6 +13133,8 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
     runtimeLayer.visible = true;
     runtimeLayer.dynamic = true;
     runtimeLayer.dynamicName = name, // ownership transferred
+    runtimeLayer.beginScript = -1;
+    runtimeLayer.endScript = -1;
     arrput(runner->runtimeLayers, runtimeLayer);
     runner->drawableListStructureDirty = true;
     return RValue_makeReal((GMLReal) id);
@@ -12831,6 +13157,30 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         runner->drawableListStructureDirty = true;
         break;
     }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_script_begin(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t scriptIndex = RValue_toInt32(args[1]);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
+    if (runtimeLayer == nullptr) return RValue_makeUndefined();
+
+    runtimeLayer->beginScript = scriptIndex;
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_script_end(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t scriptIndex = RValue_toInt32(args[1]);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
+    if (runtimeLayer == nullptr) return RValue_makeUndefined();
+
+    runtimeLayer->endScript = scriptIndex;
+
     return RValue_makeUndefined();
 }
 
@@ -13172,7 +13522,7 @@ static RValue builtin_layer_element_move(VMContext* ctx, RValue* args, MAYBE_UNU
             break;
         }
     }
-    
+
     return RValue_makeUndefined();
 }
 
@@ -13591,6 +13941,33 @@ static RValue builtin_tilemap_get_at_pixel(VMContext* ctx, RValue* args, MAYBE_U
 
     uint32_t cell = data->tileData[cellIndex];
     return RValue_makeReal((GMLReal) cell);
+}
+
+static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (4 > argCount) return RValue_makeBool(false);
+    Runner* runner = ctx->runner;
+    RuntimeLayer* runtimeLayer = nullptr;
+    RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+    requireNotNullMessage(runtimeLayer, "Missing Runtime Layer! Bug?");
+
+    int32_t cellX = RValue_toInt32(args[2]);
+    int32_t cellY = RValue_toInt32(args[3]);
+
+    if (cellX < 0 || cellY < 0 || cellX >= (int32_t)data->tilesX || cellY >= (int32_t)data->tilesY) {
+        return RValue_makeBool(false);
+    }
+
+    Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
+
+    uint32_t cell = (uint32_t) RValue_toInt32(args[1]);
+    uint32_t tileIndex = (cell >> 0) & TILEINDEX_SHIFTEDMASK;
+    if (tileset != nullptr && tileset->gms2TileCount != 0 && tileIndex >= tileset->gms2TileCount) {
+        fprintf(stderr, "VM: [%s] tilemap_set() - tile index outside tile set count\n", ctx->currentCodeName);
+        return RValue_makeBool(false);
+    }
+
+    data->tileData[coerceTileCellsToTilemapBoundsAndConvertToArrayIndex(data, cellX, cellY)] = cell;
+    return RValue_makeBool(true);
 }
 
 // tilemap_set_at_pixel(tilemapElementId, tiledata, x, y): writes the raw tile cell value at the given room-space pixel coordinate. Returns whether the write happened.
@@ -15334,6 +15711,32 @@ static RValue builtin_asset_get_index(VMContext* ctx, RValue* args, int32_t argC
     return RValue_makeReal(value);
 }
 
+static RValue builtin_gpu_get_blendmode(VMContext* ctx, RValue* args, int32_t argCount) {
+    return RValue_makeInt32(ctx->runner->renderer->vtable->gpuGetBlendMode(ctx->runner->renderer));
+}
+
+static RValue builtin_gpu_get_blendmode_ext(VMContext* ctx, RValue* args, int32_t argCount) {
+    BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
+
+    RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 2));
+    GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
+    GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
+
+    return arr;
+}
+
+static RValue builtin_gpu_get_blendmode_ext_sepalpha(VMContext* ctx, RValue* args, int32_t argCount) {
+    BlendFactors factors = ctx->runner->renderer->vtable->gpuGetBlendFactors(ctx->runner->renderer);
+
+    RValue arr = RValue_makeArray(GMLArray_create(ctx->dataWin->gen8.wadVersion, 4));
+    GMLArray_setOnArrayRef(&arr, 0, RValue_makeInt32(factors.src));
+    GMLArray_setOnArrayRef(&arr, 1, RValue_makeInt32(factors.dst));
+    GMLArray_setOnArrayRef(&arr, 2, RValue_makeInt32(factors.srcAlpha));
+    GMLArray_setOnArrayRef(&arr, 3, RValue_makeInt32(factors.dstAlpha));
+
+    return arr;
+}
+
 static RValue builtin_gpu_set_blendmode(VMContext* ctx, RValue* args, int32_t argCount) {
     int mode = RValue_toReal(args[0]);
     ctx->runner->renderer->vtable->gpuSetBlendMode(ctx->runner->renderer, mode);
@@ -15813,6 +16216,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "clamp", builtin_clamp);
     VM_registerBuiltin(ctx, "lerp", builtin_lerp);
     VM_registerBuiltin(ctx, "tan", builtin_tan);
+    VM_registerBuiltin(ctx, "dot_product", builtin_dot_product);
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
     VM_registerBuiltin(ctx, "point_in_rectangle", builtin_point_in_rectangle);
     VM_registerBuiltin(ctx, "point_in_circle", builtin_point_in_circle);
@@ -16061,6 +16465,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Audio
     VM_registerBuiltin(ctx, "audio_system_is_available", builtin_audio_system_is_available);
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
+    VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
@@ -16073,6 +16478,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_sound_get_gain", builtin_audio_sound_get_gain);
     VM_registerBuiltin(ctx, "audio_sound_get_pitch", builtin_audio_sound_get_pitch);
     VM_registerBuiltin(ctx, "audio_master_gain", builtin_audio_master_gain);
+    VM_registerBuiltin(ctx, "audio_set_master_gain", builtin_audio_set_master_gain);
     VM_registerBuiltin(ctx, "audio_group_load", builtin_audio_group_load);
     VM_registerBuiltin(ctx, "audio_group_is_loaded", builtin_audio_group_is_loaded);
     if (!isGMS2) {
@@ -16388,6 +16794,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_get_color", builtin_draw_get_color);
     VM_registerBuiltin(ctx, "draw_get_alpha", builtin_draw_get_alpha);
     VM_registerBuiltin(ctx, "draw_get_font", builtin_draw_get_font);
+    VM_registerBuiltin(ctx, "draw_get_halign", builtin_draw_get_halign);
+    VM_registerBuiltin(ctx, "draw_get_valign", builtin_draw_get_valign);
+
 
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
@@ -16423,6 +16832,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_bbox_right", builtin_sprite_get_bbox_right);
     VM_registerBuiltin(ctx, "sprite_get_bbox_top", builtin_sprite_get_bbox_top);
     VM_registerBuiltin(ctx, "sprite_get_bbox_bottom", builtin_sprite_get_bbox_bottom);
+    VM_registerBuiltin(ctx, "sprite_set_bbox_mode", builtin_sprite_set_bbox_mode);
     VM_registerBuiltin(ctx, "sprite_set_offset", builtin_sprite_set_offset);
     VM_registerBuiltin(ctx, "sprite_create_from_surface", builtin_sprite_create_from_surface);
     VM_registerBuiltin(ctx, "sprite_delete", builtin_sprite_delete);
@@ -16480,7 +16890,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "place_free", builtin_place_free);
     VM_registerBuiltin(ctx, "place_empty", builtin_place_empty);
     if (isGMS2) {
+        VM_registerBuiltin(ctx, "collision_line_list", builtin_collision_line_list);
         VM_registerBuiltin(ctx, "collision_rectangle_list", builtin_collision_rectangle_list);
+        VM_registerBuiltin(ctx, "collision_circle_list", builtin_collision_circle_list);
         VM_registerBuiltin(ctx, "instance_place_list", builtin_instance_place_list);
     }
 
@@ -16566,10 +16978,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tile_get_flip", builtin_tile_get_flip);
     VM_registerBuiltin(ctx, "tile_get_rotate", builtin_tile_get_rotate);
     VM_registerBuiltin(ctx, "tile_set_empty", builtin_tile_set_empty);
+    VM_registerBuiltin(ctx, "tilemap_set", builtin_tilemap_set);
     VM_registerBuiltin(ctx, "tilemap_set_at_pixel", builtin_tilemap_set_at_pixel);
 #endif
     VM_registerBuiltin(ctx, "layer_create", builtin_layer_create);
     VM_registerBuiltin(ctx, "layer_destroy", builtin_layer_destroy);
+    VM_registerBuiltin(ctx, "layer_script_begin", builtin_layer_script_begin);
+    VM_registerBuiltin(ctx, "layer_script_end", builtin_layer_script_end);
     VM_registerBuiltin(ctx, "layer_background_create", builtin_layer_background_create);
     VM_registerBuiltin(ctx, "layer_background_exists", builtin_layer_background_exists);
     VM_registerBuiltin(ctx, "layer_background_visible", builtin_layer_background_visible);
@@ -16742,6 +17157,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     }
     VM_registerBuiltin(ctx, "object_is_ancestor", builtin_object_is_ancestor);
     VM_registerBuiltin(ctx, "asset_get_index", builtin_asset_get_index);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode", builtin_gpu_get_blendmode);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode_ext", builtin_gpu_get_blendmode_ext);
+    VM_registerBuiltin(ctx, "gpu_get_blendmode_ext_sepalpha", builtin_gpu_get_blendmode_ext_sepalpha);
     VM_registerBuiltin(ctx,"gpu_set_blendmode", builtin_gpu_set_blendmode);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext", builtin_gpu_set_blendmode_ext);
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext_sepalpha", builtin_gpu_set_blendmode_ext_sepalpha);
@@ -16750,7 +17168,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_set_colourwriteenable", builtin_gpu_set_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_get_colorwriteenable", builtin_gpu_get_colorwriteenable);
+    VM_registerBuiltin(ctx,"gpu_get_colourwriteenable", builtin_gpu_get_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_fog", builtin_gpu_set_fog);
     if (!isGMS2) {
         VM_registerBuiltin(ctx,"draw_set_blend_mode", builtin_gpu_set_blendmode);

@@ -15,7 +15,10 @@
     },
     {
       "name": "Debug",
-      "inherits": "base"
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "Release",

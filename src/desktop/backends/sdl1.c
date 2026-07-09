@@ -135,7 +135,7 @@ static void parseMappingField(GamepadMapping* mapping, const char* key, const ch
 
 static void loadGamepadMappings(void) {
     const char* dbPath = "gamecontrollerdb.txt";
-    FILE* f = fopen(dbPath, "r");
+    FILE* f = fopen(dbPath, "rb");
     if (!f) {
         fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
         return;

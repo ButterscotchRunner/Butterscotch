@@ -853,7 +853,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
     free(ptrs);
 }
 
-static void parseBGND(BinaryReader* reader, DataWin* dw) {
+static void parseBGND(BinaryReader* reader, DataWin* dw, uint32_t chunkEnd) {
     Bgnd* b = &dw->bgnd;
 
     uint32_t count;
@@ -861,6 +861,45 @@ static void parseBGND(BinaryReader* reader, DataWin* dw) {
     b->count = count;
 
     if (count == 0) { free(ptrs); b->backgrounds = nullptr; return; }
+
+    // GM 2024.14.1 added tile separation parameters for each background
+    // To detect it, we'll check if the background's end position is at the chunks end position (if there's only one background) or the start of the next background
+    // If it isn't at either of those, then that means it is 2024.14.1+
+    if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0) && !DataWin_isVersionAtLeast(dw, 2024, 14, 1, 0)) {
+        repeat(count, i) {
+            if (ptrs[i] == 0) continue;
+
+            // Skip to where the item per tile count + tile count should be in pre-2024.14.1 versions
+            BinaryReader_seek(reader, ptrs[i] + (11 * 4));
+            uint32_t itemsPerTileCount = BinaryReader_readUint32(reader);
+            uint32_t tileCount = BinaryReader_readUint32(reader);
+
+            // Get what might be the end position to compare it with the actual end position
+            size_t tpos = ptrs[i] + (16 * 4) + (itemsPerTileCount * tileCount * 4);
+            if (count >= 2 && i < count - 1) {
+                // Next thing at end position is a background
+
+                // Align to 8 bytes
+                if ((tpos % 8) != 0) tpos += 8 - (tpos % 8);
+
+                if (tpos != ptrs[i + 1]) {
+                    DataWin_bumpVersionTo(dw, 2024, 14, 1, 0);
+                    break;
+                }
+            }
+            else {
+                // Next thing at end position is the end of the chunk
+
+                // Align to 16 bytes
+                if ((tpos % 16) != 0) tpos += 16 - (tpos % 16);
+
+                if (tpos != chunkEnd) {
+                    DataWin_bumpVersionTo(dw, 2024, 14, 1, 0);
+                    break;
+                }
+            }
+        }
+    }
 
     b->backgrounds = (Background *)safeCalloc(count, sizeof(Background));
     repeat(count, i) {
@@ -878,7 +917,7 @@ static void parseBGND(BinaryReader* reader, DataWin* dw) {
             bg->gms2UnknownAlways2 = BinaryReader_readUint32(reader);
             bg->gms2TileWidth = BinaryReader_readUint32(reader);
             bg->gms2TileHeight = BinaryReader_readUint32(reader);
-            if (DataWin_isVersionAtLeast(dw, 2024, 14, 0, 1)) {
+            if (DataWin_isVersionAtLeast(dw, 2024, 14, 1, 0)) {
                 bg->gms2TileSeparationX = BinaryReader_readUint32(reader);
                 bg->gms2TileSeparationY = BinaryReader_readUint32(reader);
             }
@@ -2328,7 +2367,7 @@ static void parseSTRG(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
-static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd) {
+static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool loadTextureDataLazily) {
     Txtr* t = &dw->txtr;
 
     uint32_t count;
@@ -2404,9 +2443,36 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd) {
     }
 
     // Load blob data into owned buffers
-    repeat(count, i) {
-        if (t->textures[i].blobOffset == 0 || t->textures[i].blobSize == 0) continue;
-        t->textures[i].blobData = BinaryReader_readBytesAt(reader, t->textures[i].blobOffset, t->textures[i].blobSize);
+    if (!loadTextureDataLazily) {
+        repeat(count, i) {
+            if (t->textures[i].blobOffset == 0 || t->textures[i].blobSize == 0) continue;
+            t->textures[i].blobData = BinaryReader_readBytesAt(reader, t->textures[i].blobOffset, t->textures[i].blobSize);
+        }
+    }
+}
+
+void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
+    Txtr* t = &dw->txtr;
+    Texture* tex = &t->textures[textureId];
+
+    if (tex->blobOffset == 0 || tex->blobSize == 0) return;
+    if (tex->blobData != nullptr) return;
+
+    if (!dw->lazyLoadFile) {
+        fprintf(stderr, "loadTxtrIfNeeded: called without a lazy load file.\n");
+        return;
+    }
+
+    tex->blobData = (uint8_t *)safeMalloc(tex->blobSize);
+
+    memset(tex->blobData, 0, tex->blobSize);
+    long old_seek = ftell(dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, tex->blobOffset, SEEK_SET);
+    size_t read = fread(tex->blobData, 1, tex->blobSize, dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
+
+    if (read != tex->blobSize) {
+        fprintf(stderr, "loadTxtrIfNeeded: couldn't read %u bytes to load a texture.\n", tex->blobSize);
     }
 }
 
@@ -2590,13 +2656,15 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         // Bulk-read the chunk data into memory for fast parsing
         uint8_t* chunkBuffer = nullptr;
         if (shouldParse && chunkLength > 0 && options.loadType != DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
-            chunkBuffer = (uint8_t *)safeMalloc(chunkLength);
-            size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
-            if (read != chunkLength) {
-                fprintf(stderr, "DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
-                exit(1);
+            chunkBuffer = (uint8_t *)malloc(chunkLength);
+            if (chunkBuffer) {
+                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
+                if (read != chunkLength) {
+                    fprintf(stderr, "DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
+                    exit(1);
+                }
+                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
             }
-            BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
         }
 
         if (options.parseGen8 && memcmp(chunkName, "GEN8", 4) == 0) {
@@ -2614,7 +2682,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseSprt && memcmp(chunkName, "SPRT", 4) == 0) {
             parseSPRT(&reader, dw, options.skipLoadingPreciseMasksForNonPreciseSprites);
         } else if (options.parseBgnd && memcmp(chunkName, "BGND", 4) == 0) {
-            parseBGND(&reader, dw);
+            parseBGND(&reader, dw, chunkEnd);
         } else if (options.parsePath && memcmp(chunkName, "PATH", 4) == 0) {
             parsePATH(&reader, dw);
         } else if (options.parseScpt && memcmp(chunkName, "SCPT", 4) == 0) {
@@ -2661,7 +2729,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseStrg && memcmp(chunkName, "STRG", 4) == 0) {
             parseSTRG(&reader, dw);
         } else if (options.parseTxtr && memcmp(chunkName, "TXTR", 4) == 0) {
-            parseTXTR(&reader, dw, chunkEnd);
+            parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTextures);
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
             parseAUDO(&reader, dw);
         } else {
@@ -2694,7 +2762,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
     // If lazy-loading rooms, keep the file handle open for DataWin_loadRoomPayload, otherwise close it now
     dw->lazyLoadRooms = options.lazyLoadRooms;
-    if (options.lazyLoadRooms) {
+    dw->lazyLoadTextures = options.lazyLoadTextures;
+    if (options.lazyLoadRooms || options.lazyLoadTextures) {
         dw->lazyLoadFile = file;
         dw->lazyLoadFilePath = safeStrdup(filePath);
         dw->fileSize = (size_t) fileSize;
@@ -2916,7 +2985,7 @@ void DataWin_free(DataWin* dw) {
     free(dw->strgBuffer);
     free(dw->bytecodeBuffer);
 
-    // Close the lazy-load file handle (only open when lazyLoadRooms was enabled)
+    // Close the lazy-load file handle (only open when lazyLoadRooms/lazyLoadTextures was enabled)
     if (dw->lazyLoadFile != nullptr) {
         fclose(dw->lazyLoadFile);
         dw->lazyLoadFile = nullptr;

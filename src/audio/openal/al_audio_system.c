@@ -792,6 +792,12 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     return seconds;
 }
 
+static void maSetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    (void)audio;
+    (void)id;
+    alListenerf(AL_GAIN, gain);
+}
+
 static void maSetMasterGain(AudioSystem* audio, float gain) {
     (void)audio;
     alListenerf(AL_GAIN, gain);
@@ -917,6 +923,7 @@ AlAudioSystem* AlAudioSystem_create(void) {
     AlAudioSystemVtable.setTrackPosition = maSetTrackPosition;
     AlAudioSystemVtable.getSoundLength = maGetSoundLength;
     AlAudioSystemVtable.setMasterGain = maSetMasterGain;
+    AlAudioSystemVtable.setMasterGainForListener = maSetMasterGainForListener;
     AlAudioSystemVtable.setChannelCount = maSetChannelCount;
     AlAudioSystemVtable.groupLoad = maGroupLoad;
     AlAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;

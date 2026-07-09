@@ -2374,6 +2374,21 @@ static u64 gmsBlendModeToGSAlpha(int32_t mode) {
     }
 }
 
+static BlendFactors gsGpuGetBlendFactors(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*)renderer;
+    return (BlendFactors){
+        gs->currentSFactor, 
+        gs->currentDFactor, 
+        gs->currentSFactorAlpha, 
+        gs->currentDFactorAlpha
+    };
+}
+
+static int32_t gsGpuGetBlendMode(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    return gs->currentBlendMode;
+}
+
 static void gsGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GsRenderer* gs = (GsRenderer*) renderer;
     gs->currentBlendAlpha = gmsBlendModeToGSAlpha(mode);
@@ -2382,6 +2397,11 @@ static void gsGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, MAYBE_UNUSED int32_t sfactor_alpha, MAYBE_UNUSED int32_t dfactor_alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
+    gs->currentBlendMode = bm_complex;
+    gs->currentSFactor = sfactor;
+    gs->currentDFactor = dfactor;
+    gs->currentSFactorAlpha = sfactor_alpha;
+    gs->currentDFactorAlpha = dfactor_alpha;
     u64 alpha;
     if (!gmsFactorPairToGSAlpha(sfactor, dfactor, &alpha) && !gs->blendModeWarned) {
         fprintf(stderr, "GsRenderer: blend mode (sf=%d, df=%d) not exactly representable on PS2; approximating\n", sfactor, dfactor);
@@ -3099,6 +3119,8 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.clearScreen = gsClearScreen;
     gsVtable.createSpriteFromSurface = gsCreateSpriteFromSurface;
     gsVtable.deleteSprite = gsDeleteSprite;
+    gsVtable.gpuGetBlendFactors = gsGpuGetBlendFactors;
+    gsVtable.gpuGetBlendMode = gsGpuGetBlendMode;
     gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
     gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
