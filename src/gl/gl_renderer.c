@@ -2067,16 +2067,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     return true;
     } else {
     //camera will use full surface.
-    Matrix4f projectionMatrix;
-    Matrix4f_Orthographic(&projectionMatrix, (float) gl->surfaceWidth[surfaceId], -((float) gl->surfaceHeight[surfaceId]), 32000.0, 0.0);
-
-    Matrix4f viewMatrix;
-    float x = (float) gl->surfaceWidth[surfaceId] * 0.5f;
-    float y = (float) gl->surfaceHeight[surfaceId] * 0.5f;
-    Matrix4f_identity(&viewMatrix);
-    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
     gl->base.cameraCurrent = SURFACE_CAMERA;
-
     GMLCamera* camera =  &renderer->runner->surfaceCamera;
 
     camera->allocated = true;
@@ -2090,12 +2081,11 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     camera->speedY = 0;
     camera->objectId = -1;
     camera->viewAngle = 0;
+    Runner_updateCameraViewSimple(camera);
 
-    camera->projectionMatrix = projectionMatrix;
-    camera->viewMatrix = viewMatrix;
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &viewMatrix,&projectionMatrix);
+    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
     return true;
     }
 

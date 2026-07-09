@@ -1185,15 +1185,9 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
 
-                Matrix4f viewMatrix = camera->viewMatrix;
-                Matrix4f projectionMatrix = camera->projectionMatrix;
-                runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
-
-
                 runner->viewCurrent = (int32_t) vi;
                 runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
-                runner->renderer->vtable->applyProjection(runner->renderer, &viewMatrix, &projectionMatrix);
-
+                runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
 
                 Runner_draw(runner);
 
@@ -1238,7 +1232,6 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         expandViewAxis(0, (int32_t) runner->currentRoom->width, gameW, widescreenBaseW, &viewX, &viewW);
         expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
-        //whenever somebody feels like it, do make that free cam thingy work with this
         //make default projection
         if (camera != nullptr) {
             camera->viewX = 0;
@@ -1388,23 +1381,8 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->speedY = roomView->speedY;
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
-    //make default projection
-    Matrix4f projectionMatrix;
-    Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
-    
-    Matrix4f viewMatrix;
-    float x = camera->viewX + camera->viewWidth * 0.5f;
-    float y = camera->viewY + camera->viewHeight * 0.5f;
-    Matrix4f_identity(&viewMatrix);
-    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
-    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
-    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
+    Runner_updateCameraViewSimple(camera);
 
-
-
-    camera->projectionMatrix = projectionMatrix;
-    camera->viewMatrix = viewMatrix;
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
