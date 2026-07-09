@@ -93,7 +93,8 @@ static inline void* requireNotNullFunction(void* ptr, const char* file, int line
 bool lowMemoryAlarm();
 
 // Registers a low memory alarm callback.  When a low memory alarm is triggered,
-// the function provided will be called, and it should free memory if possible.
+// the function provided will be called.  Your callback should return TRUE if it
+// freed memory, or FALSE if nothing changed.
 void registerLowMemoryAlarmCallback(bool(*callbackFunction)(void));
 
 // Safe allocation macros - check for nullptr and abort with file/line info
