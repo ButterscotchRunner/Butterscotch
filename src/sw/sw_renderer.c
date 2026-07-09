@@ -300,11 +300,22 @@ static bool swrEnsureTextureIsLoaded(SWRenderer* swr, uint32_t pageId)
 	
 	do
 	{
-		pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
-		if (pixels)
-			break;
-		
-		fprintf(stderr, "swr: Failed to decode TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
+        if (!txtr->blobData) {
+            DataWin_loadTxtrIfNeeded(dw, pageId);
+        }
+        
+        if (txtr->blobData) {
+            pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
+            if (pixels) {
+                free(txtr->blobData);
+                txtr->blobData = NULL;
+                break;
+            }
+            
+            fprintf(stderr, "swr: Failed to decode TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
+        } else {
+            fprintf(stderr, "swr: Failed to load TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
+        }
 		
 		int tail = swrTailTextureIndexLRU(swr, true);
 		if (tail == -1) {
