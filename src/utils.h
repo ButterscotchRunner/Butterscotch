@@ -32,6 +32,14 @@
     #define TYPEOF(x) long long
 #endif
 
+#if defined(__GNUC__) && (__GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 96))
+#define LIKELY(cond)   __builtin_expect(!!(cond), 1)
+#define UNLIKELY(cond) __builtin_expect(!!(cond), 0)
+#else
+#define LIKELY(cond) (cond)
+#define UNLIKELY(cond) (cond)
+#endif
+
 #define forEach(type, item, array, count) \
     for (TYPEOF(count) item##_i_ = 0; item##_i_ < (count); ++item##_i_) \
     for (type* item = &(array)[item##_i_]; item; item = NULL)
@@ -80,46 +88,70 @@ static inline void* requireNotNullFunction(void* ptr, const char* file, int line
 #define requireNotNull(ptr) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, #ptr)
 #define requireNotNullMessage(ptr, msg) requireNotNullFunction((void*)ptr, __FILE__, __LINE__, msg)
 
+// Call when memory is running low.  This triggers low memory alarm callback
+// functions which evict caches from memory to free it up.
+bool lowMemoryAlarm();
+
+// Registers a low memory alarm callback.  When a low memory alarm is triggered,
+// the function provided will be called, and it should free memory if possible.
+void registerLowMemoryAlarmCallback(bool(*callbackFunction)(void));
+
 // Safe allocation macros - check for nullptr and abort with file/line info
 static inline void *safeMallocFunction(size_t size, const char *file, int line) {
-    void *ret = malloc(size);
-    if (!ret) {
-        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
-        abort();
+    while (true) {
+        void* ret = malloc(size);
+        if (LIKELY(ret)) {
+            return ret;
+        }
+        if (!lowMemoryAlarm()) {
+            fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
+            abort();
+        }
     }
-    return ret;
 }
 #define safeMalloc(size) safeMallocFunction(size, __FILE__, __LINE__)
 
 static inline void *safeCallocFunction(size_t count, size_t size, const char *file, int line) {
-    void *ret = calloc(count, size);
-    if (!ret) {
-        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
-        abort();
+    while (true) {
+        void *ret = calloc(count, size);
+        if (LIKELY(ret)) {
+            return ret;
+        }
+        if (!lowMemoryAlarm()) {
+            fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
+            abort();
+        }
     }
-    return ret;
 }
 #define safeCalloc(count, size) safeCallocFunction(count, size, __FILE__, __LINE__)
 
 static inline void *safeReallocFunction(void *ptr, size_t size, const char *file, int line) {
-    void *ret = realloc(ptr, size);
-    if (!ret) {
-        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
-        abort();
+    while (true) {
+        void *ret = realloc(ptr, size);
+        if (LIKELY(ret)) {
+            return ret;
+        }
+        if (!lowMemoryAlarm()) {
+            fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
+            abort();
+        }
     }
-    return ret;
 }
 #define safeRealloc(ptr, size) safeReallocFunction(ptr, size, __FILE__, __LINE__)
 
 #ifdef PLATFORM_PS2
 
 static inline void *safeMemalignFunction(size_t alignment, size_t size, const char *file, int line) {
-    void *ret = memalign(alignment, size);
-    if (!ret) {
-        fprintf(stderr, "FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);
-        abort();
+    while (true) {
+        void *ret = memalign(alignment, size);
+        if (LIKELY(ret)) {
+            return ret;
+        }
+        if (!lowMemoryAlarm()) {
+            fprintf(stderr, "FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);
+            abort();
+        }
     }
-    return ret;
 }
 #define safeMemalign(alignment, size) safeMemalignFunction(alignment, size, __FILE__, __LINE__)
 
