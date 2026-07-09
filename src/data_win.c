@@ -2435,7 +2435,6 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     if (read != tex->blobSize) {
         fprintf(stderr, "%s: couldn't read %u bytes to load a texture.\n", __func__, tex->blobSize);
     }
-
 }
 
 static void parseAUDO(BinaryReader* reader, DataWin* dw) {
