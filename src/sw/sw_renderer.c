@@ -46,6 +46,7 @@ typedef struct
     int lastViewX, lastViewY, lastViewW, lastViewH;
     int lastPortX, lastPortY, lastPortW, lastPortH;
     int lastGameW, lastGameH, lastMaxX, lastMaxY;
+    float lastScaleX, lastScaleY;
     
     SWTexture** textures;
     SWTexture** surfaces;
@@ -62,6 +63,10 @@ typedef struct
     int viewX, viewY, viewW, viewH;
     int portX, portY, portW, portH;
     int gameW, gameH, maxX, maxY;
+
+    int offsetX, offsetY;
+    float scaleX, scaleY;
+    float defaultScaleX, defaultScaleY;
 }
 SWRenderer;
 
@@ -413,6 +418,7 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
     swr->gameW = gameW;
     swr->gameH = gameH;
     swr->drawingToSurface = false;
+
     if (swr->width != windowW || swr->height != windowH)
     {
         //allocate frame buffer
@@ -450,6 +456,11 @@ static void SWRenderer_beginView(Renderer* renderer, int32_t viewX, int32_t view
     
     float xratio, yratio;
     
+    float portviewX = (float) portW / viewW;
+    float portviewY = (float) portH / viewH;
+    
+    int offsetX = 0, offsetY = 0;
+    
     if (swr->drawingToSurface) {
         UNIMP();
         xratio = 1.0f;
@@ -464,8 +475,9 @@ static void SWRenderer_beginView(Renderer* renderer, int32_t viewX, int32_t view
 
         int32_t scaledW = (int32_t)(swr->gameW * scale);
         int32_t scaledH = (int32_t)(swr->gameH * scale);
-        int32_t offsetX = (swr->width  - scaledW) / 2;
-        int32_t offsetY = (swr->height - scaledH) / 2;
+        
+        offsetX = (swr->width  - scaledW) / 2;
+        offsetY = (swr->height - scaledH) / 2;
 
         xratio = scale;
         yratio = scale;
@@ -473,6 +485,14 @@ static void SWRenderer_beginView(Renderer* renderer, int32_t viewX, int32_t view
         portX = (int)(portX * xratio) + offsetX;
         portY = (int)(portY * yratio) + offsetY;
     }
+    
+    swr->scaleX = xratio * portviewX;
+    swr->scaleY = yratio * portviewY;
+    swr->offsetX = offsetX;
+    swr->offsetY = offsetY;
+    swr->defaultScaleX = xratio;
+    swr->defaultScaleY = yratio;
+    
     portW = (int)(portW * xratio);
     portH = (int)(portH * yratio);
     
@@ -497,10 +517,16 @@ static void SWRenderer_endView(Renderer* renderer)
     SWRenderer* swr = (SWRenderer*) renderer;
     swr->viewActive = false;
     
-    swr->portX = swr->viewX = 0;
-    swr->portY = swr->viewY = 0;
+    swr->viewX = 0;
+    swr->viewY = 0;
+    swr->portX = swr->offsetX;
+    swr->portY = swr->offsetY;
     swr->portW = swr->viewW = swr->width;
     swr->portH = swr->viewH = swr->height;
+    swr->maxX = swr->portX + swr->portW;
+    swr->maxY = swr->portY + swr->portH;
+    swr->scaleX = swr->defaultScaleX;
+    swr->scaleY = swr->defaultScaleY;
 }
 
 static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restoreOldView)
@@ -532,6 +558,8 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
             swr->gameH = swr->lastGameH;
             swr->maxX = swr->lastMaxX;
             swr->maxY = swr->lastMaxY;
+            swr->scaleX = swr->lastScaleX;
+            swr->scaleY = swr->lastScaleY;
         }
         return true;
     }
@@ -563,6 +591,8 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
         swr->lastGameH = swr->gameH;
         swr->lastMaxX = swr->maxX;
         swr->lastMaxY = swr->maxY;
+        swr->lastScaleX = swr->scaleX;
+        swr->lastScaleY = swr->scaleY;
     }
     
     SWTexture* surface = swr->surfaces[targetSurfaceId];
@@ -631,60 +661,48 @@ static int32_t swrFindSurfaceTPagSlot(SWRenderer* swr)
 
 static void swrTransformPosIfNeeded(SWRenderer* swr, float* dx, float* dy)
 {
-    if (!swr->viewActive) return;
-    
     if (dx) {
-        float xscale = ((float)swr->portW / swr->viewW);
         *dx -= swr->viewX;
-        *dx *= xscale;
+        *dx *= swr->scaleX;
         *dx += swr->portX;
     }
     if (dy) {
-        float yscale = ((float)swr->portH / swr->viewH);
         *dy -= swr->viewY;
-        *dy *= yscale;
+        *dy *= swr->scaleY;
         *dy += swr->portY;
     }
 }
 
 static void swrTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
 {
-    if (!swr->viewActive || !swr->viewW || !swr->viewH) return;
-    
-    if (dx) *dx *= ((float)swr->portW / swr->viewW);
-    if (dy) *dy *= ((float)swr->portH / swr->viewH);
+    if (dx) *dx *= swr->scaleX;
+    if (dy) *dy *= swr->scaleY;
 }
 
 static void swrTransformPosIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
-    if (!swr->viewActive) return;
-    
     if (dx) {
         *dx -= swr->viewX;
-        *dx = *dx * swr->portW / swr->viewW;
+        *dx = (int)(*dx * swr->scaleX);
         *dx += swr->portX;
     }
     if (dy) {
         *dy -= swr->viewY;
-        *dy = *dy * swr->portH / swr->viewH;
+        *dy = (int)(*dy * swr->scaleY);
         *dy += swr->portY;
     }
 }
 
 static void swrTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
-    if (!swr->viewActive || !swr->viewW || !swr->viewH) return;
-    
-    if (dx) *dx = *dx * swr->portW / swr->viewW;
-    if (dy) *dy = *dy * swr->portH / swr->viewH;
+    if (dx) *dx = (int)(*dx * swr->scaleX);
+    if (dy) *dy = (int)(*dy * swr->scaleY);
 }
 
 static void swrReverseTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
-    if (!swr->viewActive) return;
-    
-    if (dx) *dx = *dx * swr->viewW / swr->portW;
-    if (dy) *dy = *dy * swr->viewH / swr->portH;
+    if (dx) *dx = (int)(*dx / swr->scaleX);
+    if (dy) *dy = (int)(*dy / swr->scaleY);
 }
 
 FORCE_INLINE void swrPlotPixel(Renderer* renderer, int x, int y, uintpixel_t color, int alpha)
@@ -2108,8 +2126,8 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
     int sw = srcWidth;
     int sh = srcHeight;
     
-    int tw = srcWidth * swr->viewW / swr->portW;
-    int th = srcHeight * swr->viewH / swr->portH;
+    int tw = (int)(srcWidth * swr->scaleX);
+    int th = (int)(srcHeight * swr->scaleY);
     
     float dx = x;
     float dy = y;
@@ -2267,8 +2285,8 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     tpag->sourceHeight = (uint16_t) spriteH;
     tpag->targetX = 0;
     tpag->targetY = 0;
-    tpag->targetWidth = (uint16_t) (spriteW * swr->viewW / swr->portW);
-    tpag->targetHeight = (uint16_t) (spriteH * swr->viewH / swr->portH);
+    tpag->targetWidth = (uint16_t) (spriteW / swr->scaleX);
+    tpag->targetHeight = (uint16_t) (spriteH / swr->scaleY);
     tpag->boundingWidth = (uint16_t) spriteW;
     tpag->boundingHeight = (uint16_t) spriteH;
     tpag->texturePageId = texturePageId;
