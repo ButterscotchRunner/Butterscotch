@@ -1053,6 +1053,7 @@ static void swrDrawSpriteInternal(
     if (sy < 0) { sh += sy; sy = 0; }
     if (sx + sw >= texture->width)  { sw = texture->width  - sx; }
     if (sy + sh >= texture->height) { sh = texture->height - sy; }
+    if (sw <= 0 || sh <= 0) return;
     
     //okay, now we can finally get on with rendering
     
@@ -1368,6 +1369,15 @@ static void SWRenderer_drawSpritePart(Renderer* renderer, int32_t tpagIndex,
     float dy = y;
     int dw = swrCeiling(xscale * sw);
     int dh = swrCeiling(yscale * sh);
+    
+    if (tpag->sourceWidth != tpag->targetWidth) {
+        sx = sx * tpag->sourceWidth / tpag->targetWidth;
+        sw = sw * tpag->sourceWidth / tpag->targetWidth;
+    }
+    if (tpag->sourceHeight != tpag->targetHeight) {
+        sy = sy * tpag->sourceHeight / tpag->targetHeight;
+        sh = sh * tpag->sourceHeight / tpag->targetHeight;
+    }
     
     SWTexture* texture = swr->textures[pageId];
     
@@ -2080,7 +2090,7 @@ static float SWRenderer_getSurfaceWidth(Renderer* renderer, int32_t surfaceID)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     if (surfaceID == APPLICATION_SURFACE_ID)
-        return (float)(swr->drawingToSurface ? swr->mainWidth : swr->width);
+        return (float)(int)((swr->drawingToSurface ? swr->mainWidth : swr->width) / swr->scaleX);
     
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
         return 0.0f;
@@ -2092,7 +2102,7 @@ static float SWRenderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceID)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     if (surfaceID == APPLICATION_SURFACE_ID) 
-        return (float)(swr->drawingToSurface ? swr->mainHeight : swr->height);
+        return (float)(int)((swr->drawingToSurface ? swr->mainHeight : swr->height) / swr->scaleY);
     
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
         return 0.0f;
@@ -2294,8 +2304,8 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     uint32_t spriteIndex = DataWin_allocSpriteSlot(dw, swr->originalSpriteCount);
     Sprite* sprite = &dw->sprt.sprites[spriteIndex];
     // name was set by DataWin_allocSpriteSlot ("__newsprite<N>"); don't overwrite it here
-    sprite->width = (uint32_t) w;
-    sprite->height = (uint32_t) h;
+    sprite->width = (uint32_t) tpag->targetWidth;
+    sprite->height = (uint32_t) tpag->targetHeight;
     sprite->originX = xorig;
     sprite->originY = yorig;
     sprite->textureCount = 1;
