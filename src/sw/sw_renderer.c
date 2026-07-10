@@ -38,13 +38,17 @@ typedef struct
 	uintpixel_t* fb;
 	uint16_t fbPitch; // in sizeof(uintpixel_t) units, NOT in bytes!
 	
+	bool drawingToSurface;
 	uintpixel_t* mainFb;
 	uint16_t mainWidth;
 	uint16_t mainHeight;
 	uint16_t mainPitch;
-	bool drawingToSurface;
+	int lastViewX, lastViewY, lastViewW, lastViewH;
+	int lastPortX, lastPortY, lastPortW, lastPortH;
+	int lastGameW, lastGameH, lastMaxX, lastMaxY;
 	
 	SWTexture** textures;
+    SWTexture** surfaces;
 	uint32_t* textureIndexLRU;
 	uint32_t textureIndexLRUHead;
 	uint32_t textureIndexLRUTail;
@@ -369,6 +373,7 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
 	swr->surfaceCount = SURFACE_MAX_COUNT;
 	swr->totalTextureCount = swr->textureCount + swr->surfaceCount;
 	swr->textures = (SWTexture**) safeCalloc(swr->totalTextureCount, sizeof(SWTexture*));
+    swr->surfaces = (SWTexture**) safeCalloc(swr->surfaceCount, sizeof(SWTexture*));
 	
 	//allocate texture LRU cache to allow for dynamic unloading of textures
 	swr->textureIndexLRU = (uint32_t*) safeCalloc(TEXTURE_LRU_LENGTH, sizeof(uint32_t));
@@ -396,6 +401,7 @@ static void SWRenderer_destroy(Renderer* renderer)
 {
 	SWRenderer* swr = (SWRenderer*) renderer;
 	
+    // TODO: why didn't I implement this.
 	(void) swr;
 	
 	fprintf(stderr, "SWRenderer destroyed.\n");
@@ -418,7 +424,7 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
 	}
 }
 
-// This used to be just one, "endFrame". Not sure what the different is.
+// This used to be just one, "endFrame". Not sure what the difference is.
 static void SWRenderer_endFrameInit(Renderer* renderer)
 {
 	(void) renderer;
@@ -497,10 +503,84 @@ static void SWRenderer_endView(Renderer* renderer)
 	swr->portH = swr->viewH = swr->height;
 }
 
+static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restoreOldView)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER)
+    {
+        if (!swr->drawingToSurface)
+            return true;
+        
+        // restore the original framebuffer
+        swr->fb = swr->mainFb;
+        swr->width = swr->mainWidth;
+        swr->height = swr->mainHeight;
+        swr->fbPitch = swr->mainPitch;
+        
+        if (restoreOldView) {
+            // restore the old transform, if needed
+            swr->viewX = swr->lastViewX;
+            swr->viewY = swr->lastViewY;
+            swr->viewW = swr->lastViewW;
+            swr->viewH = swr->lastViewH;
+            swr->portX = swr->lastPortX;
+            swr->portY = swr->lastPortY;
+            swr->portW = swr->lastPortW;
+            swr->portH = swr->lastPortH;
+            swr->gameW = swr->lastGameW;
+            swr->gameH = swr->lastGameH;
+            swr->maxX = swr->lastMaxX;
+            swr->maxY = swr->lastMaxY;
+        }
+        return true;
+    }
+    
+    if (targetSurfaceId < 0 || (size_t) targetSurfaceId >= swr->surfaceCount || swr->surfaces[targetSurfaceId] == NULL) {
+        fprintf(stderr, "swr: Invalid surface id %d\n", targetSurfaceId);
+        return false;
+    }
+    
+    if (!swr->drawingToSurface)
+    {
+        // back up the original framebuffer
+        swr->drawingToSurface = true;
+        swr->mainFb = swr->fb;
+        swr->mainWidth = swr->width;
+        swr->mainHeight = swr->height;
+        swr->mainPitch = swr->fbPitch;
+        
+        // and the old transform
+        swr->lastViewX = swr->viewX;
+        swr->lastViewY = swr->viewY;
+        swr->lastViewW = swr->viewW;
+        swr->lastViewH = swr->viewH;
+        swr->lastPortX = swr->portX;
+        swr->lastPortY = swr->portY;
+        swr->lastPortW = swr->portW;
+        swr->lastPortH = swr->portH;
+        swr->lastGameW = swr->gameW;
+        swr->lastGameH = swr->gameH;
+        swr->lastMaxX = swr->maxX;
+        swr->lastMaxY = swr->maxY;
+    }
+    
+    SWTexture* surface = swr->surfaces[targetSurfaceId];
+    swr->fb = surface->buffer;
+    swr->width = surface->width;
+    swr->height = surface->height;
+    swr->fbPitch = surface->width;
+    swr->drawingToSurface = true;
+    
+    return true;
+}
+
 static void SWRenderer_beginGUI(Renderer* renderer, int32_t guiW, int32_t guiH,
 								int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId)
 {
-	(void)renderer; (void)guiW; (void)guiH;
+    swrSwitchToSurface(renderer, targetSurfaceId, false);
+    
+    (void)guiW; (void)guiH;
 	(void)portX; (void)portY; (void)portW; (void)portH;
 	(void)targetSurfaceId;
 	UNIMP2();
@@ -1818,14 +1898,57 @@ static void SWRenderer_drawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
 
 static void SWRenderer_drawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha)
 {
-	(void) renderer;
-	(void) surfaceID;
-	(void) x; (void) y;
-	(void) xscale; (void) yscale;
-	(void) roomW; (void) roomH;
-	(void) color; (void) alpha;
+	SWRenderer* swr = (SWRenderer*) renderer;
+
+	if (0 > surfaceID || swr->surfaceCount <= (size_t) surfaceID) return;
+
+	SWTexture* surface = swr->surfaces[surfaceID];
+	if (!surface) return;
+
+	float axScale = fabsf(xscale);
+	float ayScale = fabsf(yscale);
+	float tileW = (float) surface->width * axScale;
+	float tileH = (float) surface->height * ayScale;
+	if (0 >= tileW || 0 >= tileH) return;
+    
+    float originX = 0, originY = 0;
+
+	float startX, endX, startY, endY;
+    startX = fmodf(x - originX * axScale, tileW);
+    if (startX > 0) startX -= tileW;
+    endX = roomW;
+    startY = fmodf(y - originY * ayScale, tileH);
+    if (startY > 0) startY -= tileH;
+    endY = roomH;
 	
-	UNIMP2();
+    int sx = 0, sy = 0;
+	int sw = surface->width;
+	int sh = surface->height;
+
+	int localX0 = -originX;
+	int localY0 = -originY;
+	int localX1 = localX0 + surface->width;
+	int localY1 = localY0 + surface->height;
+	int sx0 = xscale * localX0;
+	int sy0 = yscale * localY0;
+	int sx1 = xscale * localX1;
+	int sy1 = yscale * localY1;
+
+	for (int dy = startY; endY > dy; dy += tileH) {
+		int cy = dy + (int)(originY * ayScale);
+		int vy0 = cy + sy0;
+		int vy1 = cy + sy1;
+		int dh = vy1 - vy0;
+
+		for (int dx = startX; endX > dx; dx += tileW) {
+			int cx = dx + (int)(originX * axScale);
+			int vx0 = cx + sx0;
+			int vx1 = cx + sx1;
+			int dw = vx1 - vx0;
+
+			swrDrawSprite(renderer, vx0, vy0, dw, dh, surface, sx, sy, sw, sh, color, alpha);
+		}
+	}
 }
 
 static void SWRenderer_flush(Renderer* renderer)
@@ -1901,48 +2024,62 @@ static void SWRenderer_gpuSetFog(Renderer* renderer, bool enable, uint32_t color
 
 static int32_t SWRenderer_createSurface(Renderer* renderer, int32_t width, int32_t height)
 {
-	UNIMP();
-	(void)renderer; (void)width; (void)height;
-	return 0;
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    int32_t slot = -1;
+    for (size_t i = 0; i < swr->surfaceCount; i++)
+    {
+        if (swr->surfaces[i] == NULL) {
+            slot = (int32_t) i;
+            break;
+        }
+    }
+    
+    if (slot < 0) {
+        fprintf(stderr, "swr: Could not create surface, too many exist at once.\n");
+        return slot;
+    }
+    
+    swr->surfaces[slot] = swrCreateTexture(NULL, width, height);
+    return slot;
 }
 
 static bool SWRenderer_surfaceExists(Renderer* renderer, int32_t surfaceID)
 {
-	UNIMP();
-	(void)renderer; (void)surfaceID;
-	return false;
+    SWRenderer* swr = (SWRenderer*) renderer;
+    if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount)
+        return false;
+    
+    return swr->surfaces[surfaceID] != NULL;
 }
 
 static bool SWRenderer_setRenderTarget(Renderer* renderer, int32_t surfaceID, bool implicitApplicationSurface)
 {
-	UNIMP();
-	(void)renderer; (void)surfaceID;
-	(void)implicitApplicationSurface;
-	return false;
+    return swrSwitchToSurface(renderer, surfaceID, implicitApplicationSurface);
 }
 
 static float SWRenderer_getSurfaceWidth(Renderer* renderer, int32_t surfaceID)
 {
 	SWRenderer* swr = (SWRenderer*) renderer;
-	if (surfaceID == APPLICATION_SURFACE_ID) {
-		return (float) swr->width;
-	}
-	
-	UNIMP();
-	(void)renderer; (void)surfaceID;
-	return 0.0f;
+	if (surfaceID == APPLICATION_SURFACE_ID)
+		return (float)(swr->drawingToSurface ? swr->mainWidth : swr->width);
+    
+    if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
+        return 0.0f;
+    
+    return (float) swr->surfaces[surfaceID]->width;
 }
 
 static float SWRenderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceID)
 {
 	SWRenderer* swr = (SWRenderer*) renderer;
-	if (surfaceID == APPLICATION_SURFACE_ID) {
-		return (float) swr->height;
-	}
+	if (surfaceID == APPLICATION_SURFACE_ID) 
+		return (float)(swr->drawingToSurface ? swr->mainHeight : swr->height);
+    
+    if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
+        return 0.0f;
 	
-	UNIMP();
-	(void)renderer; (void)surfaceID;
-	return 0.0f;
+    return (float) swr->surfaces[surfaceID]->height;
 }
 
 static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
@@ -1950,23 +2087,87 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
 								   float x, float y, float xscale, float yscale, float angleDeg,
 								   uint32_t color, float alpha)
 {
-	UNIMP();
-	(void)renderer; (void)surfaceID;
-	(void)srcLeft; (void)srcTop; (void)srcWidth; (void)srcHeight;
-	(void)x; (void)y; (void)xscale; (void)yscale; (void)angleDeg;
-	(void)color; (void)alpha;
+	SWRenderer* swr = (SWRenderer*) renderer;
+    SWTexture* surface, localSurface;
+	if (surfaceID == APPLICATION_SURFACE_ID) {
+		localSurface.buffer = swr->drawingToSurface ? swr->mainFb : swr->fb;
+        localSurface.width = swr->drawingToSurface ? swr->mainWidth : swr->width;
+        localSurface.height = swr->drawingToSurface ? swr->mainHeight : swr->height;
+        surface = &localSurface;
+    } else {
+        if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
+            fprintf(stderr, "swr: Invalid surface id %d for drawSurface\n", surfaceID);
+            return;
+        }
+        
+        surface = swr->surfaces[surfaceID];
+    }
+	
+	int sx = srcLeft;
+	int sy = srcTop;
+	int sw = srcWidth;
+	int sh = srcHeight;
+    
+    int tw = srcWidth * swr->viewW / swr->portW;
+    int th = srcHeight * swr->viewH / swr->portH;
+	
+	float dx = x;
+	float dy = y;
+	int dw = (int)(xscale * tw);
+	int dh = (int)(yscale * th);
+
+	if (UNLIKELY(swrMustRotate(angleDeg)))
+	{
+		float pivotX = (x - dx) * swrSgn(xscale);
+		float pivotY = (y - dy) * swrSgn(yscale);
+		
+		if (tw != sw)
+			pivotX *= (float)tw / sw;
+		if (th != sh)
+			pivotY *= (float)th / sh;
+		
+		swrDrawSpriteRotated(renderer, dx, dy, dw, dh, surface, sx, sy, sw, sh, color, alpha, angleDeg, pivotX, pivotY);
+	}
+	else
+	{
+		swrDrawSprite(renderer, dx, dy, dw, dh, surface, sx, sy, sw, sh, color, alpha);
+	}
 }
 
 static void SWRenderer_surfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height)
 {
-	UNIMP();
-	(void)renderer; (void)surfaceID; (void)width; (void)height;
+	SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (surfaceID == APPLICATION_SURFACE_ID) {
+        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way!\n");
+        return;
+    }
+    
+    if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
+        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
+        return;
+    }
+    
+    swrFreeTexture(swr->surfaces[surfaceID]);
+    swr->surfaces[surfaceID] = swrCreateTexture(NULL, width, height);
 }
 
 static void SWRenderer_surfaceFree(Renderer* renderer, int32_t surfaceID)
 {
-	UNIMP();
-	(void)renderer; (void)surfaceID;
+	SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (surfaceID == APPLICATION_SURFACE_ID) {
+        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way!\n");
+        return;
+    }
+    
+    if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
+        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
+        return;
+    }
+    
+    swrFreeTexture(swr->surfaces[surfaceID]);
+    swr->surfaces[surfaceID] = NULL;
 }
 
 static void SWRenderer_surfaceCopy(Renderer* renderer,
@@ -2098,7 +2299,7 @@ static void SWRenderer_deleteSprite(Renderer* renderer, int32_t spriteIndex)
 
 	// Refuse to delete original data.win sprites
 	if (swr->originalSpriteCount > (uint32_t) spriteIndex) {
-		fprintf(stderr, "%s: Sprite index %d is invalid.\n", __func__, spriteIndex);
+		fprintf(stderr, "%s: Cannot delete sprite with index %d, it's invalid.\n", __func__, spriteIndex);
 		return;
 	}
 
@@ -2144,11 +2345,13 @@ static void SWRenderer_drawTiledPart(Renderer* renderer, int32_t tpagIndex,
 
 static int32_t SWRenderer_ensureApplicationSurface(Renderer* renderer, int32_t width, int32_t height)
 {
-	UNIMP();
-	(void) renderer;
-	(void) width;
-	(void) height;
-	return -1;
+    // We don't evict surfaces, and especially not the primary framebuffer,
+    // but if we did, this is where we would restore it.
+    (void) renderer;
+    (void) width;
+    (void) height;
+    
+    return APPLICATION_SURFACE_ID;
 }
 
 static RendererVtable swrVtable;
