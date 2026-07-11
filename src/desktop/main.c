@@ -997,10 +997,6 @@ char* collapseNewlines(const char *input) {
 
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {
-    fprintf(stderr, "%zu\n", sizeof(RoomBackground));
-    fprintf(stderr, "%zu\n", sizeof(RoomView));
-    fprintf(stderr, "%zu\n", sizeof(RoomGameObject));
-    fprintf(stderr, "%zu\n", sizeof(RoomTile));
     setbuf(stderr, NULL);
 #ifdef _WIN32
     timeBeginPeriod(1);
