@@ -1,53 +1,45 @@
-name: Build Butterscotch WebAssembly
+name: Build Web
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-web:
+    name: Build (Web)
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v4
 
-      - name: Setup Emscripten
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Setup Emscripten SDK
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
 
-      - name: Verify
-        run: |
-          emcc --version
-          cmake --version
-
       - name: Configure
         run: |
           emcmake cmake \
-            -B build-web \
-            -DCMAKE_BUILD_TYPE=Release \
+            -B build \
+            -DWERROR=ON \
             -DPLATFORM=web \
-            -DENABLE_MODERN_GL=ON \
-            -DENABLE_LEGACY_GL=OFF
+            -DCMAKE_BUILD_TYPE=Release \
+            "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
+            "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
-        run: |
-          cmake --build build-web --parallel
+        run: cmake --build build -j$(nproc)
 
-      - name: List Output
-        run: |
-          ls -R build-web
-
-      - name: Upload WebAssembly
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Butterscotch-WebAssembly
-          path: |
-            build-web/**/*.wasm
-            build-web/**/*.mjs
-            build-web/**/*.js
-            build-web/**/*.html
-            build-web/**/*.data
-            build-web/**/*.worker.js
+          name: butterscotch-web
+          path: build/butterscotch.*
