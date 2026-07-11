@@ -1,0 +1,53 @@
+name: Build Butterscotch WebAssembly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Verify
+        run: |
+          emcc --version
+          cmake --version
+
+      - name: Configure
+        run: |
+          emcmake cmake \
+            -B build-web \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPLATFORM=web \
+            -DENABLE_MODERN_GL=ON \
+            -DENABLE_LEGACY_GL=OFF
+
+      - name: Build
+        run: |
+          cmake --build build-web --parallel
+
+      - name: List Output
+        run: |
+          ls -R build-web
+
+      - name: Upload WebAssembly
+        uses: actions/upload-artifact@v4
+        with:
+          name: Butterscotch-WebAssembly
+          path: |
+            build-web/**/*.wasm
+            build-web/**/*.mjs
+            build-web/**/*.js
+            build-web/**/*.html
+            build-web/**/*.data
+            build-web/**/*.worker.js
