@@ -1607,18 +1607,9 @@ static void readRoomTiles(BinaryReader* reader, DataWin* dw, Room* room, uint32_
     free(tilePtrs);
 }
 
-static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room) {
-    uint32_t layerCount;
-    uint32_t* layerPtrs = readPointerTable(reader, &layerCount);
-    room->layerCount = layerCount;
+static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room, uint32_t* layerPtrs) {
+    uint32_t layerCount = room->layerCount;
 
-    if (layerCount == 0) {
-        room->layers = nullptr;
-        free(layerPtrs);
-        return;
-    }
-
-    room->layers = (RoomLayer *)safeMalloc(layerCount * sizeof(RoomLayer));
     repeat(layerCount, j) {
         BinaryReader_seek(reader, layerPtrs[j]);
         RoomLayer* layer = &room->layers[j];
@@ -1825,12 +1816,31 @@ static void readRoomPayload(BinaryReader* reader, DataWin* dw, Room* room) {
     uint32_t* tilePtrs = readPointerTable(reader, &tileCount);
     room->tileCount = tileCount;
 
+    uint32_t layerCount = 0;
+    uint32_t* layerPtrs;
+    if (room->layersFileOffset != 0) {
+        BinaryReader_seek(reader, room->layersFileOffset);
+        layerPtrs = readPointerTable(reader, &layerCount);
+    }
+    room->layerCount = layerCount;
+
     char *ptr = (char *)safeMalloc(
+        (layerCount * sizeof(RoomLayer)) +
         (8 * sizeof(RoomBackground)) +
         (8 * sizeof(RoomView)) +
         (objCount * sizeof(RoomGameObject)) +
         (tileCount * sizeof(RoomTile))
     );
+    // Layers must come first because it has pointer members,
+    // so the alignment requirements are stricter.
+    // Because layers can be null, the pointer to free could be
+    // in either layers or backgrounds, the free function must
+    // account for this.
+    if (layerCount > 0)
+        room->layers = (RoomLayer *)ptr;
+    else
+        room->layers = nullptr;
+    ptr += (layerCount * sizeof(RoomLayer));
     room->backgrounds = (RoomBackground *)ptr;
     ptr += (8 * sizeof(RoomBackground));
     room->views = (RoomView *)ptr;
@@ -1857,11 +1867,9 @@ static void readRoomPayload(BinaryReader* reader, DataWin* dw, Room* room) {
     BinaryReader_seek(reader, room->tilesFileOffset + (sizeof(uint32_t) * (tileCount + 1)));
     readRoomTiles(reader, dw, room, tilePtrs);
 
-    room->layerCount = 0;
-    room->layers = nullptr;
-    if (room->layersFileOffset != 0) {
-        BinaryReader_seek(reader, room->layersFileOffset);
-        readRoomLayers(reader, dw, room);
+    if (layerCount > 0) {
+        BinaryReader_seek(reader, room->layersFileOffset + (sizeof(uint32_t) * (layerCount + 1)));
+        readRoomLayers(reader, dw, room, layerPtrs);
     }
 
     room->payloadLoaded = true;
@@ -3014,8 +3022,6 @@ void DataWin_free(DataWin* dw) {
 
 void DataWin_freeRoomPayload(Room* room) {
     requireNotNull(room);
-    free(room->backgrounds);
-    room->backgrounds = nullptr;
     room->views = nullptr;
     room->gameObjects = nullptr;
     room->gameObjectCount = 0;
@@ -3039,8 +3045,10 @@ void DataWin_freeRoomPayload(Room* room) {
                 free(layer->tilesData);
             }
         }
-    }
-    free(room->layers);
+        free(room->layers);
+    } else
+        free(room->backgrounds);
+    room->backgrounds = nullptr;
     room->layers = nullptr;
     room->layerCount = 0;
     room->payloadLoaded = false;
