@@ -1622,9 +1622,6 @@ static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room, uint32
         layer->hSpeed = BinaryReader_readFloat32(reader);
         layer->vSpeed = BinaryReader_readFloat32(reader);
         layer->visible = BinaryReader_readBool32(reader);
-        layer->assetsData = nullptr;
-        layer->backgroundData = nullptr;
-        layer->instancesData = nullptr;
         layer->tilesData = nullptr;
         if (DataWin_isVersionAtLeast(dw, 2022, 1, 0, 0)) {
             // EffectEnabled (bool32), EffectType (string ptr), EffectProperties (SimpleList<EffectProperty>)
@@ -3030,19 +3027,23 @@ void DataWin_freeRoomPayload(Room* room) {
     if (room->layerCount != 0 && room->layers != nullptr) {
         repeat(room->layerCount, j) {
             RoomLayer* layer = &room->layers[j];
-            if (layer->assetsData) {
-                free(layer->assetsData->legacyTiles);
-                free(layer->assetsData->sprites);
-                free(layer->assetsData);
-            }
-            if (layer->backgroundData) free(layer->backgroundData);
-            if (layer->instancesData) {
-                free(layer->instancesData->instanceIds);
-                free(layer->instancesData);
-            }
-            if (layer->tilesData) {
-                free(layer->tilesData->tileData);
-                free(layer->tilesData);
+            switch (layer->type) {
+                case RoomLayerType_Assets:
+                    free(layer->assetsData->legacyTiles);
+                    free(layer->assetsData->sprites);
+                    free(layer->assetsData);
+                    break;
+                case RoomLayerType_Background:
+                    free(layer->backgroundData);
+                    break;
+                case RoomLayerType_Instances:
+                    free(layer->instancesData->instanceIds);
+                    free(layer->instancesData);
+                    break;
+                case RoomLayerType_Tiles:
+                    free(layer->tilesData->tileData);
+                    free(layer->tilesData);
+                    break;
             }
         }
         free(room->layers);

@@ -663,10 +663,12 @@ typedef struct {
     float hSpeed;
     float vSpeed;
     bool visible;
-    RoomLayerAssetsData *assetsData;
-    RoomLayerBackgroundData *backgroundData;
-    RoomLayerInstancesData *instancesData;
-    RoomLayerTilesData *tilesData;
+    union {
+        RoomLayerInstancesData *instancesData;
+        RoomLayerAssetsData *assetsData;
+        RoomLayerBackgroundData *backgroundData;
+        RoomLayerTilesData *tilesData;
+    };
 } RoomLayer;
 
 typedef struct {
