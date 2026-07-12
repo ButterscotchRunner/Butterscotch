@@ -2,7 +2,10 @@
 
 #define MAX_CALLBACKS 64
 
-typedef bool(*LowMemoryAlarmCallback)(void);
+typedef struct {
+    bool (*callback)(void* context);
+    void* context;
+} LowMemoryAlarmCallback;
 
 LowMemoryAlarmCallback lowMemoryAlarmCallbacks[MAX_CALLBACKS];
 int lowMemoryAlarmCallbackCount = 0;
@@ -13,7 +16,8 @@ bool lowMemoryAlarm()
 {
     bool didSomething = false;
     for (int i = 0; i < lowMemoryAlarmCallbackCount; i++) {
-        bool result = lowMemoryAlarmCallbacks[i]();
+        LowMemoryAlarmCallback* cb = &lowMemoryAlarmCallbacks[i];
+        bool result = cb->callback(cb->context);
         if (result)
             didSomething = true;
     }
@@ -22,11 +26,16 @@ bool lowMemoryAlarm()
 
 // Registers a low memory alarm callback.  When a low memory alarm is triggered,
 // the function provided will be called, and it should free memory if possible.
-void registerLowMemoryAlarmCallback(bool(*callbackFunction)(void))
+void registerLowMemoryAlarmCallback(bool(*callbackFunction)(void*), void* context)
 {
     if (lowMemoryAlarmCallbackCount >= MAX_CALLBACKS) {
         fprintf(stderr, "registerLowMemoryAlarmCallback: Cannot register another callback, %d already registered.\n", lowMemoryAlarmCallbackCount);
         return;
     }
-    lowMemoryAlarmCallbacks[lowMemoryAlarmCallbackCount++] = callbackFunction;
+
+    LowMemoryAlarmCallback cb;
+    cb.callback = callbackFunction;
+    cb.context = context;
+
+    lowMemoryAlarmCallbacks[lowMemoryAlarmCallbackCount++] = cb;
 }
