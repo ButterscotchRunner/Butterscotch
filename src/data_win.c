@@ -20,7 +20,7 @@
     #endif
 #endif
 
-uint8_t *mapFile(FILE *file, size_t size) {
+static uint8_t *mapFile(FILE *file, size_t size) {
     if (!file || size == 0) return NULL;
 
 #if defined(_WIN32)
@@ -60,7 +60,7 @@ uint8_t *mapFile(FILE *file, size_t size) {
 #endif
 }
 
-void unmapFile(uint8_t *ptr, size_t size) {
+static void unmapFile(uint8_t *ptr, size_t size) {
     if (!ptr) return;
 
 #ifdef _WIN32
