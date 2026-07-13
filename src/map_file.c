@@ -59,5 +59,7 @@ void unmapFile(uint8_t *ptr, size_t size) {
     UnmapViewOfFile((LPCVOID)ptr);
 #elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
     munmap(ptr, size);
+#else
+    (void)size;
 #endif
 }
