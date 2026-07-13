@@ -810,8 +810,10 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
-    free(txtr->blobData);
-    txtr->blobData = nullptr;
+    if (!txtr->mapped) {
+        free(txtr->blobData);
+        txtr->blobData = nullptr;
+    }
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;

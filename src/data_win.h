@@ -849,6 +849,7 @@ typedef struct {
 // ===[ TXTR - Embedded Textures ]===
 typedef struct {
     bool present;
+    bool mapped;
     uint32_t scaled;
     uint32_t generatedMips; // GMS 2.0.6+: number of generated mipmaps (0 for GMS 1.x)
     uint32_t textureBlockSize; // GMS 2022.3+: size of the texture block (0 for older versions)

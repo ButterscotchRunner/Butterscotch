@@ -2447,7 +2447,11 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool l
     if (!loadTextureDataLazily) {
         repeat(count, i) {
             if (t->textures[i].blobOffset == 0 || t->textures[i].blobSize == 0) continue;
-            t->textures[i].blobData = BinaryReader_readBytesAt(reader, t->textures[i].blobOffset, t->textures[i].blobSize);
+            if (dw->mappedFile) {
+                t->textures[i].blobData = dw->mappedFile + t->textures[i].blobOffset;
+                t->textures[i].mapped = true;
+            } else
+                t->textures[i].blobData = BinaryReader_readBytesAt(reader, t->textures[i].blobOffset, t->textures[i].blobSize);
         }
     }
 }
