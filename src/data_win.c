@@ -816,9 +816,15 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
 
             if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
                 spr->masks = (uint8_t **)safeMalloc(maskDataCount * sizeof(uint8_t*));
-                repeat(maskDataCount, j) {
-                    spr->masks[j] = (uint8_t *)safeMalloc(bytesPerMask);
-                    BinaryReader_readBytes(reader, spr->masks[j], bytesPerMask);
+                if (dw->mappedFile) {
+                    repeat(maskDataCount, j) {
+                        spr->masks[j] = dw->mappedFile + BinaryReader_getPosition(reader);
+                    }
+                } else {
+                    repeat(maskDataCount, j) {
+                        spr->masks[j] = (uint8_t *)safeMalloc(bytesPerMask);
+                        BinaryReader_readBytes(reader, spr->masks[j], bytesPerMask);
+                    }
                 }
             } else {
                 BinaryReader_skip(reader, bytesPerMask * maskDataCount);
@@ -2850,8 +2856,10 @@ void DataWin_free(DataWin* dw) {
         repeat(dw->sprt.count, i) {
             free(dw->sprt.sprites[i].tpagIndices);
             if (dw->sprt.sprites[i].masks != nullptr) {
-                repeat(dw->sprt.sprites[i].maskCount, j) {
-                    free(dw->sprt.sprites[i].masks[j]);
+                if (!dw->mappedFile) {
+                    repeat(dw->sprt.sprites[i].maskCount, j) {
+                        free(dw->sprt.sprites[i].masks[j]);
+                    }
                 }
                 free(dw->sprt.sprites[i].masks);
             }
