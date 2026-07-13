@@ -38,7 +38,7 @@ uint8_t *mapFile(FILE *file, size_t size) {
 
     if (!ptr) return NULL;
     return (uint8_t *)ptr;
-#elif defined(_POSIX_MAPPED_FILES)
+#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
     int fd = fileno(file);
     if (fd == -1) return NULL;
 
