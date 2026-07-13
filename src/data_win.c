@@ -9,6 +9,7 @@
 
 #include "stb_ds.h"
 #include "utils.h"
+#include "map_file.h"
 
 // ===[ HELPERS ]===
 
@@ -2493,7 +2494,9 @@ static void parseAUDO(BinaryReader* reader, DataWin* dw) {
         a->entries[i].dataSize = BinaryReader_readUint32(reader);
         a->entries[i].dataOffset = (uint32_t)BinaryReader_getPosition(reader);
         // Load audio data into owned buffer
-        if (a->entries[i].dataSize > 0) {
+        if (dw->mappedFile) {
+            a->entries[i].data = dw->mappedFile + a->entries[i].dataOffset;
+        } else if (a->entries[i].dataSize > 0) {
             a->entries[i].data = (uint8_t *)safeMalloc(a->entries[i].dataSize);
             BinaryReader_readBytes(reader, a->entries[i].data, a->entries[i].dataSize);
         } else {
@@ -2541,6 +2544,15 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         wholeFileData = (uint8_t *)safeMalloc((size_t) fileSize);
         safeFread(wholeFileData, fileSize, file, filePath);
         BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
+    } else if (options.loadType == DATAWINLOADTYPE_MAP_FILE) {
+        wholeFileData = mapFile(file, fileSize);
+        if (!wholeFileData) {
+            fprintf(stderr, "Failed to map file\n");
+            fclose(file);
+            exit(1);
+        }
+        BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
+        dw->mappedFile = wholeFileData;
     }
 
     // Validate FORM header
@@ -2655,7 +2667,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
         // Bulk-read the chunk data into memory for fast parsing
         uint8_t* chunkBuffer = nullptr;
-        if (shouldParse && chunkLength > 0 && options.loadType != DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);
             if (chunkBuffer) {
                 size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
@@ -2743,7 +2755,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         }
 
         // Seek to chunk end (skip any unread data or trailing padding)
-        if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME) {
+        if (options.loadType != DATAWINLOADTYPE_LOAD_PER_CHUNK) {
             BinaryReader_seek(&reader, chunkEnd);
         } else {
             fseek(reader.file, (long) chunkEnd, SEEK_SET);
@@ -2774,9 +2786,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         fclose(file);
     }
 
-    if (wholeFileData != nullptr) {
+    if (options.loadType == DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME)
         free(wholeFileData);
-    }
 
     return dw;
 }
@@ -2975,8 +2986,10 @@ void DataWin_free(DataWin* dw) {
 
     // AUDO
     if (dw->audo.entries) {
-        repeat(dw->audo.count, i) {
-            free(dw->audo.entries[i].data);
+        if (!dw->mappedFile) {
+            repeat(dw->audo.count, i) {
+                free(dw->audo.entries[i].data);
+            }
         }
         free(dw->audo.entries);
     }
@@ -2991,6 +3004,8 @@ void DataWin_free(DataWin* dw) {
         dw->lazyLoadFile = nullptr;
     }
     free(dw->lazyLoadFilePath);
+
+    unmapFile(dw->mappedFile, dw->fileSize);
 
     free(dw);
 }

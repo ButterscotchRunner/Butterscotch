@@ -759,6 +759,8 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 999: {
                 if (strcmp(optarg, "load-in-memory-ahead-of-time") == 0) {
                     args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+                } else if (strcmp(optarg, "map-file") == 0) {
+                    args->loadType = DATAWINLOADTYPE_MAP_FILE;
                 } else if (strcmp(optarg, "load-per-chunk") == 0) {
                     args->loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
                 } else {

@@ -15,7 +15,8 @@ typedef struct DataWin DataWin;
 
 typedef enum {
     DATAWINLOADTYPE_LOAD_PER_CHUNK,
-    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME
+    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
+    DATAWINLOADTYPE_MAP_FILE
 } DataWinLoadType;
 
 typedef struct {
@@ -930,6 +931,7 @@ struct DataWin {
     // nullptr when lazy loading is disabled. Closed by DataWin_free.
     FILE* lazyLoadFile;
     char* lazyLoadFilePath; // owned strdup of the original file path, for diagnostics
+    uint8_t* mappedFile;
     size_t fileSize; // cached size of the DataWin, captured at parse time. Used for platforms where fseek(SEEK_END)+ftell is unreliable due to buffering (like the PlayStation 2).
     bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
     bool lazyLoadTextures; // ditto, but with TXTR pages
