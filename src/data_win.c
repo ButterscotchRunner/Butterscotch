@@ -2588,7 +2588,10 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
         if (options.parseStrg && memcmp(chunkName, "STRG", 4) == 0) {
             dw->strgBufferBase = chunkDataStart;
-            dw->strgBuffer = BinaryReader_readBytesAt(&reader, chunkDataStart, chunkLength);
+            if (dw->mappedFile)
+                dw->strgBuffer = dw->mappedFile + chunkDataStart;
+            else
+                dw->strgBuffer = BinaryReader_readBytesAt(&reader, chunkDataStart, chunkLength);
         }
 
         if ((memcmp(chunkName, "CODE", 4) == 0) && chunkLength > 0) {
@@ -3000,7 +3003,8 @@ void DataWin_free(DataWin* dw) {
     }
 
     // Owned buffers
-    free(dw->strgBuffer);
+    if (!dw->mappedFile)
+        free(dw->strgBuffer);
     free(dw->bytecodeBuffer);
 
     // Close the lazy-load file handle (only open when lazyLoadRooms/lazyLoadTextures was enabled)
