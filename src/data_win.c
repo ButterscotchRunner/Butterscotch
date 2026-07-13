@@ -2983,7 +2983,7 @@ void DataWin_free(DataWin* dw) {
     // TXTR
     if (dw->txtr.textures) {
         repeat(dw->txtr.count, i) {
-            if (dw->txtr.textures[i].mapped)
+            if (!dw->txtr.textures[i].mapped)
                 free(dw->txtr.textures[i].blobData);
         }
         free(dw->txtr.textures);
