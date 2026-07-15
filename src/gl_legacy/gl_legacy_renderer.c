@@ -49,10 +49,9 @@ static inline int32_t nextPow2(int32_t v) {
 // (glGetStringi + GL_NUM_EXTENSIONS) path when glGetStringi is non-null
 // (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
 // approach so the code works with any GL loader (glad, PS3, etc.).
-static bool hasGLExtension(const char* name) {
 #ifndef PLATFORM_PS3
+static bool hasGLExtension(const char* name) {
     if (glGetStringi) {
-#endif
         GLint numExts = 0;
         glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
         for (GLint i = 0; i < numExts; i++) {
@@ -61,7 +60,6 @@ static bool hasGLExtension(const char* name) {
                 return true;
         }
         return false;
-#ifndef PLATFORM_PS3
     }
     const char* extStr = (const char*)glGetString(GL_EXTENSIONS);
     if (!extStr) return false;
@@ -71,8 +69,8 @@ static bool hasGLExtension(const char* name) {
             return true;
     }
     return false;
-#endif
 }
+#endif
 
 #include "stb_image.h"
 #include "stb_ds.h"
@@ -151,7 +149,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // that actually need it (Intel 82865G etc.).
     {
         GLVer ver = GLCommon_getGLVersion();
+#ifdef PLATFORM_PS3
+        gl->needsPOT = false;
+#else
         gl->needsPOT = (ver.major < 2) && !hasGLExtension("GL_ARB_texture_non_power_of_two");
+#endif
     }
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
