@@ -142,6 +142,8 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     return true;
 }
 
+#ifndef PLATFORM_PS3
+
 // ===[ GL version queries ]===
 
 GLVer GLCommon_getGLVersion(void) {
@@ -159,6 +161,8 @@ GLVer GLCommon_getGLVersion(void) {
     }
     return v;
 }
+
+#endif
 
 // ===[ Blend mode translation ]===
 
