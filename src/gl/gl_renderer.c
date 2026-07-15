@@ -17,6 +17,7 @@
 #include "utils.h"
 #include "image_decoder.h"
 #include "gl_common.h"
+#include "gl_wrappers.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -52,7 +53,7 @@ static const char* baseFragmentShader =
 
 static bool hasFBO() {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
-    return (glGenFramebuffers || glGenFramebuffersEXT);
+    return glGenFramebuffers;
 #else
     return true;
 #endif
@@ -60,13 +61,11 @@ static bool hasFBO() {
 
 static bool hasVAO() {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
-    return (glGenVertexArrays || glGenVertexArraysOES);
+    return glGenVertexArrays;
 #else
     return true;
 #endif
 }
-
-#include "gl_wrappers.h"
 
 static inline uint8_t floatToUnormByte(float v) {
     if (v <= 0.0f) return 0;
