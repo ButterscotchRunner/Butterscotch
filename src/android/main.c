@@ -402,14 +402,6 @@ static void teardownRunner() {
     DataWin_free(dataWin);
 }
 
-static void* androidGlLoader(const char* name) {
-    void* ptr = eglGetProcAddress(name);
-    if (ptr == NULL) {
-        ptr = dlsym(RTLD_DEFAULT, name);
-    }
-    return ptr;
-}
-
 JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass cls, jstring jDataWinPath, jstring jSavesPath, jint jOsType, jint jHostFramebuffer) {
     if (gRunner != nullptr) {
         LOGW("startRunner called while a runner is already alive; ignoring");
@@ -417,7 +409,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass 
     }
     gHostFramebuffer = (GLuint) jHostFramebuffer;
 
-    if (!gladLoadGLES2Loader(androidGlLoader)) {
+    if (!gladLoadGLES2Loader((GLADloadproc)eglGetProcAddress))) {
         LOGE("Failed to load OpenGL ES via Glad");
         return JNI_FALSE;
     }
