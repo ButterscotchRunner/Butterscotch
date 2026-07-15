@@ -1005,6 +1005,8 @@ int main(int argc, char* argv[]) {
     timeBeginPeriod(1);
 #endif
 
+	Log_init();
+
 	Log_log("Hello world!\n");
 	Log_logWarning("This is a WARNING!\n");
 	Log_logError("This is an ERROR!\n");

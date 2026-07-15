@@ -4,10 +4,14 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#include "common.h"
+
 bool logToTerminal = true;
 bool logToFile = true;
 
 bool logWithColours = true;
+
+char* logFile = "./butterscotch.log";
 
 enum {
 	LOG_TYPE_NORMAL=0,
@@ -35,7 +39,30 @@ static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	}
 }
 
-static void vLogToFile(const int type, const char* fmt, va_list va) {}
+static void vLogToFile(const int type, const char* fmt, va_list va) {
+	if (!logToFile) return;
+
+	FILE *file = fopen(logFile, "a");
+
+	if (logWithColours) {
+		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
+	}
+
+	vfprintf(file, fmt, va);
+
+	if (logWithColours) {
+		fprintf(file, ANSI_COLOUR_CODE_WHITE);
+	}
+
+	fclose(file);
+}
+
+void Log_init() {
+	FILE* file = fopen(logFile, "w");
+	if (file != nullptr) {
+		fclose(file);
+	}
+}
 
 void Log_logToTerminal(const char* fmt, ...) {
 	va_list va;
@@ -45,7 +72,13 @@ void Log_logToTerminal(const char* fmt, ...) {
 	va_end(va);
 }
 
-void Log_logToFile(const char* fmt, ...) {}
+void Log_logToFile(const char* fmt, ...) {
+	va_list va;
+
+	va_start(va, fmt);
+	vLogToFile(LOG_TYPE_NORMAL, fmt, va);
+	va_end(va);
+}
 
 void Log_log(const char* fmt, ...) {
 	va_list va;
@@ -70,7 +103,14 @@ void Log_logWarningToTerminal(const char* fmt, ...) {
 	va_end(va);
 }
 
-void Log_logWarningToFile(const char* fmt, ...);
+void Log_logWarningToFile(const char* fmt, ...) {
+	va_list va;
+
+	va_start(va, fmt);
+	vLogToFile(LOG_TYPE_WARNING, fmt, va);
+	va_end(va);
+}
+
 void Log_logWarning(const char* fmt, ...) {
 	va_list va;
 
@@ -94,7 +134,14 @@ void Log_logErrorToTerminal(const char* fmt, ...) {
 	va_end(va);
 }
 
-void Log_logErrorToFile(const char* fmt, ...);
+void Log_logErrorToFile(const char* fmt, ...) {
+	va_list va;
+
+	va_start(va, fmt);
+	vLogToFile(LOG_TYPE_WARNING, fmt, va);
+	va_end(va);
+}
+
 void Log_logError(const char* fmt, ...) {
 	va_list va;
 
