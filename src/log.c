@@ -14,6 +14,8 @@ bool logColourFile = false;
 
 char* logFile = "./butterscotch.log";
 
+static FILE* logFileHandle = nullptr;
+
 enum {
 	LOG_TYPE_NORMAL=0,
 	LOG_TYPE_WARNING=1,
@@ -43,26 +45,30 @@ static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 static void vLogToFile(const int type, const char* fmt, va_list va) {
 	if (!logToFile) return;
 
-	FILE* file = fopen(logFile, "a");
-	if (file == nullptr) return;
-
-	if (logColourFile) {
-		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
+	if (logFileHandle == nullptr) {
+		logFileHandle = fopen(logFile, "a");
+		if (logFileHandle == nullptr) return;
+		setvbuf(logFileHandle, nullptr, _IONBF, 0);
 	}
 
-	vfprintf(file, fmt, va);
-
 	if (logColourFile) {
-		fprintf(file, ANSI_COLOUR_CODE_WHITE);
+		fprintf(logFileHandle, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
 	}
 
-	fclose(file);
+	vfprintf(logFileHandle, fmt, va);
+
+	if (logColourFile) {
+		fprintf(logFileHandle, ANSI_COLOUR_CODE_WHITE);
+	}
 }
 
 void Log_init() {
-	FILE* file = fopen(logFile, "w");
-	if (file != nullptr) {
-		fclose(file);
+	if (logFileHandle != nullptr) {
+		fclose(logFileHandle);
+	}
+	logFileHandle = fopen(logFile, "w");
+	if (logFileHandle != nullptr) {
+		setvbuf(logFileHandle, nullptr, _IONBF, 0);
 	}
 }
 

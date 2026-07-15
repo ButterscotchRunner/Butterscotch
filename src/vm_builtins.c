@@ -1781,7 +1781,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
 static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        Log_logError("[show_debug_message] Expected at least 1 argument\n");
+        Log_logWarning("[show_debug_message] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
 
@@ -8332,7 +8332,7 @@ static RValue builtin_action_create_object(VMContext* ctx, RValue* args, int32_t
     GMLReal x = RValue_toReal(args[1]);
     GMLReal y = RValue_toReal(args[2]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        Log_logError("VM: action_create_object: objectIndex %d out of range\n", objectIndex);
+        Log_logWarning("VM: action_create_object: objectIndex %d out of range\n", objectIndex);
         return RValue_makeUndefined();
     }
     Instance* callerInst = ctx->currentInstance;

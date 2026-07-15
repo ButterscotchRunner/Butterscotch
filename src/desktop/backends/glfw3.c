@@ -241,7 +241,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
             buffer[len] = '\0';
             if (buffer[0] != '\0') {
                 if (glfwUpdateGamepadMappings(buffer)) {
-                    Log_logError("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+                    Log_log("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
                 } else {
                     Log_logWarning("Gamepad: Failed to load SDL gamecontroller mappings\n");
                 }

@@ -793,7 +793,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].initialPitch = 1.0f;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
-    Log_logWarning("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    Log_log("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 
@@ -825,7 +825,7 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
     free(entry->filePath);
     entry->filePath = nullptr;
     entry->active = false;
-    Log_logWarning("Audio: Destroyed stream %d\n", streamIndex);
+    Log_log("Audio: Destroyed stream %d\n", streamIndex);
     return true;
 }
 

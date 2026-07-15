@@ -112,7 +112,7 @@ bool PS3Textures_init(const char* texturesBinPath) {
     // Pixel block starts here. Pages are streamed from disk on demand.
     gPixelBlockBase = ftell(gFp);
 
-    Log_logWarning("PS3Textures: opened %s (clutCount=%u pages=%u tpags=%u, streaming pixels)\n", texturesBinPath, gClutCount, gPageCount, gTpagCount);
+    Log_log("PS3Textures: opened %s (clutCount=%u pages=%u tpags=%u, streaming pixels)\n", texturesBinPath, gClutCount, gPageCount, gTpagCount);
 
     gInitialized = true;
     return true;

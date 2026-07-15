@@ -648,7 +648,7 @@ static int32_t webCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
 
     int32_t streamIndex = WEB_AUDIO_STREAM_INDEX_BASE + freeSlot;
-    Log_logWarning("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    Log_log("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 

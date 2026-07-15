@@ -2465,7 +2465,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
 
     Log_log("=== Opcode Profiler Report ===\n");
     Log_log("Total instructions executed: %llu\n", (unsigned long long) total);
-    Log_logToFile("%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
+    Log_log("%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
         double pct = total > 0 ? (100.0 * (double) entry->count / (double) total) : 0.0;

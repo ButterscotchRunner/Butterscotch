@@ -1233,7 +1233,7 @@ int main(int argc, char* argv[]) {
                 if (VM_findBuiltin(vm, name) != nullptr)
                     continue;
 
-                Log_logError("- %s\n", name);
+                Log_log("- %s\n", name);
                 unimplementedCount++;
             }
 

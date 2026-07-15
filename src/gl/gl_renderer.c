@@ -2009,7 +2009,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
 
-    Log_logError("GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
+    Log_log("GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 }
 

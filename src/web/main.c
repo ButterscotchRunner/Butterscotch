@@ -163,7 +163,7 @@ void* loop() {
     }
 
     // Cleanup
-    Log_logError("Cleaning up runner!\n");
+    Log_log("Cleaning up runner!\n");
 
     gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
     gRunner->audioSystem = nullptr;
@@ -189,7 +189,7 @@ void setWindowTitle(const char* title) {
 // gamePath: WASMFS path to the data.win to load (example: "/butterscotch/games/undertale/data.win").
 // savesPath: WASMFS directory where saves should live (example: "/butterscotch/saves/undertale" - Created if it does not exist).
 void startRunner(const char* gamePath, const char* savesPath) {
-    Log_logError("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
+    Log_log("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
@@ -218,7 +218,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // Make sure the saves directory exists. The FileSystem impl will write into it.
     if (savesPath != nullptr && savesPath[0] != '\0') {
         if (mkdirP(savesPath) != 0) {
-            Log_logError("Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
+            Log_logWarning("Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
         }
     }
 
@@ -295,6 +295,6 @@ void startRunner(const char* gamePath, const char* savesPath) {
 }
 
 void stopRunner() {
-    Log_logError("Marked runner to exit!\n");
+    Log_log("Marked runner to exit!\n");
     gRunner->shouldExit = true;
 }

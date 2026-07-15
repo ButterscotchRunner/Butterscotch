@@ -22,7 +22,7 @@
 static void rendererPrintf(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    Log_vLogError(fmt, args);
+    Log_vLog(fmt, args);
     va_end(args);
 }
 #else
