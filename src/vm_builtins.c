@@ -13757,6 +13757,50 @@ static RValue builtin_layer_tilemap_get_id(VMContext* ctx, RValue* args, MAYBE_U
     return RValue_makeReal(-1.0);
 }
 
+static RValue builtin_draw_tile(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (5 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    int32_t bgIndex = RValue_toInt32(args[0]);
+    uint32_t tileCell = (uint32_t)RValue_toInt32(args[1]);
+    uint32_t tileIndex = tileCell & TILEINDEX_SHIFTEDMASK;
+
+    if (0 > bgIndex || (uint32_t)bgIndex >= runner->dataWin->bgnd.count) return RValue_makeUndefined();
+    Background* tileset = &runner->dataWin->bgnd.backgrounds[bgIndex];
+    if (!tileset->present || tileIndex == 0 || tileIndex > tileset->gms2TileCount || \
+        tileset->gms2TileWidth == 0 || tileset->gms2TileHeight == 0 || tileset->gms2TileColumns == 0) return RValue_makeUndefined();
+
+    int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(runner->dataWin, bgIndex);
+    if (0 > tpagIndex) return RValue_makeUndefined();
+
+    GMLReal x = RValue_toReal(args[3]);
+    GMLReal y = RValue_toReal(args[4]);
+
+    uint32_t tileW = tileset->gms2TileWidth;
+    uint32_t tileH = tileset->gms2TileHeight;
+    uint32_t borderX = tileset->gms2OutputBorderX;
+    uint32_t borderY = tileset->gms2OutputBorderY;
+    uint32_t columns = tileset->gms2TileColumns;
+
+    uint32_t col = tileIndex % columns;
+    uint32_t row = tileIndex / columns;
+    int32_t srcX = (int32_t)(col * (tileW + 2 * borderX) + borderX);
+    int32_t srcY = (int32_t)(row * (tileH + 2 * borderY) + borderY);
+
+    bool mirror = (tileCell & TILEMIRROR_MASK) != 0;
+    bool flip = (tileCell & TILEFLIP_MASK) != 0;
+
+    float xscale = mirror ? -1.0f : 1.0f;
+    float yscale = flip ? -1.0f : 1.0f;
+
+    float dstX = x + (mirror ? (float)tileW : 0.0f);
+    float dstY = y + (flip ? (float)tileH : 0.0f);
+
+    runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t)tileW, (int32_t)tileH, dstX, dstY, xscale, yscale, 0.0f, 0.0f, 0.0f, 0xFFFFFF, runner->renderer->drawAlpha);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_tilemap(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (3 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
@@ -13940,6 +13984,36 @@ static RValue builtin_tilemap_get_at_pixel(VMContext* ctx, RValue* args, MAYBE_U
 
     uint32_t cell = data->tileData[cellIndex];
     return RValue_makeReal((GMLReal) cell);
+}
+
+static RValue builtin_tilemap_get_cell_x_at_pixel(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = ctx->runner;
+
+    RuntimeLayer* runtimeLayer;
+    RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+    if (!data) return RValue_makeReal(-1.0);
+
+    int32_t cellIndex = tilemapGetCellIndexAtPixel(ctx->dataWin, data, runtimeLayer, RValue_toReal(args[1]), RValue_toReal(args[2]), nullptr);
+    if (0 > cellIndex) return RValue_makeReal(-1.0);
+
+    int32_t cellX = cellIndex % data->tilesX;
+    return RValue_makeReal((GMLReal)cellX);
+}
+
+static RValue builtin_tilemap_get_cell_y_at_pixel(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = ctx->runner;
+
+    RuntimeLayer* runtimeLayer;
+    RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+    if (!data) return RValue_makeReal(-1.0);
+
+    int32_t cellIndex = tilemapGetCellIndexAtPixel(ctx->dataWin, data, runtimeLayer, RValue_toReal(args[1]), RValue_toReal(args[2]), nullptr);
+    if (0 > cellIndex) return RValue_makeReal(-1.0);
+
+    int32_t cellY = cellIndex / data->tilesX;
+    return RValue_makeReal((GMLReal)cellY);
 }
 
 static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -16963,6 +17037,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "layer_get_id_at_depth", builtin_layer_get_id_at_depth);
     VM_registerBuiltin(ctx, "layer_tilemap_get_id", builtin_layer_tilemap_get_id);
+    VM_registerBuiltin(ctx, "draw_tile", builtin_draw_tile);
     VM_registerBuiltin(ctx, "draw_tilemap", builtin_draw_tilemap);
     VM_registerBuiltin(ctx, "tilemap_x", builtin_tilemap_x);
     VM_registerBuiltin(ctx, "tilemap_y", builtin_tilemap_y);
@@ -16972,6 +17047,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tilemap_get_height", builtin_tilemap_get_height);
 	VM_registerBuiltin(ctx, "tilemap_get_tile_width", builtin_tilemap_get_tile_width);
     VM_registerBuiltin(ctx, "tilemap_get_tile_height", builtin_tilemap_get_tile_height);
+    VM_registerBuiltin(ctx, "tilemap_get_cell_x_at_pixel", builtin_tilemap_get_cell_x_at_pixel);
+    VM_registerBuiltin(ctx, "tilemap_get_cell_y_at_pixel", builtin_tilemap_get_cell_y_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get", builtin_tilemap_get);
     VM_registerBuiltin(ctx, "tilemap_get_at_pixel", builtin_tilemap_get_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get_tileset", builtin_tilemap_get_tileset);
