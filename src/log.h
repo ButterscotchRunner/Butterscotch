@@ -2,9 +2,11 @@
 #define _BS_LOG_H
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdarg.h>
 
 void Log_init();
+void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile);
 
 void Log_logToTerminal(const char* fmt, ...);
 void Log_logToFile(const char* fmt, ...);

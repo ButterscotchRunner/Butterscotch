@@ -51,13 +51,7 @@ static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 }
 
 static void vLogToFile(const int type, const char* fmt, va_list va) {
-	if (!logToFile) return;
-
-	if (logFileHandle == nullptr) {
-		logFileHandle = fopen(logFile, "a");
-		if (logFileHandle == nullptr) return;
-		setvbuf(logFileHandle, nullptr, _IONBF, 0);
-	}
+	if (!logToFile || !logFileHandle) return;
 
 	if (logColourFile) {
 		fprintf(logFileHandle, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));

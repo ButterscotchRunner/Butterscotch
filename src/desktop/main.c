@@ -254,6 +254,11 @@ typedef struct {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     bool opcodeProfiler;
 #endif
+    bool disableTerminalLog;
+    bool disableFileLog;
+    const char* logFile;
+    bool disableTerminalLogColours;
+    bool enableFileLogColours;
 } CommandLineArgs;
 
 typedef struct { const char* name; YoYoOperatingSystem value; } OsTypeNameEntry;
@@ -435,6 +440,11 @@ static void printUsage(const char *argv0) {
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
+		"    --disable-terminal-log                 - Disables logging to the terminal\n"
+		"    --disable-file-log                     - Disable logging to a file\n"
+		"    --log-file <filename>                  - File to log to\n"
+		"    --disable-terminal-log-colours         - Disable colours for warning and error logs in terminal\n"
+		"    --enable-file-log-colours              - Enables colours for warning and error logs in file\n"
 #ifdef EABLE_VM_OPCODE_PROFILER
         "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
 #endif
@@ -494,6 +504,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
         {"load-type", required_argument, nullptr, 999},
+        {"disable-terminal-log", no_argument, nullptr, 1001},
+        {"disable-file-log", no_argument, nullptr, 1002},
+        {"log-file", required_argument, nullptr, 1003},
+        {"disable-terminal-log-colours", no_argument, nullptr, 1004},
+        {"enable-file-log-colours", no_argument, nullptr, 1005},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -785,6 +800,21 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             }
+            case 1001:
+                args->disableTerminalLog = true;
+                break;
+            case 1002:
+                args->disableFileLog = true;
+                break;
+            case 1003:
+                args->logFile = optarg;
+                break;
+            case 1004:
+                args->disableTerminalLogColours = true;
+                break;
+            case 1005:
+                args->enableFileLogColours = true;
+                break;
             default:
                 printUsage(argv[0]);
                 exit(1);
@@ -1004,14 +1034,16 @@ int main(int argc, char* argv[]) {
     timeBeginPeriod(1);
 #endif
 
-	Log_init();
-
 	Log_log("Hello world!\n");
 	Log_logWarning("This is a WARNING!\n");
 	Log_logError("This is an ERROR!\n");
 
-    CommandLineArgs args;
+	CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
+
+	Log_setOptions(!args.disableTerminalLog, !args.disableFileLog, !args.disableTerminalLogColours, args.enableFileLogColours, args.logFile ? (char*)args.logFile : "./butterscotch.log");
+
+	Log_init();
 
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
