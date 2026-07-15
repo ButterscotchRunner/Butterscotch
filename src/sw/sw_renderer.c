@@ -1997,8 +1997,22 @@ static void SWRenderer_flush(Renderer* renderer)
 
 static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alpha)
 {
-    (void)renderer; (void)color; (void)alpha;
-    UNIMP();
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    color = swrConvertPixel(color);
+#ifdef TRANSPARENT_MASK
+    color |= TRANSPARENT_MASK;
+    if (alpha < 0.5f) {
+        color &= ~TRANSPARENT_MASK;
+    }
+#endif
+    
+    for (int y = 0; y < swr->height; y++) {
+        uintpixel_t* line = &swr->fb[y * swr->fbPitch];
+        for (int x = 0; x < swr->width; x++) {
+            line[x] = color;
+        }
+    }
 }
 
 static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
