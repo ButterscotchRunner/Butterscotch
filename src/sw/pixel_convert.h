@@ -87,19 +87,14 @@ uintpixel_t swrConvertPixelBase(uint32_t gmPixel)
 #define TRANSPARENT_MASK 0x8000
 #endif
 
-#if PIXEL_SIZE == 8
+#if defined IS_BIG_ENDIAN
 
-#define swrConvertPixel(x)        swrConvertPixelBase((x) | 0xFF000000)
-#define swrConvertPixelTexture(x) swrConvertPixelBase(x)
-
-#elif defined IS_BIG_ENDIAN
-
-#define swrConvertPixel(x)        swrConvertPixelBase(x)
+#define swrConvertPixel(x)        swrConvertPixelBase(x | 0xFF000000)
 #define swrConvertPixelTexture(x) swrConvertPixelBase(BinaryUtils_bswap32(x))
 
 #else
 
-#define swrConvertPixel        swrConvertPixelBase
-#define swrConvertPixelTexture swrConvertPixelBase
+#define swrConvertPixel(x)        swrConvertPixelBase((x) | 0xFF000000)
+#define swrConvertPixelTexture(x) swrConvertPixelBase(x)
 
 #endif

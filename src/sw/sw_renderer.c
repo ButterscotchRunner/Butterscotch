@@ -152,6 +152,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
     dc.p.r = (dc.p.r * inval + sc.p.r * alpha) >> 8;
     dc.p.g = (dc.p.g * inval + sc.p.g * alpha) >> 8;
     dc.p.b = (dc.p.b * inval + sc.p.b * alpha) >> 8;
+    dc.p.a = 0xFF;
     
     *dcolor = dc.l;
 #elif PIXEL_SIZE == 16
@@ -163,13 +164,12 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
     int dcb = _dcolor & 0x1F;
     int dcg = (_dcolor >> 5) & 0x1F;
     int dcr = (_dcolor >> 10) & 0x1F;
-    int dca = _dcolor & 0x8000;
     
     dcr = (dcr * inval + scr * alpha) >> 8;
     dcg = (dcg * inval + scg * alpha) >> 8;
     dcb = (dcb * inval + scb * alpha) >> 8;
     
-    *dcolor = dca | dcb | (dcg << 5) | (dcr << 10);
+    *dcolor = 0x8000 | dcb | (dcg << 5) | (dcr << 10);
 #else
     if (alpha < 240) {
         static int alphaApproximationThingy = 0;
@@ -2001,9 +2001,21 @@ static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alp
     
     color = swrConvertPixel(color);
 #ifdef TRANSPARENT_MASK
-    color |= TRANSPARENT_MASK;
-    if (alpha < 0.5f) {
+    if (alpha >= 0.95f) {
+        color |= TRANSPARENT_MASK;
+    }
+    else if (alpha < 0.01f) {
         color &= ~TRANSPARENT_MASK;
+    }
+    else {
+    #if PIXEL_SIZE == 32
+        int alphai = (int)(255.0f * alpha);
+        if (alphai < 0) alphai = 0;
+        if (alphai > 255) alphai = 255;
+        color |= (alphai << 24);
+    #elif PIXEL_SIZE == 16
+        color |= (alpha > 0.5f);
+    #endif
     }
 #endif
     
