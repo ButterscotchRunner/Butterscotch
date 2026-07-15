@@ -9,7 +9,8 @@
 bool logToTerminal = true;
 bool logToFile = true;
 
-bool logWithColours = true;
+bool logColourTerminal = true;
+bool logColourFile = false;
 
 char* logFile = "./butterscotch.log";
 
@@ -19,38 +20,39 @@ enum {
 	LOG_TYPE_ERROR=2
 };
 
-#define ANSI_COLOUR_CODE_WHITE "\e[0;37m"
-#define ANSI_COLOUR_CODE_BOLD_YELLOW "\e[1;33m"
-#define ANSI_COLOUR_CODE_BOLD_RED "\e[1;31m"
+#define ANSI_COLOUR_CODE_WHITE "\x1b[0;37m"
+#define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
+#define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
 
 static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
-	const FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
+	FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
 
-	if (logWithColours) {
-		fprintf((FILE*)out, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
+	if (logColourTerminal) {
+		fprintf(out, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
 	}
 
-	vfprintf((FILE*)out, fmt, va);
+	vfprintf(out, fmt, va);
 
-	if (logWithColours) {
-		fprintf((FILE*)out, ANSI_COLOUR_CODE_WHITE);
+	if (logColourTerminal) {
+		fprintf(out, ANSI_COLOUR_CODE_WHITE);
 	}
 }
 
 static void vLogToFile(const int type, const char* fmt, va_list va) {
 	if (!logToFile) return;
 
-	FILE *file = fopen(logFile, "a");
+	FILE* file = fopen(logFile, "a");
+	if (file == nullptr) return;
 
-	if (logWithColours) {
+	if (logColourFile) {
 		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
 	}
 
 	vfprintf(file, fmt, va);
 
-	if (logWithColours) {
+	if (logColourFile) {
 		fprintf(file, ANSI_COLOUR_CODE_WHITE);
 	}
 
@@ -81,18 +83,20 @@ void Log_logToFile(const char* fmt, ...) {
 }
 
 void Log_log(const char* fmt, ...) {
-	va_list va;
+	va_list va, va2;
 
 	va_start(va, fmt);
+	va_copy(va2, va);
 
 	if (logToTerminal) {
 		vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
 	}
 	if (logToFile) {
-		vLogToFile(LOG_TYPE_NORMAL, fmt, va);
+		vLogToFile(LOG_TYPE_NORMAL, fmt, va2);
 	}
 
 	va_end(va);
+	va_end(va2);
 }
 
 void Log_logWarningToTerminal(const char* fmt, ...) {
@@ -112,18 +116,20 @@ void Log_logWarningToFile(const char* fmt, ...) {
 }
 
 void Log_logWarning(const char* fmt, ...) {
-	va_list va;
+	va_list va, va2;
 
 	va_start(va, fmt);
+	va_copy(va2, va);
 
 	if (logToTerminal) {
 		vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
 	}
 	if (logToFile) {
-		vLogToFile(LOG_TYPE_WARNING, fmt, va);
+		vLogToFile(LOG_TYPE_WARNING, fmt, va2);
 	}
 
 	va_end(va);
+	va_end(va2);
 }
 
 void Log_logErrorToTerminal(const char* fmt, ...) {
@@ -138,21 +144,23 @@ void Log_logErrorToFile(const char* fmt, ...) {
 	va_list va;
 
 	va_start(va, fmt);
-	vLogToFile(LOG_TYPE_WARNING, fmt, va);
+	vLogToFile(LOG_TYPE_ERROR, fmt, va);
 	va_end(va);
 }
 
 void Log_logError(const char* fmt, ...) {
-	va_list va;
+	va_list va, va2;
 
 	va_start(va, fmt);
+	va_copy(va2, va);
 
 	if (logToTerminal) {
 		vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
 	}
 	if (logToFile) {
-		vLogToFile(LOG_TYPE_ERROR, fmt, va);
+		vLogToFile(LOG_TYPE_ERROR, fmt, va2);
 	}
 
 	va_end(va);
+	va_end(va2);
 }
