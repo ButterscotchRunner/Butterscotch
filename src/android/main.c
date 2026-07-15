@@ -409,7 +409,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass 
     }
     gHostFramebuffer = (GLuint) jHostFramebuffer;
 
-    if (!gladLoadGLES2Loader((GLADloadproc)eglGetProcAddress))) {
+    if (!gladLoadGLES2Loader((GLADloadproc)eglGetProcAddress)) {
         LOGE("Failed to load OpenGL ES via Glad");
         return JNI_FALSE;
     }
