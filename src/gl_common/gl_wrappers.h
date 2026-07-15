@@ -1,7 +1,7 @@
 #if !defined(_BS_GL_WRAPPERS_H_) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_PS3) && !defined(__ANDROID__)
 #define _BS_GL_WRAPPERS_H_
 
-static inline void init_gl_wrappers(void) {
+static inline void gl_init_wrappers(void) {
     if (!glBindVertexArray)
         glBindVertexArray = glBindVertexArrayOES;
 
