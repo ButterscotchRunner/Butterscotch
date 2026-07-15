@@ -114,7 +114,7 @@ static bool platformInitGlad(void) {
     if (!glGetString)
         return 0;
 
-    fprintf(stderr, "GL_VERSION: %s\n", (const char*)glGetString(GL_VERSION));
+    fprintf(stderr, "OpenGL Version: %s\n", (const char*)glGetString(GL_VERSION));
     GLVer ver = GLCommon_getGLVersion();
 
     if (ver.isGLES) {
