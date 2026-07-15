@@ -539,6 +539,8 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
             return true;
         
         // restore the original framebuffer
+        fprintf(stderr, "back to original framebuffer\n");
+        swr->drawingToSurface = false;
         swr->fb = swr->mainFb;
         swr->width = swr->mainWidth;
         swr->height = swr->mainHeight;
@@ -601,6 +603,14 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
     swr->height = surface->height;
     swr->fbPitch = surface->width;
     swr->drawingToSurface = true;
+    
+    swr->viewX = swr->portX = 0;
+    swr->viewY = swr->portY = 0;
+    swr->maxX = swr->viewW = swr->portW = surface->width;
+    swr->maxY = swr->viewH = swr->portH = surface->height;
+    swr->scaleX = swr->scaleY = 1.0f;
+    
+    fprintf(stderr, "switching to surface %p, fb %p, %dx%d\n", surface, swr->fb, swr->width, swr->height);
     
     return true;
 }
