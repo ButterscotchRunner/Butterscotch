@@ -99,6 +99,28 @@ void Log_log(const char* fmt, ...) {
 	va_end(va2);
 }
 
+void Log_vLogToTerminal(const char* fmt, va_list va) {
+	vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
+}
+
+void Log_vLogToFile(const char* fmt, va_list va) {
+	vLogToFile(LOG_TYPE_NORMAL, fmt, va);
+}
+
+void Log_vLog(const char* fmt, va_list va) {
+	va_list va2;
+	va_copy(va2, va);
+
+	if (logToTerminal) {
+		vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
+	}
+	if (logToFile) {
+		vLogToFile(LOG_TYPE_NORMAL, fmt, va2);
+	}
+
+	va_end(va2);
+}
+
 void Log_logWarningToTerminal(const char* fmt, ...) {
 	va_list va;
 
@@ -132,6 +154,28 @@ void Log_logWarning(const char* fmt, ...) {
 	va_end(va2);
 }
 
+void Log_vLogWarningToTerminal(const char* fmt, va_list va) {
+	vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
+}
+
+void Log_vLogWarningToFile(const char* fmt, va_list va) {
+	vLogToFile(LOG_TYPE_WARNING, fmt, va);
+}
+
+void Log_vLogWarning(const char* fmt, va_list va) {
+	va_list va2;
+	va_copy(va2, va);
+
+	if (logToTerminal) {
+		vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
+	}
+	if (logToFile) {
+		vLogToFile(LOG_TYPE_WARNING, fmt, va2);
+	}
+
+	va_end(va2);
+}
+
 void Log_logErrorToTerminal(const char* fmt, ...) {
 	va_list va;
 
@@ -162,5 +206,27 @@ void Log_logError(const char* fmt, ...) {
 	}
 
 	va_end(va);
+	va_end(va2);
+}
+
+void Log_vLogErrorToTerminal(const char* fmt, va_list va) {
+	vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
+}
+
+void Log_vLogErrorToFile(const char* fmt, va_list va) {
+	vLogToFile(LOG_TYPE_ERROR, fmt, va);
+}
+
+void Log_vLogError(const char* fmt, va_list va) {
+	va_list va2;
+	va_copy(va2, va);
+
+	if (logToTerminal) {
+		vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
+	}
+	if (logToFile) {
+		vLogToFile(LOG_TYPE_ERROR, fmt, va2);
+	}
+
 	va_end(va2);
 }
