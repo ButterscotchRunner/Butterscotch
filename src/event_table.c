@@ -115,7 +115,7 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     int32_t slotCount = slotMap->slotCount;
 
     if (objectCount > MAX_EVENT_TABLE_OBJECT_COUNT) {
-        fprintf(stderr, "ResolvedEventTable: objectCount=%d exceeds max %d!\n", objectCount, MAX_EVENT_TABLE_OBJECT_COUNT);
+        Log_logError("ResolvedEventTable: objectCount=%d exceeds max %d!\n", objectCount, MAX_EVENT_TABLE_OBJECT_COUNT);
         abort();
     }
 

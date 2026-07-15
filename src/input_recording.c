@@ -21,7 +21,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     // Read the file contents
     FILE* f = fopen(playbackFilePath, "rb");
     if (f == nullptr) {
-        fprintf(stderr, "Error: Could not open input recording file '%s'\n", playbackFilePath);
+        Log_logError("Error: Could not open input recording file '%s'\n", playbackFilePath);
         exit(1);
     }
 
@@ -39,7 +39,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     free(contents);
 
     if (root == nullptr || !JsonReader_isObject(root)) {
-        fprintf(stderr, "Error: Invalid JSON in input recording file '%s'\n", playbackFilePath);
+        Log_logError("Error: Invalid JSON in input recording file '%s'\n", playbackFilePath);
         exit(1);
     }
 
@@ -94,7 +94,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     }
 
     JsonReader_free(root);
-    fprintf(stderr, "InputRecording: Loaded %d frames from '%s'\n", rec->playbackFrameCount, playbackFilePath);
+    Log_log("InputRecording: Loaded %d frames from '%s'\n", rec->playbackFrameCount, playbackFilePath);
     return rec;
 }
 
@@ -143,7 +143,7 @@ void InputRecording_processFrame(InputRecording* recording, RunnerKeyboardState*
             }
         } else {
             if (!recording->playbackEnded) {
-                fprintf(stderr, "InputRecording: Playback ended at frame %d (recorded %d frames)\n", frameNumber, recording->playbackFrameCount);
+                Log_log("InputRecording: Playback ended at frame %d (recorded %d frames)\n", frameNumber, recording->playbackFrameCount);
                 recording->playbackEnded = true;
             }
         }
@@ -214,7 +214,7 @@ bool InputRecording_save(InputRecording* recording) {
 
     FILE* f = fopen(recording->recordFilePath, "wb");
     if (f == nullptr) {
-        fprintf(stderr, "Error: Could not write input recording to '%s'\n", recording->recordFilePath);
+        Log_logError("Error: Could not write input recording to '%s'\n", recording->recordFilePath);
         JsonWriter_free(&w);
         return false;
     }
@@ -224,7 +224,7 @@ bool InputRecording_save(InputRecording* recording) {
     fputc('\n', f);
     fclose(f);
 
-    fprintf(stderr, "InputRecording: Saved %d frames to '%s'\n", frameCount, recording->recordFilePath);
+    Log_log("InputRecording: Saved %d frames to '%s'\n", frameCount, recording->recordFilePath);
     JsonWriter_free(&w);
     return true;
 }

@@ -81,7 +81,7 @@ const StickMapping STICK_MAPPINGS[] = {
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
 // ===[ MAIN ]===
-static double freq = 0; 
+static double freq = 0;
 #define PS3_GET_TIME ((double)__builtin_ppc_get_timebase() / (double)freq)
 bool shouldExit = false;
 
@@ -94,7 +94,7 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
             break;
-        
+
         case SYSUTIL_MENU_OPEN:
         case SYSUTIL_MENU_CLOSE:
             break;
@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
-            fprintf(stderr, "FATAL: failed to load %s\n", texturesBinPath);
+            Log_logError("Fatal: failed to load %s\n", texturesBinPath);
             return 1;
         }
         free(texturesBinPath);
@@ -310,7 +310,7 @@ int main(int argc, char* argv[]) {
         bool shouldStep = true;
         if (runner->debugMode && debugPaused) {
             shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-            if (shouldStep) fprintf(stderr, "Debug: Frame advance (frame %d)\n", runner->frameCount);
+            if (shouldStep) Log_log("Debug: Frame advance (frame %d)\n", runner->frameCount);
         }
 
 

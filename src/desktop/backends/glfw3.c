@@ -33,11 +33,11 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, (gfx == SOFTWARE) ? 0 : 1);
-        
+
 #ifndef NDEBUG
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
-        
+
         return glfwCreateWindow(reqW, reqH, title, NULL, NULL);
     }
 
@@ -127,7 +127,7 @@ static bool platformGetWindowFocus(void) {
 }
 
 static void glfwErrorCallback(int code, const char* description) {
-    fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
+    Log_logError("GLFW error 0x%x: %s\n", code, description);
 }
 
 static int32_t glfwKeyToGml(int glfwKey) {
@@ -224,7 +224,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
-        fprintf(stderr, "Failed to initialize GLFW\n");
+        Log_logError("Failed to initialize GLFW\n");
         return false;
     }
 
@@ -241,23 +241,23 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
             buffer[len] = '\0';
             if (buffer[0] != '\0') {
                 if (glfwUpdateGamepadMappings(buffer)) {
-                    fprintf(stderr, "Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+                    Log_logError("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
                 } else {
-                    fprintf(stderr, "Gamepad: Failed to load SDL gamecontroller mappings\n");
+                    Log_logWarning("Gamepad: Failed to load SDL gamecontroller mappings\n");
                 }
             }
             free(buffer);
         }
         fclose(f);
     } else
-        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
+        Log_logWarning("Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     window = tryOpenWindow(reqW, reqH, title);
     if (!window) {
-        fprintf(stderr, "Failed to create GLFW window\n");
+        Log_logError("Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }

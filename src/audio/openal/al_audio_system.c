@@ -170,14 +170,14 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     ma->alContext = alcCreateContext(ma->alDevice, nullptr);
     alcMakeContextCurrent(ma->alContext);
     if (ma->alDevice == nullptr || ma->alContext == nullptr) {
-        fprintf(stderr, "Audio: Failed to initialize OpenAL engine (error %d)\n", alGetError());
+        Log_logError("Audio: Failed to initialize OpenAL engine (error %d)\n", alGetError());
         return;
     }
 
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 
-    fprintf(stderr, "Audio: OpenAL engine initialized\n");
+    Log_log("Audio: OpenAL engine initialized\n");
 }
 
 static void maDestroy(AudioSystem* audio) {
@@ -289,14 +289,14 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     if (isStream) {
         int32_t streamSlot = soundIndex - AUDIO_STREAM_INDEX_BASE;
         if (0 > streamSlot || streamSlot >= MAX_AUDIO_STREAMS || !ma->streams[streamSlot].active) {
-            fprintf(stderr, "Audio: Invalid stream index %d\n", soundIndex);
+            Log_logWarning("Audio: Invalid stream index %d\n", soundIndex);
             return -1;
         }
         streamPath = ma->streams[streamSlot].filePath;
     } else {
         DataWin* dw = ma->base.audioGroups[0]; // Audio Group 0 should always be data.win
         if (0 > soundIndex || (uint32_t) soundIndex >= dw->sond.count) {
-            fprintf(stderr, "Audio: Invalid sound index %d\n", soundIndex);
+            Log_logWarning("Audio: Invalid sound index %d\n", soundIndex);
             return -1;
         }
         sound = &dw->sond.sounds[soundIndex];
@@ -304,7 +304,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     SoundInstance* slot = findFreeSlot(ma);
     if (slot == nullptr) {
-        fprintf(stderr, "Audio: No free sound slots for sound %d\n", soundIndex);
+        Log_logWarning("Audio: No free sound slots for sound %d\n", soundIndex);
         return -1;
     }
 
@@ -322,7 +322,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         int err = 0;
         stb_vorbis* v = stb_vorbis_open_filename(streamPath, &err, nullptr);
         if (v == nullptr) {
-            fprintf(stderr, "Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
+            Log_logWarning("Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
             return -1;
         }
         stb_vorbis_info info = stb_vorbis_get_info(v);
@@ -368,7 +368,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         if (inAudo) {
            // Embedded audio: decode from AUDO chunk memory
             if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) {
-                fprintf(stderr, "Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
+                Log_logWarning("Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
                 return -1;
             }
 
@@ -380,7 +380,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             {
                 if (wav.header.bits_per_sample == 8)
                     format = AL_FORMAT_MONO8;
-                else 
+                else
                     format = AL_FORMAT_MONO16;
             }
             else {
@@ -390,10 +390,10 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                     format = AL_FORMAT_STEREO16;
             }
             alBufferData(
-                slot->alBuffer, 
-                format, 
-                wav.data, 
-                wav.data_length, 
+                slot->alBuffer,
+                format,
+                wav.data,
+                wav.data_length,
                 wav.header.sample_rate
             );
             alSourcei(slot->alSource, AL_BUFFER, slot->alBuffer);
@@ -402,7 +402,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             // External audio: load from file
             char* path = resolveExternalPath(ma, sound);
             if (path == nullptr) {
-                fprintf(stderr, "Audio: Could not resolve path for sound '%s'\n", sound->name);
+                Log_logWarning("Audio: Could not resolve path for sound '%s'\n", sound->name);
                 return -1;
             }
 
@@ -411,10 +411,10 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             short* data = NULL;
             int len = stb_vorbis_decode_filename(path, &channels, &sample_rate, &data);
             alBufferData(
-                slot->alBuffer, 
-                (channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16, 
-                (void*)data, 
-                len*channels*sizeof(uint16_t), 
+                slot->alBuffer,
+                (channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
+                (void*)data,
+                len*channels*sizeof(uint16_t),
                 sample_rate
             );
             alSourcei(slot->alSource, AL_BUFFER, slot->alBuffer);
@@ -684,7 +684,7 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
 static float streamCursorSeconds(SoundInstance* inst) {
     if (0 >= inst->streamSampleRate)
         return 0.0f;
-    
+
     ALint sampleOffset = 0;
     alGetSourcei(inst->alSource, AL_SAMPLE_OFFSET, &sampleOffset);
     uint64_t total = inst->playedSamples + (uint64_t) sampleOffset;
@@ -817,7 +817,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         FileSystem* fileSystem = ((AlAudioSystem*)audio)->fileSystem;
         char* resolvedPath = (((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf));
         if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
-            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+            Log_logWarning("Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
             free(buf);
             return;
         }
@@ -849,13 +849,13 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     }
 
     if (0 > freeSlot) {
-        fprintf(stderr, "Audio: No free stream slots for '%s'\n", filename);
+        Log_logWarning("Audio: No free stream slots for '%s'\n", filename);
         return -1;
     }
 
     char* resolved = ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
     if (resolved == nullptr) {
-        fprintf(stderr, "Audio: Could not resolve path for stream '%s'\n", filename);
+        Log_logWarning("Audio: Could not resolve path for stream '%s'\n", filename);
         return -1;
     }
 
@@ -863,7 +863,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
-    fprintf(stderr, "Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    Log_log("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 
@@ -872,7 +872,7 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
     int32_t slotIndex = streamIndex - AUDIO_STREAM_INDEX_BASE;
     if (0 > slotIndex || slotIndex >= MAX_AUDIO_STREAMS) {
-        fprintf(stderr, "Audio: Invalid stream index %d for destroy\n", streamIndex);
+        Log_logWarning("Audio: Invalid stream index %d for destroy\n", streamIndex);
         return false;
     }
 
@@ -890,7 +890,7 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
     free(entry->filePath);
     entry->filePath = nullptr;
     entry->active = false;
-    fprintf(stderr, "Audio: Destroyed stream %d\n", streamIndex);
+    Log_log("Audio: Destroyed stream %d\n", streamIndex);
     return true;
 }
 

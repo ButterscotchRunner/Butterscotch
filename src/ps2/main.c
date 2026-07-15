@@ -253,11 +253,11 @@ int main(int argc, char* argv[]) {
 
     PS2Utils_extractDeviceKey(argv[0]);
 
-    fprintf(stderr, "argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
+    Log_log("argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
 
     PS2Utils_loadFSDrivers();
 
-    fprintf(stderr, "Loaded FS drivers!\n");
+    Log_log("Loaded FS drivers!\n");
 
     char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
 
@@ -431,7 +431,7 @@ int main(int argc, char* argv[]) {
     options.eagerlyLoadedRooms = eagerRooms;
     options.progressCallback = PS2Overlay_statusScreenCallback;
     options.progressCallbackUserData = PS2Overlay_getCallbackData();
-    
+
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
     free(dataWinPath);
     shfree(eagerRooms);
@@ -538,7 +538,7 @@ int main(int argc, char* argv[]) {
         PS2Utils_loadMassStorageDrivers();
 
     gprof_start();
-    fprintf(stderr, "gprof: Profiling started!\n");
+    Log_log("gprof: Profiling started!\n");
 #endif
 
     Gen8* gen8 = &dataWin->gen8;
@@ -607,7 +607,7 @@ int main(int argc, char* argv[]) {
                 int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                 runner->pendingRoom = nextIdx;
                 runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                fprintf(stderr, "Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                Log_log("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
             }
         }
 
@@ -708,9 +708,9 @@ int main(int argc, char* argv[]) {
         } else {
             gprofPath = "mass:gmon.out";
         }
-        fprintf(stderr, "gprof: Writing profiling data to %s\n", gprofPath);
+        Log_log("gprof: Writing profiling data to %s\n", gprofPath);
         gprof_stop(gprofPath, 1);
-        fprintf(stderr, "gprof: Done\n");
+        Log_log("gprof: Done\n");
     }
 #endif
 
