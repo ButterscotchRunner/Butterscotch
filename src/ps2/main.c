@@ -242,6 +242,8 @@ int main(int argc, char* argv[]) {
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
+	Log_init();
+
     // Ask the kernel how much main RAM we actually have.
     MAX_MEMORY_BYTES = (int) GetMemorySize();
 

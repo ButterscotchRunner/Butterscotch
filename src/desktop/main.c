@@ -383,8 +383,7 @@ static char** extractRunnerArguments(char* rawArguments) {
 }
 
 static void printUsage(const char *argv0) {
-    fprintf(
-        stderr,
+    Log_log(
         "Usage: %s <path to data.win or game.unx>\n"
         "    --help                                 - Show this message\n"
         "    --screenshot <filename>                - Specify the filename for screenshots\n"

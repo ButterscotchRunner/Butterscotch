@@ -157,7 +157,8 @@ char *str_replace(char *orig, char *rep, char *with) {
 
 static char buffer[9999];
 int main(int argc, char* argv[]) {
-   Log_log("%s\n", argv[0]);
+	Log_init();
+   	Log_log("%s\n", argv[0]);
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");

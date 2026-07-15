@@ -26,6 +26,14 @@ enum {
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
 
+void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile) {
+	logToTerminal = bLogToTerminal;
+	logToFile = bLogToFile;
+	logColourTerminal = bLogColourTerminal;
+	logColourFile = bLogColourFile;
+	logFile = pLogFile;
+}
+
 static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
