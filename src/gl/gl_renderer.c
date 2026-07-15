@@ -280,6 +280,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         abort();
     }
 
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    gl_init_wrappers();
+#endif
+
     char vertSrc[1024];
     char fragSrc[1024];
     const char* vertHeader = "";
