@@ -50,7 +50,9 @@ static inline int32_t nextPow2(int32_t v) {
 // (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
 // approach so the code works with any GL loader (glad, PS3, etc.).
 static bool hasGLExtension(const char* name) {
+#ifndef PLATFORM_PS3
     if (glGetStringi) {
+#endif
         GLint numExts = 0;
         glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
         for (GLint i = 0; i < numExts; i++) {
@@ -59,6 +61,7 @@ static bool hasGLExtension(const char* name) {
                 return true;
         }
         return false;
+#ifndef PLATFORM_PS3
     }
     const char* extStr = (const char*)glGetString(GL_EXTENSIONS);
     if (!extStr) return false;
@@ -68,6 +71,7 @@ static bool hasGLExtension(const char* name) {
             return true;
     }
     return false;
+#endif
 }
 
 #include "stb_image.h"
