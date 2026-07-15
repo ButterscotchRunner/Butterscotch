@@ -5,7 +5,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <android/log.h>
-#include <GLES3/gl3.h>
+#include <dlfcn.h>
+#include <EGL/egl.h>
+#include <glad/glad.h>
 
 #include "common.h"
 #include "data_win.h"
@@ -400,12 +402,27 @@ static void teardownRunner() {
     DataWin_free(dataWin);
 }
 
+static void* androidGlLoader(const char* name) {
+    void* ptr = eglGetProcAddress(name);
+    if (ptr == NULL) {
+        ptr = dlsym(RTLD_DEFAULT, name);
+    }
+    return ptr;
+}
+
 JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass cls, jstring jDataWinPath, jstring jSavesPath, jint jOsType, jint jHostFramebuffer) {
     if (gRunner != nullptr) {
         LOGW("startRunner called while a runner is already alive; ignoring");
         return JNI_FALSE;
     }
     gHostFramebuffer = (GLuint) jHostFramebuffer;
+
+    if (!gladLoadGLES2Loader(androidGlLoader)) {
+        LOGE("Failed to load OpenGL ES via Glad");
+        return JNI_FALSE;
+    }
+    LOGI("GL Version: %s", glGetString(GL_VERSION));
+
     const char* dataWinPath = (*env)->GetStringUTFChars(env, jDataWinPath, nullptr);
     const char* savesPath   = (*env)->GetStringUTFChars(env, jSavesPath,   nullptr);
     char** gameArgs = nullptr;
