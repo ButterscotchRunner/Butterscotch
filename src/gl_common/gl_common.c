@@ -8,8 +8,6 @@
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
 
-#include "gl_wrappers.h"
-
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {
