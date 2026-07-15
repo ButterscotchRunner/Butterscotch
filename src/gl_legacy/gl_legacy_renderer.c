@@ -37,6 +37,39 @@ extern GLint  gPalettedUPaletteVLoc;
 #include <string.h>
 #include "math_compat.h"
 
+// Next power-of-two, used for FBO texture dimensions on older GPUs (Intel 82865G etc.)
+// that cannot attach NPOT textures to framebuffer objects.
+static inline int32_t nextPow2(int32_t v) {
+    int32_t r = 1;
+    while (r < v) r <<= 1;
+    return r;
+}
+
+// Checks whether an OpenGL extension is available. Uses the modern
+// (glGetStringi + GL_NUM_EXTENSIONS) path when glGetStringi is non-null
+// (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
+// approach so the code works with any GL loader (glad, PS3, etc.).
+static bool hasGLExtension(const char* name) {
+    if (glGetStringi) {
+        GLint numExts = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
+        for (GLint i = 0; i < numExts; i++) {
+            const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, (GLuint)i);
+            if (ext && strcmp(ext, name) == 0)
+                return true;
+        }
+        return false;
+    }
+    const char* extStr = (const char*)glGetString(GL_EXTENSIONS);
+    if (!extStr) return false;
+    size_t len = strlen(name);
+    for (const char* p = extStr; (p = strstr(p, name)) != NULL; p++) {
+        if ((p == extStr || p[-1] == ' ') && (p[len] == ' ' || p[len] == '\0'))
+            return true;
+    }
+    return false;
+}
+
 #include "stb_image.h"
 #include "stb_ds.h"
 #include "utils.h"
@@ -107,6 +140,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     if (!hasFBO()) {
         fprintf(stderr, "GL: The legacy-gl renderer requires FBO support!\n");
         abort();
+    }
+
+    // GL 2.0+ has NPOT textures as core; older GL (1.x) may or may not have
+    // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
+    // that actually need it (Intel 82865G etc.).
+    {
+        GLVersion ver = GLCommon_getGLVersion();
+        gl->needsPOT = (ver.major < 2) && !hasGLExtension("GL_ARB_texture_non_power_of_two");
     }
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
@@ -1506,10 +1547,13 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
 
     uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
 
+    int32_t texW = gl->needsPOT ? nextPow2(width)  : width;
+    int32_t texH = gl->needsPOT ? nextPow2(height) : height;
+
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -1580,9 +1624,12 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     if (gl->surfaceTexture[surfaceId] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceId]);
 
+    int32_t texW = gl->needsPOT ? nextPow2(width)  : width;
+    int32_t texH = gl->needsPOT ? nextPow2(height) : height;
+
     glGenTextures(1, &gl->surfaceTexture[surfaceId]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -1671,13 +1718,19 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     return true;
 }
 
-// Resolves a surfaceID to a GL texture and its size.
-static bool resolveSurfaceTexture(GLLegacyRenderer* gl, int32_t surfaceId, GLuint* outTexId, int32_t* outW, int32_t* outH) {
+// Resolves a surfaceID to a GL texture and its actual texture size
+// (POT dimensions if needsPOT, logical dimensions otherwise).
+static bool resolveSurfaceTexture(GLLegacyRenderer* gl, int32_t surfaceId, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH) {
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
     *outTexId = gl->surfaceTexture[surfaceId];
-    *outW = gl->surfaceWidth[surfaceId];
-    *outH = gl->surfaceHeight[surfaceId];
+    if (gl->needsPOT) {
+        *outTexW = nextPow2(gl->surfaceWidth[surfaceId]);
+        *outTexH = nextPow2(gl->surfaceHeight[surfaceId]);
+    } else {
+        *outTexW = gl->surfaceWidth[surfaceId];
+        *outTexH = gl->surfaceHeight[surfaceId];
+    }
     return true;
 }
 
@@ -1691,7 +1744,14 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
     int32_t texW, texH;
     if (!resolveSurfaceTexture(gl, surfaceId, &texId, &texW, &texH)) return;
 
-    if (0 > srcWidth) { srcLeft = 0; srcTop = 0; srcWidth = texW; srcHeight = texH; }
+    // Use the logical surface size for the default "draw everything" case,
+    // not the POT texture dimensions (texW/texH may be rounded up).
+    if (0 > srcWidth) {
+        srcLeft = 0;
+        srcTop = 0;
+        srcWidth = gl->surfaceWidth[surfaceId];
+        srcHeight = gl->surfaceHeight[surfaceId];
+    }
 
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;

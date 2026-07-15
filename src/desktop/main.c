@@ -35,6 +35,7 @@
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
 #endif
+#include "gl_common.h"
 #include "gl_wrappers.h"
 #endif
 #ifdef ENABLE_SW_RENDERER
@@ -108,24 +109,22 @@ static size_t get_used_memory(void) {
 }
 
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
-static int platformInitGlad(GLADloadproc load) {
-    glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
-    const char *version;
-    if (glGetString) {
-        version = (const char*)glGetString(GL_VERSION);
-    } else
+static bool platformInitGlad(void) {
+    glGetString = (PFNGLGETSTRINGPROC)platformGetProcAddress("glGetString");
+    if (!glGetString)
         return 0;
-    // Load OpenGL function pointers via GLAD
-    // This will need to be modified if we ever want to support GLES 1.x
-    if (version && strstr(version, "OpenGL ES")) {
+
+    fprintf(stderr, "GL_VERSION: %s\n", (const char*)glGetString(GL_VERSION));
+    GLVersion ver = GLCommon_getGLVersion();
+
+    if (ver.isGLES) {
         if (!gladLoadGLES2Loader(platformGetProcAddress))
-            return 0;
-        return 2;
+            return false;
     } else {
         if (!gladLoadGLLoader(platformGetProcAddress))
-            return 0;
-        return 1;
+            return false;
     }
+    return true;
 }
 #endif
 
@@ -1018,7 +1017,6 @@ int main(int argc, char* argv[]) {
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
 
-    int glad_ret;
     while (true) {
         fprintf(stderr, "Loading %s...\n", args.dataWinPath);
 
@@ -1336,8 +1334,7 @@ int main(int argc, char* argv[]) {
 #else
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
-                glad_ret = platformInitGlad((GLADloadproc)platformGetProcAddress);
-                if (glad_ret == 0) {
+                if (!platformInitGlad()) {
                     fprintf(stderr, "Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
@@ -1376,7 +1373,6 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            ((GLRenderer *)renderer)->isGLES = (glad_ret == 2);
             hostFramebuffer = &((GLRenderer *)renderer)->hostFramebuffer;
         }
 #endif

@@ -267,26 +267,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
-    const char* versionStr = (const char*) glGetString(GL_VERSION);
-    fprintf(stderr, "OpenGL version: %s\n", versionStr);
-    int major = 0;
-    int minor = 0;
-
-    if (versionStr != nullptr) {
-        const char* p = versionStr;
-        while (*p && (*p < '0' || *p > '9')) {
-            p++;
-        }
-        if (*p) {
-            sscanf(p, "%d", &major);
-        }
-        p = strchr(p, '.');
-        if (p && *p) {
-            sscanf(p + 1, "%d", &minor);
-        }
+    GLVersion ver = GLCommon_getGLVersion();
+    if (ver.major < 2) {
+        fprintf(stderr, "GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
+        abort();
     }
-
-    gl->isGL3 = (major >= 3);
+    gl->isGL3 = (ver.major >= 3);
+    gl->isGLES = ver.isGLES;
 
     if (!hasFBO()) {
         fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");

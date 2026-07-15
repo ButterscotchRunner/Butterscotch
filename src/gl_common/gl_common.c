@@ -142,6 +142,24 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     return true;
 }
 
+// ===[ GL version queries ]===
+
+GLVersion GLCommon_getGLVersion(void) {
+    GLVersion v = {0, 0, false};
+    const char* ver = (const char*)glGetString(GL_VERSION);
+    if (!ver) return v;
+    if (strstr(ver, "OpenGL ES")) v.isGLES = true;
+    const char* p = ver;
+    while (*p && (*p < '0' || *p > '9')) p++;
+    if (*p) {
+        v.major = *p - '0';
+        ++p;
+        if (*p == '.') ++p;
+        v.minor = *p - '0';
+    }
+    return v;
+}
+
 // ===[ Blend mode translation ]===
 
 GLenum GLCommon_blendFactorToGL(int factor) {
