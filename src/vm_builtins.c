@@ -1786,7 +1786,7 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
     }
 
     char* val = RValue_toString(args[0]);
-    printf("Game: %s\n", val);
+    Log_log("Game: %s\n", val);
     free(val);
 
     return RValue_makeUndefined();
@@ -7826,7 +7826,7 @@ static RValue builtin_window_set_caption(VMContext* ctx, MAYBE_UNUSED RValue* ar
         runner->windowTitle = safeStrdup(val);
         if (runner->setWindowTitle) {
             runner->setWindowTitle(val);
-            printf("Runner: Window title set to: %s\n", val);
+            Log_log("Runner: Window title set to: %s\n", val);
         }
     }
 

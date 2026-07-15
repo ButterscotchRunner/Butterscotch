@@ -53,7 +53,7 @@ int getKeyCount() {
 }
 
 int main() {
-    printf("Howdy! Loritta is so cute! lol\n");
+   Log_log("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
 }
@@ -206,7 +206,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (0 >= ctx) {
-        printf("Failed to create WebGL context: %d\n", (int)ctx);
+       Log_log("Failed to create WebGL context: %d\n", (int)ctx);
         abort();
     }
 

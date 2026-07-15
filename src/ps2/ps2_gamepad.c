@@ -33,21 +33,21 @@ static void setupAnalogMode(int port) {
         }
     }
     if (!supportsDualshock) {
-        printf("Ps2Gamepad: port %d does not support DualShock mode\n", port);
+       Log_log("Ps2Gamepad: port %d does not support DualShock mode\n", port);
         analogModeReady[port] = true;
         return;
     }
 
     if (padSetMainMode(port, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK) == 0) {
-        printf("Ps2Gamepad: padSetMainMode failed on port %d\n", port);
+       Log_log("Ps2Gamepad: padSetMainMode failed on port %d\n", port);
         return;
     }
     if (!waitForRequest(port)) {
-        printf("Ps2Gamepad: DualShock mode request did not complete on port %d\n", port);
+       Log_log("Ps2Gamepad: DualShock mode request did not complete on port %d\n", port);
         return;
     }
     analogModeReady[port] = true;
-    printf("Ps2Gamepad: port %d set to DualShock analog mode\n", port);
+   Log_log("Ps2Gamepad: port %d set to DualShock analog mode\n", port);
 }
 
 void Ps2Gamepad_poll(RunnerGamepadState* gp, int port) {

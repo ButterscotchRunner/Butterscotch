@@ -1099,7 +1099,7 @@ int main(int argc, char* argv[]) {
             // reflects what each room contains without keeping all of them resident simultaneously.
             forEachIndexed(Room, room, idx, dataWin->room.rooms, dataWin->room.count) {
                 if (!room->present) {
-                    printf("[%d] <absent>\n", (int)idx);
+                   Log_log("[%d] <absent>\n", (int)idx);
                     continue;
                 }
                 bool loadedHere = false;
@@ -1108,15 +1108,15 @@ int main(int argc, char* argv[]) {
                     loadedHere = true;
                 }
 
-                printf("[%d] %s ()\n", (int)idx, room->name);
+               Log_log("[%d] %s ()\n", (int)idx, room->name);
 
                 forEachIndexed(RoomGameObject, roomGameObject, idx2, room->gameObjects, room->gameObjectCount) {
                     if (roomGameObject->objectDefinition < 0 || (uint32_t) roomGameObject->objectDefinition >= dataWin->objt.count) {
-                        printf("  [%d] <no object> (x=%d,y=%d)\n", (int)idx2, roomGameObject->x, roomGameObject->y);
+                       Log_log("  [%d] <no object> (x=%d,y=%d)\n", (int)idx2, roomGameObject->x, roomGameObject->y);
                         continue;
                     }
                     GameObject* gameObject = &dataWin->objt.objects[roomGameObject->objectDefinition];
-                    printf(
+                   Log_log(
                         "  [%d] %s (x=%d,y=%d,persistent=%d,solid=%d,spriteId=%d,preCreateCode=%d,creationCode=%d)\n",
                         (int)idx2,
                         gameObject->name,
@@ -1145,22 +1145,22 @@ int main(int argc, char* argv[]) {
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     totalEvents += obj->eventLists[e].eventCount;
                 }
-                printf("[%u] %s:\n", (unsigned int)idx, obj->name);
+               Log_log("[%u] %s:\n", (unsigned int)idx, obj->name);
                 if (obj->parentId >= 0 && (uint32_t) obj->parentId < dataWin->objt.count) {
-                    printf("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
+                   Log_log("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
                 } else {
-                    printf("  Parent: none\n");
+                   Log_log("  Parent: none\n");
                 }
                 if (obj->spriteId >= 0 && (uint32_t) obj->spriteId < dataWin->sprt.count) {
-                    printf("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
+                   Log_log("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
                 } else {
-                    printf("  Sprite: none\n");
+                   Log_log("  Sprite: none\n");
                 }
-                printf("  Solid: %d\n", obj->solid);
-                printf("  Persistent: %d\n", obj->persistent);
-                printf("  Visible: %d\n", obj->visible);
-                printf("  Depth: %d\n", obj->depth);
-                printf("  Events (%u):\n", totalEvents);
+               Log_log("  Solid: %d\n", obj->solid);
+               Log_log("  Persistent: %d\n", obj->persistent);
+               Log_log("  Visible: %d\n", obj->visible);
+               Log_log("  Depth: %d\n", obj->depth);
+               Log_log("  Events (%u):\n", totalEvents);
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     ObjectEventList* list = &obj->eventLists[e];
                     repeat(list->eventCount, eIdx) {
@@ -1168,10 +1168,10 @@ int main(int argc, char* argv[]) {
                         const char* eventName = Runner_getEventName((int32_t) e, (int32_t) event->eventSubtype);
                         int32_t codeId = -1;
                         if (event->actionCount > 0) codeId = event->actions[0].codeId;
-                        printf("    %s:\n", eventName);
-                        printf("      Sub Type: %u\n", event->eventSubtype);
-                        printf("      Code ID: %d\n", codeId);
-                        printf("      Actions: %u\n", event->actionCount);
+                       Log_log("    %s:\n", eventName);
+                       Log_log("      Sub Type: %u\n", event->eventSubtype);
+                       Log_log("      Code ID: %d\n", codeId);
+                       Log_log("      Actions: %u\n", event->actionCount);
                     }
                 }
             }
@@ -1182,25 +1182,25 @@ int main(int argc, char* argv[]) {
 
         if (args.printShaders) {
             forEachIndexed(Shader, shader, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
-                printf("[%u] %s:\n", (unsigned int)idx, shader->name);
-                printf("GLSL Vertex Shader:\n");
+               Log_log("[%u] %s:\n", (unsigned int)idx, shader->name);
+               Log_log("GLSL Vertex Shader:\n");
                 char* glslVertex = collapseNewlines(shader->glsl_Vertex);
-                printf("%s\n", glslVertex);
+               Log_log("%s\n", glslVertex);
                 free(glslVertex);
 
-                printf("GLSL Fragment Shader:\n");
+               Log_log("GLSL Fragment Shader:\n");
                 char* glslFragment = collapseNewlines(shader->glsl_Fragment);
-                printf("%s\n", glslFragment);
+               Log_log("%s\n", glslFragment);
                 free(glslFragment);
 
-                printf("GLSL ES Vertex Shader:\n");
+               Log_log("GLSL ES Vertex Shader:\n");
                 char* glslESVertex = collapseNewlines(shader->glslES_Vertex);
-                printf("%s\n", glslESVertex);
+               Log_log("%s\n", glslESVertex);
                 free(glslESVertex);
 
-                printf("GLSL ES Fragment Shader:\n");
+               Log_log("GLSL ES Fragment Shader:\n");
                 char* glslESFragment = collapseNewlines(shader->glslES_Fragment);
-                printf("%s\n", glslESFragment);
+               Log_log("%s\n", glslESFragment);
                 free(glslESFragment);
             }
             VM_free(vm);
@@ -1210,7 +1210,7 @@ int main(int argc, char* argv[]) {
 
         if (args.printDeclaredFunctions) {
             repeat(hmlen(vm->codeIndexByName), i) {
-                printf("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
+               Log_log("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
             }
             VM_free(vm);
             DataWin_free(dataWin);
@@ -1574,12 +1574,12 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                            printf("JSON dump saved: %s\n", filename);
+                           Log_log("JSON dump saved: %s\n", filename);
                         } else {
                             Log_logWarning("Error: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                        printf("%s\n", json);
+                       Log_log("%s\n", json);
                     }
 
                     free(json);
@@ -1624,7 +1624,7 @@ int main(int argc, char* argv[]) {
                     int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
                     Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
-                    printf("Changed global.interact [%d] value!\n", interactVarId);
+                   Log_log("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
                 bool currentKeyDown[GML_KEY_COUNT];
@@ -1682,12 +1682,12 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                            printf("JSON dump saved: %s\n", filename);
+                           Log_log("JSON dump saved: %s\n", filename);
                         } else {
                             Log_logWarning("Error: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                        printf("%s\n", json);
+                       Log_log("%s\n", json);
                     }
                     free(json);
                 }
@@ -1785,7 +1785,7 @@ int main(int argc, char* argv[]) {
 #endif
 
                 if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {
-                    printf("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
+                   Log_log("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
                     shouldWindowClose = true;
                 }
 

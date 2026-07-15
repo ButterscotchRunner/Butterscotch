@@ -157,7 +157,7 @@ char *str_replace(char *orig, char *rep, char *with) {
 
 static char buffer[9999];
 int main(int argc, char* argv[]) {
-    printf("%s\n", argv[0]);
+   Log_log("%s\n", argv[0]);
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
@@ -176,7 +176,7 @@ int main(int argc, char* argv[]) {
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-    printf("Loading %s...\n", dataWinPath);
+   Log_log("Loading %s...\n", dataWinPath);
 
     DataWinParserOptions options = {0};
     options.parseGen8 = true;
@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-    printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+   Log_log("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -285,7 +285,7 @@ int main(int argc, char* argv[]) {
         glUseProgram(gPalettedProgram);
         glUniform1i(uPaletteLoc, 1);
         glUseProgram(0);
-        printf("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
+       Log_log("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
     }
 
     // Initialize the runner
@@ -450,6 +450,6 @@ int main(int argc, char* argv[]) {
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
     gcmSetWaitFlip(context);
     rsxFinish(context,1);
-    printf("Bye! :3\n");
+   Log_log("Bye! :3\n");
     return 0;
 }
