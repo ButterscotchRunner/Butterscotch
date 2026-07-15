@@ -144,8 +144,8 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
 
 // ===[ GL version queries ]===
 
-GLVersion GLCommon_getGLVersion(void) {
-    GLVersion v = {0, 0, false};
+GLVer GLCommon_getGLVersion(void) {
+    GLVer v = {0, 0, false};
     const char* ver = (const char*)glGetString(GL_VERSION);
     if (!ver) return v;
     if (strstr(ver, "OpenGL ES")) v.isGLES = true;

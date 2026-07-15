@@ -267,7 +267,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
-    GLVersion ver = GLCommon_getGLVersion();
+    GLVer ver = GLCommon_getGLVersion();
     if (ver.major < 2) {
         fprintf(stderr, "GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
         abort();

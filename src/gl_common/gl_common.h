@@ -64,9 +64,9 @@ typedef struct {
     int major;
     int minor;
     bool isGLES;
-} GLVersion;
+} GLVer;
 
 // Returns the parsed GL version by reading glGetString(GL_VERSION).
-GLVersion GLCommon_getGLVersion(void);
+GLVer GLCommon_getGLVersion(void);
 
 #endif /* _BS_GL_COMMON_H_ */

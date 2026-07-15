@@ -115,7 +115,7 @@ static bool platformInitGlad(void) {
         return 0;
 
     fprintf(stderr, "GL_VERSION: %s\n", (const char*)glGetString(GL_VERSION));
-    GLVersion ver = GLCommon_getGLVersion();
+    GLVer ver = GLCommon_getGLVersion();
 
     if (ver.isGLES) {
         if (!gladLoadGLES2Loader(platformGetProcAddress))
