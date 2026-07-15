@@ -19,7 +19,7 @@ enum {
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\e[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\e[1;31m"
 
-void Log_vLogToTerminal(const int type, const char* fmt, va_list va) {
+static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
 	const FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
@@ -35,13 +35,13 @@ void Log_vLogToTerminal(const int type, const char* fmt, va_list va) {
 	}
 }
 
-void Log_vLogToFile(const int type, const char* fmt, va_list va) {}
+static void vLogToFile(const int type, const char* fmt, va_list va) {}
 
 void Log_logToTerminal(const char* fmt, ...) {
 	va_list va;
 
 	va_start(va, fmt);
-	Log_vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
+	vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
 	va_end(va);
 }
 
@@ -53,10 +53,10 @@ void Log_log(const char* fmt, ...) {
 	va_start(va, fmt);
 
 	if (logToTerminal) {
-		Log_vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
+		vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
 	}
 	if (logToFile) {
-		Log_vLogToFile(LOG_TYPE_NORMAL, fmt, va);
+		vLogToFile(LOG_TYPE_NORMAL, fmt, va);
 	}
 
 	va_end(va);
@@ -66,7 +66,7 @@ void Log_logWarningToTerminal(const char* fmt, ...) {
 	va_list va;
 
 	va_start(va, fmt);
-	Log_vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
+	vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
 	va_end(va);
 }
 
@@ -77,10 +77,10 @@ void Log_logWarning(const char* fmt, ...) {
 	va_start(va, fmt);
 
 	if (logToTerminal) {
-		Log_vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
+		vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
 	}
 	if (logToFile) {
-		Log_vLogToFile(LOG_TYPE_WARNING, fmt, va);
+		vLogToFile(LOG_TYPE_WARNING, fmt, va);
 	}
 
 	va_end(va);
@@ -90,7 +90,7 @@ void Log_logErrorToTerminal(const char* fmt, ...) {
 	va_list va;
 
 	va_start(va, fmt);
-	Log_vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
+	vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
 	va_end(va);
 }
 
@@ -101,10 +101,10 @@ void Log_logError(const char* fmt, ...) {
 	va_start(va, fmt);
 
 	if (logToTerminal) {
-		Log_vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
+		vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
 	}
 	if (logToFile) {
-		Log_vLogToFile(LOG_TYPE_ERROR, fmt, va);
+		vLogToFile(LOG_TYPE_ERROR, fmt, va);
 	}
 
 	va_end(va);

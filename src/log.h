@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-void Log_vLogToTerminal(int type, const char* fmt, va_list va);
-void Log_vLogToFile(int type, const char* fmt, va_list va);
-
 void Log_logToTerminal(const char* fmt, ...);
 void Log_logToFile(const char* fmt, ...);
 void Log_log(const char* fmt, ...);
