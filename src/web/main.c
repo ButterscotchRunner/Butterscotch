@@ -207,7 +207,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (0 >= ctx) {
-       Log_log("Failed to create WebGL context: %d\n", (int)ctx);
+        Log_logError("Failed to create WebGL context: %d\n", (int)ctx);
         abort();
     }
 

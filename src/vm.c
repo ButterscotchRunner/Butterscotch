@@ -2586,7 +2586,7 @@ static void handleBreakChkIndex(VMContext* ctx, uint32_t instrAddr) {
     RValue* top = stackPeek(ctx);
     int32_t idx = RValue_toInt32(*top);
     if (0 > idx || 32000 <= idx) {
-        Log_logWarning("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, ctx->currentCodeName);
+        Log_logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, ctx->currentCodeName);
         abort();
     }
 }
@@ -2629,7 +2629,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
     int32_t idx = stackPopInt32(ctx);
     RValue arrayRef = stackPop(ctx);
     if (arrayRef.type != RVALUE_ARRAY || arrayRef.array == nullptr) {
-        Log_logWarning("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, ctx->currentCodeName);
+        Log_logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, ctx->currentCodeName);
         abort();
     }
     GMLArray* parent = arrayRef.array;
@@ -2740,7 +2740,7 @@ static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, cons
         case BREAK_ISNULLISH:   handleBreakIsNullish(ctx); break;
         case BREAK_PUSHREF:     handleBreakPushRef(ctx, extraData); break;
         default:
-            Log_logWarning("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, ctx->currentCodeName);
+            Log_logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, ctx->currentCodeName);
             abort();
     }
 }
@@ -2780,7 +2780,7 @@ static RValue executeLoop(VMContext* ctx) {
 #ifdef ENABLE_WAD17
         if (ctx->exception != nullptr) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
-            Log_logError("VM: Exception thrown! Stack Top is %d\n", ctx->exceptionHandlerStackTop);
+            Log_logWarning("VM: Exception thrown! Stack Top is %d\n", ctx->exceptionHandlerStackTop);
 #endif
             if (ctx->exceptionHandlerStackTop == 0) {
                 // TODO: When Butterscotch is better, we could have a strict mode that DOES throw a error
@@ -3294,7 +3294,7 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
 
             default:
-                Log_logWarning("VM: Unknown opcode 0x%02X at offset %u\n", opcode, instrAddr);
+                Log_logError("VM: Unknown opcode 0x%02X at offset %u\n", opcode, instrAddr);
                 abort();
         }
     }

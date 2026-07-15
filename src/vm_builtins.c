@@ -8283,7 +8283,7 @@ static RValue builtin_event_inherited(VMContext* ctx, MAYBE_UNUSED RValue* args,
 
     int32_t parentObjectIndex = dataWin->objt.objects[ownerObjectIndex].parentId;
     if (ctx->traceEventInherited) {
-        Log_logWarning("VM: [%s] event_inherited owner=%s(%d) parent=%s(%d) event=%s (instanceId=%d)\n", dataWin->objt.objects[inst->objectIndex].name, dataWin->objt.objects[ownerObjectIndex].name, ownerObjectIndex, (0 > parentObjectIndex) ? "none" : dataWin->objt.objects[parentObjectIndex].name, parentObjectIndex, Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype), inst->instanceId);
+        Log_log("VM: [%s] event_inherited owner=%s(%d) parent=%s(%d) event=%s (instanceId=%d)\n", dataWin->objt.objects[inst->objectIndex].name, dataWin->objt.objects[ownerObjectIndex].name, ownerObjectIndex, (0 > parentObjectIndex) ? "none" : dataWin->objt.objects[parentObjectIndex].name, parentObjectIndex, Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype), inst->instanceId);
     }
     if (0 > parentObjectIndex) return RValue_makeReal(0.0);
 
