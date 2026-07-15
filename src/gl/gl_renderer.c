@@ -363,7 +363,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         char* patchedVertexSource = nullptr;
         char* patchedFragmentSource = nullptr;
 
-        if (!gl->isGLES && major == 2 && minor == 0) { // super opengl 2.0 fuckery go go
+        if (!gl->isGLES && ver.major == 2 && ver.minor == 0) { // super opengl 2.0 fuckery go go
             if (vertexShaderSource && strstr(vertexShaderSource, "#version 120")) {
                 patchedVertexSource = safeStrdup(vertexShaderSource);
                 char* loc = strstr(patchedVertexSource, "#version 120");
