@@ -1,6 +1,7 @@
 #include "gl_legacy_renderer.h"
 #include "matrix_math.h"
 #include "text_utils.h"
+#include "gl_wrappers.h"
 
 
 #ifdef PLATFORM_PS3
