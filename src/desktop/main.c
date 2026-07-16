@@ -1126,7 +1126,7 @@ int main(int argc, char* argv[]) {
             // reflects what each room contains without keeping all of them resident simultaneously.
             forEachIndexed(Room, room, idx, dataWin->room.rooms, dataWin->room.count) {
                 if (!room->present) {
-                   Log_log("[%d] <absent>\n", (int)idx);
+                    Log_log("[%d] <absent>\n", (int)idx);
                     continue;
                 }
                 bool loadedHere = false;
@@ -1135,7 +1135,7 @@ int main(int argc, char* argv[]) {
                     loadedHere = true;
                 }
 
-               Log_log("[%d] %s ()\n", (int)idx, room->name);
+                Log_log("[%d] %s ()\n", (int)idx, room->name);
 
                 forEachIndexed(RoomGameObject, roomGameObject, idx2, room->gameObjects, room->gameObjectCount) {
                     if (roomGameObject->objectDefinition < 0 || (uint32_t) roomGameObject->objectDefinition >= dataWin->objt.count) {
@@ -1143,7 +1143,7 @@ int main(int argc, char* argv[]) {
                         continue;
                     }
                     GameObject* gameObject = &dataWin->objt.objects[roomGameObject->objectDefinition];
-                   Log_log(
+                    Log_log(
                         "  [%d] %s (x=%d,y=%d,persistent=%d,solid=%d,spriteId=%d,preCreateCode=%d,creationCode=%d)\n",
                         (int)idx2,
                         gameObject->name,
@@ -1172,22 +1172,22 @@ int main(int argc, char* argv[]) {
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     totalEvents += obj->eventLists[e].eventCount;
                 }
-               Log_log("[%u] %s:\n", (unsigned int)idx, obj->name);
+                Log_log("[%u] %s:\n", (unsigned int)idx, obj->name);
                 if (obj->parentId >= 0 && (uint32_t) obj->parentId < dataWin->objt.count) {
-                   Log_log("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
+                    Log_log("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
                 } else {
-                   Log_log("  Parent: none\n");
+                    Log_log("  Parent: none\n");
                 }
                 if (obj->spriteId >= 0 && (uint32_t) obj->spriteId < dataWin->sprt.count) {
-                   Log_log("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
+                    Log_log("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
                 } else {
-                   Log_log("  Sprite: none\n");
+                    Log_log("  Sprite: none\n");
                 }
-               Log_log("  Solid: %d\n", obj->solid);
-               Log_log("  Persistent: %d\n", obj->persistent);
-               Log_log("  Visible: %d\n", obj->visible);
-               Log_log("  Depth: %d\n", obj->depth);
-               Log_log("  Events (%u):\n", totalEvents);
+                Log_log("  Solid: %d\n", obj->solid);
+                Log_log("  Persistent: %d\n", obj->persistent);
+                Log_log("  Visible: %d\n", obj->visible);
+                Log_log("  Depth: %d\n", obj->depth);
+                Log_log("  Events (%u):\n", totalEvents);
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     ObjectEventList* list = &obj->eventLists[e];
                     repeat(list->eventCount, eIdx) {
@@ -1195,10 +1195,10 @@ int main(int argc, char* argv[]) {
                         const char* eventName = Runner_getEventName((int32_t) e, (int32_t) event->eventSubtype);
                         int32_t codeId = -1;
                         if (event->actionCount > 0) codeId = event->actions[0].codeId;
-                       Log_log("    %s:\n", eventName);
-                       Log_log("      Sub Type: %u\n", event->eventSubtype);
-                       Log_log("      Code ID: %d\n", codeId);
-                       Log_log("      Actions: %u\n", event->actionCount);
+                        Log_log("    %s:\n", eventName);
+                        Log_log("      Sub Type: %u\n", event->eventSubtype);
+                        Log_log("      Code ID: %d\n", codeId);
+                        Log_log("      Actions: %u\n", event->actionCount);
                     }
                 }
             }
@@ -1209,25 +1209,25 @@ int main(int argc, char* argv[]) {
 
         if (args.printShaders) {
             forEachIndexed(Shader, shader, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
-               Log_log("[%u] %s:\n", (unsigned int)idx, shader->name);
-               Log_log("GLSL Vertex Shader:\n");
+                Log_log("[%u] %s:\n", (unsigned int)idx, shader->name);
+                Log_log("GLSL Vertex Shader:\n");
                 char* glslVertex = collapseNewlines(shader->glsl_Vertex);
-               Log_log("%s\n", glslVertex);
+                Log_log("%s\n", glslVertex);
                 free(glslVertex);
 
-               Log_log("GLSL Fragment Shader:\n");
+                Log_log("GLSL Fragment Shader:\n");
                 char* glslFragment = collapseNewlines(shader->glsl_Fragment);
-               Log_log("%s\n", glslFragment);
+                Log_log("%s\n", glslFragment);
                 free(glslFragment);
 
-               Log_log("GLSL ES Vertex Shader:\n");
+                Log_log("GLSL ES Vertex Shader:\n");
                 char* glslESVertex = collapseNewlines(shader->glslES_Vertex);
-               Log_log("%s\n", glslESVertex);
+                Log_log("%s\n", glslESVertex);
                 free(glslESVertex);
 
-               Log_log("GLSL ES Fragment Shader:\n");
+                Log_log("GLSL ES Fragment Shader:\n");
                 char* glslESFragment = collapseNewlines(shader->glslES_Fragment);
-               Log_log("%s\n", glslESFragment);
+                Log_log("%s\n", glslESFragment);
                 free(glslESFragment);
             }
             VM_free(vm);
@@ -1237,7 +1237,7 @@ int main(int argc, char* argv[]) {
 
         if (args.printDeclaredFunctions) {
             repeat(hmlen(vm->codeIndexByName), i) {
-               Log_log("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
+                Log_log("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
             }
             VM_free(vm);
             DataWin_free(dataWin);
@@ -1606,7 +1606,7 @@ int main(int argc, char* argv[]) {
                             Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                       Log_log("%s\n", json);
+                        Log_log("%s\n", json);
                     }
 
                     free(json);
@@ -1651,7 +1651,7 @@ int main(int argc, char* argv[]) {
                     int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
                     Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
-                   Log_log("Changed global.interact [%d] value!\n", interactVarId);
+                    Log_log("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
                 bool currentKeyDown[GML_KEY_COUNT];
@@ -1714,7 +1714,7 @@ int main(int argc, char* argv[]) {
                             Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                       Log_log("%s\n", json);
+                        Log_log("%s\n", json);
                     }
                     free(json);
                 }
@@ -1812,7 +1812,7 @@ int main(int argc, char* argv[]) {
 #endif
 
                 if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {
-                   Log_log("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
+                    Log_log("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
                     shouldWindowClose = true;
                 }
 
