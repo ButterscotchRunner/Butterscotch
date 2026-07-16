@@ -309,6 +309,10 @@ static void printOsTypeNames(FILE* out) {
     }
 }
 
+#ifndef va_copy
+#define va_copy(d, s) ((d) = (s))
+#endif
+
 void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
 	if (out == LOG_OUT_ALL) {
 		va_list va2;
