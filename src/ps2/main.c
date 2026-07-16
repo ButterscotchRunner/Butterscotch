@@ -348,11 +348,11 @@ int main(int argc, char* argv[]) {
     // ===[ Load Audio IOP Modules ]===
     ret = SifExecModuleBuffer(freesd_irx, size_freesd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_logError("Failed to load freesd: %d\n", ret);
+       Log_logWarning("Failed to load freesd: %d\n", ret);
     }
     ret = SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_logError("Failed to load audsrv: %d\n", ret);
+       Log_logWarning("Failed to load audsrv: %d\n", ret);
     }
 #endif
 
