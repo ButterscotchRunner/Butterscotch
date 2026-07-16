@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common.h"
 
@@ -37,7 +38,9 @@ enum {
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
 #define ANSI_COLOUR_CODE_BOLD_PURPLE "\x1b[1;35m"
 
-static void vLogInternal(FILE* file, bool logColour, const int type, const char* fmt, va_list va) {
+static void vLogInternal(FILE* file, const int type, const char* fmt, va_list va) {
+	const bool logColour = isatty(fileno(file)) ? logColourTerminal : logColourFile;
+
 	if (logColour) {
 		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : (type == LOG_TYPE_ERROR ? ANSI_COLOUR_CODE_BOLD_RED : ANSI_COLOUR_CODE_BOLD_PURPLE))));
 	}
