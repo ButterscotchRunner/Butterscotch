@@ -88,6 +88,12 @@ static bool padWasStable[2] = {false, false};
 // Whether the controllers should be exposed via the GameMaker gamepad API
 static bool gamepadApiEnabled = false;
 
+void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
+		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+	}
+}
+
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
     JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;

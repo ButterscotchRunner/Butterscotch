@@ -16,6 +16,8 @@
 #include "gl/gl_renderer.h"
 #include "stb_ds.h"
 
+#include "log.h"
+
 #define LOG_TAG "Butterscotch"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  LOG_TAG, __VA_ARGS__)
@@ -39,6 +41,12 @@ static float gNormalizedCursorX = 0.0f;
 static float gNormalizedCursorY = 0.0f;
 // We don't need to worry about game changes because the profiler will be automatically disabled then
 static int32_t gProfilerStartedAtFrame = 0;
+
+void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
+		__android_log_print(type == LOG_TYPE_NORMAL ? ANDROID_LOG_INFO : (type == LOG_TYPE_WARNING ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR), LOG_TAG, format, va);
+	}
+}
 
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host
 // passes into stepAndDraw and expose it through the getWindowSize hook below.

@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "common.h"
+#include "utils.h"
 
 static bool logToTerminal = true;
 static bool logToFile = true;
@@ -15,19 +15,6 @@ static bool logColourTerminal = true;
 static bool logColourFile = false;
 
 static const char* logFile = "./butterscotch.log";
-static const char* logFileBackup = "./butterscotch.log";
-
-static FILE* logFileHandleBackup = nullptr;
-static FILE* logFileHandle = nullptr;
-
-static FILE* logFiles[LOG_MAX_FILES];
-
-enum {
-	LOG_TYPE_NORMAL=0,
-	LOG_TYPE_WARNING=1,
-	LOG_TYPE_ERROR=2,
-	LOG_TYPE_DEBUG=3
-};
 
 #ifndef va_copy
 #define va_copy(d, s) ((d) = (s))
@@ -38,56 +25,98 @@ enum {
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
 #define ANSI_COLOUR_CODE_BOLD_PURPLE "\x1b[1;35m"
 
-static void vLogInternal(FILE* file, const int type, const char* fmt, va_list va) {
-	const bool logColour = isatty(fileno(file)) ? logColourTerminal : logColourFile;
+// In the platform main.c
+void platformLog(const logType type, const logOutType out, const char *format, va_list va);
+// Example impl:
+// void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+// 	if (out == LOG_OUT_ALL) {
+// 		va_list va2;
+// 		va_copy(va2, va);
+// 		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+// 		vfprintf(logFileHandle, format, va2);
+// 		va_end(va2);
+// 	}
+// 	else if (out == LOG_OUT_TERMINAL) {
+// 		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+// 	}
+// 	else { // LOG_OUT_FILE
+// 		vfprintf(logFileHandle, format, va);
+// 	}
+// }
 
-	if (logColour) {
-		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : (type == LOG_TYPE_ERROR ? ANSI_COLOUR_CODE_BOLD_RED : ANSI_COLOUR_CODE_BOLD_PURPLE))));
+static void vLogInternal(const logType type, const logOutType out, const char* fmt, va_list va) {
+	// TODO: Seperate logColour less hackily
+	if (out == LOG_OUT_ALL) {
+		va_list va2;
+		va_copy(va2, va);
+		vLogInternal(type, LOG_OUT_TERMINAL, fmt, va);
+		vLogInternal(type, LOG_OUT_FILE, fmt, va2);
+		va_end(va2);
+		return;
 	}
 
-	if (type != LOG_TYPE_NORMAL) {
-		fprintf(file, (type == LOG_TYPE_WARNING ? "Warning: " : (type == LOG_TYPE_ERROR ? "Error: " : "Debug: ")));
+	const bool logColour = out == LOG_OUT_TERMINAL ? logColourTerminal : logColourFile;
+
+	const char* prefix = "";
+	if (type == LOG_TYPE_WARNING) {
+		prefix = "Warning: ";
+	}
+	else if (type == LOG_TYPE_ERROR) {
+		prefix = "Error: ";
+	}
+	else if (type == LOG_TYPE_DEBUG) {
+		prefix = "Debug: ";
 	}
 
-	vfprintf(file, fmt, va);
+	const char* colourPrefix = "";
+	const char* colourPostfix = "";
 
-	if (logColour) {
-		fprintf(file, ANSI_COLOUR_CODE_WHITE);
+	if(logColour) {
+		colourPrefix = (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : (type == LOG_TYPE_ERROR ? ANSI_COLOUR_CODE_BOLD_RED : ANSI_COLOUR_CODE_BOLD_PURPLE)));
+		colourPostfix = ANSI_COLOUR_CODE_WHITE;
 	}
+
+	size_t newFmtSize = strlen(colourPrefix) + strlen(prefix) + strlen(fmt) + strlen(colourPostfix) + 1;
+
+	char* newFmt = safeMalloc(newFmtSize);
+
+	snprintf(newFmt, newFmtSize, "%s%s%s%s", colourPrefix, prefix, fmt, colourPostfix);
+
+	newFmt[newFmtSize-1] = '\0';
+
+	platformLog(type, out, newFmt, va);
+
+	free(newFmt);
 }
 
 static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
-	vLogInternal(type == LOG_TYPE_NORMAL ? stdout : stderr, logColourTerminal, type, fmt, va);
+	vLogInternal(type, LOG_OUT_TERMINAL, fmt, va);
 }
 
 static void vLogToFile(const int type, const char* fmt, va_list va) {
-	if (!logToFile || !logFileHandle) return;
+	if (!logToFile) return;
 
-	vLogInternal(logFileHandle, logColourFile, type, fmt, va);
-
-	for (int i=0; i < LOG_MAX_FILES; i++) {
-		if (!logFiles[i]) continue;
-		vLogInternal(logFiles[i], logColourFile, type, fmt, va);
-	}
+	vLogInternal(type, LOG_OUT_FILE, fmt, va);
 }
 
-void Log_init() {
-	memset(logFiles, 0, sizeof(logFiles));
+static void vLog(const int type, const char* fmt, va_list va) {
+	if (!logToTerminal && !logToFile) return;
 
+	vLogInternal(type, LOG_OUT_ALL, fmt, va);
+}
+
+FILE* Log_init() {
+	if (logFile == nullptr) return nullptr;
+
+	FILE* logFileHandle = fopen(logFile, "w");
 	if (logFileHandle != nullptr) {
-		fclose(logFileHandle);
+		setvbuf(logFileHandle, nullptr, _IONBF, 0);
+		return logFileHandle;
 	}
 
-	if (logFile != nullptr) {
-		logFileHandle = fopen(logFile, "w");
-		if (logFileHandle != nullptr) {
-			setvbuf(logFileHandle, nullptr, _IONBF, 0);
-			logFileHandleBackup = logFileHandle;
-			logFileBackup = logFile;
-		}
-	}
+	return nullptr;
 }
 
 void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, const char* pLogFile) {
@@ -98,48 +127,6 @@ void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTermina
 	if (pLogFile != nullptr) {
 		logFile = pLogFile;
 	}
-}
-
-void Log_setFile(FILE* file, const char* path) {
-	logFileHandle = file;
-	logFile = path;
-}
-
-void Log_resetFile() {
-	logFileHandle = logFileHandleBackup;
-	logFile = logFileBackup;
-}
-
-bool Log_addFile(FILE* file) {
-	if (file == nullptr) return false;
-
-	int availableSlot = -1;
-	for (int i=0; i < LOG_MAX_FILES; i++) {
-		if (logFiles[i] == file) {
-			return true;
-		}
-		if (logFiles[i] == nullptr) {
-			availableSlot = i;
-		}
-	}
-
-	if (availableSlot == -1) return false;
-
-	logFiles[availableSlot] = file;
-	return true;
-}
-
-bool Log_removeFile(FILE* file) {
-	if (file == nullptr) return false;
-
-	for (int i=0; i < LOG_MAX_FILES; i++) {
-		if (logFiles[i] == file) {
-			logFiles[i] = nullptr;
-			return true;
-		}
-	}
-
-	return false;
 }
 
 void logInfoToTerminal(const char* fmt, ...) {
@@ -159,20 +146,11 @@ void logInfoToFile(const char* fmt, ...) {
 }
 
 void logInfo(const char* fmt, ...) {
-	va_list va, va2;
+	va_list va;
 
 	va_start(va, fmt);
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_NORMAL, fmt, va2);
-	}
-
+	vLog(LOG_TYPE_NORMAL, fmt, va);
 	va_end(va);
-	va_end(va2);
 }
 
 void vLogInfoToTerminal(const char* fmt, va_list va) {
@@ -184,17 +162,7 @@ void vLogInfoToFile(const char* fmt, va_list va) {
 }
 
 void vLogInfo(const char* fmt, va_list va) {
-	va_list va2;
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_NORMAL, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_NORMAL, fmt, va2);
-	}
-
-	va_end(va2);
+	vLog(LOG_TYPE_NORMAL, fmt, va);
 }
 
 void logWarnToTerminal(const char* fmt, ...) {
@@ -214,20 +182,11 @@ void logWarnToFile(const char* fmt, ...) {
 }
 
 void logWarn(const char* fmt, ...) {
-	va_list va, va2;
+	va_list va;
 
 	va_start(va, fmt);
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_WARNING, fmt, va2);
-	}
-
+	vLog(LOG_TYPE_WARNING, fmt, va);
 	va_end(va);
-	va_end(va2);
 }
 
 void vLogWarnToTerminal(const char* fmt, va_list va) {
@@ -239,17 +198,7 @@ void vLogWarnToFile(const char* fmt, va_list va) {
 }
 
 void vLogWarn(const char* fmt, va_list va) {
-	va_list va2;
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_WARNING, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_WARNING, fmt, va2);
-	}
-
-	va_end(va2);
+	vLog(LOG_TYPE_WARNING, fmt, va);
 }
 
 void logErrorToTerminal(const char* fmt, ...) {
@@ -269,20 +218,11 @@ void logErrorToFile(const char* fmt, ...) {
 }
 
 void logError(const char* fmt, ...) {
-	va_list va, va2;
+	va_list va;
 
 	va_start(va, fmt);
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_ERROR, fmt, va2);
-	}
-
+	vLog(LOG_TYPE_ERROR, fmt, va);
 	va_end(va);
-	va_end(va2);
 }
 
 void vLogErrorToTerminal(const char* fmt, va_list va) {
@@ -294,17 +234,7 @@ void vLogErrorToFile(const char* fmt, va_list va) {
 }
 
 void vLogError(const char* fmt, va_list va) {
-	va_list va2;
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_ERROR, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_ERROR, fmt, va2);
-	}
-
-	va_end(va2);
+	vLog(LOG_TYPE_ERROR, fmt, va);
 }
 
 void logDebugToTerminal(const char* fmt, ...) {
@@ -324,20 +254,11 @@ void logDebugToFile(const char* fmt, ...) {
 }
 
 void logDebug(const char* fmt, ...) {
-	va_list va, va2;
+	va_list va;
 
 	va_start(va, fmt);
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_DEBUG, fmt, va2);
-	}
-
+	vLog(LOG_TYPE_DEBUG, fmt, va);
 	va_end(va);
-	va_end(va2);
 }
 
 void vLogDebugToTerminal(const char* fmt, va_list va) {
@@ -349,15 +270,5 @@ void vLogDebugToFile(const char* fmt, va_list va) {
 }
 
 void vLogDebug(const char* fmt, va_list va) {
-	va_list va2;
-	va_copy(va2, va);
-
-	if (logToTerminal) {
-		vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
-	}
-	if (logToFile) {
-		vLogToFile(LOG_TYPE_DEBUG, fmt, va2);
-	}
-
-	va_end(va2);
+	vLog(LOG_TYPE_DEBUG, fmt, va);
 }

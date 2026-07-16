@@ -7,14 +7,21 @@
 
 #define LOG_MAX_FILES 16
 
-void Log_init();
+typedef enum {
+	LOG_TYPE_NORMAL=0,
+	LOG_TYPE_WARNING=1,
+	LOG_TYPE_ERROR=2,
+	LOG_TYPE_DEBUG=3
+} logType;
+
+typedef enum {
+	LOG_OUT_ALL=0,
+	LOG_OUT_TERMINAL=1,
+	LOG_OUT_FILE=2
+} logOutType;
+
+FILE* Log_init();
 void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, const char* pLogFile);
-
-void Log_setFile(FILE* file, const char* path);
-void Log_resetFile();
-
-bool Log_addFile(FILE* file);
-bool Log_removeFile(FILE* file);
 
 void logInfoToTerminal(const char* fmt, ...);
 void logInfoToFile(const char* fmt, ...);

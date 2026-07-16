@@ -155,6 +155,12 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
+void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
+		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+	}
+}
+
 static char buffer[9999];
 int main(int argc, char* argv[]) {
 	Log_init();

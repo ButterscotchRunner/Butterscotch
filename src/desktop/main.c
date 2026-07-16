@@ -55,6 +55,8 @@
 #include "profiler.h"
 #include "gettime.h"
 
+FILE* logFileHandle = nullptr;
+
 /* For SDL_main */
 #if defined(USE_SDL1)
 #include <SDL/SDL_main.h>
@@ -302,11 +304,25 @@ static bool parseOsTypeArg(const char* s, YoYoOperatingSystem* out) {
 }
 
 static void printOsTypeNames(FILE* out) {
-	bool addFileSucceeded = Log_addFile(out);
     forEachIndexed(const OsTypeNameEntry, entry, i, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        logInfoToFile("%s%s", i > 0 ? ", " : "", entry->name);
+        fprintf(out, "%s%s", i > 0 ? ", " : "", entry->name);
     }
-	if (addFileSucceeded) Log_removeFile(out);
+}
+
+void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+	if (out == LOG_OUT_ALL) {
+		va_list va2;
+		va_copy(va2, va);
+		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+		vfprintf(logFileHandle, format, va2);
+		va_end(va2);
+	}
+	else if (out == LOG_OUT_TERMINAL) {
+		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+	}
+	else { // LOG_OUT_FILE
+		vfprintf(logFileHandle, format, va);
+	}
 }
 
 // Resolves the window size for the specified operating system.
@@ -1039,7 +1055,7 @@ int main(int argc, char* argv[]) {
 
     Log_setOptions(!args.disableTerminalLog, !args.disableFileLog, !args.disableTerminalLogColours, args.enableFileLogColours, args.logFile ? args.logFile : "./butterscotch.log");
 
-    Log_init();
+    logFileHandle = Log_init();
 
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
