@@ -2463,17 +2463,17 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
         entries[j] = tmp;
     }
 
-    Log_logDebug("=== Opcode Profiler Report ===\n");
-    Log_logDebug("Total instructions executed: %llu\n", (unsigned long long) total);
-    Log_logDebug("%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
+    Log_log("=== Opcode Profiler Report ===\n");
+    Log_log("Total instructions executed: %llu\n", (unsigned long long) total);
+    Log_log("%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
         double pct = total > 0 ? (100.0 * (double) entry->count / (double) total) : 0.0;
-        Log_logDebug("%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned long long) entry->count, pct);
+        Log_log("%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned long long) entry->count, pct);
     }
 
     // Per-opcode breakdown by type variant. Sorted within each opcode by count desc.
-    Log_logDebug("\n--- Type variant breakdown (per opcode) ---\n");
+    Log_log("\n--- Type variant breakdown (per opcode) ---\n");
     forEachIndexed(CountEntry, entry, idx, entries, entryCount) {
         (void) idx;
         uint8_t opcode = (uint8_t) entry->key;
@@ -2498,13 +2498,13 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             variantEntries[j] = tmp;
         }
 
-        Log_logDebug("%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned long long) entry->count);
+        Log_log("%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned long long) entry->count);
         forEachIndexed(CountEntry, ve, vi, variantEntries, variantCount) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
             uint8_t type2 = (uint8_t) (ve->key & 0xF);
             double vpct = entry->count > 0 ? (100.0 * (double) ve->count / (double) entry->count) : 0.0;
-            Log_logDebug("    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned long long) ve->count, vpct);
+            Log_log("    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned long long) ve->count, vpct);
         }
 
         // Runtime RValue type breakdown (a, b types observed at execution time)
@@ -2531,13 +2531,13 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     }
                     rvEntries[j] = tmp;
                 }
-                Log_logDebug("    -- runtime types (a, b):\n");
+                Log_log("    -- runtime types (a, b):\n");
                 forEachIndexed(CountEntry, re, ri, rvEntries, rvCount) {
                     (void) ri;
                     uint8_t typeA = (uint8_t) ((re->key >> 4) & 0xF);
                     uint8_t typeB = (uint8_t) (re->key & 0xF);
                     double rpct = rvTotal > 0 ? (100.0 * (double) re->count / (double) rvTotal) : 0.0;
-                    Log_logDebug("    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned long long) re->count, rpct);
+                    Log_log("    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned long long) re->count, rpct);
                 }
             }
         }
@@ -2562,16 +2562,16 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                 }
                 breakEntries[j] = tmp;
             }
-            Log_logDebug("    -- sub-opcodes:\n");
+            Log_log("    -- sub-opcodes:\n");
             forEachIndexed(CountEntry, be, bi, breakEntries, breakCount) {
                 (void) bi;
                 int16_t breakType = (int16_t) -((int) be->key);
                 double bpct = entry->count > 0 ? (100.0 * (double) be->count / (double) entry->count) : 0.0;
-                Log_logDebug("    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned long long) be->count, bpct);
+                Log_log("    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned long long) be->count, bpct);
             }
         }
     }
-    Log_logDebug("==============================\n");
+    Log_log("==============================\n");
 }
 #endif // ENABLE_VM_OPCODE_PROFILER
 

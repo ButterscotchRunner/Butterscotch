@@ -311,7 +311,7 @@ int main(int argc, char* argv[]) {
         bool shouldStep = true;
         if (runner->debugMode && debugPaused) {
             shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-            if (shouldStep) Log_logDebug("Debug: Frame advance (frame %d)\n", runner->frameCount);
+            if (shouldStep) Log_logDebug("Frame advance (frame %d)\n", runner->frameCount);
         }
 
 
