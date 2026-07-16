@@ -97,19 +97,19 @@ static void vLogInternal(const logType type, const logOutType out, const char* f
 	free(newFmt);
 }
 
-static void vLogToTerminal(const int type, const char* fmt, va_list va) {
+static void vLogToTerminal(const logType type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
 	vLogInternal(type, LOG_OUT_TERMINAL, fmt, va);
 }
 
-static void vLogToFile(const int type, const char* fmt, va_list va) {
+static void vLogToFile(const logType type, const char* fmt, va_list va) {
 	if (!logToFile) return;
 
 	vLogInternal(type, LOG_OUT_FILE, fmt, va);
 }
 
-static void vLog(const int type, const char* fmt, va_list va) {
+static void vLog(const logType type, const char* fmt, va_list va) {
 	if (!logToTerminal && !logToFile) return;
 
 	vLogInternal(type, LOG_OUT_ALL, fmt, va);
