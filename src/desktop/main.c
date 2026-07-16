@@ -310,7 +310,7 @@ static bool logToFile = false;
 static FILE* logFileHandle = nullptr;
 
 #ifndef va_copy
-#define va_copy ((d) = (s))
+#define va_copy(d, s) ((d) = (s))
 #endif
 
 void platformLog(const logType type, const char *format, va_list va) {
