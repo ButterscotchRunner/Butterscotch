@@ -22,10 +22,8 @@ static int32_t gAudioSampleRate = 48000;
 uint8_t keyDown[GML_KEY_COUNT] = {0};
 uint8_t keyUp[GML_KEY_COUNT] = {0};
 
-void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
-	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
-		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
-	}
+void platformLog(const logType type, const char *format, va_list va) {
+	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
 }
 
 // Configures the sample rate that miniaudio will mix at. Must match the AudioContext's sampleRate

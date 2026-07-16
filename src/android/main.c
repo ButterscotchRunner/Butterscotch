@@ -42,10 +42,8 @@ static float gNormalizedCursorY = 0.0f;
 // We don't need to worry about game changes because the profiler will be automatically disabled then
 static int32_t gProfilerStartedAtFrame = 0;
 
-void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
-	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
-		__android_log_print(type == LOG_TYPE_NORMAL ? ANDROID_LOG_INFO : (type == LOG_TYPE_WARNING ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR), LOG_TAG, format, va);
-	}
+void platformLog(const logType type, const char *format, va_list va) {
+	__android_log_print(type == LOG_TYPE_NORMAL ? ANDROID_LOG_INFO : (type == LOG_TYPE_WARNING ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR), LOG_TAG, format, va);
 }
 
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host

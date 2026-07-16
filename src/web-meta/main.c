@@ -4,6 +4,10 @@
 #include <string.h>
 #include "data_win.h"
 
+void platformLog(const logType type, const char *format, va_list va) {
+	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+}
+
 DataWin* parseDataWin(const char* path) {
     DataWinParserOptions opts = {0};
     opts.parseGen8 = true;

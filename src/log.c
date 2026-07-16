@@ -19,11 +19,9 @@ static bool logColour = true;
 void platformLog(const logType type, const char *format, va_list va);
 
 // Example impl:
-#ifdef PLATFORM_WEB_META
-void platformLog(const logType type, const char *format, va_list va) {
-	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
-}
-#endif
+// void platformLog(const logType type, const char *format, va_list va) {
+// 	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+// }
 
 static void vLog(const logType type, const char* fmt, va_list va) {
 	const char* prefix = "";
