@@ -16202,6 +16202,28 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
     VM_structSetAndFreeVal(ctx, ret, "frame_speed", RValue_makeReal(sprite->gms2PlaybackSpeed), -1);
     VM_structSetAndFreeVal(ctx, ret, "frame_type", RValue_makeReal(sprite->gms2PlaybackSpeedType), -1);
 
+    GMLArray* frames = GMLArray_create(ctx->dataWin->gen8.wadVersion, (int32_t)sprite->textureCount);
+    repeat(sprite->textureCount, i) {
+        Instance* frame = Runner_createStruct(ctx->runner);
+        int32_t idx = sprite->tpagIndices[i];
+        TexturePageItem* tpagItem = &ctx->dataWin->tpag.items[idx];
+        
+        VM_structSetAndFreeVal(ctx, frame, "w", RValue_makeReal(tpagItem->boundingWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "h", RValue_makeReal(tpagItem->boundingHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "x_offset", RValue_makeReal(tpagItem->targetX), -1);
+        VM_structSetAndFreeVal(ctx, frame, "y_offset", RValue_makeReal(tpagItem->targetY), -1);
+        VM_structSetAndFreeVal(ctx, frame, "x", RValue_makeReal(tpagItem->sourceX), -1);
+        VM_structSetAndFreeVal(ctx, frame, "y", RValue_makeReal(tpagItem->sourceY), -1);
+        VM_structSetAndFreeVal(ctx, frame, "original_width", RValue_makeReal(tpagItem->boundingWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "original_height", RValue_makeReal(tpagItem->boundingHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "crop_width", RValue_makeReal(tpagItem->targetWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "crop_height", RValue_makeReal(tpagItem->targetHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "texture", RValue_makeReal(idx), -1);
+        
+        *GMLArray_slot(frames, (int32_t)i) = RValue_makeStructAndIncRef(frame);
+    }
+    VM_structSetAndFreeVal(ctx, ret, "frames", RValue_makeArray(frames), -1);
+
     return RValue_makeStructAndIncRef(ret);
 }
 
