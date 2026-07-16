@@ -13536,9 +13536,8 @@ static RValue builtin_layer_tile_visible(VMContext* ctx, RValue* args, MAYBE_UNU
 }
 
 static bool isValidLayerSpriteElement(RuntimeLayerElement* element) {
-    bool isValid = element != nullptr && element->type == RuntimeLayerElementType_Sprite;
-    requireNotNull(element->spriteElement); // If this crashes then something went DEEPLY wrong
-    return isValid;
+    return element != nullptr && element->spriteElement != nullptr && \
+        element->type == RuntimeLayerElementType_Sprite;
 }
 
 static RValue builtin_layer_sprite_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
