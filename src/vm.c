@@ -1550,9 +1550,14 @@ static void handleDiv(VMContext* ctx, uint32_t instr) {
 static void handleRem(VMContext* ctx, uint32_t instr) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
-    int64_t divisor = RValue_toInt64(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
-    int64_t result = RValue_toInt64(a) / divisor;
+    uint8_t type1 = instrType1(instr);
+    uint8_t type2 = instrType2(instr);
+    GMLReal divisor = RValue_toReal(b);
+    // Ditto
+    if ((type1 == GML_TYPE_INT32 || type1 == GML_TYPE_INT64) && (type2 == GML_TYPE_INT32 || type2 == GML_TYPE_INT64)) {
+        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
+    }
+    GMLReal result = GMLReal_fmod(RValue_toReal(a), divisor);
     RValue_free(&a);
     RValue_free(&b);
     stackPushTyped(ctx, RValue_makeInt64(result), instrType2(instr));
