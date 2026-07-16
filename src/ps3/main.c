@@ -161,7 +161,7 @@ void platformLog(const logType type, const char *format, va_list va) {
 
 static char buffer[9999];
 int main(int argc, char* argv[]) {
-	Log_init();
+	Log_setColour(false);
    	logInfo("%s\n", argv[0]);
     if (argc > 0)
         strcpy(buffer, argv[0]);

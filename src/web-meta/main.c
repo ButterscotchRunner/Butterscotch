@@ -52,5 +52,6 @@ uint32_t getDefaultWindowHeight(DataWin* dw) {
 }
 
 int main(void) {
+	Log_setColour(false);
     return 0;
 }
