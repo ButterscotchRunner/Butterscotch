@@ -635,7 +635,7 @@ static bool performGameChange(const char* workingDirectory, char* launchParamete
     }
 
     if (dataWinFilename == nullptr) {
-        Log_logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", launchParameters);
+        logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", launchParameters);
         repeat(arrlen(newArguments), i) {
             free(newArguments[i]);
         }

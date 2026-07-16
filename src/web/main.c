@@ -55,7 +55,7 @@ int getKeyCount() {
 int main() {
     Log_setOptions(true, false, true, false, nullptr);
     Log_init();
-    Log_log("Howdy! Loritta is so cute! lol\n");
+    logInfo("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
 }
@@ -64,12 +64,12 @@ int main() {
 int mountOpfs(void) {
     backend_t opfs = wasmfs_create_opfs_backend();
     if (!opfs) {
-        Log_logWarning("Failed to create OPFS backend\n");
+        logWarn("Failed to create OPFS backend\n");
         return -1;
     }
     int rc = wasmfs_create_directory("/butterscotch", 0777, opfs);
     if (rc != 0) {
-        Log_logWarning("Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
+        logWarn("Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
         return -1;
     }
     return 0;
@@ -165,7 +165,7 @@ void* loop() {
     }
 
     // Cleanup
-    Log_log("Cleaning up runner!\n");
+    logInfo("Cleaning up runner!\n");
 
     gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
     gRunner->audioSystem = nullptr;
@@ -191,7 +191,7 @@ void setWindowTitle(const char* title) {
 // gamePath: WASMFS path to the data.win to load (example: "/butterscotch/games/undertale/data.win").
 // savesPath: WASMFS directory where saves should live (example: "/butterscotch/saves/undertale" - Created if it does not exist).
 void startRunner(const char* gamePath, const char* savesPath) {
-    Log_log("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
+    logInfo("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
@@ -208,7 +208,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (0 >= ctx) {
-        Log_logError("Failed to create WebGL context: %d\n", (int)ctx);
+        logError("Failed to create WebGL context: %d\n", (int)ctx);
         abort();
     }
 
@@ -220,7 +220,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // Make sure the saves directory exists. The FileSystem impl will write into it.
     if (savesPath != nullptr && savesPath[0] != '\0') {
         if (mkdirP(savesPath) != 0) {
-            Log_logWarning("Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
+            logWarn("Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
         }
     }
 
@@ -297,6 +297,6 @@ void startRunner(const char* gamePath, const char* savesPath) {
 }
 
 void stopRunner() {
-    Log_log("Marked runner to exit!\n");
+    logInfo("Marked runner to exit!\n");
     gRunner->shouldExit = true;
 }

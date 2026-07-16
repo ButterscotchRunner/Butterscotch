@@ -149,7 +149,7 @@ static bool platformGetWindowFocus(void) {
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
-        Log_logError("Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
@@ -164,7 +164,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     window = tryOpenWindow(fbWidth, fbHeight, title, flags);
 
     if (!window && gfx != SOFTWARE) {
-        Log_logError("Fatal: Could not open window: %s\n", SDL_GetError());
+        logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
 
@@ -182,7 +182,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         }
     }
     if (!window) {
-        Log_logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
     if (gfx != SOFTWARE) {

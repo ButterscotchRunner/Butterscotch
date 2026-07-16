@@ -79,7 +79,7 @@ static void webInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem
 
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
-        Log_logError("Audio: Failed to initialize miniaudio engine in noDevice mode (error %d)\n", result);
+        logError("Audio: Failed to initialize miniaudio engine in noDevice mode (error %d)\n", result);
         ma->engineReady = false;
         return;
     }
@@ -88,7 +88,7 @@ static void webInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 
-    Log_log("Audio: web miniaudio engine initialized (noDevice, %d Hz, 2 ch)\n", ma->sampleRate);
+    logInfo("Audio: web miniaudio engine initialized (noDevice, %d Hz, 2 ch)\n", ma->sampleRate);
 }
 
 static void webDestroy(AudioSystem* audio) {
@@ -166,14 +166,14 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     if (isStream) {
         int32_t streamSlot = soundIndex - WEB_AUDIO_STREAM_INDEX_BASE;
         if (0 > streamSlot || streamSlot >= WEB_MAX_AUDIO_STREAMS || !ma->streams[streamSlot].active) {
-            Log_logWarning("Audio: Invalid stream index %d\n", soundIndex);
+            logWarn("Audio: Invalid stream index %d\n", soundIndex);
             return -1;
         }
         streamPath = ma->streams[streamSlot].filePath;
     } else {
         DataWin* dw = ma->base.audioGroups[0];
         if (0 > soundIndex || (uint32_t) soundIndex >= dw->sond.count) {
-            Log_logWarning("Audio: Invalid sound index %d\n", soundIndex);
+            logWarn("Audio: Invalid sound index %d\n", soundIndex);
             return -1;
         }
         sound = &dw->sond.sounds[soundIndex];
@@ -181,7 +181,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
     WebSoundInstance* slot = findFreeSlot(ma);
     if (slot == nullptr) {
-        Log_logWarning("Audio: No free sound slots for sound %d\n", soundIndex);
+        logWarn("Audio: No free sound slots for sound %d\n", soundIndex);
         return -1;
     }
 
@@ -191,7 +191,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     if (isStream) {
         result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
-            Log_logWarning("Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
+            logWarn("Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
         }
         slot->ownsDecoder = false;
@@ -203,7 +203,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
         if (inAudo) {
             if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) {
-                Log_logWarning("Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
+                logWarn("Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
                 return -1;
             }
 
@@ -212,27 +212,27 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
             ma_decoder_config decoderConfig = ma_decoder_config_init_default();
             result = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &slot->decoder);
             if (result != MA_SUCCESS) {
-                Log_logWarning("Audio: Failed to init decoder for '%s' (error %d)\n", sound->name, result);
+                logWarn("Audio: Failed to init decoder for '%s' (error %d)\n", sound->name, result);
                 return -1;
             }
             slot->ownsDecoder = true;
 
             result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
-                Log_logWarning("Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
+                logWarn("Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
                 ma_decoder_uninit(&slot->decoder);
                 return -1;
             }
         } else {
             char* path = resolveExternalPath(ma, sound);
             if (path == nullptr) {
-                Log_logWarning("Audio: Could not resolve path for sound '%s'\n", sound->name);
+                logWarn("Audio: Could not resolve path for sound '%s'\n", sound->name);
                 return -1;
             }
 
             result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
-                Log_logWarning("Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
+                logWarn("Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
                 free(path);
                 return -1;
             }
@@ -605,7 +605,7 @@ static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
         FileSystem* fileSystem = ((WebAudioSystem*)audio)->fileSystem;
         if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
-            Log_logWarning("Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
+            logWarn("Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
             free(buf);
             return;
         }
@@ -634,13 +634,13 @@ static int32_t webCreateStream(AudioSystem* audio, const char* filename) {
     }
 
     if (0 > freeSlot) {
-        Log_logWarning("Audio: No free stream slots for '%s'\n", filename);
+        logWarn("Audio: No free stream slots for '%s'\n", filename);
         return -1;
     }
 
     char* resolved = ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
     if (resolved == nullptr) {
-        Log_logWarning("Audio: Could not resolve path for stream '%s'\n", filename);
+        logWarn("Audio: Could not resolve path for stream '%s'\n", filename);
         return -1;
     }
 
@@ -648,7 +648,7 @@ static int32_t webCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
 
     int32_t streamIndex = WEB_AUDIO_STREAM_INDEX_BASE + freeSlot;
-    Log_log("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 
@@ -658,7 +658,7 @@ static bool webDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
     int32_t slotIndex = streamIndex - WEB_AUDIO_STREAM_INDEX_BASE;
     if (0 > slotIndex || slotIndex >= WEB_MAX_AUDIO_STREAMS) {
-        Log_logWarning("Audio: Invalid stream index %d for destroy\n", streamIndex);
+        logWarn("Audio: Invalid stream index %d for destroy\n", streamIndex);
         return false;
     }
 

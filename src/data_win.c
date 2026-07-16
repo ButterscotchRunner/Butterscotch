@@ -822,7 +822,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
                     check = 0;
                 }
             } else {
-                Log_logWarning("DataWin: Detected special sprite type %u (%s), but we don't support it yet!\n", spr->sSpriteType, spr->sSpriteType == 2 ? "Spine" : spr->sSpriteType == 1 ? "SWF" : "Unknown");
+                logWarn("DataWin: Detected special sprite type %u (%s), but we don't support it yet!\n", spr->sSpriteType, spr->sSpriteType == 2 ? "Spine" : spr->sSpriteType == 1 ? "SWF" : "Unknown");
                 spr->textureCount = 0;
                 spr->tpagIndices = nullptr;
                 spr->maskCount = 0;
@@ -1077,7 +1077,7 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
 
     uint32_t version = BinaryReader_readUint32(reader);
     if (version != 1) {
-        Log_logWarning("ACRV: unexpected version %u (expected 1)\n", version);
+        logWarn("ACRV: unexpected version %u (expected 1)\n", version);
         return;
     }
 
@@ -1858,7 +1858,7 @@ static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room, uint32
                 break;
             }
             default: {
-                Log_logError("Unsupported Room Layer Type %u\n", layer->type);
+                logError("Unsupported Room Layer Type %u\n", layer->type);
                 exit(0);
             }
         }
@@ -2114,7 +2114,7 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
 static int32_t parseTexturePageItem(BinaryReader* reader, DataWin* dw, int32_t i) {
     int32_t position = i;
     if (i == -1) {
-        Log_logWarning("DataWin: Allocated new TPAG! Was the WAD built with WinPack? (TranslaTale)\n");
+        logWarn("DataWin: Allocated new TPAG! Was the WAD built with WinPack? (TranslaTale)\n");
         uint32_t newCount = dw->tpag.count + 1;
         TexturePageItem* newItems = (TexturePageItem *)safeCalloc(newCount, sizeof(TexturePageItem));
         memcpy(newItems, dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
@@ -2552,7 +2552,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     if (tex->blobData != nullptr) return;
 
     if (!dw->lazyLoadFile) {
-        Log_logWarning("loadTxtrIfNeeded: called without a lazy load file.\n");
+        logWarn("loadTxtrIfNeeded: called without a lazy load file.\n");
         return;
     }
 
@@ -2565,7 +2565,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
 
     if (read != tex->blobSize) {
-        Log_logWarning("loadTxtrIfNeeded: couldn't read %u bytes to load a texture.\n", tex->blobSize);
+        logWarn("loadTxtrIfNeeded: couldn't read %u bytes to load a texture.\n", tex->blobSize);
     }
 }
 
@@ -2603,7 +2603,7 @@ static void parseAUDO(BinaryReader* reader, DataWin* dw) {
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     FILE* file = fopen(filePath, "rb");
     if (!file) {
-        Log_logError("Failed to open file: %s\n", filePath);
+        logError("Failed to open file: %s\n", filePath);
         exit(1);
     }
 
@@ -2617,7 +2617,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     fseek(file, 0, SEEK_SET);
 
     if (0 >= fileSizeRaw) {
-        Log_logError("Invalid file size: %ld\n", fileSizeRaw);
+        logError("Invalid file size: %ld\n", fileSizeRaw);
         fclose(file);
         exit(1);
     }
@@ -2639,7 +2639,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     } else if (options.loadType == DATAWINLOADTYPE_MAP_FILE) {
         wholeFileData = mapFile(file, fileSize);
         if (!wholeFileData) {
-            Log_logError("Failed to map file\n");
+            logError("Failed to map file\n");
             fclose(file);
             exit(1);
         }
@@ -2653,7 +2653,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     // Some games may purposely corrupt the magic value so that UndertaleModTool doesn't open it
     // The native runner does not care about verifying the magic value, so we'll validate it and warn, but we won't exit
     if (memcmp(formMagic, "FORM", 4) != 0) {
-        Log_logWarning("The file does not have the expected FORM magic, got '%.4s'. The file may not be a WAD or it may have been tampered with!\n", formMagic);
+        logWarn("The file does not have the expected FORM magic, got '%.4s'. The file may not be a WAD or it may have been tampered with!\n", formMagic);
     }
 
     uint32_t formLength = BinaryReader_readUint32(&reader);
@@ -2700,7 +2700,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         }
 
         if (chunkDataStart + chunkLength > fileSize) {
-            Log_logWarning("Chunk data extends beyond file size: chunkDataStart=%zu, chunkLength=%u, fileSize=%zu! Are you running a GameMaker Raspberry Pi game? Skipping bytes out of bounds...\n", chunkDataStart, chunkLength, fileSize);
+            logWarn("Chunk data extends beyond file size: chunkDataStart=%zu, chunkLength=%u, fileSize=%zu! Are you running a GameMaker Raspberry Pi game? Skipping bytes out of bounds...\n", chunkDataStart, chunkLength, fileSize);
             break;
         }
 
@@ -2709,7 +2709,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     }
 
     if (!codeExists && options.parseCode) {
-        Log_logError("CODE chunk does not exist or is empty! This usually means you're loading a YYC game.\n");
+        logError("CODE chunk does not exist or is empty! This usually means you're loading a YYC game.\n");
         fclose(file);
         exit(1);
     }
@@ -2767,7 +2767,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             if (chunkBuffer) {
                 size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
                 if (read != chunkLength) {
-                    Log_logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
+                    logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
                     exit(1);
                 }
                 BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
@@ -2840,7 +2840,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
             parseAUDO(&reader, dw);
         } else {
-            Log_log("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
+            logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
         }
 
         // Free the chunk buffer and revert to FILE*-based reads for the next header

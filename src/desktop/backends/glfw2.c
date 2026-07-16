@@ -186,18 +186,18 @@ static void GLFWCALL scrollCallback(int pos) {
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless) {
-        Log_logError("Headless mode is not supported with GLFW 2\n");
+        logError("Headless mode is not supported with GLFW 2\n");
         return false;
     }
 
     // Init GLFW
     if (!glfwInit()) {
-        Log_logError("Failed to initialize GLFW\n");
+        logError("Failed to initialize GLFW\n");
         return false;
     }
 
     if (!tryOpenWindow(reqW, reqH)) {
-        Log_logError("Failed to create GLFW window\n");
+        logError("Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }

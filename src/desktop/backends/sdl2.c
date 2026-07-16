@@ -167,7 +167,7 @@ static bool platformGetWindowFocus(void) {
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
-        Log_logError("Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
@@ -187,14 +187,14 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     window = tryOpenWindow(reqW, reqH, title, flags);
 
     if (!window && gfx != SOFTWARE) {
-        Log_logError("Fatal: Could not open window: %s\n", SDL_GetError());
+        logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
 
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
-            Log_logWarning("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+            logWarn("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
             reqW = mode.w;
             reqH = mode.h;
@@ -208,7 +208,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         }
     }
     if (!window) {
-        Log_logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
     if (gfx != SOFTWARE) {
@@ -222,9 +222,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
-        Log_log("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+        logInfo("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
     } else {
-        Log_logWarning("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
+        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
     }
 
     return true;

@@ -137,7 +137,7 @@ static void loadGamepadMappings(void) {
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "rb");
     if (!f) {
-        Log_logWarning("Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
+        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
         return;
     }
 
@@ -194,7 +194,7 @@ static void loadGamepadMappings(void) {
                 const char* jname = SDL_JoystickName(i);
                 if (jname && strcasecmp(jname, name) == 0) {
                     joystickMappings[i] = temp;
-                    Log_log("Gamepad: Mapped '%s' (slot %d)\n", jname, i);
+                    logInfo("Gamepad: Mapped '%s' (slot %d)\n", jname, i);
                 }
             }
         }
@@ -240,13 +240,13 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless && gfx != SOFTWARE) {
-        Log_logError("Headless mode on SDL 1.2 requires the software renderer!\n");
+        logError("Headless mode on SDL 1.2 requires the software renderer!\n");
         return false;
     }
 
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_JOYSTICK)) {
-        Log_logError("Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
@@ -271,7 +271,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
-                Log_logWarning("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                logWarn("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
                         reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
                 scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
                 fbWidth = modes[0]->w;
@@ -279,7 +279,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
             }
         }
         if (!scr) {
-            Log_logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
+            logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
             return false;
         }
     }

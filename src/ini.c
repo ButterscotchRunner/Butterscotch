@@ -114,7 +114,7 @@ IniFile* Ini_parse(const char* text) {
                     currentSection = addSection(ini, nameStart);
                 }
             } else {
-                Log_logWarning("Ini: malformed section header: %s\n", trimmed);
+                logWarn("Ini: malformed section header: %s\n", trimmed);
             }
         } else {
             // Key=value pair

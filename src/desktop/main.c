@@ -114,7 +114,7 @@ static bool platformInitGlad(void) {
     if (!glGetString)
         return 0;
 
-    Log_log("OpenGL Version: %s\n", (const char*)glGetString(GL_VERSION));
+    logInfo("OpenGL Version: %s\n", (const char*)glGetString(GL_VERSION));
     GLVer ver = GLCommon_getGLVersion();
 
     if (ver.isGLES) {
@@ -164,7 +164,7 @@ static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLen
         default: severityStr = "Unknown"; break;
     }
 
-    Log_log("[OpenGL %s] id=%u Type: %s; Severity: %s; Message: %.*s\n", sourceStr, id, typeStr, severityStr, (int) length, message);
+    logInfo("[OpenGL %s] id=%u Type: %s; Severity: %s; Message: %.*s\n", sourceStr, id, typeStr, severityStr, (int) length, message);
 }
 
 static void installGLDebugCallback(void) {
@@ -304,7 +304,7 @@ static bool parseOsTypeArg(const char* s, YoYoOperatingSystem* out) {
 static void printOsTypeNames(FILE* out) {
 	bool addFileSucceeded = Log_addFile(out);
     forEachIndexed(const OsTypeNameEntry, entry, i, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        Log_logToFile("%s%s", i > 0 ? ", " : "", entry->name);
+        logInfoToFile("%s%s", i > 0 ? ", " : "", entry->name);
     }
 	if (addFileSucceeded) Log_removeFile(out);
 }
@@ -390,7 +390,7 @@ static char** extractRunnerArguments(char* rawArguments) {
 }
 
 static void printUsage(const char *argv0) {
-    Log_log(
+    logInfo(
         "Usage: %s <path to data.win or game.unx>\n"
         "    --help                                 - Show this message\n"
         "    --screenshot <filename>                - Specify the filename for screenshots\n"
@@ -548,7 +548,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s'\n", optarg);
+                    logError("Error: Invalid frame number '%s'\n", optarg);
                     exit(1);
                 }
 
@@ -562,7 +562,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
+                    logError("Error: Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
                     exit(1);
                 }
                 hmput(args->screenshotSurfacesFrames, frame, true);
@@ -630,7 +630,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s' for --exit-at-frame\n", optarg);
+                    logError("Error: Invalid frame number '%s' for --exit-at-frame\n", optarg);
                     exit(1);
                 }
                 args->exitAtFrame = frame;
@@ -640,7 +640,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
+                    logError("Error: Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
                     exit(1);
                 }
                 args->traceBytecodeAfterFrame = frame;
@@ -650,7 +650,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s' for --dump-frame\n", optarg);
+                    logError("Error: Invalid frame number '%s' for --dump-frame\n", optarg);
                     exit(1);
                 }
                 hmput(args->dumpFrames, frame, true);
@@ -660,7 +660,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    Log_logError("Error: Invalid frame number '%s' for --dump-frame-json\n", optarg);
+                    logError("Error: Invalid frame number '%s' for --dump-frame-json\n", optarg);
                     exit(1);
                 }
                 hmput(args->dumpJsonFrames, frame, true);
@@ -673,7 +673,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 double speed = strtod(optarg, &endPtr);
                 if (*endPtr != '\0' || speed <= 0.0) {
-                    Log_logError("Error: Invalid speed multiplier '%s' for --speed (must be > 0)\n", optarg);
+                    logError("Error: Invalid speed multiplier '%s' for --speed (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->speedMultiplier = speed;
@@ -683,7 +683,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 double speed = strtod(optarg, &endPtr);
                 if (*endPtr != '\0' || speed <= 0.0) {
-                    Log_logError("Error: Invalid speed '%s' for --fast-forward-speed (must be > 0)\n", optarg);
+                    logError("Error: Invalid speed '%s' for --fast-forward-speed (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->fastForwardSpeed = speed;
@@ -714,7 +714,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int seedVal = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0') {
-                    Log_logError("Error: Invalid seed value '%s' for --seed\n", optarg);
+                    logError("Error: Invalid seed value '%s' for --seed\n", optarg);
                     exit(1);
                 }
                 args->seed = seedVal;
@@ -731,7 +731,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int framesBetween = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || framesBetween <= 0) {
-                    Log_logError("Error: Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
+                    logError("Error: Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->profilerFramesBetween = framesBetween;
@@ -755,16 +755,16 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 #endif
             case 'O':
                 if (!parseOsTypeArg(optarg, &args->osType)) {
-                    Log_logError("Error: Invalid --os-type value '%s' (expected: ", optarg);
+                    logError("Error: Invalid --os-type value '%s' (expected: ", optarg);
                     printOsTypeNames(stderr);
-                    Log_logError(")\n");
+                    logError(")\n");
                     exit(1);
                 }
                 break;
             case 'w': {
                 int32_t w = 0, h = 0;
                 if (sscanf(optarg, "%dx%d", &w, &h) != 2 || 0 >= w || 0 >= h) {
-                    Log_logError("Error: Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
+                    logError("Error: Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
                     exit(1);
                 }
                 args->windowWidth = w;
@@ -779,7 +779,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 } else if (strcmp(optarg, "load-per-chunk") == 0) {
                     args->loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
                 } else {
-                    Log_logError("Error: Unknown load type '%s'\n", optarg);
+                    logError("Error: Unknown load type '%s'\n", optarg);
                     exit(1);
                 }
                 break;
@@ -797,7 +797,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 } else if ((ratio = strtod(optarg, &endPtr)), *endPtr == '\0' && ratio > 0.0) {
                     args->widescreenAspect = (float) ratio;
                 } else {
-                    Log_logError("Error: Invalid --widescreen-hack value '%s' (expected W:H like 16:9, or a decimal like 1.7778)\n", optarg);
+                    logError("Error: Invalid --widescreen-hack value '%s' (expected W:H like 16:9, or a decimal like 1.7778)\n", optarg);
                     exit(1);
                 }
                 break;
@@ -824,24 +824,24 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
-        Log_logError("Usage: %s <path to data.win or game.unx>\n", argv[0]);
+        logError("Usage: %s <path to data.win or game.unx>\n", argv[0]);
         exit(1);
     }
 
     args->dataWinPath = argv[optind];
 
     if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
-        Log_logError("Error: --screenshot-at-frame requires --screenshot to be set\n");
+        logError("Error: --screenshot-at-frame requires --screenshot to be set\n");
         exit(1);
     }
 
     if (hmlen(args->screenshotSurfacesFrames) > 0 && args->screenshotSurfacesPattern == nullptr) {
-        Log_logError("Error: --screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
+        logError("Error: --screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
         exit(1);
     }
 
     if (args->headless && args->speedMultiplier != 1.0) {
-        Log_logError("You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
+        logError("You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
         exit(1);
     }
 }
@@ -877,7 +877,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     int stride = width * 4;
     unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
-        Log_logWarning("Warning: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
+        logWarn("Warning: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
     }
 
@@ -897,7 +897,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     }
 
     free(pixels);
-    Log_log("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
+    logInfo("%s: %s (%dx%d)\n", logPrefix, filename, width, height);
 }
 
 static void captureScreenshot(GLuint fbo, const char* filenamePattern, int frameNumber, int width, int height, bool flipY) {
@@ -1053,7 +1053,7 @@ int main(int argc, char* argv[]) {
     int32_t inputFrameCount = 0;
 
     while (true) {
-        Log_log("Loading %s...\n", args.dataWinPath);
+        logInfo("Loading %s...\n", args.dataWinPath);
 
         DataWinParserOptions options = {0};
         options.parseGen8 = true;
@@ -1090,12 +1090,12 @@ int main(int argc, char* argv[]) {
         DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
         Gen8* gen8 = &dataWin->gen8;
-        Log_log("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+        logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
 #ifdef HAVE_MALLINFO2
         {
             struct mallinfo2 mi = mallinfo2();
-            Log_log("Memory after data.win parsing: used=%zu bytes (%.1f KB)\n", mi.uordblks, mi.uordblks / 1024.0f);
+            logInfo("Memory after data.win parsing: used=%zu bytes (%.1f KB)\n", mi.uordblks, mi.uordblks / 1024.0f);
         }
 #endif
 
@@ -1118,7 +1118,7 @@ int main(int argc, char* argv[]) {
         if (args.hasSeed) {
             srand((unsigned int) args.seed);
             vm->hasFixedSeed = true;
-            Log_log("Using fixed RNG seed: %d\n", args.seed);
+            logInfo("Using fixed RNG seed: %d\n", args.seed);
         }
 
         if (args.printRooms) {
@@ -1126,7 +1126,7 @@ int main(int argc, char* argv[]) {
             // reflects what each room contains without keeping all of them resident simultaneously.
             forEachIndexed(Room, room, idx, dataWin->room.rooms, dataWin->room.count) {
                 if (!room->present) {
-                    Log_log("[%d] <absent>\n", (int)idx);
+                    logInfo("[%d] <absent>\n", (int)idx);
                     continue;
                 }
                 bool loadedHere = false;
@@ -1135,15 +1135,15 @@ int main(int argc, char* argv[]) {
                     loadedHere = true;
                 }
 
-                Log_log("[%d] %s ()\n", (int)idx, room->name);
+                logInfo("[%d] %s ()\n", (int)idx, room->name);
 
                 forEachIndexed(RoomGameObject, roomGameObject, idx2, room->gameObjects, room->gameObjectCount) {
                     if (roomGameObject->objectDefinition < 0 || (uint32_t) roomGameObject->objectDefinition >= dataWin->objt.count) {
-                       Log_log("  [%d] <no object> (x=%d,y=%d)\n", (int)idx2, roomGameObject->x, roomGameObject->y);
+                       logInfo("  [%d] <no object> (x=%d,y=%d)\n", (int)idx2, roomGameObject->x, roomGameObject->y);
                         continue;
                     }
                     GameObject* gameObject = &dataWin->objt.objects[roomGameObject->objectDefinition];
-                    Log_log(
+                    logInfo(
                         "  [%d] %s (x=%d,y=%d,persistent=%d,solid=%d,spriteId=%d,preCreateCode=%d,creationCode=%d)\n",
                         (int)idx2,
                         gameObject->name,
@@ -1172,22 +1172,22 @@ int main(int argc, char* argv[]) {
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     totalEvents += obj->eventLists[e].eventCount;
                 }
-                Log_log("[%u] %s:\n", (unsigned int)idx, obj->name);
+                logInfo("[%u] %s:\n", (unsigned int)idx, obj->name);
                 if (obj->parentId >= 0 && (uint32_t) obj->parentId < dataWin->objt.count) {
-                    Log_log("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
+                    logInfo("  Parent: %s (%d)\n", dataWin->objt.objects[obj->parentId].name, obj->parentId);
                 } else {
-                    Log_log("  Parent: none\n");
+                    logInfo("  Parent: none\n");
                 }
                 if (obj->spriteId >= 0 && (uint32_t) obj->spriteId < dataWin->sprt.count) {
-                    Log_log("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
+                    logInfo("  Sprite: %s (%d)\n", dataWin->sprt.sprites[obj->spriteId].name, obj->spriteId);
                 } else {
-                    Log_log("  Sprite: none\n");
+                    logInfo("  Sprite: none\n");
                 }
-                Log_log("  Solid: %d\n", obj->solid);
-                Log_log("  Persistent: %d\n", obj->persistent);
-                Log_log("  Visible: %d\n", obj->visible);
-                Log_log("  Depth: %d\n", obj->depth);
-                Log_log("  Events (%u):\n", totalEvents);
+                logInfo("  Solid: %d\n", obj->solid);
+                logInfo("  Persistent: %d\n", obj->persistent);
+                logInfo("  Visible: %d\n", obj->visible);
+                logInfo("  Depth: %d\n", obj->depth);
+                logInfo("  Events (%u):\n", totalEvents);
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     ObjectEventList* list = &obj->eventLists[e];
                     repeat(list->eventCount, eIdx) {
@@ -1195,10 +1195,10 @@ int main(int argc, char* argv[]) {
                         const char* eventName = Runner_getEventName((int32_t) e, (int32_t) event->eventSubtype);
                         int32_t codeId = -1;
                         if (event->actionCount > 0) codeId = event->actions[0].codeId;
-                        Log_log("    %s:\n", eventName);
-                        Log_log("      Sub Type: %u\n", event->eventSubtype);
-                        Log_log("      Code ID: %d\n", codeId);
-                        Log_log("      Actions: %u\n", event->actionCount);
+                        logInfo("    %s:\n", eventName);
+                        logInfo("      Sub Type: %u\n", event->eventSubtype);
+                        logInfo("      Code ID: %d\n", codeId);
+                        logInfo("      Actions: %u\n", event->actionCount);
                     }
                 }
             }
@@ -1209,25 +1209,25 @@ int main(int argc, char* argv[]) {
 
         if (args.printShaders) {
             forEachIndexed(Shader, shader, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
-                Log_log("[%u] %s:\n", (unsigned int)idx, shader->name);
-                Log_log("GLSL Vertex Shader:\n");
+                logInfo("[%u] %s:\n", (unsigned int)idx, shader->name);
+                logInfo("GLSL Vertex Shader:\n");
                 char* glslVertex = collapseNewlines(shader->glsl_Vertex);
-                Log_log("%s\n", glslVertex);
+                logInfo("%s\n", glslVertex);
                 free(glslVertex);
 
-                Log_log("GLSL Fragment Shader:\n");
+                logInfo("GLSL Fragment Shader:\n");
                 char* glslFragment = collapseNewlines(shader->glsl_Fragment);
-                Log_log("%s\n", glslFragment);
+                logInfo("%s\n", glslFragment);
                 free(glslFragment);
 
-                Log_log("GLSL ES Vertex Shader:\n");
+                logInfo("GLSL ES Vertex Shader:\n");
                 char* glslESVertex = collapseNewlines(shader->glslES_Vertex);
-                Log_log("%s\n", glslESVertex);
+                logInfo("%s\n", glslESVertex);
                 free(glslESVertex);
 
-                Log_log("GLSL ES Fragment Shader:\n");
+                logInfo("GLSL ES Fragment Shader:\n");
                 char* glslESFragment = collapseNewlines(shader->glslES_Fragment);
-                Log_log("%s\n", glslESFragment);
+                logInfo("%s\n", glslESFragment);
                 free(glslESFragment);
             }
             VM_free(vm);
@@ -1237,7 +1237,7 @@ int main(int argc, char* argv[]) {
 
         if (args.printDeclaredFunctions) {
             repeat(hmlen(vm->codeIndexByName), i) {
-                Log_log("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
+                logInfo("[%d] %s\n", vm->codeIndexByName[i].value, vm->codeIndexByName[i].key);
             }
             VM_free(vm);
             DataWin_free(dataWin);
@@ -1246,7 +1246,7 @@ int main(int argc, char* argv[]) {
 
         if (args.printUnknownFunctions) {
             uint32_t unimplementedCount = 0;
-            Log_log("Unknown Functions:\n");
+            logInfo("Unknown Functions:\n");
             repeat(dataWin->func.functionCount, i) {
                 const char* name = dataWin->func.functions[i].name;
                 if (name == nullptr)
@@ -1260,14 +1260,14 @@ int main(int argc, char* argv[]) {
                 if (VM_findBuiltin(vm, name) != nullptr)
                     continue;
 
-                Log_log("- %s\n", name);
+                logInfo("- %s\n", name);
                 unimplementedCount++;
             }
 
             if (unimplementedCount == 0) {
-                Log_log("All %u referenced functions are implemented! :3\n", dataWin->func.functionCount);
+                logInfo("All %u referenced functions are implemented! :3\n", dataWin->func.functionCount);
             } else {
-                Log_log("%u unknown function(s) out of %u referenced\n", unimplementedCount, dataWin->func.functionCount);
+                logInfo("%u unknown function(s) out of %u referenced\n", unimplementedCount, dataWin->func.functionCount);
             }
             VM_free(vm);
             DataWin_free(dataWin);
@@ -1287,7 +1287,7 @@ int main(int argc, char* argv[]) {
                     if (idx >= 0) {
                         VM_disassemble(vm, vm->codeIndexByName[idx].value);
                     } else {
-                        Log_logWarning("Warning: Script '%s' not found in funcMap\n", name);
+                        logWarn("Warning: Script '%s' not found in funcMap\n", name);
                     }
                 }
             }
@@ -1324,31 +1324,31 @@ int main(int argc, char* argv[]) {
         else if (strcmp(args.renderer, "software") == 0)
             gfx = SOFTWARE;
         else {
-            Log_logError("Unknown renderer: %s!\n", args.renderer);
+            logError("Unknown renderer: %s!\n", args.renderer);
             return 1;
         }
 
 #ifndef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
-            Log_logError("The legacy gl renderer is not available in this build!\n");
+            logError("The legacy gl renderer is not available in this build!\n");
             return 0;
         }
 #endif
 #ifndef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
-            Log_logError("The modern gl renderer is not available in this build!\n");
+            logError("The modern gl renderer is not available in this build!\n");
             return 0;
         }
 #endif
 #ifndef ENABLE_SW_RENDERER
         if (gfx == SOFTWARE) {
-            Log_logError("The software renderer is not available in this build!\n");
+            logError("The software renderer is not available in this build!\n");
             return 0;
         }
 #endif
 
         if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
-            Log_logError("You can only use --screenshot-surfaces with the modern gl renderer!\n");
+            logError("You can only use --screenshot-surfaces with the modern gl renderer!\n");
             return 0;
         }
 
@@ -1370,7 +1370,7 @@ int main(int argc, char* argv[]) {
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
                 if (!platformInitGlad()) {
-                    Log_logError("Failed to initialize GLAD\n");
+                    logError("Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
                     freeCommandLineArgs(&args);
@@ -1412,7 +1412,7 @@ int main(int argc, char* argv[]) {
         }
 #endif
         if (!renderer) {
-            Log_logError("Failed to initialize a renderer\n");
+            logError("Failed to initialize a renderer\n");
             platformExit();
             DataWin_free(dataWin);
             freeCommandLineArgs(&args);
@@ -1539,7 +1539,7 @@ int main(int argc, char* argv[]) {
                 // Pause
                 if (RunnerKeyboard_checkPressed(runner->keyboard, 'P')) {
                     debugPaused = !debugPaused;
-                    Log_logDebug("%s\n", debugPaused ? "Paused" : "Resumed");
+                    logDebug("%s\n", debugPaused ? "Paused" : "Resumed");
                 }
             }
 
@@ -1547,7 +1547,7 @@ int main(int argc, char* argv[]) {
             bool shouldStep = true;
             if (runner->debugMode && debugPaused) {
                 shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-                if (shouldStep) Log_logDebug("Frame advance (frame %d)\n", runner->frameCount);
+                if (shouldStep) logDebug("Frame advance (frame %d)\n", runner->frameCount);
             }
 
             uint64_t frameStartTime = 0;
@@ -1555,7 +1555,7 @@ int main(int argc, char* argv[]) {
             if (shouldStep) {
                 if (args.traceFrames) {
                     frameStartTime = nowNanos();
-                    Log_log("Frame %d (Start)\n", runner->frameCount);
+                    logInfo("Frame %d (Start)\n", runner->frameCount);
                 }
 
                 // Process input recording/playback (must happen after platformHandleEvents, before Runner_step)
@@ -1568,7 +1568,7 @@ int main(int argc, char* argv[]) {
                         int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                         runner->pendingRoom = nextIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        Log_logDebug("Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                        logDebug("Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
                     }
                 }
 
@@ -1579,18 +1579,18 @@ int main(int argc, char* argv[]) {
                         int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
                         runner->pendingRoom = prevIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        Log_logDebug("Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
+                        logDebug("Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
                     }
                 }
 
                 // Dump runner state to console
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F12)) {
-                    Log_logDebug("Dumping runner state at frame %d\n", runner->frameCount);
+                    logDebug("Dumping runner state at frame %d\n", runner->frameCount);
                     Runner_dumpState(runner);
                 }
 
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F11)) {
-                    Log_logDebug("Dumping runner state at frame %d\n", runner->frameCount);
+                    logDebug("Dumping runner state at frame %d\n", runner->frameCount);
                     char* json = Runner_dumpStateJson(runner);
 
                     if (args.dumpJsonFilePattern != nullptr) {
@@ -1601,12 +1601,12 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                            Log_log("JSON dump saved: %s\n", filename);
+                            logInfo("JSON dump saved: %s\n", filename);
                         } else {
-                            Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
+                            logWarn("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                        Log_log("%s\n", json);
+                        logInfo("%s\n", json);
                     }
 
                     free(json);
@@ -1615,7 +1615,7 @@ int main(int argc, char* argv[]) {
                 // Toggle the collision mask debug overlay
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
                     debugShowCollisionMasks = !debugShowCollisionMasks;
-                    Log_logDebug("Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
+                    logDebug("Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
                 }
 
                 // Enable free cam
@@ -1625,7 +1625,7 @@ int main(int argc, char* argv[]) {
                     runner->freeCamZoom = 1.0f;
 
                     freeCamActive = !freeCamActive;
-                    Log_logDebug("Free cam %s!\n", freeCamActive ? "enabled" : "disabled");
+                    logDebug("Free cam %s!\n", freeCamActive ? "enabled" : "disabled");
                 }
 
                 if (freeCamActive) {
@@ -1651,7 +1651,7 @@ int main(int argc, char* argv[]) {
                     int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
                     Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
-                    Log_log("Changed global.interact [%d] value!\n", interactVarId);
+                    logInfo("Changed global.interact [%d] value!\n", interactVarId);
                 }
 
                 bool currentKeyDown[GML_KEY_COUNT];
@@ -1681,7 +1681,7 @@ int main(int argc, char* argv[]) {
                 if (args.profilerFramesBetween > 0 && runner->frameCount > 0 && runner->frameCount % args.profilerFramesBetween == 0) {
                     char* profilerReport = Profiler_createReport(vm->profiler, 20, args.profilerFramesBetween);
                     if (profilerReport != nullptr) {
-                        Log_log("%s\n", profilerReport);
+                        logInfo("%s\n", profilerReport);
                         free(profilerReport);
                     }
                     Profiler_reset(vm->profiler);
@@ -1709,12 +1709,12 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                            Log_log("JSON dump saved: %s\n", filename);
+                            logInfo("JSON dump saved: %s\n", filename);
                         } else {
-                            Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
+                            logWarn("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
-                        Log_log("%s\n", json);
+                        logInfo("%s\n", json);
                     }
                     free(json);
                 }
@@ -1812,13 +1812,13 @@ int main(int argc, char* argv[]) {
 #endif
 
                 if (args.exitAtFrame >= 0 && runner->frameCount >= args.exitAtFrame) {
-                    Log_log("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
+                    logInfo("Exiting at frame %d (--exit-at-frame)\n", runner->frameCount);
                     shouldWindowClose = true;
                 }
 
                 if (shouldStep && args.traceFrames) {
                     double frameElapsedMs = (nowNanos() - frameStartTime) / 1000000.0;
-                    Log_log("Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
+                    logInfo("Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
                 }
 
                 // Only swap when there isn't a room change to match the original runner.
@@ -1830,9 +1830,9 @@ int main(int argc, char* argv[]) {
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_BACKSPACE)) {
                 size_t bytes_used = get_used_memory();
                 if (bytes_used == 0)
-                    Log_logWarning("Unable to get memory usage\n");
+                    logWarn("Unable to get memory usage\n");
                 else
-                    Log_log("Memory use right now: %zu bytes (%.1f MB)\n", bytes_used, bytes_used / 1024.0f / 1024.0f);
+                    logInfo("Memory use right now: %zu bytes (%.1f MB)\n", bytes_used, bytes_used / 1024.0f / 1024.0f);
             }
 
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
@@ -1887,7 +1887,7 @@ int main(int argc, char* argv[]) {
                 free(currentGameArgs[i]);
             }
             arrfree(currentGameArgs);
-            Log_log("Bye! :3\n");
+            logInfo("Bye! :3\n");
 #ifdef _WIN32
             timeEndPeriod(1);
 #endif
@@ -1917,7 +1917,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (dataWinFilename == nullptr) {
-                Log_logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", nextLaunchParameters);
+                logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", nextLaunchParameters);
                 free(nextWorkingDirectory);
                 free(nextLaunchParameters);
                 freeCommandLineArgs(&args);

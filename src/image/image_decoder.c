@@ -136,7 +136,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     unsigned int destLen = (unsigned int) uncompressedCapacity;
     int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, &destLen, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
     if (rc != BZ_OK) {
-        Log_logWarning("ImageDecoder: BZ2 decompress failed (rc=%d)\n", rc);
+        logWarn("ImageDecoder: BZ2 decompress failed (rc=%d)\n", rc);
         free(uncompressed);
         return nullptr;
     }

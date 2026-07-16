@@ -127,7 +127,7 @@ static bool platformGetWindowFocus(void) {
 }
 
 static void glfwErrorCallback(int code, const char* description) {
-    Log_logWarning("GLFW error 0x%x: %s\n", code, description);
+    logWarn("GLFW error 0x%x: %s\n", code, description);
 }
 
 static int32_t glfwKeyToGml(int glfwKey) {
@@ -224,7 +224,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
-        Log_logError("Failed to initialize GLFW\n");
+        logError("Failed to initialize GLFW\n");
         return false;
     }
 
@@ -241,23 +241,23 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
             buffer[len] = '\0';
             if (buffer[0] != '\0') {
                 if (glfwUpdateGamepadMappings(buffer)) {
-                    Log_log("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+                    logInfo("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
                 } else {
-                    Log_logWarning("Gamepad: Failed to load SDL gamecontroller mappings\n");
+                    logWarn("Gamepad: Failed to load SDL gamecontroller mappings\n");
                 }
             }
             free(buffer);
         }
         fclose(f);
     } else
-        Log_logWarning("Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
+        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s, using defaults\n", dbPath);
 
     if (headless)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     window = tryOpenWindow(reqW, reqH, title);
     if (!window) {
-        Log_logError("Failed to create GLFW window\n");
+        logError("Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }

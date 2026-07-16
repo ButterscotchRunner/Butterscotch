@@ -140,7 +140,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
     if (!hasFBO()) {
-        Log_logError("GL: The legacy-gl renderer requires FBO support!\n");
+        logError("GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
 
@@ -206,7 +206,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->surfaceHeight = nullptr;
     gl->surfaceCount = 0;
 
-    Log_log("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
+    logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
 static void glDestroy(Renderer* renderer) {
@@ -408,7 +408,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     // We'll load the textures on demand.
     uint8_t* pixels;
     if (!PS3Textures_loadPage(pageId, &w, &h, &pixels)) {
-        Log_logWarning("GL: PS3 page %u has no pixels\n", pageId);
+        logWarn("GL: PS3 page %u has no pixels\n", pageId);
         return false;
     }
     gl->textureWidths[pageId] = w;
@@ -433,7 +433,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
     uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
-        Log_logWarning("GL: Failed to decode TXTR page %u\n", pageId);
+        logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
     if (!txtr->mapped) {
@@ -454,7 +454,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 #endif
-    Log_log("GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
+    logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     return true;
 }
 
@@ -1419,7 +1419,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->maskCount = 0;
     sprite->masks = nullptr;
 
-    Log_log("GL: Created dynamic sprite %u (%dx%d) from surface at (%d,%d)\n", spriteIndex, w, h, x, y);
+    logInfo("GL: Created dynamic sprite %u (%dx%d) from surface at (%d,%d)\n", spriteIndex, w, h, x, y);
     return (int32_t) spriteIndex;
 }
 
@@ -1431,7 +1431,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
 
     // Refuse to delete original data.win sprites
     if (gl->originalSpriteCount > (uint32_t) spriteIndex) {
-        Log_logWarning("GL: Cannot delete data.win sprite %d\n", spriteIndex);
+        logWarn("GL: Cannot delete data.win sprite %d\n", spriteIndex);
         return;
     }
 
@@ -1460,7 +1460,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     memset(sprite, 0, sizeof(Sprite));
     sprite->name = keepName;
 
-    Log_log("GL: Deleted sprite %d\n", spriteIndex);
+    logInfo("GL: Deleted sprite %d\n", spriteIndex);
 }
 
 static BlendFactors glGpuGetBlendFactors(Renderer* renderer) {
@@ -1570,13 +1570,13 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        Log_logWarning("GL: Surface FBO incomplete (status=0x%X)\n", status);
+        logWarn("GL: Surface FBO incomplete (status=0x%X)\n", status);
     }
 
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
 
-    Log_log("GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
+    logInfo("GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
     return (int32_t) surfaceIndex;
 }
@@ -1647,7 +1647,7 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     gl->surfaceWidth[surfaceId] = width;
     gl->surfaceHeight[surfaceId] = height;
-    Log_log("GL: Resized Surface %u to (%dx%d)\n", surfaceId, width, height);
+    logInfo("GL: Resized Surface %u to (%dx%d)\n", surfaceId, width, height);
 }
 
 static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
@@ -1661,7 +1661,7 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     gl->surfaceTexture[surfaceId] = 0;
     gl->surfaceWidth[surfaceId] = 0;
     gl->surfaceHeight[surfaceId] = 0;
-    Log_log("GL: Freed Surface %d\n", surfaceId);
+    logInfo("GL: Freed Surface %d\n", surfaceId);
 }
 
 static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {

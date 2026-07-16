@@ -158,7 +158,7 @@ char *str_replace(char *orig, char *rep, char *with) {
 static char buffer[9999];
 int main(int argc, char* argv[]) {
 	Log_init();
-   	Log_log("%s\n", argv[0]);
+   	logInfo("%s\n", argv[0]);
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
@@ -177,7 +177,7 @@ int main(int argc, char* argv[]) {
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-    Log_log("Loading %s...\n", dataWinPath);
+    logInfo("Loading %s...\n", dataWinPath);
 
     DataWinParserOptions options = {0};
     options.parseGen8 = true;
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-    Log_log("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+    logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -255,7 +255,7 @@ int main(int argc, char* argv[]) {
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
-            Log_logError("Fatal: failed to load %s\n", texturesBinPath);
+            logError("Fatal: failed to load %s\n", texturesBinPath);
             return 1;
         }
         free(texturesBinPath);
@@ -286,7 +286,7 @@ int main(int argc, char* argv[]) {
         glUseProgram(gPalettedProgram);
         glUniform1i(uPaletteLoc, 1);
         glUseProgram(0);
-        Log_log("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
+        logInfo("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
     }
 
     // Initialize the runner
@@ -311,7 +311,7 @@ int main(int argc, char* argv[]) {
         bool shouldStep = true;
         if (runner->debugMode && debugPaused) {
             shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-            if (shouldStep) Log_logDebug("Frame advance (frame %d)\n", runner->frameCount);
+            if (shouldStep) logDebug("Frame advance (frame %d)\n", runner->frameCount);
         }
 
 
@@ -451,6 +451,6 @@ int main(int argc, char* argv[]) {
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
     gcmSetWaitFlip(context);
     rsxFinish(context,1);
-    Log_log("Bye! :3\n");
+    logInfo("Bye! :3\n");
     return 0;
 }
