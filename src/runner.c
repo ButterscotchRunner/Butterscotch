@@ -4032,9 +4032,9 @@ void Runner_dumpState(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     int32_t instanceCount = (int32_t) arrlen(runner->instances);
 
-    Log_log("=== Frame %d State Dump ===\n", runner->frameCount);
-    Log_log("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
-    Log_log("Instance count: %d\n", instanceCount);
+    Log_logDebug("=== Frame %d State Dump ===\n", runner->frameCount);
+    Log_logDebug("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
+    Log_logDebug("Instance count: %d\n", instanceCount);
 
     repeat(instanceCount, i) {
         Instance* inst = runner->instances[i];
@@ -4057,23 +4057,23 @@ void Runner_dumpState(Runner* runner) {
             parentName = dataWin->objt.objects[gameObject->parentId].name;
         }
 
-        Log_log("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
-        Log_log("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
-        Log_log("  Depth: %d\n", inst->depth);
-        Log_log("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
-        Log_log("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
-        Log_log("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
-        Log_log("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
+        Log_logDebug("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
+        Log_logDebug("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
+        Log_logDebug("  Depth: %d\n", inst->depth);
+        Log_logDebug("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
+        Log_logDebug("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
+        Log_logDebug("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
+        Log_logDebug("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
 
         // Active alarms
         bool hasAlarm = false;
         repeat(GML_ALARM_COUNT, alarmIdx) {
             if (inst->alarm[alarmIdx] >= 0) {
                 if (!hasAlarm) { Log_log("  Alarms:"); hasAlarm = true; }
-                Log_log(" [%d]=%d", (int)alarmIdx, inst->alarm[alarmIdx]);
+                Log_logDebug(" [%d]=%d", (int)alarmIdx, inst->alarm[alarmIdx]);
             }
         }
-        if (hasAlarm) Log_log("\n");
+        if (hasAlarm) Log_logDebug("\n");
 
         // Self variables
         bool hasSelfVars = false;
@@ -4100,20 +4100,20 @@ void Runner_dumpState(Runner* runner) {
                     RValue* cell = GMLArray_slot(val.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
                     char* innerStr = RValue_toStringFancy(*cell);
-                    Log_log("    %s[%d] = %s\n", varName, (int) ai, innerStr);
+                    Log_logDebug("    %s[%d] = %s\n", varName, (int) ai, innerStr);
                     free(innerStr);
                 }
             } else {
                 if (!hasSelfVars) { Log_log("  Self Variables:\n"); hasSelfVars = true; }
                 char* valStr = RValue_toStringFancy(val);
-                Log_log("    %s = %s\n", varName, valStr);
+                Log_logDebug("    %s = %s\n", varName, valStr);
                 free(valStr);
             }
         }
     }
 
     // Global variables (non-array)
-    Log_log("\n=== Global Variables ===\n");
+    Log_logDebug("\n=== Global Variables ===\n");
 
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
         IntRValueEntry entryOnTheVarStruct = runner->vmContext->globalScopeInstance->selfVars.entries[i];
@@ -4127,18 +4127,18 @@ void Runner_dumpState(Runner* runner) {
                     RValue* cell = GMLArray_slot(target.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
                     char* innerStr = RValue_toStringFancy(*cell);
-                    Log_log("  %s[%d] = %s\n", name, (int) ai, innerStr);
+                    Log_logDebug("  %s[%d] = %s\n", name, (int) ai, innerStr);
                     free(innerStr);
                 }
             }
 
             char* valStr = RValue_toStringTyped(target);
-            Log_log("  %s = %s\n", name, valStr);
+            Log_logDebug("  %s = %s\n", name, valStr);
             free(valStr);
         }
     }
 
-    Log_log("\n=== End Frame %d State Dump ===\n", runner->frameCount);
+    Log_logDebug("\n=== End Frame %d State Dump ===\n", runner->frameCount);
 }
 
 // ===[ JSON State Dump ]===

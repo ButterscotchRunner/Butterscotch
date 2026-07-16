@@ -609,7 +609,7 @@ int main(int argc, char* argv[]) {
                 int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                 runner->pendingRoom = nextIdx;
                 runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                Log_log("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                Log_logDebug("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
             }
         }
 

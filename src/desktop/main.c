@@ -1539,7 +1539,7 @@ int main(int argc, char* argv[]) {
                 // Pause
                 if (RunnerKeyboard_checkPressed(runner->keyboard, 'P')) {
                     debugPaused = !debugPaused;
-                    Log_log("Debug: %s\n", debugPaused ? "Paused" : "Resumed");
+                    Log_logDebug("Debug: %s\n", debugPaused ? "Paused" : "Resumed");
                 }
             }
 
@@ -1547,7 +1547,7 @@ int main(int argc, char* argv[]) {
             bool shouldStep = true;
             if (runner->debugMode && debugPaused) {
                 shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-                if (shouldStep) Log_log("Debug: Frame advance (frame %d)\n", runner->frameCount);
+                if (shouldStep) Log_logDebug("Debug: Frame advance (frame %d)\n", runner->frameCount);
             }
 
             uint64_t frameStartTime = 0;
@@ -1568,7 +1568,7 @@ int main(int argc, char* argv[]) {
                         int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                         runner->pendingRoom = nextIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        Log_log("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                        Log_logDebug("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
                     }
                 }
 
@@ -1579,18 +1579,18 @@ int main(int argc, char* argv[]) {
                         int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
                         runner->pendingRoom = prevIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        Log_log("Debug: Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
+                        Log_logDebug("Debug: Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
                     }
                 }
 
                 // Dump runner state to console
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F12)) {
-                    Log_log("Debug: Dumping runner state at frame %d\n", runner->frameCount);
+                    Log_logDebug("Debug: Dumping runner state at frame %d\n", runner->frameCount);
                     Runner_dumpState(runner);
                 }
 
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F11)) {
-                    Log_log("Debug: Dumping runner state at frame %d\n", runner->frameCount);
+                    Log_logDebug("Debug: Dumping runner state at frame %d\n", runner->frameCount);
                     char* json = Runner_dumpStateJson(runner);
 
                     if (args.dumpJsonFilePattern != nullptr) {
@@ -1615,7 +1615,7 @@ int main(int argc, char* argv[]) {
                 // Toggle the collision mask debug overlay
                 if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
                     debugShowCollisionMasks = !debugShowCollisionMasks;
-                    Log_log("Debug: Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
+                    Log_logDebug("Debug: Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
                 }
 
                 // Enable free cam
@@ -1625,7 +1625,7 @@ int main(int argc, char* argv[]) {
                     runner->freeCamZoom = 1.0f;
 
                     freeCamActive = !freeCamActive;
-                    Log_log("Debug: Free cam %s!\n", freeCamActive ? "enabled" : "disabled");
+                    Log_logDebug("Debug: Free cam %s!\n", freeCamActive ? "enabled" : "disabled");
                 }
 
                 if (freeCamActive) {
