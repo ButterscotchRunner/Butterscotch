@@ -53,8 +53,9 @@ int getKeyCount() {
 }
 
 int main() {
-	Log_init();
-   	Log_log("Howdy! Loritta is so cute! lol\n");
+    Log_setOptions(true, false, true, false, nullptr);
+    Log_init();
+    Log_log("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
 }

@@ -68,7 +68,8 @@ static JNIEnv* getEnvNoAttach(void) {
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
-	Log_init();
+    Log_setOptions(true, false, false, false, nullptr);
+    Log_init();
     gJvm = vm;
     JNIEnv* env = nullptr;
     if ((*vm)->GetEnv(vm, (void**) &env, JNI_VERSION_1_6) != JNI_OK) return JNI_ERR;

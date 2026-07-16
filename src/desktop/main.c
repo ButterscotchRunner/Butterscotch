@@ -302,9 +302,11 @@ static bool parseOsTypeArg(const char* s, YoYoOperatingSystem* out) {
 }
 
 static void printOsTypeNames(FILE* out) {
+	Log_addFile(out);
     forEachIndexed(const OsTypeNameEntry, entry, i, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        fprintf(out, "%s%s", i > 0 ? ", " : "", entry->name);
+        Log_logToFile("%s%s", i > 0 ? ", " : "", entry->name);
     }
+	Log_removeFile(out);
 }
 
 // Resolves the window size for the specified operating system.
@@ -440,11 +442,11 @@ static void printUsage(const char *argv0) {
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
-		"    --disable-terminal-log                 - Disables logging to the terminal\n"
-		"    --disable-file-log                     - Disable logging to a file\n"
-		"    --log-file <filename>                  - File to log to\n"
-		"    --disable-terminal-log-colours         - Disable colours for warning and error logs in terminal\n"
-		"    --enable-file-log-colours              - Enables colours for warning and error logs in file\n"
+        "    --disable-terminal-log                 - Disables logging to the terminal\n"
+        "    --disable-file-log                     - Disable logging to a file\n"
+        "    --log-file <filename>                  - File to log to\n"
+        "    --disable-terminal-log-colours         - Disable colours for warning and error logs in terminal\n"
+        "    --enable-file-log-colours              - Enables colours for warning and error logs in file\n"
 #ifdef EABLE_VM_OPCODE_PROFILER
         "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
 #endif
@@ -1032,12 +1034,12 @@ int main(int argc, char* argv[]) {
     timeBeginPeriod(1);
 #endif
 
-	CommandLineArgs args;
+    CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
 
-	Log_setOptions(!args.disableTerminalLog, !args.disableFileLog, !args.disableTerminalLogColours, args.enableFileLogColours, args.logFile ? (char*)args.logFile : "./butterscotch.log");
+    Log_setOptions(!args.disableTerminalLog, !args.disableFileLog, !args.disableTerminalLogColours, args.enableFileLogColours, args.logFile ? args.logFile : "./butterscotch.log");
 
-	Log_init();
+    Log_init();
 
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
