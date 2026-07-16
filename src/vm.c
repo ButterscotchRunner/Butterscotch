@@ -1175,7 +1175,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                         // Positive scopes are real instance IDs resolved by lookup.
                         Instance* inst = (0 > scope) ? (Instance*) ctx->currentInstance : VM_findInstanceByTarget(ctx, scope);
                         if (inst == nullptr) {
-                            Log_logWarning("VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
+                            Log_logError("VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
                             abort();
                         }
                         slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);
@@ -1229,7 +1229,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
             break;
         }
         default:
-            Log_logWarning("VM: Push with unknown type 0x%X\n", type1);
+            Log_logError("VM: Push with unknown type 0x%X\n", type1);
             abort();
     }
 }
@@ -1270,7 +1270,7 @@ static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraD
             inst = (Instance*) ctx->currentInstance;
         }
         if (inst == nullptr) {
-            Log_logWarning("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
+            Log_logError("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
             abort();
         }
         RValue* slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);

@@ -66,7 +66,7 @@ static void vLogToFile(const int type, const char* fmt, va_list va) {
 
 	vLogToFileInternal(logFileHandle, type, fmt, va);
 
-	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
 		vLogToFileInternal(logFiles[i], type, fmt, va);
 	}
 }
@@ -104,7 +104,7 @@ void Log_resetFile() {
 
 bool Log_addFile(FILE* file) {
 	if (logFileCount >= LOG_MAX_FILES) return false;
-	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
 		if (logFiles[i] == file) {
 			return true;
 		}
@@ -115,7 +115,7 @@ bool Log_addFile(FILE* file) {
 }
 
 bool Log_removeFile(FILE* file) {
-	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
 		if (logFiles[i] == file) {
 			logFiles[i] = nullptr;
 			logFileCount--;

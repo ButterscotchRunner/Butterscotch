@@ -1077,7 +1077,7 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
 
     uint32_t version = BinaryReader_readUint32(reader);
     if (version != 1) {
-        Log_logError("ACRV: unexpected version %u (expected 1)\n", version);
+        Log_logWarning("ACRV: unexpected version %u (expected 1)\n", version);
         return;
     }
 
@@ -2552,7 +2552,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     if (tex->blobData != nullptr) return;
 
     if (!dw->lazyLoadFile) {
-        Log_logError("loadTxtrIfNeeded: called without a lazy load file.\n");
+        Log_logWarning("loadTxtrIfNeeded: called without a lazy load file.\n");
         return;
     }
 
@@ -2565,7 +2565,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
 
     if (read != tex->blobSize) {
-        Log_logError("loadTxtrIfNeeded: couldn't read %u bytes to load a texture.\n", tex->blobSize);
+        Log_logWarning("loadTxtrIfNeeded: couldn't read %u bytes to load a texture.\n", tex->blobSize);
     }
 }
 
