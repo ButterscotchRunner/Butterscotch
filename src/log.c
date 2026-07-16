@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "common.h"
 
@@ -16,6 +17,9 @@ static char* logFile = "./butterscotch.log";
 
 static FILE* logFileHandleBackup = nullptr;
 static FILE* logFileHandle = nullptr;
+
+static FILE* logFiles[LOG_MAX_FILES];
+static int logFileCount = 0;
 
 enum {
 	LOG_TYPE_NORMAL=0,
@@ -43,24 +47,38 @@ static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	}
 }
 
+static void vLogToFileInternal(FILE* file, const int type, const char* fmt, va_list va) {
+
+	if (logColourFile) {
+		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
+	}
+
+	vfprintf(file, fmt, va);
+
+	if (logColourFile) {
+		fprintf(file, ANSI_COLOUR_CODE_WHITE);
+	}
+}
+
+
 static void vLogToFile(const int type, const char* fmt, va_list va) {
 	if (!logToFile || !logFileHandle) return;
 
-	if (logColourFile) {
-		fprintf(logFileHandle, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
-	}
+	vLogToFileInternal(logFileHandle, type, fmt, va);
 
-	vfprintf(logFileHandle, fmt, va);
-
-	if (logColourFile) {
-		fprintf(logFileHandle, ANSI_COLOUR_CODE_WHITE);
+	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+		vLogToFileInternal(logFiles[i], type, fmt, va);
 	}
 }
 
 void Log_init() {
+	memset(logFiles, 0, sizeof(logFiles));
+	logFileCount = 0;
+
 	if (logFileHandle != nullptr) {
 		fclose(logFileHandle);
 	}
+
 	logFileHandle = fopen(logFile, "w");
 	if (logFileHandle != nullptr) {
 		setvbuf(logFileHandle, nullptr, _IONBF, 0);
@@ -82,6 +100,29 @@ void Log_setFile(FILE* file) {
 
 void Log_resetFile() {
 	logFileHandle = logFileHandleBackup;
+}
+
+bool Log_addFile(FILE* file) {
+	if (logFileCount >= LOG_MAX_FILES) return false;
+	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+		if (logFiles[i] == file) {
+			return true;
+		}
+	}
+	logFiles[logFileCount] = file;
+	logFileCount++;
+	return true;
+}
+
+bool Log_removeFile(FILE* file) {
+	for (int i=0; logFiles[i] != nullptr && i < LOG_MAX_FILES; i++) {
+		if (logFiles[i] == file) {
+			logFiles[i] = nullptr;
+			logFileCount--;
+			return true;
+		}
+	}
+	return false;
 }
 
 void Log_logToTerminal(const char* fmt, ...) {

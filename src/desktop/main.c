@@ -302,11 +302,11 @@ static bool parseOsTypeArg(const char* s, YoYoOperatingSystem* out) {
 }
 
 static void printOsTypeNames(FILE* out) {
-	Log_setFile(out);
+	Log_addFile(out);
     forEachIndexed(const OsTypeNameEntry, entry, i, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        Log_log(out, "%s%s", i > 0 ? ", " : "", entry->name);
+        Log_log("%s%s", i > 0 ? ", " : "", entry->name);
     }
-	Log_resetFile();
+	Log_removeFile(out);
 }
 
 // Resolves the window size for the specified operating system.
@@ -1026,8 +1026,6 @@ char* collapseNewlines(const char *input) {
 
     return result;
 }
-
-#include "log.h"
 
 // ===[ MAIN ]===
 int main(int argc, char* argv[]) {

@@ -5,11 +5,16 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#define LOG_MAX_FILES 16
+
 void Log_init();
 void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile);
 
 void Log_setFile(FILE* file);
 void Log_resetFile();
+
+bool Log_addFile(FILE* file);
+bool Log_removeFile(FILE* file);
 
 void Log_logToTerminal(const char* fmt, ...);
 void Log_logToFile(const char* fmt, ...);
