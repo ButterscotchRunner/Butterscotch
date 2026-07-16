@@ -26,6 +26,10 @@ enum {
 	LOG_TYPE_ERROR=2
 };
 
+#if defined(_MSC_VER) && !defined(va_copy)
+#define va_copy(d, s) ((d) = (s))
+#endif
+
 #define ANSI_COLOUR_CODE_WHITE "\x1b[0;37m"
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
