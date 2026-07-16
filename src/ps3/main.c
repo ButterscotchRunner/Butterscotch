@@ -177,7 +177,7 @@ int main(int argc, char* argv[]) {
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-   Log_log("Loading %s...\n", dataWinPath);
+    Log_log("Loading %s...\n", dataWinPath);
 
     DataWinParserOptions options = {0};
     options.parseGen8 = true;
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-   Log_log("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+    Log_log("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -286,7 +286,7 @@ int main(int argc, char* argv[]) {
         glUseProgram(gPalettedProgram);
         glUniform1i(uPaletteLoc, 1);
         glUseProgram(0);
-       Log_log("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
+        Log_log("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
     }
 
     // Initialize the runner
@@ -451,6 +451,6 @@ int main(int argc, char* argv[]) {
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
     gcmSetWaitFlip(context);
     rsxFinish(context,1);
-   Log_log("Bye! :3\n");
+    Log_log("Bye! :3\n");
     return 0;
 }
