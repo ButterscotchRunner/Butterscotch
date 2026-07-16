@@ -20,7 +20,7 @@ static uint32_t uploadTable(GSGLOBAL* gsGlobal, const void* srcData, size_t srcB
     uint32_t vramSize = gsKit_texture_size(width, height, psm);
     uint32_t vramAddr = gsKit_vram_alloc(gsGlobal, vramSize, GSKIT_ALLOC_USERBUFFER);
     if (vramAddr == GSKIT_ALLOC_ERROR) {
-        Log_logWarning("DebugFontRenderer: Failed to allocate VRAM for %s\n", what);
+        Log_logError("DebugFontRenderer: Failed to allocate VRAM for %s\n", what);
         abort();
     }
 

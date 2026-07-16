@@ -296,46 +296,46 @@ int main(int argc, char* argv[]) {
     int ret;
     ret = SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load freesio2: %d\n", ret);
+       Log_logError("Failed to load freesio2: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcman_irx, size_mcman_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load mcman: %d\n", ret);
+       Log_logError("Failed to load mcman: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcserv_irx, size_mcserv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load mcserv: %d\n", ret);
+       Log_logError("Failed to load mcserv: %d\n", ret);
         return 1;
     }
     ret = mcInit(MC_TYPE_MC);
     if (0 > ret) {
-       Log_log("Failed to init libmc: %d\n", ret);
+       Log_logError("Failed to init libmc: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load freepad: %d\n", ret);
+       Log_logError("Failed to load freepad: %d\n", ret);
         return 1;
     }
 
     padInit(0);
     padOpened[0] = (padPortOpen(0, 0, padBuf[0]) != 0);
     padOpened[1] = (padPortOpen(1, 0, padBuf[1]) != 0);
-    if (!padOpened[0])Log_log("Warning: failed to open pad port 0\n");
-    if (!padOpened[1])Log_log("Warning: failed to open pad port 1\n");
+    if (!padOpened[0]) Log_logWarning("Warning: failed to open pad port 0\n");
+    if (!padOpened[1]) Log_logWarning("Warning: failed to open pad port 1\n");
 
     // ===[ Load USB Keyboard IOP Modules ]===
     int usbdRet = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > usbdRet) {
-       Log_log("Warning: failed to load usbd: %d (keyboard disabled)\n", usbdRet);
+       Log_logWarning("Warning: failed to load usbd: %d (keyboard disabled)\n", usbdRet);
     } else {
         int kbdRet = SifExecModuleBuffer(ps2kbd_irx, size_ps2kbd_irx, 0, nullptr, nullptr);
         if (0 > kbdRet) {
-           Log_log("Warning: failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
+           Log_logWarning("Warning: failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
         } else if (PS2KbdInit() == 0) {
-           Log_log("Warning: PS2KbdInit failed (keyboard disabled)\n");
+           Log_logWarning("Warning: PS2KbdInit failed (keyboard disabled)\n");
         } else {
             PS2KbdSetReadmode(PS2KBD_READMODE_RAW);
             PS2KbdSetBlockingMode(PS2KBD_NONBLOCKING);
@@ -348,11 +348,11 @@ int main(int argc, char* argv[]) {
     // ===[ Load Audio IOP Modules ]===
     ret = SifExecModuleBuffer(freesd_irx, size_freesd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load freesd: %d\n", ret);
+       Log_logError("Failed to load freesd: %d\n", ret);
     }
     ret = SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-       Log_log("Failed to load audsrv: %d\n", ret);
+       Log_logError("Failed to load audsrv: %d\n", ret);
     }
 #endif
 
@@ -363,7 +363,7 @@ int main(int argc, char* argv[]) {
         padState = padGetState(0, 0);
     } while (PAD_STATE_STABLE != padState && PAD_STATE_FINDCTP1 != padState);
 
-   Log_log("Controller initialized\n");
+    Log_log("Controller initialized\n");
 
     // ===[ Load CONFIG.JSN ]===
     PS2Overlay_drawStatusScreen(nullptr, "Loading CONFIG.JSN...", false);

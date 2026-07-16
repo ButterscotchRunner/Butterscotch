@@ -6,13 +6,13 @@
 
 #include "common.h"
 
-bool logToTerminal = true;
-bool logToFile = true;
+static bool logToTerminal = true;
+static bool logToFile = true;
 
-bool logColourTerminal = true;
-bool logColourFile = false;
+static bool logColourTerminal = true;
+static bool logColourFile = false;
 
-char* logFile = "./butterscotch.log";
+static char* logFile = "./butterscotch.log";
 
 static FILE* logFileHandle = nullptr;
 
