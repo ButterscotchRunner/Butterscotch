@@ -154,8 +154,8 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
 --disable-file-log                     - Disable logging to a file
 --log-file <filename>                  - File to log to
---disable-terminal-log-colours         - Disable colours for warning, error, and debug logs
-```
+--disable-log-colours                  - Disable colours for warning, error, and debug logs
+--disable-log-colors                   - Same as --disable-log-colours, but different spelling
 
 ## Debug Features
 

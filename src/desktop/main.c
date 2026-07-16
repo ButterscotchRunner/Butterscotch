@@ -5,6 +5,7 @@
 
 #include "platformdefs.h"
 #include <getopt.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -305,8 +306,23 @@ static void printOsTypeNames(FILE* out) {
     }
 }
 
+static bool logToFile = false;
+static FILE* logFileHandle = nullptr;
+
+#ifndef va_copy
+#define va_copy ((d) = (s))
+#endif
+
 void platformLog(const logType type, const char *format, va_list va) {
+	va_list va2;
+	if (logToFile) {
+		va_copy(va2, va);
+	}
 	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+	if (logToFile) {
+		vfprintf(logFileHandle, format, va2);
+		va_end(va2);
+	}
 }
 
 // Resolves the window size for the specified operating system.
@@ -442,11 +458,10 @@ static void printUsage(const char *argv0) {
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
-        "    --disable-terminal-log                 - Disables logging to the terminal\n"
         "    --disable-file-log                     - Disable logging to a file\n"
         "    --log-file <filename>                  - File to log to\n"
-        "    --disable-terminal-log-colours         - Disable colours for warning and error logs in terminal\n"
-        "    --enable-file-log-colours              - Enables colours for warning and error logs in file\n"
+        "    --disable-log-colours                  - Disable colours for warning, error, and debug logs\n"
+        "    --disable-log-colors                   - Same as --disable-log-colours, but different spelling\n"
 #ifdef EABLE_VM_OPCODE_PROFILER
         "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
 #endif
@@ -509,6 +524,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"disable-file-log", no_argument, nullptr, 1001},
         {"log-file", required_argument, nullptr, 1002},
         {"disable-log-colours", no_argument, nullptr, 1003},
+		{"disable-log-colors", no_argument, nullptr, 1003},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -1028,6 +1044,12 @@ int main(int argc, char* argv[]) {
 
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
+
+	logToFile = !args.disableFileLog;
+	if (logToFile) {
+		logFileHandle = fopen(args.logFile ? args.logFile : "./butterscotch.log", "w");
+		setbuf(logFileHandle, NULL);
+	}
 
     Log_setColour(!args.disableLogColours);
 
@@ -1965,4 +1987,8 @@ int main(int argc, char* argv[]) {
             arrfree(newArguments);
         }
     }
+
+	if (logToFile) {
+		fclose(logFileHandle);
+	}
 }
