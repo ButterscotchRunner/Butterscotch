@@ -34,43 +34,34 @@ enum {
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
 
-static void vLogToTerminal(const int type, const char* fmt, va_list va) {
-	if (!logToTerminal) return;
-
-	FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
-
-	if (logColourTerminal) {
-		fprintf(out, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
-	}
-
-	vfprintf(out, fmt, va);
-
-	if (logColourTerminal) {
-		fprintf(out, ANSI_COLOUR_CODE_WHITE);
-	}
-}
-
-static void vLogToFileInternal(FILE* file, const int type, const char* fmt, va_list va) {
-	if (logColourFile) {
+static void vLogInternal(FILE* file, bool logColour, const int type, const char* fmt, va_list va) {
+	if (logColour) {
 		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
 	}
 
 	vfprintf(file, fmt, va);
 
-	if (logColourFile) {
+	if (logColour) {
 		fprintf(file, ANSI_COLOUR_CODE_WHITE);
 	}
 }
 
+static void vLogToTerminal(const int type, const char* fmt, va_list va) {
+	if (!logToTerminal) return;
+
+	FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
+
+	vLogInternal(out, logColourTerminal, type, fmt, va);
+}
 
 static void vLogToFile(const int type, const char* fmt, va_list va) {
 	if (!logToFile || !logFileHandle) return;
 
-	vLogToFileInternal(logFileHandle, type, fmt, va);
+	vLogInternal(logFileHandle, logColourFile, type, fmt, va);
 
 	for (int i=0; i < LOG_MAX_FILES; i++) {
 		if (!logFiles[i]) continue;
-		vLogToFileInternal(logFiles[i], type, fmt, va);
+		vLogInternal(logFiles[i], logColourFile, type, fmt, va);
 	}
 }
 
