@@ -46,6 +46,26 @@ static void freeRuntimeLayersArray(RuntimeLayer** runtimeLayerArray) {
     *runtimeLayerArray = nullptr;
 }
 
+void Runner_updateCameraViewSimple(GMLCamera* camera) {
+
+    float x = camera->viewX + camera->viewWidth/2;
+    float y = camera->viewY + camera->viewHeight/2;
+    Matrix4f viewMatrix;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
+
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+    
+
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+
+}
+
 // ===[ Helper: Find event action in object hierarchy ]===
 // Resolves the handler for (objectIndex, eventType, eventSubtype) via the precomputed ResolvedEventTable.
 // Returns the CODE chunk handler id, or -1 if the object does not respond.
@@ -1165,11 +1185,10 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
 
-                Matrix4f proj;
-                Matrix4f_viewProjection(&proj, (float) camera->viewX, (float) camera->viewY, (float) camera->viewWidth, (float) camera->viewHeight, camera->viewAngle);
-                renderer->vtable->applyProjection(renderer, &proj);
-
                 runner->viewCurrent = (int32_t) vi;
+                runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
+                runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
+
                 Runner_draw(runner);
 
                 renderer->vtable->flush(renderer);
@@ -1190,6 +1209,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
+            runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Runner_draw(runner);
@@ -1203,13 +1223,27 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     }
 
     if (!anyViewRendered) {
+        runner->viewCurrent = 0;
+        GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
+        runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
         // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
         // When views aren't used, the room width/height is used
         int32_t viewX, viewY, viewW, viewH;
         expandViewAxis(0, (int32_t) runner->currentRoom->width, gameW, widescreenBaseW, &viewX, &viewW);
         expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
+        //make default projection
+        if (camera != nullptr) {
+            camera->viewX = 0;
+            camera->viewY = 0;
+            camera->viewWidth = runner->currentRoom->width;
+            camera->viewHeight = runner->currentRoom->height;
+            camera->viewAngle = 0.0;
+            Runner_updateCameraViewSimple(camera);
+        }
+
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
+
         Runner_draw(runner);
 
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1220,6 +1254,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
+    runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
 }
 
 // ===[ Instance Creation Helper ]===
@@ -1321,6 +1356,8 @@ GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
     if (0 > id) return nullptr;
     else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
     else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
+    else if (id == SURFACE_CAMERA) camera = &runner->surfaceCamera;
+    else if (id == GUI_CAMERA) camera = &runner->guiCamera;
     else return nullptr;
     if (!camera->allocated) return nullptr;
     return camera;
@@ -1344,6 +1381,8 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->speedY = roomView->speedY;
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
+    Runner_updateCameraViewSimple(camera);
+
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
@@ -3238,6 +3277,7 @@ static void updateViews(Runner* runner) {
             int32_t iy = (int32_t) GMLReal_floor(target->y);
             camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width);
             camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height);
+            Runner_updateCameraViewSimple(camera);
         }
     }
 }

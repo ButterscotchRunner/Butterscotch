@@ -66,4 +66,18 @@ static inline void rt_glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, G
 #undef glBlitFramebuffer
 #define glBlitFramebuffer rt_glBlitFramebuffer
 
+static inline void rt_glBlendEquation(GLenum mode) {
+    if (glBlendEquation) glBlendEquation(mode);
+    else glBlendEquationEXT(mode);
+}
+#undef glBlendEquation
+#define glBlendEquation rt_glBlendEquation
+
+static inline void rt_glBlendFuncSeparate(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha) {
+    if (glBlendFuncSeparate) glBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
+    else glBlendFuncSeparateEXT(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
+}
+#undef glBlendFuncSeparate
+#define glBlendFuncSeparate rt_glBlendFuncSeparate
+
 #endif

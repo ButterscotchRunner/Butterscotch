@@ -15,7 +15,8 @@ typedef struct DataWin DataWin;
 
 typedef enum {
     DATAWINLOADTYPE_LOAD_PER_CHUNK,
-    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME
+    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
+    DATAWINLOADTYPE_MAP_FILE
 } DataWinLoadType;
 
 typedef struct {
@@ -663,10 +664,12 @@ typedef struct {
     float hSpeed;
     float vSpeed;
     bool visible;
-    RoomLayerAssetsData *assetsData;
-    RoomLayerBackgroundData *backgroundData;
-    RoomLayerInstancesData *instancesData;
-    RoomLayerTilesData *tilesData;
+    union {
+        RoomLayerInstancesData *instancesData;
+        RoomLayerAssetsData *assetsData;
+        RoomLayerBackgroundData *backgroundData;
+        RoomLayerTilesData *tilesData;
+    };
 } RoomLayer;
 
 typedef struct {
@@ -848,6 +851,7 @@ typedef struct {
 // ===[ TXTR - Embedded Textures ]===
 typedef struct {
     bool present;
+    bool mapped;
     uint32_t scaled;
     uint32_t generatedMips; // GMS 2.0.6+: number of generated mipmaps (0 for GMS 1.x)
     uint32_t textureBlockSize; // GMS 2022.3+: size of the texture block (0 for older versions)
@@ -930,6 +934,7 @@ struct DataWin {
     // nullptr when lazy loading is disabled. Closed by DataWin_free.
     FILE* lazyLoadFile;
     char* lazyLoadFilePath; // owned strdup of the original file path, for diagnostics
+    uint8_t* mappedFile;
     size_t fileSize; // cached size of the DataWin, captured at parse time. Used for platforms where fseek(SEEK_END)+ftell is unreliable due to buffering (like the PlayStation 2).
     bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
     bool lazyLoadTextures; // ditto, but with TXTR pages

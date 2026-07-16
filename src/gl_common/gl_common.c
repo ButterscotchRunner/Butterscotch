@@ -142,6 +142,28 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     return true;
 }
 
+#ifndef PLATFORM_PS3
+
+// ===[ GL version queries ]===
+
+GLVer GLCommon_getGLVersion(void) {
+    GLVer v = {0, 0, false};
+    const char* ver = (const char*)glGetString(GL_VERSION);
+    if (!ver) return v;
+    if (strstr(ver, "OpenGL ES")) v.isGLES = true;
+    const char* p = ver;
+    while (*p && (*p < '0' || *p > '9')) p++;
+    if (*p) {
+        v.major = *p - '0';
+        ++p;
+        if (*p == '.') ++p;
+        v.minor = *p - '0';
+    }
+    return v;
+}
+
+#endif
+
 // ===[ Blend mode translation ]===
 
 GLenum GLCommon_blendFactorToGL(int factor) {

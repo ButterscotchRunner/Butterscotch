@@ -58,4 +58,19 @@ GLenum GLCommon_blendModeToSFactor(int mode);
 // Maps a bm_* mode constant to its conventional destination blend factor.
 GLenum GLCommon_blendModeToDFactor(int mode);
 
+#ifndef PLATFORM_PS3
+
+// ===[ GL version queries ]===
+
+typedef struct {
+    int major;
+    int minor;
+    bool isGLES;
+} GLVer;
+
+// Returns the parsed GL version by reading glGetString(GL_VERSION).
+GLVer GLCommon_getGLVersion(void);
+
+#endif
+
 #endif /* _BS_GL_COMMON_H_ */

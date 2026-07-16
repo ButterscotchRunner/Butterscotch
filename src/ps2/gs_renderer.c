@@ -1157,8 +1157,9 @@ static void gsEndView(MAYBE_UNUSED Renderer* renderer) {
     // No-op
 }
 
-static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED const Matrix4f* worldToClip) {
+static void gsApplyProjection(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED const Matrix4f* viewMatrix, MAYBE_UNUSED const Matrix4f* projectionMatrix) {
     // No-op
+    //Um but I do feel like the PS2 should be capable of this though?
 }
 
 static void gsSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
