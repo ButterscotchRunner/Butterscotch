@@ -866,7 +866,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
     uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
-        Log_logError("GL: Failed to decode TXTR page %u\n", pageId);
+        Log_logWarning("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
     if (!txtr->mapped) {

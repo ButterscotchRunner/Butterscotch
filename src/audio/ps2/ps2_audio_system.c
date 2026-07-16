@@ -82,7 +82,7 @@ static void parseSoundBank(Ps2AudioSystem* ps2) {
     FILE* f = fopen(path, "rb");
     free(path);
     if (f == nullptr) {
-        Log_logError("PS2AudioSystem: Could not open SOUNDBNK.BIN\n");
+        Log_logWarning("PS2AudioSystem: Could not open SOUNDBNK.BIN\n");
         return;
     }
 

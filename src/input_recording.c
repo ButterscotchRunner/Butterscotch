@@ -214,7 +214,7 @@ bool InputRecording_save(InputRecording* recording) {
 
     FILE* f = fopen(recording->recordFilePath, "wb");
     if (f == nullptr) {
-        Log_logError("Error: Could not write input recording to '%s'\n", recording->recordFilePath);
+        Log_logWarning("Warning: Could not write input recording to '%s'\n", recording->recordFilePath);
         JsonWriter_free(&w);
         return false;
     }

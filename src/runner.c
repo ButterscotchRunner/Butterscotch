@@ -2308,7 +2308,7 @@ Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, layerId);
     if (rl == nullptr) {
-        Log_logError("Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
+        Log_logWarning("Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
         return nullptr;
     }
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
