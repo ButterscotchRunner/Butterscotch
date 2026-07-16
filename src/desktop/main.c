@@ -1287,7 +1287,7 @@ int main(int argc, char* argv[]) {
                     if (idx >= 0) {
                         VM_disassemble(vm, vm->codeIndexByName[idx].value);
                     } else {
-                        Log_logWarning("Error: Script '%s' not found in funcMap\n", name);
+                        Log_logWarning("Warning: Script '%s' not found in funcMap\n", name);
                     }
                 }
             }
@@ -1601,9 +1601,9 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                           Log_log("JSON dump saved: %s\n", filename);
+                            Log_log("JSON dump saved: %s\n", filename);
                         } else {
-                            Log_logWarning("Error: Could not write JSON dump to '%s'\n", filename);
+                            Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
                        Log_log("%s\n", json);
@@ -1709,9 +1709,9 @@ int main(int argc, char* argv[]) {
                             fwrite(json, 1, strlen(json), f);
                             fputc('\n', f);
                             fclose(f);
-                           Log_log("JSON dump saved: %s\n", filename);
+                            Log_log("JSON dump saved: %s\n", filename);
                         } else {
-                            Log_logWarning("Error: Could not write JSON dump to '%s'\n", filename);
+                            Log_logWarning("Warning: Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
                        Log_log("%s\n", json);
