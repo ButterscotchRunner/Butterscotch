@@ -49,9 +49,7 @@ static void vLogInternal(FILE* file, bool logColour, const int type, const char*
 static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
 
-	FILE* out = type == LOG_TYPE_NORMAL ? stdout : stderr;
-
-	vLogInternal(out, logColourTerminal, type, fmt, va);
+	vLogInternal(type == LOG_TYPE_NORMAL ? stdout : stderr, logColourTerminal, type, fmt, va);
 }
 
 static void vLogToFile(const int type, const char* fmt, va_list va) {
