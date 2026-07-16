@@ -26,7 +26,7 @@ enum {
 	LOG_TYPE_ERROR=2
 };
 
-#if defined(_MSC_VER) && !defined(va_copy)
+#ifndef va_copy
 #define va_copy(d, s) ((d) = (s))
 #endif
 
