@@ -44,6 +44,14 @@ void platformLog(const logType type, const logOutType out, const char *format, v
 // 	}
 // }
 
+#ifdef PLATFORM_WEB_META
+void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
+	if (out == LOG_OUT_ALL || out == LOG_OUT_TERMINAL) {
+		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+	}
+}
+#endif
+
 static void vLogInternal(const logType type, const logOutType out, const char* fmt, va_list va) {
 	// TODO: Seperate logColour less hackily
 	if (out == LOG_OUT_ALL) {
