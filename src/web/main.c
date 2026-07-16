@@ -6,6 +6,7 @@
 #include <emscripten/html5.h>
 #include <emscripten/wasmfs.h>
 #include <GLES3/gl3.h>
+
 #include "data_win.h"
 #include "noop_audio_system.h"
 #include "web_audio_system.h"
@@ -15,9 +16,12 @@
 #include "gettime.h"
 
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = 0;
-static Runner* gRunner;
+static Runner* gRunner = nullptr;
 static WebAudioSystem* gWebAudio = nullptr;
 static int32_t gAudioSampleRate = 48000;
+
+static double gLastFrameStartMs = 0.0;
+static bool gFrameLoopActive = false;
 
 uint8_t keyDown[GML_KEY_COUNT] = {0};
 uint8_t keyUp[GML_KEY_COUNT] = {0};
@@ -29,14 +33,15 @@ void setAudioSampleRate(int32_t rate) {
 }
 
 // Pulls frameCount interleaved-stereo float32 frames into outPtr (which must point into wasm memory).
-// Called from JS by the worker's audio pull loop. Safe to call before the runner starts (returns silence).
+// Called from JS by the audio pull loop. Safe to call before the runner starts (returns silence).
 void pullAudioFrames(float* outPtr, int32_t frameCount) {
     if (gWebAudio == nullptr || frameCount <= 0) {
         if (outPtr != nullptr && frameCount > 0) {
-            memset(outPtr, 0, (size_t) frameCount * 2 * sizeof(float));
+            memset(outPtr, 0, (size_t)frameCount * 2 * sizeof(float));
         }
         return;
     }
+
     WebAudioSystem_pullFrames(gWebAudio, outPtr, frameCount);
 }
 
@@ -52,9 +57,31 @@ int getKeyCount() {
     return GML_KEY_COUNT;
 }
 
-int main() {
+static void postHostMessage(const char* type, const char* title) {
+    EM_ASM({
+        const payload = { type: UTF8ToString($0) };
+
+        if ($1) {
+            payload.title = UTF8ToString($1);
+        }
+
+        try {
+            if (typeof window !== 'undefined' &&
+                window.parent &&
+                window.parent !== window &&
+                typeof window.parent.postMessage === 'function') {
+                window.parent.postMessage(payload, '*');
+            } else if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+                self.postMessage(payload);
+            } else if (typeof postMessage === 'function') {
+                try { postMessage(payload); } catch (_) {}
+            }
+        } catch (_) {}
+    }, type, title);
+}
+
+int main(void) {
     printf("Howdy! Loritta is so cute! lol\n");
-    emscripten_exit_with_live_runtime();
     return 0;
 }
 
@@ -65,11 +92,13 @@ int mountOpfs(void) {
         fprintf(stderr, "Failed to create OPFS backend\n");
         return -1;
     }
+
     int rc = wasmfs_create_directory("/butterscotch", 0777, opfs);
     if (rc != 0) {
         fprintf(stderr, "Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
         return -1;
     }
+
     return 0;
 }
 
@@ -77,113 +106,147 @@ int mountOpfs(void) {
 static int mkdirP(const char* path) {
     char buf[512];
     size_t len = strlen(path);
+
     if (len >= sizeof(buf)) return -1;
+
     memcpy(buf, path, len + 1);
-    for (size_t i = 1; len > i; i++) {
+
+    for (size_t i = 1; i < len; i++) {
         if (buf[i] == '/') {
             buf[i] = '\0';
             if (mkdir(buf, 0777) != 0 && errno != EEXIST) return -1;
             buf[i] = '/';
         }
     }
+
     if (mkdir(buf, 0777) != 0 && errno != EEXIST) return -1;
     return 0;
 }
 
-void* loop() {
-    double lastFrameStartMs = emscripten_get_now(); // for delta_time and frame pacing
-
-    gRunner->gameStartTime = nowNanos();
-    while (!gRunner->shouldExit) {
-        double frameStartMs = emscripten_get_now();
-        gRunner->deltaTime = (frameStartMs - lastFrameStartMs) * 1000.0;
-        lastFrameStartMs = frameStartMs;
-
-        RunnerKeyboard_beginFrame(gRunner->keyboard);
-
-        // Process inputs
-        repeat(GML_KEY_COUNT, i) {
-            if (keyDown[i]) {
-                RunnerKeyboard_onKeyDown(gRunner->keyboard, i);
-                keyDown[i] = 0;
-            }
-            if (keyUp[i]) {
-                RunnerKeyboard_onKeyUp(gRunner->keyboard, i);
-                keyUp[i] = 0;
-            }
-        }
-
-        emscripten_webgl_make_context_current(ctx);
-
-        float audioDt = (float) (gRunner->deltaTime / 1000000.0);
-        if (0.0f > audioDt) audioDt = 0.0f;
-        if (audioDt > 0.1f) audioDt = 0.1f;
-        gRunner->audioSystem->vtable->update(gRunner->audioSystem, audioDt);
-
-        // Run one game step (Begin Step, Keyboard, Alarms, Step, End Step, room transitions)
-        Runner_step(gRunner);
-
-        int32_t gameW = (int32_t) gRunner->dataWin->gen8.defaultWindowWidth;
-        int32_t gameH = (int32_t) gRunner->dataWin->gen8.defaultWindowHeight;
-
-        Runner_drawPre(gRunner, 640, 480);
-
-        Runner_beginFrame(gRunner, gameW, gameH, 640, 480, 640, 480);
-
-        Runner_drawViews(gRunner, gameW, gameH, false);
-        gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
-        Runner_drawPost(gRunner, 640, 480);
-        gRunner->renderer->vtable->endFrameEnd(gRunner->renderer);
-        Runner_drawGUI(gRunner, 640, 480, gameW, gameH);
-
-        // Just like glfwSwapBuffers.
-        // Only swap when there isn't a room change to match the original runner.
-        if (gRunner->pendingRoom == -1) {
-            emscripten_webgl_commit_frame();
-        }
-        Runner_handlePendingRoomChange(gRunner);
-
-        // Frame pacing: sleep until the next frame is due, based on the room's speed.
-        // emscripten_get_now() returns milliseconds (performance.now()) and works in workers.
-        if (gRunner->currentRoom != nullptr && gRunner->currentRoom->speed > 0) {
-            double targetFrameTimeMs = 1000.0 / (double) gRunner->currentRoom->speed;
-            double nextFrameTimeMs = lastFrameStartMs + targetFrameTimeMs;
-            double remainingMs = nextFrameTimeMs - emscripten_get_now();
-            // Sleep for most of the remaining time, then spin-wait for precision.
-            if (remainingMs > 2.0) {
-                struct timespec ts;
-                ts.tv_sec = 0;
-                ts.tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0);
-                nanosleep(&ts, nullptr);
-            }
-            while (emscripten_get_now() < nextFrameTimeMs) {
-                // Spin-wait for the remaining sub-millisecond
-            }
-        }
+static void cleanupRunner(void) {
+    if (gRunner == nullptr) {
+        return;
     }
 
-    // Cleanup
     fprintf(stderr, "Cleaning up runner!\n");
 
-    gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
-    gRunner->audioSystem = nullptr;
+    if (gRunner->audioSystem != nullptr) {
+        gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
+        gRunner->audioSystem = nullptr;
+    }
+
     gWebAudio = nullptr;
-    gRunner->renderer->vtable->destroy(gRunner->renderer);
+
+    if (gRunner->renderer != nullptr) {
+        gRunner->renderer->vtable->destroy(gRunner->renderer);
+    }
 
     DataWin* dataWin = gRunner->dataWin;
     VMContext* vm = gRunner->vmContext;
+
     Runner_free(gRunner);
+    gRunner = nullptr;
+
     VM_free(vm);
     DataWin_free(dataWin);
 
-    // We want to *know* when the runner has actually exited, because we also need to track things like "Leave Game" buttons/actions in the game
-    MAIN_THREAD_EM_ASM({ postMessage({ type: 'runnerExit' }); });
-
-    return nullptr;
+    postHostMessage("runnerExit", nullptr);
 }
 
-void setWindowTitle(const char* title) {
-    MAIN_THREAD_EM_ASM({ postMessage({ type: 'windowTitle', title: UTF8ToString($0) }); }, title);
+static void frameTick(void* /*arg*/) {
+    if (gRunner == nullptr) {
+        gFrameLoopActive = false;
+        return;
+    }
+
+    if (gRunner->shouldExit) {
+        gFrameLoopActive = false;
+        cleanupRunner();
+        return;
+    }
+
+    double frameStartMs = emscripten_get_now();
+    gRunner->deltaTime = (frameStartMs - gLastFrameStartMs) * 1000.0;
+    gLastFrameStartMs = frameStartMs;
+
+    RunnerKeyboard_beginFrame(gRunner->keyboard);
+
+    // Process inputs.
+    repeat(GML_KEY_COUNT, i) {
+        if (keyDown[i]) {
+            RunnerKeyboard_onKeyDown(gRunner->keyboard, i);
+            keyDown[i] = 0;
+        }
+
+        if (keyUp[i]) {
+            RunnerKeyboard_onKeyUp(gRunner->keyboard, i);
+            keyUp[i] = 0;
+        }
+    }
+
+    emscripten_webgl_make_context_current(ctx);
+
+    float audioDt = (float)(gRunner->deltaTime / 1000000.0);
+    if (audioDt < 0.0f) audioDt = 0.0f;
+    if (audioDt > 0.1f) audioDt = 0.1f;
+
+    if (gRunner->audioSystem != nullptr) {
+        gRunner->audioSystem->vtable->update(gRunner->audioSystem, audioDt);
+    }
+
+    // Run one game step (Begin Step, Keyboard, Alarms, Step, End Step, room transitions)
+    Runner_step(gRunner);
+
+    int32_t gameW = (int32_t)gRunner->dataWin->gen8.defaultWindowWidth;
+    int32_t gameH = (int32_t)gRunner->dataWin->gen8.defaultWindowHeight;
+
+    Runner_drawPre(gRunner, 640, 480);
+    Runner_beginFrame(gRunner, gameW, gameH, 640, 480, 640, 480);
+    Runner_drawViews(gRunner, gameW, gameH, false);
+    gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
+    Runner_drawPost(gRunner, 640, 480);
+    gRunner->renderer->vtable->endFrameEnd(gRunner->renderer);
+    Runner_drawGUI(gRunner, 640, 480, gameW, gameH);
+
+    // Swap only when there isn't a room change to match the original runner.
+    if (gRunner->pendingRoom == -1) {
+        emscripten_webgl_commit_frame();
+    }
+    Runner_handlePendingRoomChange(gRunner);
+
+    if (gRunner->shouldExit) {
+        gFrameLoopActive = false;
+        cleanupRunner();
+        return;
+    }
+
+    // Schedule the next tick without blocking the UI thread.
+    unsigned int nextDelayMs = 16;
+    if (gRunner->currentRoom != nullptr && gRunner->currentRoom->speed > 0) {
+        double targetFrameTimeMs = 1000.0 / (double)gRunner->currentRoom->speed;
+        double nextFrameTimeMs = gLastFrameStartMs + targetFrameTimeMs;
+        double remainingMs = nextFrameTimeMs - emscripten_get_now();
+
+        if (remainingMs < 1.0) {
+            nextDelayMs = 1;
+        } else if (remainingMs > 1000.0) {
+            nextDelayMs = 1000;
+        } else {
+            nextDelayMs = (unsigned int)remainingMs;
+        }
+    }
+
+    emscripten_async_call(frameTick, nullptr, nextDelayMs);
+}
+
+static void startFrameLoop(void) {
+    if (gFrameLoopActive) {
+        return;
+    }
+
+    gFrameLoopActive = true;
+    gLastFrameStartMs = emscripten_get_now();
+    emscripten_async_call(frameTick, nullptr, 0);
 }
 
 // gamePath: WASMFS path to the data.win to load (example: "/butterscotch/games/undertale/data.win").
@@ -191,23 +254,28 @@ void setWindowTitle(const char* title) {
 void startRunner(const char* gamePath, const char* savesPath) {
     fprintf(stderr, "Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
 
+    if (gRunner != nullptr) {
+        fprintf(stderr, "A runner is already active. Cleaning up the previous instance first.\n");
+        gRunner->shouldExit = true;
+        cleanupRunner();
+    }
+
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
 
     attrs.majorVersion = 2;
     attrs.minorVersion = 0;
     attrs.alpha = 0;
-    attrs.antialias = 0; // Required to avoid "WebGL warning: blitFramebuffer: DRAW_FRAMEBUFFER may not have multiple samples."
-    // Both of these are required to allow us to use emscripten_webgl_commit_frame
+    attrs.antialias = 0;
+
+    // These are kept for normal single-thread rendering with explicit frame swapping.
     attrs.explicitSwapControl = true;
     attrs.renderViaOffscreenBackBuffer = true;
 
-    // Yes, "#canvas" feels nasty as HELL
-    // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
-    if (0 >= ctx) {
-        printf("Failed to create WebGL context: %d\n", (int)ctx);
-        abort();
+    if (ctx <= 0) {
+        fprintf(stderr, "Failed to create WebGL context: %d\n", (int)ctx);
+        return;
     }
 
     emscripten_webgl_make_context_current(ctx);
@@ -249,52 +317,96 @@ void startRunner(const char* gamePath, const char* savesPath) {
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = false;
     options.eagerlyLoadedRooms = nullptr;
+
     DataWin* dataWin = DataWin_parse(gamePath, options);
+    if (dataWin == nullptr) {
+        fprintf(stderr, "Failed to parse DataWin: %s\n", gamePath);
+        return;
+    }
 
-    // return strdup(dataWin->gen8.name);
-
-    // Initialize VM
     VMContext* vm = VM_create(dataWin);
+    if (vm == nullptr) {
+        fprintf(stderr, "Failed to create VMContext\n");
+        DataWin_free(dataWin);
+        return;
+    }
 
     Renderer* renderer = GLRenderer_create();
+    if (renderer == nullptr) {
+        fprintf(stderr, "Failed to create GLRenderer\n");
+        VM_free(vm);
+        DataWin_free(dataWin);
+        return;
+    }
 
     // Bundle path = directory containing data.win, e.g. "/butterscotch/games/undertale/".
-    // Save path = whatever the worker passed in, e.g. "/butterscotch/saves/undertale/".
+    // Save path = whatever was passed in, e.g. "/butterscotch/saves/undertale/".
     char* bundleDir = nullptr;
     const char* lastSlash = strrchr(gamePath, '/');
     if (lastSlash != nullptr) {
-        size_t len = (size_t) (lastSlash - gamePath + 1);
-        bundleDir = (char *)safeMalloc(len + 1);
+        size_t len = (size_t)(lastSlash - gamePath + 1);
+        bundleDir = (char*)safeMalloc(len + 1);
         memcpy(bundleDir, gamePath, len);
         bundleDir[len] = '\0';
     } else {
         bundleDir = safeStrdup("./");
     }
+
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, savesPath);
     free(bundleDir);
 
-    gWebAudio = WebAudioSystem_create(dataWin, gAudioSampleRate);
-    AudioSystem* audioSystem = (AudioSystem*) gWebAudio;
+    if (overlayFs == nullptr) {
+        fprintf(stderr, "Failed to create overlay filesystem\n");
+        Renderer_free(renderer);
+        VM_free(vm);
+        DataWin_free(dataWin);
+        return;
+    }
 
-    // Initialize the runner
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+    gWebAudio = WebAudioSystem_create(dataWin, gAudioSampleRate);
+    if (gWebAudio == nullptr) {
+        fprintf(stderr, "Failed to create WebAudioSystem\n");
+        OverlayFileSystem_free(overlayFs);
+        Renderer_free(renderer);
+        VM_free(vm);
+        DataWin_free(dataWin);
+        return;
+    }
+
+    AudioSystem* audioSystem = (AudioSystem*)gWebAudio;
+
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*)overlayFs, audioSystem);
+    if (runner == nullptr) {
+        fprintf(stderr, "Failed to create runner\n");
+        gWebAudio = nullptr;
+        OverlayFileSystem_free(overlayFs);
+        Renderer_free(renderer);
+        VM_free(vm);
+        DataWin_free(dataWin);
+        return;
+    }
+
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 
-    setWindowTitle(dataWin->gen8.name);
-
     gRunner = runner;
 
-    // Initialize the first room and fire Game Start / Room Start events
+    setWindowTitle(dataWin->gen8.name);
+
+    // Initialize the first room and fire Game Start / Room Start events.
     Runner_initFirstRoom(runner);
 
-    // Start a new thread
-    pthread_t tid;
-    pthread_create(&tid, NULL, loop, NULL);
-    pthread_detach(tid);
+    // Start the single-thread frame loop.
+    startFrameLoop();
 }
 
-void stopRunner() {
+void stopRunner(void) {
     fprintf(stderr, "Marked runner to exit!\n");
-    gRunner->shouldExit = true;
+    if (gRunner != nullptr) {
+        gRunner->shouldExit = true;
+    }
+}
+
+void setWindowTitle(const char* title) {
+    postHostMessage("windowTitle", title);
 }
