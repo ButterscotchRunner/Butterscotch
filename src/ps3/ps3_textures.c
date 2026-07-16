@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
+
 // We stream the texture pages on demand from the file instead of loading everything in RAM.
 
 #define PAGE_HEADER_SIZE 12  // u16 w, u16 h, u32 pixelOffset, u32 pixelDataSize
