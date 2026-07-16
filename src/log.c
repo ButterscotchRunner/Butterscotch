@@ -51,7 +51,6 @@ static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 }
 
 static void vLogToFileInternal(FILE* file, const int type, const char* fmt, va_list va) {
-
 	if (logColourFile) {
 		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
 	}
