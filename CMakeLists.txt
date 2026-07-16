@@ -323,8 +323,11 @@ if(PLATFORM STREQUAL "desktop")
     )
 elseif(PLATFORM STREQUAL "web")
     if (NOT ENABLE_MODERN_GL)
+elseif(PLATFORM STREQUAL "web")
+    if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Web requires modern gl!")
     endif()
+
     file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
@@ -337,29 +340,24 @@ elseif(PLATFORM STREQUAL "web")
     # bzip2
     target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis)
 
-    set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
+    # Build as classic JS instead of ES module
+    set_target_properties(butterscotch PROPERTIES SUFFIX ".js")
 
     target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=worker"
-            "-sWASMFS=1"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_mountOpfs', '_startRunner', '_stopRunner', '_malloc', '_free', '_getKeyDownPtr', '_getKeyUpPtr', '_getKeyCount', '_setAudioSampleRate', '_pullAudioFrames']"
-            "-sOFFSCREENCANVAS_SUPPORT=1"
-            "-sOFFSCREEN_FRAMEBUFFER=1"
-            "-sMIN_WEBGL_VERSION=2"
-            "-sMAX_WEBGL_VERSION=2"
-            "-sFULL_ES3=1"
-            "-sALLOW_MEMORY_GROWTH"
-            "-sSHARED_MEMORY=1"
-            "-sPTHREAD_POOL_SIZE=4"
-            "-pthread"
+        butterscotch
+        PRIVATE
+        "-sMODULARIZE=0"
+        "-sEXPORT_ES6=0"
+        "-sENVIRONMENT=web"
+        "-sWASMFS=1"
+        "-sEXPORTED_RUNTIME_METHODS=['FS','HEAP8','HEAPU8','HEAPF32','ccall','cwrap','UTF8ToString']"
+        "-sEXPORTED_FUNCTIONS=['_main','_mountOpfs','_startRunner','_stopRunner','_malloc','_free','_getKeyDownPtr','_getKeyUpPtr','_getKeyCount','_setAudioSampleRate','_pullAudioFrames']"
+        "-sMIN_WEBGL_VERSION=2"
+        "-sMAX_WEBGL_VERSION=2"
+        "-sFULL_ES3=1"
+        "-sALLOW_MEMORY_GROWTH=1"
     )
-
-    target_compile_options(butterscotch PRIVATE "-pthread")
+    
 elseif(PLATFORM STREQUAL "web-meta")
     set_target_properties(butterscotch PROPERTIES
         SUFFIX ".mjs"
