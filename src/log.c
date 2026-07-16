@@ -19,7 +19,6 @@ static FILE* logFileHandleBackup = nullptr;
 static FILE* logFileHandle = nullptr;
 
 static FILE* logFiles[LOG_MAX_FILES];
-static int logFileCount = 0;
 
 enum {
 	LOG_TYPE_NORMAL=0,
@@ -66,14 +65,14 @@ static void vLogToFile(const int type, const char* fmt, va_list va) {
 
 	vLogToFileInternal(logFileHandle, type, fmt, va);
 
-	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
+	for (int i=0; i < LOG_MAX_FILES; i++) {
+		if (!logFiles[i]) continue;
 		vLogToFileInternal(logFiles[i], type, fmt, va);
 	}
 }
 
 void Log_init() {
 	memset(logFiles, 0, sizeof(logFiles));
-	logFileCount = 0;
 
 	if (logFileHandle != nullptr) {
 		fclose(logFileHandle);
@@ -103,25 +102,34 @@ void Log_resetFile() {
 }
 
 bool Log_addFile(FILE* file) {
-	if (logFileCount >= LOG_MAX_FILES) return false;
-	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
+	if (file == nullptr) return false;
+
+	int availableSlot = -1;
+	for (int i=0; i < LOG_MAX_FILES; i++) {
 		if (logFiles[i] == file) {
 			return true;
 		}
+		if (logFiles[i] == nullptr) {
+			availableSlot = i;
+		}
 	}
-	logFiles[logFileCount] = file;
-	logFileCount++;
+
+	if (availableSlot == -1) return false;
+
+	logFiles[availableSlot] = file;
 	return true;
 }
 
 bool Log_removeFile(FILE* file) {
-	for (int i=0; i < LOG_MAX_FILES && logFiles[i] != nullptr; i++) {
+	if (file == nullptr) return false;
+
+	for (int i=0; i < LOG_MAX_FILES; i++) {
 		if (logFiles[i] == file) {
 			logFiles[i] = nullptr;
-			logFileCount--;
 			return true;
 		}
 	}
+
 	return false;
 }
 
