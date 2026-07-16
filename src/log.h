@@ -40,4 +40,12 @@ void Log_vLogErrorToTerminal(const char* fmt, va_list va);
 void Log_vLogErrorToFile(const char* fmt, va_list va);
 void Log_vLogError(const char* fmt, va_list va);
 
+void Log_logDebugToTerminal(const char* fmt, ...);
+void Log_logDebugToFile(const char* fmt, ...);
+void Log_logDebug(const char* fmt, ...);
+
+void Log_vLogDebugToTerminal(const char* fmt, va_list va);
+void Log_vLogDebugToFile(const char* fmt, va_list va);
+void Log_vLogDebug(const char* fmt, va_list va);
+
 #endif /* _BS_LOG_H */

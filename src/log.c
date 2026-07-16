@@ -24,7 +24,8 @@ static FILE* logFiles[LOG_MAX_FILES];
 enum {
 	LOG_TYPE_NORMAL=0,
 	LOG_TYPE_WARNING=1,
-	LOG_TYPE_ERROR=2
+	LOG_TYPE_ERROR=2,
+	LOG_TYPE_DEBUG=3
 };
 
 #ifndef va_copy
@@ -34,10 +35,11 @@ enum {
 #define ANSI_COLOUR_CODE_WHITE "\x1b[0;37m"
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
+#define ANSI_COLOUR_CODE_BOLD_PURPLE "\x1b[1;35m"
 
 static void vLogInternal(FILE* file, bool logColour, const int type, const char* fmt, va_list va) {
 	if (logColour) {
-		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : ANSI_COLOUR_CODE_BOLD_RED)));
+		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : (type == LOG_TYPE_ERROR ? ANSI_COLOUR_CODE_BOLD_RED : ANSI_COLOUR_CODE_BOLD_PURPLE))));
 	}
 
 	vfprintf(file, fmt, va);
@@ -293,6 +295,61 @@ void Log_vLogError(const char* fmt, va_list va) {
 	}
 	if (logToFile) {
 		vLogToFile(LOG_TYPE_ERROR, fmt, va2);
+	}
+
+	va_end(va2);
+}
+
+void Log_logDebugToTerminal(const char* fmt, ...) {
+	va_list va;
+
+	va_start(va, fmt);
+	vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
+	va_end(va);
+}
+
+void Log_logDebugToFile(const char* fmt, ...) {
+	va_list va;
+
+	va_start(va, fmt);
+	vLogToFile(LOG_TYPE_DEBUG, fmt, va);
+	va_end(va);
+}
+
+void Log_logDebug(const char* fmt, ...) {
+	va_list va, va2;
+
+	va_start(va, fmt);
+	va_copy(va2, va);
+
+	if (logToTerminal) {
+		vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
+	}
+	if (logToFile) {
+		vLogToFile(LOG_TYPE_DEBUG, fmt, va2);
+	}
+
+	va_end(va);
+	va_end(va2);
+}
+
+void Log_vLogDebugToTerminal(const char* fmt, va_list va) {
+	vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
+}
+
+void Log_vLogDebugToFile(const char* fmt, va_list va) {
+	vLogToFile(LOG_TYPE_DEBUG, fmt, va);
+}
+
+void Log_vLogDebug(const char* fmt, va_list va) {
+	va_list va2;
+	va_copy(va2, va);
+
+	if (logToTerminal) {
+		vLogToTerminal(LOG_TYPE_DEBUG, fmt, va);
+	}
+	if (logToFile) {
+		vLogToFile(LOG_TYPE_DEBUG, fmt, va2);
 	}
 
 	va_end(va2);
