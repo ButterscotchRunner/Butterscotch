@@ -7105,7 +7105,7 @@ static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t 
 
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
-        Log_logError("Warning: Too many open text files!\n");
+        Log_logError("Error: Too many open text files!\n");
         abort();
     }
 
@@ -7135,7 +7135,7 @@ static RValue builtin_file_text_open_write(VMContext* ctx, RValue* args, int32_t
 
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
-        Log_logError("Warning: Too many open text files!\n");
+        Log_logError("Error: Too many open text files!\n");
         abort();
     }
 

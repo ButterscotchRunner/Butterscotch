@@ -2780,7 +2780,7 @@ static RValue executeLoop(VMContext* ctx) {
 #ifdef ENABLE_WAD17
         if (ctx->exception != nullptr) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
-            Log_logWarning("VM: Exception thrown! Stack Top is %d\n", ctx->exceptionHandlerStackTop);
+            Log_logError("VM: Exception thrown! Stack Top is %d\n", ctx->exceptionHandlerStackTop);
 #endif
             if (ctx->exceptionHandlerStackTop == 0) {
                 // TODO: When Butterscotch is better, we could have a strict mode that DOES throw a error

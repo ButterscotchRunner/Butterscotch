@@ -875,7 +875,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     int stride = width * 4;
     unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
-        Log_logWarning("Error: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
+        Log_logWarning("Warning: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
     }
 

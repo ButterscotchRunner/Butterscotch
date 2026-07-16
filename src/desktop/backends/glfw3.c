@@ -127,7 +127,7 @@ static bool platformGetWindowFocus(void) {
 }
 
 static void glfwErrorCallback(int code, const char* description) {
-    Log_logError("GLFW error 0x%x: %s\n", code, description);
+    Log_logWarning("GLFW error 0x%x: %s\n", code, description);
 }
 
 static int32_t glfwKeyToGml(int glfwKey) {
