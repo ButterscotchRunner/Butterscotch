@@ -42,8 +42,8 @@ static void vLogInternal(FILE* file, bool logColour, const int type, const char*
 		fprintf(file, (type == LOG_TYPE_NORMAL ? ANSI_COLOUR_CODE_WHITE : (type == LOG_TYPE_WARNING ? ANSI_COLOUR_CODE_BOLD_YELLOW : (type == LOG_TYPE_ERROR ? ANSI_COLOUR_CODE_BOLD_RED : ANSI_COLOUR_CODE_BOLD_PURPLE))));
 	}
 
-	if (type == LOG_TYPE_DEBUG) {
-		fprintf(file, "Debug: ");
+	if (type != LOG_TYPE_NORMAL) {
+		fprintf(file, (type == LOG_TYPE_WARNING ? "Warning: " : (type == LOG_TYPE_ERROR ? "Error: " : "Debug: ")));
 	}
 
 	vfprintf(file, fmt, va);

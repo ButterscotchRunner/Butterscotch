@@ -220,7 +220,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // Make sure the saves directory exists. The FileSystem impl will write into it.
     if (savesPath != nullptr && savesPath[0] != '\0') {
         if (mkdirP(savesPath) != 0) {
-            logWarn("Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
+            logWarn("failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
         }
     }
 

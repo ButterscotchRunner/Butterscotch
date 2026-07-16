@@ -271,7 +271,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
-                logWarn("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
                         reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
                 scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
                 fbWidth = modes[0]->w;

@@ -194,7 +194,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
-            logWarn("Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+            logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
             reqW = mode.w;
             reqH = mode.h;

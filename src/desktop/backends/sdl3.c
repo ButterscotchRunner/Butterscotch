@@ -172,7 +172,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         const SDL_DisplayMode *mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
         if (mode != NULL) {
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                        "Warning: %dx%d unavailable, falling back to %dx%d: %s",
+                        "%dx%d unavailable, falling back to %dx%d: %s",
                         fbWidth, fbHeight, mode->w, mode->h, SDL_GetError());
 
             fbWidth = mode->w;

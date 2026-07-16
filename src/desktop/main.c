@@ -548,7 +548,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s'\n", optarg);
+                    logError("Invalid frame number '%s'\n", optarg);
                     exit(1);
                 }
 
@@ -562,7 +562,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
+                    logError("Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
                     exit(1);
                 }
                 hmput(args->screenshotSurfacesFrames, frame, true);
@@ -630,7 +630,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s' for --exit-at-frame\n", optarg);
+                    logError("Invalid frame number '%s' for --exit-at-frame\n", optarg);
                     exit(1);
                 }
                 args->exitAtFrame = frame;
@@ -640,7 +640,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
+                    logError("Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
                     exit(1);
                 }
                 args->traceBytecodeAfterFrame = frame;
@@ -650,7 +650,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s' for --dump-frame\n", optarg);
+                    logError("Invalid frame number '%s' for --dump-frame\n", optarg);
                     exit(1);
                 }
                 hmput(args->dumpFrames, frame, true);
@@ -660,7 +660,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || 0 > frame) {
-                    logError("Error: Invalid frame number '%s' for --dump-frame-json\n", optarg);
+                    logError("Invalid frame number '%s' for --dump-frame-json\n", optarg);
                     exit(1);
                 }
                 hmput(args->dumpJsonFrames, frame, true);
@@ -673,7 +673,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 double speed = strtod(optarg, &endPtr);
                 if (*endPtr != '\0' || speed <= 0.0) {
-                    logError("Error: Invalid speed multiplier '%s' for --speed (must be > 0)\n", optarg);
+                    logError("Invalid speed multiplier '%s' for --speed (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->speedMultiplier = speed;
@@ -683,7 +683,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 double speed = strtod(optarg, &endPtr);
                 if (*endPtr != '\0' || speed <= 0.0) {
-                    logError("Error: Invalid speed '%s' for --fast-forward-speed (must be > 0)\n", optarg);
+                    logError("Invalid speed '%s' for --fast-forward-speed (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->fastForwardSpeed = speed;
@@ -714,7 +714,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int seedVal = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0') {
-                    logError("Error: Invalid seed value '%s' for --seed\n", optarg);
+                    logError("Invalid seed value '%s' for --seed\n", optarg);
                     exit(1);
                 }
                 args->seed = seedVal;
@@ -731,7 +731,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 char* endPtr;
                 int framesBetween = strtol(optarg, &endPtr, 10);
                 if (*endPtr != '\0' || framesBetween <= 0) {
-                    logError("Error: Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
+                    logError("Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
                     exit(1);
                 }
                 args->profilerFramesBetween = framesBetween;
@@ -755,7 +755,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 #endif
             case 'O':
                 if (!parseOsTypeArg(optarg, &args->osType)) {
-                    logError("Error: Invalid --os-type value '%s' (expected: ", optarg);
+                    logError("Invalid --os-type value '%s' (expected: ", optarg);
                     printOsTypeNames(stderr);
                     logError(")\n");
                     exit(1);
@@ -764,7 +764,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'w': {
                 int32_t w = 0, h = 0;
                 if (sscanf(optarg, "%dx%d", &w, &h) != 2 || 0 >= w || 0 >= h) {
-                    logError("Error: Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
+                    logError("Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
                     exit(1);
                 }
                 args->windowWidth = w;
@@ -779,7 +779,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 } else if (strcmp(optarg, "load-per-chunk") == 0) {
                     args->loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
                 } else {
-                    logError("Error: Unknown load type '%s'\n", optarg);
+                    logError("Unknown load type '%s'\n", optarg);
                     exit(1);
                 }
                 break;
@@ -797,7 +797,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 } else if ((ratio = strtod(optarg, &endPtr)), *endPtr == '\0' && ratio > 0.0) {
                     args->widescreenAspect = (float) ratio;
                 } else {
-                    logError("Error: Invalid --widescreen-hack value '%s' (expected W:H like 16:9, or a decimal like 1.7778)\n", optarg);
+                    logError("Invalid --widescreen-hack value '%s' (expected W:H like 16:9, or a decimal like 1.7778)\n", optarg);
                     exit(1);
                 }
                 break;
@@ -824,19 +824,19 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
-        logError("Usage: %s <path to data.win or game.unx>\n", argv[0]);
+        printUsage(argv[0]);
         exit(1);
     }
 
     args->dataWinPath = argv[optind];
 
     if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
-        logError("Error: --screenshot-at-frame requires --screenshot to be set\n");
+        logError("--screenshot-at-frame requires --screenshot to be set\n");
         exit(1);
     }
 
     if (hmlen(args->screenshotSurfacesFrames) > 0 && args->screenshotSurfacesPattern == nullptr) {
-        logError("Error: --screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
+        logError("--screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
         exit(1);
     }
 
@@ -877,7 +877,7 @@ static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char*
     int stride = width * 4;
     unsigned char* pixels = (unsigned char *)safeMalloc(stride * height);
     if (pixels == nullptr) {
-        logWarn("Warning: Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
+        logWarn("Failed to allocate memory for %s (%dx%d)\n", logPrefix, width, height);
         return;
     }
 
@@ -1287,7 +1287,7 @@ int main(int argc, char* argv[]) {
                     if (idx >= 0) {
                         VM_disassemble(vm, vm->codeIndexByName[idx].value);
                     } else {
-                        logWarn("Warning: Script '%s' not found in funcMap\n", name);
+                        logWarn("Script '%s' not found in funcMap\n", name);
                     }
                 }
             }
@@ -1603,7 +1603,7 @@ int main(int argc, char* argv[]) {
                             fclose(f);
                             logInfo("JSON dump saved: %s\n", filename);
                         } else {
-                            logWarn("Warning: Could not write JSON dump to '%s'\n", filename);
+                            logWarn("Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
                         logInfo("%s\n", json);
@@ -1711,7 +1711,7 @@ int main(int argc, char* argv[]) {
                             fclose(f);
                             logInfo("JSON dump saved: %s\n", filename);
                         } else {
-                            logWarn("Warning: Could not write JSON dump to '%s'\n", filename);
+                            logWarn("Could not write JSON dump to '%s'\n", filename);
                         }
                     } else {
                         logInfo("%s\n", json);

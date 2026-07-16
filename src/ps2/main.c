@@ -323,19 +323,19 @@ int main(int argc, char* argv[]) {
     padInit(0);
     padOpened[0] = (padPortOpen(0, 0, padBuf[0]) != 0);
     padOpened[1] = (padPortOpen(1, 0, padBuf[1]) != 0);
-    if (!padOpened[0]) logWarn("Warning: failed to open pad port 0\n");
-    if (!padOpened[1]) logWarn("Warning: failed to open pad port 1\n");
+    if (!padOpened[0]) logWarn("failed to open pad port 0\n");
+    if (!padOpened[1]) logWarn("failed to open pad port 1\n");
 
     // ===[ Load USB Keyboard IOP Modules ]===
     int usbdRet = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > usbdRet) {
-        logWarn("Warning: failed to load usbd: %d (keyboard disabled)\n", usbdRet);
+        logWarn("failed to load usbd: %d (keyboard disabled)\n", usbdRet);
     } else {
         int kbdRet = SifExecModuleBuffer(ps2kbd_irx, size_ps2kbd_irx, 0, nullptr, nullptr);
         if (0 > kbdRet) {
-            logWarn("Warning: failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
+            logWarn("failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
         } else if (PS2KbdInit() == 0) {
-            logWarn("Warning: PS2KbdInit failed (keyboard disabled)\n");
+            logWarn("PS2KbdInit failed (keyboard disabled)\n");
         } else {
             PS2KbdSetReadmode(PS2KBD_READMODE_RAW);
             PS2KbdSetBlockingMode(PS2KBD_NONBLOCKING);
