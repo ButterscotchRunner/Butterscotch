@@ -78,7 +78,7 @@ static void vLogInternal(const logType type, const logOutType out, const char* f
 
 	size_t newFmtSize = strlen(colourPrefix) + strlen(prefix) + strlen(fmt) + strlen(colourPostfix) + 1;
 
-	char* newFmt = safeMalloc(newFmtSize);
+	char* newFmt = (char*)safeMalloc(newFmtSize);
 
 	snprintf(newFmt, newFmtSize, "%s%s%s%s", colourPrefix, prefix, fmt, colourPostfix);
 
