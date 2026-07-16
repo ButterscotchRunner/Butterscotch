@@ -14,6 +14,7 @@ static bool logColourTerminal = true;
 static bool logColourFile = false;
 
 static const char* logFile = "./butterscotch.log";
+static const char* logFileBackup = "./butterscotch.log";
 
 static FILE* logFileHandleBackup = nullptr;
 static FILE* logFileHandle = nullptr;
@@ -75,6 +76,7 @@ void Log_init() {
 		if (logFileHandle != nullptr) {
 			setvbuf(logFileHandle, nullptr, _IONBF, 0);
 			logFileHandleBackup = logFileHandle;
+			logFileBackup = logFile;
 		}
 	}
 }
@@ -89,12 +91,14 @@ void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTermina
 	}
 }
 
-void Log_setFile(FILE* file) {
+void Log_setFile(FILE* file, const char* path) {
 	logFileHandle = file;
+	logFile = path;
 }
 
 void Log_resetFile() {
 	logFileHandle = logFileHandleBackup;
+	logFile = logFileBackup;
 }
 
 bool Log_addFile(FILE* file) {

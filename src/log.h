@@ -10,7 +10,7 @@
 void Log_init();
 void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, const char* pLogFile);
 
-void Log_setFile(FILE* file);
+void Log_setFile(FILE* file, const char* path);
 void Log_resetFile();
 
 bool Log_addFile(FILE* file);
