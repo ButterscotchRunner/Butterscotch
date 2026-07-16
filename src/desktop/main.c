@@ -315,9 +315,7 @@ static FILE* logFileHandle = nullptr;
 
 void platformLog(const logType type, const char *format, va_list va) {
 	va_list va2;
-	if (logToFile) {
-		va_copy(va2, va);
-	}
+	va_copy(va2, va);
 	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
 	if (logToFile) {
 		vfprintf(logFileHandle, format, va2);
