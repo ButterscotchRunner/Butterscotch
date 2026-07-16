@@ -8,6 +8,9 @@
 void Log_init();
 void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile);
 
+void Log_setFile(FILE* file);
+void Log_resetFile();
+
 void Log_logToTerminal(const char* fmt, ...);
 void Log_logToFile(const char* fmt, ...);
 void Log_log(const char* fmt, ...);

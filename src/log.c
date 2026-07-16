@@ -14,6 +14,7 @@ static bool logColourFile = false;
 
 static char* logFile = "./butterscotch.log";
 
+static FILE* logFileHandleBackup = nullptr;
 static FILE* logFileHandle = nullptr;
 
 enum {
@@ -25,14 +26,6 @@ enum {
 #define ANSI_COLOUR_CODE_WHITE "\x1b[0;37m"
 #define ANSI_COLOUR_CODE_BOLD_YELLOW "\x1b[1;33m"
 #define ANSI_COLOUR_CODE_BOLD_RED "\x1b[1;31m"
-
-void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile) {
-	logToTerminal = bLogToTerminal;
-	logToFile = bLogToFile;
-	logColourTerminal = bLogColourTerminal;
-	logColourFile = bLogColourFile;
-	logFile = pLogFile;
-}
 
 static void vLogToTerminal(const int type, const char* fmt, va_list va) {
 	if (!logToTerminal) return;
@@ -71,7 +64,24 @@ void Log_init() {
 	logFileHandle = fopen(logFile, "w");
 	if (logFileHandle != nullptr) {
 		setvbuf(logFileHandle, nullptr, _IONBF, 0);
+		logFileHandleBackup = logFileHandle;
 	}
+}
+
+void Log_setOptions(bool bLogToTerminal, bool bLogToFile, bool bLogColourTerminal, bool bLogColourFile, char* pLogFile) {
+	logToTerminal = bLogToTerminal;
+	logToFile = bLogToFile;
+	logColourTerminal = bLogColourTerminal;
+	logColourFile = bLogColourFile;
+	logFile = pLogFile;
+}
+
+void Log_setFile(FILE* file) {
+	logFileHandle = file;
+}
+
+void Log_resetFile() {
+	logFileHandle = logFileHandleBackup;
 }
 
 void Log_logToTerminal(const char* fmt, ...) {
