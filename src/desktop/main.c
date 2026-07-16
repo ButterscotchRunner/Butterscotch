@@ -319,8 +319,8 @@ void platformLog(const logType type, const char *format, va_list va) {
 	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
 	if (logToFile) {
 		vfprintf(logFileHandle, format, va2);
-		va_end(va2);
 	}
+	va_end(va2);
 }
 
 // Resolves the window size for the specified operating system.
