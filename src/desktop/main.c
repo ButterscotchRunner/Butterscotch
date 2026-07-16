@@ -55,8 +55,6 @@
 #include "profiler.h"
 #include "gettime.h"
 
-FILE* logFileHandle = nullptr;
-
 /* For SDL_main */
 #if defined(USE_SDL1)
 #include <SDL/SDL_main.h>
@@ -256,11 +254,9 @@ typedef struct {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     bool opcodeProfiler;
 #endif
-    bool disableTerminalLog;
     bool disableFileLog;
     const char* logFile;
-    bool disableTerminalLogColours;
-    bool enableFileLogColours;
+    bool disableLogColours;
 } CommandLineArgs;
 
 typedef struct { const char* name; YoYoOperatingSystem value; } OsTypeNameEntry;
@@ -309,24 +305,8 @@ static void printOsTypeNames(FILE* out) {
     }
 }
 
-#ifndef va_copy
-#define va_copy(d, s) ((d) = (s))
-#endif
-
-void platformLog(const logType type, const logOutType out, const char *format, va_list va) {
-	if (out == LOG_OUT_ALL) {
-		va_list va2;
-		va_copy(va2, va);
-		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
-		vfprintf(logFileHandle, format, va2);
-		va_end(va2);
-	}
-	else if (out == LOG_OUT_TERMINAL) {
-		vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
-	}
-	else { // LOG_OUT_FILE
-		vfprintf(logFileHandle, format, va);
-	}
+void platformLog(const logType type, const char *format, va_list va) {
+	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
 }
 
 // Resolves the window size for the specified operating system.
@@ -526,11 +506,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
         {"load-type", required_argument, nullptr, 999},
-        {"disable-terminal-log", no_argument, nullptr, 1001},
-        {"disable-file-log", no_argument, nullptr, 1002},
-        {"log-file", required_argument, nullptr, 1003},
-        {"disable-terminal-log-colours", no_argument, nullptr, 1004},
-        {"enable-file-log-colours", no_argument, nullptr, 1005},
+        {"disable-file-log", no_argument, nullptr, 1001},
+        {"log-file", required_argument, nullptr, 1002},
+        {"disable-log-colours", no_argument, nullptr, 1003},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -823,19 +801,13 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             }
             case 1001:
-                args->disableTerminalLog = true;
-                break;
-            case 1002:
                 args->disableFileLog = true;
                 break;
-            case 1003:
+            case 1002:
                 args->logFile = optarg;
                 break;
-            case 1004:
-                args->disableTerminalLogColours = true;
-                break;
-            case 1005:
-                args->enableFileLogColours = true;
+            case 1003:
+                args->disableLogColours = true;
                 break;
             default:
                 printUsage(argv[0]);
@@ -1057,9 +1029,7 @@ int main(int argc, char* argv[]) {
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
 
-    Log_setOptions(!args.disableTerminalLog, !args.disableFileLog, !args.disableTerminalLogColours, args.enableFileLogColours, args.logFile ? args.logFile : "./butterscotch.log");
-
-    logFileHandle = Log_init();
+    Log_setColour(!args.disableLogColours);
 
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
