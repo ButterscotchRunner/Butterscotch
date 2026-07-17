@@ -291,7 +291,7 @@ bool platformHandleEvents(void) {
 }
 
 void platformSleepUntil(uint64_t time) {
-    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
+    double remaining = ((int64_t)time - (int64_t)nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 
