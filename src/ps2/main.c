@@ -89,8 +89,24 @@ static bool padWasStable[2] = {false, false};
 static bool gamepadApiEnabled = false;
 
 void platformLog(const logType type, const char *format, va_list va) {
-	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
 }
+
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
     JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
@@ -244,8 +260,6 @@ int main(int argc, char* argv[]) {
     (void)argc;
     SifInitRpc(0);
     sbv_patch_enable_lmb();
-
-	Log_setColour(false);
 
     // Ask the kernel how much main RAM we actually have.
     MAX_MEMORY_BYTES = (int) GetMemorySize();

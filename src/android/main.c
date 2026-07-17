@@ -43,7 +43,28 @@ static float gNormalizedCursorY = 0.0f;
 static int32_t gProfilerStartedAtFrame = 0;
 
 void platformLog(const logType type, const char *format, va_list va) {
-	__android_log_print(type == LOG_TYPE_NORMAL ? ANDROID_LOG_INFO : (type == LOG_TYPE_WARNING ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR), LOG_TAG, format, va);
+	const char* prefix = "";
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            break;
+        case LOG_TYPE_WARNING:
+            prefix = "Warning: ";
+            break;
+        case LOG_TYPE_ERROR:
+            prefix = "Error: ";
+            break;
+		case LOG_TYPE_DEBUG:
+            prefix = "Debug: ";
+            break;
+    }
+
+	const int newFormatSize = strlen(format) + strlen(prefix) + 1;
+	const char* newFormat = (char*)safeMalloc(newFormatSize);
+	snprintf(newFormat, newFormatSize, "%s%s", prefix, format);
+
+    __android_log_vprint(type == LOG_TYPE_NORMAL ? ANDROID_LOG_INFO : (type == LOG_TYPE_WARNING ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR), LOG_TAG, newFormat, va);
+
+	free(newFormat);
 }
 
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host

@@ -23,7 +23,22 @@ uint8_t keyDown[GML_KEY_COUNT] = {0};
 uint8_t keyUp[GML_KEY_COUNT] = {0};
 
 void platformLog(const logType type, const char *format, va_list va) {
-	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
 }
 
 // Configures the sample rate that miniaudio will mix at. Must match the AudioContext's sampleRate
