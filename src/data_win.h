@@ -50,7 +50,7 @@ typedef struct {
     bool lazyLoadRooms;
     // If true, TXTR objects will be loaded on demand via DataWin_loadTxtrIfNeeded, and unloaded if memory is tight.
     bool lazyLoadTextures;
-    // If true, AUDO objects will be loaded on demand via DataWin_loadAudoIfNeeded, and unloaded if memory is tight.
+    // If true, AUDO objects will be loaded on demand via DataWin_loadAudoIfNeeded.
     bool lazyLoadAudio;
 
     // When lazyLoadRooms is true, this list indicates which rooms should be loaded during load time instead of demand. They will also not be freed.
