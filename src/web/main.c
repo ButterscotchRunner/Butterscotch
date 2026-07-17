@@ -72,7 +72,6 @@ int getKeyCount() {
 }
 
 int main() {
-    Log_setColour(false);
     logInfo("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
