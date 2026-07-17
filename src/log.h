@@ -5,8 +5,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-#define LOG_MAX_FILES 16
-
 typedef enum {
 	LOG_TYPE_NORMAL=0,
 	LOG_TYPE_WARNING=1,
