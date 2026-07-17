@@ -540,6 +540,10 @@ bool platformHandleEvents(void) {
                 }
                 break;
             case SDL_KEYDOWN:
+                // SDL1.2 needs to manually intercept Alt+F4 to exit properly
+                if (e.key.keysym.sym == SDLK_F4 && (e.key.keysym.mod & KMOD_ALT)) {
+                    return true;
+                }
                 // During playback, suppress real keyboard input
                 if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
