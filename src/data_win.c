@@ -2569,7 +2569,7 @@ void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId) {
     }
 }
 
-static void parseAUDO(BinaryReader* reader, DataWin* dw) {
+static void parseAUDO(BinaryReader* reader, DataWin* dw, bool loadAudioDataLazily) {
     Audo* a = &dw->audo;
 
     uint32_t count;
@@ -2586,7 +2586,9 @@ static void parseAUDO(BinaryReader* reader, DataWin* dw) {
         a->entries[i].dataSize = BinaryReader_readUint32(reader);
         a->entries[i].dataOffset = (uint32_t)BinaryReader_getPosition(reader);
         // Load audio data into owned buffer
-        if (dw->mappedFile) {
+        if (loadAudioDataLazily) {
+            a->entries[i].data = nullptr;
+        } else if (dw->mappedFile) {
             a->entries[i].data = dw->mappedFile + a->entries[i].dataOffset;
         } else if (a->entries[i].dataSize > 0) {
             a->entries[i].data = (uint8_t *)safeMalloc(a->entries[i].dataSize);
@@ -2596,6 +2598,31 @@ static void parseAUDO(BinaryReader* reader, DataWin* dw) {
         }
     }
     free(ptrs);
+}
+
+void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId) {
+    Audo* a = &dw->audo;
+    AudioEntry* entry = &a->entries[audioEntryId];
+
+    if (!entry->present || entry->dataSize == 0) return;
+    if (entry->data != nullptr) return;
+
+    if (!dw->lazyLoadFile) {
+        fprintf(stderr, "loadAudoIfNeeded: called without a lazy load file.\n");
+        return;
+    }
+
+    entry->data = (uint8_t *)safeMalloc(entry->dataSize);
+
+    memset(entry->data, 0, entry->dataSize);
+    long old_seek = ftell(dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, entry->dataOffset, SEEK_SET);
+    size_t read = fread(entry->data, 1, entry->dataSize, dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
+
+    if (read != entry->dataSize) {
+        fprintf(stderr, "loadAudoIfNeeded: couldn't read %u bytes to load audio entry %u.\n", entry->dataSize, audioEntryId);
+    }
 }
 
 // ===[ MAIN PARSE FUNCTION ]===
@@ -2838,7 +2865,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseTxtr && memcmp(chunkName, "TXTR", 4) == 0) {
             parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTextures);
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
-            parseAUDO(&reader, dw);
+            parseAUDO(&reader, dw, options.lazyLoadAudio);
         } else {
             printf("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
         }
@@ -2870,7 +2897,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     // If lazy-loading rooms, keep the file handle open for DataWin_loadRoomPayload, otherwise close it now
     dw->lazyLoadRooms = options.lazyLoadRooms;
     dw->lazyLoadTextures = options.lazyLoadTextures;
-    if (options.lazyLoadRooms || options.lazyLoadTextures) {
+    dw->lazyLoadAudio = options.lazyLoadAudio;
+    if (options.lazyLoadRooms || options.lazyLoadTextures || options.lazyLoadAudio) {
         dw->lazyLoadFile = file;
         dw->lazyLoadFilePath = safeStrdup(filePath);
         dw->fileSize = (size_t) fileSize;
