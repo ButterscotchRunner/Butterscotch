@@ -12,7 +12,10 @@ typedef enum {
 	LOG_TYPE_DEBUG=3
 } logType;
 
-void Log_setColour(bool bColour);
+#define ANSI_COLOUR_CODE_RESET "\033[0m"
+#define ANSI_COLOUR_CODE_BOLD_YELLOW "\033[1;33m"
+#define ANSI_COLOUR_CODE_BOLD_RED "\033[1;31m"
+#define ANSI_COLOUR_CODE_BOLD_PURPLE "\033[1;35m"
 
 void logInfo(const char* fmt, ...);
 void vLogInfo(const char* fmt, va_list va);

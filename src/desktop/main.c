@@ -309,17 +309,44 @@ static void printOsTypeNames(FILE* out) {
 static bool logToFile = false;
 static FILE* logFileHandle = nullptr;
 
+static bool logColour;
+
 #ifndef va_copy
 #define va_copy(d, s) ((d) = (s))
 #endif
 
 void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+	const char* prefix = ANSI_COLOUR_CODE_RESET;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+			out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+			prefix = ANSI_COLOUR_CODE_BOLD_YELLOW"Warning: ";
+            break;
+        case LOG_TYPE_ERROR:
+            prefix = ANSI_COLOUR_CODE_BOLD_RED"Error: ";
+            break;
+		case LOG_TYPE_DEBUG:
+            prefix = ANSI_COLOUR_CODE_BOLD_PURPLE"Debug: ";
+            break;
+    }
+
 	va_list va2;
 	va_copy(va2, va);
-	vfprintf(type == LOG_TYPE_NORMAL ? stdout : stderr, format, va);
-	if (logToFile) {
-		vfprintf(logFileHandle, format, va2);
+
+	print:
+	if (logColour) fputs(prefix, out);
+    vfprintf(out, format, va2);
+	if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
+
+	if (logToFile && out != logFileHandle && logFileHandle) {
+		out = logFileHandle;
+		va_copy(va2, va);
+		goto print;
 	}
+
 	va_end(va2);
 }
 
@@ -1046,10 +1073,12 @@ int main(int argc, char* argv[]) {
 	logToFile = !args.disableFileLog;
 	if (logToFile) {
 		logFileHandle = fopen(args.logFile ? args.logFile : "./butterscotch.log", "w");
-		setbuf(logFileHandle, NULL);
+		if (logFileHandle) {
+			setbuf(logFileHandle, NULL);
+		}
 	}
 
-    Log_setColour(!args.disableLogColours);
+    logColour = !args.disableLogColours;
 
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
@@ -1986,7 +2015,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-	if (logToFile) {
+	if (logFileHandle) {
 		fclose(logFileHandle);
 	}
 }
