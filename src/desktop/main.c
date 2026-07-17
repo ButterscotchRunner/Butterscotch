@@ -317,19 +317,23 @@ static bool logColour;
 
 void platformLog(const logType type, const char *format, va_list va) {
     FILE *out = stderr;
-	const char* prefix = ANSI_COLOUR_CODE_RESET;
+	const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
+	const char* textPrefix = "";
     switch (type) {
         case LOG_TYPE_NORMAL:
 			out = stdout;
             break;
         case LOG_TYPE_WARNING:
-			prefix = ANSI_COLOUR_CODE_BOLD_YELLOW"Warning: ";
+			colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
+			textPrefix = "Warning: ";
             break;
         case LOG_TYPE_ERROR:
-            prefix = ANSI_COLOUR_CODE_BOLD_RED"Error: ";
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_RED;
+			textPrefix = "Error: ";
             break;
 		case LOG_TYPE_DEBUG:
-            prefix = ANSI_COLOUR_CODE_BOLD_PURPLE"Debug: ";
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_PURPLE;
+			textPrefix = "Debug: ";
             break;
     }
 
@@ -337,7 +341,8 @@ void platformLog(const logType type, const char *format, va_list va) {
 	va_copy(va2, va);
 
 	print:
-	if (logColour) fputs(prefix, out);
+	if (logColour) fputs(colourPrefix, out);
+	fputs(textPrefix, out);
     vfprintf(out, format, va2);
 	if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
 
