@@ -7866,6 +7866,12 @@ static RValue builtin_window_get_cursor(VMContext* ctx, MAYBE_UNUSED RValue* arg
     return RValue_makeReal(runner->currentCursor);
 }
 
+// ===[ Date Functions ]===
+static RValue builtin_date_current_datetime(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    time_t now = time(NULL);
+    return RValue_makeReal((GMLReal)now / (GMLReal)86400 + (GMLReal)25569);
+}
+
 // ===[ Game State Functions ]===
 static RValue builtin_game_restart(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     ctx->runner->pendingRoom = ROOM_RESTARTGAME;
@@ -16792,6 +16798,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_has_focus", builtin_window_has_focus);
     VM_registerBuiltin(ctx, "window_set_cursor", builtin_window_set_cursor);
     VM_registerBuiltin(ctx, "window_get_cursor", builtin_window_get_cursor);
+
+    // Date
+    VM_registerBuiltin(ctx, "date_current_datetime", builtin_date_current_datetime);
 
     // Game
     VM_registerBuiltin(ctx, "game_restart", builtin_game_restart);
