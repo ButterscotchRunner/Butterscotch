@@ -30614,7 +30614,7 @@ static void ma_device_prime_playback_buffer__alsa(ma_device* pDevice)
 
     /* Guard against the available frame count reported by ALSA just in case we try writing too much and get stuck in snd_pcm_writei().. */
     framesAvail = pContextStateALSA->snd_pcm_avail(pDeviceStateALSA->pPCMPlayback);
-    if (framesToWrite > framesAvail) {
+    if ((ma_snd_pcm_sframes_t)framesToWrite > framesAvail) {
         framesToWrite = framesAvail;
     }
 
