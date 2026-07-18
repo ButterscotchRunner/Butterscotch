@@ -224,9 +224,19 @@ void platformExit(void) {
 static void platformSetCursor(int32_t cursorType) {
     // GLFW2 only supports showing/hiding
     if (cursorType == GML_CR_NONE) {
+        // GLFW2's mouse cursor locks the mouse position when it's invisible on Windows.
+        // This just makes it visible/invisible as intended.
+#ifdef _WIN32
+        while (ShowCursor(FALSE) >= 0);
+#else
         glfwDisable(GLFW_MOUSE_CURSOR);
+#endif
     } else {
+#ifdef _WIN32
+        while (ShowCursor(TRUE) < 0);
+#else
         glfwEnable(GLFW_MOUSE_CURSOR);
+#endif
     }
 }
 
