@@ -39,6 +39,8 @@ typedef struct {
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
     LibretroAudioStreamEntry streams[LIBRETRO_MAX_AUDIO_STREAMS];
+    ma_sound_group listeners[LIBRETRO_MAX_LISTENERS];
+    float listenerGains[LIBRETRO_MAX_LISTENERS];
 } LibretroAudioSystem;
 
 LibretroAudioSystem* LibretroAudioSystem_create(DataWin* dataWin, int32_t sampleRate);

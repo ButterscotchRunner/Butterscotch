@@ -80,6 +80,12 @@ static void libretroInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileS
     }
     ma->engineReady = true;
 
+    repeat(LIBRETRO_MAX_LISTENERS, i) {
+        ma_sound_group_init(&ma->engine, 0, NULL, &ma->listenerGroups[i]);
+        ma_sound_group_set_volume(&ma->listenerGroups[i], 1.0f);
+        ma->listenerGains[i] = 1.0f;
+    }
+
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 }
@@ -102,6 +108,10 @@ static void libretroDestroy(AudioSystem* audio) {
             if (ma->streams[i].active) {
                 free(ma->streams[i].filePath);
             }
+        }
+
+        repeat(LIBRETRO_MAX_LISTENERS, i) {
+            ma_sound_group_uninit(&ma->listenerGroups[i]);
         }
 
         if (arrlen(ma->base.audioGroups) > 1) {
@@ -563,6 +573,14 @@ static void libretroSetMasterGain(AudioSystem* audio, float gain) {
     ma_engine_set_volume(&ma->engine, gain);
 }
 
+static void libretroSetMasterGainForListener(LibretroAudioSystem* ma, float gain, int32_t id) {
+    if (!ma->engineReady) return;
+    if (id < 0 || id >= LIBRETRO_MAX_LISTENERS) return;
+    ma->listenerGains[id] = gain;
+    ma_sound_group_set_volume(&ma->listeners[listenerIndex], gain);
+}
+
+
 static void libretroSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
 static void libretroGroupLoad(AudioSystem* audio, int32_t groupIndex) {
@@ -684,6 +702,7 @@ LibretroAudioSystem* LibretroAudioSystem_create(DataWin* dataWin, int32_t sample
     libretroAudioSystemVtable.setTrackPosition = libretroSetTrackPosition;
     libretroAudioSystemVtable.getSoundLength = libretroGetSoundLength;
     libretroAudioSystemVtable.setMasterGain = libretroSetMasterGain;
+    libretroAudioSystemVtable.setMasterGainForListener = libretroSetMasterGainForListener;
     libretroAudioSystemVtable.setChannelCount = libretroSetChannelCount;
     libretroAudioSystemVtable.groupLoad = libretroGroupLoad;
     libretroAudioSystemVtable.groupIsLoaded = libretroGroupIsLoaded;
