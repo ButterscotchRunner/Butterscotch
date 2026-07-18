@@ -30614,7 +30614,7 @@ static void ma_device_prime_playback_buffer__alsa(ma_device* pDevice)
 
     /* Guard against the available frame count reported by ALSA just in case we try writing too much and get stuck in snd_pcm_writei().. */
     framesAvail = pContextStateALSA->snd_pcm_avail(pDeviceStateALSA->pPCMPlayback);
-    if ((ma_snd_pcm_sframes_t)framesToWrite > framesAvail) {
+    if (framesToWrite > framesAvail) {
         framesToWrite = framesAvail;
     }
 
@@ -44361,8 +44361,7 @@ static void ma_device_prime_playback_buffer__oss(ma_device* pDevice)
                 break;
             }
     
-            ssize_t rowsWritten = write(pDeviceStateOSS->fdPlayback, buffer, framesToWriteThisIteration * bpf);
-            (void)rowsWritten;
+            write(pDeviceStateOSS->fdPlayback, buffer, framesToWriteThisIteration * bpf);
             framesWritten += framesToWriteThisIteration;
         }
     }
