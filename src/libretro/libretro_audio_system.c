@@ -81,8 +81,8 @@ static void libretroInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileS
     ma->engineReady = true;
 
     repeat(LIBRETRO_MAX_LISTENERS, i) {
-        ma_sound_group_init(&ma->engine, 0, NULL, &ma->listenerGroups[i]);
-        ma_sound_group_set_volume(&ma->listenerGroups[i], 1.0f);
+        ma_sound_group_init(&ma->engine, 0, NULL, &ma->listeners[i]);
+        ma_sound_group_set_volume(&ma->listeners[i], 1.0f);
         ma->listenerGains[i] = 1.0f;
     }
 
@@ -111,7 +111,7 @@ static void libretroDestroy(AudioSystem* audio) {
         }
 
         repeat(LIBRETRO_MAX_LISTENERS, i) {
-            ma_sound_group_uninit(&ma->listenerGroups[i]);
+            ma_sound_group_uninit(&ma->listeners[i]);
         }
 
         if (arrlen(ma->base.audioGroups) > 1) {
@@ -573,11 +573,12 @@ static void libretroSetMasterGain(AudioSystem* audio, float gain) {
     ma_engine_set_volume(&ma->engine, gain);
 }
 
-static void libretroSetMasterGainForListener(LibretroAudioSystem* ma, float gain, int32_t id) {
+static void libretroSetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    LibretroAudioSystem* ma = (LibretroAudioSystem*) audio;
     if (!ma->engineReady) return;
     if (id < 0 || id >= LIBRETRO_MAX_LISTENERS) return;
     ma->listenerGains[id] = gain;
-    ma_sound_group_set_volume(&ma->listeners[listenerIndex], gain);
+    ma_sound_group_set_volume(&ma->listeners[id], gain);
 }
 
 
