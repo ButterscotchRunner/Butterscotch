@@ -76,29 +76,29 @@ PKG_CONFIG_FLAGS := --static
 endif
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs glfw3)
+GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),glfw2)
-GLFW2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs libglfw)
+GLFW2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libglfw)
 LIBS += $(GLFW2_LIBS)
 DEFINES += $(DEFINE)USE_GLFW2
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl1)
-SDL1_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl)
+SDL1_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl)
 LIBS += $(SDL1_LIBS)
 DEFINES += $(DEFINE)USE_SDL1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl2)
-SDL2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl2)
+SDL2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl2)
 LIBS += $(SDL2_LIBS)
 DEFINES += $(DEFINE)USE_SDL2
 endif
 ifeq ($(DESKTOP_BACKEND),sdl3)
-SDL3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl3)
+SDL3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl3)
 LIBS += $(SDL3_LIBS)
 DEFINES += $(DEFINE)USE_SDL3
 endif
