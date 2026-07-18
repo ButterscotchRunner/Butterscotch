@@ -4,8 +4,6 @@
 #include <stdarg.h>
 #include <time.h>
 #include "libretro.h"
-#include <glsm/glsmsym.h>
-
 #include "data_win.h"
 #include "vm.h"
 #include "runner.h"
@@ -13,6 +11,7 @@
 #include "runner_mouse.h"
 #include "runner_gamepad.h"
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+#include <glsm/glsmsym.h>
 #include "gl/gl_renderer.h"
 #else
 #include "sw_renderer.h"
