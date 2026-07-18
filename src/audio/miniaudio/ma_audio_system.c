@@ -16,6 +16,7 @@
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wtype-limits"
 #pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 #include "miniaudio.h"
 #if defined(__GNUC__) || defined(__clang__)
