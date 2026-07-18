@@ -136,6 +136,22 @@ else
     cross_compiling=1
 fi
 
+ccname="${CC##*/}"
+target="${ccname%-*}"
+if [ "$ccname" = "$target" ]; then
+    target=
+fi
+
+if [ -n "$target" ]; then
+    configlog "checking for $target-pkg-config"
+    if command -v "$target-pkg-config"; then
+        printyes
+        config "PKG_CONFIG := $target-pkg-config"
+    else
+        printno
+    fi
+fi
+
 configlog 'checking the target OS'
 if checkdefine '_WIN32' > /dev/null; then
     printgreen 'windows'

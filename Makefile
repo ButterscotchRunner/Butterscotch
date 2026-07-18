@@ -2,6 +2,7 @@
 # meant to be extremely portable to weird unix-like systems
 
 CC := cc
+PKG_CONFIG := pkg-config
 
 empty :=
 space := $(empty) $(empty)
