@@ -36,6 +36,25 @@ typedef struct {
     uint8_t r, g, b, a;
 } Vertex;
 
+typedef struct {
+    Matrix4f wvp;
+    float fogColor[4];   // RGB + A (A=0 disabled, A=1 enabled)
+    float alphaTestRef;
+    bool alphaTestEnabled;
+} DefaultShaderUniforms;
+
+typedef struct {
+    // Cached GL state
+    GLuint currentFbo;
+    int32_t viewport[4];
+    bool blendEnabled;
+    bool scissorEnabled;
+
+    // Default shader uniform tracking
+    bool uniformsDirty;
+    DefaultShaderUniforms last;
+} GLState;
+
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
@@ -98,6 +117,8 @@ typedef struct {
     GLShaderUniform* uAlphaTestRef;
     GLShaderUniform* uAlphaTestEnabled;
     GLShaderUniform* uTexture;
+
+    GLState state;
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);

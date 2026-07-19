@@ -479,7 +479,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     // Enable blending
-    glEnable(GL_BLEND);
+    glSetCap(gl, GL_BLEND, true);
+
+    // Initialise state cache
+    memset(&gl->state, 0, sizeof(gl->state));
+    gl->state.uniformsDirty = true;
+    gl->state.currentFbo = 0;
+    gl->state.blendEnabled = true;
+
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     gl->batchCount = 0;
@@ -540,19 +547,27 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         float fogG = (float) BGR_G(gl->fogColor) / 255.0f;
         float fogB = (float) BGR_B(gl->fogColor) / 255.0f;
 
+        DefaultShaderUniforms cur;
+        cur.wvp = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
+        Matrix4f_flipClipY(&cur.wvp);
+        cur.fogColor[0] = fogR; cur.fogColor[1] = fogG; cur.fogColor[2] = fogB;
+        cur.fogColor[3] = gl->fogEnable ? 1.0f : 0.0f;
+        cur.alphaTestRef = gl->alphaTestRef;
+        cur.alphaTestEnabled = gl->alphaTestEnable;
+
+        if (!gl->state.uniformsDirty && memcmp(&gl->state.last, &cur, sizeof(cur)) == 0)
+            return;
+
         glUseProgram(gl->defaultShaderProgram->shaderId);
 
-        Matrix4f flippedClip[MATRICES_MAX];
-        memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
-        //I was making the Legacy OpenGL renderer work with the projections, then I realized I think I only need to flip the Projection(s) and not the other ones
-        Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
-        Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
-
-        glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
-        glUniform4f(gl->uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
-        glUniform1f(gl->uAlphaTestRef->location, gl->alphaTestRef);
-        glUniform1i(gl->uAlphaTestEnabled->location, gl->alphaTestEnable);
+        glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, cur.wvp.m);
+        glUniform4f(gl->uFogColor->location, cur.fogColor[0], cur.fogColor[1], cur.fogColor[2], cur.fogColor[3]);
+        glUniform1f(gl->uAlphaTestRef->location, cur.alphaTestRef);
+        glUniform1i(gl->uAlphaTestEnabled->location, cur.alphaTestEnabled);
         glUniform1i(gl->uTexture->location, 1);
+
+        gl->state.last = cur;
+        gl->state.uniformsDirty = false;
     }
 }
 
@@ -578,6 +593,7 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
     //oh my I hope it's good enough.
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);    
 }
 
@@ -646,7 +662,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
     // Bind the application_surface
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[appId]);
     glViewport(0, 0, gameW, gameH);
     gl->base.CPortX = 0;
     gl->base.CPortY = 0;
@@ -664,14 +680,14 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     // FBO uses game resolution, port coordinates are in game space
     // OpenGL viewport Y is bottom-up, game Y is top-down
 
-    glViewport(portX, portY, portW, portH);
+    glViewportCached(gl, portX, portY, portW, portH);
 
     gl->base.CPortX = portX;
     gl->base.CPortY = portY;
     gl->base.CPortW = portW;
     gl->base.CPortH = portH;
 
-    glEnable(GL_SCISSOR_TEST);
+    glSetCap(gl, GL_SCISSOR_TEST, true);
     glScissor(portX, portY, portW, portH);
 
     int32_t viewCurrent = 0;
@@ -693,7 +709,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
 static void glEndView(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glDisable(GL_SCISSOR_TEST);
+    glSetCap(gl, GL_SCISSOR_TEST, false);
 }
 
 static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, MAYBE_UNUSED int32_t portH, int32_t targetSurfaceId) {
@@ -703,19 +719,19 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     gl->currentTextureId = 0;
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->hostFramebuffer);
         glViewport(0, 0, portW, portH);
         glScissor(0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         int32_t glPortY = gl->gameH - portY - portH;
         glViewport(portX, glPortY, portW, portH);
         glScissor(portX, glPortY, portW, portH);
     }
 
-    glEnable(GL_SCISSOR_TEST);
+    glSetCap(gl, GL_SCISSOR_TEST, true);
     //I dunno hopefully this is at least somewhat correct...
     gl->base.cameraCurrent = GUI_CAMERA;
     GMLCamera* camera = &renderer->runner->guiCamera;
@@ -785,7 +801,7 @@ static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, M
 static void glEndGUI(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glDisable(GL_SCISSOR_TEST);
+    glSetCap(gl, GL_SCISSOR_TEST, false);
 }
 
 static void glEndFrameInit(Renderer* renderer) {
@@ -793,7 +809,7 @@ static void glEndFrameInit(Renderer* renderer) {
     if (hasVAO()) glBindVertexArray(0);
 
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
     }
 }
@@ -810,9 +826,8 @@ static void glEndFrameEnd(Renderer* renderer) {
         GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
         GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
     } else {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
-        GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-        if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glSetCap(gl, GL_SCISSOR_TEST, !(gl->state.scissorEnabled));
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -820,7 +835,7 @@ static void glEndFrameEnd(Renderer* renderer) {
         glViewport(0, 0, gl->windowW, gl->windowH);
 
         renderer->vtable->setGuiProjection(renderer, gl->windowW, gl->windowH, gl->windowW, gl->windowH, false);
-        glDisable(GL_BLEND);
+        glSetCap(gl, GL_BLEND, false);
 
         int32_t sx, sy, ex, ey;
         GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
@@ -830,8 +845,8 @@ static void glEndFrameEnd(Renderer* renderer) {
         renderer->vtable->drawSurface(renderer, appId, 0, 0, gl->gameW, gl->gameH, (float)sx, (float)sy, scaleX, scaleY, 0.0f, 0xFFFFFF, 1.0f);
         flushBatch(gl);
 
-        glEnable(GL_BLEND);
-        if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+        glSetCap(gl, GL_BLEND, false);
+        glSetCap(gl, GL_SCISSOR_TEST, !(gl->state.scissorEnabled));
     }
 }
 
@@ -1919,8 +1934,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     flushBatch(gl);
 
     // Save the current FBO binding so creating a surface doesn't change the active render target.
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
 
@@ -1938,14 +1952,14 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
 
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
 
     fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     return (int32_t) surfaceIndex;
 }
@@ -1994,8 +2008,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     if (gl->surfaces[surfaceID] == 0) return;
     if (gl->surfaceWidth[surfaceID] == width && gl->surfaceHeight[surfaceID] == height) return;
 
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     if (gl->surfaceTexture[surfaceID] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceID]);
 
@@ -2007,14 +2020,14 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceID], 0);
 
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
 
     fprintf(stderr, "GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
 }
 
 static bool glSurfaceExists(Renderer* renderer, int32_t surfaceId) {
@@ -2044,11 +2057,11 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glEnable(GL_SCISSOR_TEST);
+        glSetCap(gl, GL_SCISSOR_TEST, true);
 
         glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
@@ -2058,8 +2071,8 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
 
     if (surfaceId == view->surfaceId) {
     //the surface belongs to the view we are rending, we use the view's camera.
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
+    glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glSetCap(gl, GL_SCISSOR_TEST, false);    
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
     return true;
     } else {
@@ -2080,15 +2093,15 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     camera->viewAngle = 0;
     Runner_updateCameraViewSimple(camera);
 
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
+    glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glSetCap(gl, GL_SCISSOR_TEST, false);
     glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
     return true;
     }
 
 
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
+    glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glSetCap(gl, GL_SCISSOR_TEST, false);
 
     return true;
 }
@@ -2103,16 +2116,15 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     if (gl->isGL3) {
         GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
     } else {
-        GLint prevBinding = 0;
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+        GLuint prevBinding = gl->state.currentFbo;
         Matrix4f prevProj = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
-        bool prevBlend = glIsEnabled(GL_BLEND);
-        GLint prevViewport[4];
-        glGetIntegerv(GL_VIEWPORT, prevViewport);
+        bool prevBlend = gl->state.blendEnabled;
+        int32_t prevViewport[4];
+        memcpy(prevViewport, gl->state.viewport, sizeof(prevViewport));
 
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[destSurfaceID]);
-        glViewport(0, 0, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID]);
-        glDisable(GL_BLEND);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[destSurfaceID]);
+        glViewportCached(gl, 0, 0, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID]);
+        glSetCap(gl, GL_BLEND, false);
 
         renderer->vtable->setGuiProjection(renderer, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], true);
 
@@ -2124,11 +2136,11 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
         renderer->vtable->drawSurface(renderer, srcSurfaceID, sX, sY, sW, sH, (float)destX, (float)destY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
         flushBatch(gl);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
         renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = prevProj;
         glShaderSettingsRefresh(renderer);
-        if (prevBlend) glEnable(GL_BLEND);
-        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+        if (prevBlend) glSetCap(gl, GL_BLEND, true);
+        glViewportCached(gl, prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     }
 }
 
@@ -2238,7 +2250,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     // Flush any pending draws before reading pixels
     flushBatch(gl);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
     uint8_t* pixels = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
@@ -2352,6 +2364,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->currentBlendMode == mode) return;
     flushBatch(gl);
 
     gl->currentBlendMode = mode;
@@ -2382,13 +2395,14 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    flushBatch((GLRenderer*)renderer);
-    enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glSetCap(gl, GL_BLEND, enable);
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-    (void)renderer;
-    return glIsEnabled(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->state.blendEnabled;
 }
 
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
@@ -2396,6 +2410,7 @@ static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     if (gl->alphaTestEnable == enable) return;
     flushBatch(gl);
     gl->alphaTestEnable = enable;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2405,6 +2420,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     if (gl->alphaTestRef == refF) return;
     flushBatch(gl);
     gl->alphaTestRef = refF;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2432,6 +2448,7 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     flushBatch(gl);
     gl->fogEnable = enable;
     gl->fogColor = color;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2659,7 +2676,7 @@ static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix)
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
-
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
