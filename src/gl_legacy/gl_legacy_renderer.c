@@ -105,12 +105,14 @@ static inline void glViewportCached(GLLegacyRenderer* gl, int32_t x, int32_t y, 
 }
 
 static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
-    if (cap == GL_BLEND) gl->state.blendEnabled = enable;
-    else if (cap == GL_SCISSOR_TEST) gl->state.scissorEnabled = enable;
-    else if (cap == GL_DEPTH_TEST) gl->state.depthTestEnabled = enable;
-    else if (cap == GL_TEXTURE_2D) gl->state.texture2DEnabled = enable;
+    switch (cap) {
+        case GL_BLEND: gl->state.blendEnabled = enable; break;
+        case GL_SCISSOR_TEST: gl->state.scissorEnabled = enable; break;
+        case GL_DEPTH_TEST: gl->state.depthTestEnabled = enable; break;
+        case GL_TEXTURE_2D: gl->state.texture2DEnabled = enable; break;
+    }
     if (enable) glEnable(cap);
-    else glDisable(cap);
+    else        glDisable(cap);
 }
 
 // ===[ Helpers ]===
