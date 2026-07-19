@@ -17,7 +17,7 @@ extern GLint  gPalettedUPaletteVLoc;
     if (0.0f > _v) break;                                                                   \
     glActiveTexture(GL_TEXTURE1);                                                           \
     glBindTexture(GL_TEXTURE_2D, PS3Textures_getClutTexture());                             \
-    glEnable(GL_TEXTURE_2D);                                                                \
+    glSetCap(gl, GL_TEXTURE_2D, true);                                                      \
     glActiveTexture(GL_TEXTURE0);                                                           \
     glUseProgram(gPalettedProgram);                                                        \
     if (gPalettedUPaletteVLoc >= 0) glUniform1f(gPalettedUPaletteVLoc, _v);               \
@@ -25,7 +25,7 @@ extern GLint  gPalettedUPaletteVLoc;
 #define PS3_PALETTED_END() do {                                                             \
     glUseProgram(0);                                                                        \
     glActiveTexture(GL_TEXTURE1);                                                           \
-    glDisable(GL_TEXTURE_2D);                                                               \
+    glSetCap(gl, GL_TEXTURE_2D, false);                                                     \
     glActiveTexture(GL_TEXTURE0);                                                           \
 } while (0)
 #else
@@ -90,11 +90,34 @@ static bool hasFBO() {
 #endif
 }
 
+// ===[ State Tracking Wrappers ]===
+
+static inline void glBindFramebufferCached(GLLegacyRenderer* gl, GLenum target, GLuint fbo) {
+    if (target == GL_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER)
+        gl->state.currentFbo = fbo;
+    glBindFramebuffer(target, fbo);
+}
+
+static inline void glViewportCached(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
+    gl->state.viewport[0] = x; gl->state.viewport[1] = y;
+    gl->state.viewport[2] = w; gl->state.viewport[3] = h;
+    glViewport(x, y, w, h);
+}
+
+static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
+    if (cap == GL_BLEND) gl->state.blendEnabled = enable;
+    else if (cap == GL_SCISSOR_TEST) gl->state.scissorEnabled = enable;
+    else if (cap == GL_DEPTH_TEST) gl->state.depthTestEnabled = enable;
+    else if (cap == GL_TEXTURE_2D) gl->state.texture2DEnabled = enable;
+    if (enable) glEnable(cap);
+    else glDisable(cap);
+}
+
 // ===[ Helpers ]===
 
 static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
-    glViewport(x, y, w, h);
-    glEnable(GL_SCISSOR_TEST);
+    glViewportCached(gl, x, y, w, h);
+    glSetCap(gl, GL_SCISSOR_TEST, true);
     glScissor(x, y, w, h);
 
     gl->base.CPortX = x;
@@ -161,8 +184,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
-    glEnable(GL_TEXTURE_2D);
-    glDisable(GL_DEPTH_TEST);
+    glSetCap(gl, GL_TEXTURE_2D, true);
+    glSetCap(gl, GL_DEPTH_TEST, false);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 #ifdef PLATFORM_PS3
@@ -193,7 +216,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     // Enable blending
-    glEnable(GL_BLEND);
+    glSetCap(gl, GL_BLEND, true);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -245,8 +268,8 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
     // Bind the application_surface (sized/created by Runner_beginFrame's ensureApplicationSurface call right before this).
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[appId]);
-    glViewport(0, 0, gameW, gameH);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glViewportCached(gl, 0, 0, gameW, gameH);
     gl->base.CPortX = 0;
     gl->base.CPortY = 0;
     gl->base.CPortW = gameW;
@@ -278,7 +301,8 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
-    glDisable(GL_SCISSOR_TEST);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    glSetCap(gl, GL_SCISSOR_TEST, false);
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
@@ -287,14 +311,14 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glBindTexture(GL_TEXTURE_2D, 0);
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, portW, portH);
-        glEnable(GL_SCISSOR_TEST);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, 0);
+        glViewportCached(gl, 0, 0, portW, portH);
+        glSetCap(gl, GL_SCISSOR_TEST, true);
         glScissor(0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         glApplyViewport(gl, portX, portY, portW, portH);
     }
 
@@ -363,13 +387,14 @@ static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, in
 }
 
 static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
-    glDisable(GL_SCISSOR_TEST);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    glSetCap(gl, GL_SCISSOR_TEST, false);
 }
 
 static void glEndFrameInit(Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebufferCached(gl, GL_FRAMEBUFFER, 0);
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
@@ -1512,17 +1537,18 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    (void)renderer;
-    enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    glSetCap(gl, GL_BLEND, enable);
 }
 
-static bool glGpuGetBlendEnable(MAYBE_UNUSED Renderer* renderer) {
-    
-    return glIsEnabled(GL_BLEND);
+static bool glGpuGetBlendEnable(Renderer* renderer) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->state.blendEnabled;
 }
 
-static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
-    enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
+static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    glSetCap(gl, GL_ALPHA_TEST, enable);
 }
 
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
@@ -1552,8 +1578,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     // Save the current FBO binding so creating a surface doesn't change the active render target.
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
 
@@ -1569,7 +1594,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -1581,7 +1606,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     gl->surfaceHeight[surfaceIndex] = height;
 
     fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
     return (int32_t) surfaceIndex;
 }
 
@@ -1629,8 +1654,7 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
     if (gl->surfaces[surfaceId] == 0) return;
     if (gl->surfaceWidth[surfaceId] == width && gl->surfaceHeight[surfaceId] == height) return;
 
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     if (gl->surfaceTexture[surfaceId] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceId]);
 
@@ -1645,9 +1669,9 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceId], 0);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     gl->surfaceWidth[surfaceId] = width;
     gl->surfaceHeight[surfaceId] = height;
@@ -1672,9 +1696,7 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     int32_t viewCurrent = 0;
-    if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
-    }
+    if (renderer->runner->viewsEnabled) viewCurrent = renderer->runner->viewCurrent;
     RuntimeView* view = &renderer->runner->views[viewCurrent];
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
@@ -1682,50 +1704,44 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
-        glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glEnable(GL_SCISSOR_TEST);
-        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        glViewportCached(gl, gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
+        glSetCap(gl, GL_SCISSOR_TEST, true);
+        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
         return true;
     }
 
     if (surfaceId == view->surfaceId) {
-    //the surface belongs to the view we are rending, we use the view's camera.
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //the surface belongs to the view we are rending, we use the view's camera.
+        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(gl, GL_SCISSOR_TEST, false);
+        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        return true;
     } else {
-    //camera will use full surface.
-    gl->base.cameraCurrent = SURFACE_CAMERA;
-    GMLCamera* camera =  &renderer->runner->surfaceCamera;
-
-    camera->allocated = true;
-    camera->viewX = 0.0;
-    camera->viewY = 0.0;
-    camera->viewWidth = gl->surfaceWidth[surfaceId];
-    camera->viewHeight = gl->surfaceHeight[surfaceId];
-    camera->borderX = 0;
-    camera->borderY = 0;
-    camera->speedX = 0;
-    camera->speedY = 0;
-    camera->objectId = -1;
-    camera->viewAngle = 0;
-    Runner_updateCameraViewSimple(camera);
-
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //camera will use full surface.
+        gl->base.cameraCurrent = SURFACE_CAMERA;
+        GMLCamera* camera =  &renderer->runner->surfaceCamera;
+    
+        camera->allocated = true;
+        camera->viewX = 0.0;
+        camera->viewY = 0.0;
+        camera->viewWidth = gl->surfaceWidth[surfaceId];
+        camera->viewHeight = gl->surfaceHeight[surfaceId];
+        camera->borderX = 0;
+        camera->borderY = 0;
+        camera->speedX = 0;
+        camera->speedY = 0;
+        camera->objectId = -1;
+        camera->viewAngle = 0;
+        Runner_updateCameraViewSimple(camera);
+    
+        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(gl, GL_SCISSOR_TEST, false);
+        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+        return true;
     }
-
-
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-
-    return true;
 }
 
 // Resolves a surfaceID to a GL texture and its actual texture size

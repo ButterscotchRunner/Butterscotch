@@ -2067,9 +2067,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     flushBatch(gl);
 
     int32_t viewCurrent = 0;
-    if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
-    }
+    if (renderer->runner->viewsEnabled) viewCurrent = renderer->runner->viewCurrent;
     RuntimeView* view = &renderer->runner->views[viewCurrent];
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
@@ -2083,40 +2081,40 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glSetCap(gl, GL_SCISSOR_TEST, true);
 
-        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        glApplyProjection(renderer, &camera->viewMatrix ,&camera->projectionMatrix);
 
         return true;
     }
 
 
     if (surfaceId == view->surfaceId) {
-    //the surface belongs to the view we are rending, we use the view's camera.
-    glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glSetCap(gl, GL_SCISSOR_TEST, false);    
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //the surface belongs to the view we are rending, we use the view's camera.
+        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(gl, GL_SCISSOR_TEST, false);    
+        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        return true;
     } else {
-    //camera will use full surface.
-    gl->base.cameraCurrent = SURFACE_CAMERA;
-    GMLCamera* camera =  &renderer->runner->surfaceCamera;
-
-    camera->allocated = true;
-    camera->viewX = 0.0;
-    camera->viewY = 0.0;
-    camera->viewWidth = gl->surfaceWidth[surfaceId];
-    camera->viewHeight = gl->surfaceHeight[surfaceId];
-    camera->borderX = 0;
-    camera->borderY = 0;
-    camera->speedX = 0;
-    camera->speedY = 0;
-    camera->objectId = -1;
-    camera->viewAngle = 0;
-    Runner_updateCameraViewSimple(camera);
-
-    glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glSetCap(gl, GL_SCISSOR_TEST, false);
-    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //camera will use full surface.
+        gl->base.cameraCurrent = SURFACE_CAMERA;
+        GMLCamera* camera =  &renderer->runner->surfaceCamera;
+    
+        camera->allocated = true;
+        camera->viewX = 0.0;
+        camera->viewY = 0.0;
+        camera->viewWidth = gl->surfaceWidth[surfaceId];
+        camera->viewHeight = gl->surfaceHeight[surfaceId];
+        camera->borderX = 0;
+        camera->borderY = 0;
+        camera->speedX = 0;
+        camera->speedY = 0;
+        camera->objectId = -1;
+        camera->viewAngle = 0;
+        Runner_updateCameraViewSimple(camera);
+    
+        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(gl, GL_SCISSOR_TEST, false);
+        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+        return true;
     }
 
 

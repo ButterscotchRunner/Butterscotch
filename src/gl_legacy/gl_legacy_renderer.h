@@ -11,6 +11,16 @@
 #include <glad/glad.h>
 #endif
 
+typedef struct {
+    // Cached GL state
+    GLuint currentFbo;
+    int32_t viewport[4];
+    bool blendEnabled;
+    bool scissorEnabled;
+    bool depthTestEnabled;
+    bool texture2DEnabled;
+} LegacyGLState;
+
 // ===[ GLLegacyRenderer Struct ]===
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
@@ -53,6 +63,9 @@ typedef struct {
     int32_t currentDFactor;
     int32_t currentSFactorAlpha;
     int32_t currentDFactorAlpha;
+
+    // State tracking
+    LegacyGLState state;
 } GLLegacyRenderer;
 
 bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId);
