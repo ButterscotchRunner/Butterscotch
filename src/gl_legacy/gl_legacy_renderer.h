@@ -14,8 +14,11 @@
 typedef struct {
     // Cached GL state
     GLuint currentFbo;
+    GLuint currentReadFbo;
+    GLuint currentDrawFbo;
     int32_t viewport[4];
     int32_t scissor[4];
+    float clearColor[4];
     bool blendEnabled;
     bool scissorEnabled;
     bool depthTestEnabled;

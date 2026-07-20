@@ -144,6 +144,14 @@ static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
     else        glDisable(cap);
 }
 
+static inline void glClearColorCached(GLLegacyRenderer* gl, float r, float g, float b, float a) {
+    if (gl->state.clearColor[0] == r && gl->state.clearColor[1] == g &&
+        gl->state.clearColor[2] == b && gl->state.clearColor[3] == a) return;
+    gl->state.clearColor[0] = r; gl->state.clearColor[1] = g;
+    gl->state.clearColor[2] = b; gl->state.clearColor[3] = a;
+    glClearColor(r, g, b, a);
+}
+
 // ===[ Helpers ]===
 
 static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -248,6 +256,12 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     // Enable blending
     glSetCap(gl, GL_BLEND, true);
+
+    memset(&gl->state, 0, sizeof(gl->state));
+    gl->state.currentFbo = 0;
+    gl->state.blendEnabled = true;
+    gl->state.texture2DEnabled = true;
+    
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -429,7 +443,8 @@ static void glEndFrameInit(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    GLCommon_beginLetterboxBlit(gl->surfaces[appId], 0);
+    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
+    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, 0);
 }
 
 static void glEndFrameEnd(Renderer* renderer) {
@@ -438,8 +453,21 @@ static void glEndFrameEnd(Renderer* renderer) {
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    GLCommon_beginLetterboxBlit(gl->surfaces[appId], 0);
-    GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, 0);
+
+    GLuint prevRead = gl->state.currentReadFbo;
+    GLuint prevDraw = gl->state.currentDrawFbo;
+
+    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
+    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, 0);
+
+    glClearColorCached(gl, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t sx, sy, ex, ey;
+    GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
+    glBlitFramebuffer(0, 0, gl->surfaceWidth[appId], gl->surfaceHeight[appId],
+                      sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, prevRead);
+    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, prevDraw);
 }
 
 static void glRendererFlush(MAYBE_UNUSED Renderer* renderer) {}
@@ -451,7 +479,8 @@ static void glClearScreen(MAYBE_UNUSED Renderer* renderer, uint32_t color, float
 
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
 
-    glClearColor(r, g, b, alpha);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    glClearColorCached(gl, r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
 
 }
