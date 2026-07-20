@@ -30,6 +30,12 @@ typedef struct {
     bool compiled;
     uint32_t uniformCount;
     GLShaderUniform* uniforms;
+
+    GLShaderUniform* gmBaseTexture;
+    GLShaderUniform* gmMatrices;
+    GLShaderUniform* gmFogColour;
+    GLShaderUniform* gmAlphaTestEnabled;
+    GLShaderUniform* gmAlphaRefValue;
 } GMLShader;
 
 typedef struct {
