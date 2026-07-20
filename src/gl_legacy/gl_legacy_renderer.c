@@ -390,20 +390,8 @@ static void glEndFrameEnd(Renderer* renderer) {
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
 
-    GLuint prevRead = gl->state.currentReadFbo;
-    GLuint prevDraw = gl->state.currentDrawFbo;
-
-    glBindFramebufferCached(&gl->state, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
-    glBindFramebufferCached(&gl->state, GL_DRAW_FRAMEBUFFER, 0);
-
-    glClearColorCached(&gl->state, 0.0f, 0.0f, 0.0f, 1.0f);
-    int32_t sx, sy, ex, ey;
-    GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
-    glBlitFramebuffer(0, 0, gl->surfaceWidth[appId], gl->surfaceHeight[appId],
-                      sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-    glBindFramebufferCached(&gl->state, GL_READ_FRAMEBUFFER, prevRead);
-    glBindFramebufferCached(&gl->state, GL_DRAW_FRAMEBUFFER, prevDraw);
+    GLCommon_beginLetterboxBlit(&gl->state, gl->surfaces[appId], 0);
+    GLCommon_endLetterboxBlit(&gl->state, gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, 0);
 }
 
 static void glRendererFlush(MAYBE_UNUSED Renderer* renderer) {}
