@@ -1,5 +1,4 @@
 #include "gl_legacy_renderer.h"
-#include "matrix_math.h"
 #include "text_utils.h"
 #include "gl_wrappers.h"
 
@@ -15,18 +14,18 @@ extern GLint  gPalettedUPaletteVLoc;
 #define PS3_PALETTED_BEGIN(tpagIndex) do {                                                  \
     float _v = PS3Textures_getTpagPaletteV(tpagIndex);                                      \
     if (0.0f > _v) break;                                                                   \
-    glActiveTextureCached(gl, GL_TEXTURE1);                                                 \
+    glActiveTextureCached(&gl->state, GL_TEXTURE1);                                                 \
     glBindTexture(GL_TEXTURE_2D, PS3Textures_getClutTexture());                             \
-    glSetCap(gl, GL_TEXTURE_2D, true);                                                      \
-    glActiveTextureCached(gl, GL_TEXTURE0);                                                 \
+    glSetCap(&gl->state, GL_TEXTURE_2D, true);                                                      \
+    glActiveTextureCached(&gl->state, GL_TEXTURE0);                                                 \
     glUseProgram(gPalettedProgram);                                                        \
     if (gPalettedUPaletteVLoc >= 0) glUniform1f(gPalettedUPaletteVLoc, _v);               \
 } while (0)
 #define PS3_PALETTED_END() do {                                                             \
     glUseProgram(0);                                                                        \
-    glActiveTextureCached(gl, GL_TEXTURE1);                                                 \
-    glSetCap(gl, GL_TEXTURE_2D, false);                                                     \
-    glActiveTextureCached(gl, GL_TEXTURE0);                                                 \
+    glActiveTextureCached(&gl->state, GL_TEXTURE1);                                                 \
+    glSetCap(&gl->state, GL_TEXTURE_2D, false);                                                     \
+    glActiveTextureCached(&gl->state, GL_TEXTURE0);                                                 \
 } while (0)
 #else
 #include <glad/glad.h>
@@ -50,7 +49,6 @@ static inline int32_t nextPow2(int32_t v) {
 #include "stb_ds.h"
 #include "utils.h"
 #include "image_decoder.h"
-#include "gl_common.h"
 #include "gl_wrappers.h"
 
 // ===[ Runtime OpenGL extension checks ]===
@@ -90,80 +88,12 @@ static bool hasFBO() {
 #endif
 }
 
-// ===[ State Tracking Wrappers ]===
-
-static inline void glBindFramebufferCached(GLLegacyRenderer* gl, GLenum target, GLuint fbo) {
-    if (gl->state.currentFbo == fbo) return;
-    gl->state.currentFbo = fbo;
-    glBindFramebuffer(target, fbo);
-}
-
-static inline void glViewportCached(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
-    if (gl->state.viewport[0] == x && gl->state.viewport[1] == y &&
-        gl->state.viewport[2] == w && gl->state.viewport[3] == h) return;
-    
-    gl->state.viewport[0] = x; gl->state.viewport[1] = y;
-    gl->state.viewport[2] = w; gl->state.viewport[3] = h;
-    glViewport(x, y, w, h);
-}
-
-static inline void glScissorCached(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
-    if (gl->state.scissor[0] == x && gl->state.scissor[1] == y &&
-        gl->state.scissor[2] == w && gl->state.scissor[3] == h) return;
-    
-    gl->state.scissor[0] = x; gl->state.scissor[1] = y;
-    gl->state.scissor[2] = w; gl->state.scissor[3] = h;
-    glScissor(x, y, w, h);
-}
-
-
-static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
-    switch (cap) {
-        case GL_BLEND: {
-            if (gl->state.blendEnabled == enable) return;
-            gl->state.blendEnabled = enable;
-            break;
-        }
-        case GL_SCISSOR_TEST: {
-            if (gl->state.scissorEnabled == enable) return;
-            gl->state.scissorEnabled = enable;
-            break;
-        }
-        case GL_DEPTH_TEST: {
-            if (gl->state.depthTestEnabled == enable) return;
-            gl->state.depthTestEnabled = enable;
-            break;
-        }
-        case GL_TEXTURE_2D: {
-            if (gl->state.texture2DEnabled == enable) return;
-            gl->state.texture2DEnabled = enable;
-            break;
-        }
-    }
-    if (enable) glEnable(cap);
-    else        glDisable(cap);
-}
-
-static inline void glClearColorCached(GLLegacyRenderer* gl, float r, float g, float b, float a) {
-    if (gl->state.clearColor[0] == r && gl->state.clearColor[1] == g &&
-        gl->state.clearColor[2] == b && gl->state.clearColor[3] == a) return;
-    gl->state.clearColor[0] = r; gl->state.clearColor[1] = g;
-    gl->state.clearColor[2] = b; gl->state.clearColor[3] = a;
-    glClearColor(r, g, b, a);
-}
-
-static inline void glActiveTextureCached(GLLegacyRenderer* gl, GLenum unit) {
-    if (gl->state.activeTexUnit == (int32_t)unit) return;
-    gl->state.activeTexUnit = (int32_t)unit;
-    glActiveTexture(unit);
-}
-
 // ===[ Helpers ]===
 
 static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
-    glViewportCached(gl, x, y, w, h);
-    glSetCap(gl, GL_SCISSOR_TEST, true);
-    glScissorCached(gl, x, y, w, h);
+    glViewportCached(&gl->state, x, y, w, h);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, true);
+    glScissorCached(&gl->state, x, y, w, h);
 
     gl->base.CPortX = x;
     gl->base.CPortY = y;
@@ -229,8 +159,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
-    glSetCap(gl, GL_TEXTURE_2D, true);
-    glSetCap(gl, GL_DEPTH_TEST, false);
+    glSetCap(&gl->state, GL_TEXTURE_2D, true);
+    glSetCap(&gl->state, GL_DEPTH_TEST, false);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 #ifdef PLATFORM_PS3
@@ -261,7 +191,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     // Enable blending
-    glSetCap(gl, GL_BLEND, true);
+    glSetCap(&gl->state, GL_BLEND, true);
 
     memset(&gl->state, 0, sizeof(gl->state));
     gl->state.currentFbo = 0;
@@ -319,8 +249,8 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
     // Bind the application_surface (sized/created by Runner_beginFrame's ensureApplicationSurface call right before this).
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[appId]);
-    glViewportCached(gl, 0, 0, gameW, gameH);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glViewportCached(&gl->state, 0, 0, gameW, gameH);
     gl->base.CPortX = 0;
     gl->base.CPortY = 0;
     gl->base.CPortW = gameW;
@@ -347,13 +277,13 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
-    glActiveTextureCached(gl, GL_TEXTURE0);
+    glActiveTextureCached(&gl->state, GL_TEXTURE0);
 
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    glSetCap(gl, GL_SCISSOR_TEST, false);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, false);
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
@@ -362,14 +292,14 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     glBindTexture(GL_TEXTURE_2D, 0);
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
-        glBindFramebufferCached(gl, GL_FRAMEBUFFER, 0);
-        glViewportCached(gl, 0, 0, portW, portH);
-        glSetCap(gl, GL_SCISSOR_TEST, true);
-        glScissorCached(gl, 0, 0, portW, portH);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, 0);
+        glViewportCached(&gl->state, 0, 0, portW, portH);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, true);
+        glScissorCached(&gl->state, 0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         glApplyViewport(gl, portX, portY, portW, portH);
     }
 
@@ -400,7 +330,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     camera->projectionMatrix = projectionMatrix;
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
-    glActiveTextureCached(gl, GL_TEXTURE0);
+    glActiveTextureCached(&gl->state, GL_TEXTURE0);
 }
 
 static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
@@ -439,18 +369,18 @@ static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, in
 
 static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    glSetCap(gl, GL_SCISSOR_TEST, false);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, false);
 }
 
 static void glEndFrameInit(Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
-        glBindFramebufferCached(gl, GL_FRAMEBUFFER, 0);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, 0);
         return;
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
-    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebufferCached(&gl->state, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
+    glBindFramebufferCached(&gl->state, GL_DRAW_FRAMEBUFFER, 0);
 }
 
 static void glEndFrameEnd(Renderer* renderer) {
@@ -463,17 +393,17 @@ static void glEndFrameEnd(Renderer* renderer) {
     GLuint prevRead = gl->state.currentReadFbo;
     GLuint prevDraw = gl->state.currentDrawFbo;
 
-    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
-    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebufferCached(&gl->state, GL_READ_FRAMEBUFFER, gl->surfaces[appId]);
+    glBindFramebufferCached(&gl->state, GL_DRAW_FRAMEBUFFER, 0);
 
-    glClearColorCached(gl, 0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColorCached(&gl->state, 0.0f, 0.0f, 0.0f, 1.0f);
     int32_t sx, sy, ex, ey;
     GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
     glBlitFramebuffer(0, 0, gl->surfaceWidth[appId], gl->surfaceHeight[appId],
                       sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-    glBindFramebufferCached(gl, GL_READ_FRAMEBUFFER, prevRead);
-    glBindFramebufferCached(gl, GL_DRAW_FRAMEBUFFER, prevDraw);
+    glBindFramebufferCached(&gl->state, GL_READ_FRAMEBUFFER, prevRead);
+    glBindFramebufferCached(&gl->state, GL_DRAW_FRAMEBUFFER, prevDraw);
 }
 
 static void glRendererFlush(MAYBE_UNUSED Renderer* renderer) {}
@@ -486,7 +416,7 @@ static void glClearScreen(MAYBE_UNUSED Renderer* renderer, uint32_t color, float
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
 
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    glClearColorCached(gl, r, g, b, alpha);
+    glClearColorCached(&gl->state, r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
 
 }
@@ -509,7 +439,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
-    glActiveTextureCached(gl, GL_TEXTURE0);
+    glActiveTextureCached(&gl->state, GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
     // Nearest is mandatory for index textures, bilinear would interpolate palette indices into nonsense colors.
@@ -1604,7 +1534,7 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    glSetCap(gl, GL_BLEND, enable);
+    glSetCap(&gl->state, GL_BLEND, enable);
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
@@ -1614,7 +1544,7 @@ static bool glGpuGetBlendEnable(Renderer* renderer) {
 
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    glSetCap(gl, GL_ALPHA_TEST, enable);
+    glSetCap(&gl->state, GL_ALPHA_TEST, enable);
 }
 
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
@@ -1660,7 +1590,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -1672,7 +1602,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     gl->surfaceHeight[surfaceIndex] = height;
 
     fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, (GLuint) prevBinding);
     return (int32_t) surfaceIndex;
 }
 
@@ -1735,9 +1665,9 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceId], 0);
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     gl->surfaceWidth[surfaceId] = width;
     gl->surfaceHeight[surfaceId] = height;
@@ -1770,19 +1700,19 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
 
-    glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
-        glViewportCached(gl, gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glSetCap(gl, GL_SCISSOR_TEST, true);
+        glViewportCached(&gl->state, gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, true);
         glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
         return true;
     }
 
     if (surfaceId == view->surfaceId) {
         //the surface belongs to the view we are rending, we use the view's camera.
-        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-        glSetCap(gl, GL_SCISSOR_TEST, false);
+        glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, false);
         glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
         return true;
     } else {
@@ -1803,8 +1733,8 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
         camera->viewAngle = 0;
         Runner_updateCameraViewSimple(camera);
     
-        glViewportCached(gl, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-        glSetCap(gl, GL_SCISSOR_TEST, false);
+        glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, false);
         glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
         return true;
     }
@@ -1881,12 +1811,12 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
 
 static void glLegacySurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
+    GLCommon_surfaceBlit(&gl->state, gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
 }
 
 static bool glLegacySurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* outRGBA) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    return GLCommon_surfaceGetPixels(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, surfaceId, outRGBA);
+    return GLCommon_surfaceGetPixels(&gl->state, gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, surfaceId, outRGBA);
 }
 
 

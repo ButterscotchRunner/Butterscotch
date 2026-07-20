@@ -1,6 +1,8 @@
 #ifndef _BS_GL_RENDERER_H_
 #define _BS_GL_RENDERER_H_
 
+#include "gl_common.h"
+
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
@@ -35,30 +37,6 @@ typedef struct {
     float u, v;
     uint8_t r, g, b, a;
 } Vertex;
-
-typedef struct {
-    Matrix4f wvp;
-    float fogColor[4];   // RGB + A (A=0 disabled, A=1 enabled)
-    float alphaTestRef;
-    bool alphaTestEnabled;
-} DefaultShaderUniforms;
-
-typedef struct {
-    // Cached GL state
-    GLuint currentFbo;
-    GLuint currentReadFbo;
-    GLuint currentDrawFbo;
-    int32_t viewport[4];
-    int32_t scissor[4];
-    float clearColor[4];
-    int32_t activeTexUnit;
-    bool blendEnabled;
-    bool scissorEnabled;
-
-    // Default shader uniform tracking
-    bool uniformsDirty;
-    DefaultShaderUniforms last;
-} GLState;
 
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
