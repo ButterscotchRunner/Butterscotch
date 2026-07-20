@@ -706,6 +706,9 @@ JNIEXPORT jint JNICALL JNI_FN(stepAndDraw)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
         return ok ? BUTTERSCOTCH_DROID_CONTINUE : BUTTERSCOTCH_DROID_SHOULD_EXIT;
     }
 
+    // Dokunmatik/İmleç pozisyonunu Runner_step hesaplanmadan ÖNCE motora ilet
+    Runner_updateMousePosition(runner, winW, winH, gNormalizedCursorX * winW, gNormalizedCursorY * winH);
+
     Runner_step(runner);
 
     // Apply the visual-only free camera. Identity (0,0,1) when the UI hasn't enabled photo mode, so this is a no-op in the common case.
@@ -772,8 +775,6 @@ JNIEXPORT jint JNICALL JNI_FN(stepAndDraw)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
     // gameW/gameH include the widescreen expansion at this point, so the mouse mapping maps across the expanded view instead of the original room size
     Runner_beginFrame(runner, gameW, gameH, winW, winH, winW, winH);
 
-    Runner_updateMousePosition(runner, winW, winH, gNormalizedCursorX * winW, gNormalizedCursorY * winH);
-
     Runner_drawViews(runner, gameW, gameH, false);
     runner->renderer->vtable->endFrameInit(runner->renderer);
     Runner_drawPost(runner, winW, winH);
@@ -803,6 +804,25 @@ JNIEXPORT void JNICALL JNI_FN(resumeAudio)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
 
     gRunner->audioSystem->vtable->resume(gRunner->audioSystem);
 }
+
+// ===[ Dedicated Android Touch Module Input ]===
+
+JNIEXPORT void JNICALL JNI_FN(injectTouch)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls, jfloat normX, jfloat normY, jboolean isDown) {
+    Runner* runner = gRunner;
+    if (runner == nullptr) return;
+
+    // Dokunma koordinatlarını güncelle
+    gNormalizedCursorX = normX;
+    gNormalizedCursorY = normY;
+
+    // Dokunma durumuna göre basıldı/bırakıldı tetikle
+    if (isDown) {
+        RunnerMouse_onButtonDown(runner->mouse, 0);
+    } else {
+        RunnerMouse_onButtonUp(runner->mouse, 0);
+    }
+}
+
 
 JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
     if (gRunner == nullptr)
