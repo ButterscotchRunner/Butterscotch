@@ -171,7 +171,12 @@ JNIEXPORT void JNICALL JNI_FN(setNormalizedCursorPosition)(MAYBE_UNUSED JNIEnv* 
 
 JNIEXPORT void JNICALL JNI_FN(setMouseButtonState)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls, jint button, jboolean down) {
     Runner* runner = gRunner;
-    if (runner == nullptr) return;
+    if (runner == nullptr) {
+        printf("setMouseButtonState: gRunner NULL! button=%d down=%d\n", button, down);
+        return;
+    }
+
+    printf("setMouseButtonState: button=%d down=%d cursorX=%.3f cursorY=%.3f\n", button, down, gNormalizedCursorX, gNormalizedCursorY);
 
     if (down) {
         RunnerMouse_onButtonDown(runner->mouse, button);
