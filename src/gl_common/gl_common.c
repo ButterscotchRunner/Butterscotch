@@ -13,7 +13,6 @@
 void glBindFramebufferCached(GLState* state, GLenum target, GLuint fbo) {
     switch (target) {
         case GL_FRAMEBUFFER:
-            if (state->currentReadFbo == fbo && state->currentDrawFbo == fbo) return;
             state->currentReadFbo = fbo;
             state->currentDrawFbo = fbo;
             break;
@@ -112,10 +111,10 @@ void GLCommon_beginLetterboxBlit(GLState* state, GLuint fbo, GLuint hostFbo) {
 
 void GLCommon_endLetterboxBlit(GLState* state, int32_t fboWidth, int32_t fboHeight, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, GLuint hostFbo) {
     int32_t sx, sy, ex, ey;
-    glClearColor(0.0, 0.0, 0.0, 1.0); //please remove if it breaks something like borders, it was just my quick-fix for the color to not be randomly changed
+    glClearColorCached(state, 0.0f, 0.0f, 0.0f, 1.0f); //please remove if it breaks something like borders, it was just my quick-fix for the color to not be randomly changed
     GLCommon_computeLetterbox(gameW, gameH, windowW, windowH, &sx, &sy, &ex, &ey);
     glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBindFramebufferCached(state, GL_DRAW_FRAMEBUFFER, hostFbo);
+    glBindFramebufferCached(state, GL_FRAMEBUFFER, hostFbo);
 }
 
 // ===[ Surface arrays ]===
