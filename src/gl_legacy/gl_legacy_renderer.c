@@ -93,23 +93,52 @@ static bool hasFBO() {
 // ===[ State Tracking Wrappers ]===
 
 static inline void glBindFramebufferCached(GLLegacyRenderer* gl, GLenum target, GLuint fbo) {
-    if (target == GL_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER)
-        gl->state.currentFbo = fbo;
+    if (gl->state.currentFbo == fbo) return;
+    gl->state.currentFbo = fbo;
     glBindFramebuffer(target, fbo);
 }
 
 static inline void glViewportCached(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (gl->state.viewport[0] == x && gl->state.viewport[1] == y &&
+        gl->state.viewport[2] == w && gl->state.viewport[3] == h) return;
+    
     gl->state.viewport[0] = x; gl->state.viewport[1] = y;
     gl->state.viewport[2] = w; gl->state.viewport[3] = h;
     glViewport(x, y, w, h);
 }
 
+static inline void glScissorCached(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (gl->state.scissor[0] == x && gl->state.scissor[1] == y &&
+        gl->state.scissor[2] == w && gl->state.scissor[3] == h) return;
+    
+    gl->state.scissor[0] = x; gl->state.scissor[1] = y;
+    gl->state.scissor[2] = w; gl->state.scissor[3] = h;
+    glScissor(x, y, w, h);
+}
+
+
 static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
     switch (cap) {
-        case GL_BLEND: gl->state.blendEnabled = enable; break;
-        case GL_SCISSOR_TEST: gl->state.scissorEnabled = enable; break;
-        case GL_DEPTH_TEST: gl->state.depthTestEnabled = enable; break;
-        case GL_TEXTURE_2D: gl->state.texture2DEnabled = enable; break;
+        case GL_BLEND: {
+            if (gl->state.blendEnabled == enable) return;
+            gl->state.blendEnabled = enable;
+            break;
+        }
+        case GL_SCISSOR_TEST: {
+            if (gl->state.scissorEnabled == enable) return;
+            gl->state.scissorEnabled = enable;
+            break;
+        }
+        case GL_DEPTH_TEST: {
+            if (gl->state.depthTestEnabled == enable) return;
+            gl->state.depthTestEnabled = enable;
+            break;
+        }
+        case GL_TEXTURE_2D: {
+            if (gl->state.texture2DEnabled == enable) return;
+            gl->state.texture2DEnabled = enable;
+            break;
+        }
     }
     if (enable) glEnable(cap);
     else        glDisable(cap);
@@ -120,7 +149,7 @@ static inline void glSetCap(GLLegacyRenderer* gl, GLenum cap, bool enable) {
 static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
     glViewportCached(gl, x, y, w, h);
     glSetCap(gl, GL_SCISSOR_TEST, true);
-    glScissor(x, y, w, h);
+    glScissorCached(gl, x, y, w, h);
 
     gl->base.CPortX = x;
     gl->base.CPortY = y;
@@ -316,7 +345,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
         glBindFramebufferCached(gl, GL_FRAMEBUFFER, 0);
         glViewportCached(gl, 0, 0, portW, portH);
         glSetCap(gl, GL_SCISSOR_TEST, true);
-        glScissor(0, 0, portW, portH);
+        glScissorCached(gl, 0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);

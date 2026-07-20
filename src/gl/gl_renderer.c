@@ -74,23 +74,47 @@ static inline uint8_t floatToUnormByte(float v) {
 }
 
 // ===[ State Tracking Wrappers ]===
+
 static inline void glBindFramebufferCached(GLRenderer* gl, GLenum target, GLuint fbo) {
-    if (target == GL_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER)
-        gl->state.currentFbo = fbo;
+    if (gl->state.currentFbo == fbo) return;
+    gl->state.currentFbo = fbo;
     glBindFramebuffer(target, fbo);
 }
 
 static inline void glViewportCached(GLRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (gl->state.viewport[0] == x && gl->state.viewport[1] == y &&
+        gl->state.viewport[2] == w && gl->state.viewport[3] == h) {
+        return;
+    }
     gl->state.viewport[0] = x; gl->state.viewport[1] = y;
     gl->state.viewport[2] = w; gl->state.viewport[3] = h;
     glViewport(x, y, w, h);
 }
 
+static inline void glScissorCached(GLRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (gl->state.scissor[0] == x && gl->state.scissor[1] == y &&
+        gl->state.scissor[2] == w && gl->state.scissor[3] == h) {
+        return;
+    }
+    gl->state.scissor[0] = x; gl->state.scissor[1] = y;
+    gl->state.scissor[2] = w; gl->state.scissor[3] = h;
+    glScissor(x, y, w, h);
+}
+
 static inline void glSetCap(GLRenderer* gl, GLenum cap, bool enable) {
-    if (cap == GL_SCISSOR_TEST) gl->state.scissorEnabled = enable;
-    else if (cap == GL_BLEND) gl->state.blendEnabled = enable;
-    if (enable) glEnable(cap);
-    else glDisable(cap);
+    switch (cap) {
+        case GL_SCISSOR_TEST:
+            if (gl->state.scissorEnabled == enable) return;
+            gl->state.scissorEnabled = enable;
+            break;
+        case GL_BLEND:
+            if (gl->state.blendEnabled == enable) return;
+            gl->state.blendEnabled = enable;
+            break;
+        default:
+            break;
+    }
+    enable ? glEnable(cap) : glDisable(cap);
 }
 
 // ===[ Shader Compilation ]===
@@ -683,7 +707,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     // Bind the application_surface
     int32_t appId = gl->base.runner->applicationSurfaceId;
     glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[appId]);
-    glViewport(0, 0, gameW, gameH);
+    glViewportCached(gl, 0, 0, gameW, gameH);
     gl->base.CPortX = 0;
     gl->base.CPortY = 0;
     gl->base.CPortW = gameW;
@@ -708,7 +732,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     gl->base.CPortH = portH;
 
     glSetCap(gl, GL_SCISSOR_TEST, true);
-    glScissor(portX, portY, portW, portH);
+    glScissorCached(gl, portX, portY, portW, portH);
 
     int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
@@ -740,15 +764,15 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
         glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->hostFramebuffer);
-        glViewport(0, 0, portW, portH);
-        glScissor(0, 0, portW, portH);
+        glViewportCached(gl, 0, 0, portW, portH);
+        glScissorCached(gl, 0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
         glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         int32_t glPortY = gl->gameH - portY - portH;
-        glViewport(portX, glPortY, portW, portH);
-        glScissor(portX, glPortY, portW, portH);
+        glViewportCached(gl, portX, glPortY, portW, portH);
+        glScissorCached(gl, portX, glPortY, portW, portH);
     }
 
     glSetCap(gl, GL_SCISSOR_TEST, true);
@@ -852,7 +876,7 @@ static void glEndFrameEnd(Renderer* renderer) {
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glViewport(0, 0, gl->windowW, gl->windowH);
+        glViewportCached(gl, 0, 0, gl->windowW, gl->windowH);
 
         renderer->vtable->setGuiProjection(renderer, gl->windowW, gl->windowH, gl->windowW, gl->windowH, false);
         glSetCap(gl, GL_BLEND, false);
@@ -2078,7 +2102,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
-        glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
+        glViewportCached(gl, gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glSetCap(gl, GL_SCISSOR_TEST, true);
 
         glApplyProjection(renderer, &camera->viewMatrix ,&camera->projectionMatrix);
