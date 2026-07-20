@@ -139,6 +139,12 @@ static inline void glClearColorCached(GLRenderer* gl, float r, float g, float b,
     glClearColor(r, g, b, a);
 }
 
+static inline void glActiveTextureCached(GLRenderer* gl, GLenum unit) {
+    if (gl->state.activeTexUnit == (int32_t)unit) return;
+    gl->state.activeTexUnit = (int32_t)unit;
+    glActiveTexture(unit);
+}
+
 // ===[ Shader Compilation ]===
 
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
@@ -204,10 +210,10 @@ static void flushBatch(GLRenderer* gl) {
 
         GLShaderUniform* uniform = findShaderUniformByName(shader, "gm_BaseTexture");
         if (uniform != nullptr)
-            glActiveTexture(GL_TEXTURE0 + uniform->samplerSlot);
+            glActiveTextureCached(gl, GL_TEXTURE0 + uniform->samplerSlot);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     } else {
-        glActiveTexture(GL_TEXTURE1);
+        glActiveTextureCached(gl, GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
@@ -217,13 +223,10 @@ static void flushBatch(GLRenderer* gl) {
 
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     if (hasVAO()) {
-        glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_STREAM_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
@@ -493,7 +496,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // VBO: sized for max quads
     int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_STREAM_DRAW);
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
     uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
@@ -515,7 +518,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
         glEnableVertexAttribArray(2);
-        glBindVertexArray(0);
     }
 
     // Allocate CPU-side vertex buffer
@@ -571,7 +573,10 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     flushBatch(gl);
     GMLShader* gmlShader = &gl->gmlShaders[shaderIndex];
 
-    glUseProgram(gmlShader->shaderId);
+    if (gl->currentProgram != gmlShader->shaderId) {
+        glUseProgram(gmlShader->shaderId);
+        gl->currentProgram = gmlShader->shaderId;
+    }
     //Gotta set those built-ins! they ain't gonna set themselves
     GLShaderUniform* gmMatricesUniform = findShaderUniformByName(gmlShader, "gm_Matrices[0]");
     GLShaderUniform* gmFogColourUniform = findShaderUniformByName(gmlShader, "gm_FogColour");
@@ -624,7 +629,10 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         if (!gl->state.uniformsDirty && memcmp(&gl->state.last, &cur, sizeof(cur)) == 0)
             return;
 
-        glUseProgram(gl->defaultShaderProgram->shaderId);
+        if (gl->currentProgram != gl->defaultShaderProgram->shaderId) {
+            glUseProgram(gl->defaultShaderProgram->shaderId);
+            gl->currentProgram = gl->defaultShaderProgram->shaderId;
+        }
 
         glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, cur.wvp.m);
         glUniform4f(gl->uFogColor->location, cur.fogColor[0], cur.fogColor[1], cur.fogColor[2], cur.fogColor[3]);
@@ -666,7 +674,10 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
 static void glGpuResetShader(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glUseProgram(gl->defaultShaderProgram->shaderId);
+    if (gl->currentProgram != gl->defaultShaderProgram->shaderId) {
+        glUseProgram(gl->defaultShaderProgram->shaderId);
+        gl->currentProgram = gl->defaultShaderProgram->shaderId;
+    }
     renderer->currentShader = -1;
     glShaderSettingsRefresh(renderer);
 }
@@ -766,9 +777,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
     glShaderSettingsRefresh(renderer);
-    glActiveTexture(GL_TEXTURE1);
-
-    if (hasVAO()) glBindVertexArray(gl->vao);
+    glActiveTextureCached(gl, GL_TEXTURE1);
 
 }
 
@@ -826,9 +835,7 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
 
-    glActiveTexture(GL_TEXTURE1);
-
-    if (hasVAO()) glBindVertexArray(gl->vao);
+    glActiveTextureCached(gl, GL_TEXTURE1);
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
@@ -872,7 +879,6 @@ static void glEndGUI(Renderer* renderer) {
 
 static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (hasVAO()) glBindVertexArray(0);
 
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebufferCached(gl, GL_FRAMEBUFFER, gl->hostFramebuffer);
@@ -2657,10 +2663,9 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
         fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
         return;
     }
-    glActiveTexture(GL_TEXTURE0 + slot);
+    glActiveTextureCached(gl, GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texID);
-    glActiveTexture(GL_TEXTURE1);
-
+    glActiveTextureCached(gl, GL_TEXTURE1);
 }
 
 // Look up a texture's pixel size from the renderer's own tables.

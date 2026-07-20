@@ -15,18 +15,18 @@ extern GLint  gPalettedUPaletteVLoc;
 #define PS3_PALETTED_BEGIN(tpagIndex) do {                                                  \
     float _v = PS3Textures_getTpagPaletteV(tpagIndex);                                      \
     if (0.0f > _v) break;                                                                   \
-    glActiveTexture(GL_TEXTURE1);                                                           \
+    glActiveTextureCached(gl, GL_TEXTURE1);                                                 \
     glBindTexture(GL_TEXTURE_2D, PS3Textures_getClutTexture());                             \
     glSetCap(gl, GL_TEXTURE_2D, true);                                                      \
-    glActiveTexture(GL_TEXTURE0);                                                           \
+    glActiveTextureCached(gl, GL_TEXTURE0);                                                 \
     glUseProgram(gPalettedProgram);                                                        \
     if (gPalettedUPaletteVLoc >= 0) glUniform1f(gPalettedUPaletteVLoc, _v);               \
 } while (0)
 #define PS3_PALETTED_END() do {                                                             \
     glUseProgram(0);                                                                        \
-    glActiveTexture(GL_TEXTURE1);                                                           \
+    glActiveTextureCached(gl, GL_TEXTURE1);                                                 \
     glSetCap(gl, GL_TEXTURE_2D, false);                                                     \
-    glActiveTexture(GL_TEXTURE0);                                                           \
+    glActiveTextureCached(gl, GL_TEXTURE0);                                                 \
 } while (0)
 #else
 #include <glad/glad.h>
@@ -150,6 +150,12 @@ static inline void glClearColorCached(GLLegacyRenderer* gl, float r, float g, fl
     gl->state.clearColor[0] = r; gl->state.clearColor[1] = g;
     gl->state.clearColor[2] = b; gl->state.clearColor[3] = a;
     glClearColor(r, g, b, a);
+}
+
+static inline void glActiveTextureCached(GLLegacyRenderer* gl, GLenum unit) {
+    if (gl->state.activeTexUnit == (int32_t)unit) return;
+    gl->state.activeTexUnit = (int32_t)unit;
+    glActiveTexture(unit);
 }
 
 // ===[ Helpers ]===
@@ -341,7 +347,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTextureCached(gl, GL_TEXTURE0);
 
 }
 
@@ -394,7 +400,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     camera->projectionMatrix = projectionMatrix;
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTextureCached(gl, GL_TEXTURE0);
 }
 
 static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
@@ -503,7 +509,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTextureCached(gl, GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
     // Nearest is mandatory for index textures, bilinear would interpolate palette indices into nonsense colors.

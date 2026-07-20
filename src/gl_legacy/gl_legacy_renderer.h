@@ -19,6 +19,7 @@ typedef struct {
     int32_t viewport[4];
     int32_t scissor[4];
     float clearColor[4];
+    int32_t activeTexUnit;
     bool blendEnabled;
     bool scissorEnabled;
     bool depthTestEnabled;
