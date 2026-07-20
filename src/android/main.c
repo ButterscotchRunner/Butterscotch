@@ -804,8 +804,6 @@ JNIEXPORT void JNICALL JNI_FN(resumeAudio)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
     gRunner->audioSystem->vtable->resume(gRunner->audioSystem);
 }
 
-
-
 JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
     if (gRunner == nullptr)
         return;
