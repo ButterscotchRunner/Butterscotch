@@ -23,15 +23,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Configure CMake and Build (arm64-v8a & armeabi-v7a)
+      - name: Configure CMake and Build
         run: |
-          # GitHub Runner üzerindeki hazır NDK yolunu bul
-          NDK_PATH=$ANDROID_NDK_LATEST_HOME
+          # Android NDK yolunu dinamik olarak bul
+          NDK_PATH=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -mindepth 1 | head -n 1)
           if [ -z "$NDK_PATH" ]; then
-            NDK_PATH=$ANDROID_HOME/ndk-bundle
+            NDK_PATH=$ANDROID_NDK_LATEST_HOME
           fi
+          echo "Kullanılan NDK Yolu: $NDK_PATH"
 
-          # 1. arm64-v8a derlemesi
+          # 1. arm64-v8a Derlemesi
           mkdir -p build_arm64 && cd build_arm64
           cmake -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=arm64-v8a \
@@ -40,7 +41,7 @@ jobs:
           make -j$(nproc)
           cd ..
 
-          # 2. armeabi-v7a derlemesi
+          # 2. armeabi-v7a Derlemesi
           mkdir -p build_armv7 && cd build_armv7
           cmake -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=armeabi-v7a \
@@ -49,7 +50,7 @@ jobs:
           make -j$(nproc)
           cd ..
 
-          # 3. Çıktıları jniLibs klasörüne topla
+          # 3. Çıktıları jniLibs Yapısına Kopyala
           mkdir -p jniLibs/arm64-v8a
           mkdir -p jniLibs/armeabi-v7a
           find build_arm64 -name "*.so" -exec cp {} jniLibs/arm64-v8a/ \;
