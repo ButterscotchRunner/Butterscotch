@@ -146,10 +146,8 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_STREAM_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), gl->vertexData, GL_STREAM_DRAW);
     
     if (!hasVAO()) {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
