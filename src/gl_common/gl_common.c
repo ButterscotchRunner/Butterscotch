@@ -73,9 +73,9 @@ void glClearColorCached(GLState* state, float r, float g, float b, float a) {
     glClearColor(r, g, b, a);
 }
 
-void glActiveTextureCached(GLState* state, GLenum unit) {
-    if (state->activeTexUnit == (int32_t)unit) return;
-    state->activeTexUnit = (int32_t)unit;
+void glActiveTextureCached(GLState* state, int32_t unit) {
+    if (state->activeTexUnit == unit) return;
+    state->activeTexUnit = unit;
     glActiveTexture(unit);
 }
 

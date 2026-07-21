@@ -50,7 +50,7 @@ void glViewportCached(GLState* state, int32_t x, int32_t y, int32_t w, int32_t h
 void glScissorCached(GLState* state, int32_t x, int32_t y, int32_t w, int32_t h);
 void glSetCap(GLState* state, GLenum cap, bool enabled);
 void glClearColorCached(GLState* state, float r, float g, float b, float a);
-void glActiveTextureCached(GLState* state, GLenum unit);
+void glActiveTextureCached(GLState* state, int32_t unit);
 void glPixelStoreiCached(GLState* state, GLenum pname, int32_t param);
 
 // ===[ Letterbox blit ]===
