@@ -1,6 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
+if "%1"=="clean" (
+    if exist build rmdir /s /q build
+    exit /b 0
+)
+
 if "%CC%"=="" set CC=cl
 if "%CFLAGS%"=="" set CFLAGS=/O2 /DNDEBUG /nologo
 
