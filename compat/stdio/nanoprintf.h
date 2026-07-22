@@ -1,0 +1,1695 @@
+/* nanoprintf v0.6.0: a tiny embeddable printf replacement written in C.
+   https://github.com/charlesnicholson/nanoprintf
+   charles.nicholson+nanoprintf@gmail.com
+   dual-licensed under 0bsd and unlicense, take your pick. see eof for details. */
+
+#ifndef NPF_H_INCLUDED
+#define NPF_H_INCLUDED
+
+#ifdef NANOPRINTF_CONFIG_FILE
+#include NANOPRINTF_CONFIG_FILE
+#endif
+
+#include <stdarg.h>
+#include <stddef.h>
+
+typedef void (*npf_putc)(int c, void *ctx);
+
+// Define this to fully sandbox nanoprintf inside of a translation unit.
+#ifdef NANOPRINTF_VISIBILITY_STATIC
+  #define NPF_VISIBILITY static
+#else
+  #define NPF_VISIBILITY extern
+#endif
+
+#if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
+  #define NPF_PRINTF_ATTR(FORMAT_INDEX, VARGS_INDEX) \
+    __attribute__((format(printf, FORMAT_INDEX, VARGS_INDEX)))
+#else
+  #define NPF_PRINTF_ATTR(FORMAT_INDEX, VARGS_INDEX)
+#endif
+
+#if defined(NANOPRINTF_USE_FLOAT_SINGLE_PRECISION) && \
+    (NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1)
+#define NPF_PRINTF_SP_ATTR NPF_PRINTF_ATTR(3, 0)
+#define NPF_MAP_ARGS(...) NPF__MAP(NPF__WRAP, __VA_ARGS__)
+typedef struct { float val; } npf_float_t;
+#define npf_snprintf_  npf_snprintf_sp_
+#define npf_pprintf_   npf_pprintf_sp_
+#define npf_vsnprintf  npf_vsnprintf_sp
+#define npf_vpprintf   npf_vpprintf_sp
+#else
+#define NPF_PRINTF_SP_ATTR NPF_PRINTF_ATTR(3, 4)
+#define NPF_MAP_ARGS(...) __VA_ARGS__
+#endif
+
+#ifdef __cplusplus
+#define NPF_RESTRICT
+extern "C" {
+#else
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#define NPF_RESTRICT restrict
+#else
+#define NPF_RESTRICT
+#endif
+#endif
+
+NPF_VISIBILITY int npf_snprintf_(char * NPF_RESTRICT buffer,
+                                 size_t bufsz,
+                                 const char * NPF_RESTRICT format, ...)
+                                 NPF_PRINTF_SP_ATTR;
+
+NPF_VISIBILITY int npf_pprintf_(npf_putc pc,
+                                void * NPF_RESTRICT pc_ctx,
+                                char const * NPF_RESTRICT format, ...)
+                                NPF_PRINTF_SP_ATTR;
+
+// Public API
+
+// The npf_ functions all return the number of bytes required to express the
+// fully-formatted string, not including the null terminator character.
+// The npf_ functions do not return negative values, since the lack of 'l' length
+// modifier support makes encoding errors impossible.
+
+#define npf_snprintf(buf, sz, ...) npf_snprintf_((buf), (sz), NPF_MAP_ARGS(__VA_ARGS__))
+#define npf_pprintf(pc, ctx, ...) npf_pprintf_((pc), (ctx), NPF_MAP_ARGS(__VA_ARGS__))
+
+NPF_VISIBILITY int npf_vsnprintf(char * NPF_RESTRICT buffer,
+                                 size_t bufsz,
+                                 char const * NPF_RESTRICT format,
+                                 va_list vlist) NPF_PRINTF_ATTR(3, 0);
+
+NPF_VISIBILITY int npf_vpprintf(npf_putc pc,
+                                void * NPF_RESTRICT pc_ctx,
+                                char const * NPF_RESTRICT format,
+                                va_list vlist) NPF_PRINTF_ATTR(3, 0);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // NPF_H_INCLUDED
+
+/* The implementation of nanoprintf begins here, to be compiled only if
+   NANOPRINTF_IMPLEMENTATION is defined. In a multi-file library what follows would
+   be nanoprintf.c. */
+
+#ifdef NANOPRINTF_IMPLEMENTATION
+
+#ifndef NPF_IMPLEMENTATION_INCLUDED
+#define NPF_IMPLEMENTATION_INCLUDED
+
+#include <limits.h>
+#include <stdint.h>
+
+// Pick reasonable defaults if nothing's been configured.
+#if !defined(NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS) && \
+    !defined(NANOPRINTF_USE_ALT_FORM_FLAG) && \
+    !defined(NANOPRINTF_USE_FLOAT_SINGLE_PRECISION)
+  #define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
+  #define NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS 1
+  #define NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS 1
+  #define NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS 0
+  #define NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS 1
+  #define NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS 0
+  #define NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS 0
+  #define NANOPRINTF_USE_ALT_FORM_FLAG 1
+  #define NANOPRINTF_USE_FLOAT_SINGLE_PRECISION 0
+#endif
+
+// Single-precision mode defaults to off unless explicitly enabled.
+#ifndef NANOPRINTF_USE_FLOAT_SINGLE_PRECISION
+  #define NANOPRINTF_USE_FLOAT_SINGLE_PRECISION 0
+#endif
+
+// Optional flag, defaults to 0 if not explicitly configured.
+#ifndef NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER
+  #define NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER 0
+#endif
+
+// Optional flag, defaults to 0 if not explicitly configured. Extracts digits
+// without integer division; smaller on cores without a hardware divider.
+#ifndef NANOPRINTF_USE_DIVISION_FREE_CONVERSION
+  #define NANOPRINTF_USE_DIVISION_FREE_CONVERSION 0
+#endif
+
+// If anything's been configured, everything must be configured.
+#ifndef NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+#ifndef NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS
+  #error NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS must be #defined to 0 or 1
+#endif
+
+// Ensure flags are compatible.
+#if (NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1) && \
+    (NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 0)
+  #error Precision format specifiers must be enabled if float support is enabled.
+#endif
+
+#if (NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1) && \
+    (NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 0)
+  #error Float format specifiers must be enabled if float hex support is enabled.
+#endif
+
+#if (NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1) && \
+    (NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 0)
+  #error Single precision requires float format specifiers to be enabled.
+#endif
+
+#if NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1
+  #if defined(_MSVC_TRADITIONAL) && _MSVC_TRADITIONAL
+    #error Single-precision float mode requires /Zc:preprocessor on MSVC.
+  #endif
+  #ifdef __cplusplus
+    #if __cplusplus < 201103L && !defined(_MSC_VER)
+      #error Single-precision float wrapping requires C++11 or later.
+    #endif
+  #else
+    #if !(defined(__GNUC__) || defined(__clang__))
+      #if !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
+        #error Single-precision float wrapping requires C11 or later (or GCC/Clang).
+      #endif
+    #endif
+  #endif
+#endif
+
+// The conversion buffer must fit at least UINT64_MAX in octal format with the leading '0'.
+// When floats are enabled, a larger buffer is needed for values like FLT_MAX / DBL_MAX.
+#ifndef NANOPRINTF_CONVERSION_BUFFER_SIZE
+  #if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+    #define NANOPRINTF_CONVERSION_BUFFER_SIZE  64
+  #else
+    #define NANOPRINTF_CONVERSION_BUFFER_SIZE  23
+  #endif
+#endif
+#if NANOPRINTF_CONVERSION_BUFFER_SIZE < 23
+  #error The size of the conversion buffer must be at least 23 bytes.
+#endif
+
+// intmax_t / uintmax_t require stdint from c99 / c++11
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+  #ifndef _MSC_VER
+    #ifdef __cplusplus
+      #if __cplusplus < 201103L
+        #error large format specifier support requires C++11 or later.
+      #endif
+    #else
+      #if __STDC_VERSION__ < 199409L
+        #error nanoprintf requires C99 or later.
+      #endif
+    #endif
+  #endif
+#endif
+
+// Figure out if we can disable warnings with pragmas.
+#ifdef __clang__
+  #define NPF_CLANG 1
+  #define NPF_GCC_PAST_4_6 0
+#else
+  #define NPF_CLANG 0
+  #if defined(__GNUC__) && ((__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ > 6)))
+    #define NPF_GCC_PAST_4_6 1
+  #else
+    #define NPF_GCC_PAST_4_6 0
+  #endif
+#endif
+
+#if NPF_CLANG || NPF_GCC_PAST_4_6
+  #define NPF_HAVE_GCC_WARNING_PRAGMAS 1
+#else
+  #define NPF_HAVE_GCC_WARNING_PRAGMAS 0
+#endif
+
+#if NPF_HAVE_GCC_WARNING_PRAGMAS
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wpragmas"
+  #pragma GCC diagnostic ignored "-Wfloat-equal"
+  #pragma GCC diagnostic ignored "-Wgnu-statement-expression-from-macro-expansion"
+  #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+  #pragma GCC diagnostic ignored "-Wpadded"
+  #pragma GCC diagnostic ignored "-Wpedantic"
+  #pragma GCC diagnostic ignored "-Wunused-function"
+
+  #ifdef __cplusplus
+    #pragma GCC diagnostic ignored "-Wold-style-cast"
+  #endif
+
+  #if NPF_CLANG
+    #pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
+    #pragma GCC diagnostic ignored "-Wcovered-switch-default"
+    #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
+    #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
+    #ifndef __APPLE__
+      #pragma GCC diagnostic ignored "-Wunsafe-buffer-usage"
+    #endif
+  #elif NPF_GCC_PAST_4_6
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+  #endif
+#endif
+
+#ifdef _MSC_VER
+  #pragma warning(push)
+  #pragma warning(disable:4619) // there is no warning number 'number'
+  // C4619 has to be disabled first!
+  #pragma warning(disable:4127) // conditional expression is constant
+  #pragma warning(disable:4505) // unreferenced local function has been removed
+  #pragma warning(disable:4514) // unreferenced inline function has been removed
+  #pragma warning(disable:4701) // potentially uninitialized local variable used
+  #pragma warning(disable:4706) // assignment within conditional expression
+  #pragma warning(disable:4710) // function not inlined
+  #pragma warning(disable:4711) // function selected for inline expansion
+  #pragma warning(disable:4820) // padding added after struct member
+  #pragma warning(disable:5039) // potentially throwing function passed to extern C function
+  #pragma warning(disable:5045) // compiler will insert Spectre mitigation for memory load
+  #pragma warning(disable:5262) // implicit switch fall-through
+  #pragma warning(disable:26812) // enum type is unscoped
+#endif
+
+#if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
+  #define NPF_NOINLINE __attribute__((noinline))
+  #define NPF_FORCE_INLINE inline __attribute__((always_inline))
+
+  #define NPF_MIN(X, Y) ({ \
+    __typeof__(X) const x = (X); __typeof__(Y) const y = (Y); x <= y ? x : y; })
+  #define NPF_MAX(X, Y) ({ \
+    __typeof__(X) const x = (X); __typeof__(Y) const y = (Y); x >= y ? x : y; })
+#else
+  #if defined(_MSC_VER)
+    #define NPF_NOINLINE __declspec(noinline)
+    #define NPF_FORCE_INLINE inline __forceinline
+  #else
+    #define NPF_NOINLINE
+    #define NPF_FORCE_INLINE
+  #endif
+
+  #define NPF_MIN(X, Y) ((X) <= (Y) ? (X) : (Y))
+  #define NPF_MAX(X, Y) ((X) >= (Y) ? (X) : (Y))
+#endif
+
+#if (NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1) || \
+    (NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1)
+enum {
+  NPF_FMT_SPEC_OPT_NONE,
+  NPF_FMT_SPEC_OPT_LITERAL,
+  NPF_FMT_SPEC_OPT_STAR,
+};
+#endif
+
+enum {
+  NPF_FMT_SPEC_LEN_MOD_NONE,
+#if NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS == 1
+  NPF_FMT_SPEC_LEN_MOD_SHORT,       // 'h'
+  NPF_FMT_SPEC_LEN_MOD_CHAR,        // 'hh'
+#endif
+  NPF_FMT_SPEC_LEN_MOD_LONG,        // 'l'
+  NPF_FMT_SPEC_LEN_MOD_LONG_DOUBLE, // 'L'
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+  NPF_FMT_SPEC_LEN_MOD_LARGE_LONG_LONG, // 'll'
+  NPF_FMT_SPEC_LEN_MOD_LARGE_INTMAX,    // 'j'
+  NPF_FMT_SPEC_LEN_MOD_LARGE_SIZET,     // 'z'
+  NPF_FMT_SPEC_LEN_MOD_LARGE_PTRDIFFT,  // 't'
+#endif
+};
+
+enum {
+  NPF_FMT_SPEC_CONV_NONE,
+  NPF_FMT_SPEC_CONV_PERCENT,      // '%'
+  NPF_FMT_SPEC_CONV_CHAR,         // 'c'
+  NPF_FMT_SPEC_CONV_STRING,       // 's'
+  NPF_FMT_SPEC_CONV_SIGNED_INT,   // 'i', 'd'
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+  NPF_FMT_SPEC_CONV_BINARY,       // 'b'
+#endif
+  NPF_FMT_SPEC_CONV_OCTAL,        // 'o'
+  NPF_FMT_SPEC_CONV_HEX_INT,      // 'x', 'X'
+  NPF_FMT_SPEC_CONV_UNSIGNED_INT, // 'u'
+  NPF_FMT_SPEC_CONV_POINTER,      // 'p'
+#if NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS == 1
+  NPF_FMT_SPEC_CONV_WRITEBACK,    // 'n'
+#endif
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+  NPF_FMT_SPEC_CONV_FLOAT_DEC,      // 'f', 'F'
+  NPF_FMT_SPEC_CONV_FLOAT_SCI,      // 'e', 'E'
+  NPF_FMT_SPEC_CONV_FLOAT_SHORTEST, // 'g', 'G'
+#if NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1
+  NPF_FMT_SPEC_CONV_FLOAT_HEX,      // 'a', 'A'
+#endif
+#endif
+};
+
+// Assert range order/comparisons to enforce C standard ordering
+#define NPF_CONV_ORDER_ASSERT(NAME, COND) \
+  typedef char npf_assert_##NAME[(COND) ? 1 : -1]
+NPF_CONV_ORDER_ASSERT(text_convs_before_numeric,
+  (NPF_FMT_SPEC_CONV_PERCENT < NPF_FMT_SPEC_CONV_SIGNED_INT) &&
+  (NPF_FMT_SPEC_CONV_CHAR < NPF_FMT_SPEC_CONV_SIGNED_INT) &&
+  (NPF_FMT_SPEC_CONV_STRING < NPF_FMT_SPEC_CONV_SIGNED_INT));
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+NPF_CONV_ORDER_ASSERT(int_convs_contiguous,
+  NPF_FMT_SPEC_CONV_UNSIGNED_INT == NPF_FMT_SPEC_CONV_SIGNED_INT + 4);
+#else
+NPF_CONV_ORDER_ASSERT(int_convs_contiguous,
+  NPF_FMT_SPEC_CONV_UNSIGNED_INT == NPF_FMT_SPEC_CONV_SIGNED_INT + 3);
+#endif
+NPF_CONV_ORDER_ASSERT(pointer_after_int_convs,
+  NPF_FMT_SPEC_CONV_POINTER > NPF_FMT_SPEC_CONV_UNSIGNED_INT);
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+#if NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS == 1
+NPF_CONV_ORDER_ASSERT(float_convs_last,
+  NPF_FMT_SPEC_CONV_FLOAT_DEC > NPF_FMT_SPEC_CONV_WRITEBACK);
+#else
+NPF_CONV_ORDER_ASSERT(float_convs_last,
+  NPF_FMT_SPEC_CONV_FLOAT_DEC > NPF_FMT_SPEC_CONV_POINTER);
+#endif
+#endif
+#undef NPF_CONV_ORDER_ASSERT
+
+typedef struct npf_format_spec {
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+  int field_width;
+#endif
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+  int prec;
+  uint8_t prec_opt;
+#endif
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+  uint8_t field_width_opt;
+  char left_justified;   // '-'
+  char leading_zero_pad; // '0'
+#endif
+  char prepend;          // ' ' or '+'
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+  char alt_form;         // '#'
+#endif
+  char case_adjust;      // 'a' - 'A' , or 0 (must be non-negative to work)
+  uint8_t length_modifier;
+  uint8_t conv_spec;
+} npf_format_spec_t;
+
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+  typedef intmax_t npf_int_t;
+  typedef uintmax_t npf_uint_t;
+  #define NPF_UINT_IS_WIDE 1 // uintmax_t is at least 64 bits
+#elif ULONG_MAX > UINTPTR_MAX
+  typedef long npf_int_t;
+  typedef unsigned long npf_uint_t;
+  #define NPF_UINT_IS_WIDE (ULONG_MAX > 0xFFFFFFFFu)
+#else
+  typedef intptr_t npf_int_t;
+  typedef uintptr_t npf_uint_t;
+  #define NPF_UINT_IS_WIDE (UINTPTR_MAX > 0xFFFFFFFFu)
+#endif
+
+typedef struct npf_bufputc_ctx {
+  char *dst;       // moving cursor; advances on each write while len > 0.
+  size_t len;      // remaining capacity; decrements on each successful write.
+} npf_bufputc_ctx_t;
+
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+  typedef char npf_size_is_ptrdiff[(sizeof(size_t) == sizeof(ptrdiff_t)) ? 1 : -1];
+  typedef ptrdiff_t npf_ssize_t;
+  typedef size_t npf_uptrdiff_t;
+#endif
+
+#ifdef _MSC_VER
+  #include <intrin.h>
+#endif
+
+// Returns a pointer one past the last consumed character on success, null on
+// failure. A pointer return inlines into npf_vpprintf with smaller code than
+// a length return (the caller continues from the returned cursor directly).
+static char const *npf_parse_format_spec_end(char const *format,
+                                             npf_format_spec_t *out_spec) {
+  char const *cur = format;
+
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+  out_spec->left_justified = 0;
+  out_spec->leading_zero_pad = 0;
+#endif
+  out_spec->prepend = 0;
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+  out_spec->alt_form = 0;
+#endif
+
+  for (;;) { // cur points at the leading '%' character
+    switch (*++cur) { // Optional flags; '\0' exits via default.
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+      case '-': out_spec->left_justified = '-'; continue;
+      case '0': out_spec->leading_zero_pad = 1; continue;
+#endif
+      case '+':
+      case ' ': if (out_spec->prepend != '+') { out_spec->prepend = *cur; } continue;
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+      case '#': out_spec->alt_form = '#'; continue;
+#endif
+      default: break;
+    }
+    break;
+  }
+
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+  out_spec->field_width = 0;
+  out_spec->field_width_opt = NPF_FMT_SPEC_OPT_NONE;
+  if (*cur == '*') {
+    out_spec->field_width_opt = NPF_FMT_SPEC_OPT_STAR;
+    ++cur;
+  } else {
+    while ((unsigned)(*cur - '0') < 10u) {
+      out_spec->field_width_opt = NPF_FMT_SPEC_OPT_LITERAL;
+      out_spec->field_width = (out_spec->field_width * 10) + (*cur++ - '0');
+    }
+  }
+#endif
+
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+  out_spec->prec = 0;
+  out_spec->prec_opt = NPF_FMT_SPEC_OPT_NONE;
+  if (*cur == '.') {
+    ++cur;
+    if (*cur == '*') {
+      out_spec->prec_opt = NPF_FMT_SPEC_OPT_STAR;
+      ++cur;
+    } else {
+      if (*cur == '-') {
+        ++cur;
+      } else {
+        out_spec->prec_opt = NPF_FMT_SPEC_OPT_LITERAL;
+      }
+      while ((unsigned)(*cur - '0') < 10u) {
+        out_spec->prec = (out_spec->prec * 10) + (*cur++ - '0');
+      }
+    }
+  }
+#endif
+
+  out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_NONE;
+  switch (*cur++) { // Length modifier
+#if NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS == 1
+    case 'h':
+      out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_SHORT;
+      if (*cur == 'h') {
+        out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_CHAR;
+        ++cur;
+      }
+      break;
+#endif
+    case 'l':
+      out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LONG;
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+      if (*cur == 'l') {
+        out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LARGE_LONG_LONG;
+        ++cur;
+      }
+#endif
+      break;
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+    case 'L': out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LONG_DOUBLE; break;
+#endif
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+    case 'j': out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LARGE_INTMAX; break;
+    case 'z': out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LARGE_SIZET; break;
+    case 't': out_spec->length_modifier = NPF_FMT_SPEC_LEN_MOD_LARGE_PTRDIFFT; break;
+#endif
+    default: --cur; break;
+  }
+
+  // Conversion specifier. Look up the conv_spec from a 24-byte table indexed by
+  // (lowercased letter - 'a'). '%' is handled out-of-line since it's the only
+  // non-letter conversion. case_adjust gets bit 5 of the original char.
+  char const c = *cur++;
+  uint_fast8_t cs;
+  if (c == '%') {
+    cs = NPF_FMT_SPEC_CONV_PERCENT;
+  } else {
+    static const uint8_t lookup[24] = {
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1 && NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1
+      NPF_FMT_SPEC_CONV_FLOAT_HEX,      // 'a'
+#else
+      0,                                 // 'a'
+#endif
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+      NPF_FMT_SPEC_CONV_BINARY,          // 'b'
+#else
+      0,                                 // 'b'
+#endif
+      NPF_FMT_SPEC_CONV_CHAR,            // 'c'
+      NPF_FMT_SPEC_CONV_SIGNED_INT,      // 'd'
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+      NPF_FMT_SPEC_CONV_FLOAT_SCI,       // 'e'
+      NPF_FMT_SPEC_CONV_FLOAT_DEC,       // 'f'
+      NPF_FMT_SPEC_CONV_FLOAT_SHORTEST,  // 'g'
+#else
+      0, 0, 0,                           // 'e', 'f', 'g'
+#endif
+      0,                                 // 'h' (length modifier)
+      NPF_FMT_SPEC_CONV_SIGNED_INT,      // 'i'
+      0, 0, 0, 0,                        // 'j', 'k', 'l', 'm'
+#if NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS == 1
+      NPF_FMT_SPEC_CONV_WRITEBACK,       // 'n'
+#else
+      0,                                 // 'n'
+#endif
+      NPF_FMT_SPEC_CONV_OCTAL,           // 'o'
+      NPF_FMT_SPEC_CONV_POINTER,         // 'p'
+      0, 0,                              // 'q', 'r'
+      NPF_FMT_SPEC_CONV_STRING,          // 's'
+      0,                                 // 't'
+      NPF_FMT_SPEC_CONV_UNSIGNED_INT,    // 'u'
+      0, 0,                              // 'v', 'w'
+      NPF_FMT_SPEC_CONV_HEX_INT,         // 'x'
+    };
+    unsigned const idx = (unsigned)((c | 32) - 'a');
+    if (idx >= sizeof(lookup) || !(cs = lookup[idx])) { return NULL; }
+  }
+  out_spec->conv_spec = (uint8_t)cs;
+  out_spec->case_adjust = (char)(c & 32); // 32 for lowercase, 0 for uppercase
+
+  return cur;
+}
+
+// Length-returning facade over npf_parse_format_spec_end; 0 means failure.
+static NPF_FORCE_INLINE int npf_parse_format_spec(char const *format,
+                                                  npf_format_spec_t *out_spec) {
+  char const *const end = npf_parse_format_spec_end(format, out_spec);
+  return end ? (int)(end - format) : 0;
+}
+
+#if NANOPRINTF_USE_DIVISION_FREE_CONVERSION == 1
+// Calculate div by 10 justing a shift and mask to avoid using hw div operands
+static NPF_NOINLINE uint32_t npf_div10(uint32_t n) {
+  uint32_t q = (n >> 1) + (n >> 2);
+  q += q >> 4;
+  q += q >> 8;
+  q += q >> 16;
+  q >>= 3;
+  return q + ((n - (q * 10u) + 6u) >> 4);
+}
+#endif
+
+static NPF_NOINLINE char *npf_utoa_rev_end(
+    npf_uint_t val, char *buf, uint_fast8_t base, char case_adj) {
+#if (NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1) || \
+    ((NANOPRINTF_USE_DIVISION_FREE_CONVERSION == 1) && NPF_UINT_IS_WIDE)
+  // Use shift and subtract here to avoid hw div operation
+  while (val > 0xFFFFFFFFu) {
+    npf_uint_t q = 0, r = 0;
+    for (int i = (int)(sizeof(val) * 8) - 1; i >= 0; --i) {
+      r = (r << 1) | ((val >> i) & 1);
+      if (r >= (npf_uint_t)base) { r -= base; q |= (npf_uint_t)1 << i; }
+    }
+    int_fast8_t const d = (int_fast8_t)r;
+    *buf++ = (char)(((d < 10) ? '0' : ('A' - 10 + case_adj)) + d);
+    val = q;
+  }
+  uint32_t v32 = (uint32_t)val;
+#else
+  npf_uint_t v32 = val;
+#endif
+  do {
+#if NANOPRINTF_USE_DIVISION_FREE_CONVERSION == 1
+    int_fast8_t d;
+    if (base == 10u) {
+      uint32_t const q = npf_div10((uint32_t)v32);
+      d = (int_fast8_t)((uint32_t)v32 - (q * 10u));
+      v32 = q;
+    } else { // base 8 or 16: shift and mask
+      d = (int_fast8_t)(v32 & (base - 1u));
+      v32 >>= (base + 16u) >> 3; // 8 -> 3, 16 -> 4
+    }
+#else
+    int_fast8_t const d = (int_fast8_t)(v32 % base);
+    v32 /= base;
+#endif
+    *buf++ = (char)(((d < 10) ? '0' : ('A' - 10 + case_adj)) + d);
+  } while (v32);
+  return buf;
+}
+
+// Length-returning facade over npf_utoa_rev_end.
+static NPF_FORCE_INLINE int npf_utoa_rev(
+    npf_uint_t val, char *buf, uint_fast8_t base, char case_adj) {
+  return (int)(npf_utoa_rev_end(val, buf, base, case_adj) - buf);
+}
+
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+
+#include <float.h>
+
+#if NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1
+  typedef float npf_real_t;
+  #define NPF_REAL_MANT_DIG FLT_MANT_DIG
+  #define NPF_REAL_MAX_EXP  FLT_MAX_EXP
+#else
+  typedef double npf_real_t;
+  #define NPF_REAL_MANT_DIG DBL_MANT_DIG
+  #define NPF_REAL_MAX_EXP  DBL_MAX_EXP
+#endif
+
+#if (NPF_REAL_MANT_DIG <= 11) && (NPF_REAL_MAX_EXP <= 16)
+  typedef uint_fast16_t npf_real_bin_t;
+  typedef int_fast8_t npf_ftoa_exp_t;
+#elif (NPF_REAL_MANT_DIG <= 24) && (NPF_REAL_MAX_EXP <= 128)
+  typedef uint_fast32_t npf_real_bin_t;
+  typedef int_fast16_t npf_ftoa_exp_t;
+#elif (NPF_REAL_MANT_DIG <= 53) && (NPF_REAL_MAX_EXP <= 1024)
+  typedef uint_fast64_t npf_real_bin_t;
+  typedef int_fast16_t npf_ftoa_exp_t;
+#else
+  #error Unsupported width of the real type.
+#endif
+
+// The floating point conversion code works with an unsigned integer type of any size.
+#ifndef NANOPRINTF_CONVERSION_FLOAT_TYPE
+  #define NANOPRINTF_CONVERSION_FLOAT_TYPE unsigned int
+#endif
+typedef NANOPRINTF_CONVERSION_FLOAT_TYPE npf_ftoa_man_t;
+
+#if (NANOPRINTF_CONVERSION_BUFFER_SIZE <= UINT_FAST8_MAX) && (UINT_FAST8_MAX <= INT_MAX)
+  typedef uint_fast8_t npf_ftoa_dec_t;
+#else
+  typedef int npf_ftoa_dec_t;
+#endif
+
+enum {
+  NPF_REAL_EXP_MASK = NPF_REAL_MAX_EXP * 2 - 1,
+  NPF_REAL_EXP_BIAS = NPF_REAL_MAX_EXP - 1,
+  NPF_REAL_MAN_BITS = NPF_REAL_MANT_DIG - 1,
+  NPF_REAL_BIN_BITS = sizeof(npf_real_bin_t) * CHAR_BIT,
+  NPF_REAL_SIGN_POS = sizeof(npf_real_t) * CHAR_BIT - 1,
+  NPF_FTOA_MAN_BITS   = sizeof(npf_ftoa_man_t) * CHAR_BIT,
+  NPF_FTOA_SHIFT_BITS =
+    ((NPF_FTOA_MAN_BITS < NPF_REAL_MANT_DIG) ? NPF_FTOA_MAN_BITS : NPF_REAL_MANT_DIG) - 1
+};
+
+/* Generally, floating-point conversion implementations use
+   grisu2 (https://bit.ly/2JgMggX) and ryu (https://bit.ly/2RLXSg0) algorithms,
+   which are mathematically exact and fast, but require large lookup tables.
+
+   This implementation was inspired by Wojciech Muła's (zdjęcia@garnek.pl)
+   algorithm (http://0x80.pl/notesen/2015-12-29-float-to-string.html) and
+   extended further by adding dynamic scaling and configurable integer width by
+   Oskars Rubenis (https://github.com/Okarss). */
+
+static NPF_FORCE_INLINE npf_real_bin_t npf_real_to_int_rep(npf_real_t f) {
+  // Union-cast is UB pre-C11 and in all C++; the compiler optimizes the code below.
+  npf_real_bin_t bin = 0;
+  char const *src = (char const *)&f;
+  char *dst = (char *)&bin;
+  for (uint_fast8_t i = 0; i < sizeof(f); ++i) { dst[i] = src[i]; }
+  return bin;
+}
+
+#if NANOPRINTF_USE_DIVISION_FREE_CONVERSION == 1
+// Variable shifts of 64-bit values call sw helpers on archs
+// without 64-bit shifters. Perfer 1 bit shits to keep in 32 bit word spce.
+static NPF_FORCE_INLINE npf_real_bin_t npf_bin_shr(npf_real_bin_t v, int_fast8_t s) {
+  if (sizeof(v) > sizeof(uint32_t)) { while (s--) { v >>= 1; } return v; }
+  return (npf_real_bin_t)(v >> s);
+}
+static NPF_FORCE_INLINE npf_real_bin_t npf_bin_shl(npf_real_bin_t v, int_fast8_t s) {
+  if (sizeof(v) > sizeof(uint32_t)) { while (s--) { v <<= 1; } return v; }
+  return (npf_real_bin_t)(v << s);
+}
+  #define NPF_BIN_SHR(V, S) npf_bin_shr((V), (int_fast8_t)(S))
+  #define NPF_BIN_SHL(V, S) npf_bin_shl((V), (int_fast8_t)(S))
+#else
+  #define NPF_BIN_SHR(V, S) ((npf_real_bin_t)((V) >> (S)))
+  #define NPF_BIN_SHL(V, S) ((npf_real_bin_t)((V) << (S)))
+#endif
+
+static int npf_ftoa_rev(char *buf, npf_format_spec_t const *spec, npf_real_t f) {
+  // Packed reversed specials "NAN"/"FNI"(inf)/"RRE"(err), selected by offset.
+  static char const specials[] = "NAN\0FNI\0RRE";
+  char const *ret = NULL;
+  npf_real_bin_t bin = npf_real_to_int_rep(f);
+
+  // Unsigned -> signed int casting is IB and can raise a signal but generally doesn't.
+  npf_ftoa_exp_t exp =
+    (npf_ftoa_exp_t)((npf_ftoa_exp_t)(bin >> NPF_REAL_MAN_BITS) & NPF_REAL_EXP_MASK);
+
+  bin &= ((npf_real_bin_t)0x1 << NPF_REAL_MAN_BITS) - 1;
+  if (!((unsigned)(exp + 1) & NPF_REAL_EXP_MASK)) { // special value
+    ret = specials + (bin ? 0 : 4);
+    goto exit;
+  }
+  if (spec->prec > (NANOPRINTF_CONVERSION_BUFFER_SIZE - 2)) { goto exit; }
+  if (exp) { // normal number
+    bin |= (npf_real_bin_t)0x1 << NPF_REAL_MAN_BITS;
+  } else { // subnormal number
+    ++exp;
+  }
+  exp = (npf_ftoa_exp_t)(exp - NPF_REAL_EXP_BIAS);
+
+  uint_fast8_t carry; carry = 0;
+  npf_ftoa_dec_t end, dec; dec = (npf_ftoa_dec_t)spec->prec;
+  if (dec
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+      || spec->alt_form
+#endif
+  ) {
+    buf[dec++] = '.';
+  }
+
+  { // Integer part
+    npf_ftoa_man_t man_i;
+
+    if (exp >= 0) {
+      int_fast8_t shift_i =
+        (int_fast8_t)((exp > NPF_FTOA_SHIFT_BITS) ? (int)NPF_FTOA_SHIFT_BITS : exp);
+      npf_ftoa_exp_t exp_i = (npf_ftoa_exp_t)(exp - shift_i);
+      shift_i = (int_fast8_t)(NPF_REAL_MAN_BITS - shift_i);
+      if (shift_i) {
+        npf_real_bin_t const bin_i = NPF_BIN_SHR(bin, shift_i - 1);
+        carry = (uint_fast8_t)(bin_i & 0x1);
+        man_i = (npf_ftoa_man_t)(bin_i >> 1);
+      } else {
+        man_i = (npf_ftoa_man_t)bin;
+      }
+
+      if (exp_i) {
+        exp = NPF_REAL_MAN_BITS; // invalidate the fraction part
+      }
+
+      // Scale the exponent from base-2 to base-10.
+      for (; exp_i; --exp_i) {
+        if (!(man_i >> (NPF_FTOA_MAN_BITS - 1))) {
+          man_i = (npf_ftoa_man_t)((man_i << 1) | carry); carry = 0;
+        } else {
+          if (dec >= NANOPRINTF_CONVERSION_BUFFER_SIZE) { goto exit; }
+          buf[dec++] = '0';
+#if NANOPRINTF_USE_DIVISION_FREE_CONVERSION == 1
+          if (sizeof(man_i) <= sizeof(uint32_t)) { // n/5 = 2*(n/10) + (n%10 >= 5)
+            uint32_t const q = npf_div10((uint32_t)man_i);
+            uint_fast8_t r = (uint_fast8_t)((uint32_t)man_i - (q * 10u));
+            man_i = (npf_ftoa_man_t)(q * 2u);
+            if (r >= 5u) { r = (uint_fast8_t)(r - 5u); ++man_i; }
+            carry = (uint_fast8_t)((r + carry + 1u) >> 2);
+          } else
+#endif
+          {
+            carry = (uint_fast8_t)(((uint_fast8_t)(man_i % 5) + carry + 1u) >> 2);
+            man_i /= 5;
+          }
+        }
+      }
+    } else {
+      man_i = 0;
+    }
+    end = dec;
+
+    // Print the integer. A 32-bit man_i has at most 10 decimal digits, so one
+    // up-front capacity check replaces the per-digit check and npf_utoa_rev
+    // becomes the shared decimal emitter. (Conservative: a value needing fewer
+    // digits than the remaining capacity in the last 9 bytes now reports ERR.)
+    if ((sizeof(npf_ftoa_man_t) <= sizeof(uint32_t)) &&
+        (sizeof(npf_uint_t) >= sizeof(uint32_t))) {
+      if (end > NANOPRINTF_CONVERSION_BUFFER_SIZE - 10) { goto exit; }
+      end = (npf_ftoa_dec_t)(npf_utoa_rev_end((npf_uint_t)man_i, buf + end, 10, 0) - buf);
+    } else { // man_i may be wider than npf_uint_t: emit in place
+      do {
+        if (end >= NANOPRINTF_CONVERSION_BUFFER_SIZE) { goto exit; }
+        buf[end++] = (char)('0' + (char)(man_i % 10));
+        man_i /= 10;
+      } while (man_i);
+    }
+  }
+
+  { // Fraction part
+    npf_ftoa_man_t man_f;
+    npf_ftoa_dec_t dec_f = (npf_ftoa_dec_t)spec->prec;
+
+    if (exp < NPF_REAL_MAN_BITS) {
+      int_fast8_t shift_f = (int_fast8_t)((exp < 0) ? -1 : exp);
+      npf_ftoa_exp_t exp_f = (npf_ftoa_exp_t)(exp - shift_f);
+      npf_real_bin_t bin_f =
+        NPF_BIN_SHL(bin, (NPF_REAL_BIN_BITS - NPF_REAL_MAN_BITS) + shift_f);
+
+      // This if-else statement can be completely optimized at compile time.
+      if (NPF_REAL_BIN_BITS > NPF_FTOA_MAN_BITS) {
+        man_f = (npf_ftoa_man_t)(bin_f >> ((unsigned)(NPF_REAL_BIN_BITS -
+                                                      NPF_FTOA_MAN_BITS) %
+                                           NPF_REAL_BIN_BITS));
+        carry = (uint_fast8_t)((bin_f >> ((unsigned)(NPF_REAL_BIN_BITS -
+                                                     NPF_FTOA_MAN_BITS - 1) %
+                                          NPF_REAL_BIN_BITS)) & 0x1);
+      } else {
+        man_f = (npf_ftoa_man_t)((npf_ftoa_man_t)bin_f
+                                 << ((unsigned)(NPF_FTOA_MAN_BITS -
+                                                NPF_REAL_BIN_BITS) % NPF_FTOA_MAN_BITS));
+        carry = 0;
+      }
+
+      // Scale the exponent from base-2 to base-10 and prepare the first digit.
+      for (uint_fast8_t digit = 0; dec_f && (exp_f < 4); ++exp_f) {
+        if ((man_f > ((npf_ftoa_man_t)-4 / 5)) || digit) {
+          carry = (uint_fast8_t)(man_f & 0x1);
+          man_f = (npf_ftoa_man_t)(man_f >> 1);
+        } else {
+          man_f = (npf_ftoa_man_t)(man_f * 5);
+          if (carry) { man_f = (npf_ftoa_man_t)(man_f + 3); carry = 0; }
+          if (exp_f < 0) {
+            buf[--dec_f] = '0';
+          } else {
+            ++digit;
+          }
+        }
+      }
+      man_f = (npf_ftoa_man_t)(man_f + carry);
+      carry = (exp_f >= 0);
+      dec = 0;
+    } else {
+      man_f = 0;
+    }
+
+    if (dec_f) {
+      // Print the fraction
+      for (;;) {
+        buf[--dec_f] = (char)('0' + (char)(man_f >> (NPF_FTOA_MAN_BITS - 4)));
+        man_f = (npf_ftoa_man_t)(man_f & ~((npf_ftoa_man_t)0xF << (NPF_FTOA_MAN_BITS - 4)));
+        if (!dec_f) { break; }
+        man_f = (npf_ftoa_man_t)(man_f * 10);
+      }
+      man_f = (npf_ftoa_man_t)(man_f << 4);
+    }
+    if (exp < NPF_REAL_MAN_BITS) {
+      carry &= (uint_fast8_t)(man_f >> (NPF_FTOA_MAN_BITS - 1));
+    }
+  }
+
+  // Round the number
+  for (; carry; ++dec) {
+    if (dec >= NANOPRINTF_CONVERSION_BUFFER_SIZE) { goto exit; }
+    if (dec >= end) { buf[end++] = '0'; }
+    char const c = buf[dec];
+    if (c == '.') { continue; }
+    if (c == '9') { buf[dec] = '0'; }
+    else { buf[dec] = (char)(c + 1); carry = 0; }
+  }
+
+  return (int)end;
+exit:
+  if (!ret) { ret = specials + 8; }
+  uint_fast8_t i = 0;
+  do { buf[i] = (char)(ret[i] + spec->case_adjust); } while (ret[++i]);
+  return -(int)i;
+}
+
+#if NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1
+
+// Hex float always operates on IEEE 754 binary64 (double).
+// When not in single-precision mode, npf_real_* already handles double.
+#if NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1
+typedef uint_fast64_t npf_double_bin_t;
+enum {
+  NPF_DOUBLE_EXP_MASK = 2047,
+  NPF_DOUBLE_EXP_BIAS = 1023,
+  NPF_DOUBLE_MAN_BITS = 52,
+};
+static NPF_FORCE_INLINE npf_double_bin_t npf_double_to_int_rep(double f) {
+  npf_double_bin_t bin = 0;
+  char const *src = (char const *)&f;
+  char *dst = (char *)&bin;
+  for (uint_fast8_t i = 0; i < sizeof(f); ++i) { dst[i] = src[i]; }
+  return bin;
+}
+#else
+typedef npf_real_bin_t npf_double_bin_t;
+#define NPF_DOUBLE_EXP_MASK NPF_REAL_EXP_MASK
+#define NPF_DOUBLE_EXP_BIAS NPF_REAL_EXP_BIAS
+#define NPF_DOUBLE_MAN_BITS NPF_REAL_MAN_BITS
+#define npf_double_to_int_rep(f) npf_real_to_int_rep(f)
+#endif
+
+static NPF_NOINLINE int npf_atoa_rev(
+    char *buf, npf_format_spec_t const *spec, double f) {
+  npf_double_bin_t bin = npf_double_to_int_rep(f);
+  npf_ftoa_exp_t exp =
+    (npf_ftoa_exp_t)((npf_ftoa_exp_t)(bin >> NPF_DOUBLE_MAN_BITS) & NPF_DOUBLE_EXP_MASK);
+  bin &= ((npf_double_bin_t)0x1 << NPF_DOUBLE_MAN_BITS) - 1;
+
+  if (exp == (npf_ftoa_exp_t)NPF_DOUBLE_EXP_MASK) { return 0; } // caller uses ftoa_rev
+
+  if (exp) {
+    bin |= (npf_double_bin_t)0x1 << NPF_DOUBLE_MAN_BITS;
+    exp = (npf_ftoa_exp_t)(exp - NPF_DOUBLE_EXP_BIAS);
+  } else if (bin) {
+    exp = (npf_ftoa_exp_t)(1 - NPF_DOUBLE_EXP_BIAS);
+  }
+
+  { int const n_frac_dig = (NPF_DOUBLE_MAN_BITS + 3) / 4;
+    int const prec = NPF_MIN(spec->prec, n_frac_dig);
+    int end, i;
+
+    // Discard low nibbles and round (only constant shifts of 3 and 4)
+    { npf_double_bin_t carry = 0;
+      for (i = n_frac_dig - prec; i > 0; --i) {
+        carry = (bin >> 3) & 1;
+        bin >>= 4;
+      }
+      bin += carry;
+    }
+
+    { npf_ftoa_exp_t const ae = (exp < 0) ? (npf_ftoa_exp_t)-exp : exp;
+      end = npf_utoa_rev((npf_uint_t)ae, buf, 10, 0);
+      buf[end++] = (exp < 0) ? '-' : '+';
+      buf[end++] = (char)('P' + spec->case_adjust);
+    }
+
+    for (i = 0; i < prec; ++i) {
+      int_fast8_t const d = (int_fast8_t)(bin & 0xF);
+      buf[end++] = (char)(((d < 10) ? '0' : ('A' - 10 + spec->case_adjust)) + d);
+      bin >>= 4;
+    }
+
+    if (prec > 0
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+        || spec->alt_form
+#endif
+    ) { buf[end++] = '.'; }
+
+    buf[end++] = (char)('0' + (int_fast8_t)(bin & 0xF));
+    return end;
+  }
+}
+
+#endif // NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER
+
+#endif // NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS
+
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+static int npf_bin_len(npf_uint_t u) {
+  // Return the length of the binary string format of 'u', preferring intrinsics.
+  if (!u) { return 1; }
+
+#ifdef _MSC_VER // Win64, use _BSR64 for everything. If x86, use _BSR when non-large.
+  #ifdef _M_X64
+    #define NPF_HAVE_BUILTIN_CLZ
+    #define NPF_CLZ _BitScanReverse64
+  #elif NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 0
+    #define NPF_HAVE_BUILTIN_CLZ
+    #define NPF_CLZ _BitScanReverse
+  #endif
+  #ifdef NPF_HAVE_BUILTIN_CLZ
+    unsigned long idx;
+    NPF_CLZ(&idx, u);
+    return (int)(idx + 1);
+  #endif
+#elif NPF_CLANG || NPF_GCC_PAST_4_6
+  #define NPF_HAVE_BUILTIN_CLZ
+  #if NPF_UINT_IS_WIDE
+    #define NPF_CLZ(X) ((sizeof(long long) * CHAR_BIT) - (size_t)__builtin_clzll(X))
+  #else
+    #define NPF_CLZ(X) ((sizeof(long) * CHAR_BIT) - (size_t)__builtin_clzl(X))
+  #endif
+  return (int)NPF_CLZ(u);
+#endif
+
+#ifndef NPF_HAVE_BUILTIN_CLZ
+  int n;
+  for (n = 0; u; ++n, u >>= 1); // slow but small software fallback
+  return n;
+#else
+  #undef NPF_HAVE_BUILTIN_CLZ
+  #undef NPF_CLZ
+#endif
+}
+#endif
+
+static void npf_bufputc(int c, void *ctx) {
+  npf_bufputc_ctx_t *bpc = (npf_bufputc_ctx_t *)ctx;
+  // NULL dst -> count-only mode (size-query semantics).
+  if (bpc->dst && bpc->len) { --bpc->len; *bpc->dst++ = (char)c; }
+}
+
+#define NPF_PUTC(VAL) do { pc((int)(VAL), pc_ctx); ++npf_n; } while (0)
+#define NPF_PUT(VAL) do { pc((int)(VAL), pc_ctx); } while (0)
+
+#define NPF_EXTRACT(DST, MOD, CAST_TO, EXTRACT_AS) \
+  case NPF_FMT_SPEC_LEN_MOD_##MOD: DST = (CAST_TO)va_arg(args, EXTRACT_AS); break
+
+// When sizeof(long) == sizeof(int)
+// va_arg(*args, long) and va_arg(*args, int) read the same bits, so the LONG
+// case can fall into the int-promotion default.
+#if LONG_MAX == INT_MAX
+  #define NPF_LONG_IS_INT 1
+#else
+  #define NPF_LONG_IS_INT 0
+#endif
+
+int npf_vpprintf(npf_putc pc, void *pc_ctx, char const *format, va_list args) {
+  npf_format_spec_t fs;
+  char const *cur = format;
+  int npf_n = 0;
+
+  while (*cur) {
+    char const *const fs_end =
+      (*cur != '%') ? 0 : npf_parse_format_spec_end(cur, &fs);
+    if (!fs_end) { NPF_PUTC(*cur++); continue; }
+    cur = fs_end;
+
+    // Extract star-args immediately
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    if (fs.field_width_opt == NPF_FMT_SPEC_OPT_STAR) {
+      fs.field_width = va_arg(args, int);
+      if (fs.field_width < 0) {
+        fs.field_width = -fs.field_width;
+        fs.left_justified = 1;
+      }
+    }
+#endif
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+    if (fs.prec_opt == NPF_FMT_SPEC_OPT_STAR) {
+      fs.prec = va_arg(args, int);
+      if (fs.prec < 0) { fs.prec = 0; fs.prec_opt = NPF_FMT_SPEC_OPT_NONE; }
+    }
+#endif
+
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+  // Set default precision (we can do that only now that we have extracted the
+  // argument-provided precision (".*"), and know whether to ignore that or not.
+  if (fs.prec_opt == NPF_FMT_SPEC_OPT_NONE) {
+    if (fs.conv_spec == NPF_FMT_SPEC_CONV_POINTER) {
+      fs.prec = (sizeof(void *) * CHAR_BIT + 3) / 4;
+    }
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+    // float specs are last in the enum; a single range check identifies them.
+    else if (fs.conv_spec >= NPF_FMT_SPEC_CONV_FLOAT_DEC) {
+#if NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1
+      fs.prec = (fs.conv_spec == NPF_FMT_SPEC_CONV_FLOAT_HEX)
+        ? (NPF_DOUBLE_MAN_BITS + 3) / 4 : 6;
+#else
+      fs.prec = 6;
+#endif
+    }
+#endif
+  }
+#endif
+
+#if (NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1) && \
+    (NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1)
+    // For d i o u x X, the '0' flag must be ignored if a precision is provided.
+    // Those conversions are contiguous in the enum (except BINARY, b).
+    if ((fs.prec_opt != NPF_FMT_SPEC_OPT_NONE) &&
+        (fs.conv_spec >= NPF_FMT_SPEC_CONV_SIGNED_INT) &&
+        (fs.conv_spec <= NPF_FMT_SPEC_CONV_UNSIGNED_INT)
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+        && (fs.conv_spec != NPF_FMT_SPEC_CONV_BINARY)
+#endif
+       ) { fs.leading_zero_pad = 0; }
+#endif
+
+    union { char cbuf_mem[NANOPRINTF_CONVERSION_BUFFER_SIZE]; npf_uint_t binval; } u;
+    char *cbuf = u.cbuf_mem, sign_c = 0;
+    int cbuf_len = 0;
+    char need_0x = 0;
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    int field_pad = 0;
+    char pad_c = 0;
+#endif
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+    int prec_pad = 0;
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    uint_fast8_t zero = 0;
+#endif
+#endif
+
+    // Extract and convert the argument to string, point cbuf at the text.
+    // Range checks for INT and FLOAT families avoid an 11-entry dispatch table.
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+    if (fs.conv_spec >= NPF_FMT_SPEC_CONV_FLOAT_DEC) {
+      npf_real_t val;
+#if NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1
+      val = va_arg(args, npf_float_t).val;
+#elif LDBL_MANT_DIG == DBL_MANT_DIG
+      // long double has the same representation as double
+      // no need to branch on the 'L' length modifier.
+      val = va_arg(args, double);
+#else
+      if (fs.length_modifier == NPF_FMT_SPEC_LEN_MOD_LONG_DOUBLE) {
+        val = (npf_real_t)va_arg(args, long double);
+      } else {
+        val = va_arg(args, double);
+      }
+#endif
+
+      { npf_real_bin_t const b = npf_real_to_int_rep(val);
+        sign_c = (b >> NPF_REAL_SIGN_POS) ? '-' : fs.prepend;
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+        zero = !(b & ~((npf_real_bin_t)1 << NPF_REAL_SIGN_POS));
+#endif
+      }
+#if NANOPRINTF_USE_FLOAT_HEX_FORMAT_SPECIFIER == 1
+      if ((fs.conv_spec == NPF_FMT_SPEC_CONV_FLOAT_HEX) &&
+          ((cbuf_len = npf_atoa_rev(cbuf, &fs, (double)val)) > 0)) {
+        need_0x = (char)('X' + fs.case_adjust);
+      } else
+#endif
+      { cbuf_len = npf_ftoa_rev(cbuf, &fs, val); }
+      if (cbuf_len < 0) { // negative means text (not number), so ignore the '0' flag
+         cbuf_len = -cbuf_len;
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+         fs.leading_zero_pad = 0;
+#endif
+      }
+    } else
+#endif
+#if NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS == 1
+    if (fs.conv_spec == NPF_FMT_SPEC_CONV_WRITEBACK) {
+      switch (fs.length_modifier) {
+        case NPF_FMT_SPEC_LEN_MOD_NONE: *(va_arg(args, int *)) = npf_n; break;
+#if NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS == 1
+        case NPF_FMT_SPEC_LEN_MOD_SHORT: *(va_arg(args, short *)) = (short)npf_n; break;
+        case NPF_FMT_SPEC_LEN_MOD_CHAR: *(va_arg(args, signed char *)) = (signed char)npf_n; break;
+#endif
+        case NPF_FMT_SPEC_LEN_MOD_LONG: *(va_arg(args, long *)) = (long)npf_n; break;
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+        case NPF_FMT_SPEC_LEN_MOD_LARGE_LONG_LONG: *(va_arg(args, long long *)) = (long long)npf_n; break;
+        case NPF_FMT_SPEC_LEN_MOD_LARGE_INTMAX: *(va_arg(args, intmax_t *)) = (intmax_t)npf_n; break;
+        case NPF_FMT_SPEC_LEN_MOD_LARGE_SIZET: *(va_arg(args, npf_ssize_t *)) = (npf_ssize_t)npf_n; break;
+        case NPF_FMT_SPEC_LEN_MOD_LARGE_PTRDIFFT: *(va_arg(args, ptrdiff_t *)) = (ptrdiff_t)npf_n; break;
+#endif
+        default: break;
+      }
+    } else
+#endif
+    if (fs.conv_spec >= NPF_FMT_SPEC_CONV_SIGNED_INT) {
+      npf_uint_t val;
+      uint_fast8_t base = 10u;
+
+      if (fs.conv_spec == NPF_FMT_SPEC_CONV_SIGNED_INT) {
+        npf_int_t sval = 0;
+#if !NPF_LONG_IS_INT || NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+        switch (fs.length_modifier) {
+#if !NPF_LONG_IS_INT
+          NPF_EXTRACT(sval, LONG, long, long);
+#endif
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+          NPF_EXTRACT(sval, LARGE_LONG_LONG, long long, long long);
+          NPF_EXTRACT(sval, LARGE_INTMAX, intmax_t, intmax_t);
+          NPF_EXTRACT(sval, LARGE_SIZET, npf_ssize_t, npf_ssize_t);
+          NPF_EXTRACT(sval, LARGE_PTRDIFFT, ptrdiff_t, ptrdiff_t);
+#endif
+          default:
+#endif
+          {
+            int v = va_arg(args, int);
+#if NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS == 1
+            if (fs.length_modifier == NPF_FMT_SPEC_LEN_MOD_SHORT) { v = (short)v; }
+            else if (fs.length_modifier == NPF_FMT_SPEC_LEN_MOD_CHAR) { v = (signed char)v; }
+#endif
+            sval = v;
+          }
+#if !NPF_LONG_IS_INT || NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+          break;
+        }
+#endif
+        sign_c = (sval < 0) ? '-' : fs.prepend;
+        val = (npf_uint_t)sval;
+        if (sval < 0) { val = 0 - val; }
+      } else {
+        if (fs.conv_spec == NPF_FMT_SPEC_CONV_POINTER) {
+          val = (npf_uint_t)(uintptr_t)va_arg(args, void *);
+          base = 16u;
+        } else {
+#if !NPF_LONG_IS_INT || NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+          switch (fs.length_modifier) {
+#if !NPF_LONG_IS_INT
+            NPF_EXTRACT(val, LONG, unsigned long, unsigned long);
+#endif
+#if NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+            NPF_EXTRACT(val, LARGE_LONG_LONG, unsigned long long, unsigned long long);
+            NPF_EXTRACT(val, LARGE_INTMAX, uintmax_t, uintmax_t);
+            NPF_EXTRACT(val, LARGE_SIZET, size_t, size_t);
+            NPF_EXTRACT(val, LARGE_PTRDIFFT, npf_uptrdiff_t, npf_uptrdiff_t);
+#endif
+            default:
+#endif
+            {
+              unsigned v = va_arg(args, unsigned);
+#if NANOPRINTF_USE_SMALL_FORMAT_SPECIFIERS == 1
+              if (fs.length_modifier == NPF_FMT_SPEC_LEN_MOD_SHORT) { v = (unsigned short)v; }
+              else if (fs.length_modifier == NPF_FMT_SPEC_LEN_MOD_CHAR) { v = (unsigned char)v; }
+#endif
+              val = v;
+            }
+#if !NPF_LONG_IS_INT || NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS == 1
+            break;
+          }
+#endif
+          if (fs.conv_spec == NPF_FMT_SPEC_CONV_OCTAL) { base = 8u; }
+          else if (fs.conv_spec == NPF_FMT_SPEC_CONV_HEX_INT) { base = 16u; }
+        }
+      }
+
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+      zero = !val;
+#endif
+      if (!val && (fs.prec_opt != NPF_FMT_SPEC_OPT_NONE) && !fs.prec) {
+        // cbuf_len was initialized to 0; preserved here.
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+        if (base == 8u && fs.alt_form) { fs.prec = 1; } // octal '#' special
+#endif
+      } else
+#endif
+      {
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+        if (fs.conv_spec == NPF_FMT_SPEC_CONV_BINARY) {
+          cbuf_len = npf_bin_len(val); u.binval = val;
+        } else
+#endif
+        { cbuf_len = npf_utoa_rev(val, cbuf, base, fs.case_adjust); }
+
+#if NANOPRINTF_USE_ALT_FORM_FLAG == 1
+        if (val && fs.alt_form) {
+          if (base == 8u) {
+            cbuf[cbuf_len++] = '0';
+          } else if (base == 16u) {
+            need_0x = (char)('X' + fs.case_adjust);
+          }
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+          else if (fs.conv_spec == NPF_FMT_SPEC_CONV_BINARY) {
+            need_0x = (char)('B' + fs.case_adjust);
+          }
+#endif
+        }
+#endif
+      }
+    } else if (fs.conv_spec == NPF_FMT_SPEC_CONV_STRING) {
+      cbuf = va_arg(args, char *);
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+      for (char const *s = cbuf;
+           ((fs.prec_opt == NPF_FMT_SPEC_OPT_NONE) || (cbuf_len < fs.prec)) && cbuf && *s;
+           ++s, ++cbuf_len);
+#else
+      for (char const *s = cbuf; cbuf && *s; ++s, ++cbuf_len); // strlen
+#endif
+    } else {
+      // PERCENT or CHAR: produce a 1-char buffer.
+      *cbuf = (fs.conv_spec == NPF_FMT_SPEC_CONV_CHAR) ? (char)va_arg(args, int) : '%';
+      cbuf_len = 1;
+    }
+
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    // Compute the field width pad character. '0' flag only with numeric types,
+    // '-' overrides '0', and a blank result (prec.0 with zero value) suppresses '0'.
+    // With no field width, field_pad clamps to 0 below, so pad_c is never used.
+    pad_c = ' ';
+    if (fs.leading_zero_pad && !fs.left_justified
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+        && !((fs.prec_opt != NPF_FMT_SPEC_OPT_NONE) && !fs.prec && zero)
+#endif
+       ) { pad_c = '0'; }
+#endif
+
+    // Compute the number of bytes to truncate or '0'-pad. Skip for STRING
+    // (already handled by precision-limited length) and FLOAT (precision is
+    // after the decimal point; float specs are last in the enum).
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+    if ((fs.conv_spec != NPF_FMT_SPEC_CONV_STRING)
+#if NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS == 1
+        && (fs.conv_spec < NPF_FMT_SPEC_CONV_FLOAT_DEC)
+#endif
+       ) { prec_pad = NPF_MAX(0, fs.prec - cbuf_len); }
+#endif
+
+    // Total bytes this conversion emits; npf_n is bulk-updated at the end.
+    int spec_len = cbuf_len + !!sign_c + (need_0x ? 2 : 0)
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+                   + prec_pad
+#endif
+                   ;
+
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    // Given the full converted length, how many pad bytes?
+    field_pad = fs.field_width - spec_len;
+    if (field_pad < 0) { field_pad = 0; }
+    spec_len += field_pad;
+
+    // Right-justified padding: zero-pad goes AFTER sign/0x; space-pad goes BEFORE.
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+    // '0'-padding is contiguous with the leading precision zeros, so fold it into
+    // prec_pad; sign/0x is then emitted exactly once below. prec_pad stays 0 for
+    // STRING unless folded into, so the hoisted loop is a no-op there.
+    if (pad_c == '0') {
+      prec_pad += field_pad;
+      field_pad = 0;
+    }
+#else
+    if (pad_c == '0') {
+      if (sign_c) { NPF_PUT(sign_c); sign_c = 0; }
+      if (need_0x) { NPF_PUT('0'); NPF_PUT(need_0x); need_0x = 0; }
+    }
+#endif
+    if (!fs.left_justified) {
+      while (field_pad-- > 0) { NPF_PUT(pad_c); }
+    }
+#endif
+    if (sign_c) { NPF_PUT(sign_c); }
+    if (need_0x) { NPF_PUT('0'); NPF_PUT(need_0x); }
+#if NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS == 1
+    while (prec_pad-- > 0) { NPF_PUT('0'); } // leading zeros: precision and '0' pad
+#endif
+
+    // Write the converted payload. The STRING parse loop guarantees cbuf_len == 0
+    // when cbuf is NULL, so the output loop can elide the `cbuf &&` check.
+    if (fs.conv_spec == NPF_FMT_SPEC_CONV_STRING) {
+      for (int i = 0; i < cbuf_len; ++i) { NPF_PUT(cbuf[i]); }
+    } else {
+#if NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS == 1
+      if (fs.conv_spec == NPF_FMT_SPEC_CONV_BINARY) {
+        while (cbuf_len) { NPF_PUT('0' + ((u.binval >> --cbuf_len) & 1)); }
+      } else
+#endif
+      { while (cbuf_len-- > 0) { NPF_PUT(cbuf[cbuf_len]); } } // payload is reversed
+    }
+
+#if NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS == 1
+    // Apply left-justified field width. The right-justified loop above has
+    // already run field_pad below zero in the non-left-justified case, so
+    // this loop body only executes for left-justified specifiers.
+    while (field_pad-- > 0) { NPF_PUT(pad_c); }
+#endif
+    // NPF_PUT emissions don't tally npf_n; add the conversion's total length in bulk.
+    npf_n += spec_len;
+  }
+
+  return npf_n;
+}
+
+#undef NPF_PUTC
+#undef NPF_PUT
+#undef NPF_EXTRACT
+#undef NPF_LONG_IS_INT
+#undef NPF_BIN_SHR
+#undef NPF_BIN_SHL
+
+int npf_vsnprintf(char * NPF_RESTRICT buffer,
+                  size_t bufsz,
+                  char const * NPF_RESTRICT format,
+                  va_list vlist) {
+  npf_bufputc_ctx_t bufputc_ctx = { buffer, bufsz };
+  int const n = npf_vpprintf(npf_bufputc, &bufputc_ctx, format, vlist);
+
+  if (buffer && bufsz) {
+    // npf_vpprintf never returns negative (no encoding errors possible).
+#ifdef NANOPRINTF_SNPRINTF_SAFE_EMPTY_STRING_ON_OVERFLOW
+    buffer[(unsigned)n >= bufsz ? 0 : (unsigned)n] = '\0';
+#else
+    buffer[NPF_MIN((unsigned)n, bufsz - 1)] = '\0';
+#endif
+  }
+
+  return n;
+}
+
+int npf_pprintf_(npf_putc pc,
+                     void * NPF_RESTRICT pc_ctx,
+                     char const * NPF_RESTRICT format,
+                     ...) {
+  va_list val;
+  va_start(val, format);
+  int const rv = npf_vpprintf(pc, pc_ctx, format, val);
+  va_end(val);
+  return rv;
+}
+
+int npf_snprintf_(char * NPF_RESTRICT buffer,
+                      size_t bufsz,
+                      const char * NPF_RESTRICT format,
+                      ...) {
+  va_list val;
+  va_start(val, format);
+  int const rv = npf_vsnprintf(buffer, bufsz, format, val);
+  va_end(val);
+  return rv;
+}
+
+#if NPF_HAVE_GCC_WARNING_PRAGMAS
+  #pragma GCC diagnostic pop
+#endif
+
+#ifdef _MSC_VER
+  #pragma warning(pop)
+#endif
+
+#endif // NPF_IMPLEMENTATION_INCLUDED
+#endif // NANOPRINTF_IMPLEMENTATION
+
+// Single-precision argument wrapping and MAP macro expansion machinery.
+// The npf_snprintf / npf_pprintf / NPF_MAP_ARGS macros defined above reference
+// these, but that's fine: macro bodies are only expanded at the point of
+// invocation, not at the point of definition.
+
+#ifndef NPF_MAP_INCLUDED
+#define NPF_MAP_INCLUDED
+
+#if defined(NANOPRINTF_USE_FLOAT_SINGLE_PRECISION) && \
+    (NANOPRINTF_USE_FLOAT_SINGLE_PRECISION == 1)
+
+// NPF__WRAP: wrap float/double args into npf_float_t, pass other types through.
+// C++ uses function overloading; C uses _Generic with function-pointer selection.
+// _Generic picks a function, then (x) calls it. Non-selected branches are bare
+// function names (always valid), sidestepping _Generic's type-check-all-branches
+// behavior that would reject (float)(string_ptr) in non-selected branches.
+#if defined(__cplusplus)
+  extern "C++" {
+    static inline npf_float_t npf__wrap_impl(float f) {
+      npf_float_t r; r.val = f; return r;
+    }
+    static inline npf_float_t npf__wrap_impl(double d) {
+      npf_float_t r; r.val = (float)d; return r;
+    }
+    template<typename T> static inline T npf__wrap_impl(T v) { return v; }
+  }
+  #define NPF__WRAP(x) npf__wrap_impl(x)
+#elif defined(__GNUC__) || defined(__clang__)
+  #define NPF__IS_REAL(x) \
+    (__builtin_types_compatible_p(__typeof__(0 ? (x) : (x)), float) || \
+     __builtin_types_compatible_p(__typeof__(0 ? (x) : (x)), double))
+  #define NPF__WRAP(x) __builtin_choose_expr(NPF__IS_REAL(x), \
+    ({ npf_float_t _npf_r; \
+       _npf_r.val = (float)__builtin_choose_expr(NPF__IS_REAL(x), (x), 0); \
+       _npf_r; }), \
+    (x))
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+  static inline npf_float_t npf__wf(float f) {
+    npf_float_t r; r.val = f; return r;
+  }
+  static inline npf_float_t npf__wd(double d) {
+    npf_float_t r; r.val = (float)d; return r;
+  }
+  static inline npf_float_t npf__wld(long double d) {
+    npf_float_t r; r.val = (float)d; return r;
+  }
+
+  static inline int npf__id_i(int v) { return v; }
+  static inline unsigned npf__id_u(unsigned v) { return v; }
+  static inline long npf__id_l(long v) { return v; }
+  static inline unsigned long npf__id_ul(unsigned long v) { return v; }
+  static inline long long npf__id_ll(long long v) { return v; }
+  static inline unsigned long long npf__id_ull(unsigned long long v) { return v; }
+  static inline char npf__id_c(char v) { return v; }
+  static inline signed char npf__id_sc(signed char v) { return v; }
+  static inline unsigned char npf__id_uc(unsigned char v) { return v; }
+  static inline short npf__id_s(short v) { return v; }
+  static inline unsigned short npf__id_us(unsigned short v) { return v; }
+  static inline char *npf__id_cp(char *v) { return v; }
+  static inline char const *npf__id_ccp(char const *v) { return v; }
+  static inline void *npf__id_vp(void *v) { return v; }
+  static inline void const *npf__id_cvp(void const *v) { return v; }
+  static inline int *npf__id_ip(int *v) { return v; }
+  static inline short *npf__id_sp(short *v) { return v; }
+  static inline long *npf__id_lp(long *v) { return v; }
+  static inline long long *npf__id_llp(long long *v) { return v; }
+  static inline signed char *npf__id_scp(signed char *v) { return v; }
+
+  #define NPF__WRAP(x) _Generic((x), \
+    float:              npf__wf, \
+    double:             npf__wd, \
+    long double:        npf__wld, \
+    int:                npf__id_i, \
+    unsigned:           npf__id_u, \
+    long:               npf__id_l, \
+    unsigned long:      npf__id_ul, \
+    long long:          npf__id_ll, \
+    unsigned long long: npf__id_ull, \
+    char:               npf__id_c, \
+    signed char:        npf__id_sc, \
+    unsigned char:      npf__id_uc, \
+    short:              npf__id_s, \
+    unsigned short:     npf__id_us, \
+    char *:             npf__id_cp, \
+    char const *:       npf__id_ccp, \
+    void *:             npf__id_vp, \
+    void const *:       npf__id_cvp, \
+    int *:              npf__id_ip, \
+    short *:            npf__id_sp, \
+    long *:             npf__id_lp, \
+    long long *:        npf__id_llp, \
+    signed char *:      npf__id_scp)(x)
+#else
+  #error Single-precision float wrapping requires C11, GCC/Clang, or C++.
+#endif
+
+// Argument counting (up to 64 variadic args)
+#define NPF__NARG(...)  NPF__NARG_(__VA_ARGS__, NPF__RSEQ())
+#define NPF__NARG_(...) NPF__ARG_N(__VA_ARGS__)
+#define NPF__ARG_N( \
+   _1, _2, _3, _4, _5, _6, _7, _8, _9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
+  _21,_22,_23,_24,_25,_26,_27,_28,_29,_30,_31,_32,_33,_34,_35,_36,_37,_38,_39,_40, \
+  _41,_42,_43,_44,_45,_46,_47,_48,_49,_50,_51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
+  _61,_62,_63,_64,N,...) N
+#define NPF__RSEQ() \
+  64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38, \
+  37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11, \
+  10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+
+// Token pasting
+#define NPF__CAT(a,b)  NPF__CAT_(a,b)
+#define NPF__CAT_(a,b) a##b
+
+// MAP: apply f to each argument
+#define NPF__MAP(f,...) NPF__CAT(NPF__MAP_,NPF__NARG(__VA_ARGS__))(f,__VA_ARGS__)
+#define NPF__MAP_1(f,a)      f(a)
+#define NPF__MAP_2(f,a,...)  f(a), NPF__MAP_1(f,__VA_ARGS__)
+#define NPF__MAP_3(f,a,...)  f(a), NPF__MAP_2(f,__VA_ARGS__)
+#define NPF__MAP_4(f,a,...)  f(a), NPF__MAP_3(f,__VA_ARGS__)
+#define NPF__MAP_5(f,a,...)  f(a), NPF__MAP_4(f,__VA_ARGS__)
+#define NPF__MAP_6(f,a,...)  f(a), NPF__MAP_5(f,__VA_ARGS__)
+#define NPF__MAP_7(f,a,...)  f(a), NPF__MAP_6(f,__VA_ARGS__)
+#define NPF__MAP_8(f,a,...)  f(a), NPF__MAP_7(f,__VA_ARGS__)
+#define NPF__MAP_9(f,a,...)  f(a), NPF__MAP_8(f,__VA_ARGS__)
+#define NPF__MAP_10(f,a,...) f(a), NPF__MAP_9(f,__VA_ARGS__)
+#define NPF__MAP_11(f,a,...) f(a), NPF__MAP_10(f,__VA_ARGS__)
+#define NPF__MAP_12(f,a,...) f(a), NPF__MAP_11(f,__VA_ARGS__)
+#define NPF__MAP_13(f,a,...) f(a), NPF__MAP_12(f,__VA_ARGS__)
+#define NPF__MAP_14(f,a,...) f(a), NPF__MAP_13(f,__VA_ARGS__)
+#define NPF__MAP_15(f,a,...) f(a), NPF__MAP_14(f,__VA_ARGS__)
+#define NPF__MAP_16(f,a,...) f(a), NPF__MAP_15(f,__VA_ARGS__)
+#define NPF__MAP_17(f,a,...) f(a), NPF__MAP_16(f,__VA_ARGS__)
+#define NPF__MAP_18(f,a,...) f(a), NPF__MAP_17(f,__VA_ARGS__)
+#define NPF__MAP_19(f,a,...) f(a), NPF__MAP_18(f,__VA_ARGS__)
+#define NPF__MAP_20(f,a,...) f(a), NPF__MAP_19(f,__VA_ARGS__)
+#define NPF__MAP_21(f,a,...) f(a), NPF__MAP_20(f,__VA_ARGS__)
+#define NPF__MAP_22(f,a,...) f(a), NPF__MAP_21(f,__VA_ARGS__)
+#define NPF__MAP_23(f,a,...) f(a), NPF__MAP_22(f,__VA_ARGS__)
+#define NPF__MAP_24(f,a,...) f(a), NPF__MAP_23(f,__VA_ARGS__)
+#define NPF__MAP_25(f,a,...) f(a), NPF__MAP_24(f,__VA_ARGS__)
+#define NPF__MAP_26(f,a,...) f(a), NPF__MAP_25(f,__VA_ARGS__)
+#define NPF__MAP_27(f,a,...) f(a), NPF__MAP_26(f,__VA_ARGS__)
+#define NPF__MAP_28(f,a,...) f(a), NPF__MAP_27(f,__VA_ARGS__)
+#define NPF__MAP_29(f,a,...) f(a), NPF__MAP_28(f,__VA_ARGS__)
+#define NPF__MAP_30(f,a,...) f(a), NPF__MAP_29(f,__VA_ARGS__)
+#define NPF__MAP_31(f,a,...) f(a), NPF__MAP_30(f,__VA_ARGS__)
+#define NPF__MAP_32(f,a,...) f(a), NPF__MAP_31(f,__VA_ARGS__)
+#define NPF__MAP_33(f,a,...) f(a), NPF__MAP_32(f,__VA_ARGS__)
+#define NPF__MAP_34(f,a,...) f(a), NPF__MAP_33(f,__VA_ARGS__)
+#define NPF__MAP_35(f,a,...) f(a), NPF__MAP_34(f,__VA_ARGS__)
+#define NPF__MAP_36(f,a,...) f(a), NPF__MAP_35(f,__VA_ARGS__)
+#define NPF__MAP_37(f,a,...) f(a), NPF__MAP_36(f,__VA_ARGS__)
+#define NPF__MAP_38(f,a,...) f(a), NPF__MAP_37(f,__VA_ARGS__)
+#define NPF__MAP_39(f,a,...) f(a), NPF__MAP_38(f,__VA_ARGS__)
+#define NPF__MAP_40(f,a,...) f(a), NPF__MAP_39(f,__VA_ARGS__)
+#define NPF__MAP_41(f,a,...) f(a), NPF__MAP_40(f,__VA_ARGS__)
+#define NPF__MAP_42(f,a,...) f(a), NPF__MAP_41(f,__VA_ARGS__)
+#define NPF__MAP_43(f,a,...) f(a), NPF__MAP_42(f,__VA_ARGS__)
+#define NPF__MAP_44(f,a,...) f(a), NPF__MAP_43(f,__VA_ARGS__)
+#define NPF__MAP_45(f,a,...) f(a), NPF__MAP_44(f,__VA_ARGS__)
+#define NPF__MAP_46(f,a,...) f(a), NPF__MAP_45(f,__VA_ARGS__)
+#define NPF__MAP_47(f,a,...) f(a), NPF__MAP_46(f,__VA_ARGS__)
+#define NPF__MAP_48(f,a,...) f(a), NPF__MAP_47(f,__VA_ARGS__)
+#define NPF__MAP_49(f,a,...) f(a), NPF__MAP_48(f,__VA_ARGS__)
+#define NPF__MAP_50(f,a,...) f(a), NPF__MAP_49(f,__VA_ARGS__)
+#define NPF__MAP_51(f,a,...) f(a), NPF__MAP_50(f,__VA_ARGS__)
+#define NPF__MAP_52(f,a,...) f(a), NPF__MAP_51(f,__VA_ARGS__)
+#define NPF__MAP_53(f,a,...) f(a), NPF__MAP_52(f,__VA_ARGS__)
+#define NPF__MAP_54(f,a,...) f(a), NPF__MAP_53(f,__VA_ARGS__)
+#define NPF__MAP_55(f,a,...) f(a), NPF__MAP_54(f,__VA_ARGS__)
+#define NPF__MAP_56(f,a,...) f(a), NPF__MAP_55(f,__VA_ARGS__)
+#define NPF__MAP_57(f,a,...) f(a), NPF__MAP_56(f,__VA_ARGS__)
+#define NPF__MAP_58(f,a,...) f(a), NPF__MAP_57(f,__VA_ARGS__)
+#define NPF__MAP_59(f,a,...) f(a), NPF__MAP_58(f,__VA_ARGS__)
+#define NPF__MAP_60(f,a,...) f(a), NPF__MAP_59(f,__VA_ARGS__)
+#define NPF__MAP_61(f,a,...) f(a), NPF__MAP_60(f,__VA_ARGS__)
+#define NPF__MAP_62(f,a,...) f(a), NPF__MAP_61(f,__VA_ARGS__)
+#define NPF__MAP_63(f,a,...) f(a), NPF__MAP_62(f,__VA_ARGS__)
+#define NPF__MAP_64(f,a,...) f(a), NPF__MAP_63(f,__VA_ARGS__)
+
+#endif // NANOPRINTF_USE_FLOAT_SINGLE_PRECISION
+
+#endif // NPF_MAP_INCLUDED
+
+/*
+  nanoprintf is dual-licensed under both the "Unlicense" and the
+  "Zero-Clause BSD" (0BSD) licenses. The intent of this dual-licensing
+  structure is to make nanoprintf as consumable as possible in as many
+  environments / countries / companies as possible without any
+  encumberances.
+
+  The text of the two licenses follows below:
+
+  ============================== UNLICENSE ==============================
+
+  This is free and unencumbered software released into the public domain.
+
+  Anyone is free to copy, modify, publish, use, compile, sell, or
+  distribute this software, either in source code form or as a compiled
+  binary, for any purpose, commercial or non-commercial, and by any
+  means.
+
+  In jurisdictions that recognize copyright laws, the author or authors
+  of this software dedicate any and all copyright interest in the
+  software to the public domain. We make this dedication for the benefit
+  of the public at large and to the detriment of our heirs and
+  successors. We intend this dedication to be an overt act of
+  relinquishment in perpetuity of all present and future rights to this
+  software under copyright law.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+  OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+  OTHER DEALINGS IN THE SOFTWARE.
+
+  For more information, please refer to <http://unlicense.org>
+
+  ================================ 0BSD =================================
+
+  Copyright (C) 2019- by Charles Nicholson <charles.nicholson+nanoprintf@gmail.com>
+
+  Permission to use, copy, modify, and/or distribute this software for
+  any purpose with or without fee is hereby granted.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+*/

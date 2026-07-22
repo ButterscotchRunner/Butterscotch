@@ -4,6 +4,19 @@ setlocal enabledelayedexpansion
 if "%CC%"=="" set CC=cl
 if "%CFLAGS%"=="" set CFLAGS=/O2 /DNDEBUG /nologo
 
+if not exist compat\tmp mkdir compat\tmp
+>compat\tmp\cc-new echo.%CC%
+if not exist compat\config.mk goto run_config
+if not exist compat\tmp\cc goto run_config
+fc compat\tmp\cc compat\tmp\cc-new >nul 2>&1
+if errorlevel 1 goto run_config
+goto skip_config
+:run_config
+call compat\configure.cmd
+copy /y compat\tmp\cc-new compat\tmp\cc >nul
+:skip_config
+del compat\tmp\cc-new 2>nul
+
 if not defined DESKTOP_BACKEND set DESKTOP_BACKEND=glfw3
 if not defined AUDIO_BACKEND set AUDIO_BACKEND=miniaudio
 
@@ -99,6 +112,8 @@ if not defined DISABLE_MODERN_GL (
 )
 if "%AUDIO_BACKEND%"=="miniaudio" set SRCS=%SRCS% src\audio\miniaudio\*.c
 if "%AUDIO_BACKEND%"=="openal" set SRCS=%SRCS% src\audio\openal\*.c
+
+if exist compat\config.bat call compat\config.bat
 
 if not exist build mkdir build
 
