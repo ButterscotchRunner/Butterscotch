@@ -373,7 +373,7 @@ printf '%s' "\
 #include <stdio.h>
 int main(void){
     char buf[8];
-    return snprintf(buf, sizeof(buf), "test");
+    return snprintf(buf, sizeof(buf), \"test\");
 }
 " > tmp/test.c
 
