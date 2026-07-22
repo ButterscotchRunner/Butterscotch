@@ -47,14 +47,9 @@
 
 #include "printf.h"
 
-#ifdef __cplusplus
-#include <cstdint>
-#include <climits>
-#else
 #include <stdint.h>
 #include <limits.h>
 #include <stdbool.h>
-#endif /* __cplusplus */
 
 #if !(defined(__cplusplus) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L))
 /* C90 */
