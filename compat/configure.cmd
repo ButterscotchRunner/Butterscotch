@@ -32,6 +32,20 @@ if errorlevel 1 (
     >>config.bat echo set SRCS=%%SRCS%% compat\stdio\nanoprintf_impl.c
 )
 
+>tmp\test.c echo.#include ^<math.h^>
+>>tmp\test.c echo.int main(void^){return fmin(0,0);}
+call :check for fmin
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /DNO_FMIN
+)
+
+>tmp\test.c echo.#include ^<math.h^>
+>>tmp\test.c echo.int main(void^){return fmax(0,0);}
+call :check for fmax
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /DNO_FMAX
+)
+
 del tmp\test.c tmp\test.obj 2>nul
 exit /b 0
 
