@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 #ifdef NO_SNPRINTF
-#include "nanoprintf.h"
+#include <nanoprintf.h>
 #define snprintf npf_vsnprintf
 #endif
 
