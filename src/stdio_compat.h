@@ -1,7 +1,7 @@
 #ifndef _BS_COMPAT_STDIO_H_
 #define _BS_COMPAT_STDIO_H_
 
-#include_next <stdio.h>
+#include <stdio.h>
 
 #ifdef NO_SNPRINTF
 #include "nanoprintf.h"
