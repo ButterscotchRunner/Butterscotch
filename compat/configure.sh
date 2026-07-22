@@ -7,6 +7,8 @@ if [ -z "$CC" ]; then
     exit 1
 fi
 
+export MSYS2_ARG_CONV_EXCL='*'
+
 # cd to the directory this script is in
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
@@ -63,7 +65,6 @@ check() {
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
     printf 'cmd: %s\n' "$CC $cflags tmp/test.c ${output}tmp/a.out $*" >> tmp/config.log
-    export MSYS2_ARG_CONV_EXCL='*'
     if $CC $cflags tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printyes
         return 0
@@ -90,14 +91,14 @@ int main(void){return 0;}
 " > tmp/test.c
 
 configlog 'checking the C compiler CLI syntax'
-if $CC /nologo tmp/test.c /Fe:tmp/a.out >> tmp/config.log 2>&1; then
+if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     printgreen 'msvc'
     syntax=msvc
     CC="$CC /nologo"
     cflags='/Oi-' # equivalent to -fno-builtin
     compile_obj='/c'
-    output_obj='/Fo:'
-    output_exe='/Fe:'
+    output_obj='/Fo'
+    output_exe='/Fe'
     config "OUTPUT_OBJ := $output_obj"
     config "OUTPUT_EXE := $output_exe"
     config 'MSVC := 1'
