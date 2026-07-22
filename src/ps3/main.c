@@ -80,6 +80,15 @@ const StickMapping STICK_MAPPINGS[] = {
 #define STICK_MAPPING_COUNT (sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]))
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
+// ===[ FULLSCREEN STUBS ]===
+static bool getWindowFullscreen() {
+    return true;
+}
+
+static void setWindowFullscreen(bool fullscreen) {
+    (void)fullscreen;
+}
+
 // ===[ MAIN ]===
 static double freq = 0; 
 #define PS3_GET_TIME ((double)__builtin_ppc_get_timebase() / (double)freq)
@@ -94,7 +103,7 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
             break;
-        
+
         case SYSUTIL_MENU_OPEN:
         case SYSUTIL_MENU_CLOSE:
             break;
@@ -292,6 +301,10 @@ int main(int argc, char* argv[]) {
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = false;
     //runner->osType = OS_PS3;
+
+    // Set fullscreen stubs
+    runner->getWindowFullscreen = getWindowFullscreen;
+    runner->setWindowFullscreen = setWindowFullscreen;
 
     // Initialize the first room and fire Game Start / Room Start events
     Runner_initFirstRoom(runner);

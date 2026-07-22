@@ -160,6 +160,14 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
+bool platformGetWindowFullscreen(void) {
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+}
+
 bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
@@ -213,8 +221,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
         scr = SDL_GetWindowSurface(window);
     }
 
-    if (fullscreen)
-        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    platformSetWindowFullscreen(fullscreen);
 
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);

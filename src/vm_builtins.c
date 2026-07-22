@@ -7770,9 +7770,25 @@ static RValue builtin_joystick_axes(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     return RValue_makeReal(RunnerGamepad_getAxisCount(runner->gamepads, id));
 }
 
-// Window stubs
-STUB_RETURN_ZERO(window_get_fullscreen)
-STUB_RETURN_UNDEFINED(window_set_fullscreen)
+static RValue builtin_window_get_fullscreen(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getWindowFullscreen != nullptr) {
+        return RValue_makeBool(runner->getWindowFullscreen());
+    }
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_window_set_fullscreen(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (argCount < 1) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    if (runner == nullptr) return RValue_makeUndefined();
+    bool fullscreen = RValue_toBool(args[0]);
+    if (runner->setWindowFullscreen != nullptr) {
+        runner->setWindowFullscreen(fullscreen);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_window_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->getWindowSize != nullptr) {

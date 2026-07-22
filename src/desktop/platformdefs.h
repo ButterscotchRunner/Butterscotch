@@ -18,6 +18,8 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH);
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH);
 void platformSetWindowSize(int32_t width, int32_t height);
 void platformSetWindowTitle(const char* title);
+bool platformGetWindowFullscreen(void);
+void platformSetWindowFullscreen(bool fullscreen);
 void platformSleepUntil(uint64_t time);
 
 enum GraphicsAPI {

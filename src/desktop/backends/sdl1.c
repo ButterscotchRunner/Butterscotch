@@ -238,6 +238,15 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetAppState() & SDL_APPINPUTFOCUS;
 }
 
+bool platformGetWindowFullscreen(void) {
+    return scr ? (scr->flags & SDL_FULLSCREEN) : false;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    if (fullscreen == platformGetWindowFullscreen()) return;
+    SDL_WM_ToggleFullScreen(scr);
+}
+
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen) {
     if (headless && gfx != SOFTWARE) {
         fprintf(stderr, "Headless mode on SDL 1.2 requires the software renderer!\n");
@@ -267,10 +276,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, 
     fbWidth = reqW;
     fbHeight = reqH;
     if(!headless) {
-        Uint32 videoFlags = (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE;
-        if (fullscreen) {
-            videoFlags = (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_FULLSCREEN;
-        }
+        Uint32 videoFlags = (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE | (fullscreen ? SDL_FULLSCREEN : 0);
         scr = SDL_SetVideoMode(fbWidth, fbHeight, 0, videoFlags);
         if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
@@ -420,11 +426,11 @@ static void platformResetJoysticks(void) {
             openJoysticks[i] = NULL;
         }
     }
-    
+
     SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     SDL_InitSubSystem(SDL_INIT_JOYSTICK);
     SDL_JoystickEventState(SDL_IGNORE);
-    
+
     int numJoysticks = SDL_NumJoysticks();
     bool needsRemap = false;
     for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; i++) {
@@ -436,11 +442,11 @@ static void platformResetJoysticks(void) {
             needsRemap = true;
         }
     }
-    
+
     for (int i = numJoysticks; i < MAX_GAMEPADS; i++) {
         joystickMappings[i].valid = false;
     }
-    
+
     if (needsRemap) {
         loadGamepadMappings();
     }
@@ -506,7 +512,7 @@ bool platformHandleEvents(void) {
                         float norm = val / 32767.0f;
                         if (map->axis_button_sign[btn] < 0) norm = -norm;
                         if (norm < 0.0f) norm = 0.0f;
-                        
+
                         if (norm > slot->buttonValue[btn]) {
                             slot->buttonValue[btn] = norm;
                         }

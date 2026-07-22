@@ -29,7 +29,7 @@ static bool tryOpenWindow(int reqW, int reqH, bool fullscreen) {
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
-            
+
         if (GLCommon_versions[i].major >= 3) {
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
             if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
@@ -93,6 +93,15 @@ void platformGetMousePos(double *xPos, double *yPos) {
 
 static bool platformGetWindowFocus(void) {
     return glfwGetWindowParam(GLFW_ACTIVE);
+}
+
+bool platformGetWindowFullscreen(void) {
+    return glfw2Fullscreen;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    if (fullscreen == glfw2Fullscreen) return;
+    glfw2Fullscreen = fullscreen;
 }
 
 static int32_t glfwKeyToGml(int glfwKey) {

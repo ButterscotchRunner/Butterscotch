@@ -146,6 +146,14 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
+bool platformGetWindowFullscreen(void) {
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    SDL_SetWindowFullscreen(window, fullscreen);
+}
+
 bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
@@ -190,8 +198,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
     } else
         scr = SDL_GetWindowSurface(window);
 
-    if (fullscreen)
-        SDL_SetWindowFullscreen(window, true);
+    platformSetWindowFullscreen(fullscreen);
 
     return true;
 }
