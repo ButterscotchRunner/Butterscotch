@@ -53,6 +53,13 @@ if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_ROUND
 )
 
+>tmp\test.c echo.#include ^<math.h^>
+>>tmp\test.c echo.int main(void^){return log2(1);}
+call :check for log2
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /DNO_LOG2
+)
+
 del tmp\test.c tmp\test.obj 2>nul
 exit /b 0
 
