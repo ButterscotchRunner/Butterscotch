@@ -46,6 +46,13 @@ if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_FMAX
 )
 
+>tmp\test.c echo.#include ^<math.h^>
+>>tmp\test.c echo.int main(void^){return round(0);}
+call :check for round
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /DNO_ROUND
+)
+
 del tmp\test.c tmp\test.obj 2>nul
 exit /b 0
 
