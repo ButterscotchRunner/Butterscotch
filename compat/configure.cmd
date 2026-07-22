@@ -36,7 +36,7 @@ call :check for snprintf
 if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_SNPRINTF
     >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdio
-    >>config.bat echo set SRCS=%%SRCS%% compat\stdio\nanoprintf_impl.c
+    >>config.bat echo set SRCS=%%SRCS%% compat\stdio\printf.c
 )
 
 >tmp\test.c echo.#include ^<math.h^>
