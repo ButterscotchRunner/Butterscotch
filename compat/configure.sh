@@ -63,7 +63,8 @@ check() {
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
     printf 'cmd: %s\n' "$CC $cflags tmp/test.c ${output}tmp/a.out $*" >> tmp/config.log
-    if MSYS2_ARG_CONV_EXCL='*' $CC $cflags tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
+    export MSYS2_ARG_CONV_EXCL='*'
+    if $CC $cflags tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printyes
         return 0
     else
