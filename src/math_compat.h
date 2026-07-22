@@ -106,11 +106,6 @@ static float roundf(float x) {
 
 #endif
 
-#if defined(_MSC_VER) && _MSC_VER < 1800
-#define isinf(x) (!_finite(x) && !_isnan(x))
-#define isnan(x) _isnan(x)
-#endif
-
 #ifndef INFINITY
 #define INFINITY (1.0f / 0.0f)
 #endif

@@ -6,6 +6,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#if defined(_MSC_VER) && _MSC_VER < 1800
+#define isinf(x) (!_finite(x) && !_isnan(x))
+#define isnan(x) _isnan(x)
+#endif
+
 #ifdef USE_FLOAT_REALS
 
 typedef float GMLReal;
