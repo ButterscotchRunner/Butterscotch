@@ -15,14 +15,9 @@ type nul > tmp\config.log
 
 >tmp\test.c echo.#include ^<stdbool.h^>
 >>tmp\test.c echo.int main(void^){return 0;}
-
-echo.checking if stdbool.h works: >> tmp\config.log
-%CC% /nologo /Oi- tmp\test.c /c /Fo:tmp\test.obj >> tmp\config.log 2>&1
-if %errorlevel% neq 0 (
-    echo checking if stdbool.h works: no
+call :check if stdbool.h works
+if errorlevel 1 (
     >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdbool
-) else (
-    echo checking if stdbool.h works: yes
 )
 
 >tmp\test.c echo.#include ^<stdio.h^>
@@ -30,16 +25,23 @@ if %errorlevel% neq 0 (
 >>tmp\test.c echo.    char buf[64];
 >>tmp\test.c echo.    return snprintf(buf, sizeof(buf^), "test"^);
 >>tmp\test.c echo.}
-
-echo.checking for snprintf: >> tmp\config.log
-%CC% /nologo /Oi- tmp\test.c /c /Fo:tmp\test.obj >> tmp\config.log 2>&1
-if %errorlevel% neq 0 (
-    echo checking for snprintf: no
+call :check for snprintf
+if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_SNPRINTF
     >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdio
     >>config.bat echo set SRCS=%%SRCS%% compat\stdio\nanoprintf_impl.c
-) else (
-    echo checking for snprintf: yes
 )
 
 del tmp\test.c tmp\test.obj 2>nul
+exit /b 0
+
+:check
+echo.checking %* >> tmp\config.log
+%CC% /nologo /Oi- tmp\test.c /c /Fo:tmp\test.obj >> tmp\config.log 2>&1
+if %errorlevel% equ 0 (
+    echo checking %*: yes
+    exit /b 0
+) else (
+    echo checking %*: no
+    exit /b 1
+)
