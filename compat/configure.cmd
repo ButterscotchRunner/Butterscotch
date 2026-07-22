@@ -20,6 +20,13 @@ if errorlevel 1 (
     >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdbool
 )
 
+>tmp\test.c echo.#include ^<stdint.h^>
+>>tmp\test.c echo.int main(void^){return 0;}
+call :check if stdint.h works
+if errorlevel 1 (
+    >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdint
+)
+
 >tmp\test.c echo.#include ^<stdio.h^>
 >>tmp\test.c echo.int main(void^){
 >>tmp\test.c echo.    char buf[64];
