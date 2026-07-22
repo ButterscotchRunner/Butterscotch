@@ -45,7 +45,7 @@
 #include "printf_config.h"
 #endif
 
-#include <printf/printf.h>
+#include "printf.h"
 
 #ifdef __cplusplus
 #include <cstdint>
