@@ -126,10 +126,13 @@ if not exist build mkdir build
 
 set OBJS=
 for %%f in (%SRCS%) do (
-    if not exist "build\%%~pf" mkdir "build\%%~pf"
-    %CC_COMPILE% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fo"build\%%~pf%%~nf.obj"
+    set "p=%%~dpf"
+    set "n=%%~nf"
+    set "p=!p:%CD%\=!"
+    if not exist "build\!p!" mkdir "build\!p!"
+    %CC_COMPILE% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fo"build\!p!!n!.obj"
     if errorlevel 1 exit /b 1
-    set OBJS=!OBJS! "build\%%~pf%%~nf.obj"
+    set OBJS=!OBJS! "build\!p!!n!.obj"
 )
 
 %CC% %CFLAGS% !OBJS! /Febuild\butterscotch.exe /link %LIBS% %EXTRALIBS%
