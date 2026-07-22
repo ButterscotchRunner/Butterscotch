@@ -161,9 +161,9 @@ int main(void){
 }
 " > tmp/test.c
 
+config "CCLINK := $CC"
 if ! nolink=1 check 'if C supports mixed declarations and code'; then
     if [ "$syntax" = 'msvc' ]; then
-        config "CCLINK := $CC"
         CC="$CC /TP"
     else
         printf 'Support for mixed declarations and code is required, maybe try building in C++ mode.\n'
