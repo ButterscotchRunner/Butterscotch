@@ -101,7 +101,7 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
     ret.left = left;
     ret.right = right;
     ret.top = top;
-    ret.buttom = bottom;
+    ret.bottom = bottom;
     ret.valid = true;
     return ret;
 }
