@@ -5,7 +5,7 @@
 
 #ifdef NO_SNPRINTF
 #include <nanoprintf.h>
-#define snprintf npf_vsnprintf
+#define snprintf npf_snprintf
 #endif
 
 #endif /* _BS_COMPAT_STDIO_H_ */
