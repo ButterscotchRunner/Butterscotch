@@ -29,7 +29,7 @@ if errorlevel 1 (
 
 >tmp\test.c echo.#include ^<stdio.h^>
 >>tmp\test.c echo.int main(void^){
->>tmp\test.c echo.    char buf[64];
+>>tmp\test.c echo.    char buf[8];
 >>tmp\test.c echo.    return snprintf(buf, sizeof(buf^), "test"^);
 >>tmp\test.c echo.}
 call :check for snprintf
