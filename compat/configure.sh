@@ -109,7 +109,6 @@ if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     config "OUTPUT_EXE := $output_exe"
     config 'MSVC := 1'
     config 'OBJ_EXT := obj'
-    config "_CC := \$(CC) /nologo"
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
     config 'DEFINE := /D'
@@ -123,7 +122,6 @@ elif $CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1; then
     config "OUTPUT_OBJ := -o\$(space)"
     config "OUTPUT_EXE := -o\$(space)"
     config 'OBJ_EXT := o'
-    config "_CC := \$(CC)"
     config 'CFLAGS := -O2 -DNDEBUG'
     config 'INCLUDE := -I'
     config 'DEFINE := -D'
@@ -153,6 +151,27 @@ if [ -n "$target" ]; then
         printno
     fi
 fi
+
+printf '%s' "\
+int main(void){
+    int a = 0;
+    ++a;
+    int b = a;
+    return b;
+}
+" > tmp/test.c
+
+if ! nolink=1 check 'if C supports mixed declarations and code'; then
+    if [ "$syntax" = 'msvc' ]; then
+        config "CCLINK := $CC"
+        CC="$CC /TP"
+    else
+        printf 'Support for mixed declarations and code is required, maybe try building in C++ mode.\n'
+        exit 1
+    fi
+fi
+
+config "_CC := $CC"
 
 configlog 'checking the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -215,6 +234,7 @@ int main(void){return 0;}
 if ! nolink=1 check 'if stdbool.h works'; then
     # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
     include 'compat/stdbool'
+    config 'HEADERS += compat/stdbool/stdbool.h'
 fi
 
 printf '%s' "\
@@ -224,6 +244,7 @@ int main(void){return 0;}
 
 if ! nolink=1 check 'if stdint.h works'; then
     include 'compat/stdint'
+    config 'HEADERS += compat/stdint/stdint.h'
     printf '%s' "\
 #include <sys/types.h>
 int main(void){return 0;}
@@ -369,6 +390,7 @@ int main(int argc,char *argv[]){
 
 if ! check 'for getopt_long'; then
     include 'compat/getopt'
+    config 'HEADERS += compat/getopt/getopt.h'
 fi
 
 printf '%s' "\
@@ -383,6 +405,7 @@ if ! check 'for snprintf'; then
     include 'compat/stdio'
     define 'NO_SNPRINTF'
     config 'SRCS += compat/stdio/printf.c'
+    config 'HEADERS += compat/stdio/printf.h'
 fi
 
 rm -f tmp/test.c tmp/a.out test.obj
