@@ -54,6 +54,13 @@ if errorlevel 1 (
 )
 
 >tmp\test.c echo.#include ^<math.h^>
+>>tmp\test.c echo.int main(void^){return roundf(0);}
+call :check for roundf
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /DNO_ROUNDF
+)
+
+>tmp\test.c echo.#include ^<math.h^>
 >>tmp\test.c echo.int main(void^){return log2(1);}
 call :check for log2
 if errorlevel 1 (
