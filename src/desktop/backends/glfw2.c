@@ -91,6 +91,8 @@ void platformGetMousePos(double *xPos, double *yPos) {
     *yPos = (double)my;
 }
 
+static bool glfw2Fullscreen = false;
+
 static bool platformGetWindowFocus(void) {
     return glfwGetWindowParam(GLFW_ACTIVE);
 }
