@@ -60,6 +60,16 @@ if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_LOG2
 )
 
+>tmp\test.c echo.#include ^<stdio.h^>
+>>tmp\test.c echo.int main(void^){
+>>tmp\test.c echo.    puts(__func__);
+>>tmp\test.c echo.    return 0;
+>>tmp\test.c echo.}
+call :check if __func__ works
+if errorlevel 1 (
+    >>config.bat echo set DEFINES=%%DEFINES%% /D__func__=\"unknown\"
+)
+
 >tmp\test.c echo.int main(void^){
 >>tmp\test.c echo.    int a = 1;
 >>tmp\test.c echo.    ++a;
