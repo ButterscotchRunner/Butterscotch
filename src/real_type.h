@@ -6,10 +6,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#if defined(_MSC_VER) && _MSC_VER < 1800
-#include <float.h>
-#define isinf(x) (!_finite(x) && !_isnan(x))
-#define isnan(x) _isnan(x)
+#ifdef NO_ISNAN
+#define isnan(x) (x != x)
+#endif
+#ifdef NO_ISINF
+#define isinf(x) ((x) == INFINITY || (x) == -INFINITY)
 #endif
 
 #ifdef USE_FLOAT_REALS

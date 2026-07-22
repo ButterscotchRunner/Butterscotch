@@ -366,6 +366,24 @@ if ! check 'for roundf' $lm; then
 fi
 
 printf '%s' "\
+#include <math.h>
+int main(void){return isinf(0.0);}
+" > tmp/test.c
+
+if ! check 'for isinf' $lm; then
+    define 'NO_ISINF'
+fi
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isnan(0.0);}
+" > tmp/test.c
+
+if ! check 'for isnan' $lm; then
+    define 'NO_ISNAN'
+fi
+
+printf '%s' "\
 #include <string.h>
 int main(void){
     char *saveptr;
