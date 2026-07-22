@@ -90,7 +90,7 @@ if errorlevel 1 (
 >>tmp\test.c echo.    int b = a;
 >>tmp\test.c echo.    return b;
 >>tmp\test.c echo.}
-call :check if mixed declarations and code are supported
+call :check if C supports mixed declarations and code
 if errorlevel 1 (
     >>config.bat echo set CC_COMPILE=%%CC%% /TP
 )
