@@ -124,10 +124,13 @@ if not defined CC_COMPILE set CC_COMPILE=%CC%
 
 if not exist build mkdir build
 
+set OBJS=
 for %%f in (%SRCS%) do (
-    %CC_COMPILE% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fobuild\
+    if not exist "build\%%~pf" mkdir "build\%%~pf"
+    %CC_COMPILE% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fo"build\%%~pf%%~nf.obj"
     if errorlevel 1 exit /b 1
+    set OBJS=!OBJS! "build\%%~pf%%~nf.obj"
 )
 
-%CC% %CFLAGS% build\*.obj /Febuild\butterscotch.exe /link %LIBS% %EXTRALIBS%
+%CC% %CFLAGS% !OBJS! /Febuild\butterscotch.exe /link %LIBS% %EXTRALIBS%
 if errorlevel 1 exit /b 1
