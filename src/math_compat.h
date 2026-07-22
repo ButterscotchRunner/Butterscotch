@@ -106,10 +106,6 @@ static float roundf(float x) {
 
 #endif
 
-#ifndef INFINITY
-#define INFINITY ((float)1e39)
-#endif
-
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

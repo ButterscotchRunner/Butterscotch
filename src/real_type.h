@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef INFINITY
+#define INFINITY ((float)1e39)
+#endif
+
 #ifdef NO_ISNAN
 #define isnan(x) (x != x)
 #endif
