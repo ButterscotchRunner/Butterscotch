@@ -88,16 +88,6 @@ static bool padWasStable[2] = {false, false};
 // Whether the controllers should be exposed via the GameMaker gamepad API
 static bool gamepadApiEnabled = false;
 
-// Always assume fullscreen for PS2
-static bool getWindowFullscreen() {
-    return true;
-}
-
-// No-op for PS2
-static void setWindowFullscreen(bool fullscreen) {
-    (void)fullscreen;
-}
-
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
     JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
@@ -498,10 +488,6 @@ int main(int argc, char* argv[]) {
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Creating runner...", true);
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem);
-
-    // Set fullscreen stubs
-    runner->getWindowFullscreen = getWindowFullscreen;
-    runner->setWindowFullscreen = setWindowFullscreen;
 
     // Parse disabledObjects from CONFIG.JSN
     JsonValue* disabledObjectsArr = JsonReader_getJsonValueByKey(configRoot, "disabledObjects");
