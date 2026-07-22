@@ -7,7 +7,7 @@
 #else
 #include <glad/glad.h>
 #endif
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include "math_compat.h"

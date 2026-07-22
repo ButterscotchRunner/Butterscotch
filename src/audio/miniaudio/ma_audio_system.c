@@ -22,7 +22,7 @@
 #include "data_win.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include "stb_ds.h"

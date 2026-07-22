@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include <stdarg.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>

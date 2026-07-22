@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <time.h>
 
 #ifdef _WIN32

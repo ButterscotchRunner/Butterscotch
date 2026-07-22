@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 
 #include "utils.h"

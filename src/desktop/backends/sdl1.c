@@ -1,6 +1,6 @@
 #include <ctype.h>
 #include <string.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <ctype.h>
 #include <stdlib.h>
 
