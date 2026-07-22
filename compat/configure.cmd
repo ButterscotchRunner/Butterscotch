@@ -16,13 +16,13 @@ type nul > tmp\config.log
 >tmp\test.c echo.#include ^<stdbool.h^>
 >>tmp\test.c echo.int main(void^){return 0;}
 
-echo.checking for stdbool.h: >> tmp\config.log
+echo.checking if stdbool.h works: >> tmp\config.log
 %CC% /nologo /Oi- tmp\test.c /c /Fo:tmp\test.obj >> tmp\config.log 2>&1
 if %errorlevel% neq 0 (
-    echo checking for stdbool.h: no
+    echo checking if stdbool.h works: no
     >>config.bat echo set INCLUDES=%%INCLUDES%% /Icompat\stdbool
 ) else (
-    echo checking for stdbool.h: yes
+    echo checking if stdbool.h works: yes
 )
 
 >tmp\test.c echo.#include ^<stdio.h^>
