@@ -60,6 +60,17 @@ if errorlevel 1 (
     >>config.bat echo set DEFINES=%%DEFINES%% /DNO_LOG2
 )
 
+>tmp\test.c echo.int main(void^){
+>>tmp\test.c echo.    int a = 1;
+>>tmp\test.c echo.    ++a;
+>>tmp\test.c echo.    int b = a;
+>>tmp\test.c echo.    return b;
+>>tmp\test.c echo.}
+call :check if mixed declarations and code are supported
+if errorlevel 1 (
+    >>config.bat echo set CC_COMPILE=%%CC%% /TP
+)
+
 del tmp\test.c tmp\test.obj 2>nul
 exit /b 0
 

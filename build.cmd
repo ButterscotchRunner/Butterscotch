@@ -120,10 +120,12 @@ if "%AUDIO_BACKEND%"=="openal" set SRCS=%SRCS% src\audio\openal\*.c
 
 if exist compat\config.bat call compat\config.bat
 
+if not defined CC_COMPILE set CC_COMPILE=%CC%
+
 if not exist build mkdir build
 
 for %%f in (%SRCS%) do (
-    %CC% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fobuild\
+    %CC_COMPILE% %CFLAGS% %DEFINES% %INCLUDES% /c "%%f" /Fobuild\
     if errorlevel 1 exit /b 1
 )
 
