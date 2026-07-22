@@ -3638,7 +3638,7 @@ static RValue builtin_camera_set_view_angle(VMContext* ctx, RValue* args, int32_
     if (2 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
-    if (camera != nullptr) { 
+    if (camera != nullptr) {
         camera->viewAngle = (float) RValue_toReal(args[1]);
         Runner_updateCameraViewSimple(camera);
     }
@@ -3706,7 +3706,7 @@ static RValue builtin_camera_create_view(VMContext* ctx, RValue* args, int32_t a
     if (argCount > 9) camera->borderY = (uint32_t) RValue_toInt32(args[9]);
 
     Runner_updateCameraViewSimple(camera);
-    
+
     return RValue_makeReal(id);
 }
 
@@ -7775,7 +7775,7 @@ static RValue builtin_window_get_fullscreen(VMContext* ctx, MAYBE_UNUSED RValue*
     if (runner != nullptr && runner->getWindowFullscreen != nullptr) {
         return RValue_makeBool(runner->getWindowFullscreen());
     }
-    return RValue_makeBool(false);
+    return RValue_makeBool(true);
 }
 
 static RValue builtin_window_set_fullscreen(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -16223,7 +16223,7 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
         Instance* frame = Runner_createStruct(ctx->runner);
         int32_t idx = sprite->tpagIndices[i];
         TexturePageItem* tpagItem = &ctx->dataWin->tpag.items[idx];
-        
+
         VM_structSetAndFreeVal(ctx, frame, "w", RValue_makeReal(tpagItem->boundingWidth), -1);
         VM_structSetAndFreeVal(ctx, frame, "h", RValue_makeReal(tpagItem->boundingHeight), -1);
         VM_structSetAndFreeVal(ctx, frame, "x_offset", RValue_makeReal(tpagItem->targetX), -1);
@@ -16235,7 +16235,7 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
         VM_structSetAndFreeVal(ctx, frame, "crop_width", RValue_makeReal(tpagItem->targetWidth), -1);
         VM_structSetAndFreeVal(ctx, frame, "crop_height", RValue_makeReal(tpagItem->targetHeight), -1);
         VM_structSetAndFreeVal(ctx, frame, "texture", RValue_makeReal(idx), -1);
-        
+
         *GMLArray_slot(frames, (int32_t)i) = RValue_makeStructAndIncRef(frame);
     }
     VM_structSetAndFreeVal(ctx, ret, "frames", RValue_makeArray(frames), -1);
@@ -16357,7 +16357,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "matrix_build_projection_ortho", builtin_matrix_build_projection_ortho);
     VM_registerBuiltin(ctx, "matrix_build_projection_perspective_fov", builtin_matrix_build_projection_perspective_fov);
     VM_registerBuiltin(ctx, "matrix_get", builtin_matrix_get);
-    VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);    
+    VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);
     // Random
     VM_registerBuiltin(ctx, "random", builtin_random);
     VM_registerBuiltin(ctx, "random_range", builtin_random_range);
