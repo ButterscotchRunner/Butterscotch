@@ -425,6 +425,8 @@ typedef struct {
     FlattenedCollisionEvent* events;
 } FlattenedCollisionEventList;
 
+typedef struct { char* key; int value; } DisabledObjEntry;
+
 struct Runner {
     DataWin* dataWin;
     VMContext* vmContext;
@@ -517,7 +519,7 @@ struct Runner {
     int32_t viewportY;   // Y offset in window (letterboxing)
     int32_t viewportW;   // Scaled game width in window
     int32_t viewportH;   // Scaled game height in window
-    struct { char* key; int value; }* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
+    DisabledObjEntry* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
     struct { int key; Instance* value; }* instancesById;
     bool forceDrawDepth;
     bool applyOffsetForPrimitives;
