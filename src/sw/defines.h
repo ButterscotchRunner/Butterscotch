@@ -19,6 +19,18 @@
 #define UNLIKELY(cond) (cond)
 #endif
 
-#define UNUSED __attribute__ ((unused))
+#if defined(__GNUC__) || defined(__clang__)
 #define FORCE_INLINE static inline __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define FORCE_INLINE static __forceinline
+#else
+#define FORCE_INLINE static inline
+#endif
 
+#if defined(__cplusplus) && __cplusplus >= 201703L
+#define UNUSED [[maybe_unused]]
+#elif defined(__GNUC__) || defined(__clang__)
+#define UNUSED __attribute__ ((unused))
+#else
+#define UNUSED
+#endif
