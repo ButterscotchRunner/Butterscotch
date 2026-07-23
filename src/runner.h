@@ -425,6 +425,7 @@ typedef struct {
     FlattenedCollisionEvent* events;
 } FlattenedCollisionEventList;
 
+typedef struct { char* key; int32_t value; } AssetsByNameEntry;
 typedef struct { char* key; int value; } DisabledObjEntry;
 
 struct Runner {
@@ -449,7 +450,7 @@ struct Runner {
     // Precomputed per-object and per-slot CSR tables of resolved event handlers. Replaces the per-dispatch parent-chain walk in findEventCodeIdAndOwner.
     ResolvedEventTable eventTable;
     // Precomputed assets map.
-    struct { char* key; int32_t value; }* assetsByName;
+    AssetsByNameEntry* assetsByName;
     // For each event type, the deduplicated list of object indices that respond to ANY subtype of that event (including via inheritance). Derived from the event table; used by collision dispatch to skip non-collision objects in the outer loop.
     // Length = OBJT_EVENT_TYPE_COUNT.
     int32_t** objectsWithAnyEventOfType;
