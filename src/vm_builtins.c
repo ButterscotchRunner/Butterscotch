@@ -14983,8 +14983,10 @@ static RValue builtin_mp_grid_path(VMContext* ctx, RValue* args, int32_t argCoun
     pPath->internalPoints = nullptr;
     pPath->internalPointCount = 0;
     pPath->length = 0.0f;
-    GamePath_computeInternal(pPath);
+    pPath->isSmooth = false;
+    pPath->isClosed = false;
 
+    GamePath_computeInternal(pPath);
     return RValue_makeBool(true);
 }
 
