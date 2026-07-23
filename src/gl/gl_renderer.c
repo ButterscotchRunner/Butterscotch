@@ -1,6 +1,7 @@
 #include "gl_renderer.h"
 #include "matrix_math.h"
 #include "text_utils.h"
+#include "debug_font/debug_font.h"
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
@@ -611,6 +612,7 @@ static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     glDeleteTextures(1, &gl->whiteTexture);
+    if (gl->debugFontTexture != 0) glDeleteTextures(1, &gl->debugFontTexture);
 
     repeat(gl->gmlShaderCount, i) {
         freeShader(&gl->gmlShaders[i]);
@@ -1692,6 +1694,15 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
     return true;
 }
 
+static void debugFontDrawModern(void* user, GLuint texture,
+    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+    float u0, float v0, float u1, float v1,
+    uint8_t r, uint8_t g, uint8_t b, float alpha)
+{
+    GLRenderer* gl = (GLRenderer*) user;
+    emitTexturedQuad(gl, texture, x0, y0, x1, y1, x2, y2, x3, y3, u0, v0, u1, v1, r, g, b, r, g, b, r, g, b, r, g, b, alpha);
+}
+
 static void drawText(
     Renderer* renderer,
     const char* text,
@@ -1879,6 +1890,16 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
         renderer->drawColor,
         renderer->drawAlpha
     );
+}
+
+static void glDrawDebugText(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {
+    (void)lineSeparation;
+    GLRenderer* gl = (GLRenderer*) renderer;
+    GLCommon_ensureDebugFontTexture(&gl->debugFontTexture);
+    uint8_t cr = (uint8_t) BGR_R(renderer->drawColor);
+    uint8_t cg = (uint8_t) BGR_G(renderer->drawColor);
+    uint8_t cb = (uint8_t) BGR_B(renderer->drawColor);
+    GLCommon_drawDebugFontText(gl->debugFontTexture, text, x, y, xscale, yscale, angleDeg, cr, cg, cb, renderer->drawAlpha, gl, debugFontDrawModern);
 }
 
 static void glDrawTextColor(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
@@ -2713,6 +2734,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.drawTriangle = glDrawTriangle;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
+    glVtable.drawDebugText = glDrawDebugText;
     glVtable.flush = glRendererFlush;
     glVtable.clearScreen = glClearScreen;
     glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;

@@ -2,6 +2,7 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 #include "gl_wrappers.h"
+#include "debug_font.h"
 
 
 #ifdef PLATFORM_PS3
@@ -226,6 +227,7 @@ static void glDestroy(Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
     glDeleteTextures(1, &gl->whiteTexture);
+    if (gl->debugFontTexture != 0) glDeleteTextures(1, &gl->debugFontTexture);
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -1057,6 +1059,29 @@ static bool glResolveGlyph(GLLegacyRenderer* gl, DataWin* dw, GlFontState* state
     return true;
 }
 
+static void debugFontDrawLegacy(void* user, GLuint texture,
+    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+    float u0, float v0, float u1, float v1,
+    uint8_t r, uint8_t g, uint8_t b, float alpha)
+{
+    (void)user;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBegin(GL_QUADS);
+        glColor4ub(r, g, b, (uint8_t)(alpha * 255.0f));
+        glTexCoord2f(u0, v0);
+        glVertex2f(x0, y0);
+        glColor4ub(r, g, b, (uint8_t)(alpha * 255.0f));
+        glTexCoord2f(u1, v0);
+        glVertex2f(x1, y1);
+        glColor4ub(r, g, b, (uint8_t)(alpha * 255.0f));
+        glTexCoord2f(u1, v1);
+        glVertex2f(x2, y2);
+        glColor4ub(r, g, b, (uint8_t)(alpha * 255.0f));
+        glTexCoord2f(u0, v1);
+        glVertex2f(x3, y3);
+    glEnd();
+}
+
 static void glDrawText(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
@@ -1196,6 +1221,18 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
             lineStart = lineEnd;
         }
     }
+}
+
+static void glDrawDebugText(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {
+    (void)lineSeparation;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLCommon_ensureDebugFontTexture(&gl->debugFontTexture);
+    uint32_t color = renderer->drawColor;
+    float dfAlpha = renderer->drawAlpha;
+    uint8_t cr = (uint8_t) BGR_R(color);
+    uint8_t cg = (uint8_t) BGR_G(color);
+    uint8_t cb = (uint8_t) BGR_B(color);
+    GLCommon_drawDebugFontText(gl->debugFontTexture, text, x, y, xscale, yscale, angleDeg, cr, cg, cb, dfAlpha, NULL, debugFontDrawLegacy);
 }
 
 static void glDrawTextColor(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
@@ -1949,6 +1986,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.drawTriangle = glDrawTriangle;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
+    glVtable.drawDebugText = glDrawDebugText;
     glVtable.flush = glRendererFlush;
     glVtable.clearScreen = glClearScreen;
     glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;

@@ -60,6 +60,8 @@ GLenum GLCommon_blendModeToSFactor(int mode);
 // Maps a bm_* mode constant to its conventional destination blend factor.
 GLenum GLCommon_blendModeToDFactor(int mode);
 
+#include "debug_font.h"
+
 #ifndef PLATFORM_PS3
 
 // ===[ GL version queries ]===
@@ -74,5 +76,16 @@ typedef struct {
 GLVer GLCommon_getGLVersion(void);
 
 #endif
+
+// Creates a GL texture from the debug font atlas if *outTexture is 0. Idempotent.
+void GLCommon_ensureDebugFontTexture(GLuint* outTexture);
+
+// Callback for GLCommon_drawDebugFontText: draws a single quad.
+// The four (x,y) pairs are screen-space corners (TL, TR, BR, BL) after transform.
+typedef void (*DebugFontDrawFn)(void* user, GLuint texture, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float u0, float v0, float u1, float v1, uint8_t r, uint8_t g, uint8_t b, float alpha);
+
+// Iterates the debug-font text, computes glyph positions, transforms them,
+// and calls drawFn for each visible glyph.
+void GLCommon_drawDebugFontText(GLuint texture, const char* text, float x, float y, float xscale, float yscale, float angleDeg, uint8_t cr, uint8_t cg, uint8_t cb, float alpha, void* user, DebugFontDrawFn drawFn);
 
 #endif /* _BS_GL_COMMON_H_ */
