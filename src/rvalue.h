@@ -84,6 +84,7 @@ struct RValue {
         GMLMethod* method;
 #endif
         Instance* structInst;
+        int32_t assetIndex;
     };
     // We use uint8_t for the type instead of RValueType because a enum value occupies 4 bytes, while uint8_t occupies 1 byte
     uint8_t type;
@@ -329,7 +330,19 @@ static inline char* RValue_toString(RValue val) {
             snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
-            snprintf(buf, sizeof(buf), "%d", val.int32);
+            switch (val.assetRefType) {
+            case ASSET_TYPE_PATH:
+                snprintf(buf, sizeof(buf), "ref path __newpath%d", val.int32);
+                break;
+
+            case ASSET_TYPE_SPRITE:
+                snprintf(buf, sizeof(buf), "ref sprite %d", val.int32);
+                break;
+
+            default:
+                snprintf(buf, sizeof(buf), "%d", val.int32);
+                break;
+            }
             return safeStrdup(buf);
     }
     return safeStrdup("");

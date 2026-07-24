@@ -15079,7 +15079,7 @@ static RValue builtin_path_exists(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeBool(getPath(ctx->runner, RValue_toInt32(args[0])) != nullptr);
 }
 
-// path_add() - create a new empty path, return its index
+// path_add() - create a new empty path, returns a path reference (AssetRef) to it, or -1 on failure.
 static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     PathChunk* pc = &runner->dataWin->path;
@@ -15089,7 +15089,11 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     pc->paths = paths;
     GamePath* p = &paths[newIdx];
     memset(p, 0, sizeof(GamePath));
-    p->name = "";
+
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "__newpath%u", newIdx);
+    p->name = strdup(buffer);
+
     p->isSmooth = false;
     p->isClosed = true;
     p->precision = 4;
@@ -15100,7 +15104,7 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     p->length = 0.0;
     p->exists = true;
     pc->count = newIdx + 1;
-    return RValue_makeInt32((int32_t) newIdx);
+    return RValue_makeAssetRef((int32_t)newIdx, ASSET_TYPE_PATH);
 }
 
 // path_add_point(path, x, y, speed)
