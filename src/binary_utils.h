@@ -24,7 +24,7 @@ static inline uint32_t BinaryUtils_bswap32(uint32_t value) {
 static inline uint64_t BinaryUtils_bswap64(uint64_t value) {
     return __builtin_bswap64(value);
 }
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1300
 static inline uint16_t BinaryUtils_bswap16(uint16_t value) {
     return _byteswap_ushort(value);
 }

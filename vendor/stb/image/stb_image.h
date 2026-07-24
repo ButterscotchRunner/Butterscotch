@@ -371,6 +371,10 @@ RECENT REVISION HISTORY:
 #include <stdio.h>
 #endif // STBI_NO_STDIO
 
+#if defined(__TINYC__) || (defined(_MSC_VER) && _MSC_VER < 1300)
+#define STBI_NO_SIMD
+#endif
+
 #define STBI_VERSION 1
 
 enum

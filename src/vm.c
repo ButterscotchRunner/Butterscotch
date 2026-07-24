@@ -1875,13 +1875,17 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
         }
 
         // Shift bottom group up to where top group was
+        {
         for (int32_t i = bottomSlots - 1; i >= 0; i--) {
             ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
         }
+        }
 
         // Place top group at the bottom
+        {
         for (int32_t i = 0; topSlots > i; i++) {
             ctx->stack.slots[baseIdx + i] = temp[i];
+        }
         }
         return;
     }
@@ -2454,6 +2458,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
     }
 
     // Simple insertion sort (max 256 entries, runs once at shutdown)
+    {
     for (int i = 1; entryCount > i; i++) {
         CountEntry tmp = entries[i];
         int j = i;
@@ -2463,14 +2468,17 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
         }
         entries[j] = tmp;
     }
+    }
 
     fprintf(stderr, "=== Opcode Profiler Report ===\n");
     fprintf(stderr, "Total instructions executed: %llu\n", (unsigned longlong) total);
     fprintf(stderr, "%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
+    {
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
-        double pct = total > 0 ? (100.0 * (double) entry->count / (double) total) : 0.0;
+        double pct = total > 0 ? (100.0 * (double)(int64_t)entry->count / (double)(int64_t)total) : 0.0;
         fprintf(stderr, "%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
+    }
     }
 
     // Per-opcode breakdown by type variant. Sorted within each opcode by count desc.
@@ -2504,7 +2512,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
             uint8_t type2 = (uint8_t) (ve->key & 0xF);
-            double vpct = entry->count > 0 ? (100.0 * (double) ve->count / (double) entry->count) : 0.0;
+            double vpct = entry->count > 0 ? (100.0 * (double)(int64_t)ve->count / (double)(int64_t)entry->count) : 0.0;
             fprintf(stderr, "    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned longlong) ve->count, vpct);
         }
 
@@ -2537,7 +2545,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     (void) ri;
                     uint8_t typeA = (uint8_t) ((re->key >> 4) & 0xF);
                     uint8_t typeB = (uint8_t) (re->key & 0xF);
-                    double rpct = rvTotal > 0 ? (100.0 * (double) re->count / (double) rvTotal) : 0.0;
+                    double rpct = rvTotal > 0 ? (100.0 * (double)(int64_t)re->count / (double)(int64_t)rvTotal) : 0.0;
                     fprintf(stderr, "    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned longlong) re->count, rpct);
                 }
             }
@@ -2554,6 +2562,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     breakCount++;
                 }
             }
+            {
             for (int i = 1; breakCount > i; i++) {
                 CountEntry tmp = breakEntries[i];
                 int j = i;
@@ -2563,11 +2572,12 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                 }
                 breakEntries[j] = tmp;
             }
+            }
             fprintf(stderr, "    -- sub-opcodes:\n");
             forEachIndexed(CountEntry, be, bi, breakEntries, breakCount) {
                 (void) bi;
                 int16_t breakType = (int16_t) -((int) be->key);
-                double bpct = entry->count > 0 ? (100.0 * (double) be->count / (double) entry->count) : 0.0;
+                double bpct = entry->count > 0 ? (100.0 * (double)(int64_t)be->count / (double)(int64_t)entry->count) : 0.0;
                 fprintf(stderr, "    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned longlong) be->count, bpct);
             }
         }
@@ -3527,6 +3537,7 @@ VMContext* VM_create(DataWin* dataWin) {
     }
 
     // Also map code entry names directly for non-script code (object events, room creation codes, etc.)
+    {
     repeat(dataWin->code.count, i) {
         const char* codeName = dataWin->code.entries[i].name;
         ptrdiff_t existing = shgeti(ctx->codeIndexByName, (char*) codeName);
@@ -3534,9 +3545,11 @@ VMContext* VM_create(DataWin* dataWin) {
             shput(ctx->codeIndexByName, (char*) codeName, (int32_t) i);
         }
     }
+    }
 
     // Build codeName -> CodeLocals* hash map
     ctx->codeLocalsMap = nullptr;
+    {
     repeat(dataWin->func.codeLocalsCount, i) {
         CodeLocals* cl = &dataWin->func.codeLocals[i];
         shput(ctx->codeLocalsMap, safeStrdup(cl->name), cl);
@@ -3548,6 +3561,7 @@ VMContext* VM_create(DataWin* dataWin) {
                 shput(ctx->codeLocalsMap, safeStrdup(scriptName), cl);
             }
         }
+    }
     }
 
     // BC13/BC14/BC17+: build per-CodeLocals varID -> slot hmap so resolveLocalSlot is O(1)
@@ -3565,6 +3579,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // This eliminates per-call string hash lookups in handleCall.
     ctx->funcCallCacheCount = dataWin->func.functionCount;
     ctx->funcCallCache = (FuncCallCache *)safeMalloc(dataWin->func.functionCount * sizeof(FuncCallCache));
+    {
     repeat(dataWin->func.functionCount, i) {
         const char* name = dataWin->func.functions[i].name;
         BuiltinFunc builtin = VM_findBuiltin(ctx, name);
@@ -3575,6 +3590,7 @@ VMContext* VM_create(DataWin* dataWin) {
             ptrdiff_t mapIdx = shgeti(ctx->codeIndexByName, (char*) name);
             ctx->funcCallCache[i].scriptCodeIndex = (mapIdx >= 0) ? ctx->codeIndexByName[mapIdx].value : -1;
         }
+    }
     }
 
     fprintf(stderr, "VM: Initialized with %u functions mapped\n", (uint32_t) shlen(ctx->codeIndexByName));
@@ -3802,8 +3818,10 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     free(ctx->localVars);
 
     // Free callee script args
+    {
     repeat(ctx->scriptArgCount, i) {
         RValue_free(&ctx->scriptArgs[i]);
+    }
     }
 
     free(ctx->scriptArgs);
@@ -4430,18 +4448,24 @@ void VM_free(VMContext* ctx) {
         free(ctx->varNameMap[i].key);
     }
     shfree(ctx->varNameMap);
+    {
     repeat(shlen(ctx->codeLocalsMap), i) {
         free(ctx->codeLocalsMap[i].key);
+    }
     }
     shfree(ctx->codeLocalsMap);
 
     // Free dedup key strings before freeing the hashmaps
+    {
     repeat(shlen(ctx->loggedUnknownFuncs), i) {
         free(ctx->loggedUnknownFuncs[i].key);
     }
+    }
     shfree(ctx->loggedUnknownFuncs);
+    {
     repeat(shlen(ctx->loggedStubbedFuncs), i) {
         free(ctx->loggedStubbedFuncs[i].key);
+    }
     }
     shfree(ctx->loggedStubbedFuncs);
 #ifdef ENABLE_VM_TRACING

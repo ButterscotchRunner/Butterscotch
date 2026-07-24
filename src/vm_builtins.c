@@ -1058,7 +1058,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             }
         }
         case BUILTIN_VAR_CURRENT_TIME:
-            return RValue_makeReal((nowNanos() - runner->gameStartTime) / 1000000.0);
+            return RValue_makeReal((int64_t)(nowNanos() - runner->gameStartTime) / 1000000.0);
 
         // Arguments
         case BUILTIN_VAR_ARGUMENT_COUNT:
@@ -4574,8 +4574,10 @@ static RValue builtin_ds_list_copy(VMContext* ctx, RValue* args, int32_t argCoun
     }
 
     arrsetlen(destinationList->items, 0);
+    {
     repeat(arrlen(sourceList->items), i) {
         arrput(destinationList->items, RValue_makeIndependent(sourceList->items[i]));
+    }
     }
 
     return RValue_makeUndefined();
@@ -4857,16 +4859,20 @@ static RValue builtin_ds_list_read(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     if (s.error || 0 > len) { free(bytes); return RValue_makeBool(false); }
 
     // Replace, don't append: matches native ds_list_read which clears the list first.
+    {
     repeat(arrlen(list->items), i) {
         RValue_free(&list->items[i]);
+    }
     }
     arrfree(list->items);
     list->items = nullptr;
 
+    {
     repeat(len, i) {
         RValue v = dsStreamReadValue(ctx->dataWin->gen8.wadVersion, &s, version);
         if (s.error) { RValue_free(&v); free(bytes); return RValue_makeBool(false); }
         arrput(list->items, v);
+    }
     }
 
     free(bytes);
@@ -5151,12 +5157,14 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     }
 
     // Free any cells that fell outside the new bounds
+    {
     repeat(grid->height, y) {
         repeat(grid->width, x) {
             if (x >= copyWidth || y >= copyHeight) {
                 RValue_free(&grid->items[x + (y * grid->width)]);
             }
         }
+    }
     }
 
     free(grid->items);
@@ -5319,12 +5327,15 @@ static RValue builtin_ds_stack_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     }
 
     // Replace stack contents
+    {
     repeat(arrlen(st->items), i) {
         RValue_free(&st->items[i]);
+    }
     }
     arrfree(st->items);
     st->items = nullptr;
 
+    {
     repeat(len, i) {
         RValue v = dsStreamReadValue(ctx->dataWin->gen8.wadVersion, &s, version);
         if (s.error) {
@@ -5333,6 +5344,7 @@ static RValue builtin_ds_stack_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
             return RValue_makeBool(false);
         }
         arrput(st->items, v);
+    }
     }
 
     free(bytes);
@@ -5382,8 +5394,10 @@ static RValue builtin_ds_queue_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     }
     arrfree(dest->items);
     dest->items = nullptr;
+    {
     repeat(arrlen(src->items), i) {
         arrput(dest->items, RValue_makeIndependent(src->items[i]));
+    }
     }
     return RValue_makeUndefined();
 }
@@ -5493,12 +5507,15 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     if (s.error || 0 > last) { free(bytes); return RValue_makeBool(false); }
 
     // Replace queue contents.
+    {    
     repeat(arrlen(q->items), i) {
         RValue_free(&q->items[i]);
+    }
     }
     arrfree(q->items);
     q->items = nullptr;
 
+    {
     repeat(last, i) {
         RValue v = dsStreamReadValue(ctx->dataWin->gen8.wadVersion, &s, version);
         if (s.error) { RValue_free(&v); free(bytes); return RValue_makeBool(false); }
@@ -5508,6 +5525,7 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
             RValue_free(&v);
         }
         first--;
+    }
     }
 
     free(bytes);
@@ -5580,11 +5598,13 @@ static RValue builtin_ds_priority_copy(VMContext* ctx, RValue* args, MAYBE_UNUSE
     }
     arrfree(dest->items);
     dest->items = nullptr;
+    {
     repeat(arrlen(src->items), i) {
         DsPriorityItem item;
         item.item = RValue_makeIndependent(src->items[i].item);
         item.depth = src->items[i].depth;
         arrput(dest->items, item);
+    }
     }
     return RValue_makeUndefined();
 }
@@ -5794,6 +5814,7 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
 
     int32_t byteLen = hexLen / 2;
     uint8_t* bytes = (uint8_t*) safeMalloc((size_t) byteLen);
+    {
     repeat(byteLen, i) {
         int hi = dsHexNibble(hex[i * 2]);
         int lo = dsHexNibble(hex[i * 2 + 1]);
@@ -5802,6 +5823,7 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
             return RValue_makeBool(false);
         }
         bytes[i] = (uint8_t) ((hi << 4) | lo);
+    }
     }
 
     DsReadStream s = {0};
@@ -5841,6 +5863,7 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
         RValue_free(&p);
     }
 
+    {
     repeat(len, i) {
         RValue v = dsStreamReadValue(ctx->dataWin->gen8.wadVersion, &s, version);
         if (s.error) {
@@ -5853,18 +5876,23 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
         }
         tempVal[i] = v;
     }
+    }
 
+    {
     repeat((int32_t) arrlen(q->items), i) {
         RValue_free(&q->items[i].item);
+    }
     }
     arrfree(q->items);
     q->items = nullptr;
 
+    {
     repeat(len, i) {
         DsPriorityItem pitem;
         pitem.depth = tempPri[i];
         pitem.item = tempVal[i];
         arrput(q->items, pitem);
+    }
     }
 
     free(tempPri);
@@ -7426,8 +7454,10 @@ static RValue builtin_file_find_first(VMContext* ctx, RValue* args, int32_t argC
 
     // Split the mask into a directory part and a wildcard pattern at the last separator.
     char* maskCopy = safeStrdup(mask);
+    {
     for (int i = 0; maskCopy[i] != '\0'; i++) {
         if (maskCopy[i] == '\\') maskCopy[i] = '/';
+    }
     }
     char* lastSlash = strrchr(maskCopy, '/');
     const char* dir;
@@ -8536,6 +8566,7 @@ static void moveBounceCommon(Runner* runner, Instance* inst, bool advanced, bool
             }
             didBounce = true;
         }
+        {
         for (int32_t i = 1; 2 * n > i; i++) {
             rdir += 180.0 / (GMLReal) n;
             GMLReal xn = xx + inst->speed * GMLReal_cos(rdir * (M_PI / 180.0));
@@ -8544,6 +8575,7 @@ static void moveBounceCommon(Runner* runner, Instance* inst, bool advanced, bool
                 break;
             }
             didBounce = true;
+        }
         }
         if (didBounce) {
             inst->direction = (float) (180.0 + (ldir + rdir) - dir);
@@ -12191,7 +12223,7 @@ static RValue builtin_position_meeting(VMContext* ctx, RValue* args, int32_t arg
 
 // Misc stubs
 static RValue builtin_get_timer(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    return RValue_makeReal((nowNanos() - ctx->runner->gameStartTime) / 1000.0);
+    return RValue_makeReal((int64_t)(nowNanos() - ctx->runner->gameStartTime) / 1000.0);
 }
 
 static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -14898,7 +14930,7 @@ static RValue builtin_mp_grid_path(VMContext* ctx, RValue* args, int32_t argCoun
         free(dist); free(qq);
         return RValue_makeBool(false);
     }
-    for (int32_t i = 0; total > i; i++) dist[i] = -1;
+    {for (int32_t i = 0; total > i; i++) dist[i] = -1;}
 
     int32_t startIdx = cxs * mp->vcells + cys;
     int32_t goalIdx  = cxg * mp->vcells + cyg;
@@ -15677,14 +15709,17 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
 
     // Check if space (0x20) is in the string map
     bool hasSpace = false;
+    {
     repeat(glyphCount, i) {
         if (charCodes[i] == 0x20) { hasSpace = true; break; }
+    }
     }
 
     // Allocate glyphs (+ 1 for synthetic space if needed)
     uint32_t totalGlyphs = hasSpace ? glyphCount : glyphCount + 1;
     FontGlyph* glyphs = (FontGlyph *)safeMalloc(totalGlyphs * sizeof(FontGlyph));
 
+    {
     repeat(glyphCount, i) {
         int32_t tpagIdx = sprite->tpagIndices[i];
         FontGlyph* glyph = &glyphs[i];
@@ -15714,6 +15749,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
         // Horizontal offset: proportional fonts have none. Non-proportional uses the cell offset targetX, minus the sprite origin only on GM 2023.2+ (pre-2023.2 the origin cancels).
         int32_t xOff = (int32_t) tpag->targetX - (spriteFontSubtractsOrigin ? sprite->originX : 0);
         glyph->offset = proportional ? 0 : (int16_t) xOff;
+    }
     }
 
     // Add synthetic space glyph if space is not in the string map

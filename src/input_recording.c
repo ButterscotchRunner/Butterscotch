@@ -46,10 +46,12 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     // Find the highest frame number to determine array size
     int objectLen = JsonReader_objectLength(root);
     int32_t maxFrame = -1;
+    {
     repeat(objectLen, i) {
         const char* key = JsonReader_getJsonKeyByIndex(root, i);
         int32_t frameNum = (int32_t) strtol(key, nullptr, 10);
         if (frameNum > maxFrame) maxFrame = frameNum;
+    }
     }
 
     InputRecording* rec = (InputRecording *)safeCalloc(1, sizeof(InputRecording));
@@ -79,8 +81,10 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
         int32_t* keysPressedArray = nullptr;
         int32_t* keysReleasedArray = nullptr;
 
+        {
         repeat(keysPressedLength, j) {
             arrput(keysPressedArray, JsonReader_getInt(JsonReader_getArrayElement(keysPressed, j)));
+        }
         }
 
         repeat(keysReleasedLength, j) {
@@ -138,8 +142,10 @@ void InputRecording_processFrame(InputRecording* recording, RunnerKeyboardState*
                 RunnerKeyboard_onKeyDown(kb, frame.keysPressed[i]);
             }
 
+            {
             repeat(keyReleasedCount, i) {
                 RunnerKeyboard_onKeyUp(kb, frame.keysReleased[i]);
+            }
             }
         } else {
             if (!recording->playbackEnded) {
@@ -201,8 +207,10 @@ bool InputRecording_save(InputRecording* recording) {
         JsonWriter_key(&w, "keysReleased");
         JsonWriter_beginArray(&w);
 
+        {
         repeat(arrlen(frame.keysReleased), i) {
             JsonWriter_int(&w, frame.keysReleased[i]);
+        }
         }
 
         JsonWriter_endArray(&w);

@@ -455,10 +455,12 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
         runner->eventDispatchInstances = scratch; // arrsetlen may have realloced
 
         int32_t snapshotCount = (int32_t) arrlen(scratch);
+        {
         repeat(snapshotCount, i) {
             Instance* inst = scratch[i];
             if (!inst->active) continue;
             Runner_executeEvent(runner, inst, eventType, eventSubtype);
+        }
         }
         return;
     }
@@ -1004,6 +1006,7 @@ void Runner_draw(Runner* runner) {
 
                 // Sprite elements are rendered from the runtime element list (not the parsed data) so that layer_sprite_destroy can remove them at runtime.
                 size_t elementCount = arrlenu(runtimeLayer->elements);
+                {
                 repeat(elementCount, j) {
                     if (runner->renderer == nullptr) break;
                     RuntimeLayerElement* el = &runtimeLayer->elements[j];
@@ -1015,6 +1018,7 @@ void Runner_draw(Runner* runner) {
                         (float) spr->x + layerOffsetX, (float) spr->y + layerOffsetY, spr->scaleX,
                         spr->scaleY, spr->rotation, el->blend,
                         el->alpha);
+                }
                 }
             } else if (parsedLayer->type == RoomLayerType_Tiles) {
                 if (runner->renderer == nullptr) continue;
@@ -1490,6 +1494,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Dynamic layers created via layer_create are appended to this array later.
     freeRuntimeLayersArray(&runner->runtimeLayers);
     uint32_t maxLayerId = 0;
+    {
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
         RuntimeLayer runtimeLayer = {0};
@@ -1506,10 +1511,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
     }
+    }
     // Watermark: ensure runtime-allocated IDs (layers + elements) stay above parsed IDs.
     if (maxLayerId >= runner->nextLayerId) runner->nextLayerId = maxLayerId + 1;
 
     // Convert room layers into runtime elements
+    {
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
         if (layerSource->type == RoomLayerType_Background && layerSource->backgroundData != nullptr) {
@@ -1575,6 +1582,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             arrput(runtimeLayer->elements, el);
         }
         // Expose legacy tiles as RuntimeLayerElements so GML scripts can find them via layer_get_all_elements and toggle them via layer_tile_visible
+        {
         repeat(assets->legacyTileCount, j) {
             RoomTile* tile = &assets->legacyTiles[j];
             RuntimeLayerElement el = {0};
@@ -1588,11 +1596,14 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             el.tileElement = tile;
             arrput(runtimeLayer->elements, el);
         }
+        }
+    }
     }
 
     // Copy room background definitions into mutable runtime state
     runner->backgroundColor = room->backgroundColor;
     runner->drawBackgroundColor = room->drawBackgroundColor;
+    {
     repeat(8, i) {
         RoomBackground* src = &room->backgrounds[i];
         RuntimeBackground* dst = &runner->backgrounds[i];
@@ -1609,6 +1620,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->yScale = 1.0f;
         dst->stretch = src->stretch;
         dst->alpha = 1.0f;
+    }
     }
 
     Instance** carriedPersistent = takePersistentInstances(runner);
@@ -1670,6 +1682,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // (e.g. obj_mainchara reading obj_markerA.x), the target already exists.
 
     // Pass 1: Create all instances without firing events
+    {
     repeat(room->gameObjectCount, i) {
         RoomGameObject* roomObj = &room->gameObjects[i];
 
@@ -1691,6 +1704,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
         inst->imageBlend = roomObj->color & 0x00FFFFFF;
         inst->imageAlpha = (float) ((roomObj->color >> 24) & 0xFF) / 255.0f;
+    }
     }
 
     // In GMS2, instances get their depth from their room layer, not the object definition.
@@ -1716,6 +1730,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     returnPersistentInstances(runner, carriedPersistent);
 
     // Pass 2: Fire events for newly created instances (in room definition order)
+    {
     repeat(room->gameObjectCount, i) {
         RoomGameObject* roomObj = &room->gameObjects[i];
 
@@ -1736,6 +1751,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
         if (inst->destroyed) continue;
         executeCode(runner, inst, roomObj->creationCode);
+    }
     }
 
     // Run room creation code
@@ -1791,6 +1807,7 @@ static void cleanupState(Runner* runner) {
     runner->savedRoomStates = nullptr;
 
     // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
+    {
     repeat((int32_t) arrlen(runner->dsMapPool), i) {
         DsMapEntry* map = runner->dsMapPool[i];
         if (map != nullptr) {
@@ -1801,9 +1818,11 @@ static void cleanupState(Runner* runner) {
             shfree(map);
         }
     }
+    }
     arrfree(runner->dsMapPool);
     runner->dsMapPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsListPool), i) {
         DsList* list = &runner->dsListPool[i];
         repeat(arrlen(list->items), j) {
@@ -1811,9 +1830,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(list->items);
     }
+    }
     arrfree(runner->dsListPool);
     runner->dsListPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsQueuePool), i) {
         DsQueue* q = &runner->dsQueuePool[i];
         repeat(arrlen(q->items), j) {
@@ -1821,9 +1842,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(q->items);
     }
+    }
     arrfree(runner->dsQueuePool);
     runner->dsQueuePool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsPriorityPool), i) {
         DsPriority* p = &runner->dsPriorityPool[i];
         repeat(arrlen(p->items), j) {
@@ -1831,9 +1854,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(p->items);
     }
+    }
     arrfree(runner->dsPriorityPool);
     runner->dsPriorityPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsStackPool), i) {
         DsStack* s = &runner->dsStackPool[i];
         repeat(arrlen(s->items), j) {
@@ -1841,9 +1866,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(s->items);
     }
+    }
     arrfree(runner->dsStackPool);
     runner->dsStackPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsGridPool), i) {
         DsGrid* grid = &runner->dsGridPool[i];
         size_t count = (size_t) grid->width * (size_t) grid->height;
@@ -1852,20 +1879,25 @@ static void cleanupState(Runner* runner) {
         }
         free(grid->items);
     }
+    }
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
 
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
     // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
+    {
     repeat(arrlen(runner->structInstances), i) {
         Instance* s = runner->structInstances[i];
         hmdel(runner->instancesById, s->instanceId);
         s->structRegistryIndex = -1;
         Instance_freeContents(s);
     }
+    }
+    {
     repeat(arrlen(runner->structInstances), i) {
         free(runner->structInstances[i]);
+    }
     }
     arrfree(runner->structInstances);
     runner->structInstances = nullptr;
@@ -1879,15 +1911,19 @@ static void cleanupState(Runner* runner) {
     runner->disabledObjects = nullptr;
 
     // Free mp_grid pool
+    {
     repeat((int32_t) arrlen(runner->mpGridPool), i) {
         free(runner->mpGridPool[i].cells);
+    }
     }
     arrfree(runner->mpGridPool);
     runner->mpGridPool = nullptr;
 
     // Free pending async buffer save/load state
+    {
     repeat((int32_t) arrlen(runner->asyncBufferGroupOps), i) {
         free(runner->asyncBufferGroupOps[i].filename);
+    }
     }
     arrfree(runner->asyncBufferGroupOps);
     runner->asyncBufferGroupOps = nullptr;
@@ -1912,6 +1948,7 @@ static void cleanupState(Runner* runner) {
     runner->cachedIniPath = nullptr;
 
     // Free open text files
+    {
     repeat(MAX_OPEN_TEXT_FILES, i) {
         OpenTextFile* file = &runner->openTextFiles[i];
         if (file->isOpen) {
@@ -1921,9 +1958,11 @@ static void cleanupState(Runner* runner) {
             ZERO_STRUCT(*file);
         }
     }
+    }
 
     // Close any binary file handles still held by the game (close flushes write modes
     // through the FileSystem vtable, so an orderly shutdown still persists pending data)
+    {
     repeat(MAX_OPEN_BINARY_FILES, i) {
         OpenBinaryFile* file = &runner->openBinaryFiles[i];
         if (file->isOpen) {
@@ -1931,10 +1970,13 @@ static void cleanupState(Runner* runner) {
             ZERO_STRUCT(*file);
         }
     }
+    }
 
     // Free any active file_find_* enumeration session
+    {
     repeat(arrlen(runner->fileFindResults), i) {
         free(runner->fileFindResults[i]);
+    }
     }
     arrfree(runner->fileFindResults);
     runner->fileFindResults = nullptr;
@@ -2216,48 +2258,68 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
 
     // Create assets map
     shdefault(runner->assetsByName, -1);
+    {
     repeat(dataWin->objt.count, i) {
         if (!dataWin->objt.objects[i].present) continue;
         shput(runner->assetsByName, dataWin->objt.objects[i].name, i);
     }
+    }
+    {
     repeat(dataWin->sprt.count, i) {
         if (!dataWin->sprt.sprites[i].present) continue;
         shput(runner->assetsByName, dataWin->sprt.sprites[i].name, i);
     }
+    }
+    {
     repeat(dataWin->sond.count, i) {
         if (!dataWin->sond.sounds[i].present) continue;
         shput(runner->assetsByName, dataWin->sond.sounds[i].name, i);
     }
+    }
+    {
     repeat(dataWin->bgnd.count, i) {
         if (!dataWin->bgnd.backgrounds[i].present) continue;
         shput(runner->assetsByName, dataWin->bgnd.backgrounds[i].name, i);
     }
+    }
+    {
     repeat(dataWin->path.count, i) {
         if (!dataWin->path.paths[i].present) continue;
         shput(runner->assetsByName, dataWin->path.paths[i].name, i);
     }
+    }
+    {
     repeat(dataWin->scpt.count, i) {
         if (!dataWin->scpt.scripts[i].present) continue;
         shput(runner->assetsByName, dataWin->scpt.scripts[i].name, i);
     }
+    }
+    {
     repeat(dataWin->font.count, i) {
         if (!dataWin->font.fonts[i].present) continue;
         shput(runner->assetsByName, dataWin->font.fonts[i].name, i);
     }
+    }
+    {
     repeat(dataWin->tmln.count, i) {
         if (!dataWin->tmln.timelines[i].present) continue;
         shput(runner->assetsByName, dataWin->tmln.timelines[i].name, i);
     }
+    }
+    {
     repeat(dataWin->room.count, i) {
         if (!dataWin->room.rooms[i].present) continue;
         shput(runner->assetsByName, dataWin->room.rooms[i].name, i);
     }
+    }
 
+    {
     repeat(shlen(vm->builtinMap), i) {
         bool isRegistered = shgeti(vm->codeIndexByName, vm->builtinMap[i].key) != -1;
         if (isRegistered) {
             fprintf(stderr, "Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
         }
+    }
     }
 
     Runner_reset(runner);
@@ -2337,7 +2399,7 @@ void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     repeat(arrlen(runner->gameArgs), i) free(runner->gameArgs[i]);
     arrfree(runner->gameArgs);
     runner->gameArgs = nullptr;
-    repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));
+    {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
 }
 
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool runDestroyEvent) {
@@ -3415,6 +3477,7 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
     // Separate persistent instances (travel with player) from room instances (saved)
     Instance** keptInstances = nullptr;
     int32_t count = (int32_t) arrlen(runner->instances);
+    {
     repeat(count, i) {
         Instance* inst = runner->instances[i];
         if (inst->persistent) {
@@ -3426,13 +3489,16 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
             Instance_free(inst);
         }
     }
+    }
     arrfree(runner->instances);
     runner->instances = keptInstances;
 
     // The per-object lists referenced the full pre-transition instance set (persistents, saved-to-state, and soon-to-be-freed). Only the kept persistents remain live, so rebuild from scratch from the final runner->instances.
     Runner_clearAllObjectLists(runner);
+    {
     repeat((int32_t) arrlen(runner->instances), i) {
         Runner_addInstanceToObjectLists(runner, runner->instances[i]);
+    }
     }
 
     // Save room visual state
@@ -3630,6 +3696,7 @@ void Runner_step(Runner* runner) {
     // TODO: Newer GameMaker versions (not sure exactly which, but at least GM 2024 does this) defers Animation End: have Instance_Animate just set a per-instance "wrapped" flag, and dispatch the event via a new ProcessSpriteMessageEvents step between Step and the motion loop!
     int32_t animCount = (int32_t) arrlen(runner->instances);
     int32_t animEndSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, OTHER_ANIMATION_END);
+    {
     repeat(animCount, i) {
         Instance* inst = runner->instances[i];
         if (!inst->active) continue;
@@ -3665,16 +3732,19 @@ void Runner_step(Runner* runner) {
             if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
         }
     }
+    }
 
     // Scroll backgrounds
     Runner_scrollBackgrounds(runner);
 
     // Advance GMS2 layer parallax (hspeed/vspeed per frame)
     size_t layerCount = arrlenu(runner->runtimeLayers);
+    {
     repeat(layerCount, i) {
         RuntimeLayer* rl = &runner->runtimeLayers[i];
         rl->xOffset += rl->hSpeed;
         rl->yOffset += rl->vSpeed;
+    }
     }
 
     // Execute Begin Step for all instances
@@ -3813,6 +3883,7 @@ void Runner_step(Runner* runner) {
         dispatchOutsideViewEvents(runner, viewIndex);
     }
 
+    {
     for (int i = 0; MAX_GAMEPADS > i; i++) {
         GamepadSlot* slot = &runner->gamepads->slots[i];
         if (slot->connected != slot->connectedPrev) {
@@ -3839,6 +3910,7 @@ void Runner_step(Runner* runner) {
             }
             runner->asyncLoadMapId = -1;
         }
+    }
     }
 
     // Resolve a pending Xbox One account-picker request
@@ -4115,6 +4187,7 @@ void Runner_dumpState(Runner* runner) {
     // Global variables (non-array)
     printf("\n=== Global Variables ===\n");
 
+    {
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
         IntRValueEntry entryOnTheVarStruct = runner->vmContext->globalScopeInstance->selfVars.entries[i];
         RValue target = VM_structGetVariableByVarId(runner->vmContext->globalScopeInstance, entryOnTheVarStruct.key, -1);
@@ -4136,6 +4209,7 @@ void Runner_dumpState(Runner* runner) {
             printf("  %s = %s\n", name, valStr);
             free(valStr);
         }
+    }
     }
 
     printf("\n=== End Frame %d State Dump ===\n", runner->frameCount);
@@ -4355,6 +4429,7 @@ char* Runner_dumpStateJson(Runner* runner) {
     JsonWriter_key(&w, "globalVariables");
     JsonWriter_beginObject(&w);
 
+    {
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
         IntRValueEntry entryOnTheVarStruct = runner->vmContext->globalScopeInstance->selfVars.entries[i];
         RValue target = VM_structGetVariableByVarId(runner->vmContext->globalScopeInstance, entryOnTheVarStruct.key, -1);
@@ -4365,6 +4440,7 @@ char* Runner_dumpStateJson(Runner* runner) {
             JsonWriter_key(&w, name);
             writeRValueJson(&w, target);
         }
+    }
     }
 
     JsonWriter_endObject(&w);

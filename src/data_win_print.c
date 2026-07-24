@@ -64,8 +64,10 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     // AGRP
     printf("-- AGRP (Audio Groups) --\n");
     printf("  Audio Groups:     %u\n", dataWin->agrp.count);
+    {
     forEachIndexed(AudioGroup, ag, idx, dataWin->agrp.audioGroups, dataWin->agrp.count) {
         printf("    [%u] %s\n", (unsigned int)idx, ag->name ? ag->name : "?");
+    }
     }
     printf("\n");
 
@@ -118,16 +120,20 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     // SHDR
     printf("-- SHDR (Shaders) --\n");
     printf("  Shaders:          %u\n", dataWin->shdr.count);
+    {
     forEachIndexed(Shader, shdr, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
         printf("    [%u] %s (version %d)\n", (unsigned int)idx, shdr->name ? shdr->name : "?", shdr->version);
+    }
     }
     printf("\n");
 
     // FONT
     printf("-- FONT (Fonts) --\n");
     printf("  Fonts:            %u\n", dataWin->font.count);
+    {
     forEachIndexed(Font, fnt, idx, dataWin->font.fonts, dataWin->font.count) {
         printf("    [%u] %s (%s, em=%u, %u glyphs)\n", (unsigned int)idx, fnt->name ? fnt->name : "?", fnt->displayName ? fnt->displayName : "?", fnt->emSize, fnt->glyphCount);
+    }
     }
     printf("\n");
 

@@ -148,11 +148,13 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->timelineRunning = source->timelineRunning;
 
     // Deep-copy self variables (Instance_setSelfVar handles string duplication + array incRef)
+    {
     repeat(source->selfVars.capacity, i) {
         IntRValueEntry* entry = &source->selfVars.entries[i];
         if (entry->key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             Instance_setSelfVar(destination, entry->key, entry->value);
         }
+    }
     }
 }
 

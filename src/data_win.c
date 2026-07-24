@@ -1419,9 +1419,11 @@ static void parseTMLN(BinaryReader* reader, DataWin* dw) {
             }
 
             // Pass 2: Parse event action lists
+            {
             repeat(tl->momentCount, j) {
                 BinaryReader_seek(reader, eventPtrs[j]);
                 tl->moments[j].actions = readEventActions(reader, dw, &tl->moments[j].actionCount);
+            }
             }
             free(eventPtrs);
         } else {
@@ -1552,9 +1554,11 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
         }
 
         // Zero-fill any unused event type slots
+        {
         for (uint32_t eventType = eventTypeCount; OBJT_EVENT_TYPE_COUNT > eventType; eventType++) {
             obj->eventLists[eventType].eventCount = 0;
             obj->eventLists[eventType].events = nullptr;
+        }
         }
 
         free(eventTypePtrs);
@@ -1586,8 +1590,10 @@ static void readRoomBackgrounds(BinaryReader* reader, Room* room) {
         bg->speedY = BinaryReader_readInt32(reader);
         bg->stretch = BinaryReader_readBool32(reader);
     }
+    {
     for (uint32_t j = fillEnd; 8 > j; j++) {
         memset(&room->backgrounds[j], 0, sizeof(RoomBackground));
+    }
     }
     free(bgPtrs);
 }
@@ -1614,8 +1620,10 @@ static void readRoomViews(BinaryReader* reader, Room* room) {
         view->speedY = BinaryReader_readInt32(reader);
         view->objectId = BinaryReader_readInt32(reader);
     }
+    {
     for (uint32_t j = viewCount; 8 > j; j++) {
         memset(&room->views[j], 0, sizeof(RoomView));
+    }
     }
     free(viewPtrsArr);
 }
@@ -2170,13 +2178,17 @@ static void resolveAllTPAGReferences(BinaryReader* reader, DataWin* dw, uint32_t
             spr->tpagIndices[j] = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) spr->tpagIndices[j]);
         }
     }
+    {
     repeat(dw->bgnd.count, i) {
         Background* bg = &dw->bgnd.backgrounds[i];
         bg->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) bg->tpagIndex);
     }
+    }
+    {
     repeat(dw->font.count, i) {
         Font* fnt = &dw->font.fonts[i];
         fnt->tpagIndex = findTPAGIndexByOffset(reader, dw, ptrs, count, (uint32_t) fnt->tpagIndex);
+    }
     }
 }
 
@@ -2266,11 +2278,13 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
     // The bytecode blob starts at the minimum bytecodeAbsoluteOffset and
     // extends to the end of the CODE chunk.
     uint32_t blobStart = UINT32_MAX;
+    {
     repeat(codeCount, i) {
         if (!c->entries[i].present) continue;
         if (blobStart > c->entries[i].bytecodeAbsoluteOffset) {
             blobStart = c->entries[i].bytecodeAbsoluteOffset;
         }
+    }
     }
     if (blobStart == UINT32_MAX) blobStart = (uint32_t) chunkDataStart;
     size_t blobSize = chunkEnd - blobStart;
@@ -2500,6 +2514,7 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool l
     free(ptrs);
 
     // Compute blob sizes from successive offsets
+    {
     repeat(count, i) {
         if (t->textures[i].blobOffset == 0) {
             t->textures[i].blobSize = 0; // external texture
@@ -2510,6 +2525,7 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool l
         } else {
             t->textures[i].blobSize = (uint32_t)(chunkEnd - t->textures[i].blobOffset);
         }
+    }
     }
 
     // Load blob data into owned buffers

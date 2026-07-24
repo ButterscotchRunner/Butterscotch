@@ -297,6 +297,7 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
     // stb_ds dynamic array; caller releases it with arrfree() (see file_system.h).
     FileSystemDirEntry* entries = nullptr;
     const char* base;
+    {
     repeat(shlen(nfs->files), i) {
         if (keyInDir(nfs->files[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -305,6 +306,8 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             arrput(entries, e);
         }
     }
+    }
+    {
     repeat(shlen(nfs->binaryFiles), i) {
         if (keyInDir(nfs->binaryFiles[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -313,6 +316,8 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             arrput(entries, e);
         }
     }
+    }
+    {
     repeat(shlen(nfs->directories), i) {
         if (keyInDir(nfs->directories[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -320,6 +325,7 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             e.isDirectory = true;
             arrput(entries, e);
         }
+    }
     }
 
     free(dir);
@@ -369,8 +375,10 @@ void NoopFileSystem_destroy(FileSystem* fs) {
         free(nfs->files[i].value);
     }
     shfree(nfs->files);
+    {
     repeat(shlen(nfs->binaryFiles), i) {
         free(nfs->binaryFiles[i].value.data);
+    }
     }
     shfree(nfs->binaryFiles);
     shfree(nfs->directories);

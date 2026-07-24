@@ -1152,6 +1152,7 @@ int main(int argc, char* argv[]) {
                 printf("  Visible: %d\n", obj->visible);
                 printf("  Depth: %d\n", obj->depth);
                 printf("  Events (%u):\n", totalEvents);
+                {
                 repeat(OBJT_EVENT_TYPE_COUNT, e) {
                     ObjectEventList* list = &obj->eventLists[e];
                     repeat(list->eventCount, eIdx) {
@@ -1164,6 +1165,7 @@ int main(int argc, char* argv[]) {
                         printf("      Code ID: %d\n", codeId);
                         printf("      Actions: %u\n", event->actionCount);
                     }
+                }
                 }
             }
             VM_free(vm);
@@ -1486,7 +1488,7 @@ int main(int argc, char* argv[]) {
             }
 
             uint64_t frameStartNow = nowNanos();
-            runner->deltaTime = (frameStartNow - lastFrameStartTime) / 1000;
+            runner->deltaTime = (int64_t)(frameStartNow - lastFrameStartTime) / 1000.0;
             lastFrameStartTime = frameStartNow;
 
             // Clear last frame's pressed/released state, then poll new input events
@@ -1781,7 +1783,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (shouldStep && args.traceFrames) {
-                    double frameElapsedMs = (nowNanos() - frameStartTime) / 1000000.0;
+                    double frameElapsedMs = (int64_t)(nowNanos() - frameStartTime) / 1000000.0;
                     fprintf(stderr, "Frame %d (End, %.2f ms)\n", runner->frameCount, frameElapsedMs);
                 }
 
@@ -1890,8 +1892,10 @@ int main(int argc, char* argv[]) {
                     free(newArguments[i]);
                 }
                 arrfree(newArguments);
+                {
                 repeat(arrlen(currentGameArgs), i) {
                     free(currentGameArgs[i]);
+                }
                 }
                 arrfree(currentGameArgs);
                 return 1;

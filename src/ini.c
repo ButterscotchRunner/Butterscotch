@@ -256,8 +256,10 @@ void Ini_deleteSection(IniFile* ini, const char* section) {
     free(sec->name);
 
     // Shift remaining sections down
+    {
     for (int i = sectionIndex; ini->count - 1 > i; i++) {
         ini->sections[i] = ini->sections[i + 1];
+    }
     }
     ini->count--;
 }
@@ -304,6 +306,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
         buffer[length++] = '\n';
 
         // Write key=value pairs
+        {
         repeat(section->count, j) {
             const char* key = section->keys[j];
             const char* value = section->values[j];
@@ -318,6 +321,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
             length += valueLen;
             buffer[length++] = '"';
             buffer[length++] = '\n';
+        }
         }
     }
 
