@@ -1,0 +1,284 @@
+===== PATH TEST BEGIN =====
+Created path ref path __newpath0
+-------------------------
+exists      = 1
+length      = 768
+points      = 4
+closed      = 1
+kind        = 0
+precision   = 4
+0: x=64 y=64 speed=100
+1: x=256 y=64 speed=200
+2: x=256 y=256 speed=300
+3: x=64 y=256 speed=400
+t=0 -> x=64 y=64 speed=100
+t=0.25 -> x=256 y=64 speed=200
+t=0.50 -> x=256 y=256 speed=300
+t=0.75 -> x=64 y=256 speed=400
+t=1 -> x=64 y=64 speed=100
+===== CHANGE PRECISION =====
+-------------------------
+exists      = 1
+length      = 768
+points      = 4
+closed      = 1
+kind        = 0
+precision   = 8
+0: x=64 y=64 speed=100
+1: x=256 y=64 speed=200
+2: x=256 y=256 speed=300
+3: x=64 y=256 speed=400
+t=0 -> x=64 y=64 speed=100
+t=0.25 -> x=256 y=64 speed=200
+t=0.50 -> x=256 y=256 speed=300
+t=0.75 -> x=64 y=256 speed=400
+t=1 -> x=64 y=64 speed=100
+===== CHANGE KIND =====
+-------------------------
+exists      = 1
+length      = 623.30
+points      = 4
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=64 y=64 speed=100
+1: x=256 y=64 speed=200
+2: x=256 y=256 speed=300
+3: x=64 y=256 speed=400
+t=0 -> x=162.98 y=64.02 speed=151.56
+t=0.25 -> x=255.98 y=162.98 speed=251.56
+t=0.50 -> x=157.02 y=255.98 speed=351.51
+t=0.75 -> x=64.02 y=157.02 speed=245.36
+t=1 -> x=162.98 y=64.02 speed=151.56
+===== MAKE CLOSED =====
+-------------------------
+exists      = 1
+length      = 623.30
+points      = 4
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=64 y=64 speed=100
+1: x=256 y=64 speed=200
+2: x=256 y=256 speed=300
+3: x=64 y=256 speed=400
+t=0 -> x=162.98 y=64.02 speed=151.56
+t=0.25 -> x=255.98 y=162.98 speed=251.56
+t=0.50 -> x=157.02 y=255.98 speed=351.51
+t=0.75 -> x=64.02 y=157.02 speed=245.36
+t=1 -> x=162.98 y=64.02 speed=151.56
+===== CLEAR POINTS =====
+-------------------------
+exists      = 1
+length      = 0
+points      = 0
+closed      = 1
+kind        = 1
+precision   = 8
+t=0 -> x=0 y=0 speed=100
+t=0.25 -> x=0 y=0 speed=100
+t=0.50 -> x=0 y=0 speed=100
+t=0.75 -> x=0 y=0 speed=100
+t=1 -> x=0 y=0 speed=100
+===== REBUILD PATH =====
+-------------------------
+exists      = 1
+length      = 623.30
+points      = 4
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=64 y=64 speed=100
+1: x=256 y=64 speed=100
+2: x=256 y=256 speed=100
+3: x=64 y=256 speed=100
+t=0 -> x=162.98 y=64.02 speed=100
+t=0.25 -> x=255.98 y=162.98 speed=100
+t=0.50 -> x=157.02 y=255.98 speed=100
+t=0.75 -> x=64.02 y=157.02 speed=100
+t=1 -> x=162.98 y=64.02 speed=100
+===== PATH TEST READY =====
+MOVE x=64 y=64 path_position=0
+MOVE x=68.00 y=64.11 path_position=0.01
+MOVE x=71.99 y=64.31 path_position=0.01
+MOVE x=75.98 y=64.61 path_position=0.02
+MOVE x=79.96 y=65.02 path_position=0.03
+MOVE x=83.93 y=65.54 path_position=0.03
+MOVE x=87.87 y=66.18 path_position=0.04
+MOVE x=91.80 y=66.95 path_position=0.04
+MOVE x=95.70 y=67.85 path_position=0.05
+MOVE x=99.56 y=68.90 path_position=0.06
+MOVE x=103.37 y=70.10 path_position=0.06
+MOVE x=107.13 y=71.46 path_position=0.07
+MOVE x=110.83 y=72.99 path_position=0.08
+MOVE x=114.45 y=74.70 path_position=0.08
+MOVE x=117.97 y=76.58 path_position=0.09
+MOVE x=121.40 y=78.64 path_position=0.10
+MOVE x=124.70 y=80.90 path_position=0.10
+MOVE x=127.87 y=83.33 path_position=0.11
+MOVE x=130.90 y=85.95 path_position=0.12
+MOVE x=133.76 y=88.74 path_position=0.12
+MOVE x=136.46 y=91.69 path_position=0.13
+MOVE x=138.98 y=94.80 path_position=0.13
+MOVE x=141.32 y=98.04 path_position=0.14
+MOVE x=143.48 y=101.41 path_position=0.15
+MOVE x=145.45 y=104.89 path_position=0.15
+MOVE x=147.23 y=108.47 path_position=0.16
+MOVE x=148.84 y=112.13 path_position=0.17
+MOVE x=150.29 y=115.86 path_position=0.17
+MOVE x=151.56 y=119.65 path_position=0.18
+MOVE x=152.68 y=123.49 path_position=0.19
+MOVE x=153.65 y=127.37 path_position=0.19
+MOVE x=154.48 y=131.28 path_position=0.20
+MOVE x=155.18 y=135.22 path_position=0.21
+MOVE x=155.75 y=139.18 path_position=0.21
+MOVE x=156.21 y=143.15 path_position=0.22
+MOVE x=156.56 y=147.14 path_position=0.22
+MOVE x=156.81 y=151.13 path_position=0.23
+MOVE x=156.96 y=155.13 path_position=0.24
+MOVE x=157 y=159.13 path_position=0.24
+MOVE x=157.00 y=163.13 path_position=0.25
+MOVE x=156.88 y=167.13 path_position=0.26
+MOVE x=156.68 y=171.12 path_position=0.26
+MOVE x=156.37 y=175.11 path_position=0.27
+MOVE x=155.96 y=179.09 path_position=0.28
+MOVE x=155.44 y=183.05 path_position=0.28
+MOVE x=154.79 y=187.00 path_position=0.29
+MOVE x=154.02 y=190.92 path_position=0.30
+MOVE x=153.11 y=194.82 path_position=0.30
+MOVE x=152.05 y=198.68 path_position=0.31
+MOVE x=150.85 y=202.49 path_position=0.31
+MOVE x=149.48 y=206.25 path_position=0.32
+MOVE x=147.94 y=209.94 path_position=0.33
+MOVE x=146.23 y=213.55 path_position=0.33
+MOVE x=144.33 y=217.08 path_position=0.34
+MOVE x=142.26 y=220.50 path_position=0.35
+MOVE x=140.00 y=223.80 path_position=0.35
+MOVE x=137.56 y=226.96 path_position=0.36
+MOVE x=134.93 y=229.98 path_position=0.37
+MOVE x=132.13 y=232.84 path_position=0.37
+MOVE x=129.18 y=235.53 path_position=0.38
+MOVE x=126.06 y=238.04 path_position=0.39
+MOVE x=122.82 y=240.37 path_position=0.39
+MOVE x=119.44 y=242.52 path_position=0.40
+MOVE x=115.96 y=244.48 path_position=0.40
+MOVE x=112.37 y=246.26 path_position=0.41
+MOVE x=108.71 y=247.86 path_position=0.42
+MOVE x=104.98 y=249.30 path_position=0.42
+MOVE x=101.18 y=250.56 path_position=0.43
+MOVE x=97.34 y=251.67 path_position=0.44
+MOVE x=93.46 y=252.64 path_position=0.44
+MOVE x=89.54 y=253.46 path_position=0.45
+MOVE x=85.61 y=254.16 path_position=0.46
+MOVE x=81.65 y=254.73 path_position=0.46
+MOVE x=77.67 y=255.18 path_position=0.47
+MOVE x=73.69 y=255.52 path_position=0.47
+MOVE x=69.70 y=255.77 path_position=0.48
+MOVE x=65.70 y=255.91 path_position=0.49
+MOVE x=61.70 y=255.95 path_position=0.49
+MOVE x=57.70 y=255.94 path_position=0.50
+MOVE x=53.70 y=255.83 path_position=0.51
+MOVE x=49.71 y=255.62 path_position=0.51
+MOVE x=45.72 y=255.31 path_position=0.52
+MOVE x=41.74 y=254.89 path_position=0.53
+MOVE x=37.78 y=254.36 path_position=0.53
+MOVE x=33.83 y=253.71 path_position=0.54
+MOVE x=29.91 y=252.93 path_position=0.55
+MOVE x=26.01 y=252.02 path_position=0.55
+MOVE x=22.16 y=250.95 path_position=0.56
+MOVE x=18.35 y=249.74 path_position=0.56
+MOVE x=14.59 y=248.37 path_position=0.57
+MOVE x=10.90 y=246.82 path_position=0.58
+MOVE x=7.29 y=245.10 path_position=0.58
+MOVE x=3.77 y=243.20 path_position=0.59
+MOVE x=0.36 y=241.12 path_position=0.60
+MOVE x=-2.94 y=238.85 path_position=0.60
+MOVE x=-6.10 y=236.40 path_position=0.61
+MOVE x=-9.11 y=233.77 path_position=0.62
+MOVE x=-11.96 y=230.96 path_position=0.62
+MOVE x=-14.64 y=228.00 path_position=0.63
+MOVE x=-17.15 y=224.88 path_position=0.64
+MOVE x=-19.47 y=221.62 path_position=0.64
+MOVE x=-21.61 y=218.25 path_position=0.65
+MOVE x=-23.57 y=214.76 path_position=0.65
+MOVE x=-25.33 y=211.17 path_position=0.66
+MOVE x=-26.93 y=207.50 path_position=0.67
+MOVE x=-28.36 y=203.76 path_position=0.67
+MOVE x=-29.62 y=199.97 path_position=0.68
+MOVE x=-30.72 y=196.12 path_position=0.69
+MOVE x=-31.68 y=192.24 path_position=0.69
+MOVE x=-32.50 y=188.33 path_position=0.70
+MOVE x=-33.18 y=184.39 path_position=0.71
+MOVE x=-33.75 y=180.43 path_position=0.71
+MOVE x=-34.20 y=176.45 path_position=0.72
+MOVE x=-34.54 y=172.47 path_position=0.73
+MOVE x=-34.78 y=168.47 path_position=0.73
+MOVE x=-34.92 y=164.48 path_position=0.74
+MOVE x=-34.95 y=160.48 path_position=0.74
+MOVE x=-34.94 y=156.48 path_position=0.75
+MOVE x=-34.82 y=152.48 path_position=0.76
+MOVE x=-34.61 y=148.48 path_position=0.76
+MOVE x=-34.29 y=144.50 path_position=0.77
+MOVE x=-33.87 y=140.52 path_position=0.78
+MOVE x=-33.34 y=136.56 path_position=0.78
+MOVE x=-32.68 y=132.61 path_position=0.79
+MOVE x=-31.89 y=128.69 path_position=0.80
+MOVE x=-30.98 y=124.79 path_position=0.80
+MOVE x=-29.91 y=120.94 path_position=0.81
+MOVE x=-28.68 y=117.13 path_position=0.82
+MOVE x=-27.30 y=113.38 path_position=0.82
+MOVE x=-25.75 y=109.69 path_position=0.83
+MOVE x=-24.02 y=106.09 path_position=0.83
+MOVE x=-22.11 y=102.57 path_position=0.84
+MOVE x=-20.02 y=99.16 path_position=0.85
+MOVE x=-17.75 y=95.87 path_position=0.85
+MOVE x=-15.29 y=92.72 path_position=0.86
+MOVE x=-12.65 y=89.72 path_position=0.87
+MOVE x=-9.84 y=86.87 path_position=0.87
+MOVE x=-6.86 y=84.20 path_position=0.88
+MOVE x=-3.74 y=81.70 path_position=0.89
+MOVE x=-0.48 y=79.39 path_position=0.89
+MOVE x=2.91 y=77.25 path_position=0.90
+MOVE x=6.40 y=75.30 path_position=0.90
+MOVE x=9.99 y=73.54 path_position=0.91
+MOVE x=13.66 y=71.96 path_position=0.92
+MOVE x=17.40 y=70.54 path_position=0.92
+MOVE x=21.20 y=69.28 path_position=0.93
+MOVE x=25.04 y=68.19 path_position=0.94
+MOVE x=28.93 y=67.24 path_position=0.94
+MOVE x=32.85 y=66.42 path_position=0.95
+MOVE x=36.79 y=65.74 path_position=0.96
+MOVE x=40.75 y=65.18 path_position=0.96
+MOVE x=44.72 y=64.74 path_position=0.97
+MOVE x=48.71 y=64.40 path_position=0.98
+MOVE x=52.70 y=64.17 path_position=0.98
+MOVE x=56.70 y=64.03 path_position=0.99
+MOVE x=60.70 y=64 path_position=0.99
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+MOVE x=64 y=64 path_position=1
+===== DELETE =====
+exists after delete = 0
+===== INVALID PATH =====
+exists = 0
+===== PATH TEST END =====

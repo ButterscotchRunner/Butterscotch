@@ -44,14 +44,15 @@ function dump_path(p)
 
 // Create path
 
-var p = path_add();
+global.test_path = path_add();
+var p = global.test_path;
 
 show_debug_message("Created path id = " + string(p));
 
-path_add_point(p, 0,   0,   100);
-path_add_point(p, 100, 0,   200);
-path_add_point(p, 100, 100, 300);
-path_add_point(p, 0,   100, 400);
+path_add_point(p, 64, 64, 100);
+path_add_point(p, 256, 64, 200);
+path_add_point(p, 256, 256, 300);
+path_add_point(p, 64, 256, 400);
 
 dump_path(p);
 
@@ -84,31 +85,21 @@ path_clear_points(p);
 
 dump_path(p);
 
-// Add new points
+// Rebuild path for movement test
 
-show_debug_message("===== ADD NEW POINTS =====");
+show_debug_message("===== REBUILD PATH =====");
 
-path_add_point(p, 50, 50, 10);
-path_add_point(p, 150, 50, 20);
+path_add_point(p, 64, 64, 100);
+path_add_point(p, 256, 64, 100);
+path_add_point(p, 256, 256, 100);
+path_add_point(p, 64, 256, 100);
 
 dump_path(p);
 
-// Delete
+// Create moving instance
 
-show_debug_message("===== DELETE =====");
+instance_create_layer(64, 64, "Instances", obj_mover);
 
-path_delete(p);
+alarm[0] = room_speed * 3;
 
-show_debug_message("exists after delete = " + string(path_exists(p)));
-
-// Invalid path tests
-
-show_debug_message("===== INVALID PATH =====");
-
-var bad = 123456789;
-
-show_debug_message("exists = " + string(path_exists(bad)));
-
-show_debug_message("===== PATH TEST END =====");
-
-game_end();
+show_debug_message("===== PATH TEST READY =====");

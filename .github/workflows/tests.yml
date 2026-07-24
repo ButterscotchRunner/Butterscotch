@@ -107,33 +107,19 @@ jobs:
           name: butterscotch-linux-x86_64
           path: build
 
-      - name: Mark Butterscotch binary executable
-        run: chmod +x build/butterscotch
+      - name: Mark binaries and scripts executable
+        run: |
+          chmod +x build/butterscotch
+          chmod +x tests/automated-ci/paths/test.sh
 
       - name: Run paths game and validate output
         shell: bash
         run: |
           set -euo pipefail
 
-          raw_output_file="${{ github.workspace }}/tests/automated-ci/paths/raw_output.txt"
-          normalized_output_file="${{ github.workspace }}/tests/automated-ci/paths/actual_output.txt"
-          expected_output_file="${{ github.workspace }}/tests/automated-ci/paths/expected_output.txt"
+          test_path="${{ github.workspace }}/tests/automated-ci/paths/path_test"
+          binary="${{ github.workspace }}/build/butterscotch"
+          script="${{ github.workspace }}/tests/automated-ci/paths/test.sh"
 
-          timeout 120s "${{ github.workspace }}/build/butterscotch" \
-            "${{ github.workspace }}/tests/automated-ci/paths/game.ios" \
-            --headless \
-            > "$raw_output_file" 2>&1
-
-          grep '^Game: ' "$raw_output_file" | sed 's/^Game: //' > "$normalized_output_file"
-
-          diff -u "$expected_output_file" "$normalized_output_file"
-
-      - name: Upload paths test logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: automated-ci-paths-output
-          path: |
-            tests/automated-ci/paths/raw_output.txt
-            tests/automated-ci/paths/actual_output.txt
-          if-no-files-found: ignore
+          timeout 120s "$script" "$binary" "$test_path"
+          
