@@ -80,17 +80,29 @@ GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
+ifeq ($(OS),Darwin)
+SRCS += src/desktop/backends/platform/macos.m
+LIBS += -framework Cocoa
+endif
 endif
 ifeq ($(DESKTOP_BACKEND),glfw2)
 GLFW2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libglfw)
 LIBS += $(GLFW2_LIBS)
 DEFINES += $(DEFINE)USE_GLFW2
 ENABLE_GLAD := 1
+ifeq ($(OS),Darwin)
+SRCS += src/desktop/backends/platform/macos.m
+LIBS += -framework Cocoa
+endif
 endif
 ifeq ($(DESKTOP_BACKEND),sdl1)
 SDL1_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl)
 LIBS += $(SDL1_LIBS)
 DEFINES += $(DEFINE)USE_SDL1
+ifeq ($(OS),Darwin)
+SRCS += src/desktop/backends/platform/macos.m
+LIBS += -framework Cocoa
+endif
 endif
 ifeq ($(DESKTOP_BACKEND),sdl2)
 SDL2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl2)
