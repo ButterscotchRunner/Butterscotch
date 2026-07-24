@@ -15092,7 +15092,7 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
 
     char buffer[32];
     snprintf(buffer, sizeof(buffer), "__newpath%u", newIdx);
-    p->name = strdup(buffer);
+    p->name = safeStrdup(buffer);
 
     p->isSmooth = false;
     p->isClosed = true;
