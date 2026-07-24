@@ -45,6 +45,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef __GNUC__
 # if ((__GNUC__ == 4 && __GNUC_MINOR__>= 4) || __GNUC__ > 4)
@@ -62,8 +63,12 @@ ATTR_PRINTF((one_based_format_index), 0)
 #endif
 
 #if PRINTF_ALIAS_STANDARD_FUNCTION_NAMES_HARD
+# define printf_    printf
 # define snprintf_  snprintf
 # define vsnprintf_ vsnprintf
+# define vprintf_   vprintf
+# define fprintf_   fprintf
+# define vfprintf_  vfprintf
 #endif
 
 /*
@@ -75,6 +80,33 @@ ATTR_PRINTF((one_based_format_index), 0)
 #ifndef PRINTF_VISIBILITY
 #define PRINTF_VISIBILITY
 #endif
+
+
+/**
+ * An implementation of the C standard's printf/vprintf
+ *
+ * @note you must implement a @ref putchar_ function for using this function -
+ * it invokes @ref putchar_ * rather than directly performing any I/O (which
+ * insulates it from any dependence on the operating system * and external
+ * libraries).
+ *
+ * @param format A string specifying the format of the output, with %-marked
+ *     specifiers of how to interpret additional arguments.
+ * @param arg Additional arguments to the function, one for each %-specifier in
+ *     @p format
+ * @return The number of characters written into @p s, not counting the
+ *     terminating null character
+ */
+/* @{ */
+PRINTF_VISIBILITY
+int printf_(const char* format, ...) ATTR_PRINTF(1, 2);
+PRINTF_VISIBILITY
+int vprintf_(const char* format, va_list arg) ATTR_VPRINTF(1);
+PRINTF_VISIBILITY
+int fprintf_(FILE* stream, const char* format, ...) ATTR_PRINTF(2, 3);
+PRINTF_VISIBILITY
+int vfprintf_(FILE* stream, const char* format, va_list arg) ATTR_VPRINTF(2);
+/* @} */
 
 
 /**
@@ -104,13 +136,42 @@ PRINTF_VISIBILITY
 int vsnprintf_(char* s, size_t count, const char* format, va_list arg) ATTR_VPRINTF(3);
 /* @} */
 
+/**
+ * printf/vprintf with user-specified output function
+ *
+ * An alternative to @ref printf_, in which the output function is specified
+ * dynamically (rather than @ref putchar_ being used)
+ *
+ * @param out An output function which takes one character and a type-erased
+ *     additional parameters
+ * @param extra_arg The type-erased argument to pass to the output function @p
+ *     out with each call
+ * @param format A string specifying the format of the output, with %-marked
+ *     specifiers of how to interpret additional arguments.
+ * @param arg Additional arguments to the function, one for each specifier in
+ *     @p format
+ * @return The number of characters for which the output f unction was invoked,
+ *     not counting the terminating null character
+ *
+ */
+PRINTF_VISIBILITY
+int vfctprintf(void (*out)(char c, void* extra_arg), void* extra_arg, const char* format, va_list arg) ATTR_VPRINTF(3);
+
 #if PRINTF_ALIAS_STANDARD_FUNCTION_NAMES_HARD
+# undef printf_
 # undef snprintf_
 # undef vsnprintf_
+# undef vprintf_
+# undef fprintf_
+# undef vfprintf_
 #else
 #if PRINTF_ALIAS_STANDARD_FUNCTION_NAMES_SOFT
+# define printf     printf_
 # define snprintf   snprintf_
 # define vsnprintf  vsnprintf_
+# define vprintf    vprintf_
+# define fprintf    fprintf_
+# define vfprintf   vfprintf_
 #endif
 #endif
 

@@ -61,8 +61,10 @@
 #endif /* !(defined(__cplusplus) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L)) */
 
 #if PRINTF_ALIAS_STANDARD_FUNCTION_NAMES_HARD
+# define printf_    printf
 # define snprintf_  snprintf
 # define vsnprintf_ vsnprintf
+# define vprintf_   vprintf
 #endif /* PRINTF_ALIAS_STANDARD_FUNCTION_NAMES_HARD */
 
 
@@ -1572,10 +1574,53 @@ static int vsnprintf_impl(output_gadget_t* output, const char* format, va_list a
 
 /*===========================================================================*/
 
+static void fputc_printf_(char c, void* stream)
+{
+  fputc(c, (FILE*)stream);
+}
+
+int vprintf_(const char* format, va_list arg)
+{
+  return vfctprintf(fputc_printf_, stdout, format, arg);
+}
+
+int vfprintf_(FILE* stream, const char* format, va_list arg)
+{
+  return vfctprintf(fputc_printf_, stream, format, arg);
+}
+
 int vsnprintf_(char* s, size_t n, const char* format, va_list arg)
 {
   output_gadget_t gadget = buffer_gadget(s, n);
   return vsnprintf_impl(&gadget, format, arg);
+}
+
+int vfctprintf(void (*out)(char c, void* extra_arg), void* extra_arg, const char* format, va_list arg)
+{
+  output_gadget_t gadget;
+  if (out == NULL) { return 0; }
+  gadget = function_gadget(out, extra_arg);
+  return vsnprintf_impl(&gadget, format, arg);
+}
+
+int printf_(const char* format, ...)
+{
+  int ret;
+  va_list args;
+  va_start(args, format);
+  ret = vprintf_(format, args);
+  va_end(args);
+  return ret;
+}
+
+int fprintf_(FILE* stream, const char* format, ...)
+{
+  int ret;
+  va_list args;
+  va_start(args, format);
+  ret = vfprintf_(stream, format, args);
+  va_end(args);
+  return ret;
 }
 
 int snprintf_(char* s, size_t n, const char* format, ...)
