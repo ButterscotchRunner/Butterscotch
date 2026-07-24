@@ -1,6 +1,6 @@
 #include "data_win.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 
 #include "utils.h"

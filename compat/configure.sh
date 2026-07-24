@@ -7,6 +7,8 @@ if [ -z "$CC" ]; then
     exit 1
 fi
 
+export MSYS2_ARG_CONV_EXCL='*'
+
 # cd to the directory this script is in
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
@@ -84,24 +86,29 @@ int main(void){return 0;}
     return $?
 }
 
+ccname="${CC##*/}"
+target="${ccname%-*}"
+if [ "$ccname" = "$target" ]; then
+    target=
+fi
+
 printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
 
 configlog 'checking the C compiler CLI syntax'
-if $CC /nologo tmp/test.c /Fe:tmp/a.out >> tmp/config.log 2>&1; then
+if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     printgreen 'msvc'
     syntax=msvc
     CC="$CC /nologo"
     cflags='/Oi-' # equivalent to -fno-builtin
     compile_obj='/c'
-    output_obj='/Fo:'
-    output_exe='/Fe:'
+    output_obj='/Fo'
+    output_exe='/Fe'
     config "OUTPUT_OBJ := $output_obj"
     config "OUTPUT_EXE := $output_exe"
     config 'MSVC := 1'
     config 'OBJ_EXT := obj'
-    config "_CC := \$(CC) /nologo"
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
     config 'DEFINE := /D'
@@ -115,7 +122,6 @@ elif $CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1; then
     config "OUTPUT_OBJ := -o\$(space)"
     config "OUTPUT_EXE := -o\$(space)"
     config 'OBJ_EXT := o'
-    config "_CC := \$(CC)"
     config 'CFLAGS := -O2 -DNDEBUG'
     config 'INCLUDE := -I'
     config 'DEFINE := -D'
@@ -135,6 +141,37 @@ else
     printyes
     cross_compiling=1
 fi
+
+if [ -n "$target" ]; then
+    configlog "checking for $target-pkg-config"
+    if command -v "$target-pkg-config"; then
+        printyes
+        config "PKG_CONFIG := $target-pkg-config"
+    else
+        printno
+    fi
+fi
+
+printf '%s' "\
+int main(void){
+    int a = 0;
+    ++a;
+    int b = a;
+    return b;
+}
+" > tmp/test.c
+
+config "CCLINK := $CC"
+if ! nolink=1 check 'if C supports mixed declarations and code'; then
+    if [ "$syntax" = 'msvc' ]; then
+        CC="$CC /TP"
+    else
+        printf 'Support for mixed declarations and code is required, maybe try building in C++ mode.\n'
+        exit 1
+    fi
+fi
+
+config "_CC := $CC"
 
 configlog 'checking the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -197,6 +234,7 @@ int main(void){return 0;}
 if ! nolink=1 check 'if stdbool.h works'; then
     # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
     include 'compat/stdbool'
+    config 'HEADERS += compat/stdbool/stdbool.h'
 fi
 
 printf '%s' "\
@@ -206,6 +244,7 @@ int main(void){return 0;}
 
 if ! nolink=1 check 'if stdint.h works'; then
     include 'compat/stdint'
+    config 'HEADERS += compat/stdint/stdint.h'
     printf '%s' "\
 #include <sys/types.h>
 int main(void){return 0;}
@@ -327,6 +366,24 @@ if ! check 'for roundf' $lm; then
 fi
 
 printf '%s' "\
+#include <math.h>
+int main(void){return isinf(0.0);}
+" > tmp/test.c
+
+if ! check 'for isinf' $lm; then
+    define 'NO_ISINF'
+fi
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isnan(0.0);}
+" > tmp/test.c
+
+if ! check 'for isnan' $lm; then
+    define 'NO_ISNAN'
+fi
+
+printf '%s' "\
 #include <string.h>
 int main(void){
     char *saveptr;
@@ -351,6 +408,22 @@ int main(int argc,char *argv[]){
 
 if ! check 'for getopt_long'; then
     include 'compat/getopt'
+    config 'HEADERS += compat/getopt/getopt.h'
+fi
+
+printf '%s' "\
+#include <stdio.h>
+int main(void){
+    char buf[8];
+    return snprintf(buf, sizeof(buf), \"test\");
+}
+" > tmp/test.c
+
+if ! check 'for snprintf'; then
+    include 'compat/stdio'
+    define 'NO_SNPRINTF'
+    config 'SRCS += compat/stdio/printf.c'
+    config 'HEADERS += compat/stdio/printf.h'
 fi
 
 rm -f tmp/test.c tmp/a.out test.obj

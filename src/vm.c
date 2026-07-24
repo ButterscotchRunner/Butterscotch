@@ -8,7 +8,7 @@
 #include "profiler.h"
 #include "string_builder.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include "math_compat.h"
@@ -4394,6 +4394,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     logInfo("\n");
 }
 
+#undef VM_registerBuiltin
 void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func) {
     requireMessageFormatted(__FILE__, __LINE__, shgeti(ctx->builtinMap, name) == -1, "Trying to register an already registered builtin function! Function Name: %s", name);
     shput(ctx->builtinMap, (char*) name, func);

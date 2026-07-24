@@ -2,7 +2,7 @@
 #define _BS_RVALUE_H_
 #include <stdint.h>
 #include "common.h"
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 

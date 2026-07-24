@@ -1,7 +1,7 @@
 #include <kernel.h>
 #include <sifrpc.h>
 #include <loadfile.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <malloc.h>
 #include <dmaKit.h>
 #include <gsKit.h>

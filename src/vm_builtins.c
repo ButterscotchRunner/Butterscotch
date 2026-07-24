@@ -10,7 +10,7 @@
 #include "matrix_math.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include "math_compat.h"
@@ -2244,11 +2244,31 @@ static RValue builtin_string_count(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 
 // Source - https://stackoverflow.com/a/15515276
 static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
-    if (2 > argCount) return RValue_makeInt32(0);
-    char* substr = RValue_toString(args[0]);
-    char* str = RValue_toString(args[1]);
+    if (2 > argCount) return RValue_makeBool(false);
+    char* str = RValue_toString(args[0]);
+	char* substr = RValue_toString(args[1]);
 
-    bool ret = (strncmp(str, substr, strlen(substr)) == 0);
+    bool ret = (memcmp(str, substr, strlen(substr)) == 0);
+
+    free(substr);
+    free(str);
+    return RValue_makeBool(ret);
+}
+
+// Source - https://stackoverflow.com/a/744822
+static RValue builtin_string_ends_with(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeBool(false);
+    char* str = RValue_toString(args[0]);
+	char* substr = RValue_toString(args[1]);
+
+	size_t strLen = strlen(str);
+	size_t substrLen = strlen(substr);
+	if (substrLen > strLen) {
+		free(substr);
+		free(str);
+		return RValue_makeBool(false);
+	}
+    bool ret = (memcmp(str + strLen - substrLen, substr, substrLen) == 0);
 
     free(substr);
     free(str);
@@ -7167,7 +7187,7 @@ static RValue builtin_file_text_close(VMContext* ctx, RValue* args, int32_t argC
     free(file->content);
     free(file->writeBuffer);
     free(file->filePath);
-    *file = (OpenTextFile) {0};
+    ZERO_STRUCT(*file);
     return RValue_makeUndefined();
 }
 
@@ -7465,7 +7485,7 @@ static RValue builtin_file_bin_close(VMContext* ctx, RValue* args, int32_t argCo
     OpenBinaryFile* file = getBinaryFile(runner, RValue_toInt32(args[0]));
     if (file == nullptr) return RValue_makeUndefined();
     runner->fileSystem->vtable->binaryClose(runner->fileSystem, file->handle);
-    *file = (OpenBinaryFile) {0};
+    ZERO_STRUCT(*file);
     return RValue_makeUndefined();
 }
 
@@ -10183,6 +10203,31 @@ static RValue builtin_draw_self(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
     return RValue_makeUndefined();
 }
 
+// draw_point(x, y)
+static RValue builtin_draw_point(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    if (runner->applyOffsetForPrimitives) { x += 1.0f; y += 1.0f; }
+    runner->renderer->vtable->drawRectangle(runner->renderer, x, y, x + 1.0f, y + 1.0f,
+        runner->renderer->drawColor, runner->renderer->drawAlpha, false);
+    return RValue_makeUndefined();
+}
+
+// draw_point_color(x, y, col)
+static RValue builtin_draw_point_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    uint32_t col = (uint32_t) RValue_toInt32(args[2]);
+    if (runner->applyOffsetForPrimitives) { x += 1.0f; y += 1.0f; }
+    runner->renderer->vtable->drawRectangle(runner->renderer, x, y, x + 1.0f, y + 1.0f,
+        col, runner->renderer->drawAlpha, false);
+    return RValue_makeUndefined();
+}
+
 // draw_line(x1, y1, x2, y2)
 static RValue builtin_draw_line(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -12888,8 +12933,11 @@ static int32_t resolveLayerIdArg(Runner* runner, RValue arg) {
         if (runner->currentRoom != nullptr) {
             repeat(runner->currentRoom->layerCount, i) {
                 RoomLayer* layer = &runner->currentRoom->layers[i];
-                if (layer->name != nullptr && strcmp(layer->name, name) == 0)
-                    return (int32_t) layer->id;
+                if (layer->name != nullptr && strcmp(layer->name, name) == 0) {
+                    // Only resolve room-layer names that still exist in the runtime layer list.
+                    if (Runner_findRuntimeLayerById(runner, (int32_t) layer->id) != nullptr)
+                        return (int32_t) layer->id;
+                }
             }
         }
         return -1;
@@ -13147,12 +13195,20 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         if ((int32_t) runner->runtimeLayers[i].id != id)
             continue;
 
-        // Ignore if we are trying to delete a non-dynamic layer
-        if (!runner->runtimeLayers[i].dynamic)
-            return RValue_makeUndefined();
+        // GameMaker allows destroying room-defined layers at runtime.
+        // When destroying an instance layer, destroy the instances bound to that layer.
+        size_t elementCount = arrlenu(runner->runtimeLayers[i].elements);
+        repeat(elementCount, j) {
+            RuntimeLayerElement* el = &runner->runtimeLayers[i].elements[j];
+            if (el->type != RuntimeLayerElementType_Instance) continue;
+            Instance* inst = hmget(runner->instancesById, el->instanceId);
+            if (inst == nullptr || inst->destroyed) continue;
+            Runner_destroyInstance(runner, inst, true);
+        }
 
         Runner_freeRuntimeLayer(&runner->runtimeLayers[i]);
         arrdel(runner->runtimeLayers, i);
+
         runner->drawableListStructureDirty = true;
         break;
     }
@@ -13757,6 +13813,50 @@ static RValue builtin_layer_tilemap_get_id(VMContext* ctx, RValue* args, MAYBE_U
     return RValue_makeReal(-1.0);
 }
 
+static RValue builtin_draw_tile(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (5 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    int32_t bgIndex = RValue_toInt32(args[0]);
+    uint32_t tileCell = (uint32_t)RValue_toInt32(args[1]);
+    uint32_t tileIndex = tileCell & TILEINDEX_SHIFTEDMASK;
+
+    if (0 > bgIndex || (uint32_t)bgIndex >= runner->dataWin->bgnd.count) return RValue_makeUndefined();
+    Background* tileset = &runner->dataWin->bgnd.backgrounds[bgIndex];
+    if (!tileset->present || tileIndex == 0 || tileIndex > tileset->gms2TileCount || \
+        tileset->gms2TileWidth == 0 || tileset->gms2TileHeight == 0 || tileset->gms2TileColumns == 0) return RValue_makeUndefined();
+
+    int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(runner->dataWin, bgIndex);
+    if (0 > tpagIndex) return RValue_makeUndefined();
+
+    GMLReal x = RValue_toReal(args[3]);
+    GMLReal y = RValue_toReal(args[4]);
+
+    uint32_t tileW = tileset->gms2TileWidth;
+    uint32_t tileH = tileset->gms2TileHeight;
+    uint32_t borderX = tileset->gms2OutputBorderX;
+    uint32_t borderY = tileset->gms2OutputBorderY;
+    uint32_t columns = tileset->gms2TileColumns;
+
+    uint32_t col = tileIndex % columns;
+    uint32_t row = tileIndex / columns;
+    int32_t srcX = (int32_t)(col * (tileW + 2 * borderX) + borderX);
+    int32_t srcY = (int32_t)(row * (tileH + 2 * borderY) + borderY);
+
+    bool mirror = (tileCell & TILEMIRROR_MASK) != 0;
+    bool flip = (tileCell & TILEFLIP_MASK) != 0;
+
+    float xscale = mirror ? -1.0f : 1.0f;
+    float yscale = flip ? -1.0f : 1.0f;
+
+    float dstX = x + (mirror ? (float)tileW : 0.0f);
+    float dstY = y + (flip ? (float)tileH : 0.0f);
+
+    runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t)tileW, (int32_t)tileH, dstX, dstY, xscale, yscale, 0.0f, 0.0f, 0.0f, 0xFFFFFF, runner->renderer->drawAlpha);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_tilemap(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (3 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
@@ -13940,6 +14040,36 @@ static RValue builtin_tilemap_get_at_pixel(VMContext* ctx, RValue* args, MAYBE_U
 
     uint32_t cell = data->tileData[cellIndex];
     return RValue_makeReal((GMLReal) cell);
+}
+
+static RValue builtin_tilemap_get_cell_x_at_pixel(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = ctx->runner;
+
+    RuntimeLayer* runtimeLayer;
+    RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+    if (!data) return RValue_makeReal(-1.0);
+
+    int32_t cellIndex = tilemapGetCellIndexAtPixel(ctx->dataWin, data, runtimeLayer, RValue_toReal(args[1]), RValue_toReal(args[2]), nullptr);
+    if (0 > cellIndex) return RValue_makeReal(-1.0);
+
+    int32_t cellX = cellIndex % data->tilesX;
+    return RValue_makeReal((GMLReal)cellX);
+}
+
+static RValue builtin_tilemap_get_cell_y_at_pixel(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(-1.0);
+    Runner* runner = ctx->runner;
+
+    RuntimeLayer* runtimeLayer;
+    RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
+    if (!data) return RValue_makeReal(-1.0);
+
+    int32_t cellIndex = tilemapGetCellIndexAtPixel(ctx->dataWin, data, runtimeLayer, RValue_toReal(args[1]), RValue_toReal(args[2]), nullptr);
+    if (0 > cellIndex) return RValue_makeReal(-1.0);
+
+    int32_t cellY = cellIndex / data->tilesX;
+    return RValue_makeReal((GMLReal)cellY);
 }
 
 static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -14884,8 +15014,10 @@ static RValue builtin_mp_grid_path(VMContext* ctx, RValue* args, int32_t argCoun
     pPath->internalPoints = nullptr;
     pPath->internalPointCount = 0;
     pPath->length = 0.0f;
-    GamePath_computeInternal(pPath);
+    pPath->isSmooth = false;
+    pPath->isClosed = false;
 
+    GamePath_computeInternal(pPath);
     return RValue_makeBool(true);
 }
 
@@ -16128,6 +16260,28 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
     VM_structSetAndFreeVal(ctx, ret, "frame_speed", RValue_makeReal(sprite->gms2PlaybackSpeed), -1);
     VM_structSetAndFreeVal(ctx, ret, "frame_type", RValue_makeReal(sprite->gms2PlaybackSpeedType), -1);
 
+    GMLArray* frames = GMLArray_create(ctx->dataWin->gen8.wadVersion, (int32_t)sprite->textureCount);
+    repeat(sprite->textureCount, i) {
+        Instance* frame = Runner_createStruct(ctx->runner);
+        int32_t idx = sprite->tpagIndices[i];
+        TexturePageItem* tpagItem = &ctx->dataWin->tpag.items[idx];
+
+        VM_structSetAndFreeVal(ctx, frame, "w", RValue_makeReal(tpagItem->boundingWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "h", RValue_makeReal(tpagItem->boundingHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "x_offset", RValue_makeReal(tpagItem->targetX), -1);
+        VM_structSetAndFreeVal(ctx, frame, "y_offset", RValue_makeReal(tpagItem->targetY), -1);
+        VM_structSetAndFreeVal(ctx, frame, "x", RValue_makeReal(tpagItem->sourceX), -1);
+        VM_structSetAndFreeVal(ctx, frame, "y", RValue_makeReal(tpagItem->sourceY), -1);
+        VM_structSetAndFreeVal(ctx, frame, "original_width", RValue_makeReal(tpagItem->boundingWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "original_height", RValue_makeReal(tpagItem->boundingHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "crop_width", RValue_makeReal(tpagItem->targetWidth), -1);
+        VM_structSetAndFreeVal(ctx, frame, "crop_height", RValue_makeReal(tpagItem->targetHeight), -1);
+        VM_structSetAndFreeVal(ctx, frame, "texture", RValue_makeReal(idx), -1);
+
+        *GMLArray_slot(frames, (int32_t)i) = RValue_makeStructAndIncRef(frame);
+    }
+    VM_structSetAndFreeVal(ctx, ret, "frames", RValue_makeArray(frames), -1);
+
     return RValue_makeStructAndIncRef(ret);
 }
 
@@ -16164,6 +16318,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_format", builtin_string_format);
     VM_registerBuiltin(ctx, "string_count", builtin_string_count);
     VM_registerBuiltin(ctx, "string_starts_with", builtin_string_starts_with);
+	VM_registerBuiltin(ctx, "string_ends_with", builtin_string_ends_with);
     VM_registerBuiltin(ctx, "ord", builtin_ord);
     VM_registerBuiltin(ctx, "chr", builtin_chr);
 
@@ -16774,6 +16929,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
     }
     VM_registerBuiltin(ctx, "draw_self", builtin_draw_self);
+    VM_registerBuiltin(ctx, "draw_point", builtin_draw_point);
+    VM_registerBuiltin(ctx, "draw_point_color", builtin_draw_point_color);
+    VM_registerBuiltin(ctx, "draw_point_colour", builtin_draw_point_color);
     VM_registerBuiltin(ctx, "draw_line", builtin_draw_line);
     VM_registerBuiltin(ctx, "draw_line_colour", builtin_draw_line_colour);
     VM_registerBuiltin(ctx, "draw_line_color", builtin_draw_line_colour); // alt-spelling (used in Undertale)
@@ -16963,6 +17121,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "layer_get_id_at_depth", builtin_layer_get_id_at_depth);
     VM_registerBuiltin(ctx, "layer_tilemap_get_id", builtin_layer_tilemap_get_id);
+    VM_registerBuiltin(ctx, "draw_tile", builtin_draw_tile);
     VM_registerBuiltin(ctx, "draw_tilemap", builtin_draw_tilemap);
     VM_registerBuiltin(ctx, "tilemap_x", builtin_tilemap_x);
     VM_registerBuiltin(ctx, "tilemap_y", builtin_tilemap_y);
@@ -16972,6 +17131,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tilemap_get_height", builtin_tilemap_get_height);
 	VM_registerBuiltin(ctx, "tilemap_get_tile_width", builtin_tilemap_get_tile_width);
     VM_registerBuiltin(ctx, "tilemap_get_tile_height", builtin_tilemap_get_tile_height);
+    VM_registerBuiltin(ctx, "tilemap_get_cell_x_at_pixel", builtin_tilemap_get_cell_x_at_pixel);
+    VM_registerBuiltin(ctx, "tilemap_get_cell_y_at_pixel", builtin_tilemap_get_cell_y_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get", builtin_tilemap_get);
     VM_registerBuiltin(ctx, "tilemap_get_at_pixel", builtin_tilemap_get_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get_tileset", builtin_tilemap_get_tileset);

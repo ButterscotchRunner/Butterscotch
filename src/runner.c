@@ -8,7 +8,7 @@
 #include "collision.h"
 
 #include <stdint.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include "math_compat.h"
@@ -1918,7 +1918,7 @@ static void cleanupState(Runner* runner) {
             free(file->content);
             free(file->writeBuffer);
             free(file->filePath);
-            *file = (OpenTextFile) {0};
+            ZERO_STRUCT(*file);
         }
     }
 
@@ -1928,7 +1928,7 @@ static void cleanupState(Runner* runner) {
         OpenBinaryFile* file = &runner->openBinaryFiles[i];
         if (file->isOpen) {
             runner->fileSystem->vtable->binaryClose(runner->fileSystem, file->handle);
-            *file = (OpenBinaryFile) {0};
+            ZERO_STRUCT(*file);
         }
     }
 

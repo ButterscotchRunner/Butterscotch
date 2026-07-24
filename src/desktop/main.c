@@ -6,7 +6,7 @@
 #include "platformdefs.h"
 #include <getopt.h>
 #include <stdarg.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -37,7 +37,6 @@
 #include "gl_legacy_renderer.h"
 #endif
 #include "gl_common.h"
-#include "gl_wrappers.h"
 #endif
 #ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"

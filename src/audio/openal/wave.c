@@ -1,7 +1,7 @@
 // From https://gist.github.com/SteelPh0enix/e44d4a030dd8816309af84809ed75604
 
 #include "wave.h"
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 #include "binary_utils.h"
 #include "utils.h"

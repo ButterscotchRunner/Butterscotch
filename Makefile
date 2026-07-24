@@ -2,6 +2,7 @@
 # meant to be extremely portable to weird unix-like systems
 
 CC := cc
+PKG_CONFIG := pkg-config
 
 empty :=
 space := $(empty) $(empty)
@@ -39,8 +40,8 @@ INCLUDES += $(INCLUDE). \
 		    $(INCLUDE)vendor/base64 \
 		    $(INCLUDE)vendor/bzip2
 
-HEADERS := $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS := $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
+SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 DESKTOP_BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
@@ -75,29 +76,29 @@ PKG_CONFIG_FLAGS := --static
 endif
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs glfw3)
+GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),glfw2)
-GLFW2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs libglfw)
+GLFW2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libglfw)
 LIBS += $(GLFW2_LIBS)
 DEFINES += $(DEFINE)USE_GLFW2
 ENABLE_GLAD := 1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl1)
-SDL1_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl)
+SDL1_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl)
 LIBS += $(SDL1_LIBS)
 DEFINES += $(DEFINE)USE_SDL1
 endif
 ifeq ($(DESKTOP_BACKEND),sdl2)
-SDL2_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl2)
+SDL2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl2)
 LIBS += $(SDL2_LIBS)
 DEFINES += $(DEFINE)USE_SDL2
 endif
 ifeq ($(DESKTOP_BACKEND),sdl3)
-SDL3_LIBS += $(shell pkg-config $(PKG_CONFIG_FLAGS) --libs sdl3)
+SDL3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl3)
 LIBS += $(SDL3_LIBS)
 DEFINES += $(DEFINE)USE_SDL3
 endif
@@ -177,7 +178,7 @@ LIBS += -static
 LIBS += -lwinmm
 else
 LIBS += winmm.lib
-DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS
+DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS $(DEFINE)_CRT_SECURE_NO_DEPRECATE
 endif
 DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else
@@ -207,13 +208,13 @@ endif
 
 build/butterscotch: $(OBJS)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
-	$(V)$(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(CCLINK) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
 
 build/%.c.$(OBJ_EXT): %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
-	$(V)$(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $< $(OUTPUT_OBJ)$@
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build

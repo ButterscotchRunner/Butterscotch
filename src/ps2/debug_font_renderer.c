@@ -8,7 +8,7 @@
 #include <gsKit.h>
 #include <gsFontM.h>
 #include <malloc.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <string.h>
 

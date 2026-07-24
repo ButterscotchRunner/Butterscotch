@@ -2,7 +2,7 @@
 #include "ps2_gamepad.h"
 
 #include <libpad.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 
 #include "log.h"

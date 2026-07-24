@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 #include <unistd.h>
 #include <loadfile.h>
