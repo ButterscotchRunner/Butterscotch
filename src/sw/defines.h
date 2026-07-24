@@ -21,7 +21,7 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define FORCE_INLINE static inline __attribute__((always_inline))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1200
 #define FORCE_INLINE static __forceinline
 #else
 #define FORCE_INLINE static inline
