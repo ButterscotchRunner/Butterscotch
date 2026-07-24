@@ -1,0 +1,102 @@
+===== PATH TEST BEGIN =====
+Created path id = ref path __newpath0
+-------------------------
+exists      = 1
+length      = 400
+points      = 4
+closed      = 1
+kind        = 0
+precision   = 4
+0: x=0 y=0 speed=100
+1: x=100 y=0 speed=200
+2: x=100 y=100 speed=300
+3: x=0 y=100 speed=400
+t=0 -> x=0 y=0 speed=100
+t=0.25 -> x=100 y=0 speed=200
+t=0.50 -> x=100 y=100 speed=300
+t=0.75 -> x=0 y=100 speed=400
+t=1 -> x=0 y=0 speed=100
+===== CHANGE PRECISION =====
+-------------------------
+exists      = 1
+length      = 400
+points      = 4
+closed      = 1
+kind        = 0
+precision   = 8
+0: x=0 y=0 speed=100
+1: x=100 y=0 speed=200
+2: x=100 y=100 speed=300
+3: x=0 y=100 speed=400
+t=0 -> x=0 y=0 speed=100
+t=0.25 -> x=100 y=0 speed=200
+t=0.50 -> x=100 y=100 speed=300
+t=0.75 -> x=0 y=100 speed=400
+t=1 -> x=0 y=0 speed=100
+===== CHANGE KIND =====
+-------------------------
+exists      = 1
+length      = 324.61
+points      = 4
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=0 y=0 speed=100
+1: x=100 y=0 speed=200
+2: x=100 y=100 speed=300
+3: x=0 y=100 speed=400
+t=0 -> x=53.08 y=0.05 speed=153.12
+t=0.25 -> x=99.95 y=53.08 speed=253.12
+t=0.50 -> x=46.92 y=99.95 speed=352.93
+t=0.75 -> x=0.05 y=46.92 speed=240.82
+t=1 -> x=53.08 y=0.05 speed=153.12
+===== MAKE CLOSED =====
+-------------------------
+exists      = 1
+length      = 324.61
+points      = 4
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=0 y=0 speed=100
+1: x=100 y=0 speed=200
+2: x=100 y=100 speed=300
+3: x=0 y=100 speed=400
+t=0 -> x=53.08 y=0.05 speed=153.12
+t=0.25 -> x=99.95 y=53.08 speed=253.12
+t=0.50 -> x=46.92 y=99.95 speed=352.93
+t=0.75 -> x=0.05 y=46.92 speed=240.82
+t=1 -> x=53.08 y=0.05 speed=153.12
+===== CLEAR POINTS =====
+-------------------------
+exists      = 1
+length      = 0
+points      = 0
+closed      = 1
+kind        = 1
+precision   = 8
+t=0 -> x=0 y=0 speed=100
+t=0.25 -> x=0 y=0 speed=100
+t=0.50 -> x=0 y=0 speed=100
+t=0.75 -> x=0 y=0 speed=100
+t=1 -> x=0 y=0 speed=100
+===== ADD NEW POINTS =====
+-------------------------
+exists      = 1
+length      = 100
+points      = 2
+closed      = 1
+kind        = 1
+precision   = 8
+0: x=50 y=50 speed=10
+1: x=150 y=50 speed=20
+t=0 -> x=103.03 y=50 speed=15.30
+t=0.25 -> x=121.97 y=50 speed=17.20
+t=0.50 -> x=96.97 y=50 speed=14.70
+t=0.75 -> x=78.03 y=50 speed=12.80
+t=1 -> x=103.03 y=50 speed=15.30
+===== DELETE =====
+exists after delete = 0
+===== INVALID PATH =====
+exists = 0
+===== PATH TEST END =====
