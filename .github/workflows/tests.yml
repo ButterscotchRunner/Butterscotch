@@ -73,3 +73,51 @@ jobs:
           path: |
             tests/**/actual.*.png
           if-no-files-found: ignore
+
+  automated-ci-paths-linux-x86_64:
+    name: Automated CI Paths Test (GLFW/Linux x86_64)
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Download Butterscotch build artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          name: butterscotch-glfw-linux-x86_64
+          path: build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark Butterscotch binary executable
+        run: chmod +x build/butterscotch
+
+      - name: Run paths game and validate output
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          raw_output_file="${{ github.workspace }}/tests/automated-ci/paths/raw_output.txt"
+          normalized_output_file="${{ github.workspace }}/tests/automated-ci/paths/actual_output.txt"
+          expected_output_file="${{ github.workspace }}/tests/automated-ci/paths/expected_output.txt"
+
+          timeout 120s "${{ github.workspace }}/build/butterscotch" \
+            "${{ github.workspace }}/tests/automated-ci/paths/game.ios" \
+            --headless \
+            > "$raw_output_file" 2>&1
+
+          grep '^Game: ' "$raw_output_file" | sed 's/^Game: //' > "$normalized_output_file"
+
+          diff -u "$expected_output_file" "$normalized_output_file"
+
+      - name: Upload paths test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-ci-paths-output
+          path: |
+            tests/automated-ci/paths/raw_output.txt
+            tests/automated-ci/paths/actual_output.txt
+          if-no-files-found: ignore
