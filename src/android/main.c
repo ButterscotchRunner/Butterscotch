@@ -1,5 +1,5 @@
 #include <jni.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>

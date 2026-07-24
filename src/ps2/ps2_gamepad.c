@@ -2,7 +2,7 @@
 #include "ps2_gamepad.h"
 
 #include <libpad.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <string.h>
 
 // Track DualShock-mode handshake completion per port so poll() can lazily kick it off if it hasn't run yet.

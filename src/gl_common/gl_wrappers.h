@@ -1,83 +1,39 @@
 #if !defined(_BS_GL_WRAPPERS_H_) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_PS3) && !defined(__ANDROID__)
 #define _BS_GL_WRAPPERS_H_
 
-static inline void rt_glBindVertexArray(GLuint vao) {
-    if (glBindVertexArray) glBindVertexArray(vao);
-    else glBindVertexArrayOES(vao);
-}
-#undef glBindVertexArray
-#define glBindVertexArray rt_glBindVertexArray
+static inline void gl_init_wrappers(void) {
+    if (!glBindVertexArray)
+        glBindVertexArray = glBindVertexArrayOES;
 
-static inline void rt_glGenVertexArrays(GLsizei n, GLuint* arrays) {
-    if (glGenVertexArrays) glGenVertexArrays(n, arrays);
-    else glGenVertexArraysOES(n, arrays);
-}
-#undef glGenVertexArrays
-#define glGenVertexArrays rt_glGenVertexArrays
+    if (!glGenVertexArrays)
+        glGenVertexArrays = glGenVertexArraysOES;
 
-static inline void rt_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
-    if (glDeleteVertexArrays) glDeleteVertexArrays(n, arrays);
-    else glDeleteVertexArraysOES(n, arrays);
-}
-#undef glDeleteVertexArrays
-#define glDeleteVertexArrays rt_glDeleteVertexArrays
+    if (!glDeleteVertexArrays)
+        glDeleteVertexArrays = glDeleteVertexArraysOES;
 
-static inline void rt_glGenFramebuffers(GLsizei n, GLuint* ids) {
-    if (glGenFramebuffers) glGenFramebuffers(n, ids);
-    else glGenFramebuffersEXT(n, ids);
-}
-#undef glGenFramebuffers
-#define glGenFramebuffers rt_glGenFramebuffers
+    if (!glGenFramebuffers)
+        glGenFramebuffers = glGenFramebuffersEXT;
 
-static inline void rt_glBindFramebuffer(GLenum target, GLuint fb) {
-    if (glBindFramebuffer) glBindFramebuffer(target, fb);
-    else glBindFramebufferEXT(target, fb);
-}
-#undef glBindFramebuffer
-#define glBindFramebuffer rt_glBindFramebuffer
+    if (!glBindFramebuffer)
+        glBindFramebuffer = glBindFramebufferEXT;
 
-static inline void rt_glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) {
-    if (glFramebufferTexture2D) glFramebufferTexture2D(target, attachment, textarget, texture, level);
-    else glFramebufferTexture2DEXT(target, attachment, textarget, texture, level);
-}
-#undef glFramebufferTexture2D
-#define glFramebufferTexture2D rt_glFramebufferTexture2D
+    if (!glFramebufferTexture2D)
+        glFramebufferTexture2D = glFramebufferTexture2DEXT;
 
-static inline void rt_glDeleteFramebuffers(GLsizei n, const GLuint* ids) {
-    if (glDeleteFramebuffers) glDeleteFramebuffers(n, ids);
-    else glDeleteFramebuffersEXT(n, ids);
-}
-#undef glDeleteFramebuffers
-#define glDeleteFramebuffers rt_glDeleteFramebuffers
+    if (!glDeleteFramebuffers)
+        glDeleteFramebuffers = glDeleteFramebuffersEXT;
 
-static inline GLenum rt_glCheckFramebufferStatus(GLenum target) {
-    if (glCheckFramebufferStatus) return glCheckFramebufferStatus(target);
-    else return glCheckFramebufferStatusEXT(target);
-}
-#undef glCheckFramebufferStatus
-#define glCheckFramebufferStatus rt_glCheckFramebufferStatus
+    if (!glCheckFramebufferStatus)
+        glCheckFramebufferStatus = glCheckFramebufferStatusEXT;
 
-static inline void rt_glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
-                                        GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
-                                        GLbitfield mask, GLenum filter) {
-    if (glBlitFramebuffer) glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-    else glBlitFramebufferEXT(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-}
-#undef glBlitFramebuffer
-#define glBlitFramebuffer rt_glBlitFramebuffer
+    if (!glBlitFramebuffer)
+        glBlitFramebuffer = glBlitFramebufferEXT;
 
-static inline void rt_glBlendEquation(GLenum mode) {
-    if (glBlendEquation) glBlendEquation(mode);
-    else glBlendEquationEXT(mode);
-}
-#undef glBlendEquation
-#define glBlendEquation rt_glBlendEquation
+    if (!glBlendEquation)
+        glBlendEquation = glBlendEquationEXT;
 
-static inline void rt_glBlendFuncSeparate(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha) {
-    if (glBlendFuncSeparate) glBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
-    else glBlendFuncSeparateEXT(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
+    if (!glBlendFuncSeparate)
+        glBlendFuncSeparate = glBlendFuncSeparateEXT;
 }
-#undef glBlendFuncSeparate
-#define glBlendFuncSeparate rt_glBlendFuncSeparate
 
 #endif

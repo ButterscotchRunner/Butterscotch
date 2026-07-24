@@ -1,5 +1,5 @@
 #include <string.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <time.h>
 #include "math_compat.h"
 

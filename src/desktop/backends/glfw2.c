@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <time.h>
 
 #ifdef _WIN32
@@ -224,9 +224,19 @@ void platformExit(void) {
 static void platformSetCursor(int32_t cursorType) {
     // GLFW2 only supports showing/hiding
     if (cursorType == GML_CR_NONE) {
+        // GLFW2's mouse cursor locks the mouse position when it's invisible on Windows.
+        // This just makes it visible/invisible as intended.
+#ifdef _WIN32
+        while (ShowCursor(FALSE) >= 0);
+#else
         glfwDisable(GLFW_MOUSE_CURSOR);
+#endif
     } else {
+#ifdef _WIN32
+        while (ShowCursor(TRUE) < 0);
+#else
         glfwEnable(GLFW_MOUSE_CURSOR);
+#endif
     }
 }
 
@@ -291,7 +301,7 @@ bool platformHandleEvents(void) {
 }
 
 void platformSleepUntil(uint64_t time) {
-    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
+    double remaining = ((int64_t)time - (int64_t)nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 
