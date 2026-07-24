@@ -9337,11 +9337,11 @@ static RValue builtin_base64_decode(MAYBE_UNUSED VMContext* ctx, RValue* args, M
 }
 
 // Converts the "digest" to a hex string
-static char* convertToHexString(unsigned char* digest, int32_t digestLength) {
-    int32_t stringLength = digestLength * 2;
+static char* convertToHexString(unsigned char* digest, size_t digestLength) {
+    size_t stringLength = digestLength * 2;
     char* hex = (char *)safeMalloc(stringLength + 1);
-    for (int32_t i = 0; digestLength > i; i++) {
-        sprintf(&hex[i * 2], "%02x", digest[i]);
+    for (size_t i = 0; digestLength > i; i++) {
+        snprintf(&hex[i * 2], 3, "%02x", digest[i]);
     }
     hex[stringLength] = '\0';
     return hex;

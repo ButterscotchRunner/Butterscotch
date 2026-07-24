@@ -1949,8 +1949,9 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             char* display = RValue_toStringFancy(args[i]);
 
             if (i > 0) {
-                char* tmp = (char *)safeMalloc(strlen(functionArgumentList) + 2 + strlen(display) + 1);
-                sprintf(tmp, "%s, %s", functionArgumentList, display);
+                size_t bufsz = strlen(functionArgumentList) + 2 + strlen(display) + 1;
+                char* tmp = (char *)safeMalloc(bufsz);
+                snprintf(tmp, bufsz, "%s, %s", functionArgumentList, display);
                 free(functionArgumentList);
                 functionArgumentList = tmp;
             } else {
