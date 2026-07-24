@@ -88,6 +88,8 @@ void platformShowErrorDialogue(const char* message) {
     MessageBoxA(NULL, message, "Error", MB_OK | MB_ICONERROR);
 #elif defined(TARGET_OS_MAC)
     show_error_box(message);
+#else
+    void(message); // Suppress unused parameter warning
 #endif
 }
 
