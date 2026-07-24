@@ -1821,6 +1821,28 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeUndefined();
 }
 
+// show_error(str, abort) - Displays an error message and optionally aborts the game
+static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        fprintf(stderr, "[show_error] Expected at least 1 argument\n");
+        return RValue_makeUndefined();
+    }
+
+    char* val = RValue_toString(args[0]);
+    bool abort = false;
+    if (2 <= argCount) abort = RValue_toBool(args[1]);
+
+    fprintf(stderr, "Game error: %s\n", val);
+    free(val);
+
+    if (abort) {
+        fprintf(stderr, "Game aborted due to show_error() call.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_string_length(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeInt32(0);
     // GML converts non-string arguments to string before measuring length
@@ -16368,6 +16390,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Core output
     VM_registerBuiltin(ctx, "show_debug_message", builtin_show_debug_message);
+    VM_registerBuiltin(ctx, "show_error", builtin_show_error);
 
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtin_string_length);
