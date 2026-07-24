@@ -207,8 +207,8 @@ ifndef VERBOSE
 V := @
 endif
 
-OBJS := $(addprefix build/,$(SRCS:.c=.c.$(OBJ_EXT)))
-OBJS := $(OBJS:.m=.m.$(OBJ_EXT))
+OBJS := $(addprefix build/,$(SRCS))
+OBJS := $(OBJS:%=%.$(OBJ_EXT))
 
 all: build/butterscotch
 
@@ -226,15 +226,10 @@ build/butterscotch: $(OBJS)
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
 
-build/%.c.$(OBJ_EXT): %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
+build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
-
-build/%.m.$(OBJ_EXT): %.m compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
-	@mkdir -p $(dir $@)
-	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mOBJC\033[0m $<\n" || printf " OBJC $<\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build
