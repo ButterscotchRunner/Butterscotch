@@ -12458,7 +12458,9 @@ static RValue builtin_action_if_collision(VMContext* ctx, MAYBE_UNUSED RValue* a
     int32_t kind = RValue_toInt32(args[2]);
     applyActionRelativeOffset(ctx, &x, &y);
 
-    RValue posArgs[2] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y) };
+    RValue posArgs[2];
+    posArgs[0] = RValue_makeReal((GMLReal) x);
+    posArgs[1] = RValue_makeReal((GMLReal) y);
     RValue inner = (kind == 0) ? builtin_place_free(ctx, posArgs, 2) : builtin_place_empty(ctx, posArgs, 2);
     return RValue_makeBool(!RValue_toBool(inner));
 }
@@ -12475,7 +12477,9 @@ static RValue builtin_action_if_empty(VMContext* ctx, MAYBE_UNUSED RValue* args,
     int32_t kind = RValue_toInt32(args[2]);
     applyActionRelativeOffset(ctx, &x, &y);
 
-    RValue posArgs[2] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y) };
+    RValue posArgs[2];
+    posArgs[0] = RValue_makeReal((GMLReal) x);
+    posArgs[1] = RValue_makeReal((GMLReal) y);
     return (kind == 0) ? builtin_place_free(ctx, posArgs, 2) : builtin_place_empty(ctx, posArgs, 2);
 }
 
@@ -12491,7 +12495,10 @@ static RValue builtin_action_if_object(VMContext* ctx, MAYBE_UNUSED RValue* args
     float y = (float) RValue_toReal(args[2]);
     applyActionRelativeOffset(ctx, &x, &y);
 
-    RValue meetArgs[3] = { RValue_makeReal((GMLReal) x), RValue_makeReal((GMLReal) y), RValue_makeReal((GMLReal) obj) };
+    RValue meetArgs[3];
+    meetArgs[0] = RValue_makeReal((GMLReal) x);
+    meetArgs[1] = RValue_makeReal((GMLReal) y);
+    meetArgs[2] = RValue_makeReal((GMLReal) obj);
     return builtin_place_meeting(ctx, meetArgs, 3);
 }
 
@@ -12503,7 +12510,8 @@ static RValue builtin_action_if_number(VMContext* ctx, MAYBE_UNUSED RValue* args
     GMLReal value = RValue_toReal(args[1]);
     int32_t op = RValue_toInt32(args[2]);
 
-    RValue numArgs[1] = { args[0] };
+    RValue numArgs[1];
+    numArgs[0] = args[0];
     GMLReal count = RValue_toReal(builtin_instance_number(ctx, numArgs, 1));
 
     bool result;

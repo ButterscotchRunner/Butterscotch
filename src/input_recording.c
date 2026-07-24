@@ -212,17 +212,17 @@ bool InputRecording_save(InputRecording* recording) {
 
     JsonWriter_endObject(&w);
 
-    FILE* f = fopen(recording->recordFilePath, "wb");
-    if (f == nullptr) {
+    FILE* file = fopen(recording->recordFilePath, "wb");
+    if (file == nullptr) {
         fprintf(stderr, "Error: Could not write input recording to '%s'\n", recording->recordFilePath);
         JsonWriter_free(&w);
         return false;
     }
 
     const char* output = JsonWriter_getOutput(&w);
-    fwrite(output, 1, JsonWriter_getLength(&w), f);
-    fputc('\n', f);
-    fclose(f);
+    fwrite(output, 1, JsonWriter_getLength(&w), file);
+    fputc('\n', file);
+    fclose(file);
 
     fprintf(stderr, "InputRecording: Saved %d frames to '%s'\n", frameCount, recording->recordFilePath);
     JsonWriter_free(&w);

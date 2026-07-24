@@ -58,10 +58,11 @@
         #define YIELD() ((void)0)
     #endif
 #elif defined(_MSC_VER)
-    #include <intrin.h>
-    #if defined(_M_X64) || defined(_M_IX86)
+    #if (defined(_M_X64) || defined(_M_IX86)) && _MSC_VER >= 1400
+        #include <intrin.h>
         #define YIELD() _mm_pause()
     #elif defined(_M_ARM64) || defined(_M_ARM)
+        #include <intrin.h>
         #define YIELD() __yield()
     #else
         #define YIELD() ((void)0)

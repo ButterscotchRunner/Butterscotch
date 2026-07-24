@@ -245,12 +245,14 @@ int main(void){return 0;}
 if ! nolink=1 check 'if stdint.h works'; then
     include 'compat/stdint'
     config 'HEADERS += compat/stdint/stdint.h'
-    printf '%s' "\
+    if [ "$syntax" != 'msvc' ]; then
+        printf '%s' "\
 #include <sys/types.h>
 int main(void){return 0;}
 " > tmp/test.c
-    if nolink=1 check 'if sys/types.h works'; then
-        define 'HAVE_SYS_TYPES_H'
+        if nolink=1 check 'if sys/types.h works'; then
+            define 'HAVE_SYS_TYPES_H'
+        fi
     fi
 fi
 

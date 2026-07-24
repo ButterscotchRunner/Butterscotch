@@ -29,7 +29,7 @@
     (defined(_MSC_VER) && _MSC_VER >= 1940 && !defined(__cplusplus))
     #define TYPEOF(x) __typeof__(x)
 #else
-    #define TYPEOF(x) long long
+    #define TYPEOF(x) int64_t
 #endif
 
 #define forEach(type, item, array, count) \
