@@ -89,7 +89,7 @@ void platformShowErrorDialogue(const char* message) {
 #elif defined(TARGET_OS_MAC)
     show_error_box(message);
 #else
-    void(message); // Suppress unused parameter warning
+    (void)message; // Suppress unused parameter warning
 #endif
 }
 
