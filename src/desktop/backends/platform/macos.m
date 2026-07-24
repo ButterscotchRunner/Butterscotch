@@ -2,7 +2,6 @@
 
 void show_error_box(const char *message)
 {
-    printf("Error: %s\n", message);
     @autoreleasepool {
         NSAlert *alert = [[NSAlert alloc] init];
 
