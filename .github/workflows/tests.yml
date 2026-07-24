@@ -1,33 +1,34 @@
 name: Tests
 
 on:
-  workflow_run:
-    workflows: [Build]
-    types: [completed]
-
-permissions:
-  contents: read
-  actions: read
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   butterscotch-linux-x86_64:
     name: Butterscotch Tests (GLFW/Linux x86_64)
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
     env:
-      DOWNLOAD_COMMERCIAL_GAMES: ${{ github.event.workflow_run.head_repository.full_name == github.repository }}
+      DOWNLOAD_COMMERCIAL_GAMES: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Download Butterscotch build artifact
-        uses: actions/download-artifact@v4
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          name: butterscotch-glfw-linux-x86_64
-          path: build
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
+
+      - name: Configure
+        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+      - name: Build Butterscotch
+        run: cmake --build build -j$(nproc)
 
       - name: Mark Butterscotch binary executable
         run: chmod +x build/butterscotch
@@ -77,19 +78,23 @@ jobs:
   automated-ci-paths-linux-x86_64:
     name: Automated CI Paths Test (GLFW/Linux x86_64)
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Download Butterscotch build artifact
-        uses: actions/download-artifact@v4
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          name: butterscotch-glfw-linux-x86_64
-          path: build
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
+
+      - name: Configure
+        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+      - name: Build Butterscotch
+        run: cmake --build build -j$(nproc)
 
       - name: Mark Butterscotch binary executable
         run: chmod +x build/butterscotch
