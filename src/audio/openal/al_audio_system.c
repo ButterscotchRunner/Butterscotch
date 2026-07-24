@@ -887,7 +887,6 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     bool isEmbedded = (sound->flags & AUDIO_ENTRY_FLAG_IS_EMBEDDED) != 0;
     bool isCompressed = (sound->flags & AUDIO_ENTRY_FLAG_IS_COMPRESSED) != 0;
     bool inAudo = !isRegular || isEmbedded || isCompressed;
-    fprintf(stderr, "inAudo: %d\n", inAudo);
     if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
         AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
