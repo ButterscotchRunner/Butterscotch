@@ -71,4 +71,10 @@
     #define YIELD() ((void)0)
 #endif
 
+#ifdef _MSC_VER
+#define longlong __int64
+#else
+#define longlong long long
+#endif
+
 #endif /* _BS_COMMON_H_ */

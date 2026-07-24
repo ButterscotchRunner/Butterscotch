@@ -2464,12 +2464,12 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
     }
 
     fprintf(stderr, "=== Opcode Profiler Report ===\n");
-    fprintf(stderr, "Total instructions executed: %llu\n", (unsigned long long) total);
+    fprintf(stderr, "Total instructions executed: %llu\n", (unsigned longlong) total);
     fprintf(stderr, "%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
         double pct = total > 0 ? (100.0 * (double) entry->count / (double) total) : 0.0;
-        fprintf(stderr, "%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned long long) entry->count, pct);
+        fprintf(stderr, "%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
     }
 
     // Per-opcode breakdown by type variant. Sorted within each opcode by count desc.
@@ -2498,13 +2498,13 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             variantEntries[j] = tmp;
         }
 
-        fprintf(stderr, "%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned long long) entry->count);
+        fprintf(stderr, "%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned longlong) entry->count);
         forEachIndexed(CountEntry, ve, vi, variantEntries, variantCount) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
             uint8_t type2 = (uint8_t) (ve->key & 0xF);
             double vpct = entry->count > 0 ? (100.0 * (double) ve->count / (double) entry->count) : 0.0;
-            fprintf(stderr, "    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned long long) ve->count, vpct);
+            fprintf(stderr, "    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned longlong) ve->count, vpct);
         }
 
         // Runtime RValue type breakdown (a, b types observed at execution time)
@@ -2537,7 +2537,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     uint8_t typeA = (uint8_t) ((re->key >> 4) & 0xF);
                     uint8_t typeB = (uint8_t) (re->key & 0xF);
                     double rpct = rvTotal > 0 ? (100.0 * (double) re->count / (double) rvTotal) : 0.0;
-                    fprintf(stderr, "    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned long long) re->count, rpct);
+                    fprintf(stderr, "    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned longlong) re->count, rpct);
                 }
             }
         }
@@ -2567,7 +2567,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                 (void) bi;
                 int16_t breakType = (int16_t) -((int) be->key);
                 double bpct = entry->count > 0 ? (100.0 * (double) be->count / (double) entry->count) : 0.0;
-                fprintf(stderr, "    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned long long) be->count, bpct);
+                fprintf(stderr, "    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned longlong) be->count, bpct);
             }
         }
     }
@@ -3996,7 +3996,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
                     break;
                 case GML_TYPE_INT64:
                     snprintf(opcodeStr, opcodeSize, "Push.l");
-                    snprintf(operandStr, operandSize, "%lld", (long long) BinaryUtils_readInt64(extraData));
+                    snprintf(operandStr, operandSize, "%lld", (longlong) BinaryUtils_readInt64(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [int64]");
                     break;
                 case GML_TYPE_BOOL:

@@ -97,7 +97,7 @@ void JsonWriter_string(JsonWriter* writer, const char* value) {
 
 void JsonWriter_int(JsonWriter* writer, int64_t value) {
     writeCommaIfNeeded(writer);
-    StringBuilder_appendFormat(&writer->out, "%lld", (long long) value);
+    StringBuilder_appendFormat(&writer->out, "%lld", (longlong) value);
     writer->needsComma = true;
 }
 
