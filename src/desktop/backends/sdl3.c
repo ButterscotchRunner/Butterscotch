@@ -108,6 +108,15 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
     return NULL;
 }
 
+void platformShowErrorDialogue(const char* message) {
+    SDL_ShowSimpleMessageBox(
+        SDL_MESSAGEBOX_ERROR,
+        "Error",
+        message,
+        NULL
+    );
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);

@@ -186,6 +186,12 @@ if(PLATFORM STREQUAL "desktop")
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
+    if(APPLE)
+        target_sources(butterscotch PRIVATE src/desktop/backends/platform/macos.m)
+        find_library(COCOA_LIBRARY Cocoa REQUIRED)
+        target_link_libraries(butterscotch PRIVATE ${COCOA_LIBRARY})
+    endif()
+
     if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "You must enable at least one renderer!")
     endif()

@@ -4,6 +4,10 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <SDL/SDL.h>
 
 #include "common.h"
@@ -201,6 +205,19 @@ static void loadGamepadMappings(void) {
     }
     fclose(f);
 }
+
+#ifdef TARGET_OS_MAC
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef _WIN32
+    MessageBoxA(NULL, message, "Error", MB_OK | MB_ICONERROR);
+#elif defined(TARGET_OS_MAC)
+    show_error_box(message);
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);

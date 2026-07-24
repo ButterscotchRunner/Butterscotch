@@ -1832,7 +1832,11 @@ static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     bool abort = false;
     if (2 <= argCount) abort = RValue_toBool(args[1]);
 
-    fprintf(stderr, "Game error: %s\n", val);
+    fprintf(stderr, "[show_error] %s\n", val);
+    Runner* runner = ctx->runner;
+    if (runner->showErrorDialogue) {
+        runner->showErrorDialogue(val);
+    }
     free(val);
 
     if (abort) {

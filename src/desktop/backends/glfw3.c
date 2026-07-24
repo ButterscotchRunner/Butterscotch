@@ -79,6 +79,18 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
     return NULL;
 }
 
+#ifdef TARGET_OS_MAC
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef _WIN32
+    MessageBoxA(NULL, message, "Error", MB_OK | MB_ICONERROR);
+#elif defined(TARGET_OS_MAC)
+    show_error_box(message);
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);
