@@ -12913,8 +12913,11 @@ static int32_t resolveLayerIdArg(Runner* runner, RValue arg) {
         if (runner->currentRoom != nullptr) {
             repeat(runner->currentRoom->layerCount, i) {
                 RoomLayer* layer = &runner->currentRoom->layers[i];
-                if (layer->name != nullptr && strcmp(layer->name, name) == 0)
-                    return (int32_t) layer->id;
+                if (layer->name != nullptr && strcmp(layer->name, name) == 0) {
+                    // Only resolve room-layer names that still exist in the runtime layer list.
+                    if (Runner_findRuntimeLayerById(runner, (int32_t) layer->id) != nullptr)
+                        return (int32_t) layer->id;
+                }
             }
         }
         return -1;
@@ -13172,12 +13175,20 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
         if ((int32_t) runner->runtimeLayers[i].id != id)
             continue;
 
-        // Ignore if we are trying to delete a non-dynamic layer
-        if (!runner->runtimeLayers[i].dynamic)
-            return RValue_makeUndefined();
+        // GameMaker allows destroying room-defined layers at runtime.
+        // When destroying an instance layer, destroy the instances bound to that layer.
+        size_t elementCount = arrlenu(runner->runtimeLayers[i].elements);
+        repeat(elementCount, j) {
+            RuntimeLayerElement* el = &runner->runtimeLayers[i].elements[j];
+            if (el->type != RuntimeLayerElementType_Instance) continue;
+            Instance* inst = hmget(runner->instancesById, el->instanceId);
+            if (inst == nullptr || inst->destroyed) continue;
+            Runner_destroyInstance(runner, inst, true);
+        }
 
         Runner_freeRuntimeLayer(&runner->runtimeLayers[i]);
         arrdel(runner->runtimeLayers, i);
+
         runner->drawableListStructureDirty = true;
         break;
     }
