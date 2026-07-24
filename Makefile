@@ -76,7 +76,9 @@ PKG_CONFIG_FLAGS := --static
 endif
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
+GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+CFLAGS += $(GLFW3_CFLAGS)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
@@ -206,6 +208,7 @@ V := @
 endif
 
 OBJS := $(addprefix build/,$(SRCS:.c=.c.$(OBJ_EXT)))
+OBJS := $(OBJS:.m=.m.$(OBJ_EXT))
 
 all: build/butterscotch
 
@@ -227,6 +230,11 @@ build/%.c.$(OBJ_EXT): %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
+
+build/%.m.$(OBJ_EXT): %.m compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
+	@mkdir -p $(dir $@)
+	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mOBJC\033[0m $<\n" || printf " OBJC $<\n"
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build
