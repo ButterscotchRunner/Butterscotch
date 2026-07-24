@@ -755,8 +755,6 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         DataWinParserOptions options = {0};
         options.parseAudo = true;
         options.lazyLoadAudio = audio->dw->lazyLoadAudio;
-        if (audio->dw->mappedFile)
-            options.loadType = DATAWINLOADTYPE_MAP_FILE;
         DataWin *audioGroup = DataWin_parse(((MaAudioSystem*)audio)->fileSystem->vtable->resolvePath(((MaAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
         free(buf);
