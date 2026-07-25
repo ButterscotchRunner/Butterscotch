@@ -1,5 +1,4 @@
 #include "gl_renderer.h"
-#include "matrix_math.h"
 #include "text_utils.h"
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
@@ -16,7 +15,6 @@
 #include "stb_ds.h"
 #include "utils.h"
 #include "image_decoder.h"
-#include "gl_common.h"
 #include "gl_wrappers.h"
 
 // ===[ Constants ]===
@@ -136,12 +134,11 @@ static void flushBatch(GLRenderer* gl) {
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[gl->base.currentShader];
 
-        GLShaderUniform* uniform = findShaderUniformByName(shader, "gm_BaseTexture");
-        if (uniform != nullptr)
-            glActiveTexture(GL_TEXTURE0 + uniform->samplerSlot);
+        if (shader->gmBaseTexture != nullptr)
+            glActiveTextureCached(&gl->state, GL_TEXTURE0 + shader->gmBaseTexture->samplerSlot);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     } else {
-        glActiveTexture(GL_TEXTURE1);
+        glActiveTextureCached(&gl->state, GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
@@ -149,18 +146,12 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
-    if (hasVAO()) {
-        glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
-    } else {
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), gl->vertexData, GL_STREAM_DRAW);
+    
+    if (!hasVAO()) {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
-
+    
         int32_t stride = sizeof(Vertex);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
         glEnableVertexAttribArray(0);
@@ -250,6 +241,17 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
             gmlShader->uniforms[b].samplerSlot = samplerIndex;
             samplerIndex += 1;
         }
+
+        if (strcmp(uniformName, "gm_BaseTexture") == 0)
+            gmlShader->gmBaseTexture = &gmlShader->uniforms[b];
+        else if (strcmp(uniformName, "gm_Matrices[0]") == 0)
+            gmlShader->gmMatrices = &gmlShader->uniforms[b];
+        else if (strcmp(uniformName, "gm_FogColour") == 0)
+            gmlShader->gmFogColour = &gmlShader->uniforms[b];
+        else if (strcmp(uniformName, "gm_AlphaTestEnabled") == 0)
+            gmlShader->gmAlphaTestEnabled = &gmlShader->uniforms[b];
+        else if (strcmp(uniformName, "gm_AlphaRefValue") == 0)
+            gmlShader->gmAlphaRefValue = &gmlShader->uniforms[b];
     }
 
     gmlShader->shaderId = shaderId;
@@ -427,7 +429,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // VBO: sized for max quads
     int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_STREAM_DRAW);
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
     uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
@@ -449,7 +451,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
         glEnableVertexAttribArray(2);
-        glBindVertexArray(0);
     }
 
     // Allocate CPU-side vertex buffer
@@ -479,7 +480,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     // Enable blending
-    glEnable(GL_BLEND);
+    glSetCap(&gl->state, GL_BLEND, true);
+
+    // Initialise state cache
+    memset(&gl->state, 0, sizeof(gl->state));
+    gl->state.uniformsDirty = true;
+    gl->state.currentFbo = 0;
+    gl->state.blendEnabled = true;
+
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     gl->batchCount = 0;
@@ -498,15 +506,10 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     flushBatch(gl);
     GMLShader* gmlShader = &gl->gmlShaders[shaderIndex];
 
-    glUseProgram(gmlShader->shaderId);
-    //Gotta set those built-ins! they ain't gonna set themselves
-    GLShaderUniform* gmMatricesUniform = findShaderUniformByName(gmlShader, "gm_Matrices[0]");
-    GLShaderUniform* gmFogColourUniform = findShaderUniformByName(gmlShader, "gm_FogColour");
-
-    //Lights are for another time
-
-    GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
-    GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
+    if (gl->currentProgram != gmlShader->shaderId) {
+        glUseProgram(gmlShader->shaderId);
+        gl->currentProgram = gmlShader->shaderId;
+    }
 
     Matrix4f flippedClip[MATRICES_MAX];
     memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
@@ -514,17 +517,17 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
     Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
 
-    if (gmMatricesUniform != nullptr) {
-        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, flippedClip[0].m);
+    if (gmlShader->gmMatrices != nullptr) {
+        glUniformMatrix4fv(gmlShader->gmMatrices->location, 5, GL_FALSE, flippedClip[0].m);
     }
-    if (gmFogColourUniform != nullptr) {
-        glUniform1i(gmFogColourUniform->location, gl->fogColor);
+    if (gmlShader->gmFogColour != nullptr) {
+        glUniform1i(gmlShader->gmFogColour->location, gl->fogColor);
     }
-    if (gmAlphaTestEnabledUniform != nullptr) {
-        glUniform1i(gmAlphaTestEnabledUniform->location, gl->alphaTestEnable);
+    if (gmlShader->gmAlphaTestEnabled != nullptr) {
+        glUniform1i(gmlShader->gmAlphaTestEnabled->location, gl->alphaTestEnable);
     }
-    if (gmAlphaRefValue != nullptr) {
-        glUniform1f(gmAlphaRefValue->location, gl->alphaTestRef);
+    if (gmlShader->gmAlphaRefValue != nullptr) {
+        glUniform1f(gmlShader->gmAlphaRefValue->location, gl->alphaTestRef);
     }
 
     renderer->currentShader = shaderIndex;
@@ -540,19 +543,30 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         float fogG = (float) BGR_G(gl->fogColor) / 255.0f;
         float fogB = (float) BGR_B(gl->fogColor) / 255.0f;
 
-        glUseProgram(gl->defaultShaderProgram->shaderId);
+        DefaultShaderUniforms cur;
+        cur.wvp = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
+        Matrix4f_flipClipY(&cur.wvp);
+        cur.fogColor[0] = fogR; cur.fogColor[1] = fogG; cur.fogColor[2] = fogB;
+        cur.fogColor[3] = gl->fogEnable ? 1.0f : 0.0f;
+        cur.alphaTestRef = gl->alphaTestRef;
+        cur.alphaTestEnabled = gl->alphaTestEnable;
 
-        Matrix4f flippedClip[MATRICES_MAX];
-        memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
-        //I was making the Legacy OpenGL renderer work with the projections, then I realized I think I only need to flip the Projection(s) and not the other ones
-        Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
-        Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
+        if (!gl->state.uniformsDirty && memcmp(&gl->state.last, &cur, sizeof(cur)) == 0)
+            return;
 
-        glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
-        glUniform4f(gl->uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
-        glUniform1f(gl->uAlphaTestRef->location, gl->alphaTestRef);
-        glUniform1i(gl->uAlphaTestEnabled->location, gl->alphaTestEnable);
+        if (gl->currentProgram != gl->defaultShaderProgram->shaderId) {
+            glUseProgram(gl->defaultShaderProgram->shaderId);
+            gl->currentProgram = gl->defaultShaderProgram->shaderId;
+        }
+
+        glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, cur.wvp.m);
+        glUniform4f(gl->uFogColor->location, cur.fogColor[0], cur.fogColor[1], cur.fogColor[2], cur.fogColor[3]);
+        glUniform1f(gl->uAlphaTestRef->location, cur.alphaTestRef);
+        glUniform1i(gl->uAlphaTestEnabled->location, cur.alphaTestEnabled);
         glUniform1i(gl->uTexture->location, 1);
+
+        gl->state.last = cur;
+        gl->state.uniformsDirty = false;
     }
 }
 
@@ -578,13 +592,17 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
     //oh my I hope it's good enough.
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);    
 }
 
 static void glGpuResetShader(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glUseProgram(gl->defaultShaderProgram->shaderId);
+    if (gl->currentProgram != gl->defaultShaderProgram->shaderId) {
+        glUseProgram(gl->defaultShaderProgram->shaderId);
+        gl->currentProgram = gl->defaultShaderProgram->shaderId;
+    }
     renderer->currentShader = -1;
     glShaderSettingsRefresh(renderer);
 }
@@ -646,8 +664,8 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
     // Bind the application_surface
     int32_t appId = gl->base.runner->applicationSurfaceId;
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[appId]);
-    glViewport(0, 0, gameW, gameH);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glViewportCached(&gl->state, 0, 0, gameW, gameH);
     gl->base.CPortX = 0;
     gl->base.CPortY = 0;
     gl->base.CPortW = gameW;
@@ -664,15 +682,15 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     // FBO uses game resolution, port coordinates are in game space
     // OpenGL viewport Y is bottom-up, game Y is top-down
 
-    glViewport(portX, portY, portW, portH);
+    glViewportCached(&gl->state, portX, portY, portW, portH);
 
     gl->base.CPortX = portX;
     gl->base.CPortY = portY;
     gl->base.CPortW = portW;
     gl->base.CPortH = portH;
 
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(portX, portY, portW, portH);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, true);
+    glScissorCached(&gl->state, portX, portY, portW, portH);
 
     int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
@@ -684,16 +702,14 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
     glShaderSettingsRefresh(renderer);
-    glActiveTexture(GL_TEXTURE1);
-
-    if (hasVAO()) glBindVertexArray(gl->vao);
+    glActiveTextureCached(&gl->state, GL_TEXTURE1);
 
 }
 
 static void glEndView(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glDisable(GL_SCISSOR_TEST);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, false);
 }
 
 static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, MAYBE_UNUSED int32_t portH, int32_t targetSurfaceId) {
@@ -703,19 +719,19 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     gl->currentTextureId = 0;
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
-        glViewport(0, 0, portW, portH);
-        glScissor(0, 0, portW, portH);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glViewportCached(&gl->state, 0, 0, portW, portH);
+        glScissorCached(&gl->state, 0, 0, portW, portH);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
         int32_t glPortY = gl->gameH - portY - portH;
-        glViewport(portX, glPortY, portW, portH);
-        glScissor(portX, glPortY, portW, portH);
+        glViewportCached(&gl->state, portX, glPortY, portW, portH);
+        glScissorCached(&gl->state, portX, glPortY, portW, portH);
     }
 
-    glEnable(GL_SCISSOR_TEST);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, true);
     //I dunno hopefully this is at least somewhat correct...
     gl->base.cameraCurrent = GUI_CAMERA;
     GMLCamera* camera = &renderer->runner->guiCamera;
@@ -744,9 +760,7 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
 
-    glActiveTexture(GL_TEXTURE1);
-
-    if (hasVAO()) glBindVertexArray(gl->vao);
+    glActiveTextureCached(&gl->state, GL_TEXTURE1);
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
@@ -785,15 +799,14 @@ static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, M
 static void glEndGUI(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    glDisable(GL_SCISSOR_TEST);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, false);
 }
 
 static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (hasVAO()) glBindVertexArray(0);
 
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->hostFramebuffer);
         return;
     }
 }
@@ -807,20 +820,19 @@ static void glEndFrameEnd(Renderer* renderer) {
     int32_t appId = gl->base.runner->applicationSurfaceId;
 
     if (gl->isGL3) {
-        GLCommon_beginLetterboxBlit(gl->surfaces[appId], gl->hostFramebuffer);
-        GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
+        GLCommon_beginLetterboxBlit(&gl->state, gl->surfaces[appId], gl->hostFramebuffer);
+        GLCommon_endLetterboxBlit(&gl->state, gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, gl->hostFramebuffer);
     } else {
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
-        GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-        if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->hostFramebuffer);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, !(gl->state.scissorEnabled));
 
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClearColorCached(&gl->state, 0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glViewport(0, 0, gl->windowW, gl->windowH);
+        glViewportCached(&gl->state, 0, 0, gl->windowW, gl->windowH);
 
         renderer->vtable->setGuiProjection(renderer, gl->windowW, gl->windowH, gl->windowW, gl->windowH, false);
-        glDisable(GL_BLEND);
+        glSetCap(&gl->state, GL_BLEND, false);
 
         int32_t sx, sy, ex, ey;
         GLCommon_computeLetterbox(gl->gameW, gl->gameH, gl->windowW, gl->windowH, &sx, &sy, &ex, &ey);
@@ -830,8 +842,8 @@ static void glEndFrameEnd(Renderer* renderer) {
         renderer->vtable->drawSurface(renderer, appId, 0, 0, gl->gameW, gl->gameH, (float)sx, (float)sy, scaleX, scaleY, 0.0f, 0xFFFFFF, 1.0f);
         flushBatch(gl);
 
-        glEnable(GL_BLEND);
-        if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+        glSetCap(&gl->state, GL_BLEND, false);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, !(gl->state.scissorEnabled));
     }
 }
 
@@ -849,7 +861,7 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
 
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
     //No it doesn't?
-    glClearColor(r, g, b, alpha);
+    glClearColorCached(&gl->state, r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
 
 }
@@ -1919,8 +1931,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     flushBatch(gl);
 
     // Save the current FBO binding so creating a surface doesn't change the active render target.
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     uint32_t surfaceIndex = GLCommon_findOrAllocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
 
@@ -1938,14 +1949,14 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
 
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
 
     fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     return (int32_t) surfaceIndex;
 }
@@ -1994,8 +2005,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     if (gl->surfaces[surfaceID] == 0) return;
     if (gl->surfaceWidth[surfaceID] == width && gl->surfaceHeight[surfaceID] == height) return;
 
-    GLint prevBinding = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+    GLint prevBinding = gl->state.currentFbo;
 
     if (gl->surfaceTexture[surfaceID] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceID]);
 
@@ -2007,14 +2017,14 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceID], 0);
 
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
 
     fprintf(stderr, "GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, (GLuint) prevBinding);
 }
 
 static bool glSurfaceExists(Renderer* renderer, int32_t surfaceId) {
@@ -2026,7 +2036,7 @@ static bool glSurfaceExists(Renderer* renderer, int32_t surfaceId) {
 static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* outRGBA) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    return GLCommon_surfaceGetPixels(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, surfaceId, outRGBA);
+    return GLCommon_surfaceGetPixels(&gl->state, gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, surfaceId, outRGBA);
 }
 
 static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
@@ -2034,9 +2044,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     flushBatch(gl);
 
     int32_t viewCurrent = 0;
-    if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
-    }
+    if (renderer->runner->viewsEnabled) viewCurrent = renderer->runner->viewCurrent;
     RuntimeView* view = &renderer->runner->views[viewCurrent];
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
@@ -2044,51 +2052,51 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
-        glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glEnable(GL_SCISSOR_TEST);
+        glViewportCached(&gl->state, gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, true);
 
-        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        glApplyProjection(renderer, &camera->viewMatrix ,&camera->projectionMatrix);
 
         return true;
     }
 
 
     if (surfaceId == view->surfaceId) {
-    //the surface belongs to the view we are rending, we use the view's camera.
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //the surface belongs to the view we are rending, we use the view's camera.
+        glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, false);    
+        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        return true;
     } else {
-    //camera will use full surface.
-    gl->base.cameraCurrent = SURFACE_CAMERA;
-    GMLCamera* camera =  &renderer->runner->surfaceCamera;
-
-    camera->allocated = true;
-    camera->viewX = 0.0;
-    camera->viewY = 0.0;
-    camera->viewWidth = gl->surfaceWidth[surfaceId];
-    camera->viewHeight = gl->surfaceHeight[surfaceId];
-    camera->borderX = 0;
-    camera->borderY = 0;
-    camera->speedX = 0;
-    camera->speedY = 0;
-    camera->objectId = -1;
-    camera->viewAngle = 0;
-    Runner_updateCameraViewSimple(camera);
-
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        //camera will use full surface.
+        gl->base.cameraCurrent = SURFACE_CAMERA;
+        GMLCamera* camera =  &renderer->runner->surfaceCamera;
+    
+        camera->allocated = true;
+        camera->viewX = 0.0;
+        camera->viewY = 0.0;
+        camera->viewWidth = gl->surfaceWidth[surfaceId];
+        camera->viewHeight = gl->surfaceHeight[surfaceId];
+        camera->borderX = 0;
+        camera->borderY = 0;
+        camera->speedX = 0;
+        camera->speedY = 0;
+        camera->objectId = -1;
+        camera->viewAngle = 0;
+        Runner_updateCameraViewSimple(camera);
+    
+        glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glSetCap(&gl->state, GL_SCISSOR_TEST, false);
+        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+        return true;
     }
 
 
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
+    glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glSetCap(&gl->state, GL_SCISSOR_TEST, false);
 
     return true;
 }
@@ -2101,18 +2109,17 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     if (0 > destSurfaceID || (uint32_t) destSurfaceID >= gl->surfaceCount || gl->surfaces[destSurfaceID] == 0) return;
 
     if (gl->isGL3) {
-        GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
+        GLCommon_surfaceBlit(&gl->state, gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
     } else {
-        GLint prevBinding = 0;
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
+        GLuint prevBinding = gl->state.currentFbo;
         Matrix4f prevProj = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
-        bool prevBlend = glIsEnabled(GL_BLEND);
-        GLint prevViewport[4];
-        glGetIntegerv(GL_VIEWPORT, prevViewport);
+        bool prevBlend = gl->state.blendEnabled;
+        int32_t prevViewport[4];
+        memcpy(prevViewport, gl->state.viewport, sizeof(prevViewport));
 
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[destSurfaceID]);
-        glViewport(0, 0, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID]);
-        glDisable(GL_BLEND);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[destSurfaceID]);
+        glViewportCached(&gl->state, 0, 0, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID]);
+        glSetCap(&gl->state, GL_BLEND, false);
 
         renderer->vtable->setGuiProjection(renderer, gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], gl->surfaceWidth[destSurfaceID], gl->surfaceHeight[destSurfaceID], true);
 
@@ -2124,11 +2131,11 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
         renderer->vtable->drawSurface(renderer, srcSurfaceID, sX, sY, sW, sH, (float)destX, (float)destY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
         flushBatch(gl);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
+        glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, (GLuint) prevBinding);
         renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = prevProj;
         glShaderSettingsRefresh(renderer);
-        if (prevBlend) glEnable(GL_BLEND);
-        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+        if (prevBlend) glSetCap(&gl->state, GL_BLEND, true);
+        glViewportCached(&gl->state, prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     }
 }
 
@@ -2238,7 +2245,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     // Flush any pending draws before reading pixels
     flushBatch(gl);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
+    glBindFramebufferCached(&gl->state, GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
 
     uint8_t* pixels = (uint8_t *)safeMalloc((size_t) w * (size_t) h * 4);
     if (pixels == nullptr) return -1;
@@ -2352,6 +2359,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->currentBlendMode == mode) return;
     flushBatch(gl);
 
     gl->currentBlendMode = mode;
@@ -2382,13 +2390,14 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    flushBatch((GLRenderer*)renderer);
-    enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    glSetCap(&gl->state, GL_BLEND, enable);
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-    (void)renderer;
-    return glIsEnabled(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->state.blendEnabled;
 }
 
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
@@ -2396,6 +2405,7 @@ static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     if (gl->alphaTestEnable == enable) return;
     flushBatch(gl);
     gl->alphaTestEnable = enable;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2405,6 +2415,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     if (gl->alphaTestRef == refF) return;
     flushBatch(gl);
     gl->alphaTestRef = refF;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2432,6 +2443,7 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     flushBatch(gl);
     gl->fogEnable = enable;
     gl->fogColor = color;
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -2564,10 +2576,9 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
         fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
         return;
     }
-    glActiveTexture(GL_TEXTURE0 + slot);
+    glActiveTextureCached(&gl->state, GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texID);
-    glActiveTexture(GL_TEXTURE1);
-
+    glActiveTextureCached(&gl->state, GL_TEXTURE1);
 }
 
 // Look up a texture's pixel size from the renderer's own tables.
@@ -2659,7 +2670,7 @@ static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix)
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
-
+    gl->state.uniformsDirty = true;
     glShaderSettingsRefresh(renderer);
 }
 

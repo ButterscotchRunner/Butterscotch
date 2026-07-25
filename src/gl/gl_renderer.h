@@ -1,6 +1,8 @@
 #ifndef _BS_GL_RENDERER_H_
 #define _BS_GL_RENDERER_H_
 
+#include "gl_common.h"
+
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
@@ -28,6 +30,12 @@ typedef struct {
     bool compiled;
     uint32_t uniformCount;
     GLShaderUniform* uniforms;
+
+    GLShaderUniform* gmBaseTexture;
+    GLShaderUniform* gmMatrices;
+    GLShaderUniform* gmFogColour;
+    GLShaderUniform* gmAlphaTestEnabled;
+    GLShaderUniform* gmAlphaRefValue;
 } GMLShader;
 
 typedef struct {
@@ -98,6 +106,10 @@ typedef struct {
     GLShaderUniform* uAlphaTestRef;
     GLShaderUniform* uAlphaTestEnabled;
     GLShaderUniform* uTexture;
+
+    GLuint currentProgram;
+
+    GLState state;
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);

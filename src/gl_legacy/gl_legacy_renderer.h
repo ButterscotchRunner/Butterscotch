@@ -1,6 +1,8 @@
 #ifndef _BS_GL_LEGACY_RENDERER_H_
 #define _BS_GL_LEGACY_RENDERER_H_
 
+#include "gl_common.h"
+
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
@@ -53,6 +55,9 @@ typedef struct {
     int32_t currentDFactor;
     int32_t currentSFactorAlpha;
     int32_t currentDFactorAlpha;
+
+    // State tracking
+    GLState state;
 } GLLegacyRenderer;
 
 bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId);
