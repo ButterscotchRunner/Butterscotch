@@ -1618,12 +1618,12 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         GLuint vbo;
     } GLVertexBuffer;
 
-    GLVertexBuffer *glBuffer = buffer->rendererData;
+    GLVertexBuffer *glBuffer = (GLVertexBuffer *)buffer->rendererData;
 
     if (!glBuffer) {
         glBuffer = malloc(sizeof(GLVertexBuffer));
         glGenBuffers(1, &glBuffer->vbo);
-        buffer->rendererData = glBuffer;
+        buffer->rendererData = (void *) glBuffer;
     }
 
     GLenum mode;
