@@ -1621,7 +1621,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     GLVertexBuffer *glBuffer = (GLVertexBuffer *)buffer->rendererData;
 
     if (!glBuffer) {
-        glBuffer = malloc(sizeof(GLVertexBuffer));
+        glBuffer = (GLVertexBuffer *)malloc(sizeof(*glBuffer));
         glGenBuffers(1, &glBuffer->vbo);
         buffer->rendererData = (void *) glBuffer;
     }
