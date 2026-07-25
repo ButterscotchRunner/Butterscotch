@@ -1,6 +1,10 @@
 #include <AvailabilityMacros.h>
 #include <AppKit/AppKit.h>
 
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
 
 static void show_error_box_nsalert(const char *message)
