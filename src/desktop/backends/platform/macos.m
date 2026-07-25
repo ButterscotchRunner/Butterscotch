@@ -1,44 +1,25 @@
 #include <AvailabilityMacros.h>
 #include <AppKit/AppKit.h>
 
-#ifndef __has_feature
-#define __has_feature(x) 0
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030 // NSAlert is available in 10.3 and later
 
 static void show_error_box_nsalert(const char *message)
 {
-#if __has_feature(objc_arc)
-    @autoreleasepool {
-#else
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-#endif
-
     NSAlert *alert = [[NSAlert alloc] init];
 
     [alert setMessageText:@"Error"];
     [alert setInformativeText:[NSString stringWithUTF8String:message]];
     [alert addButtonWithTitle:@"OK"];
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101200
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101200 // NSAlertStyleCritical is available in 10.12 and later
         [alert setAlertStyle:NSAlertStyleCritical];
 #else
         [alert setAlertStyle:NSCriticalAlertStyle];
 #endif
 
     [alert runModal];
-
-#if !__has_feature(objc_arc)
     [alert release];
-#endif
-
-#if !__has_feature(objc_arc)
     [pool drain];
-#endif
-
-#if __has_feature(objc_arc)
-    }
-#endif
 }
 
 #else
