@@ -75,6 +75,62 @@ typedef struct {
     int32_t dstAlpha;
 } BlendFactors;
 
+// Vertex
+
+typedef enum {
+    PRIMITIVE_POINTS = 0,
+    PRIMITIVE_LINES = 1,
+    PRIMITIVE_LINE_STRIP = 2,
+    PRIMITIVE_TRIANGLES = 3,
+    PRIMITIVE_TRIANGLE_STRIP = 4,
+    PRIMITIVE_TRIANGLE_FAN = 5,
+} PrimitiveType;
+
+typedef enum {
+    VERTEX_USAGE_POSITION = 1,
+    VERTEX_USAGE_COLOR   = 2,
+    VERTEX_USAGE_NORMAL   = 3,
+    VERTEX_USAGE_TEXCOORD = 4,
+} VertexUsage;
+
+typedef enum {
+    VERTEX_TYPE_FLOAT1,
+    VERTEX_TYPE_FLOAT2,
+    VERTEX_TYPE_FLOAT3,
+    VERTEX_TYPE_FLOAT4,
+    VERTEX_TYPE_UBYTE4,
+    VERTEX_TYPE_COLOR,
+} VertexType;
+
+typedef struct {
+    VertexUsage usage;
+    VertexType type;
+    uint32_t offset;
+    uint32_t size;
+} VertexElement;
+
+typedef struct {
+    VertexElement elements[16];
+    int numElements;
+    uint32_t stride;
+} VertexFormat;
+
+typedef struct {
+    uint8_t *data;
+    size_t size;
+    size_t capacity;
+
+    VertexFormat *format;
+    uint32_t vertexSize;
+
+    uint8_t currentVertex[256];
+    uint32_t currentOffset;
+
+    bool isFrozen;
+    bool vertexStarted; 
+    void* rendererData; // Backend-specific data (e.g., OpenGL buffer ID)
+} VertexBuffer;
+
 typedef struct {
     void (*init)(Renderer* renderer, DataWin* dataWin);
     void (*destroy)(Renderer* renderer);
@@ -100,6 +156,7 @@ typedef struct {
     void (*drawLineColor)(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha);
     void (*drawText)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation);
     void (*drawTextColor)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation);
+    void (*drawVertexBuffer)(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture);
     void (*flush)(Renderer* renderer);
     void (*clearScreen)(Renderer* renderer, uint32_t color, float alpha);
     int32_t (*createSpriteFromSurface)(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig);

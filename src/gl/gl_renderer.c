@@ -1590,6 +1590,149 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
     }
 }
 
+static int vertex_type_components(int type)
+{
+    switch (type) {
+        case VERTEX_TYPE_FLOAT1:
+            return 1;
+        case VERTEX_TYPE_FLOAT2:
+            return 2;
+        case VERTEX_TYPE_FLOAT3:
+            return 3;
+        case VERTEX_TYPE_FLOAT4:
+            return 4;
+        case VERTEX_TYPE_UBYTE4:
+            return 4;
+        case VERTEX_TYPE_COLOR:
+            return 4;
+    }
+
+    return 4;
+}
+
+static void glDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture) {
+    if (!buffer || !buffer->format)
+        return;
+
+    typedef struct {
+        GLuint vbo;
+    } GLVertexBuffer;
+
+    GLVertexBuffer *glBuffer = buffer->rendererData;
+
+    if (!glBuffer) {
+        glBuffer = malloc(sizeof(GLVertexBuffer));
+        glGenBuffers(1, &glBuffer->vbo);
+        buffer->rendererData = glBuffer;
+    }
+
+    GLenum mode;
+
+    switch (primitive) {
+        case PRIMITIVE_POINTS:
+            mode = GL_POINTS;
+            break;
+
+        case PRIMITIVE_LINES:
+            mode = GL_LINES;
+            break;
+
+        case PRIMITIVE_LINE_STRIP:
+            mode = GL_LINE_STRIP;
+            break;
+
+        case PRIMITIVE_TRIANGLES:
+            mode = GL_TRIANGLES;
+            break;
+
+        case PRIMITIVE_TRIANGLE_STRIP:
+            mode = GL_TRIANGLE_STRIP;
+            break;
+
+        case PRIMITIVE_TRIANGLE_FAN:
+            mode = GL_TRIANGLE_FAN;
+            break;
+
+        default:
+            return;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
+    glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
+
+    for (int i = 0; i < buffer->format->numElements; i++) {
+        VertexElement *e = &buffer->format->elements[i];
+
+        switch (e->usage) {
+            case VERTEX_USAGE_POSITION:
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(
+                    0,
+                    vertex_type_components(e->type),
+                    GL_FLOAT,
+                    GL_FALSE,
+                    buffer->format->stride,
+                    (void*)(intptr_t)e->offset
+                );
+                break;
+
+            case VERTEX_USAGE_COLOR:
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(
+                    1,
+                    4,
+                    GL_UNSIGNED_BYTE,
+                    GL_TRUE,
+                    buffer->format->stride,
+                    (void*)(intptr_t)e->offset
+                );
+                break;
+
+            case VERTEX_USAGE_NORMAL:
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(
+                    2,
+                    3,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    buffer->format->stride,
+                    (void*)(intptr_t)e->offset
+                );
+                break;
+
+            case VERTEX_USAGE_TEXCOORD:
+                glEnableVertexAttribArray(3);
+                glVertexAttribPointer(
+                    3,
+                    2,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    buffer->format->stride,
+                    (void*)(intptr_t)e->offset
+                );
+                break;
+        }
+    }
+
+    if (texture != -1) {
+        glBindTexture(GL_TEXTURE_2D, texture);
+    }
+
+    uint32_t vertexCount = buffer->size / buffer->format->stride;
+    printf("Drawing vertex buffer with %u vertices\n", vertexCount);
+    glDrawArrays(
+        mode,
+        0,
+        vertexCount
+    );
+
+    for (int i = 0; i < buffer->format->numElements; i++) {
+        glDisableVertexAttribArray(i);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
 // ===[ Text Drawing ]===
 
 // Resolved font state shared between glDrawText and glDrawTextColor
@@ -2691,6 +2834,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.drawLine = glDrawLine;
     glVtable.drawLineColor = glDrawLineColor;
     glVtable.drawTriangle = glDrawTriangle;
+    glVtable.drawVertexBuffer = glDrawVertexBuffer;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
     glVtable.flush = glRendererFlush;
