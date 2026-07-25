@@ -16363,10 +16363,119 @@ static VertexFormat buildingFormat;
 static bool building = false;
 
 static int nextVertexFormatId = 0;
-static VertexFormat vertexFormats[256];
+static VertexFormat **vertexFormats = nullptr;
+static int vertexFormatCapacity = 0;
 
 static int nextVertexBufferId = 0;
-static VertexBuffer *vertexBuffers[256];
+static VertexBuffer **vertexBuffers = nullptr;
+static int vertexBufferCapacity = 0;
+
+static int *freeVertexFormatIds = nullptr;
+static int freeVertexFormatCount = 0;
+static int freeVertexFormatCapacity = 0;
+
+static int *freeVertexBufferIds = nullptr;
+static int freeVertexBufferCount = 0;
+static int freeVertexBufferCapacity = 0;
+
+#define RESOURCE_VERTEX_FORMAT 0x01000000
+
+static int getNextVertexFormatId() {
+    int id = nextVertexFormatId++;
+    return RESOURCE_VERTEX_FORMAT | id;
+}
+
+static int getNextVertexBufferId() {
+    return nextVertexBufferId++;
+}
+
+static void ensureListCapacity(int capacity, int **list, int *listCapacity) {
+    if (capacity < *listCapacity) {
+        return;
+    }
+
+    int newCapacity = *listCapacity ? *listCapacity * 2 : 16;
+
+    while (newCapacity <= capacity)
+        newCapacity *= 2;
+
+    int *newList = (int *)safeMalloc(newCapacity * sizeof(int));
+
+    if (*list != NULL) {
+        memcpy(newList, *list, *listCapacity * sizeof(int));
+        free(*list);
+    }
+
+    for (int i = *listCapacity; i < newCapacity; i++) {
+        newList[i] = 0;
+    }
+
+    *list = newList;
+    *listCapacity = newCapacity;
+}
+
+static void addFreeId(int id, int **list, int *listCount, int *listCapacity) {
+    if (id < 0) {
+        return;
+    }
+
+    if (*listCount >= *listCapacity) {
+        int newCapacity = *listCapacity ? *listCapacity * 2 : 16;
+
+        int *newList = (int *)safeMalloc(newCapacity * sizeof(int));
+
+        if (*list != NULL) {
+            memcpy(newList, *list, *listCount * sizeof(int));
+            free(*list);
+        }
+
+        *list = newList;
+        *listCapacity = newCapacity;
+    }
+
+    (*list)[(*listCount)++] = id;
+}
+
+static void ensureVertexFormatCapacity(int capacity) {
+    ensureListCapacity(capacity, (int **)&vertexFormats, &vertexFormatCapacity);
+}
+ 
+static void ensureVertexBufferCapacity(int capacity) {
+    ensureListCapacity(capacity, (int **)&vertexBuffers, &vertexBufferCapacity);
+}
+
+static void freeVertexFormat(int id) {
+    int local_id = id & 0x00FFFFFF;
+    if (local_id < 0 || local_id >= nextVertexFormatId) {
+        return;
+    }
+
+    VertexFormat *format = vertexFormats[local_id];
+
+    if (format != nullptr) {
+        free(format->elements);
+        free(format);
+        vertexFormats[local_id] = nullptr;
+    }
+
+    addFreeId(local_id, &freeVertexFormatIds, &freeVertexFormatCount, &freeVertexFormatCapacity);
+}
+
+static void freeVertexBuffer(int id) {
+    if (id < 0 || id >= nextVertexBufferId) {
+        return;
+    }
+
+    VertexBuffer *buffer = vertexBuffers[id];
+
+    if (buffer != nullptr) {
+        free(buffer->data);
+        free(buffer);
+        vertexBuffers[id] = nullptr;
+    }
+
+    addFreeId(id, &freeVertexBufferIds, &freeVertexBufferCount, &freeVertexBufferCapacity);
+}
 
 VertexBuffer *getVertexBuffer(int id) {
     if (id < 0 || id >= nextVertexBufferId) {
@@ -16467,8 +16576,19 @@ static RValue builtin_vertex_format_add_custom(VMContext* ctx, RValue* args, int
 }
 
 static RValue builtin_vertex_format_end(VMContext* ctx, RValue* args, int32_t argCount) {
-    int id = nextVertexFormatId++;
-    vertexFormats[id] = buildingFormat;
+    int id;
+    // // I thought a dynamic system would be nice but apparently GameMaker doesn't do that
+    // // The IDs just increment and never get reused
+    // if (freeVertexFormatCount > 0) {
+    //     id = freeVertexFormatIds[--freeVertexFormatCount];
+    // } else {
+        id = getNextVertexFormatId();
+        int local_id = id & 0x00FFFFFF;
+        ensureVertexFormatCapacity(local_id);
+    // }
+    
+    vertexFormats[local_id] = (VertexFormat *)safeMalloc(sizeof(VertexFormat));
+    memcpy(vertexFormats[local_id], &buildingFormat, sizeof(VertexFormat));
 
     building = false;
 
@@ -16477,32 +16597,34 @@ static RValue builtin_vertex_format_end(VMContext* ctx, RValue* args, int32_t ar
 
 static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t argCount) {
     int id = RValue_toInt32(args[0]);
-    if (id < 0 || id >= nextVertexFormatId) {
+    int local_id = id & 0x00FFFFFF;
+    if (local_id < 0 || local_id >= nextVertexFormatId) {
         return RValue_makeReal(0);
     }
 
-    vertexFormats[id].numElements = 0;
-    vertexFormats[id].stride = 0;
+    freeVertexFormat(local_id);
 
     return RValue_makeReal(0);
 }
 
 static RValue builtin_vertex_format_exists(VMContext* ctx, RValue* args, int32_t argCount) {
     int id = RValue_toInt32(args[0]);
-    if (id < 0 || id >= nextVertexFormatId) {
+    int local_id = id & 0x00FFFFFF;
+    if (local_id < 0 || local_id >= nextVertexFormatId) {
         return RValue_makeBool(false);
     }
 
-    return RValue_makeBool(vertexFormats[id].numElements > 0);
+    return RValue_makeBool(vertexFormats[local_id]->numElements > 0);
 }
 
 static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32_t argCount) {
     int id = RValue_toInt32(args[0]);
-    if (id < 0 || id >= nextVertexFormatId) {
+    int local_id = id & 0x00FFFFFF;
+    if (local_id < 0 || local_id >= nextVertexFormatId) {
         return RValue_makeUndefined();
     }
 
-    VertexFormat *format = &vertexFormats[id];
+    VertexFormat *format = vertexFormats[local_id];
 
     Instance* ret = Runner_createStruct(ctx->runner);
     VM_structSetAndFreeVal(ctx, ret, "num_elements", RValue_makeReal(format->numElements), -1);
@@ -16525,6 +16647,7 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
 
 int createBuffer(size_t initialCapacity) {
     VertexBuffer *buffer = (VertexBuffer *)safeMalloc(sizeof(VertexBuffer));
+
     buffer->data = (uint8_t *)safeMalloc(initialCapacity);
     buffer->size = 0;
     buffer->capacity = initialCapacity;
@@ -16534,7 +16657,17 @@ int createBuffer(size_t initialCapacity) {
     buffer->isFrozen = false;
     buffer->rendererData = NULL;
 
-    int id = nextVertexBufferId++;
+    int id;
+
+    // // I thought a dynamic system would be nice but apparently GameMaker doesn't do that
+    // // The IDs just increment and never get reused
+    // if (freeVertexBufferCount > 0) {
+    //     id = freeVertexBufferIds[--freeVertexBufferCount];
+    // } else {
+        id = getNextVertexBufferId();
+        ensureVertexBufferCapacity(id);
+    // }
+
     vertexBuffers[id] = buffer;
     
     return id;
@@ -16679,13 +16812,7 @@ static RValue builtin_vertex_get_number(VMContext* ctx, RValue* args, int32_t ar
 
 static RValue builtin_vertex_delete_buffer(VMContext* ctx, RValue* args, int32_t argCount) {
     int id = RValue_toInt32(args[0]);
-    VertexBuffer *vb = getVertexBuffer(id);
-
-    if (vb != nullptr) {
-        free(vb->data);
-        free(vb);
-        vertexBuffers[id] = nullptr;
-    }
+    freeVertexBuffer(id);
 
     return RValue_makeReal(0);
 }
@@ -16701,16 +16828,16 @@ static RValue builtin_vertex_buffer_exists(VMContext* ctx, RValue* args, int32_t
 
 static RValue builtin_vertex_begin(VMContext* ctx, RValue* args, int32_t argCount) {
     int vb = RValue_toInt32(args[0]);
-    int fmt = RValue_toInt32(args[1]);
+    int fmt = RValue_toInt32(args[1]) & 0x00FFFFFF;
 
-    if (vb < 0 || vb >= nextVertexBufferId || fmt < 0 || fmt >= nextVertexFormatId)
+    if (vb < 0 || vb >= nextVertexBufferId || fmt < 0 || (fmt) >= nextVertexFormatId)
         return RValue_makeReal(0);
 
     VertexBuffer *buffer = getVertexBuffer(vb);
     if (!buffer || buffer->isFrozen)
         return RValue_makeReal(0);
 
-    VertexFormat *format = &vertexFormats[fmt];
+    VertexFormat *format = vertexFormats[fmt];
 
     buffer->format = format;
     buffer->vertexSize = format->stride;
@@ -16983,7 +17110,6 @@ static RValue builtin_vertex_submit(
     RValue* args,
     int32_t argCount
 ) {
-    printf("builtin_vertex_submit()\n");
     if (argCount < 3)
         return RValue_makeReal(0);
 

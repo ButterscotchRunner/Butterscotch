@@ -1610,7 +1610,7 @@ static int vertex_type_components(int type)
     return 4;
 }
 
-static void glDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture) {
+static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture) {
     if (!buffer || !buffer->format)
         return;
 
@@ -1719,7 +1719,6 @@ static void glDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t
     }
 
     uint32_t vertexCount = buffer->size / buffer->format->stride;
-    printf("Drawing vertex buffer with %u vertices\n", vertexCount);
     glDrawArrays(
         mode,
         0,
