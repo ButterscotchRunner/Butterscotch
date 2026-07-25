@@ -1,7 +1,7 @@
 #include "data_win.h"
 
 #include "stdio_compat.h"
-#include <string.h>
+#include "string_compat.h"
 
 #include "utils.h"
 

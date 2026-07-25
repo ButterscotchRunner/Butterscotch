@@ -1,5 +1,5 @@
 #include "stdio_compat.h"
-#include <string.h>
+#include "string_compat.h"
 #include <unistd.h>
 #include <loadfile.h>
 #include <libcdvd.h>

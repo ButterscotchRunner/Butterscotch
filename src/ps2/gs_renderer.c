@@ -6,7 +6,7 @@
 #pragma GCC diagnostic pop
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "stdio_compat.h"
 #include <malloc.h>
 #include <kernel.h>

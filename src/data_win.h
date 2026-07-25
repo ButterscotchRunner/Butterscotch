@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "stdio_compat.h"
-#include <string.h>
+#include "string_compat.h"
 
 #include "utils.h"
 

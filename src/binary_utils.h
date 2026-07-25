@@ -4,7 +4,7 @@
 #include "common.h"
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+#include "string_compat.h"
 
 // Binary reads/writes from a raw byte buffer.
 // When IS_BIG_ENDIAN is defined, reads are byte-swapped to interpret serialized little-endian data.

@@ -1,7 +1,7 @@
 #include <jni.h>
 #include "stdio_compat.h"
 #include <stdint.h>
-#include <string.h>
+#include "string_compat.h"
 #include <errno.h>
 #include <sys/stat.h>
 #include <android/log.h>

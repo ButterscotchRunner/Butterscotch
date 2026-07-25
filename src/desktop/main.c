@@ -7,7 +7,7 @@
 #include <getopt.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <time.h>
 #include <signal.h>
 #ifdef _WIN32
@@ -344,20 +344,6 @@ static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, u
         }
     }
 }
-
-#ifdef NO_STRTOK_R
-
-static char *strtok_r(char *s, const char *sep, char **p) {
-    if (!s && !(s = *p)) return NULL;
-    s += strspn(s, sep);
-    if (!*s) return *p = 0;
-    *p = s + strcspn(s, sep);
-    if (**p) *(*p)++ = 0;
-    else *p = 0;
-    return s;
-}
-
-#endif
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function

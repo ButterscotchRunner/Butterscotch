@@ -35,7 +35,7 @@ extern GLint  gPalettedUPaletteVLoc;
 #endif
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 // Next power-of-two, used for FBO texture dimensions on older GPUs (Intel 82865G etc.)
