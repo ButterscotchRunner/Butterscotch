@@ -1,4 +1,8 @@
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
 #import <Cocoa/Cocoa.h>
+#else
+#import <AppKit/AppKit.h>
+#endif
 
 void show_error_box(const char *message)
 {
@@ -7,6 +11,8 @@ void show_error_box(const char *message)
 #else
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 #endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
 
         NSAlert *alert = [[NSAlert alloc] init];
 
@@ -26,9 +32,23 @@ void show_error_box(const char *message)
         [alert release];
 #endif
 
+#else
+
+        NSRunAlertPanel(
+            @"Error",
+            [NSString stringWithUTF8String:message],
+            @"OK",
+            nil,
+            nil
+        );
+
+#endif
+
+#if !__has_feature(objc_arc)
+    [pool drain];
+#endif
+
 #if __has_feature(objc_arc)
     }
-#else
-    [pool drain];
 #endif
 }
