@@ -163,6 +163,7 @@ static char* resolveExternalPath(AlAudioSystem* ma, Sound* sound) {
 
 static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
+    ma->base.dw = dataWin;
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
 
@@ -945,6 +946,8 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
         DataWinParserOptions options = {0};
         options.parseAudo = true;
+        if (audio->dw->mappedFile)
+            options.loadType = DATAWINLOADTYPE_MAP_FILE;
         DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
         free(buf);
