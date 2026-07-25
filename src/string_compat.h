@@ -8,7 +8,8 @@
 #include <ctype.h>
 
 static int strcasecmp(const char *_s1, const char *_s2) {
-    const unsigned char *s1 = (void *)_s1, *s2 = (void *)_s2;
+    const unsigned char *s1 = (const unsigned char *)_s1;
+    const unsigned char *s2 = (const unsigned char *)_s2;
 
     while (*s1 && *s2) {
         if (*s1 != *s2 && tolower(*s1) != tolower(*s2))
