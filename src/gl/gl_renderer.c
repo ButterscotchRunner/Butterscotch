@@ -1610,7 +1610,7 @@ static int vertex_type_components(int type)
     return 4;
 }
 
-static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture) {
+static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t number) {
     if (!buffer || !buffer->format)
         return;
 
@@ -1718,11 +1718,23 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         glBindTexture(GL_TEXTURE_2D, texture);
     }
 
-    uint32_t vertexCount = buffer->size / buffer->format->stride;
+    int vertexCount = buffer->size / buffer->format->stride;
+    if (offset < 0) offset = 0;
+    if (offset >= vertexCount) offset = vertexCount - 1;
+
+    if (number == -1) {
+        number = vertexCount - offset;
+    } else {
+        if (number < 0) number = 0;
+        if (offset + number > vertexCount) {
+            number = vertexCount - offset;
+        }
+    }
+
     glDrawArrays(
         mode,
-        0,
-        vertexCount
+        offset,
+        number
     );
 
     for (int i = 0; i < buffer->format->numElements; i++) {

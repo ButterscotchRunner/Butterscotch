@@ -17103,11 +17103,7 @@ static RValue builtin_vertex_freeze(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeReal(0);
 }
 
-static RValue builtin_vertex_submit(
-    VMContext* ctx,
-    RValue* args,
-    int32_t argCount
-) {
+static RValue builtin_vertex_submit(VMContext* ctx, RValue* args,int32_t argCount) {
     if (argCount < 3)
         return RValue_makeReal(0);
 
@@ -17124,15 +17120,33 @@ static RValue builtin_vertex_submit(
     if (!renderer || !renderer->vtable || !renderer->vtable->drawVertexBuffer)
         return RValue_makeReal(0);
 
-    renderer->vtable->drawVertexBuffer(renderer, buffer, primitive, texture);
+    uint32_t vertexCount = buffer->size / buffer->format->stride;
+    renderer->vtable->drawVertexBuffer(renderer, buffer, primitive, texture, 0, vertexCount);
 
     return RValue_makeReal(0);
 }
 
 static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t argCount) {
-    printf("builtin_vertex_submit_ext()\n");
-    // This function would typically submit the vertex buffer to the GPU for rendering with additional parameters.
-    // In this implementation, we just return 0 to indicate success.
+    if (argCount < 5)
+        return RValue_makeReal(0);
+
+    int id = RValue_toInt32(args[0]);
+    int primitive = RValue_toInt32(args[1]);
+    int texture = RValue_toInt32(args[2]);
+    int offset = (int)RValue_toReal(args[3]);
+    int count = (int)RValue_toReal(args[4]);
+
+    VertexBuffer *buffer = getVertexBuffer(id);
+
+    if (!buffer)
+        return RValue_makeReal(0);
+
+    Renderer* renderer = ctx->runner->renderer;    
+    if (!renderer || !renderer->vtable || !renderer->vtable->drawVertexBuffer)
+        return RValue_makeReal(0);
+
+    renderer->vtable->drawVertexBuffer(renderer, buffer, primitive, texture, offset, count);
+
     return RValue_makeReal(0);
 }
 
