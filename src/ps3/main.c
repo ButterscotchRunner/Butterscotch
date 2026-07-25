@@ -94,7 +94,7 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
             break;
-        
+
         case SYSUTIL_MENU_OPEN:
         case SYSUTIL_MENU_CLOSE:
             break;

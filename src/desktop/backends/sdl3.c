@@ -146,7 +146,15 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+bool platformGetWindowFullscreen(void) {
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    SDL_SetWindowFullscreen(window, fullscreen);
+}
+
+bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
         fprintf(stderr, "Failed to initialize SDL\n");
@@ -189,6 +197,8 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         SDL_GL_SetSwapInterval(0); // disable vsync
     } else
         scr = SDL_GetWindowSurface(window);
+
+    platformSetWindowFullscreen(fullscreen);
 
     return true;
 }

@@ -126,6 +126,25 @@ static bool platformGetWindowFocus(void) {
     return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 }
 
+static int windowedX, windowedY, windowedW, windowedH;
+
+bool platformGetWindowFullscreen(void) {
+    return glfwGetWindowMonitor(window) != NULL;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    if (fullscreen == platformGetWindowFullscreen()) return;
+    if (fullscreen) {
+        glfwGetWindowPos(window, &windowedX, &windowedY);
+        glfwGetWindowSize(window, &windowedW, &windowedH);
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    } else {
+        glfwSetWindowMonitor(window, NULL, windowedX, windowedY, windowedW, windowedH, 0);
+    }
+}
+
 static void glfwErrorCallback(int code, const char* description) {
     fprintf(stderr, "GLFW error 0x%x: %s\n", code, description);
 }
@@ -220,7 +239,7 @@ static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     RunnerMouse_onWheel(g_runner->mouse, yoffset);
 }
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen) {
     // Init GLFW
     glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
@@ -268,6 +287,8 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     // If we don't do this, the window will be larger than it should be if you are using Wayland fractional scaling
     // We set the window size AFTER the window creation so we can use glfwGetWindowContentScale
     platformSetWindowSize(reqW, reqH);
+
+    platformSetWindowFullscreen(fullscreen);
 
     // Set up keyboard input
     glfwSetKeyCallback(window, keyCallback);

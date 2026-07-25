@@ -506,6 +506,8 @@ struct Runner {
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
     bool (*windowHasFocus)(void);
+    bool (*getWindowFullscreen)(void);
+    void (*setWindowFullscreen)(bool fullscreen);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state

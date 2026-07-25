@@ -18,7 +18,7 @@
 
 static Runner *g_runner;
 
-static bool tryOpenWindow(int reqW, int reqH) {
+static bool tryOpenWindow(int reqW, int reqH, bool fullscreen) {
 #ifdef GLFW_OPENGL_VERSION_MAJOR
     if (gfx == SOFTWARE || gfx == LEGACY_GL) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 1);
@@ -29,7 +29,7 @@ static bool tryOpenWindow(int reqW, int reqH) {
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
-            
+
         if (GLCommon_versions[i].major >= 3) {
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
             if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
@@ -52,7 +52,7 @@ static bool tryOpenWindow(int reqW, int reqH) {
 
     return false;
 #else
-    return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+    return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW) != 0;
 #endif
 }
 
@@ -91,8 +91,19 @@ void platformGetMousePos(double *xPos, double *yPos) {
     *yPos = (double)my;
 }
 
+static bool glfw2Fullscreen = false;
+
 static bool platformGetWindowFocus(void) {
     return glfwGetWindowParam(GLFW_ACTIVE);
+}
+
+bool platformGetWindowFullscreen(void) {
+    return glfw2Fullscreen;
+}
+
+void platformSetWindowFullscreen(bool fullscreen) {
+    if (fullscreen == glfw2Fullscreen) return;
+    glfw2Fullscreen = fullscreen;
 }
 
 static int32_t glfwKeyToGml(int glfwKey) {
@@ -184,7 +195,7 @@ static void GLFWCALL scrollCallback(int pos) {
     if (g_runner) RunnerMouse_onWheel(g_runner->mouse, yoffset);
 }
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen) {
     if (headless) {
         fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
         return false;
@@ -196,7 +207,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         return false;
     }
 
-    if (!tryOpenWindow(reqW, reqH)) {
+    if (!tryOpenWindow(reqW, reqH, fullscreen)) {
         fprintf(stderr, "Failed to create GLFW window\n");
         glfwTerminate();
         return false;

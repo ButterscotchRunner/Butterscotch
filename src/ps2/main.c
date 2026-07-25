@@ -431,7 +431,7 @@ int main(int argc, char* argv[]) {
     options.eagerlyLoadedRooms = eagerRooms;
     options.progressCallback = PS2Overlay_statusScreenCallback;
     options.progressCallbackUserData = PS2Overlay_getCallbackData();
-    
+
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
     free(dataWinPath);
     shfree(eagerRooms);
