@@ -16483,11 +16483,11 @@ VertexBuffer *getVertexBuffer(int id) {
     return buffer;
 }
 
-static VertexElement *findElement(VertexFormat *format, VertexUsage usage) {
+static VertexElement *findElement(VertexFormat *format, VertexUsage usage, VertexType type) {
     for (int i = 0; i < format->numElements; i++) {
-        if (format->elements[i].usage == usage) {
-            return &format->elements[i];
-        }
+        VertexElement *e = &format->elements[i];
+        if (e->usage == usage && e->type == type)
+            return e;
     }
     return nullptr;
 }
@@ -16843,8 +16843,8 @@ static RValue builtin_vertex_begin(VMContext* ctx, RValue* args, int32_t argCoun
     return RValue_makeReal(0);
 }
 
-static bool vertexWrite(VertexBuffer *vb, VertexUsage usage, const void *data, size_t size) {
-    VertexElement *element = findElement(vb->format, usage);
+static bool vertexWrite(VertexBuffer *vb, VertexUsage usage, VertexType type, const void *data, size_t size) {
+    VertexElement *element = findElement(vb->format, usage, type);
 
     if (!element)
         return false;
@@ -16909,7 +16909,7 @@ static RValue builtin_vertex_colour_common(
 
     uint32_t packed = convertGMColour(colour, alpha);
 
-    vertexWrite(vb, usage, &packed, sizeof(packed));
+    vertexWrite(vb, usage, VERTEX_TYPE_COLOR, &packed, sizeof(packed));
 
     return RValue_makeReal(0);
 }
@@ -16939,7 +16939,7 @@ static RValue builtin_vertex_normal(VMContext* ctx, RValue* args, int32_t argCou
         RValue_toReal(args[3])
     };
 
-    vertexWrite(vb, VERTEX_USAGE_NORMAL, data, sizeof(data));
+    vertexWrite(vb, VERTEX_USAGE_NORMAL, VERTEX_TYPE_FLOAT3, data, sizeof(data));
 
     return RValue_makeReal(0);
 }
@@ -16960,7 +16960,7 @@ static RValue builtin_vertex_position(VMContext* ctx, RValue* args, int32_t argC
         RValue_toReal(args[2])
     };
 
-    vertexWrite(vb, VERTEX_USAGE_POSITION, data, sizeof(data));
+    vertexWrite(vb, VERTEX_USAGE_POSITION, VERTEX_TYPE_FLOAT2, data, sizeof(data));
 
     return RValue_makeReal(0);
 }
@@ -16982,7 +16982,7 @@ static RValue builtin_vertex_position_3d(VMContext* ctx, RValue* args, int32_t a
         RValue_toReal(args[3])
     };
 
-    vertexWrite(vb, VERTEX_USAGE_POSITION, data, sizeof(data));
+    vertexWrite(vb, VERTEX_USAGE_POSITION, VERTEX_TYPE_FLOAT3, data, sizeof(data));
 
     return RValue_makeReal(0);
 }
@@ -17001,7 +17001,7 @@ static RValue builtin_vertex_texcoord(VMContext* ctx, RValue* args, int32_t argC
         RValue_toReal(args[2])
     };
 
-    vertexWrite(vb, VERTEX_USAGE_TEXCOORD, data, sizeof(data));
+    vertexWrite(vb, VERTEX_USAGE_TEXCOORD, VERTEX_TYPE_FLOAT2, data, sizeof(data));
 
     return RValue_makeReal(0);
 }
@@ -17024,7 +17024,16 @@ static RValue builtin_vertex_floatN(
     for (int i = 0; i < count; i++)
         data[i] = RValue_toReal(args[i + 1]);
 
-    vertexWrite(vb, VERTEX_USAGE_POSITION, data, sizeof(float) * count);
+    VertexType type;
+    switch (count) {
+        case 1: type = VERTEX_TYPE_FLOAT1; break;
+        case 2: type = VERTEX_TYPE_FLOAT2; break;
+        case 3: type = VERTEX_TYPE_FLOAT3; break;
+        case 4: type = VERTEX_TYPE_FLOAT4; break;
+        default: return RValue_makeReal(0);
+    }
+
+    vertexWrite(vb, VERTEX_USAGE_POSITION, type, data, sizeof(float) * count);
 
     return RValue_makeReal(0);
 }static RValue builtin_vertex_float1(VMContext* c, RValue* a, int32_t n)
@@ -17062,7 +17071,19 @@ static RValue builtin_vertex_ubyte4(VMContext* ctx, RValue* args, int32_t argCou
     uint8_t z = (uint8_t)RValue_toInt32(args[3]);;
     uint8_t w = (uint8_t)RValue_toInt32(args[4]);;
 
-    VertexElement *e = findElement(vb->format, VERTEX_USAGE_POSITION);
+    VertexElement *e = findElement(vb->format, VERTEX_USAGE_COLOR, VERTEX_TYPE_UBYTE4);
+    if (!e) {
+        printf("Couldn't find UBYTE4 element!\n");
+
+        for (int i = 0; i < vb->format->numElements; i++) {
+            VertexElement *el = &vb->format->elements[i];
+            printf("element %d: usage=%d type=%d offset=%d\n",
+                i, el->usage, el->type, el->offset);
+        }
+
+        return RValue_makeReal(0);
+    }
+
     memcpy(vb->currentVertex + e->offset, &x, sizeof(uint8_t));
     memcpy(vb->currentVertex + e->offset + sizeof(uint8_t), &y, sizeof(uint8_t));
     memcpy(vb->currentVertex + e->offset + sizeof(uint8_t) * 2, &z, sizeof(uint8_t));
