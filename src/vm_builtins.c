@@ -16453,7 +16453,6 @@ static void freeVertexFormat(int id) {
     VertexFormat *format = vertexFormats[local_id];
 
     if (format != nullptr) {
-        free(format->elements);
         free(format);
         vertexFormats[local_id] = nullptr;
     }
@@ -16469,7 +16468,6 @@ static void freeVertexBuffer(int id) {
     VertexBuffer *buffer = vertexBuffers[id];
 
     if (buffer != nullptr) {
-        free(buffer->data);
         free(buffer);
         vertexBuffers[id] = nullptr;
     }
