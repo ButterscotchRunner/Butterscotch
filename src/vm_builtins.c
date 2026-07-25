@@ -13514,6 +13514,78 @@ static RValue builtin_layer_background_get_blend(VMContext* ctx, RValue* args, M
     return RValue_makeReal(0.0);
 }
 
+static RValue builtin_layer_background_get_htiled(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->hTiled);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_vtiled(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->vTiled);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_stretch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->stretch);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->imageIndex);
+    return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_get_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->spriteIndex);
+    return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_get_xscale(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->xScale);
+    return RValue_makeReal(1.0);
+}
+
+static RValue builtin_layer_background_get_yscale(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->yScale);
+    return RValue_makeReal(1.0);
+}
+
+static RValue builtin_layer_background_get_visible(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->visible);
+    return RValue_makeBool(true);
+}
+
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
@@ -17236,6 +17308,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
     VM_registerBuiltin(ctx, "layer_background_get_alpha", builtin_layer_background_get_alpha);
     VM_registerBuiltin(ctx, "layer_background_get_blend", builtin_layer_background_get_blend);
+	VM_registerBuiltin(ctx, "layer_background_get_htiled", builtin_layer_background_get_htiled);
+	VM_registerBuiltin(ctx, "layer_background_get_vtiled", builtin_layer_background_get_vtiled);
+	VM_registerBuiltin(ctx, "layer_background_get_stretch", builtin_layer_background_get_stretch);
+	VM_registerBuiltin(ctx, "layer_background_get_index", builtin_layer_background_get_index);
+	VM_registerBuiltin(ctx, "layer_background_get_sprite", builtin_layer_background_get_sprite);
+	VM_registerBuiltin(ctx, "layer_background_get_xscale", builtin_layer_background_get_xscale);
+	VM_registerBuiltin(ctx, "layer_background_get_yscale", builtin_layer_background_get_yscale);
+	VM_registerBuiltin(ctx, "layer_background_get_visible", builtin_layer_background_get_visible);
     VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
     VM_registerBuiltin(ctx, "layer_tile_x", builtin_layer_tile_x);
