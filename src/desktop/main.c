@@ -1016,6 +1016,8 @@ int main(int argc, char* argv[]) {
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
 
+    bool fastForwardActive = false;
+    bool fastForwardTabPrev = false;
     while (true) {
         fprintf(stderr, "Loading %s...\n", args.dataWinPath);
 
@@ -1803,8 +1805,6 @@ int main(int argc, char* argv[]) {
 
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
-                static bool fastForwardActive = false;
-                static bool fastForwardTabPrev = false;
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, VK_TAB);
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
