@@ -1,11 +1,12 @@
 #include <AvailabilityMacros.h>
 #include <AppKit/AppKit.h>
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030 // NSAlert is available in 10.3 and later
-
-static void show_error_box_nsalert(const char *message)
+static void show_error_box(const char *message)
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030 // NSAlert is available in 10.3 and later
+
     NSAlert *alert = [[NSAlert alloc] init];
 
     [alert setMessageText:@"Error"];
@@ -19,14 +20,8 @@ static void show_error_box_nsalert(const char *message)
 
     [alert runModal];
     [alert release];
-    [pool drain];
-}
 
 #else
-
-static void show_error_box_nsrunalertpanel(const char *message)
-{
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
     NSRunAlertPanel(
         @"Error",
@@ -36,16 +31,7 @@ static void show_error_box_nsrunalertpanel(const char *message)
         nil
     );
 
+#endif
+
     [pool drain];
-}
-
-#endif
-
-void show_error_box(const char *message)
-{
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
-    show_error_box_nsalert(message);
-#else
-    show_error_box_nsrunalertpanel(message);
-#endif
 }
