@@ -14091,14 +14091,14 @@ static RValue builtin_tile_get_index(MAYBE_UNUSED VMContext* ctx, RValue* args, 
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
-    return RValue_makeBool((RValue_toInt32(args[0]) & TILEMIRROR_MASK) != 0);
+    return RValue_makeBool((RValue_toInt32(args[0]) & (1 << 28)) != 0);
 }
 
 // tile_get_flip(tiledata): returns whether the vertical-flip bit is set on a raw tile cell value.
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_flip(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
-    return RValue_makeBool((RValue_toInt32(args[0]) & TILEFLIP_MASK) != 0);
+    return RValue_makeBool((RValue_toInt32(args[0]) & (1 << 29)) != 0);
 }
 
 // tile_get_rotate(tiledata): returns whether the 90-degree-rotate bit is set on a raw tile cell value.
@@ -14113,42 +14113,6 @@ static RValue builtin_tile_get_rotate(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static RValue builtin_tile_set_empty(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1.0);
     return RValue_makeReal((GMLReal) (RValue_toInt32(args[0]) & ~TILEINDEX_SHIFTEDMASK));
-}
-
-// tile_set_mirror(tiledata): sets the horizontal-mirror bit on a raw tile cell value.
-// (see GameMaker-HTML5 Function_Layers.js)
-static RValue builtin_tile_set_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (2 > argCount) return RValue_makeReal(-1.0);
-    int32_t cell = RValue_toInt32(args[0]);
-    if (RValue_toBool(args[1]))
-        cell |= TILEMIRROR_MASK;
-    else
-        cell &= ~TILEMIRROR_MASK;
-    return RValue_makeReal((GMLReal) cell);
-}
-
-// tile_set_flip(tiledata): sets the vertical-flip bit on a raw tile cell value.
-// (see GameMaker-HTML5 Function_Layers.js)
-static RValue builtin_tile_set_flip(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (2 > argCount) return RValue_makeReal(-1.0);
-    int32_t cell = RValue_toInt32(args[0]);
-    if (RValue_toBool(args[1]))
-        cell |= TILEFLIP_MASK;
-    else
-        cell &= ~TILEFLIP_MASK;
-    return RValue_makeReal((GMLReal) cell);
-}
-
-// tile_set_rotate(tiledata): sets the 90-degree-rotate bit on a raw tile cell value.
-// (see GameMaker-HTML5 Function_Layers.js)
-static RValue builtin_tile_set_rotate(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if (2 > argCount) return RValue_makeReal(-1.0);
-    int32_t cell = RValue_toInt32(args[0]);
-    if (RValue_toBool(args[1]))
-        cell |= TILEROTATE_MASK;
-    else
-        cell &= ~TILEROTATE_MASK;
-    return RValue_makeReal((GMLReal) cell);
 }
 
 static RValue builtin_layer_get_all(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -17164,9 +17128,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tile_get_flip", builtin_tile_get_flip);
     VM_registerBuiltin(ctx, "tile_get_rotate", builtin_tile_get_rotate);
     VM_registerBuiltin(ctx, "tile_set_empty", builtin_tile_set_empty);
-    VM_registerBuiltin(ctx, "tile_set_mirror", builtin_tile_set_mirror);
-    VM_registerBuiltin(ctx, "tile_set_flip", builtin_tile_set_flip);
-    VM_registerBuiltin(ctx, "tile_set_rotate", builtin_tile_set_rotate);    
     VM_registerBuiltin(ctx, "tilemap_set", builtin_tilemap_set);
     VM_registerBuiltin(ctx, "tilemap_set_at_pixel", builtin_tilemap_set_at_pixel);
 #endif
