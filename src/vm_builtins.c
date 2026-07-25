@@ -12996,13 +12996,13 @@ static int32_t resolveLayerIdArg(Runner* runner, RValue arg) {
         size_t runtimeLayerCount = arrlenu(runner->runtimeLayers);
         repeat(runtimeLayerCount, i) {
             RuntimeLayer* rl = &runner->runtimeLayers[i];
-            if (rl->dynamic && strcmp(rl->dynamicName, name) == 0)
+            if (rl->dynamic && rl->dynamicName != nullptr && strcasecmp(rl->dynamicName, name) == 0)
                 return (int32_t) rl->id;
         }
         if (runner->currentRoom != nullptr) {
             repeat(runner->currentRoom->layerCount, i) {
                 RoomLayer* layer = &runner->currentRoom->layers[i];
-                if (layer->name != nullptr && strcmp(layer->name, name) == 0) {
+                if (layer->name != nullptr && strcasecmp(layer->name, name) == 0) {
                     // Only resolve room-layer names that still exist in the runtime layer list.
                     if (Runner_findRuntimeLayerById(runner, (int32_t) layer->id) != nullptr)
                         return (int32_t) layer->id;
@@ -13062,7 +13062,7 @@ static RValue builtin_layer_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     size_t runtimeLayerCount = arrlenu(runner->runtimeLayers);
     repeat(runtimeLayerCount, i) {
         RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
-        if (runtimeLayer->dynamic && strcmp(runtimeLayer->dynamicName, name) == 0) {
+        if (runtimeLayer->dynamic && runtimeLayer->dynamicName != nullptr && strcasecmp(runtimeLayer->dynamicName, name) == 0) {
             result = (int32_t) runtimeLayer->id;
             break;
         }
@@ -13070,13 +13070,12 @@ static RValue builtin_layer_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     if (result == -1 && runner->currentRoom != nullptr) {
         repeat(runner->currentRoom->layerCount, i) {
             RoomLayer* layer = &runner->currentRoom->layers[i];
-            if (layer->name != nullptr && strcmp(layer->name, name) == 0) {
+            if (layer->name != nullptr && strcasecmp(layer->name, name) == 0) {
                 result = (int32_t) layer->id;
                 break;
             }
         }
     }
-    free(name);
     return RValue_makeReal((GMLReal) result);
 }
 
