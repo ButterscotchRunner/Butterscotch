@@ -1,5 +1,5 @@
 #include <AvailabilityMacros.h>
-#import <AppKit/AppKit.h>
+#include <AppKit/AppKit.h>
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1030
 
