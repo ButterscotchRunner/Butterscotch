@@ -132,7 +132,7 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     printf("  Fonts:            %u\n", dataWin->font.count);
     {
     forEachIndexed(Font, fnt, idx, dataWin->font.fonts, dataWin->font.count) {
-        printf("    [%u] %s (%s, em=%g, %u glyphs)\n", (unsigned int)idx, fnt->name ? fnt->name : "?", fnt->displayName ? fnt->displayName : "?", fnt->emSize, fnt->glyphCount);
+        printf("    [%u] %s (%s, em=%g, %u glyphs)\n", (unsigned int)idx, fnt->name ? fnt->name : "?", fnt->displayName ? fnt->displayName : "?", (double)fnt->emSize, fnt->glyphCount);
     }
     }
     printf("\n");
