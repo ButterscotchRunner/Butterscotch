@@ -1,7 +1,7 @@
 #include "profiler.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "stdio_compat.h"
 
 #include "utils.h"

@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "stdio_compat.h"
-#include <string.h>
+#include "string_compat.h"
 
 #include "utils.h"
 
@@ -401,7 +401,7 @@ typedef struct {
     bool present;
     const char* name;
     const char* displayName;
-    uint32_t emSize;
+    float emSize;
     bool bold;
     bool italic;
     uint16_t rangeStart;

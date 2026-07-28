@@ -204,6 +204,7 @@ if(PLATFORM STREQUAL "desktop")
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
         add_compile_definitions(NO_STRTOK_R)
+        add_compile_definitions(NO_STRCASECMP)
     endif()
 
     # Butterscotch VM/interpreter profiler

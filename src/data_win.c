@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "stb_ds.h"
@@ -1301,7 +1301,14 @@ static void parseFONT(BinaryReader* reader, DataWin* dw) {
         font->present = true;
         font->name = readStringPtr(reader, dw);
         font->displayName = readStringPtr(reader, dw);
-        font->emSize = BinaryReader_readUint32(reader);
+        uint32_t rawEmSize = BinaryReader_readUint32(reader);
+        if (rawEmSize & (1u << 31)) {
+            float negated;
+            memcpy(&negated, &rawEmSize, sizeof(negated));
+            font->emSize = -negated;
+        } else {
+            font->emSize = (float) rawEmSize;
+        }
         font->bold = BinaryReader_readBool32(reader);
         font->italic = BinaryReader_readBool32(reader);
         font->rangeStart = BinaryReader_readUint16(reader);
