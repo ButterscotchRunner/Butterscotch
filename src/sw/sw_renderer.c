@@ -67,6 +67,8 @@ typedef struct
     int offsetX, offsetY;
     float scaleX, scaleY;
     float defaultScaleX, defaultScaleY;
+    
+    int blendMode;
 }
 SWRenderer;
 
@@ -127,21 +129,26 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
 }
 
 // NOTE: alpha is between 0 and 256, NOT between 0 and 255!
-FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
+//
+// TODO: this routine could use some optimization.  Obviously I tried my best, but clearly
+// it's still true that too many calculations are being performed.
+//
+// TODO: SIMD could be used here!  however, I don't really care.
+// Old computers/consoles we plan to run this on don't really have
+// SIMD, do they? So I want to optimize for the unfortunate case as
+// much as I can.
+FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalpha, int dstalpha)
 {
 #if PIXEL_SIZE == 32 || PIXEL_SIZE == 16
-    // it's so insignificant here nobody will notice if we just don't...
-    if (alpha < 3)
-        return;
-    
     // it's so significant here we might as well fill in the whole color
-    if (alpha > 253)
-    {
+    if (LIKELY(dstalpha < 3 && srcalpha > 253)) {
         *dcolor = scolor;
         return;
     }
     
-    int inval = 256 - alpha;
+    // it's so insignificant here nobody will notice if we just don't...
+    if (UNLIKELY(srcalpha == 0))
+        return;
 #endif
 
 #if PIXEL_SIZE == 32
@@ -149,9 +156,22 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
     dc.l = *dcolor;
     sc.l = scolor;
     
-    dc.p.r = (dc.p.r * inval + sc.p.r * alpha) >> 8;
-    dc.p.g = (dc.p.g * inval + sc.p.g * alpha) >> 8;
-    dc.p.b = (dc.p.b * inval + sc.p.b * alpha) >> 8;
+    int dcr = (dc.p.r * dstalpha + sc.p.r * srcalpha) >> 8;
+    int dcg = (dc.p.g * dstalpha + sc.p.g * srcalpha) >> 8;
+    int dcb = (dc.p.b * dstalpha + sc.p.b * srcalpha) >> 8;
+    
+    //clamp to 0
+    dcr &= ((-dcr) >> 31);
+    dcg &= ((-dcg) >> 31);
+    dcb &= ((-dcb) >> 31);
+    //clamp to 255
+    dcr |= ((signed char)(dcr >> 1) >> 7);
+    dcg |= ((signed char)(dcg >> 1) >> 7);
+    dcb |= ((signed char)(dcb >> 1) >> 7);
+    
+    dc.p.r = dcr;
+    dc.p.g = dcg;
+    dc.p.b = dcb;
     dc.p.a = 0xFF;
     
     *dcolor = dc.l;
@@ -165,20 +185,29 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
     int dcg = (_dcolor >> 5) & 0x1F;
     int dcr = (_dcolor >> 10) & 0x1F;
     
-    dcr = (dcr * inval + scr * alpha) >> 8;
-    dcg = (dcg * inval + scg * alpha) >> 8;
-    dcb = (dcb * inval + scb * alpha) >> 8;
+    dcr = (dcr * dstalpha + scr * srcalpha) >> 8;
+    dcg = (dcg * dstalpha + scg * srcalpha) >> 8;
+    dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
+    
+    //clamp to 0
+    dcr &= ((-dcr) >> 31);
+    dcg &= ((-dcg) >> 31);
+    dcb &= ((-dcb) >> 31);
+    //clamp to 255
+    dcr |= ((signed char)(dcr >> 1) >> 7);
+    dcg |= ((signed char)(dcg >> 1) >> 7);
+    dcb |= ((signed char)(dcb >> 1) >> 7);
     
     *dcolor = 0x8000 | dcb | (dcg << 5) | (dcr << 10);
 #else
-    if (alpha < 240) {
+    if (srcalpha < 240) {
         static int alphaApproximationThingy = 0;
         alphaApproximationThingy += 1339;
         if (alphaApproximationThingy > 601000)
             alphaApproximationThingy = 0;
         
         //gotta love that RNG
-        if ((alphaApproximationThingy & 0xFF) >= alpha)
+        if ((alphaApproximationThingy & 0xFF) >= srcalpha)
             return;
     }
     
@@ -189,6 +218,32 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int alpha)
 FORCE_INLINE int swrIntAlpha(float alphaf)
 {
     return (int)(alphaf * 256);
+}
+
+FORCE_INLINE int swrCalcSrcAlpha(SWRenderer* swr, int alpha)
+{
+    switch (swr->blendMode)
+    {
+        default:
+            return alpha;
+        case bm_add:
+            return alpha;
+        case bm_subtract:
+            return -alpha;
+    }
+}
+
+FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
+{
+    switch (swr->blendMode)
+    {
+        default:
+            return 256 - alpha;
+        case bm_add:
+            return 256;
+        case bm_subtract:
+            return 256;
+    }
 }
 
 FORCE_INLINE bool swrMustRotate(float angleDeg)
@@ -418,6 +473,7 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
     swr->gameW = gameW;
     swr->gameH = gameH;
     swr->drawingToSurface = false;
+    swr->blendMode = bm_normal;
 
     if (swr->width != windowW || swr->height != windowH)
     {
@@ -545,6 +601,7 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
         swr->width = swr->mainWidth;
         swr->height = swr->mainHeight;
         swr->fbPitch = swr->mainPitch;
+        swr->blendMode = bm_normal;
         
         if (restoreOldView) {
             // restore the old transform, if needed
@@ -579,6 +636,7 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
         swr->mainWidth = swr->width;
         swr->mainHeight = swr->height;
         swr->mainPitch = swr->fbPitch;
+        swr->blendMode = bm_normal;
         
         // and the old transform
         swr->lastViewX = swr->viewX;
@@ -603,6 +661,7 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
     swr->height = surface->height;
     swr->fbPitch = surface->width;
     swr->drawingToSurface = true;
+    swr->blendMode = bm_normal;
     
     swr->viewX = swr->portX = 0;
     swr->viewY = swr->portY = 0;
@@ -721,14 +780,14 @@ static void swrReverseTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int
     if (dy) *dy = (int)(*dy / swr->scaleY);
 }
 
-FORCE_INLINE void swrPlotPixel(Renderer* renderer, int x, int y, uintpixel_t color, int alpha)
+FORCE_INLINE void swrPlotPixel(Renderer* renderer, int x, int y, uintpixel_t color, int srcalpha, int dstalpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (x < swr->portX || y < swr->portY) return;
     if (x >= swr->maxX || y >= swr->maxY) return;
     
-    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, alpha);
+    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, srcalpha, dstalpha);
 }
 
 static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixel_t color, UNUSED uintpixel_t color2, int alpha)
@@ -741,13 +800,16 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
     if (dx + dw >= swr->maxX) dw = swr->maxX - dx;
     if (dw <= 0) return;
     
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    
 #if PIXEL_SIZE == 32
     if (color == color2)
 #endif
     {
         uintpixel_t *line = &swr->fb[dy * swr->fbPitch + dx];
         for (int i = 0; i < dw; i++)
-            alphaBlend(&line[i], color, alpha);
+            alphaBlend(&line[i], color, srcalpha, invalpha);
     }
 #if PIXEL_SIZE == 32
     else
@@ -776,7 +838,7 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
             rinit += rstep;
             ginit += gstep;
             binit += bstep;
-            alphaBlend(&line[i], resultPixel.l, alpha);
+            alphaBlend(&line[i], resultPixel.l, srcalpha, invalpha);
         }
     }
 #endif
@@ -804,6 +866,9 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
     if (dy + dh >= swr->maxY) dh = swr->maxY - dy;
     if (dh <= 0) return;
     
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    
 #if PIXEL_SIZE == 32
     if (color == color2)
 #endif
@@ -811,7 +876,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
         for (int i = 0; i < dh; i++)
         {
             uintpixel_t *line = &swr->fb[(dy + i) * swr->fbPitch + dx];
-            alphaBlend(&line[0], color, alpha);
+            alphaBlend(&line[0], color, srcalpha, invalpha);
         }
     }
 #if PIXEL_SIZE == 32
@@ -841,7 +906,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
             rinit += rstep;
             ginit += gstep;
             binit += bstep;
-            alphaBlend(&line[0], resultPixel.l, alpha);
+            alphaBlend(&line[0], resultPixel.l, srcalpha, invalpha);
         }
     }
 #endif
@@ -891,6 +956,8 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
     int dx = x2 - x1, dy = y2 - y1;
     int dx1 = swrAbs(dx), dy1 = swrAbs(dy), xe, ye, x, y;
     int px = 2 * dy1 - dx1, py = 2 * dx1 - dy1;
+    int srcalpha = swrCalcSrcAlpha((SWRenderer*) renderer, alpha);
+    int invalpha = swrCalcDstAlpha((SWRenderer*) renderer, alpha);
     
     uintpixel_t color = color1;
 #if PIXEL_SIZE == 32
@@ -927,7 +994,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel(renderer, x, y, color, alpha);
+        swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         
         for (int i = 0; x < xe; i++)
         {
@@ -953,7 +1020,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel(renderer, x, y, color, alpha);
+            swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         }
     }
     else
@@ -977,7 +1044,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel(renderer, x, y, color, alpha);
+        swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         
         for (int i = 0; y < ye; i++)
         {
@@ -1003,7 +1070,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel(renderer, x, y, color, alpha);
+            swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         }
     }
 }
@@ -1088,6 +1155,9 @@ static void swrDrawSpriteInternal(
     fixedp_t ixs2 = ixs * xstep;
     fixedp_t iys2 = iys * ystep;
     
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    
     if (sw == dw)
     {
         fixedp_t ys2 = (fixedp_t) iys2;
@@ -1105,7 +1175,7 @@ static void swrDrawSpriteInternal(
             {
                 uintpixel_t pixel = srcline[xs];
                 if (opaque(pixel))
-                    alphaBlend(&dstline[x], tint(tintColor, pixel), alpha);
+                    alphaBlend(&dstline[x], tint(tintColor, pixel), srcalpha, invalpha);
             }
         }
     }
@@ -1127,7 +1197,7 @@ static void swrDrawSpriteInternal(
             {
                 uintpixel_t pixel = srcline[(int)(xs2 >> fp_prec)];
                 if (opaque(pixel))
-                    alphaBlend(&dstline[x], tint(tintColor, pixel), alpha);
+                    alphaBlend(&dstline[x], tint(tintColor, pixel), srcalpha, invalpha);
             }
         }
     }
@@ -1231,6 +1301,9 @@ static void swrDrawSpriteRotatedInternal(
     float sw_dw = (float) sw / dw;
     float sh_dh = (float) sh / dh;
     
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    
     for (int cy = minYc; cy < maxYc; cy++)
     {
         uintpixel_t *dstline = &swr->fb[cy * swr->fbPitch];
@@ -1267,7 +1340,7 @@ static void swrDrawSpriteRotatedInternal(
             uintpixel_t src = texture->buffer[ty * texture->width + tx];
             
             if (opaque(src))
-                alphaBlend(&dstline[cx], tint(tintColor, src), alpha);
+                alphaBlend(&dstline[cx], tint(tintColor, src), srcalpha, invalpha);
         }
     }
 }
@@ -1501,6 +1574,9 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     (void) color2;
     (void) color3;
     
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    
     // Figure out the maximum Y extent of the triangle.
     // (Note that we know yup is the minimum.)
     int xmid, ymid, xmid2 = xup, xmax, ymax;
@@ -1555,7 +1631,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
         
         uintpixel_t* line = &swr->fb[y * swr->width];
         for (int x = x1; x < x2; x++) {
-            alphaBlend(&line[x], color1, alpha);
+            alphaBlend(&line[x], color1, srcalpha, invalpha);
         }
     }
 }
@@ -2042,8 +2118,16 @@ static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alp
 
 static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
 {
-    UNIMP();
-    (void)renderer; (void)mode;
+    //UNIMP();
+    //(void)renderer; (void)mode;
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    swr->blendMode = mode;
+    
+    //if (mode != bm_normal && mode != bm_add && mode != bm_subtract)
+    {
+        fprintf(stderr, "swr: unsupported blend mode: %d\n", mode);
+    }
 }
 
 static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha)
