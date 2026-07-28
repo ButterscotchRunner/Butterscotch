@@ -403,9 +403,9 @@ if ! check 'for strtok_r'; then
 fi
 
 if [ -n "$no_strings_h" ]; then
-    printf '#include <string.h>' > tmp/test.c
+    printf '#include <string.h>\n' > tmp/test.c
 else
-    printf '#include <strings.h>' > tmp/test.c
+    printf '#include <strings.h>\n' > tmp/test.c
 fi
 
 printf '%s' "\
