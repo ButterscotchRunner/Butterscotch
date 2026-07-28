@@ -1431,6 +1431,8 @@ static void SWRenderer_drawRectangle(Renderer* renderer, float x1, float y1, flo
         int x1i = swrFloor(x1), x2i = swrCeiling(x2), y1i = swrFloor(y1), y2i = swrCeiling(y2);
         int xd = x2i - x1i;
         int yd = y2i - y1i;
+        if (xd < 0) { x1i = x2i; xd = -xd; }
+        if (yd < 0) { y1i = y2i; yd = -yd; }
         if (xd <= 0 || yd <= 0) return;
         
         for (int y = 0; y <= yd; y++) {
@@ -1463,6 +1465,8 @@ static void SWRenderer_drawRectangleColor(Renderer* renderer, float x1, float y1
         int x1i = swrFloor(x1), x2i = swrCeiling(x2), y1i = swrFloor(y1), y2i = swrCeiling(y2);
         int xd = x2i - x1i;
         int yd = y2i - y1i;
+        if (xd < 0) { x1i = x2i; xd = -xd; }
+        if (yd < 0) { y1i = y2i; yd = -yd; }
         if (xd <= 0 || yd <= 0) return;
         
         // TODO: blending vertically
