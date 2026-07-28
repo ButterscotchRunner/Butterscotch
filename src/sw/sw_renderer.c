@@ -29,6 +29,15 @@ SWTexture;
 
 typedef struct
 {
+    // used for almost all intents and purposes.
+    SWTexture* texture;
+    // upon a gpuSetColorWriteEnable change, the shadow texture is used for writing instead.
+    SWTexture* shadowTexture;
+}
+SWSurface;
+
+typedef struct
+{
     Renderer base;
     
     // Window Properties
@@ -49,7 +58,7 @@ typedef struct
     float lastScaleX, lastScaleY;
     
     SWTexture** textures;
-    SWTexture** surfaces;
+    SWSurface** surfaces;
     uint32_t* textureIndexLRU;
     uint32_t textureIndexLRUHead;
     uint32_t textureIndexLRUTail;
@@ -69,8 +78,18 @@ typedef struct
     float defaultScaleX, defaultScaleY;
     
     int blendMode;
+    
+    // only used for surfaces.  The application surface doesn't support these at the moment.
+    int currentSurfaceIndex;
+    int writeMask;
 }
 SWRenderer;
+
+#define WRITE_MASK_ALL   (15)
+#define WRITE_MASK_RED   (1)
+#define WRITE_MASK_GREEN (2)
+#define WRITE_MASK_BLUE  (4)
+#define WRITE_MASK_ALPHA (8)
 
 void Runner_setNextFrame(uintpixel_t* framebuffer, int width, int height);
 
@@ -286,19 +305,29 @@ FORCE_INLINE int swrCeiling(float x)
     return i + (x > (float) i);
 }
 
-static SWTexture* swrCreateTexture(const uint8_t* srcBuffer, int width, int height)
+static SWTexture* swrCreateTextureEx(const void* srcBuffer, int width, int height, bool convert)
 {
     SWTexture* txt = (SWTexture*) safeMalloc(sizeof(SWTexture));
     txt->buffer = (uintpixel_t*) safeMalloc(width * height * sizeof(uintpixel_t));
     
-    const uint32_t* rgbaSrc = (const uint32_t*) srcBuffer;
-
     size_t sz = width * height;
     
     if (srcBuffer)
     {
-        for (size_t i = 0; i < sz; i++)
-            txt->buffer[i] = swrConvertPixelTexture(rgbaSrc[i]);
+        if (convert) {
+            const uint32_t* rgbaSrc = (const uint32_t*) srcBuffer;
+            for (size_t i = 0; i < sz; i++)
+                txt->buffer[i] = swrConvertPixelTexture(rgbaSrc[i]);
+        }
+        else {
+            const uintpixel_t* rgbaSrc = (const uintpixel_t*) srcBuffer;
+            for (size_t i = 0; i < sz; i++)
+                txt->buffer[i] = rgbaSrc[i];
+        }
+    }
+    else
+    {
+        memset(txt->buffer, 0, width * height * sizeof(uintpixel_t));
     }
     
     txt->width = (uint16_t) width;
@@ -307,10 +336,58 @@ static SWTexture* swrCreateTexture(const uint8_t* srcBuffer, int width, int heig
     return txt;
 }
 
+static SWTexture* swrCreateTexture(const uint8_t* srcBuffer, int width, int height)
+{
+    return swrCreateTextureEx(srcBuffer, width, height, true);
+}
+
+static SWSurface* swrCreateSurface(int width, int height)
+{
+    SWSurface* surf = (SWSurface*) safeMalloc(sizeof(SWSurface));
+    surf->texture = swrCreateTexture(NULL, width, height);
+    surf->shadowTexture = NULL;
+    return surf;
+}
+
+static SWTexture* swrCopyTexture(SWTexture* texture)
+{
+    return swrCreateTextureEx(texture->buffer, texture->width, texture->height, false);
+}
+
 static void swrFreeTexture(SWTexture* texture)
 {
+    if (UNLIKELY(!texture))
+        return;
+    
     free(texture->buffer);
     free(texture);
+}
+
+static void swrFreeSurface(SWSurface* surface)
+{
+    if (UNLIKELY(!surface))
+        return;
+    
+    swrFreeTexture(surface->texture);
+    swrFreeTexture(surface->shadowTexture);
+    free(surface);
+}
+
+static SWTexture* swrWritableSurfaceTexture(SWRenderer* swr, int surfaceID)
+{
+    if (UNLIKELY(swr->surfaces[surfaceID]->shadowTexture)) {
+        return swr->surfaces[surfaceID]->shadowTexture;
+    }
+    
+    if (LIKELY(swr->writeMask == WRITE_MASK_ALL)) {
+        return swr->surfaces[surfaceID]->texture;
+    }
+    
+    if (UNLIKELY(!swr->surfaces[surfaceID]->shadowTexture)) {
+        swr->surfaces[surfaceID]->shadowTexture = swrCopyTexture(swr->surfaces[surfaceID]->texture);
+    }
+    
+    return swr->surfaces[surfaceID]->shadowTexture;
 }
 
 static bool swrAddTextureIndexToLRU(SWRenderer* swr, int textureIndex)
@@ -433,7 +510,7 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
     swr->surfaceCount = SURFACE_MAX_COUNT;
     swr->totalTextureCount = swr->textureCount + swr->surfaceCount;
     swr->textures = (SWTexture**) safeCalloc(swr->totalTextureCount, sizeof(SWTexture*));
-    swr->surfaces = (SWTexture**) safeCalloc(swr->surfaceCount, sizeof(SWTexture*));
+    swr->surfaces = (SWSurface**) safeCalloc(swr->surfaceCount, sizeof(SWSurface*));
     
     //allocate texture LRU cache to allow for dynamic unloading of textures
     swr->textureIndexLRU = (uint32_t*) safeCalloc(TEXTURE_LRU_LENGTH, sizeof(uint32_t));
@@ -585,9 +662,69 @@ static void SWRenderer_endView(Renderer* renderer)
     swr->scaleY = swr->defaultScaleY;
 }
 
+static void swrCommitShadowWritesToSurfaceIfNeeded(SWRenderer* swr, SWSurface* surface)
+{
+    if (LIKELY(!swr->drawingToSurface))
+        return;
+    
+    if (UNLIKELY(!surface))
+        return;
+    
+    if (UNLIKELY(!surface->shadowTexture))
+        return;
+    
+    if (LIKELY(swr->writeMask == WRITE_MASK_ALL)) {
+        swrFreeTexture(surface->texture);
+        surface->texture = surface->shadowTexture;
+        surface->shadowTexture = NULL;
+        return;
+    }
+    
+    if (UNLIKELY(swr->writeMask == 0)) {
+        swrFreeTexture(surface->shadowTexture);
+        surface->shadowTexture = NULL;
+        return;
+    }
+    
+    uintpixel_t mask = 0;
+#if PIXEL_SIZE == 32
+    Pixel32ARGB x;
+    x.l = 0;
+    if (swr->writeMask & WRITE_MASK_RED)   x.p.r = 255;
+    if (swr->writeMask & WRITE_MASK_GREEN) x.p.g = 255;
+    if (swr->writeMask & WRITE_MASK_BLUE)  x.p.b = 255;
+    if (swr->writeMask & WRITE_MASK_ALPHA) x.p.a = 255;
+    mask = x.l;
+#elif PIXEL_SIZE == 16
+    if (swr->writeMask & WRITE_MASK_RED)   l |= 0x7C00;
+    if (swr->writeMask & WRITE_MASK_GREEN) l |= 0x03E0;
+    if (swr->writeMask & WRITE_MASK_BLUE)  l |= 0x001F;
+    if (swr->writeMask & WRITE_MASK_ALPHA) l |= 0x8000;
+#else
+    //although it DOES ues rgb332, needs special handling for ALPHA
+    fprintf(stderr, "swr: Unimplemented color masking for 8-bit mode TODO\n");
+    swrFreeTexture(surface->texture);
+    surface->texture = surface->shadowTexture;
+    surface->shadowTexture = NULL;
+    return;
+#endif
+
+    uintpixel_t invmask = ~mask;
+    size_t max = surface->texture->width * surface->texture->height;
+    for (size_t i = 0; i < max; i++)
+    {
+        surface->shadowTexture->buffer[i] =
+        surface->texture->buffer[i] = (surface->texture->buffer[i] & invmask) | (surface->shadowTexture->buffer[i] & mask);
+    }
+}
+
 static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restoreOldView)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (swr->drawingToSurface) {
+        swrCommitShadowWritesToSurfaceIfNeeded(swr, swr->surfaces[swr->currentSurfaceIndex]);
+    }
     
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER)
     {
@@ -602,6 +739,8 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
         swr->height = swr->mainHeight;
         swr->fbPitch = swr->mainPitch;
         swr->blendMode = bm_normal;
+        swr->currentSurfaceIndex = -1;
+        swr->writeMask = WRITE_MASK_ALL;
         
         if (restoreOldView) {
             // restore the old transform, if needed
@@ -655,13 +794,15 @@ static bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool
         swr->lastScaleY = swr->scaleY;
     }
     
-    SWTexture* surface = swr->surfaces[targetSurfaceId];
+    SWTexture* surface = swr->surfaces[targetSurfaceId]->texture;
     swr->fb = surface->buffer;
     swr->width = surface->width;
     swr->height = surface->height;
     swr->fbPitch = surface->width;
     swr->drawingToSurface = true;
     swr->blendMode = bm_normal;
+    swr->currentSurfaceIndex = targetSurfaceId;
+    swr->writeMask = WRITE_MASK_ALL;
     
     swr->viewX = swr->portX = 0;
     swr->viewY = swr->portY = 0;
@@ -2029,8 +2170,11 @@ static void SWRenderer_drawSurfaceTiled(Renderer* renderer, int32_t surfaceID, f
 
     if (0 > surfaceID || swr->surfaceCount <= (size_t) surfaceID) return;
 
-    SWTexture* surface = swr->surfaces[surfaceID];
-    if (!surface) return;
+    SWSurface* surfaceP = swr->surfaces[surfaceID];
+    if (!surfaceP) return;
+
+    swrCommitShadowWritesToSurfaceIfNeeded(swr, surfaceP);
+    SWTexture* surface = surfaceP->texture;
 
     float axScale = fabsf(xscale);
     float ayScale = fabsf(yscale);
@@ -2156,18 +2300,53 @@ static void SWRenderer_gpuSetAlphaTestRef(Renderer* renderer, uint8_t ref)
 
 static void SWRenderer_gpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha)
 {
-    UNIMP();
-    (void)renderer; (void)red; (void)green; (void)blue; (void)alpha;
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (!swr->drawingToSurface) {
+        fprintf(stderr, "swr: gpuSetColorWriteEnable not supported for main framebuffer");
+        return;
+    }
+    
+    SWSurface* currSurf = swr->surfaces[swr->currentSurfaceIndex];
+    
+    swrCommitShadowWritesToSurfaceIfNeeded(swr, currSurf);
+    
+    swr->writeMask =
+        (red ? WRITE_MASK_RED : 0) |
+        (green ? WRITE_MASK_GREEN : 0) |
+        (blue ? WRITE_MASK_BLUE : 0) |
+        (alpha ? WRITE_MASK_ALPHA : 0);
+    
+    // no need to change other properties, because the width and height are the same.
+    // but we ALWAYS need to re-fetch the writable surface texture since the old one
+    // may have been freed.
+    swr->fb = swrWritableSurfaceTexture(swr, swr->currentSurfaceIndex)->buffer;
+    
+    if (currSurf->shadowTexture) {
+        assert(currSurf->texture->width == currSurf->shadowTexture->width);
+        assert(currSurf->texture->height == currSurf->shadowTexture->height);
+        assert(currSurf->texture->buffer != currSurf->shadowTexture->buffer);
+    }
 }
 
 static void SWRenderer_gpuGetColorWriteEnable(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha)
 {
-    UNIMP();
     *red = false;
     *green = false;
     *blue = false;
     *alpha = false;
-    (void)renderer; (void)red; (void)green; (void)blue; (void)alpha;
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (!swr->drawingToSurface) {
+        fprintf(stderr, "swr: gpuGetColorWriteEnable not supported for main framebuffer");
+        return;
+    }
+    
+    *red = (swr->writeMask & WRITE_MASK_RED) != 0;
+    *green = (swr->writeMask & WRITE_MASK_GREEN) != 0;
+    *blue = (swr->writeMask & WRITE_MASK_BLUE) != 0;
+    *alpha = (swr->writeMask & WRITE_MASK_ALPHA) != 0;
 }
 
 static bool SWRenderer_gpuGetBlendEnable(Renderer* renderer)
@@ -2201,7 +2380,7 @@ static int32_t SWRenderer_createSurface(Renderer* renderer, int32_t width, int32
         return slot;
     }
     
-    swr->surfaces[slot] = swrCreateTexture(NULL, width, height);
+    swr->surfaces[slot] = swrCreateSurface(width, height);
     return slot;
 }
 
@@ -2228,7 +2407,7 @@ static float SWRenderer_getSurfaceWidth(Renderer* renderer, int32_t surfaceID)
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
         return 0.0f;
     
-    return (float) swr->surfaces[surfaceID]->width;
+    return (float) swr->surfaces[surfaceID]->texture->width;
 }
 
 static float SWRenderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceID)
@@ -2240,7 +2419,7 @@ static float SWRenderer_getSurfaceHeight(Renderer* renderer, int32_t surfaceID)
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL)
         return 0.0f;
     
-    return (float) swr->surfaces[surfaceID]->height;
+    return (float) swr->surfaces[surfaceID]->texture->height;
 }
 
 static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
@@ -2260,8 +2439,9 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
             fprintf(stderr, "swr: Invalid surface id %d for drawSurface\n", surfaceID);
             return;
         }
-        
-        surface = swr->surfaces[surfaceID];
+
+        swrCommitShadowWritesToSurfaceIfNeeded(swr, swr->surfaces[surfaceID]);
+        surface = swr->surfaces[surfaceID]->texture;
     }
     
     if (srcWidth < 0) {
@@ -2318,8 +2498,8 @@ static void SWRenderer_surfaceResize(Renderer* renderer, int32_t surfaceID, int3
         return;
     }
     
-    swrFreeTexture(swr->surfaces[surfaceID]);
-    swr->surfaces[surfaceID] = swrCreateTexture(NULL, width, height);
+    swrFreeSurface(swr->surfaces[surfaceID]);
+    swr->surfaces[surfaceID] = swrCreateSurface(width, height);
 }
 
 static void SWRenderer_surfaceFree(Renderer* renderer, int32_t surfaceID)
@@ -2336,7 +2516,7 @@ static void SWRenderer_surfaceFree(Renderer* renderer, int32_t surfaceID)
         return;
     }
     
-    swrFreeTexture(swr->surfaces[surfaceID]);
+    swrFreeSurface(swr->surfaces[surfaceID]);
     swr->surfaces[surfaceID] = NULL;
 }
 
@@ -2361,7 +2541,7 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
         return;
     }
     else {
-        dstSurf = swr->surfaces[DestSurfaceID];
+        dstSurf = swrWritableSurfaceTexture(swr, DestSurfaceID);
     }
     
     if (SrcSurfaceID == APPLICATION_SURFACE_ID) {
@@ -2375,7 +2555,8 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
         return;
     }
     else {
-        srcSurf = swr->surfaces[SrcSurfaceID];
+        swrCommitShadowWritesToSurfaceIfNeeded(swr, swr->surfaces[SrcSurfaceID]);
+        srcSurf = swr->surfaces[SrcSurfaceID]->texture;
     }
     
     if (SrcX + SrcW < 0) return;
@@ -2416,10 +2597,6 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
     }
     
     UNIMP();
-    (void)renderer;
-    (void)DestSurfaceID; (void)DestX; (void)DestY;
-    (void)SrcSurfaceID; (void)SrcX; (void)SrcY;
-    (void)SrcW; (void)SrcH; (void)part;
 }
 
 static bool SWRenderer_surfaceGetPixels(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA)
