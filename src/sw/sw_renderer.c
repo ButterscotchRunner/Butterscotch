@@ -709,6 +709,12 @@ static void swrTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* d
     if (dy) *dy = (int)(*dy * swr->scaleY);
 }
 
+static void swrReverseTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
+{
+    if (dx) *dx = *dx / swr->scaleX;
+    if (dy) *dy = *dy / swr->scaleY;
+}
+
 static void swrReverseTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
     if (dx) *dx = (int)(*dx / swr->scaleX);
@@ -1483,6 +1489,9 @@ static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2
     (void)width; (void)color; (void)alpha;
     
     uintpixel_t colorCvt = swrConvertPixel(color);
+#ifdef TRANSPARENT_MASK
+    colorCvt |= TRANSPARENT_MASK;
+#endif
     swrDrawLine(renderer, x1, y1, x2, y2, width, colorCvt, colorCvt, alpha);
 }
 
@@ -2171,6 +2180,17 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
         surface = swr->surfaces[surfaceID];
     }
     
+    if (srcWidth < 0) {
+        srcWidth = surface->width;
+        swrReverseTransformSizeIfNeeded(swr, &xscale, NULL);
+    }
+    if (srcHeight < 0) {
+        srcHeight = surface->height;
+        swrReverseTransformSizeIfNeeded(swr, NULL, &yscale);
+    }
+    
+    fprintf(stderr,"drawSurface(%d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %08x, %f) -> %p\n",surfaceID,srcLeft,srcTop,srcWidth,srcHeight,x,y,xscale,yscale,angleDeg,color,alpha,surface);
+    
     int sx = srcLeft;
     int sy = srcTop;
     int sw = srcWidth;
@@ -2183,6 +2203,12 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
     float dy = y;
     int dw = (int)(xscale * tw);
     int dh = (int)(yscale * th);
+
+    //make it opaque first
+#ifdef TRANSPARENT_MASK
+    for (int i = 0; i < surface->width * surface->height; i++)
+        surface->buffer[i] |= TRANSPARENT_MASK;
+#endif
 
     if (UNLIKELY(swrMustRotate(angleDeg)))
     {
