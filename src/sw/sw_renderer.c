@@ -448,8 +448,10 @@ static bool swrEnsureTextureIsLoaded(SWRenderer* swr, uint32_t pageId)
         if (txtr->blobData) {
             pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
             if (pixels) {
-                free(txtr->blobData);
-                txtr->blobData = NULL;
+                if (!txtr->mapped) {
+                    free(txtr->blobData);
+                    txtr->blobData = NULL;
+                }
                 break;
             }
             
