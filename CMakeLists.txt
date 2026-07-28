@@ -389,7 +389,11 @@ elseif(PLATFORM STREQUAL "android")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES PLATFORM_ANDROID)
+    add_compile_definitions(PLATFORM_ANDROID)
+
+    # GLAD
+    add_library(glad STATIC vendor/glad/src/glad.c)
+    target_include_directories(glad PUBLIC vendor/glad/include)
 
     # Butterscotch VM/interpreter profiler
     option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
@@ -430,9 +434,9 @@ elseif(PLATFORM STREQUAL "android")
 
     # Android NDK system libraries:
     # - log: __android_log_*
-    # - GLESv3: OpenGL ES 3.0 functions
+    # - EGL: eglGetProcAddress used by the Glad GLES2 loader
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
-    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE glad log EGL OpenSLES bzip2 stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})

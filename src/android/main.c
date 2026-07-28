@@ -5,7 +5,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <android/log.h>
-#include <GLES3/gl3.h>
+#include <dlfcn.h>
+#include <EGL/egl.h>
+#include <glad/glad.h>
 
 #include "common.h"
 #include "data_win.h"
@@ -406,6 +408,13 @@ JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass 
         return JNI_FALSE;
     }
     gHostFramebuffer = (GLuint) jHostFramebuffer;
+
+    if (!gladLoadGLES2Loader((GLADloadproc)eglGetProcAddress)) {
+        LOGE("Failed to load OpenGL ES via Glad");
+        return JNI_FALSE;
+    }
+    LOGI("GL Version: %s", glGetString(GL_VERSION));
+
     const char* dataWinPath = (*env)->GetStringUTFChars(env, jDataWinPath, nullptr);
     const char* savesPath   = (*env)->GetStringUTFChars(env, jSavesPath,   nullptr);
     char** gameArgs = nullptr;

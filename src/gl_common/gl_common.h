@@ -4,13 +4,14 @@
 #include "common.h"
 #include <stdint.h>
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__)
 #include <GLES3/gl3.h>
-#elif PLATFORM_PS3
+#elif defined(__ANDROID__) || !defined(PLATFORM_PS3)
+#include <glad/glad.h>
+#endif
+#if PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
-#else
-#include <glad/glad.h>
 #endif
 
 // ===[ Letterbox blit ]===

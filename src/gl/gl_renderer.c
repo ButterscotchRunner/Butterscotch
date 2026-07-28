@@ -2,7 +2,7 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__)
 #include <GLES3/gl3.h>
 #else
 #include <glad/glad.h>
@@ -52,7 +52,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__)
     return glGenFramebuffers;
 #else
     return true;
@@ -60,7 +60,7 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__)
     return glGenVertexArrays;
 #else
     return true;
