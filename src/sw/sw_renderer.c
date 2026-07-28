@@ -2606,6 +2606,12 @@ static bool SWRenderer_surfaceGetPixels(Renderer* renderer, int32_t surfaceID, u
     return false;
 }
 
+static int32_t SWRenderer_gpuGetBlendMode(Renderer* renderer)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    return swr->blendMode;
+}
+
 static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t surfaceID,
                                                    int32_t x, int32_t y, int32_t w, int32_t h,
                                                    bool removeback, bool smooth,
@@ -2620,15 +2626,27 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     (void) removeback;
     (void) smooth;
     
-    if (surfaceID != -1) {
-        fprintf(stderr, "%s: Surfaces other than application_surface aren't supported yet!\n", __func__);
-        return 0;
+    SWTexture *srcTex, temp1;
+    
+    if (surfaceID == APPLICATION_SURFACE_ID) {
+        srcTex = &temp1;
+        temp1.width = swr->width;
+        temp1.height = swr->height;
+        temp1.buffer = swr->fb;
+    } else {
+        if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
+            fprintf(stderr, "%s: Invalid surface ID %d\n", __func__, surfaceID);
+            return 0;
+        }
+        SWSurface* surf = swr->surfaces[surfaceID];
+        swrCommitShadowWritesToSurfaceIfNeeded(swr, surf);
+        srcTex = surf->texture;
     }
 
     int32_t texturePageId = swrFindSurfaceTextureSlot(swr);
     int32_t tpagIndex = swrFindSurfaceTPagSlot(swr);
     if (texturePageId == -1 || tpagIndex == -1) {
-        fprintf(stderr, "%s: Surface overflow!!\n", __func__);
+        fprintf(stderr, "%s: Sprite overflow!!\n", __func__);
         return 0;
     }
     
@@ -2638,7 +2656,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     for (int iy = 0; iy < h; iy++)
     {
         uintpixel_t* dstline = &tex->buffer[iy * tex->width];
-        if ((iy + y) < 0 || (iy + y) >= swr->height)
+        if ((iy + y) < 0 || (iy + y) >= srcTex->height)
         {
             for (int ix = 0; ix < w; ix++)
                 dstline[ix] = 0;
@@ -2646,7 +2664,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
             continue;
         }
         
-        uintpixel_t* srcline = &swr->fb[(iy + y) * swr->width + x];
+        uintpixel_t* srcline = &srcTex->buffer[(iy + y) * srcTex->width + x];
         
         int ix = 0, sx = x;
         // left edge
@@ -2654,7 +2672,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
             dstline[ix] = 0;
         
         // in-bounds
-        for (; sx < swr->width && ix < w; sx++, ix++)
+        for (; sx < srcTex->width && ix < w; sx++, ix++)
 #if PIXEL_SIZE == 8
             dstline[ix] = srcline[ix];
 #else
@@ -2941,6 +2959,7 @@ Renderer* SWRenderer_create(void)
     swrVtable.gpuSetColorWriteEnable   = SWRenderer_gpuSetColorWriteEnable;
     swrVtable.gpuGetColorWriteEnable   = SWRenderer_gpuGetColorWriteEnable;
     swrVtable.gpuGetBlendEnable        = SWRenderer_gpuGetBlendEnable;
+    swrVtable.gpuGetBlendMode          = SWRenderer_gpuGetBlendMode;
     swrVtable.gpuSetFog                = SWRenderer_gpuSetFog;
     swrVtable.drawSpriteTiled          = SWRenderer_drawSpriteTiled;
     swrVtable.drawSurfaceTiled         = SWRenderer_drawSurfaceTiled;
