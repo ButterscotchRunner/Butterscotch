@@ -2189,8 +2189,6 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
         swrReverseTransformSizeIfNeeded(swr, NULL, &yscale);
     }
     
-    fprintf(stderr,"drawSurface(%d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %08x, %f) -> %p\n",surfaceID,srcLeft,srcTop,srcWidth,srcHeight,x,y,xscale,yscale,angleDeg,color,alpha,surface);
-    
     int sx = srcLeft;
     int sy = srcTop;
     int sw = srcWidth;
@@ -2203,12 +2201,6 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
     float dy = y;
     int dw = (int)(xscale * tw);
     int dh = (int)(yscale * th);
-
-    //make it opaque first
-#ifdef TRANSPARENT_MASK
-    for (int i = 0; i < surface->width * surface->height; i++)
-        surface->buffer[i] |= TRANSPARENT_MASK;
-#endif
 
     if (UNLIKELY(swrMustRotate(angleDeg)))
     {
