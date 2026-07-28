@@ -1,8 +1,8 @@
 #include "ps3_textures.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 // We stream the texture pages on demand from the file instead of loading everything in RAM.
 

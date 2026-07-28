@@ -3,7 +3,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 BinaryReader BinaryReader_create(FILE* file, size_t fileSize) {
     BinaryReader br = {0};

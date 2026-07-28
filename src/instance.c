@@ -1,7 +1,7 @@
 #include "instance.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "stb_ds.h"
@@ -148,11 +148,13 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->timelineRunning = source->timelineRunning;
 
     // Deep-copy self variables (Instance_setSelfVar handles string duplication + array incRef)
+    {
     repeat(source->selfVars.capacity, i) {
         IntRValueEntry* entry = &source->selfVars.entries[i];
         if (entry->key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             Instance_setSelfVar(destination, entry->key, entry->value);
         }
+    }
     }
 }
 
@@ -179,7 +181,7 @@ void Instance_computeSpeedFromComponents(Instance* inst) {
     if (GMLReal_fabs(inst->direction - GMLReal_round(inst->direction)) < 0.0001) {
         inst->direction = (float) GMLReal_round(inst->direction);
     }
-    inst->direction = (float) GMLReal_fmod(inst->direction, 360.0);
+    inst->direction = (float) GMLReal_fmod((GMLReal) inst->direction, 360.0);
 
     // Speed
     inst->speed = (float) GMLReal_sqrt(inst->hspeed * inst->hspeed + inst->vspeed * inst->vspeed);

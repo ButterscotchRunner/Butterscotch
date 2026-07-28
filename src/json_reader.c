@@ -1,8 +1,8 @@
 #include "json_reader.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #include "utils.h"
 
@@ -365,18 +365,22 @@ static void freeContents(JsonValue* value) {
             free(value->stringValue);
             break;
         case JSON_ARRAY:
+            {
             repeat(value->array.count, i) {
                 freeContents(&value->array.items[i]);
             }
             free(value->array.items);
+            }
             break;
         case JSON_OBJECT:
+            {
             repeat(value->object.count, i) {
                 free(value->object.keys[i]);
                 freeContents(&value->object.values[i]);
             }
             free(value->object.keys);
             free(value->object.values);
+            }
             break;
         default:
             break;

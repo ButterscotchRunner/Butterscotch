@@ -1,5 +1,5 @@
 #include <ctype.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 #include <SDL3/SDL.h>
 

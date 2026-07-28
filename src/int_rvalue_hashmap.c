@@ -1,7 +1,7 @@
 #include "int_rvalue_hashmap.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #define INITIAL_CAPACITY 8
 

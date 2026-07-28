@@ -8,9 +8,9 @@
 #include "profiler.h"
 #include "string_builder.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "stb_ds.h"
@@ -262,6 +262,8 @@ static GMLArray* VM_arraySetWithCoW(VMContext* ctx, RValue* slot, int32_t index,
     require(slot != nullptr);
     requireMessageFormatted(__FILE__, __LINE__, index >= 0, "Trying to write to an array using a negative index! Index: %d", index);
 
+    RValue writeVal = RValue_makeIndependent(val);
+
     void* intendedOwner;
 #if IS_WAD17_OR_HIGHER_ENABLED
     intendedOwner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
@@ -277,7 +279,7 @@ static GMLArray* VM_arraySetWithCoW(VMContext* ctx, RValue* slot, int32_t index,
         fresh->owner = intendedOwner;
         *slot = RValue_makeArray(fresh);
         GMLArray_growTo(fresh, index + 1);
-        GMLArray_set(fresh, index, val);
+        RValue_writeIntoSlotStealingOwnershipOrCopying(GMLArray_slot(fresh, index), writeVal);
         return fresh;
     }
 
@@ -299,7 +301,8 @@ static GMLArray* VM_arraySetWithCoW(VMContext* ctx, RValue* slot, int32_t index,
     }
 
     // Case 3: Write!
-    GMLArray_set(arr, index, val);
+    GMLArray_growTo(arr, index + 1);
+    RValue_writeIntoSlotStealingOwnershipOrCopying(GMLArray_slot(arr, index), writeVal);
     return arr;
 }
 
@@ -1875,13 +1878,17 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
         }
 
         // Shift bottom group up to where top group was
+        {
         for (int32_t i = bottomSlots - 1; i >= 0; i--) {
             ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
         }
+        }
 
         // Place top group at the bottom
+        {
         for (int32_t i = 0; topSlots > i; i++) {
             ctx->stack.slots[baseIdx + i] = temp[i];
+        }
         }
         return;
     }
@@ -1949,8 +1956,9 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             char* display = RValue_toStringFancy(args[i]);
 
             if (i > 0) {
-                char* tmp = (char *)safeMalloc(strlen(functionArgumentList) + 2 + strlen(display) + 1);
-                sprintf(tmp, "%s, %s", functionArgumentList, display);
+                size_t bufsz = strlen(functionArgumentList) + 2 + strlen(display) + 1;
+                char* tmp = (char *)safeMalloc(bufsz);
+                snprintf(tmp, bufsz, "%s, %s", functionArgumentList, display);
                 free(functionArgumentList);
                 functionArgumentList = tmp;
             } else {
@@ -2453,6 +2461,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
     }
 
     // Simple insertion sort (max 256 entries, runs once at shutdown)
+    {
     for (int i = 1; entryCount > i; i++) {
         CountEntry tmp = entries[i];
         int j = i;
@@ -2462,14 +2471,17 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
         }
         entries[j] = tmp;
     }
+    }
 
     fprintf(stderr, "=== Opcode Profiler Report ===\n");
-    fprintf(stderr, "Total instructions executed: %llu\n", (unsigned long long) total);
+    fprintf(stderr, "Total instructions executed: %llu\n", (unsigned longlong) total);
     fprintf(stderr, "%-12s %-6s %16s %8s\n", "Opcode", "Hex", "Count", "Pct");
+    {
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
-        double pct = total > 0 ? (100.0 * (double) entry->count / (double) total) : 0.0;
-        fprintf(stderr, "%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned long long) entry->count, pct);
+        double pct = total > 0 ? (100.0 * (double)(int64_t)entry->count / (double)(int64_t)total) : 0.0;
+        fprintf(stderr, "%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
+    }
     }
 
     // Per-opcode breakdown by type variant. Sorted within each opcode by count desc.
@@ -2498,13 +2510,13 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             variantEntries[j] = tmp;
         }
 
-        fprintf(stderr, "%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned long long) entry->count);
+        fprintf(stderr, "%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned longlong) entry->count);
         forEachIndexed(CountEntry, ve, vi, variantEntries, variantCount) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
             uint8_t type2 = (uint8_t) (ve->key & 0xF);
-            double vpct = entry->count > 0 ? (100.0 * (double) ve->count / (double) entry->count) : 0.0;
-            fprintf(stderr, "    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned long long) ve->count, vpct);
+            double vpct = entry->count > 0 ? (100.0 * (double)(int64_t)ve->count / (double)(int64_t)entry->count) : 0.0;
+            fprintf(stderr, "    .%c.%c  %16llu %7.2f%%\n", gmlTypeChar(type1), gmlTypeChar(type2), (unsigned longlong) ve->count, vpct);
         }
 
         // Runtime RValue type breakdown (a, b types observed at execution time)
@@ -2536,8 +2548,8 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     (void) ri;
                     uint8_t typeA = (uint8_t) ((re->key >> 4) & 0xF);
                     uint8_t typeB = (uint8_t) (re->key & 0xF);
-                    double rpct = rvTotal > 0 ? (100.0 * (double) re->count / (double) rvTotal) : 0.0;
-                    fprintf(stderr, "    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned long long) re->count, rpct);
+                    double rpct = rvTotal > 0 ? (100.0 * (double)(int64_t)re->count / (double)(int64_t)rvTotal) : 0.0;
+                    fprintf(stderr, "    (%-6s, %-6s) %16llu %7.2f%%\n", rvalueTypeName(typeA), rvalueTypeName(typeB), (unsigned longlong) re->count, rpct);
                 }
             }
         }
@@ -2553,6 +2565,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                     breakCount++;
                 }
             }
+            {
             for (int i = 1; breakCount > i; i++) {
                 CountEntry tmp = breakEntries[i];
                 int j = i;
@@ -2562,12 +2575,13 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
                 }
                 breakEntries[j] = tmp;
             }
+            }
             fprintf(stderr, "    -- sub-opcodes:\n");
             forEachIndexed(CountEntry, be, bi, breakEntries, breakCount) {
                 (void) bi;
                 int16_t breakType = (int16_t) -((int) be->key);
-                double bpct = entry->count > 0 ? (100.0 * (double) be->count / (double) entry->count) : 0.0;
-                fprintf(stderr, "    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned long long) be->count, bpct);
+                double bpct = entry->count > 0 ? (100.0 * (double)(int64_t)be->count / (double)(int64_t)entry->count) : 0.0;
+                fprintf(stderr, "    %-12s (%4d) %16llu %7.2f%%\n", breakSubOpName(breakType), (int) breakType, (unsigned longlong) be->count, bpct);
             }
         }
     }
@@ -3526,6 +3540,7 @@ VMContext* VM_create(DataWin* dataWin) {
     }
 
     // Also map code entry names directly for non-script code (object events, room creation codes, etc.)
+    {
     repeat(dataWin->code.count, i) {
         const char* codeName = dataWin->code.entries[i].name;
         ptrdiff_t existing = shgeti(ctx->codeIndexByName, (char*) codeName);
@@ -3533,9 +3548,11 @@ VMContext* VM_create(DataWin* dataWin) {
             shput(ctx->codeIndexByName, (char*) codeName, (int32_t) i);
         }
     }
+    }
 
     // Build codeName -> CodeLocals* hash map
     ctx->codeLocalsMap = nullptr;
+    {
     repeat(dataWin->func.codeLocalsCount, i) {
         CodeLocals* cl = &dataWin->func.codeLocals[i];
         shput(ctx->codeLocalsMap, safeStrdup(cl->name), cl);
@@ -3547,6 +3564,7 @@ VMContext* VM_create(DataWin* dataWin) {
                 shput(ctx->codeLocalsMap, safeStrdup(scriptName), cl);
             }
         }
+    }
     }
 
     // BC13/BC14/BC17+: build per-CodeLocals varID -> slot hmap so resolveLocalSlot is O(1)
@@ -3564,6 +3582,7 @@ VMContext* VM_create(DataWin* dataWin) {
     // This eliminates per-call string hash lookups in handleCall.
     ctx->funcCallCacheCount = dataWin->func.functionCount;
     ctx->funcCallCache = (FuncCallCache *)safeMalloc(dataWin->func.functionCount * sizeof(FuncCallCache));
+    {
     repeat(dataWin->func.functionCount, i) {
         const char* name = dataWin->func.functions[i].name;
         BuiltinFunc builtin = VM_findBuiltin(ctx, name);
@@ -3574,6 +3593,7 @@ VMContext* VM_create(DataWin* dataWin) {
             ptrdiff_t mapIdx = shgeti(ctx->codeIndexByName, (char*) name);
             ctx->funcCallCache[i].scriptCodeIndex = (mapIdx >= 0) ? ctx->codeIndexByName[mapIdx].value : -1;
         }
+    }
     }
 
     fprintf(stderr, "VM: Initialized with %u functions mapped\n", (uint32_t) shlen(ctx->codeIndexByName));
@@ -3801,8 +3821,10 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     free(ctx->localVars);
 
     // Free callee script args
+    {
     repeat(ctx->scriptArgCount, i) {
         RValue_free(&ctx->scriptArgs[i]);
+    }
     }
 
     free(ctx->scriptArgs);
@@ -3996,7 +4018,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
                     break;
                 case GML_TYPE_INT64:
                     snprintf(opcodeStr, opcodeSize, "Push.l");
-                    snprintf(operandStr, operandSize, "%lld", (long long) BinaryUtils_readInt64(extraData));
+                    snprintf(operandStr, operandSize, "%lld", (longlong) BinaryUtils_readInt64(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [int64]");
                     break;
                 case GML_TYPE_BOOL:
@@ -4394,6 +4416,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     printf("\n");
 }
 
+#undef VM_registerBuiltin
 void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func) {
     requireMessageFormatted(__FILE__, __LINE__, shgeti(ctx->builtinMap, name) == -1, "Trying to register an already registered builtin function! Function Name: %s", name);
     shput(ctx->builtinMap, (char*) name, func);
@@ -4428,18 +4451,24 @@ void VM_free(VMContext* ctx) {
         free(ctx->varNameMap[i].key);
     }
     shfree(ctx->varNameMap);
+    {
     repeat(shlen(ctx->codeLocalsMap), i) {
         free(ctx->codeLocalsMap[i].key);
+    }
     }
     shfree(ctx->codeLocalsMap);
 
     // Free dedup key strings before freeing the hashmaps
+    {
     repeat(shlen(ctx->loggedUnknownFuncs), i) {
         free(ctx->loggedUnknownFuncs[i].key);
     }
+    }
     shfree(ctx->loggedUnknownFuncs);
+    {
     repeat(shlen(ctx->loggedStubbedFuncs), i) {
         free(ctx->loggedStubbedFuncs[i].key);
+    }
     }
     shfree(ctx->loggedStubbedFuncs);
 #ifdef ENABLE_VM_TRACING

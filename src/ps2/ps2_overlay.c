@@ -1,7 +1,7 @@
 #include "ps2_overlay.h"
 
 #include <malloc.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <unistd.h>
 
 #include "ps2_utils.h"

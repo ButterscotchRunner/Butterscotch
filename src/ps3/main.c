@@ -3,9 +3,9 @@
 #include "rsxutil.h"
 #include "vm.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <time.h>
 #include <malloc.h>
 

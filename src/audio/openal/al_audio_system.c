@@ -6,13 +6,13 @@
 
 #include "stb_vorbis.c"
 #include "al_audio_system.h"
+#include "binary_utils.h"
 #include "data_win.h"
 #include "utils.h"
-#include "wave.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "stb_ds.h"
 
 // ===[ Helpers ]===
@@ -163,14 +163,30 @@ static char* resolveExternalPath(AlAudioSystem* ma, Sound* sound) {
 
 static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
+    ma->base.dw = dataWin;
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
 
     ma->alDevice = alcOpenDevice(nullptr);
+    if (ma->alDevice == nullptr) {
+        fprintf(stderr, "Audio: Failed to open OpenAL device (error %d)\n", alGetError());
+        return;
+    }
+
     ma->alContext = alcCreateContext(ma->alDevice, nullptr);
-    alcMakeContextCurrent(ma->alContext);
-    if (ma->alDevice == nullptr || ma->alContext == nullptr) {
-        fprintf(stderr, "Audio: Failed to initialize OpenAL engine (error %d)\n", alGetError());
+    if (ma->alContext == nullptr) {
+        fprintf(stderr, "Audio: Failed to create OpenAL context (error %d)\n", alGetError());
+        alcCloseDevice(ma->alDevice);
+        ma->alDevice = nullptr;
+        return;
+    }
+
+    if (!alcMakeContextCurrent(ma->alContext)) {
+        fprintf(stderr, "Audio: Failed to make OpenAL context current (error %d)\n", alGetError());
+        alcDestroyContext(ma->alContext);
+        alcCloseDevice(ma->alDevice);
+        ma->alContext = nullptr;
+        ma->alDevice = nullptr;
         return;
     }
 
@@ -278,6 +294,48 @@ static void maUpdate(AudioSystem* audio, float deltaTime) {
     }
 }
 
+// Walk RIFF chunks in a WAV container to find the 'data' chunk payload offset and length.
+// Returns pointer to the first byte of audio data, or nullptr on failure.
+// audioDataLenOut receives the chunk's data length.
+static const uint8_t* findWavDataChunk(const uint8_t* data, uint32_t dataSize, uint32_t* audioDataLenOut) {
+    if (data == nullptr || dataSize < 12) return nullptr;
+    if (data[0] != 'R' || data[1] != 'I' || data[2] != 'F' || data[3] != 'F') return nullptr;
+    uint32_t offset = 12;
+    while (offset + 8 <= dataSize) {
+        uint32_t chunkLen = data[offset+4] | (data[offset+5] << 8) | (data[offset+6] << 16) | (data[offset+7] << 24);
+        uint32_t chunkDataOffset = offset + 8;
+        uint32_t available = dataSize - chunkDataOffset;
+        if (chunkLen > available) chunkLen = available;
+        if (data[offset] == 'd' && data[offset+1] == 'a' && data[offset+2] == 't' && data[offset+3] == 'a') {
+            *audioDataLenOut = chunkLen;
+            return data + chunkDataOffset;
+        }
+        offset = chunkDataOffset + chunkLen;
+        if (offset & 1) offset++;
+    }
+    return nullptr;
+}
+
+// Parse WAV fmt chunk fields from a RIFF/WAV header.
+// Returns true if the data starts with "RIFF" and the fmt fields decode to non-zero values.
+// outAudioData may be nullptr if the caller only needs the data length.
+static bool parseWavHeader(const uint8_t* data, uint32_t dataSize,
+                           uint32_t* outChannels, uint32_t* outSampleRate,
+                           uint32_t* outBitsPerSample, const uint8_t** outAudioData,
+                           uint32_t* outAudioDataLen) {
+    if (data == nullptr || dataSize < 36) return false;
+    if (data[0] != 'R' || data[1] != 'I' || data[2] != 'F' || data[3] != 'F') return false;
+    *outChannels = data[22] | (data[23] << 8);
+    *outSampleRate = data[24] | (data[25] << 8) | (data[26] << 16) | (data[27] << 24);
+    *outBitsPerSample = data[34] | (data[35] << 8);
+    uint32_t audioDataLen = 0;
+    const uint8_t* found = findWavDataChunk(data, dataSize, &audioDataLen);
+    if (outAudioData != nullptr) *outAudioData = found;
+    *outAudioDataLen = audioDataLen;
+    return found != nullptr && audioDataLen > 0
+        && *outChannels > 0 && *outSampleRate > 0 && *outBitsPerSample > 0;
+}
+
 static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t priority, bool loop) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
@@ -338,6 +396,15 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
         alGenSources(1, &slot->alSource);
         alGenBuffers(AL_STREAM_BUFFER_COUNT, slot->streamBuffers);
+        if (alGetError() != AL_NO_ERROR) {
+            fprintf(stderr, "Audio: alGenSources/alGenBuffers failed for stream\n");
+            stb_vorbis_close(v);
+            free(slot->decodeScratch);
+            slot->streaming = false;
+            slot->vorbis = nullptr;
+            slot->decodeScratch = nullptr;
+            return -1;
+        }
 
         int primed = 0;
         for (int i = 0; AL_STREAM_BUFFER_COUNT > i; i++) {
@@ -360,6 +427,10 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     } else {
         alGenSources(1, &slot->alSource);
         alGenBuffers(1, &slot->alBuffer);
+        if (alGetError() != AL_NO_ERROR) {
+            fprintf(stderr, "Audio: alGenSources/alGenBuffers failed for sound %d\n", soundIndex);
+            return -1;
+        }
         bool isRegular = (sound->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR;
         bool isEmbedded = (sound->flags & AUDIO_ENTRY_FLAG_IS_EMBEDDED) != 0;
         bool isCompressed = (sound->flags & AUDIO_ENTRY_FLAG_IS_COMPRESSED) != 0;
@@ -373,31 +444,62 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             }
 
             AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
-            WAVFile wav = WAV_ParseFileData(entry->data);
+
+            uint32_t channels = 0;
+            uint32_t sampleRate = 0;
+            uint32_t bitsPerSample = 0;
+            const uint8_t* audioData = nullptr;
+            uint32_t audioDataLen = 0;
+
+            if (!parseWavHeader(entry->data, entry->dataSize, &channels, &sampleRate, &bitsPerSample, &audioData, &audioDataLen)) {
+                channels = 2;
+                sampleRate = 44100;
+                bitsPerSample = 16;
+                audioData = entry->data;
+                audioDataLen = entry->dataSize;
+            }
+
+            if (audioData == nullptr || audioDataLen == 0) {
+                fprintf(stderr, "Audio: No audio data for '%s'\n", sound->name);
+                return -1;
+            }
 
             uint32_t format;
-            if (wav.header.number_of_channels == 1)
+            if (channels == 1)
             {
-                if (wav.header.bits_per_sample == 8)
+                if (bitsPerSample == 8)
                     format = AL_FORMAT_MONO8;
                 else 
                     format = AL_FORMAT_MONO16;
             }
             else {
-                if (wav.header.bits_per_sample == 8)
+                if (bitsPerSample == 8)
                     format = AL_FORMAT_STEREO8;
                 else
                     format = AL_FORMAT_STEREO16;
             }
-            alBufferData(
-                slot->alBuffer, 
-                format, 
-                wav.data, 
-                wav.data_length, 
-                wav.header.sample_rate
-            );
+#if defined(IS_BIG_ENDIAN)
+            if (bitsPerSample == 16) {
+                int16_t* swapped = (int16_t*)safeMalloc(audioDataLen);
+                memcpy(swapped, audioData, audioDataLen);
+                for (uint32_t i = 0, n = audioDataLen / sizeof(int16_t); i < n; i++) {
+                    swapped[i] = (int16_t)BinaryUtils_bswap16((uint16_t)swapped[i]);
+                }
+                alBufferData(slot->alBuffer, format, swapped, audioDataLen, sampleRate);
+                free(swapped);
+            } else {
+                alBufferData(slot->alBuffer, format, audioData, audioDataLen, sampleRate);
+            }
+#else
+            alBufferData(slot->alBuffer, format, audioData, audioDataLen, sampleRate);
+#endif
+            ALenum alErr = alGetError();
+            if (alErr != AL_NO_ERROR) {
+                fprintf(stderr, "Audio: alBufferData failed for '%s' format=0x%x len=%u rate=%u err=%d\n",
+                    sound->name, format, audioDataLen, sampleRate, alErr);
+                return -1;
+            }
             alSourcei(slot->alSource, AL_BUFFER, slot->alBuffer);
-            if(wav.data != NULL) free(wav.data);
         } else {
             // External audio: load from file
             char* path = resolveExternalPath(ma, sound);
@@ -410,6 +512,11 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             int sample_rate;
             short* data = NULL;
             int len = stb_vorbis_decode_filename(path, &channels, &sample_rate, &data);
+            if (len <= 0 || data == nullptr) {
+                fprintf(stderr, "Audio: stb_vorbis_decode failed for '%s' path='%s' len=%d\n", sound->name, path, len);
+                free(path);
+                return -1;
+            }
             alBufferData(
                 slot->alBuffer, 
                 (channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16, 
@@ -417,6 +524,12 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                 len*channels*sizeof(uint16_t), 
                 sample_rate
             );
+            if (alGetError() != AL_NO_ERROR) {
+                fprintf(stderr, "Audio: alBufferData failed for external '%s'\n", sound->name);
+                free(data);
+                free(path);
+                return -1;
+            }
             alSourcei(slot->alSource, AL_BUFFER, slot->alBuffer);
             if(data != NULL) free(data);
             free(path);
@@ -451,6 +564,9 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     ma->nextInstanceCounter++;
 
     alSourcePlay(slot->alSource);
+    if (alGetError() != AL_NO_ERROR) {
+        fprintf(stderr, "Audio: alSourcePlay failed for sound %d (stream=%d)\n", soundIndex, isStream);
+    }
 
     return slot->instanceId;
 }
@@ -774,11 +890,17 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
         AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
-        WAVFile wav = WAV_ParseFileData(entry->data);
-        float seconds = 0.0f;
-        if (wav.header.byte_rate > 0) seconds = (float) wav.header.data_size / (float) wav.header.byte_rate;
-        if (wav.data != nullptr) free(wav.data);
-        return seconds;
+
+        uint32_t channels, sampleRate, bitsPerSample, audioDataLen;
+        if (parseWavHeader(entry->data, entry->dataSize, &channels, &sampleRate, &bitsPerSample, nullptr, &audioDataLen)) {
+            uint32_t bytesPerSample = channels * (bitsPerSample / 8);
+            if (bytesPerSample > 0)
+                return (float) audioDataLen / (float)(sampleRate * bytesPerSample);
+        } else {
+            // Raw PCM: assume stereo 16-bit 44100 Hz
+            return (float) entry->dataSize / (float)(44100 * 2 * 2);
+        }
+        return 0.0f;
     }
 
     char* path = resolveExternalPath(ma, sound);
@@ -824,6 +946,8 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
         DataWinParserOptions options = {0};
         options.parseAudo = true;
+        if (audio->dw->mappedFile)
+            options.loadType = DATAWINLOADTYPE_MAP_FILE;
         DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
         free(buf);
