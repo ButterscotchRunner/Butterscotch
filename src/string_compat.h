@@ -2,6 +2,7 @@
 #define _BS_STRING_COMPAT_H_
 
 #include <string.h>
+#include <strings.h>
 
 #ifdef NO_STRCASECMP
 
