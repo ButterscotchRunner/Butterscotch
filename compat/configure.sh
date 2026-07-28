@@ -409,6 +409,17 @@ if ! check 'for strtok_r'; then
 fi
 
 printf '%s' "\
+#include <strings.h>
+int main(void){
+    return strcasecmp(\"\", \"\");
+}
+" > tmp/test.c
+
+if ! check 'for strcasecmp'; then
+    define 'NO_STRCASECMP'
+fi
+
+printf '%s' "\
 #include <getopt.h>
 int main(int argc,char *argv[]){
     static struct option opts[]={{0,0,0,0}};

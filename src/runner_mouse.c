@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 static bool isValidButtonVirtual(int32_t button) {
     return button >= -1 && GML_MOUSE_BUTTONS > button;

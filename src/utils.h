@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "real_type.h"

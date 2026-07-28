@@ -7,7 +7,7 @@
 #include <getopt.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <time.h>
 #include <signal.h>
 #ifdef _WIN32
@@ -345,20 +345,6 @@ static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, u
         }
     }
 }
-
-#ifdef NO_STRTOK_R
-
-static char *strtok_r(char *s, const char *sep, char **p) {
-    if (!s && !(s = *p)) return NULL;
-    s += strspn(s, sep);
-    if (!*s) return *p = 0;
-    *p = s + strcspn(s, sep);
-    if (**p) *(*p)++ = 0;
-    else *p = 0;
-    return s;
-}
-
-#endif
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function
@@ -1022,6 +1008,8 @@ int main(int argc, char* argv[]) {
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
 
+    bool fastForwardActive = false;
+    bool fastForwardTabPrev = false;
     while (true) {
         fprintf(stderr, "Loading %s...\n", args.dataWinPath);
 
@@ -1810,8 +1798,6 @@ int main(int argc, char* argv[]) {
 
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
-                static bool fastForwardActive = false;
-                static bool fastForwardTabPrev = false;
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, VK_TAB);
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
