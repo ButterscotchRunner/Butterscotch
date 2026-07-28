@@ -2225,7 +2225,7 @@ static void SWRenderer_surfaceResize(Renderer* renderer, int32_t surfaceID, int3
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (surfaceID == APPLICATION_SURFACE_ID) {
-        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way!\n");
+        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way! (need to set to %dx%d)\n", width, height);
         return;
     }
     
@@ -2243,7 +2243,7 @@ static void SWRenderer_surfaceFree(Renderer* renderer, int32_t surfaceID)
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (surfaceID == APPLICATION_SURFACE_ID) {
-        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way!\n");
+        fprintf(stderr, "swr: Don't support SWRenderer_surfaceCopy the application window with this.  There must be another way!\n");
         return;
     }
     
@@ -2261,6 +2261,76 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
                                    int32_t SrcSurfaceID, int32_t SrcX, int32_t SrcY,
                                    int32_t SrcW, int32_t SrcH, bool part)
 {
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    SWTexture temp1, temp2;
+    SWTexture *dstSurf, *srcSurf;
+    
+    if (DestSurfaceID == APPLICATION_SURFACE_ID) {
+        dstSurf = &temp1;
+        temp1.width = swr->mainWidth;
+        temp1.height = swr->mainHeight;
+        temp1.buffer = swr->mainFb;
+    }
+    else if (DestSurfaceID < 0 || (size_t) DestSurfaceID >= swr->surfaceCount || swr->surfaces[DestSurfaceID] == NULL) {
+        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid (dest in surfaceCopy)\n", DestSurfaceID);
+        return;
+    }
+    else {
+        dstSurf = swr->surfaces[DestSurfaceID];
+    }
+    
+    if (SrcSurfaceID == APPLICATION_SURFACE_ID) {
+        srcSurf = &temp2;
+        temp2.width = swr->mainWidth;
+        temp2.height = swr->mainHeight;
+        temp2.buffer = swr->mainFb;
+    }
+    else if (SrcSurfaceID < 0 || (size_t) SrcSurfaceID >= swr->surfaceCount || swr->surfaces[SrcSurfaceID] == NULL) {
+        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid (src in surfaceCopy)\n", SrcSurfaceID);
+        return;
+    }
+    else {
+        srcSurf = swr->surfaces[SrcSurfaceID];
+    }
+    
+    if (SrcX + SrcW < 0) return;
+    if (SrcY + SrcH < 0) return;
+    if (SrcX >= srcSurf->width) return;
+    if (SrcY >= srcSurf->height) return;
+    if (DestX + SrcW < 0) return;
+    if (DestY + SrcH < 0) return;
+    if (DestX >= dstSurf->width) return;
+    if (DestY >= dstSurf->height) return;
+    
+    if (SrcY < 0) {
+        SrcH += SrcY;
+        DestY -= SrcY;
+        SrcY = 0;
+    }
+    if (SrcX < 0) {
+        SrcW += SrcX;
+        DestX -= SrcX;
+        SrcX = 0;
+    }
+    if (SrcX + SrcW >= srcSurf->width)
+        SrcW = srcSurf->width - SrcX;
+    if (SrcY + SrcH >= srcSurf->height)
+        SrcH = srcSurf->height - SrcY;
+    
+    if (DestX + SrcW >= dstSurf->width)
+        SrcW = dstSurf->width - DestX;
+    if (DestY + SrcH >= dstSurf->height)
+        SrcH = dstSurf->height - DestY;
+    
+    for (int dy = 0; dy < SrcH; dy++) {
+        /***/ uintpixel_t* dstLine = &dstSurf->buffer[(dy + DestY) * dstSurf->width];
+        const uintpixel_t* srcLine = &srcSurf->buffer[(dy + SrcY)  * srcSurf->width];
+        for (int dx = 0; dx < SrcW; dx++) {
+            dstLine[dx + DestX] = srcLine[dx + SrcX];
+        }
+    }
+    
     UNIMP();
     (void)renderer;
     (void)DestSurfaceID; (void)DestX; (void)DestY;
@@ -2567,6 +2637,13 @@ static void SWRenderer_shaderSetUniformI(Renderer* renderer, int32_t handle, int
     (void) value4;
 }
 
+static void SWRenderer_applyProjection(Renderer* renderer, const Matrix4f* worldToClip)
+{
+    (void) renderer;
+    (void) worldToClip;
+    UNIMP();
+}
+
 Renderer* SWRenderer_create(void)
 {
     SWRenderer* swr = (SWRenderer*) safeCalloc(1, sizeof(SWRenderer));
@@ -2632,6 +2709,7 @@ Renderer* SWRenderer_create(void)
     swrVtable.shaderSetUniformI        = SWRenderer_shaderSetUniformI;
     swrVtable.shaderIsCompiled         = SWRenderer_shaderIsCompiled;
     swrVtable.shadersSupported         = SWRenderer_shadersSupported;
+    swrVtable.applyProjection          = SWRenderer_applyProjection;
     
     swrVtable.drawTile                 = NULL;
     
