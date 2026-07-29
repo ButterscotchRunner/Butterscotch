@@ -583,8 +583,13 @@ void retro_run(void)
   input_poll_cb();
   pump_gamepad();
   pump_mouse();
-
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+  glsm_ctl(GLSM_CTL_STATE_BIND, NULL);
+#endif
   Runner_step(g_runner);
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+  glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);
+#endif
 
   float dt = (float)(g_runner->deltaTime / 1000000.0);
   if (dt < 0.0f) dt = 0.0f;
