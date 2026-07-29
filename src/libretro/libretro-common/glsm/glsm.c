@@ -636,6 +636,8 @@ void rglBlendFunc(GLenum sfactor, GLenum dfactor)
    gl_state.blendfunc.sfactor = sfactor;
    gl_state.blendfunc.dfactor = dfactor;
    glBlendFunc(sfactor, dfactor);
+
+   gl_state.blendfunc_separate.used     = false;
 }
 
 /*
