@@ -1,0 +1,1 @@
+path_start(global.test_path, 4, path_action_stop, false);
