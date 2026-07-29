@@ -1186,8 +1186,7 @@ static void parseSHDR(BinaryReader* reader, DataWin* dw) {
     Shdr* s = &dw->shdr;
 
     uint32_t* ptrs = readPointerTable(reader, &s->count);
-    if (s->count > 0)
-        s->shaders = (Shader *)safeMalloc(s->count * sizeof(Shader));
+    s->shaders = (Shader *)safeMalloc(s->count * sizeof(Shader));
 
     repeat(s->count, i) {
         // Some GameMaker games have a nullptr for the shader, so we'll just mark them as not-present...
