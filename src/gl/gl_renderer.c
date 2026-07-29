@@ -52,7 +52,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(HAVE_LIBRETRO)
     return glGenFramebuffers;
 #else
     return true;
@@ -279,7 +279,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         abort();
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(HAVE_LIBRETRO)
     gl_init_wrappers();
 #endif
 
