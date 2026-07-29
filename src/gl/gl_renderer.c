@@ -4,6 +4,8 @@
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
+#elif PLATFORM_VITA
+#include <vitaGL.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -279,7 +281,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         abort();
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA)
     gl_init_wrappers();
 #endif
 
