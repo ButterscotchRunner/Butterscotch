@@ -242,6 +242,16 @@ int main(void){return 0;}
 fi
 
 printf '%s' "\
+#include <strings.h>
+int main(void){return 0;}
+" > tmp/test.c
+
+if ! nolink=1 check 'if strings.h works'; then
+    define 'NO_STRINGS_H'
+    no_strings_h=1
+fi
+
+printf '%s' "\
 #include <stdio.h>
 int main(void){
     puts(__func__);
@@ -392,12 +402,17 @@ if ! check 'for strtok_r'; then
     define 'NO_STRTOK_R'
 fi
 
+if [ -n "$no_strings_h" ]; then
+    printf '#include <string.h>\n' > tmp/test.c
+else
+    printf '#include <strings.h>\n' > tmp/test.c
+fi
+
 printf '%s' "\
-#include <strings.h>
 int main(void){
     return strcasecmp(\"\", \"\");
 }
-" > tmp/test.c
+" >> tmp/test.c
 
 if ! check 'for strcasecmp'; then
     define 'NO_STRCASECMP'

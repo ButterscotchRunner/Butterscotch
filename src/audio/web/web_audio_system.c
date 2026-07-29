@@ -207,7 +207,9 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
                 return -1;
             }
 
-            AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+            DataWin* audioGroup = ma->base.audioGroups[sound->audioGroup];
+            DataWin_loadAudoIfNeeded(audioGroup, (uint32_t)sound->audioFile);
+            AudioEntry* entry = &audioGroup->audo.entries[sound->audioFile];
 
             ma_decoder_config decoderConfig = ma_decoder_config_init_default();
             result = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &slot->decoder);
@@ -547,7 +549,9 @@ static float webGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     ma_result decResult;
     if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
-        AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+        DataWin* audioGroup = ma->base.audioGroups[sound->audioGroup];
+        DataWin_loadAudoIfNeeded(audioGroup, (uint32_t)sound->audioFile);
+        AudioEntry* entry = &audioGroup->audo.entries[sound->audioFile];
         ma_decoder_config decoderConfig = ma_decoder_config_init_default();
         decResult = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &decoder);
     } else {
@@ -612,6 +616,7 @@ static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
         DataWinParserOptions options = {0};
         options.parseAudo = true;
+        options.lazyLoadAudio = audio->dw->lazyLoadAudio;
         DataWin *audioGroup = DataWin_parse(((WebAudioSystem*)audio)->fileSystem->vtable->resolvePath(((WebAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }

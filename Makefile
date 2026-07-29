@@ -19,7 +19,7 @@ endif
 _dummy := $(shell \
 	printf '$(CC)' > compat/tmp/cc-new; \
 	cmp -s compat/tmp/cc-new compat/tmp/cc || \
-	mv compat/tmp/cc-new compat/tmp/cc; \
+	{ rm -f compat/tmp/cc; mv compat/tmp/cc-new compat/tmp/cc; }; \
 	rm -f compat/tmp/cc-new \
 )
 

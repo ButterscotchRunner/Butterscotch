@@ -443,6 +443,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                 return -1;
             }
 
+            DataWin_loadAudoIfNeeded(ma->base.audioGroups[sound->audioGroup], (uint32_t)sound->audioFile);
             AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
 
             uint32_t channels = 0;
@@ -889,6 +890,7 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     bool inAudo = !isRegular || isEmbedded || isCompressed;
     if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
+        DataWin_loadAudoIfNeeded(ma->base.audioGroups[sound->audioGroup], (uint32_t)sound->audioFile);
         AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
 
         uint32_t channels, sampleRate, bitsPerSample, audioDataLen;
@@ -946,6 +948,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
 
         DataWinParserOptions options = {0};
         options.parseAudo = true;
+        options.lazyLoadAudio = audio->dw->lazyLoadAudio;
         if (audio->dw->mappedFile)
             options.loadType = DATAWINLOADTYPE_MAP_FILE;
         DataWin *audioGroup = DataWin_parse(((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf), options);
