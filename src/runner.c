@@ -3081,7 +3081,7 @@ static int sortInstancesByObjectIndexThenInstanceIdAscending(const void* element
     return 0;
 }
 
-static int32_t compareIntsAscending(const void* a, const void* b) {
+static int compareIntsAscending(const void* a, const void* b) {
     int32_t ia = *(const int32_t*)a;
     int32_t ib = *(const int32_t*)b;
     return (ia > ib) - (ia < ib);
