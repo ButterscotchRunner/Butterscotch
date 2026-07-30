@@ -111,7 +111,7 @@
 #define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
 #define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
-// Max amount of args a function call can have until the args are heap-allocced.
+// Max amount of args a function call can have until the args are heap-alloced.
 #define VM_MAX_STACK_ARGS 8
 
 // ===[ Variable Types for V17 Array Access ]===
