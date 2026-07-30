@@ -710,7 +710,7 @@ elseif(PLATFORM STREQUAL "vita")
         message(FATAL_ERROR "PS Vita requires modern GL!")
     endif()
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wall -O3")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wall -O3 -mfloat-abi=hard -mtune=cortex-a9 -mfpu=neon -ffast-math")
     set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -std=c++11")
 
     # Normally, __VITA__ should already be defined, but for some reason,

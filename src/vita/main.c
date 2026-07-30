@@ -29,6 +29,9 @@ SceCtrlData pad = {0};
 // for game_change
 char* pendingDataWinPath = NULL;
 
+int32_t currentWindowWidth = 0;
+int32_t currentWindowHeight = 0;
+
 double osTime() {
     return (double)sceKernelGetProcessTimeWide() / 1000000.0;
 }
@@ -88,6 +91,20 @@ void handleVitaGamepad(RunnerGamepadState* gp, int port) {
     gp->connectedCount++;
 }
 
+bool vitaGetWindowSize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    if (currentWindowWidth <= 0 || currentWindowHeight <= 0) return false;
+    *outW = currentWindowWidth;
+    *outH = currentWindowHeight;
+    return true;
+}
+void vitaSetWindowSize(int32_t width, int32_t height) {
+    if (width <= 0 || height <= 0) return;
+    currentWindowWidth = width;
+    currentWindowHeight = height;
+}
+
+
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function
 // Returns the modified array
@@ -144,9 +161,8 @@ void loop(const char* dataWinPath) {
 #endif
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
-    //options.lazyLoadTextures = true;
-    //options.lazyLoadAudio = true;
-    options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
+    options.lazyLoadTextures = true;
+    options.lazyLoadAudio = true;
 
     DataWin* dataWin = DataWin_parse(safePath, options);
     Gen8* gen8 = &dataWin->gen8;
@@ -187,7 +203,10 @@ void loop(const char* dataWinPath) {
 #else
     AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
 #endif
+
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+    runner->setWindowSize = vitaSetWindowSize;
+    runner->getWindowSize = vitaGetWindowSize;
     Runner_initFirstRoom(runner);
 
     sceClibPrintf("Runner successfully created and inited first room!!\n");
@@ -280,8 +299,11 @@ void loop(const char* dataWinPath) {
 
         int32_t fbWidth = 960;
         int32_t fbHeight = 544;
+        gameW = runner->applicationWidth;
+        gameH = runner->applicationHeight;
+        
         Runner_drawPre(runner, fbWidth, fbHeight);
-        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
+        Runner_beginFrame(runner, gameW, gameH, currentWindowWidth, currentWindowHeight, fbWidth, fbHeight);
         Runner_drawViews(runner, gameW, gameH, false);
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight);
