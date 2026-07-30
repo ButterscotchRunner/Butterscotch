@@ -308,30 +308,30 @@ static bool logColour;
 
 void platformLog(const logType type, const char *format, va_list va) {
     FILE *out = stderr;
-	const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
-	const char* textPrefix = "";
+    const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
+    const char* textPrefix = "";
     switch (type) {
         case LOG_TYPE_NORMAL:
-			out = stdout;
+            out = stdout;
             break;
         case LOG_TYPE_WARNING:
-			colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
-			textPrefix = "Warning: ";
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
+            textPrefix = "Warning: ";
             break;
         case LOG_TYPE_ERROR:
             colourPrefix = ANSI_COLOUR_CODE_BOLD_RED;
-			textPrefix = "Error: ";
+            textPrefix = "Error: ";
             break;
-		case LOG_TYPE_DEBUG:
+        case LOG_TYPE_DEBUG:
             colourPrefix = ANSI_COLOUR_CODE_BOLD_PURPLE;
-			textPrefix = "Debug: ";
+            textPrefix = "Debug: ";
             break;
     }
 
-	if (logColour) fputs(colourPrefix, out);
-	fputs(textPrefix, out);
+    if (logColour) fputs(colourPrefix, out);
+    fputs(textPrefix, out);
     vfprintf(out, format, va);
-	if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
+    if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
 }
 
 // Resolves the window size for the specified operating system.
@@ -517,7 +517,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"lazy-audio", no_argument, nullptr, 'K'},
         {"load-type", required_argument, nullptr, 999},
         {"disable-log-colours", no_argument, nullptr, 1003},
-		{"disable-log-colors", no_argument, nullptr, 1003},
+        {"disable-log-colors", no_argument, nullptr, 1003},
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
