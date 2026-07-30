@@ -86134,6 +86134,10 @@ static ma_bool32 ma_engine_node_is_spatialization_enabled(const ma_engine_node* 
 
 static ma_result ma_engine_node_set_volume(ma_engine_node* pEngineNode, float volume)
 {
+    #ifdef MA_VITA
+        // Without this hack, some sounds overflow causing horrible crackling
+        volume /= 2.0f;
+    #endif
     if (pEngineNode == NULL) {
         return MA_INVALID_ARGS;
     }
