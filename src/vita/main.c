@@ -144,8 +144,8 @@ void loop(const char* dataWinPath) {
 #endif
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
-    options.lazyLoadTextures = true;
-    options.lazyLoadAudio = true;
+    //options.lazyLoadTextures = true;
+    //options.lazyLoadAudio = true;
     options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
 
     DataWin* dataWin = DataWin_parse(safePath, options);
