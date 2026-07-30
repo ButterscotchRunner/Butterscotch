@@ -112,7 +112,7 @@
 #define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
 // Max amount of args a function call can have until the args are heap-alloced.
-#define VM_MAX_STACK_ARGS 8
+#define VM_MAX_STACK_ARGS 16
 
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
