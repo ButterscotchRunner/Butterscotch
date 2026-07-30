@@ -14,6 +14,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
+#include <io.h>
 #endif
 #ifdef __GLIBC__
 #include <malloc.h>
