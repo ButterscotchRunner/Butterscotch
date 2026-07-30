@@ -472,8 +472,9 @@ static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
     if (slot >= ctx->localVarCount) {
         RValue* resizedLocalVars = (RValue *)safeCalloc(slot + 1, sizeof(RValue));
         memcpy(resizedLocalVars, ctx->localVars, sizeof(RValue) * ctx->localVarCount);
-        free(ctx->localVars);
+        if (ctx->localVarsOnHeap) free(ctx->localVars);
         ctx->localVars = resizedLocalVars;
+        ctx->localVarsOnHeap = true;
         ctx->localVarCount = slot + 1;
     }
     return slot;
@@ -648,9 +649,10 @@ void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
         RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
         if (ctx->scriptArgCount > 0) {
             memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-            free(ctx->scriptArgs);
+            if (ctx->scriptArgsOnHeap) free(ctx->scriptArgs);
         }
         ctx->scriptArgs = newScriptArgs;
+        ctx->scriptArgsOnHeap = true;
         ctx->scriptArgCount = writeIndex + 1;
     }
     RValue_free(&ctx->scriptArgs[writeIndex]); // no-op if we are writing to a resized array that was (originally) out of bounds
@@ -3639,9 +3641,11 @@ void VM_reset(VMContext* ctx) {
     ctx->currentEventObjectIndex = -1;
     ctx->scriptArgs = nullptr;
     ctx->scriptArgCount = 0;
+    ctx->scriptArgsOnHeap = false;
     ctx->currentCodeName = nullptr;
     ctx->localVars = nullptr;
     ctx->localVarCount = 0;
+    ctx->localVarsOnHeap = false;
     ctx->currentCodeLocalsSlotMap = nullptr;
     ctx->actionRelativeFlag = false;
 
@@ -3704,7 +3708,16 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
     setCurrentCodeLocalsSlotMap(ctx);
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
+    RValue localVarsInline[VM_MAX_STACK_LOCALS];
+    RValue* localVars;
+    if (localsCount <= VM_MAX_STACK_LOCALS) {
+        localVars = localVarsInline;
+        memset(localVars, 0, sizeof(RValue) * localsCount);
+        ctx->localVarsOnHeap = false;
+    } else {
+        localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
+        ctx->localVarsOnHeap = true;
+    }
     ctx->localVars = localVars;
     ctx->localVarCount = localsCount;
 
@@ -3729,9 +3742,10 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
     repeat(ctx->localVarCount, i) {
         RValue_free(&ctx->localVars[i]);
     }
-    free(ctx->localVars);
+    if (ctx->localVarsOnHeap) free(ctx->localVars);
     ctx->localVars = nullptr;
     ctx->localVarCount = 0;
+    ctx->localVarsOnHeap = false;
 
     // Reset all values in the stack (see issue #137)
     // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
@@ -3754,11 +3768,13 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     frame.savedBytecodeBase = ctx->bytecodeBase;
     frame.savedLocals = ctx->localVars;
     frame.savedLocalsCount = ctx->localVarCount;
+    frame.savedLocalVarsOnHeap = ctx->localVarsOnHeap;
     frame.savedCodeName = ctx->currentCodeName;
     frame.savedSavearefBalance = ctx->savearefBalance;
     frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
     frame.savedScriptArgs = ctx->scriptArgs;
     frame.savedScriptArgCount = ctx->scriptArgCount;
+    frame.savedScriptArgsOnHeap = ctx->scriptArgsOnHeap;
     frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
     frame.parent = ctx->callStack;
     ctx->callStack = &frame;
@@ -3776,7 +3792,15 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     setCurrentCodeLocalsSlotMap(ctx);
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
+    RValue* localVars;
+    if (localsCount <= VM_MAX_STACK_LOCALS) {
+        localVars = frame.inlineLocalVars;
+        memset(localVars, 0, sizeof(RValue) * localsCount);
+        ctx->localVarsOnHeap = false;
+    } else {
+        localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
+        ctx->localVarsOnHeap = true;
+    }
     ctx->localVars = localVars;
     ctx->localVarCount = localsCount;
 
@@ -3785,7 +3809,14 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     // the caller's original args remain valid and owner-tracked by the caller.
     RValue* scriptArgs = nullptr;
     if (argCount > 0 && args != nullptr) {
-        scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));
+        if (argCount <= VM_MAX_STACK_ARGS) {
+            scriptArgs = frame.inlineScriptArgs;
+            memset(scriptArgs, 0, sizeof(RValue) * argCount);
+            ctx->scriptArgsOnHeap = false;
+        } else {
+            scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));
+            ctx->scriptArgsOnHeap = true;
+        }
         repeat(argCount, argIdx) {
             RValue argCopy = RValue_makeIndependent(args[argIdx]);
             scriptArgs[argIdx] = argCopy;
@@ -3821,23 +3852,23 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     repeat(ctx->localVarCount, i) {
         RValue_free(&ctx->localVars[i]);
     }
-
-    free(ctx->localVars);
+    if (ctx->localVarsOnHeap) free(ctx->localVars);
 
     // Free callee script args
     {
-    repeat(ctx->scriptArgCount, i) {
-        RValue_free(&ctx->scriptArgs[i]);
+        repeat(ctx->scriptArgCount, i) {
+            RValue_free(&ctx->scriptArgs[i]);
+        }
     }
-    }
-
-    free(ctx->scriptArgs);
+    if (ctx->scriptArgsOnHeap) free(ctx->scriptArgs);
 
     ctx->localVars = saved->savedLocals;
     ctx->localVarCount = saved->savedLocalsCount;
+    ctx->localVarsOnHeap = saved->savedLocalVarsOnHeap;
     ctx->currentCodeLocalsSlotMap = saved->savedCodeLocalsSlotMap;
     ctx->scriptArgs = saved->savedScriptArgs;
     ctx->scriptArgCount = saved->savedScriptArgCount;
+    ctx->scriptArgsOnHeap = saved->savedScriptArgsOnHeap;
     ctx->currentCodeName = saved->savedCodeName;
     ctx->currentCodeIndex = saved->savedCurrentCodeIndex;
     ctx->savearefBalance = saved->savedSavearefBalance;
