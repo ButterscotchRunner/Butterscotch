@@ -101,7 +101,6 @@ if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     output_exe='/Fe'
     config "OUTPUT_OBJ := $output_obj"
     config "OUTPUT_EXE := $output_exe"
-    config 'MSVC := 1'
     config 'OBJ_EXT := obj'
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
@@ -126,6 +125,7 @@ else
     exit 1
 fi
 config "COMPILE_OBJ := $compile_obj"
+config "SYNTAX := $syntax"
 
 configlog 'checking if we are cross compiling'
 chmod +x tmp/a.out
@@ -173,12 +173,12 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
 
-if [ "$syntax" != 'msvc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
+if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
     # function tests might have false positives without this
     cflags='-fno-builtin'
 fi
 
-if [ "$syntax" = 'msvc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
+if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
     config 'DISABLE_MMD := 1'
 fi
 rm -f tmp/test.d

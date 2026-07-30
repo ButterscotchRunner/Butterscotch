@@ -173,12 +173,12 @@ INCLUDES += $(INCLUDE)vendor/glad/include
 endif
 
 ifeq ($(OS),Windows)
-ifndef MSVC
-LIBS += -static
-LIBS += -lwinmm
-else
+ifeq ($(SYNTAX),msvc)
 LIBS += winmm.lib
 DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS $(DEFINE)_CRT_SECURE_NO_DEPRECATE
+else
+LIBS += -static
+LIBS += -lwinmm
 endif
 DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else
