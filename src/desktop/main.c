@@ -255,8 +255,6 @@ typedef struct {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     bool opcodeProfiler;
 #endif
-    bool disableFileLog;
-    const char* logFile;
     bool disableLogColours;
 } CommandLineArgs;
 
@@ -306,14 +304,7 @@ static void printOsTypeNames(FILE* out) {
     }
 }
 
-static bool logToFile = false;
-static FILE* logFileHandle = nullptr;
-
 static bool logColour;
-
-#ifndef va_copy
-#define va_copy(d, s) ((d) = (s))
-#endif
 
 void platformLog(const logType type, const char *format, va_list va) {
     FILE *out = stderr;
@@ -337,22 +328,10 @@ void platformLog(const logType type, const char *format, va_list va) {
             break;
     }
 
-	va_list va2;
-	va_copy(va2, va);
-
-	print:
 	if (logColour) fputs(colourPrefix, out);
 	fputs(textPrefix, out);
-    vfprintf(out, format, va2);
+    vfprintf(out, format, va);
 	if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
-
-	if (logToFile && out != logFileHandle && logFileHandle) {
-		out = logFileHandle;
-		va_copy(va2, va);
-		goto print;
-	}
-
-	va_end(va2);
 }
 
 // Resolves the window size for the specified operating system.
@@ -475,8 +454,6 @@ static void printUsage(const char *argv0) {
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
         "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
-        "    --disable-file-log                     - Disable logging to a file\n"
-        "    --log-file <filename>                  - File to log to\n"
         "    --disable-log-colours                  - Disable colours for warning, error, and debug logs\n"
         "    --disable-log-colors                   - Same as --disable-log-colours, but different spelling\n"
 #ifdef EABLE_VM_OPCODE_PROFILER
@@ -539,8 +516,6 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"lazy-textures", no_argument, nullptr, 'L'},
         {"lazy-audio", no_argument, nullptr, 'K'},
         {"load-type", required_argument, nullptr, 999},
-        {"disable-file-log", no_argument, nullptr, 1001},
-        {"log-file", required_argument, nullptr, 1002},
         {"disable-log-colours", no_argument, nullptr, 1003},
 		{"disable-log-colors", no_argument, nullptr, 1003},
 #ifdef ENABLE_VM_OPCODE_PROFILER
@@ -837,12 +812,6 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 }
                 break;
             }
-            case 1001:
-                args->disableFileLog = true;
-                break;
-            case 1002:
-                args->logFile = optarg;
-                break;
             case 1003:
                 args->disableLogColours = true;
                 break;
@@ -1065,14 +1034,6 @@ int main(int argc, char* argv[]) {
 
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
-
-	logToFile = !args.disableFileLog;
-	if (logToFile) {
-		logFileHandle = fopen(args.logFile ? args.logFile : "./butterscotch.log", "w");
-		if (logFileHandle) {
-			setbuf(logFileHandle, NULL);
-		}
-	}
 
     logColour = !args.disableLogColours;
 
@@ -2015,8 +1976,4 @@ int main(int argc, char* argv[]) {
             arrfree(newArguments);
         }
     }
-
-	if (logFileHandle) {
-		fclose(logFileHandle);
-	}
 }
