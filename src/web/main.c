@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
 #include <errno.h>
 #include <sys/stat.h>
 #include <emscripten.h>

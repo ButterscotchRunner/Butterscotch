@@ -2,9 +2,9 @@
 #include "ps2/ps2_utils.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <inttypes.h>
 #include <audsrv.h>
 

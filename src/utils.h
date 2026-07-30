@@ -3,11 +3,11 @@
 
 #include "common.h"
 #include <stdarg.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "real_type.h"
@@ -31,7 +31,7 @@
     (defined(_MSC_VER) && _MSC_VER >= 1940 && !defined(__cplusplus))
     #define TYPEOF(x) __typeof__(x)
 #else
-    #define TYPEOF(x) long long
+    #define TYPEOF(x) int64_t
 #endif
 
 #define forEach(type, item, array, count) \
@@ -84,6 +84,8 @@ static inline void* requireNotNullFunction(void* ptr, const char* file, int line
 
 // Safe allocation macros - check for nullptr and abort with file/line info
 static inline void *safeMallocFunction(size_t size, const char *file, int line) {
+    if (size == 0)
+        return nullptr;
     void *ret = malloc(size);
     if (!ret) {
         logError("FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
@@ -94,6 +96,8 @@ static inline void *safeMallocFunction(size_t size, const char *file, int line) 
 #define safeMalloc(size) safeMallocFunction(size, __FILE__, __LINE__)
 
 static inline void *safeCallocFunction(size_t count, size_t size, const char *file, int line) {
+    if (size == 0 || count == 0)
+        return nullptr;
     void *ret = calloc(count, size);
     if (!ret) {
         logError("FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
@@ -104,6 +108,10 @@ static inline void *safeCallocFunction(size_t count, size_t size, const char *fi
 #define safeCalloc(count, size) safeCallocFunction(count, size, __FILE__, __LINE__)
 
 static inline void *safeReallocFunction(void *ptr, size_t size, const char *file, int line) {
+    if (size == 0) {
+        free(ptr);
+        return nullptr;
+    }
     void *ret = realloc(ptr, size);
     if (!ret) {
         logError("FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
@@ -116,6 +124,8 @@ static inline void *safeReallocFunction(void *ptr, size_t size, const char *file
 #ifdef PLATFORM_PS2
 
 static inline void *safeMemalignFunction(size_t alignment, size_t size, const char *file, int line) {
+    if (size == 0)
+        return nullptr;
     void *ret = memalign(alignment, size);
     if (!ret) {
         logError("FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);

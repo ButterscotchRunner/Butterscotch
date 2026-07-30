@@ -1,7 +1,7 @@
 #include "data_win.h"
 
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
 
 #include "utils.h"
 
@@ -118,16 +118,20 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     // SHDR
     logInfo("-- SHDR (Shaders) --\n");
     logInfo("  Shaders:          %u\n", dataWin->shdr.count);
+    {
     forEachIndexed(Shader, shdr, idx, dataWin->shdr.shaders, dataWin->shdr.count) {
         logInfo("    [%u] %s (version %d)\n", (unsigned int)idx, shdr->name ? shdr->name : "?", shdr->version);
+    }
     }
     logInfo("\n");
 
     // FONT
     logInfo("-- FONT (Fonts) --\n");
     logInfo("  Fonts:            %u\n", dataWin->font.count);
+    {
     forEachIndexed(Font, fnt, idx, dataWin->font.fonts, dataWin->font.count) {
-        logInfo("    [%u] %s (%s, em=%u, %u glyphs)\n", (unsigned int)idx, fnt->name ? fnt->name : "?", fnt->displayName ? fnt->displayName : "?", fnt->emSize, fnt->glyphCount);
+        logInfo("    [%u] %s (%s, em=%g, %u glyphs)\n", (unsigned int)idx, fnt->name ? fnt->name : "?", fnt->displayName ? fnt->displayName : "?", (double)fnt->emSize, fnt->glyphCount);
+    }
     }
     logInfo("\n");
 

@@ -2,9 +2,9 @@
 #include "utils.h"
 #include "stb_ds.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <sys/stat.h>
 #include <errno.h>
 
@@ -339,7 +339,7 @@ static void listSingleDir(FileSystemDirEntry** list, const char* fullDir) {
 #ifdef _WIN32
     // FindFirstFileA wants a "<dir>/*" search pattern.
     size_t dirLen = strlen(fullDir);
-    char* search = safeMalloc(dirLen + 3);
+    char* search = (char *)safeMalloc(dirLen + 3);
     memcpy(search, fullDir, dirLen);
     search[dirLen] = '/';
     search[dirLen + 1] = '*';
