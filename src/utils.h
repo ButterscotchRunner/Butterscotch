@@ -41,6 +41,7 @@
     for (type* item = &(array)[index]; item; item = NULL)
 
 #define repeat(n, it) for (TYPEOF(n) it = 0; it < (n); ++it)
+#define repeat_range(it, start, end) for (int32_t it = (start); it < (end); ++it)
 
 #define require(condition) \
     do { \

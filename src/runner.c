@@ -59,7 +59,7 @@ void Runner_updateCameraViewSimple(GMLCamera* camera) {
 
     Matrix4f projectionMatrix;
     Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
-    
+
 
     camera->viewMatrix = viewMatrix;
     camera->projectionMatrix = projectionMatrix;
@@ -673,8 +673,32 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
 
     static bool rotateWarned = false;
 
-    repeat(data->tilesY, ty) {
-        repeat(data->tilesX, tx) {
+    // Compute visible tile range from the current camera to skip off-screen tiles.
+    GMLCamera* camera = runner->renderer->cameraCurrent >= 0
+        ? Runner_getCameraById(runner, runner->renderer->cameraCurrent)
+        : NULL;
+    int32_t txStart = 0;
+    int32_t txEnd = (int32_t) data->tilesX;
+    int32_t tyStart = 0;
+    int32_t tyEnd = (int32_t) data->tilesY;
+    if (camera != NULL && tileW > 0 && tileH > 0) {
+        // Expand the visible rect by one tile on each side to avoid popping at edges.
+        float visLeft   = camera->viewX - layerOffsetX - (float) tileW;
+        float visTop    = camera->viewY - layerOffsetY - (float) tileH;
+        float visRight  = camera->viewX + (float) camera->viewWidth  - layerOffsetX + (float) tileW;
+        float visBottom = camera->viewY + (float) camera->viewHeight - layerOffsetY + (float) tileH;
+        txStart = (int32_t) (visLeft   / (float) tileW);
+        tyStart = (int32_t) (visTop    / (float) tileH);
+        txEnd   = (int32_t) ceilf(visRight  / (float) tileW);
+        tyEnd   = (int32_t) ceilf(visBottom / (float) tileH);
+        if (txStart < 0) txStart = 0;
+        if (tyStart < 0) tyStart = 0;
+        if (txEnd > (int32_t) data->tilesX) txEnd = (int32_t) data->tilesX;
+        if (tyEnd > (int32_t) data->tilesY) tyEnd = (int32_t) data->tilesY;
+    }
+
+    repeat_range(ty, tyStart, tyEnd) {
+        repeat_range(tx, txStart, txEnd) {
             uint32_t cell = data->tileData[ty * data->tilesX + tx];
             uint32_t tileIndex = cell & GMS2_TILE_INDEX_MASK;
             if (tileIndex == 0) continue; // 0 = empty
@@ -917,14 +941,14 @@ void Runner_draw(Runner* runner) {
             Instance* savedInstance = ctx->currentInstance;
             int32_t savedEventType = ctx->currentEventType;
             int32_t savedEventSubtype = ctx->currentEventSubtype;
-            
+
             ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
-            
+
             if (runtimeLayer->beginScript >= 0)
                 VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
-            
+
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
@@ -1035,10 +1059,10 @@ void Runner_draw(Runner* runner) {
             ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
-            
+
             if (runtimeLayer->endScript >= 0)
                 VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
-            
+
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
@@ -3712,10 +3736,10 @@ void Runner_step(Runner* runner) {
                     inst->imageIndex += inst->imageSpeed * sprite->gms2PlaybackSpeed;
                 } else {
                     inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
-                }   
+                }
             }
         } else {
-            inst->imageIndex += inst->imageSpeed;    
+            inst->imageIndex += inst->imageSpeed;
         }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
@@ -4489,7 +4513,7 @@ void Runner_free(Runner* runner) {
         free(runner->flattenedCollisionEvents);
         runner->flattenedCollisionEvents = nullptr;
     }
-    
+
     arrfree(runner->cachedDrawables);
     runner->cachedDrawables = nullptr;
     arrfree(runner->instanceSnapshots);
