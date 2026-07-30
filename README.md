@@ -156,6 +156,7 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --log-file <filename>                  - File to log to
 --disable-log-colours                  - Disable colours for warning, error, and debug logs
 --disable-log-colors                   - Same as --disable-log-colours, but different spelling
+```
 
 ## Debug Features
 
