@@ -2916,10 +2916,11 @@ static void SWRenderer_shaderSetUniformI(Renderer* renderer, int32_t handle, int
     (void) value4;
 }
 
-static void SWRenderer_applyProjection(Renderer* renderer, const Matrix4f* worldToClip)
+static void SWRenderer_applyProjection(Renderer* renderer, const Matrix4f* worldToClip, const Matrix4f* idk)
 {
     (void) renderer;
     (void) worldToClip;
+    (void) idk;
     UNIMP();
 }
 
