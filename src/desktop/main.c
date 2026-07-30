@@ -330,8 +330,8 @@ void platformLog(const logType type, const char *format, va_list va) {
 
     if (logColour) fputs(colourPrefix, out);
     fputs(textPrefix, out);
-    vfprintf(out, format, va);
     if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
+    vfprintf(out, format, va);
 }
 
 // Resolves the window size for the specified operating system.
