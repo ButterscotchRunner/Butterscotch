@@ -2697,7 +2697,7 @@ void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId) {
     if (entry->data != nullptr) return;
 
     if (!dw->lazyLoadFile) {
-        fprintf(stderr, "loadAudoIfNeeded: called without a lazy load file.\n");
+        logError("loadAudoIfNeeded: called without a lazy load file.\n");
         return;
     }
 
@@ -2710,7 +2710,7 @@ void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId) {
     fseek(dw->lazyLoadFile, old_seek, SEEK_SET);
 
     if (read != entry->dataSize) {
-        fprintf(stderr, "loadAudoIfNeeded: couldn't read %u bytes to load audio entry %u.\n", entry->dataSize, audioEntryId);
+        logError("loadAudoIfNeeded: couldn't read %u bytes to load audio entry %u.\n", entry->dataSize, audioEntryId);
     }
 }
 

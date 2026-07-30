@@ -15919,7 +15919,7 @@ static RValue builtin_font_get_name(VMContext* ctx, RValue* args, int32_t argCou
 
 static RValue builtin_font_get_size(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[font_get_size] Expected 1 argument, got 0");
+        logError("[font_get_size] Expected 1 argument, got 0");
         return RValue_makeUndefined();
     }
 
