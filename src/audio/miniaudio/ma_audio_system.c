@@ -13,7 +13,11 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
+#ifdef PLATFORM_VITA
+#include "miniaudio_vita.h"
+#else
 #include "miniaudio.h"
+#endif
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
@@ -114,6 +118,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     }
     ma_engine_config config = ma_engine_config_init();
     config.pDevice = &ma->device;
+    
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
         fprintf(stderr, "Audio: Failed to initialize miniaudio engine (error %d)\n", result);

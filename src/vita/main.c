@@ -6,8 +6,10 @@
 #include "overlay_file_system.h"
 #include "gl_common.h"
 
-#ifdef USE_OPENAL
+#if defined(USE_OPENAL) 
 #include "al_audio_system.h"
+#elif defined(USE_MINIAUDIO)
+#include "ma_audio_system.h"
 #endif
 #include "noop_audio_system.h"
 
@@ -30,11 +32,9 @@ char* pendingDataWinPath = NULL;
 double osTime() {
     return (double)sceKernelGetProcessTimeWide() / 1000000.0;
 }
-
 static float stickByteToFloat(unsigned char raw) {
     return ((float) raw - 128.0f) * (1.0f / 127.5f);
 }
-
 void handleVitaGamepad(RunnerGamepadState* gp, int port) {
     GamepadSlot* slot = &gp->slots[port];
     
@@ -139,9 +139,13 @@ void loop(const char* dataWinPath) {
     options.parseFunc = true;
     options.parseStrg = true;
     options.parseTxtr = true;
+#if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
     options.parseAudo = true;
+#endif
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
+    options.lazyLoadTextures = true;
+    options.lazyLoadAudio = true;
     options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
 
     DataWin* dataWin = DataWin_parse(safePath, options);
@@ -176,8 +180,10 @@ void loop(const char* dataWinPath) {
         return;
     }
 
-#ifdef USE_OPENAL
+#if defined(USE_OPENAL)
     AudioSystem* audioSystem = (AudioSystem*) AlAudioSystem_create();
+#elif defined(USE_MINIAUDIO)
+    AudioSystem* audioSystem = (AudioSystem*) MaAudioSystem_create(dataWin);
 #else
     AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
 #endif
@@ -218,13 +224,13 @@ void loop(const char* dataWinPath) {
             //audioTime = osTime() - audioStart;
         }
         
+        // taken from desktop/main.c
         if (runner->pendingWorkingDirectory != NULL) {
             sceClibPrintf("game_change has been called! (%s, %s)\n", runner->pendingWorkingDirectory, runner->pendingLaunchParameters ? runner->pendingLaunchParameters : "NULL");
 
             char** newArguments = nullptr;
             newArguments = extractRunnerArguments(runner->pendingLaunchParameters);
 
-            // taken from desktop/main.c
             char* dataWinFilename = nullptr;
             {
                 // After extraction, we now need to figure out where is the "-game" argument
@@ -267,6 +273,7 @@ void loop(const char* dataWinPath) {
             goto free_butterscotch;
             return;
         }
+        // taken from desktop/main.c
 
         glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
         glClear(GL_COLOR_BUFFER_BIT);

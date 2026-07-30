@@ -3,7 +3,12 @@
 
 #include "common.h"
 #include "audio_system.h"
+
+#ifdef PLATFORM_VITA
+#include "miniaudio_vita.h"
+#else
 #include "miniaudio.h"
+#endif
 
 #define MAX_SOUND_INSTANCES 128
 #define SOUND_INSTANCE_ID_BASE 100000

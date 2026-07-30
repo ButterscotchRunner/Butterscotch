@@ -63,8 +63,6 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "none")
     elseif(PLATFORM STREQUAL "ps3")
         set(AUDIO_BACKEND "openal")
-    elseif(PLATFORM STREQUAL "vita")
-        set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
     else()
@@ -712,9 +710,14 @@ elseif(PLATFORM STREQUAL "vita")
         message(FATAL_ERROR "PS Vita requires modern GL!")
     endif()
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-optimize-sibling-calls -fdiagnostics-color=always -g -Wl,-q,--allow-multiple-definition -Wno-format-overflow -D_GNU_SOURCE -Wall -O3")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wall -O3")
     set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -std=c++11")
 
+    # Normally, __VITA__ should already be defined, but for some reason,
+    # in my case, this didn't really work... so just in case, when we're
+    # building for the Vita, just force-feed these...
+    add_compile_definitions(__VITA__)
+    add_compile_definitions(MA_NO_RUNTIME_LINKING)
     add_compile_definitions(PLATFORM_VITA)
     add_compile_definitions(NO_RVALUE_INT64)
 
@@ -729,11 +732,6 @@ elseif(PLATFORM STREQUAL "vita")
     
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-    
-    target_compile_options(butterscotch PRIVATE 
-        -Os
-        -ffast-math
-    )
     
     option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
     option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
