@@ -1,4 +1,4 @@
-#include <string.h>
+#include "string_compat.h"
 #include "stdio_compat.h"
 #include <time.h>
 #include "math_compat.h"

@@ -3,7 +3,7 @@
 
 #include <libpad.h>
 #include "stdio_compat.h"
-#include <string.h>
+#include "string_compat.h"
 
 // Track DualShock-mode handshake completion per port so poll() can lazily kick it off if it hasn't run yet.
 static bool analogModeReady[2] = {false, false};

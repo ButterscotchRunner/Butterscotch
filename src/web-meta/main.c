@@ -1,7 +1,7 @@
 #include "common.h"
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "data_win.h"
 
 DataWin* parseDataWin(const char* path) {

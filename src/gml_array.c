@@ -3,7 +3,7 @@
 #include "utils.h"
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 static void ensureLegacyRowCapacity(GMLArray* arr, int32_t minRows) {
     require(arr->type == GML_LEGACY_ARRAY);

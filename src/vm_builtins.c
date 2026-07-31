@@ -12,7 +12,7 @@
 
 #include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 #include <ctype.h>
 #include <time.h>
@@ -13514,6 +13514,78 @@ static RValue builtin_layer_background_get_blend(VMContext* ctx, RValue* args, M
     return RValue_makeReal(0.0);
 }
 
+static RValue builtin_layer_background_get_htiled(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->hTiled);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_vtiled(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->vTiled);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_stretch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->stretch);
+    return RValue_makeBool(false);
+}
+
+static RValue builtin_layer_background_get_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->imageIndex);
+    return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_get_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->spriteIndex);
+    return RValue_makeReal(-1.0);
+}
+
+static RValue builtin_layer_background_get_xscale(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->xScale);
+    return RValue_makeReal(1.0);
+}
+
+static RValue builtin_layer_background_get_yscale(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeReal(bg->yScale);
+    return RValue_makeReal(1.0);
+}
+
+static RValue builtin_layer_background_get_visible(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
+    if (bg != nullptr)
+        return RValue_makeBool(bg->visible);
+    return RValue_makeBool(true);
+}
+
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
@@ -14210,14 +14282,14 @@ static RValue builtin_tile_get_index(MAYBE_UNUSED VMContext* ctx, RValue* args, 
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
-    return RValue_makeBool((RValue_toInt32(args[0]) & (1 << 28)) != 0);
+    return RValue_makeBool((RValue_toInt32(args[0]) & TILEMIRROR_MASK) != 0);
 }
 
 // tile_get_flip(tiledata): returns whether the vertical-flip bit is set on a raw tile cell value.
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_flip(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeBool(false);
-    return RValue_makeBool((RValue_toInt32(args[0]) & (1 << 29)) != 0);
+    return RValue_makeBool((RValue_toInt32(args[0]) & TILEFLIP_MASK) != 0);
 }
 
 // tile_get_rotate(tiledata): returns whether the 90-degree-rotate bit is set on a raw tile cell value.
@@ -14232,6 +14304,42 @@ static RValue builtin_tile_get_rotate(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static RValue builtin_tile_set_empty(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(-1.0);
     return RValue_makeReal((GMLReal) (RValue_toInt32(args[0]) & ~TILEINDEX_SHIFTEDMASK));
+}
+
+// tile_set_mirror(tiledata): sets the horizontal-mirror bit on a raw tile cell value.
+// (see GameMaker-HTML5 Function_Layers.js)
+static RValue builtin_tile_set_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeReal(-1.0);
+    int32_t cell = RValue_toInt32(args[0]);
+    if (RValue_toBool(args[1]))
+        cell |= TILEMIRROR_MASK;
+    else
+        cell &= ~TILEMIRROR_MASK;
+    return RValue_makeReal((GMLReal) cell);
+}
+
+// tile_set_flip(tiledata): sets the vertical-flip bit on a raw tile cell value.
+// (see GameMaker-HTML5 Function_Layers.js)
+static RValue builtin_tile_set_flip(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeReal(-1.0);
+    int32_t cell = RValue_toInt32(args[0]);
+    if (RValue_toBool(args[1]))
+        cell |= TILEFLIP_MASK;
+    else
+        cell &= ~TILEFLIP_MASK;
+    return RValue_makeReal((GMLReal) cell);
+}
+
+// tile_set_rotate(tiledata): sets the 90-degree-rotate bit on a raw tile cell value.
+// (see GameMaker-HTML5 Function_Layers.js)
+static RValue builtin_tile_set_rotate(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) return RValue_makeReal(-1.0);
+    int32_t cell = RValue_toInt32(args[0]);
+    if (RValue_toBool(args[1]))
+        cell |= TILEROTATE_MASK;
+    else
+        cell &= ~TILEROTATE_MASK;
+    return RValue_makeReal((GMLReal) cell);
 }
 
 static RValue builtin_layer_get_all(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -15773,7 +15881,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
     Font* font = &dw->font.fonts[newFontIndex];
     font->name = "sprite_font";
     font->displayName = "sprite_font";
-    font->emSize = (maxHeight > 0) ? maxHeight : sprite->height;
+    font->emSize = (float)((maxHeight > 0) ? maxHeight : sprite->height);
     font->bold = false;
     font->italic = false;
     font->rangeStart = 0;
@@ -15809,6 +15917,18 @@ static RValue builtin_font_get_name(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeString(ctx->dataWin->font.fonts[fontIndex].name);
 }
 
+static RValue builtin_font_get_size(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        fprintf(stderr, "[font_get_size] Expected 1 argument, got 0");
+        return RValue_makeUndefined();
+    }
+
+    int32_t fontIndex = RValue_toInt32(args[0]);
+    if (0 > fontIndex || (uint32_t) fontIndex >= ctx->dataWin->font.count) return RValue_makeUndefined();
+    float size = ctx->dataWin->font.fonts[fontIndex].emSize;
+    return RValue_makeReal(size);
+}
+
 // font_get_info(font): returns a struct with the font information.
 static RValue builtin_font_get_info(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
@@ -15818,7 +15938,7 @@ static RValue builtin_font_get_info(VMContext* ctx, RValue* args, int32_t argCou
 
     Instance* ret = Runner_createStruct(ctx->runner);
     VM_structSetAndFreeVal(ctx, ret, "spriteIndex", RValue_makeInt32(font->isSpriteFont ? font->spriteIndex : -1), -1);
-    VM_structSetAndFreeVal(ctx, ret, "size", RValue_makeInt32((int32_t) font->emSize), -1);
+    VM_structSetAndFreeVal(ctx, ret, "size", RValue_makeReal(font->emSize), -1);
     VM_structSetAndFreeVal(ctx, ret, "ascender", RValue_makeInt32((int32_t) font->ascender), -1);
     VM_structSetAndFreeVal(ctx, ret, "ascenderOffset", RValue_makeInt32(font->ascenderOffset), -1);
     VM_structSetAndFreeVal(ctx, ret, "sdfSpread", RValue_makeInt32((int32_t) font->sdfSpread), -1);
@@ -18027,6 +18147,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tile_get_flip", builtin_tile_get_flip);
     VM_registerBuiltin(ctx, "tile_get_rotate", builtin_tile_get_rotate);
     VM_registerBuiltin(ctx, "tile_set_empty", builtin_tile_set_empty);
+    VM_registerBuiltin(ctx, "tile_set_mirror", builtin_tile_set_mirror);
+    VM_registerBuiltin(ctx, "tile_set_flip", builtin_tile_set_flip);
+    VM_registerBuiltin(ctx, "tile_set_rotate", builtin_tile_set_rotate);    
     VM_registerBuiltin(ctx, "tilemap_set", builtin_tilemap_set);
     VM_registerBuiltin(ctx, "tilemap_set_at_pixel", builtin_tilemap_set_at_pixel);
 #endif
@@ -18050,6 +18173,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
     VM_registerBuiltin(ctx, "layer_background_get_alpha", builtin_layer_background_get_alpha);
     VM_registerBuiltin(ctx, "layer_background_get_blend", builtin_layer_background_get_blend);
+	VM_registerBuiltin(ctx, "layer_background_get_htiled", builtin_layer_background_get_htiled);
+	VM_registerBuiltin(ctx, "layer_background_get_vtiled", builtin_layer_background_get_vtiled);
+	VM_registerBuiltin(ctx, "layer_background_get_stretch", builtin_layer_background_get_stretch);
+	VM_registerBuiltin(ctx, "layer_background_get_index", builtin_layer_background_get_index);
+	VM_registerBuiltin(ctx, "layer_background_get_sprite", builtin_layer_background_get_sprite);
+	VM_registerBuiltin(ctx, "layer_background_get_xscale", builtin_layer_background_get_xscale);
+	VM_registerBuiltin(ctx, "layer_background_get_yscale", builtin_layer_background_get_yscale);
+	VM_registerBuiltin(ctx, "layer_background_get_visible", builtin_layer_background_get_visible);
     VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
     VM_registerBuiltin(ctx, "layer_tile_x", builtin_layer_tile_x);
@@ -18228,6 +18359,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
+    VM_registerBuiltin(ctx, "font_get_size", builtin_font_get_size);
     VM_registerBuiltin(ctx, "font_get_info", builtin_font_get_info);
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
     VM_registerBuiltin(ctx, "object_get_name", builtin_object_get_name);

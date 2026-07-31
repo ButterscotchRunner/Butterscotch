@@ -86,12 +86,6 @@ int main(void){return 0;}
     return $?
 }
 
-ccname="${CC##*/}"
-target="${ccname%-*}"
-if [ "$ccname" = "$target" ]; then
-    target=
-fi
-
 printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
@@ -107,7 +101,6 @@ if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     output_exe='/Fe'
     config "OUTPUT_OBJ := $output_obj"
     config "OUTPUT_EXE := $output_exe"
-    config 'MSVC := 1'
     config 'OBJ_EXT := obj'
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
@@ -132,6 +125,7 @@ else
     exit 1
 fi
 config "COMPILE_OBJ := $compile_obj"
+config "SYNTAX := $syntax"
 
 configlog 'checking if we are cross compiling'
 chmod +x tmp/a.out
@@ -140,16 +134,6 @@ if tmp/a.out > /dev/null 2>&1; then
 else
     printyes
     cross_compiling=1
-fi
-
-if [ -n "$target" ]; then
-    configlog "checking for $target-pkg-config"
-    if command -v "$target-pkg-config"; then
-        printyes
-        config "PKG_CONFIG := $target-pkg-config"
-    else
-        printno
-    fi
 fi
 
 printf '%s' "\
@@ -189,12 +173,12 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
 
-if [ "$syntax" != 'msvc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
+if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
     # function tests might have false positives without this
     cflags='-fno-builtin'
 fi
 
-if [ "$syntax" = 'msvc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
+if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
     config 'DISABLE_MMD := 1'
 fi
 rm -f tmp/test.d
@@ -255,6 +239,16 @@ int main(void){return 0;}
             define 'HAVE_SYS_TYPES_H'
         fi
     fi
+fi
+
+printf '%s' "\
+#include <strings.h>
+int main(void){return 0;}
+" > tmp/test.c
+
+if ! nolink=1 check 'if strings.h works'; then
+    define 'NO_STRINGS_H'
+    no_strings_h=1
 fi
 
 printf '%s' "\
@@ -406,6 +400,22 @@ int main(void){
 
 if ! check 'for strtok_r'; then
     define 'NO_STRTOK_R'
+fi
+
+if [ -n "$no_strings_h" ]; then
+    printf '#include <string.h>\n' > tmp/test.c
+else
+    printf '#include <strings.h>\n' > tmp/test.c
+fi
+
+printf '%s' "\
+int main(void){
+    return strcasecmp(\"\", \"\");
+}
+" >> tmp/test.c
+
+if ! check 'for strcasecmp'; then
+    define 'NO_STRCASECMP'
 fi
 
 printf '%s' "\
