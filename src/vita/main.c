@@ -6,6 +6,8 @@
 #include "overlay_file_system.h"
 #include "gl_common.h"
 
+#include "vita_textures.h"
+
 #if defined(USE_OPENAL) 
 #include "al_audio_system.h"
 #elif defined(USE_MINIAUDIO)
@@ -128,10 +130,26 @@ static char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
+int fileExists(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file != NULL) {
+        fclose(file);
+        return 1;
+    }
+    return 0;
+}
+
 void loop(const char* dataWinPath) {
     char* safePath = safeStrdup(dataWinPath);
     sceClibPrintf("Loading %s...\n", safePath);
     if (pendingDataWinPath) free(pendingDataWinPath);
+    char* bundleDir = safeStrdup(safePath);
+    {
+        char* lastSlash = strrchr(bundleDir, '/');
+        if (lastSlash) {
+            *lastSlash = '\0';
+        }
+    }
 
     DataWinParserOptions options = {0};
     options.parseGen8 = true;
@@ -155,7 +173,20 @@ void loop(const char* dataWinPath) {
     options.parseVari = true;
     options.parseFunc = true;
     options.parseStrg = true;
+
     options.parseTxtr = true;
+    int texBinPathLen = strlen(bundleDir) + strlen("/textures.bin") + 1;
+    char* texBinPath = malloc(texBinPathLen);
+    snprintf(texBinPath, texBinPathLen, "%s%s", bundleDir, "/textures.bin");
+    if (fileExists(texBinPath)) {
+        options.parseTxtr = false;
+        if (!VitaTextures_Init(texBinPath)) {
+            fprintf(stderr, "FATAL: failed to load %s\n", texBinPath);
+            return;
+        }
+    }
+    free(texBinPath);
+
 #if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
     options.parseAudo = true;
 #endif
@@ -177,14 +208,6 @@ void loop(const char* dataWinPath) {
         vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
     }
 #endif
-
-    char* bundleDir = safeStrdup(safePath);
-    {
-        char* lastSlash = strrchr(bundleDir, '/');
-        if (lastSlash) {
-            *lastSlash = '\0';
-        }
-    }
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, GAME_DATA_PATH);
 
     Renderer* renderer = GLRenderer_create();
@@ -193,6 +216,7 @@ void loop(const char* dataWinPath) {
     if (!renderer) {
         sceClibPrintf("Failed to initialize a renderer\n");
         DataWin_free(dataWin);
+        VitaTextures_Free();
         return;
     }
 
@@ -337,6 +361,7 @@ free_butterscotch:
     runner->audioSystem = nullptr;
     renderer->vtable->destroy(renderer);
     DataWin_free(dataWin);
+    VitaTextures_Free();
 }
 
 int main() {

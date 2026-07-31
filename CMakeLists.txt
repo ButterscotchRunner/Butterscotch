@@ -739,7 +739,7 @@ elseif(PLATFORM STREQUAL "vita")
     option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
     option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
     
-    target_sources(butterscotch PRIVATE src/vita/stb_impl.c src/vita/main.c)
+    target_sources(butterscotch PRIVATE src/vita/stb_impl.c src/vita/vita_textures.c src/vita/main.c)
     
     target_link_libraries(butterscotch PRIVATE 
         -Wl,--whole-archive pthread -Wl,--no-whole-archive
