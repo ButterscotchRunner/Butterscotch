@@ -3793,8 +3793,9 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
     RValue* localVars;
+    RValue localVarsInline[VM_MAX_STACK_LOCALS];
     if (localsCount <= VM_MAX_STACK_LOCALS) {
-        localVars = frame.inlineLocalVars;
+        localVars = localVarsInline;
         memset(localVars, 0, sizeof(RValue) * localsCount);
         ctx->localVarsOnHeap = false;
     } else {
@@ -3808,10 +3809,10 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
     // the caller's original args remain valid and owner-tracked by the caller.
     RValue* scriptArgs = nullptr;
+    RValue scriptArgsInline[VM_MAX_STACK_ARGS];
     if (argCount > 0 && args != nullptr) {
         if (argCount <= VM_MAX_STACK_ARGS) {
-            scriptArgs = frame.inlineScriptArgs;
-            memset(scriptArgs, 0, sizeof(RValue) * argCount);
+            scriptArgs = scriptArgsInline;
             ctx->scriptArgsOnHeap = false;
         } else {
             scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));

@@ -145,10 +145,6 @@ typedef struct CallFrame {
     bool savedScriptArgsOnHeap;
     int32_t savedCurrentCodeIndex;
     struct CallFrame* parent;
-    
-    // Stack buffers for the callee's local variables and script args
-    RValue inlineLocalVars[VM_MAX_STACK_LOCALS];
-    RValue inlineScriptArgs[VM_MAX_STACK_ARGS];
 } CallFrame;
 
 // ===[ EnvFrame - Saved context for with-statement (PushEnv/PopEnv) ]===
