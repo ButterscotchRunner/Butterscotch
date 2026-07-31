@@ -38,6 +38,7 @@ static Gen8*              g_gen8     = nullptr;
 static int32_t  fbWidth  = 640;
 static int32_t  fbHeight = 480;
 static double   lastFrameStartTime = 0.0;
+static char*    g_dataWinPath = nullptr;
 
 enum GraphicsAPI gfx = SOFTWARE;
 InputRecording*  globalInputRecording = nullptr;
@@ -460,6 +461,9 @@ bool retro_load_game(const struct retro_game_info *game)
   opts.skipLoadingPreciseMasksForNonPreciseSprites = true;
   opts.loadType   = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
 
+  free(g_dataWinPath);
+  g_dataWinPath = safeStrdup(game->path);
+
   g_dataWin = DataWin_parse(game->path, opts);
   if (!g_dataWin)
   {
@@ -558,6 +562,8 @@ void retro_unload_game(void)
     DataWin_free(g_dataWin);
     g_dataWin = nullptr;
   }
+  free(g_dataWinPath);
+  g_dataWinPath = nullptr;
   g_renderer = nullptr;
   g_gen8     = nullptr;
   nextFb     = nullptr;
@@ -590,6 +596,151 @@ void retro_run(void)
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
   glsm_ctl(GLSM_CTL_STATE_UNBIND, NULL);
 #endif
+
+  if (g_runner->pendingWorkingDirectory != nullptr && g_runner->pendingLaunchParameters != nullptr)
+  {
+    log_cb(RETRO_LOG_INFO, "game_change: switching to \"%s\" \"%s\"\n",
+           g_runner->pendingWorkingDirectory, g_runner->pendingLaunchParameters);
+
+    char* nextWorkingDir = g_runner->pendingWorkingDirectory;
+    char* nextLaunchParams = g_runner->pendingLaunchParameters;
+    g_runner->pendingWorkingDirectory = nullptr;
+    g_runner->pendingLaunchParameters = nullptr;
+
+    // Extract the data.win filename from "-game <file>" inside the launch parameters
+    char* dataWinFilename = nullptr;
+    char* args = nextLaunchParams;
+    while (*args)
+    {
+      while (*args == ' ') args++;
+      if (strncmp(args, "-game ", 6) == 0)
+      {
+        args += 6;
+        while (*args == ' ') args++;
+        char* end = args;
+        while (*end && *end != ' ') end++;
+        dataWinFilename = (char*)safeMalloc((size_t)(end - args + 1));
+        memcpy(dataWinFilename, args, (size_t)(end - args));
+        dataWinFilename[end - args] = '\0';
+        break;
+      }
+      else
+      {
+        while (*args && *args != ' ') args++;
+      }
+    }
+
+    if (dataWinFilename == nullptr)
+    {
+      log_cb(RETRO_LOG_ERROR, "game_change: no -game argument in launch parameters\n");
+      free(nextWorkingDir);
+      free(nextLaunchParams);
+    }
+    else
+    {
+      // Get parent directory of the original data.win
+      char* parentDir = safeStrdup(g_dataWinPath);
+      char* lastSlash = strrchr(parentDir, '/');
+      char* lastBackslash = strrchr(parentDir, '\\');
+      char* sep = (lastSlash > lastBackslash) ? lastSlash : lastBackslash;
+      if (sep != nullptr) *sep = '\0';
+      else { parentDir[0] = '.'; parentDir[1] = '\0'; }
+
+      size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDir) + 1 + strlen(dataWinFilename) + 1;
+      char* newPath = (char*)safeMalloc(newPathLen);
+      snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDir, dataWinFilename);
+      log_cb(RETRO_LOG_INFO, "Changing into a different data.win \"%s\"\n", newPath);
+
+      free(parentDir);
+      free(dataWinFilename);
+      free(nextWorkingDir);
+      free(nextLaunchParams);
+
+      AudioSystem* audio = g_runner ? g_runner->audioSystem : nullptr;
+      if (audio) audio->vtable->stopAll(audio);
+      if (g_runner) Runner_free(g_runner);
+      g_runner = nullptr;
+      if (g_overlayFs) { OverlayFileSystem_destroy(g_overlayFs); g_overlayFs = nullptr; }
+      if (g_vm) { VM_free(g_vm); g_vm = nullptr; }
+      if (g_dataWin) { DataWin_free(g_dataWin); g_dataWin = nullptr; }
+      g_gen8     = nullptr;
+      nextFb     = nullptr;
+
+      // Load new data.win
+      free(g_dataWinPath);
+      g_dataWinPath = newPath;
+
+      DataWinParserOptions opts = {0};
+      opts.parseGen8  = true;
+      opts.parseOptn  = true;
+      opts.parseLang  = true;
+      opts.parseExtn  = true;
+      opts.parseSond  = true;
+      opts.parseAgrp  = true;
+      opts.parseSprt  = true;
+      opts.parseBgnd  = true;
+      opts.parsePath  = true;
+      opts.parseScpt  = true;
+      opts.parseGlob  = true;
+      opts.parseShdr  = true;
+      opts.parseFont  = true;
+      opts.parseTmln  = true;
+      opts.parseObjt  = true;
+      opts.parseRoom  = true;
+      opts.parseTpag  = true;
+      opts.parseCode  = true;
+      opts.parseVari  = true;
+      opts.parseFunc  = true;
+      opts.parseStrg  = true;
+      opts.parseTxtr  = true;
+      opts.parseAudo  = true;
+      opts.skipLoadingPreciseMasksForNonPreciseSprites = true;
+      opts.loadType   = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+
+      g_dataWin = DataWin_parse(g_dataWinPath, opts);
+      if (!g_dataWin)
+      {
+        log_cb(RETRO_LOG_ERROR, "Failed to parse new data.win from %s\n", g_dataWinPath);
+        free(g_dataWinPath);
+        g_dataWinPath = nullptr;
+        return;
+      }
+
+      g_gen8 = &g_dataWin->gen8;
+      log_cb(RETRO_LOG_INFO, "Loaded \"%s\" (%d) [WAD %u / GM %u.%u.%u.%u]\n",
+             g_gen8->name, g_gen8->gameID, g_gen8->wadVersion,
+             g_dataWin->detectedFormat.major, g_dataWin->detectedFormat.minor,
+             g_dataWin->detectedFormat.release, g_dataWin->detectedFormat.build);
+
+      g_vm = VM_create(g_dataWin);
+
+      // game_change path
+        char* newDir = safeStrdup(g_dataWinPath);
+        char* ls = strrchr(newDir, '/');
+        char* lb = strrchr(newDir, '\\');
+        char* s = (ls > lb) ? ls : lb;
+        if (s)
+          *s = '\0';
+        else
+          { newDir[0] = '.'; newDir[1] = '\0'; }
+        g_overlayFs = OverlayFileSystem_create(newDir, newDir);
+        free(newDir);
+
+      g_runner = Runner_create(g_dataWin, g_vm, g_renderer, (FileSystem*)g_overlayFs, audio);
+      g_runner->osType = OS_WINDOWS;
+      g_runner->setWindowSize   = platformSetWindowSize;
+      g_runner->getWindowSize   = platformGetWindowSize;
+      g_runner->setWindowTitle  = platformSetWindowTitle;
+      platformInitFunctions(g_runner);
+
+      Runner_initFirstRoom(g_runner);
+
+      lastFrameStartTime = platformGetTime();
+
+      log_cb(RETRO_LOG_INFO, "game_change complete\n");
+      return;
+    }
+  }
 
   float dt = (float)(g_runner->deltaTime / 1000000.0);
   if (dt < 0.0f) dt = 0.0f;

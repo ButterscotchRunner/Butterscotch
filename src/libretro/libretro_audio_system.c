@@ -65,8 +65,20 @@ static char* resolveExternalPath(LibretroAudioSystem* ma, Sound* sound) {
 
 static void libretroInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem) {
     LibretroAudioSystem* ma = (LibretroAudioSystem*) audio;
-    arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
+
+    if (ma->engineReady) {
+        if (arrlen(ma->base.audioGroups) > 0)
+            ma->base.audioGroups[0] = dataWin;
+        else
+            arrput(ma->base.audioGroups, dataWin);
+        ma->base.dw = dataWin;
+        memset(ma->instances, 0, sizeof(ma->instances));
+        ma->nextInstanceCounter = 0;
+        return;
+    }
+
+    arrput(ma->base.audioGroups, dataWin);
 
     ma_engine_config config = ma_engine_config_init();
     config.noDevice = MA_TRUE;
