@@ -340,7 +340,12 @@ free_butterscotch:
 }
 
 int main() {
-    vglInitExtended(0, 960, 544, 12 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
+    vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
+    vglSetupGarbageCollector(127, 0x20000);
+    // let's try to get as much ram as possible
+    vglSetParamBufferSize(2 * 1024 * 1024);
+    vglInitWithCustomThreshold(0, 960, 544, 12 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
+
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
 
 loop_start:
