@@ -287,6 +287,8 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "bbox_left", BUILTIN_VAR_BBOX_LEFT },
     { "bbox_right", BUILTIN_VAR_BBOX_RIGHT },
     { "bbox_top", BUILTIN_VAR_BBOX_TOP },
+    { "browser_height", BUILTIN_VAR_BROWSER_HEIGHT },
+    { "browser_width", BUILTIN_VAR_BROWSER_WIDTH },
     { "buffer_bool", BUILTIN_VAR_BUFFER_BOOL },
     { "buffer_f16", BUILTIN_VAR_BUFFER_F16 },
     { "buffer_f32", BUILTIN_VAR_BUFFER_F32 },
@@ -772,6 +774,26 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             if (!bbox.valid) return RValue_makeReal(inst->y);
             // In compatibility mode the bbox is inclusive while our bbox is exclusive
             return RValue_makeReal(runner->collisionCompatibilityMode ? bbox.bottom - 1 : bbox.bottom);
+        }
+        case BUILTIN_VAR_BROWSER_WIDTH: {
+            if (runner != nullptr && runner->getWindowSize != nullptr) {
+                int32_t w = 0;
+                int32_t h = 0;
+                if (runner->getWindowSize(&w, &h)) {
+                    return RValue_makeReal((GMLReal) w);
+                }
+            }
+            return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowWidth);
+        }
+        case BUILTIN_VAR_BROWSER_HEIGHT: {
+            if (runner != nullptr && runner->getWindowSize != nullptr) {
+                int32_t w = 0;
+                int32_t h = 0;
+                if (runner->getWindowSize(&w, &h)) {
+                    return RValue_makeReal((GMLReal) h);
+                }
+            }
+            return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
         }
         case BUILTIN_VAR_VISIBLE:
             if (inst == nullptr) break;
