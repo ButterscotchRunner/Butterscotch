@@ -487,7 +487,7 @@ int16_t VMBuiltins_resolveBuiltinVarId(const char* name) {
 void VMBuiltins_checkIfBuiltinVarTableIsSorted(void) {
     size_t count = sizeof(BUILTIN_VAR_TABLE) / sizeof(BUILTIN_VAR_TABLE[0]);
     for (size_t i = 1; count > i; i++) {
-        int cmp = strcmp(BUILTIN_VAR_TABLsE[i - 1].name, BUILTIN_VAR_TABLE[i].name);
+        int cmp = strcmp(BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name);
         requireMessageFormatted(__FILE__, __LINE__, cmp < 0, "BUILTIN_VAR_TABLE not strictly sorted at index %zu: '%s' vs '%s' (cmp=%d). Re-sort (LC_ALL=C) or remove duplicates!", i, BUILTIN_VAR_TABLE[i - 1].name, BUILTIN_VAR_TABLE[i].name, cmp);
     }
 }
