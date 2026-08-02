@@ -6,6 +6,7 @@
 #include "gl_legacy_renderer.h"
 #include "overlay_file_system.h"
 #include "gl_common.h"
+#include "utils.h"
 
 #include "vita_textures.h"
 
@@ -182,7 +183,7 @@ void loop(const char* dataWinPath) {
 
     options.parseTxtr = true;
     int texBinPathLen = strlen(bundleDir) + strlen("/textures.bin") + 1;
-    char* texBinPath = malloc(texBinPathLen);
+    char* texBinPath = (char*)safeMalloc(texBinPathLen);
     snprintf(texBinPath, texBinPathLen, "%s%s", bundleDir, "/textures.bin");
     if (fileExists(texBinPath)) {
         options.parseTxtr = false;
@@ -341,7 +342,7 @@ void loop(const char* dataWinPath) {
                     }
                 }
                 size_t newPathLen = strlen(parentDir) + strlen(runner->pendingWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-                pendingDataWinPath = (char *)malloc(newPathLen);
+                pendingDataWinPath = (char *)safeMalloc(newPathLen);
                 snprintf(pendingDataWinPath, newPathLen, "%s%s/%s", parentDir, runner->pendingWorkingDirectory, dataWinFilename);
                 free(parentDir);
             }

@@ -1,5 +1,6 @@
 #include "vita_textures.h"
 #include "stb_image.h"
+#include "utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -35,8 +36,8 @@ bool VitaTextures_Init(const char* binPath) {
     }
 
     if (!fread(&pageCount, sizeof(int), 1, vitaTexBinF)) goto fail;
-    pageOffsets = malloc(pageCount * sizeof(int));
-    pageSizes = malloc(pageCount * sizeof(int));
+    pageOffsets = (int*)safeMalloc(pageCount * sizeof(int));
+    pageSizes = (int*)safeMalloc(pageCount * sizeof(int));
 
     for (int i = 0; i < pageCount; i++) {
         pageOffsets[i] = (int)ftell(vitaTexBinF) + 4;
