@@ -417,9 +417,9 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     gl->textureLoaded[pageId] = true;
 
     int w, h;
+    uint8_t* pixels = nullptr;
 #ifdef PLATFORM_PS3
     // We'll load the textures on demand.
-    uint8_t* pixels;
     if (!PS3Textures_loadPage(pageId, &w, &h, &pixels)) {
         fprintf(stderr, "GL: PS3 page %u has no pixels\n", pageId);
         return false;
@@ -454,7 +454,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     DataWin_loadTxtrIfNeeded(dw, pageId);
 
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
-    uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
+    pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
         fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
         return false;
