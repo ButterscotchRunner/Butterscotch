@@ -52,14 +52,19 @@ void handleVitaGamepad(RunnerGamepadState* gp, int port) {
     if (pad.buttons & SCE_CTRL_CIRCLE) slot->buttonDown[1] = true;
     if (pad.buttons & SCE_CTRL_SQUARE) slot->buttonDown[2] = true;
     if (pad.buttons & SCE_CTRL_TRIANGLE) slot->buttonDown[3] = true;
+
     if (pad.buttons & SCE_CTRL_L1) slot->buttonDown[4] = true;
-    if (pad.buttons & SCE_CTRL_R2) slot->buttonDown[5] = true;
-    if (pad.buttons & SCE_CTRL_L2) slot->buttonDown[6] = true;
-    if (pad.buttons & SCE_CTRL_R2) slot->buttonDown[7] = true;
+    if (pad.buttons & SCE_CTRL_R1) slot->buttonDown[5] = true;
+    //if (pad.buttons & SCE_CTRL_L2) slot->buttonDown[6] = true;
+    //if (pad.buttons & SCE_CTRL_R2) slot->buttonDown[7] = true;
+
     if (pad.buttons & SCE_CTRL_SELECT) slot->buttonDown[8] = true;
     if (pad.buttons & SCE_CTRL_START) slot->buttonDown[9] = true;
+    if (pad.buttons & SCE_CTRL_PSBUTTON) slot->buttonDown[16] = true;
+
     if (pad.buttons & SCE_CTRL_L3) slot->buttonDown[10] = true;
     if (pad.buttons & SCE_CTRL_R3) slot->buttonDown[11] = true;
+
     if (pad.buttons & SCE_CTRL_UP) slot->buttonDown[12] = true;
     if (pad.buttons & SCE_CTRL_DOWN) slot->buttonDown[13] = true;
     if (pad.buttons & SCE_CTRL_LEFT) slot->buttonDown[14] = true;
@@ -229,6 +234,7 @@ void loop(const char* dataWinPath) {
 #endif
 
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+    runner->debugMode = true; // for now
     runner->setWindowSize = vitaSetWindowSize;
     runner->getWindowSize = vitaGetWindowSize;
     Runner_initFirstRoom(runner);
@@ -256,15 +262,34 @@ void loop(const char* dataWinPath) {
         //double stepTime = 0.0;
         //double audioTime = 0.0;
         if (shouldStep) {
-            //double stepStart = osTime();
+            // Go to next room
+            if (runner->debugMode) {
+                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADR) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
+                    DataWin* dw = runner->dataWin;
+                    if ((int32_t) dw->gen8.roomOrderCount > runner->currentRoomOrderPosition + 1) {
+                        int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
+                        runner->pendingRoom = nextIdx;
+                        runner->audioSystem->vtable->stopAll(runner->audioSystem);
+                        fprintf(stderr, "Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                    }
+                }
+                // Go to previous room
+                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADL) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
+                    DataWin* dw = runner->dataWin;
+                    if (runner->currentRoomOrderPosition > 0) {
+                        int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
+                        runner->pendingRoom = prevIdx;
+                        runner->audioSystem->vtable->stopAll(runner->audioSystem);
+                        fprintf(stderr, "Debug: Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
+                    }
+                }
+            }
+
             Runner_step(runner);
-            //stepTime = osTime() - stepStart;
             float dt = (float)runner->deltaTime;
             if (0.0f > dt) dt = 0.0f;
             if (dt > 0.1f) dt = 0.1f;
-            //double audioStart = osTime();
             runner->audioSystem->vtable->update(runner->audioSystem, dt);
-            //audioTime = osTime() - audioStart;
         }
         
         // taken from desktop/main.c
