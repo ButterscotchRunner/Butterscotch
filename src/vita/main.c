@@ -3,6 +3,7 @@
 #include "vm.h"
 
 #include "gl_renderer.h"
+#include "gl_legacy_renderer.h"
 #include "overlay_file_system.h"
 #include "gl_common.h"
 
@@ -200,6 +201,8 @@ void loop(const char* dataWinPath) {
     options.lazyLoadTextures = true;
     options.lazyLoadAudio = true;
 
+    bool forceLegacyGL = false;
+
     DataWin* dataWin = DataWin_parse(safePath, options);
     Gen8* gen8 = &dataWin->gen8;
     sceClibPrintf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
@@ -215,7 +218,11 @@ void loop(const char* dataWinPath) {
 #endif
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, GAME_DATA_PATH);
 
-    Renderer* renderer = GLRenderer_create();
+    Renderer* renderer = NULL;
+    if (forceLegacyGL)
+        renderer = GLLegacyRenderer_create();
+    else
+        renderer = GLRenderer_create();
     hostFramebuffer = &((GLRenderer *)renderer)->hostFramebuffer;
 
     if (!renderer) {
