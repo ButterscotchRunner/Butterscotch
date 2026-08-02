@@ -1939,8 +1939,10 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 
     // Pop arguments from stack (args pushed right-to-left, so first arg is on top)
     RValue* args = nullptr;
+	RValue stackArgs[VM_MAX_STACK_ARGS] = {0};
+	bool useStackArgs = argCount <= VM_MAX_STACK_ARGS;
     if (argCount > 0) {
-        args = (RValue *)safeCalloc(argCount, sizeof(RValue));
+        args = useStackArgs ? stackArgs : (RValue *)safeCalloc(argCount, sizeof(RValue));
         repeat(argCount, i) {
             args[i] = stackPop(ctx);
         }
@@ -1984,7 +1986,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             repeat(argCount, i) {
                 RValue_free(&args[i]);
             }
-            free(args);
+            if (!useStackArgs) free(args);
         }
 
 #ifdef ENABLE_VM_TRACING
@@ -2018,7 +2020,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             repeat(argCount, i) {
                 RValue_free(&args[i]);
             }
-            free(args);
+            if (!useStackArgs) free(args);
         }
 
         stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
@@ -2046,7 +2048,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
         repeat(argCount, i) {
             RValue_free(&args[i]);
         }
-        free(args);
+        if (!useStackArgs) free(args);
     }
 
 #ifdef ENABLE_VM_TRACING
@@ -2069,8 +2071,10 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
     RValue instance = stackPop(ctx);
 
     RValue* args = nullptr;
+	RValue stackArgs[VM_MAX_STACK_ARGS] = {0};
+	bool useStackArgs = argCount <= VM_MAX_STACK_ARGS;
     if (argCount > 0) {
-        args = (RValue *)safeCalloc(argCount, sizeof(RValue));
+        args = useStackArgs ? stackArgs : (RValue *)safeCalloc(argCount, sizeof(RValue));
         repeat(argCount, i) {
             args[i] = stackPop(ctx);
         }
@@ -2146,7 +2150,7 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
         repeat(argCount, i) {
             RValue_free(&args[i]);
         }
-        free(args);
+        if (!useStackArgs) free(args);
     }
 
     stackPushTyped(ctx, result, GML_TYPE_VARIABLE);

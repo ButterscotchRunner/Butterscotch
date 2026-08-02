@@ -4,6 +4,9 @@
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
+#elif PLATFORM_VITA
+#include <vitaGL.h>
+#include "vita_textures.h"
 #else
 #include <glad/glad.h>
 #endif
@@ -150,15 +153,13 @@ static void flushBatch(GLRenderer* gl) {
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
         int32_t stride = sizeof(Vertex);
@@ -274,14 +275,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->isGL3 = (ver.major >= 3);
     gl->isGLES = ver.isGLES;
 
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA)
+    gl_init_wrappers();
+#endif
+
     if (!hasFBO()) {
         logError("GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
-
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
-    gl_init_wrappers();
-#endif
 
     char vertSrc[1024];
     char fragSrc[1024];
@@ -456,7 +457,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
+#if defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
+#else
     gl->textureCount = dataWin->txtr.count;
+#endif
     gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
     gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
@@ -861,6 +869,18 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     gl->textureLoaded[pageId] = true;
 
+#if defined(PLATFORM_VITA)
+    if (VitaTextures_Active()) {
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+        if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
+            fprintf(stderr, "GL: Failed to load Vita TXTR page %u", pageId);
+            return false;
+        }
+        fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        return true;
+    }
+#endif
+
     DataWin* dw = gl->base.dataWin;
     Texture* txtr = &dw->txtr.textures[pageId];
 
@@ -894,7 +914,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
-    logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
+    fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
 }
 

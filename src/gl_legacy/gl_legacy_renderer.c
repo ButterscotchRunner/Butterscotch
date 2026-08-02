@@ -28,6 +28,11 @@ extern GLint  gPalettedUPaletteVLoc;
     glDisable(GL_TEXTURE_2D);                                                               \
     glActiveTexture(GL_TEXTURE0);                                                           \
 } while (0)
+#elif PLATFORM_VITA
+#include <vitaGL.h>
+#include "vita_textures.h"
+#define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
+#define PS3_PALETTED_END()            ((void)0)
 #else
 #include <glad/glad.h>
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
@@ -51,7 +56,6 @@ static inline int32_t nextPow2(int32_t v) {
 #include "utils.h"
 #include "image_decoder.h"
 #include "gl_common.h"
-#include "gl_wrappers.h"
 
 // ===[ Runtime OpenGL extension checks ]===
 
@@ -139,14 +143,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
+#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
+    gl_init_wrappers();
+#endif
+
     if (!hasFBO()) {
         logError("GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
-
-#ifndef PLATFORM_PS3
-    gl_init_wrappers();
-#endif
 
     // GL 2.0+ has NPOT textures as core; older GL (1.x) may or may not have
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
@@ -168,6 +172,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #ifdef PLATFORM_PS3
     // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
     gl->textureCount = PS3Textures_getPageCount();
+#elif defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
 #else
     gl->textureCount = dataWin->txtr.count;
 #endif
@@ -429,6 +438,17 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
 
     free(pixels);
 #else
+#if defined(PLATFORM_VITA)
+    if (VitaTextures_Active()) {
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+        if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
+            fprintf(stderr, "GL: Failed to load Vita TXTR page %u", pageId);
+            return false;
+        }
+        fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        return true;
+    }
+#endif
     DataWin* dw = gl->base.dataWin;
     Texture* txtr = &dw->txtr.textures[pageId];
 
