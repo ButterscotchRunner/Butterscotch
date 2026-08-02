@@ -63,7 +63,7 @@ static inline int32_t nextPow2(int32_t v) {
 // (glGetStringi + GL_NUM_EXTENSIONS) path when glGetStringi is non-null
 // (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
 // approach so the code works with any GL loader (glad, PS3, etc.).
-#ifndef PLATFORM_PS3
+#if !defined(PLATFORM_PS3) && !defined(__VITA__)
 static bool hasGLExtension(const char* name) {
     if (glGetStringi) {
         GLint numExts = 0;
