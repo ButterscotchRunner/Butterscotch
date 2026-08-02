@@ -153,8 +153,6 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --profile-opcodes                      - Rank which GML opcodes were executed the most
 --lazy-textures                        - Load textures into VRAM on first use, improving startup times
 --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
---disable-file-log                     - Disable logging to a file
---log-file <filename>                  - File to log to
 --disable-log-colours                  - Disable colours for warning, error, and debug logs
 --disable-log-colors                   - Same as --disable-log-colours, but different spelling
 ```
