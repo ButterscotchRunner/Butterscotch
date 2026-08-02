@@ -114,6 +114,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     }
     ma_engine_config config = ma_engine_config_init();
     config.pDevice = &ma->device;
+    
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
         fprintf(stderr, "Audio: Failed to initialize miniaudio engine (error %d)\n", result);
@@ -273,7 +274,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             }
             slot->ownsDecoder = true;
 
-            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, &ma->listenerGroups[0], &slot->maSound);
+            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, &ma->listenerGroups[0], nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
                 fprintf(stderr, "Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
                 ma_decoder_uninit(&slot->decoder);

@@ -28,6 +28,11 @@ extern GLint  gPalettedUPaletteVLoc;
     glDisable(GL_TEXTURE_2D);                                                               \
     glActiveTexture(GL_TEXTURE0);                                                           \
 } while (0)
+#elif PLATFORM_VITA
+#include <vitaGL.h>
+#include "vita_textures.h"
+#define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
+#define PS3_PALETTED_END()            ((void)0)
 #else
 #include <glad/glad.h>
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
@@ -138,7 +143,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
-#ifndef PLATFORM_PS3
+#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
     gl_init_wrappers();
 #endif
 
@@ -167,6 +172,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #ifdef PLATFORM_PS3
     // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
     gl->textureCount = PS3Textures_getPageCount();
+#elif defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
 #else
     gl->textureCount = dataWin->txtr.count;
 #endif

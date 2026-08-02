@@ -219,7 +219,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
             }
             slot->ownsDecoder = true;
 
-            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, nullptr, &slot->maSound);
+            result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, nullptr, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
                 fprintf(stderr, "Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
                 ma_decoder_uninit(&slot->decoder);

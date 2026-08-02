@@ -4,7 +4,27 @@ if(PLATFORM STREQUAL "ps3")
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
 endif()
 
+if(PLATFORM STREQUAL "vita")
+
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+  if(DEFINED ENV{VITASDK})
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+  else()
+    message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
+  endif()
+endif()
+
+endif()
+
 project(butterscotch C)
+
+if (PLATFORM STREQUAL "vita")
+include("${VITASDK}/share/vita.cmake" REQUIRED)
+set(VITA_APP_NAME "Butterscotch")
+set(VITA_TITLEID  "BUTTRSTCH")
+set(VITA_VERSION  "01.00")
+set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
+endif()
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -115,20 +135,20 @@ if(AUDIO_BACKEND STREQUAL "openal")
     add_compile_definitions(USE_OPENAL)
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
-    elseif(NOT PLATFORM STREQUAL "ps3")
+    elseif(NOT PLATFORM STREQUAL "ps3" AND NOT PLATFORM STREQUAL "vita")
         find_package(OpenAL REQUIRED)
         target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
         set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
     endif()
 elseif(AUDIO_BACKEND STREQUAL "miniaudio")
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_MINIAUDIO)
     if (NOT WIN32)
         set(AUDIO_LIBRARIES pthread)
     endif()
 elseif(AUDIO_BACKEND STREQUAL "web")
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/web)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_WEB_AUDIO)
@@ -685,6 +705,83 @@ elseif(PLATFORM STREQUAL "ps3")
     # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
     target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
+elseif(PLATFORM STREQUAL "vita")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wall -O3 -mfloat-abi=hard -mtune=cortex-a9 -mfpu=neon -ffast-math")
+    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -std=c++11")
+
+    # Normally, __VITA__ should already be defined, but for some reason,
+    # in my case, this didn't really work... so just in case, when we're
+    # building for the Vita, just force-feed these...
+    add_compile_definitions(__VITA__)
+    add_compile_definitions(MA_NO_RUNTIME_LINKING)
+    add_compile_definitions(PLATFORM_VITA)
+    add_compile_definitions(NO_RVALUE_INT64)
+
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_legacy/*.c src/gl_common/*.c src/image/*.c)
+    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${DEBUG_FONT_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/vita)
+    
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+    
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
+    
+    target_sources(butterscotch PRIVATE src/vita/vita_textures.c src/vita/main.c)
+    
+    target_link_libraries(butterscotch PRIVATE 
+        -Wl,--whole-archive pthread -Wl,--no-whole-archive
+        bzip2
+        stb_ds
+        sha1
+        #stb_image
+        #stb_vorbis
+        vitaGL
+        openal
+        stdc++
+        vitashark
+        m
+        z
+        SceShaccCgExt
+        mathneon
+        taihen_stub
+        kubridge_stub
+        SceAppMgr_stub
+        SceAppUtil_stub
+        SceAudio_stub
+        SceAudioIn_stub
+        SceCtrl_stub
+        SceCommonDialog_stub
+        SceDisplay_stub
+        SceKernelDmacMgr_stub
+        SceFios2_stub
+        SceGxm_stub
+        SceMotion_stub
+        SceNet_stub
+        SceRegistryMgr_stub
+        SceShaccCg_stub
+        SceSysmodule_stub
+        ScePower_stub
+        SceTouch_stub
+        SceVshBridge_stub
+        SceAvPlayer_stub
+        SceNpTrophy_stub
+    )
+
+    vita_create_self(eboot.bin butterscotch UNSAFE)
+    vita_create_vpk(Butterscotch.vpk ${VITA_TITLEID} eboot.bin
+        VERSION ${VITA_VERSION}
+        NAME ${VITA_APP_NAME}
+    )
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()

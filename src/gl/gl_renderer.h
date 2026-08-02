@@ -6,6 +6,8 @@
 #include "runner.h"
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
+#elif PLATFORM_VITA
+#include <vitaGL.h>
 #else
 #include <glad/glad.h>
 #endif
