@@ -157,11 +157,11 @@ static void flushBatch(GLRenderer* gl) {
         glBindVertexArray(gl->vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
         glBufferData(GL_ARRAY_BUFFER, vboUploadSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vboUploadSize, gl->vertexData);
     } else {
         glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
         glBufferData(GL_ARRAY_BUFFER, vboUploadSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vboUploadSize, gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
         int32_t stride = sizeof(Vertex);
