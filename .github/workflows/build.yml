@@ -378,8 +378,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout vitaGL
+        run: |
+          git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git vendor/vitaGL
+
+      - name: Build vitaGL with speedhacks
+        run: |
+          cd vendor/vitaGL
+          make install \
+            NO_DEBUG=1 \
+            NO_SPLASHSCREEN=1 \
+            LOG_ERRORS=1 \
+            SHARED_RENDERTARGETS=1 \
+            DRAW_SPEEDHACK=1 \
+            HAVE_SHADER_CACHE=1 \
+            MATH_SPEEDHACK=1 \
+            HAVE_TEXTURE_CACHE=1
+
       - name: Configure
-        run: cmake -B build -DWERROR=ON -DPLATFORM=vita
+        run: |
+          cmake -B build -DWERROR=ON -DPLATFORM=vita
 
       - name: Build
         run: |
