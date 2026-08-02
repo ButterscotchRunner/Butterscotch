@@ -63,7 +63,7 @@ static inline int32_t nextPow2(int32_t v) {
 // (glGetStringi + GL_NUM_EXTENSIONS) path when glGetStringi is non-null
 // (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
 // approach so the code works with any GL loader (glad, PS3, etc.).
-#if !defined(PLATFORM_PS3) && !defined(__VITA__)
+#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
 static bool hasGLExtension(const char* name) {
     if (glGetStringi) {
         GLint numExts = 0;
@@ -87,7 +87,7 @@ static bool hasGLExtension(const char* name) {
 #endif
 
 static bool hasFBO() {
-#if defined(PLATFORM_PS3) || defined(__VITA__)
+#if defined(PLATFORM_PS3) || defined(PLATFORM_VITA)
     return true;
 #else
     return (glGenFramebuffers && glBlitFramebuffer);
@@ -156,7 +156,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
     // that actually need it (Intel 82865G etc.).
     {
-#ifdef PLATFORM_PS3
+#if defined(PLATFORM_PS3) || defined(PLATFORM_VITA)
         gl->needsPOT = false;
 #else
         GLVer ver = GLCommon_getGLVersion();
@@ -437,8 +437,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     free(pixels);
-#else
-#if defined(PLATFORM_VITA)
+#elif defined(PLATFORM_VITA)
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
         if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
