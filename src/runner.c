@@ -59,7 +59,7 @@ void Runner_updateCameraViewSimple(GMLCamera* camera) {
 
     Matrix4f projectionMatrix;
     Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
-    
+
 
     camera->viewMatrix = viewMatrix;
     camera->projectionMatrix = projectionMatrix;
@@ -394,9 +394,9 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
 
         if (shouldTrace) {
             if (eventType == EVENT_ALARM) {
-                fprintf(stderr, "Runner: [%s] %s %d (instanceId=%d)\n", objectName, eventName, eventSubtype, instance->instanceId);
+                logInfo("Runner: [%s] %s %d (instanceId=%d)\n", objectName, eventName, eventSubtype, instance->instanceId);
             } else {
-                fprintf(stderr, "Runner: [%s] %s (instanceId=%d)\n", objectName, eventName, instance->instanceId);
+                logInfo("Runner: [%s] %s (instanceId=%d)\n", objectName, eventName, instance->instanceId);
             }
         }
     }
@@ -689,7 +689,7 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             bool rotate = (cell & GMS2_TILE_ROTATE_MASK) != 0;
 
             if (rotate && !rotateWarned) {
-                fprintf(stderr, "Runner: WARNING: GMS2 tile layer has rotated tiles; rotation not yet implemented, drawing unrotated\n");
+                logWarn("Runner: GMS2 tile layer has rotated tiles; rotation not yet implemented, drawing unrotated\n");
                 rotateWarned = true;
             }
 
@@ -883,14 +883,14 @@ void Runner_draw(Runner* runner) {
                         int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(dataWin, tile);
                         if (tpagIndex >= 0) {
                             TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                            fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                            logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
 
                             // Warn if tile source rect exceeds TPAG content bounds
                             if ((uint32_t) (tile->sourceX + tile->width) > (uint32_t) tpag->sourceWidth || (uint32_t) (tile->sourceY + tile->height) > (uint32_t) tpag->sourceHeight) {
-                                fprintf(stderr, "Runner: [%s] WARNING: Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
+                                logWarn("Runner: [%s] Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
                             }
                         } else {
-                            fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                            logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
                         }
                     }
                 }
@@ -917,14 +917,14 @@ void Runner_draw(Runner* runner) {
             Instance* savedInstance = ctx->currentInstance;
             int32_t savedEventType = ctx->currentEventType;
             int32_t savedEventSubtype = ctx->currentEventSubtype;
-            
+
             ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
-            
+
             if (runtimeLayer->beginScript >= 0)
                 VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
-            
+
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
@@ -985,14 +985,14 @@ void Runner_draw(Runner* runner) {
                                 int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(dataWin, tile);
                                 if (tpagIndex >= 0) {
                                     TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                                    fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                                    logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
 
                                     // Warn if tile source rect exceeds TPAG content bounds
                                     if ((uint32_t) (tile->sourceX + tile->width) > (uint32_t) tpag->sourceWidth || (uint32_t) (tile->sourceY + tile->height) > (uint32_t) tpag->sourceHeight) {
-                                        fprintf(stderr, "Runner: [%s] WARNING: Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
+                                        logWarn("Runner: [%s] Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
                                     }
                                 } else {
-                                    fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                                    logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
                                 }
                             }
                         }
@@ -1035,10 +1035,10 @@ void Runner_draw(Runner* runner) {
             ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
-            
+
             if (runtimeLayer->endScript >= 0)
                 VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
-            
+
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
@@ -1292,7 +1292,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
 
 #ifdef ENABLE_VM_TRACING
     if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
-        fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) created at (%f, %f)\n", objDef->name, instanceId, inst->objectIndex, x, y);
+        logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) created at (%f, %f)\n", objDef->name, instanceId, inst->objectIndex, x, y);
     }
 #endif
 
@@ -1312,7 +1312,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-                fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) has been persisted at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
+                logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) has been persisted at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
             }
 #endif
 
@@ -1325,7 +1325,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-                fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
+                logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
             }
 #endif
 
@@ -1471,7 +1471,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         returnPersistentInstances(runner, carriedPersistent);
 
         // No Create events, no preCreateCode, no creationCode, no room creation code
-        fprintf(stderr, "Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
+        logInfo("Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
         return;
     }
 
@@ -1687,7 +1687,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RoomGameObject* roomObj = &room->gameObjects[i];
 
         if (roomObj->objectDefinition == -1) {
-            fprintf(stderr, "Runner: Object %d in room %s does not have a valid object definition reference! Was it deleted in the editor?\n", roomObj->instanceID, room->name);
+            logWarn("Runner: Object %d in room %s does not have a valid object definition reference! Was it deleted in the editor?\n", roomObj->instanceID, room->name);
             continue;
         }
 
@@ -1768,7 +1768,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Mark this room as initialized for persistent room support
     savedState->initialized = true;
 
-    fprintf(stderr, "Runner: Room loaded: %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
+    logInfo("Runner: Room loaded: %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
 }
 
 // Cleans up the runner state, used when freeing the Runner or when restarting the Runner
@@ -2317,7 +2317,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     repeat(shlen(vm->builtinMap), i) {
         bool isRegistered = shgeti(vm->codeIndexByName, vm->builtinMap[i].key) != -1;
         if (isRegistered) {
-            fprintf(stderr, "Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
+            logWarn("Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
         }
     }
     }
@@ -2370,7 +2370,7 @@ Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, layerId);
     if (rl == nullptr) {
-        fprintf(stderr, "Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
+        logWarn("Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
         return nullptr;
     }
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
@@ -2417,7 +2417,7 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
 #ifdef ENABLE_VM_TRACING
     GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
     if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-        fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed\n", gameObject->name, inst->instanceId, inst->objectIndex);
+        logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed\n", gameObject->name, inst->instanceId, inst->objectIndex);
     }
 #endif
 }
@@ -2565,7 +2565,7 @@ void Runner_initFirstRoom(Runner* runner) {
     repeat(dataWin->glob.count, i) {
         int32_t codeId = dataWin->glob.codeIds[i];
         if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
-            fprintf(stderr, "Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
+            logInfo("Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
             RValue result = VM_executeCode(runner->vmContext, codeId);
             RValue_free(&result);
         }
@@ -2580,12 +2580,12 @@ void Runner_initFirstRoom(Runner* runner) {
             if (initScript == nullptr || initScript[0] == '\0') continue;
             int32_t scriptIndex = shget(runner->assetsByName, initScript);
             if (0 > scriptIndex || (uint32_t) scriptIndex >= dataWin->scpt.count) {
-                fprintf(stderr, "Runner: Extension init script '%s' not found, skipping\n", initScript);
+                logWarn("Runner: Extension init script '%s' not found, skipping\n", initScript);
                 continue;
             }
             int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
             if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
-                fprintf(stderr, "Runner: Executing extension init script: %s\n", initScript);
+                logInfo("Runner: Executing extension init script: %s\n", initScript);
                 RValue result = VM_executeCode(runner->vmContext, codeId);
                 RValue_free(&result);
             }
@@ -2670,7 +2670,7 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
         const char* targetName = runner->dataWin->objt.objects[targetObjectIndex].name;
         bool shouldTrace = shgeti(vm->eventsToBeTraced, "*") != -1 || shgeti(vm->eventsToBeTraced, "Collision") != -1 || shgeti(vm->eventsToBeTraced, selfName) != -1;
         if (shouldTrace) {
-            fprintf(stderr, "Runner: [%s] Collision with %s (instanceId=%d, otherId=%d)\n", selfName, targetName, self->instanceId, other->instanceId);
+            logInfo("Runner: [%s] Collision with %s (instanceId=%d, otherId=%d)\n", selfName, targetName, self->instanceId, other->instanceId);
         }
     }
 #endif
@@ -3138,7 +3138,7 @@ static void dispatchCollisionEvents(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
                     bool traceThisPair = shouldTraceCollisionPair(runner->vmContext, dataWin, self, other);
                     if (traceThisPair && (!bboxSelf.valid || !bboxOther.valid)) {
-                        fprintf(stderr, "Collision: [%s id=%d] vs [%s id=%d] bbox-invalid (selfValid=%d otherValid=%d)\n",
+                        logInfo("Collision: [%s id=%d] vs [%s id=%d] bbox-invalid (selfValid=%d otherValid=%d)\n",
                             dataWin->objt.objects[self->objectIndex].name, self->instanceId,
                             dataWin->objt.objects[other->objectIndex].name, other->instanceId,
                             bboxSelf.valid, bboxOther.valid);
@@ -3150,7 +3150,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool aabbMiss = bboxSelf.left >= bboxOther.right || bboxOther.left >= bboxSelf.right || bboxSelf.top >= bboxOther.bottom || bboxOther.top >= bboxSelf.bottom;
 #ifdef ENABLE_VM_TRACING
                     if (traceThisPair) {
-                        fprintf(stderr, "Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g %gx%g) otherBB=(%g,%g,%g,%g %gx%g) selfSolid=%d otherSolid=%d AABB=%s\n",
+                        logInfo("Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g %gx%g) otherBB=(%g,%g,%g,%g %gx%g) selfSolid=%d otherSolid=%d AABB=%s\n",
                             dataWin->objt.objects[self->objectIndex].name, self->instanceId, self->x, self->y,
                             dataWin->objt.objects[other->objectIndex].name, other->instanceId, other->x, other->y,
                             bboxSelf.left, bboxSelf.top, bboxSelf.right, bboxSelf.bottom, bboxSelf.right - bboxSelf.left, bboxSelf.bottom - bboxSelf.top,
@@ -3167,7 +3167,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     if (needsPrecise) {
                         bool preciseHit = Collision_instancesOverlapPrecise(runner, self, other, bboxSelf, bboxOther);
 #ifdef ENABLE_VM_TRACING
-                        if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? (int32_t)sprSelf->sepMasks : -1, sprOther ? (int32_t)sprOther->sepMasks : -1);
+                        if (traceThisPair) logInfo("  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? (int32_t)sprSelf->sepMasks : -1, sprOther ? (int32_t)sprOther->sepMasks : -1);
 #endif
                         if (!preciseHit) continue;
                     }
@@ -3176,7 +3176,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool hadSolid = self->solid || other->solid;
                     if (hadSolid) {
 #ifdef ENABLE_VM_TRACING
-                        if (traceThisPair) fprintf(stderr, "  solid-restore: self.solid=%d other.solid=%d self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->solid, other->solid, self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+                        if (traceThisPair) logInfo("  solid-restore: self.solid=%d other.solid=%d self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->solid, other->solid, self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
 #endif
                         self->x = self->xprevious;
                         self->y = self->yprevious;
@@ -3192,7 +3192,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     // And if it DOES move via GML, the variable write handlers will set it to dirty
 
 #ifdef ENABLE_VM_TRACING
-                    if (traceThisPair) fprintf(stderr, "  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d codeName=%s\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId, dataWin->code.entries[evt->codeId].name);
+                    if (traceThisPair) logInfo("  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d codeName=%s\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId, dataWin->code.entries[evt->codeId].name);
 #endif
                     executeCollisionEvent(runner, self, other, targetObjIndex, evt->codeId, evt->ownerObjectIndex);
 
@@ -3205,8 +3205,8 @@ static void dispatchCollisionEvents(Runner* runner) {
                         FlattenedCollisionEvent* reverseEvt = findSymmetricCollisionEvent(runner, other, self);
 #ifdef ENABLE_VM_TRACING
                         if (traceThisPair) {
-                            if (reverseEvt != nullptr) fprintf(stderr, "  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d codeName=%s  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId, dataWin->code.entries[evt->codeId].name);
-                            else fprintf(stderr, "  fire other->self: none (no matching handler)  [symmetric]\n");
+                            if (reverseEvt != nullptr) logInfo("  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d codeName=%s  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId, dataWin->code.entries[evt->codeId].name);
+                            else logInfo("  fire other->self: none (no matching handler)  [symmetric]\n");
                         }
 #endif
                         if (reverseEvt != nullptr)
@@ -3249,7 +3249,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                                 }
                                 if (stillColliding) {
     #ifdef ENABLE_VM_TRACING
-                                    if (traceThisPair) fprintf(stderr, "  post-event re-revert: still colliding, restoring self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+                                    if (traceThisPair) logInfo("  post-event re-revert: still colliding, restoring self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
     #endif
                                     self->x = self->xprevious;
                                     self->y = self->yprevious;
@@ -3549,7 +3549,7 @@ void Runner_handlePendingRoomChange(Runner* runner) {
         require(runner->dataWin->room.count > (uint32_t) newRoomIndex);
         const char* newRoomName = runner->dataWin->room.rooms[newRoomIndex].name;
 
-        fprintf(stderr, "Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
+        logInfo("Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
 
         // If the old room is persistent, save its instance and visual state
         if (oldRoom->persistent) {
@@ -3712,10 +3712,10 @@ void Runner_step(Runner* runner) {
                     inst->imageIndex += inst->imageSpeed * sprite->gms2PlaybackSpeed;
                 } else {
                     inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
-                }   
+                }
             }
         } else {
-            inst->imageIndex += inst->imageSpeed;    
+            inst->imageIndex += inst->imageSpeed;
         }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
@@ -3783,7 +3783,7 @@ void Runner_step(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
                 GameObject* object = &runner->dataWin->objt.objects[inst->objectIndex];
                 if (shgeti(runner->vmContext->alarmsToBeTraced, "*") != -1 || shgeti(runner->vmContext->alarmsToBeTraced, object->name) != -1) {
-                    fprintf(stderr, "VM: [%s] Ticking down Alarm[%d] (instanceId=%d), current tick is %d\n", object->name, (int)alarmIdx, inst->instanceId, inst->alarm[alarmIdx]);
+                    logInfo("VM: [%s] Ticking down Alarm[%d] (instanceId=%d), current tick is %d\n", object->name, (int)alarmIdx, inst->instanceId, inst->alarm[alarmIdx]);
                 }
 #endif
 
@@ -3794,7 +3794,7 @@ void Runner_step(Runner* runner) {
 
 #ifdef ENABLE_VM_TRACING
                     if (shgeti(runner->vmContext->alarmsToBeTraced, "*") != -1 || shgeti(runner->vmContext->alarmsToBeTraced, object->name) != -1) {
-                        fprintf(stderr, "VM: [%s] Firing Alarm[%d] (instanceId=%d)\n", object->name, (int)alarmIdx, inst->instanceId);
+                        logInfo("VM: [%s] Firing Alarm[%d] (instanceId=%d)\n", object->name, (int)alarmIdx, inst->instanceId);
                     }
 #endif
 
@@ -4104,9 +4104,9 @@ void Runner_dumpState(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     int32_t instanceCount = (int32_t) arrlen(runner->instances);
 
-    printf("=== Frame %d State Dump ===\n", runner->frameCount);
-    printf("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
-    printf("Instance count: %d\n", instanceCount);
+    logInfo("=== Frame %d State Dump ===\n", runner->frameCount);
+    logInfo("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
+    logInfo("Instance count: %d\n", instanceCount);
 
     repeat(instanceCount, i) {
         Instance* inst = runner->instances[i];
@@ -4129,23 +4129,23 @@ void Runner_dumpState(Runner* runner) {
             parentName = dataWin->objt.objects[gameObject->parentId].name;
         }
 
-        printf("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
-        printf("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
-        printf("  Depth: %d\n", inst->depth);
-        printf("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
-        printf("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
-        printf("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
-        printf("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
+        logInfo("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
+        logInfo("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
+        logInfo("  Depth: %d\n", inst->depth);
+        logInfo("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
+        logInfo("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
+        logInfo("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
+        logInfo("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
 
         // Active alarms
         bool hasAlarm = false;
         repeat(GML_ALARM_COUNT, alarmIdx) {
             if (inst->alarm[alarmIdx] >= 0) {
-                if (!hasAlarm) { printf("  Alarms:"); hasAlarm = true; }
-                printf(" [%d]=%d", (int)alarmIdx, inst->alarm[alarmIdx]);
+                if (!hasAlarm) { logInfo("  Alarms:"); hasAlarm = true; }
+                logInfo(" [%d]=%d", (int)alarmIdx, inst->alarm[alarmIdx]);
             }
         }
-        if (hasAlarm) printf("\n");
+        if (hasAlarm) logInfo("\n");
 
         // Self variables
         bool hasSelfVars = false;
@@ -4167,25 +4167,25 @@ void Runner_dumpState(Runner* runner) {
             }
 
             if (val.type == RVALUE_ARRAY && val.array != nullptr) {
-                if (!hasSelfArrays) { printf("  Self Arrays:\n"); hasSelfArrays = true; }
+                if (!hasSelfArrays) { logInfo("  Self Arrays:\n"); hasSelfArrays = true; }
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
                     char* innerStr = RValue_toStringFancy(*cell);
-                    printf("    %s[%d] = %s\n", varName, (int) ai, innerStr);
+                    logInfo("    %s[%d] = %s\n", varName, (int) ai, innerStr);
                     free(innerStr);
                 }
             } else {
-                if (!hasSelfVars) { printf("  Self Variables:\n"); hasSelfVars = true; }
+                if (!hasSelfVars) { logInfo("  Self Variables:\n"); hasSelfVars = true; }
                 char* valStr = RValue_toStringFancy(val);
-                printf("    %s = %s\n", varName, valStr);
+                logInfo("    %s = %s\n", varName, valStr);
                 free(valStr);
             }
         }
     }
 
     // Global variables (non-array)
-    printf("\n=== Global Variables ===\n");
+    logInfo("\n=== Global Variables ===\n");
 
     {
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
@@ -4200,19 +4200,19 @@ void Runner_dumpState(Runner* runner) {
                     RValue* cell = GMLArray_slot(target.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
                     char* innerStr = RValue_toStringFancy(*cell);
-                    printf("  %s[%d] = %s\n", name, (int) ai, innerStr);
+                    logInfo("  %s[%d] = %s\n", name, (int) ai, innerStr);
                     free(innerStr);
                 }
             }
 
             char* valStr = RValue_toStringTyped(target);
-            printf("  %s = %s\n", name, valStr);
+            logInfo("  %s = %s\n", name, valStr);
             free(valStr);
         }
     }
     }
 
-    printf("\n=== End Frame %d State Dump ===\n", runner->frameCount);
+    logInfo("\n=== End Frame %d State Dump ===\n", runner->frameCount);
 }
 
 // ===[ JSON State Dump ]===
@@ -4489,7 +4489,7 @@ void Runner_free(Runner* runner) {
         free(runner->flattenedCollisionEvents);
         runner->flattenedCollisionEvents = nullptr;
     }
-    
+
     arrfree(runner->cachedDrawables);
     runner->cachedDrawables = nullptr;
     arrfree(runner->instanceSnapshots);

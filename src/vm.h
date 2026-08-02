@@ -414,7 +414,7 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
     char instanceIdBuf[28] = "";
     if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
-    fprintf(stderr, "VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }
 #endif

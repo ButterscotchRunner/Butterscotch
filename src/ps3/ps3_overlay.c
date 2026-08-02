@@ -31,7 +31,7 @@ void PS3Overlay_init(void) {
     // Convert the 8bpp atlas into RGBA
     uint8_t* rgba = (uint8_t*) malloc((size_t) (DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4));
     if (rgba == nullptr) {
-        fprintf(stderr, "PS3Overlay: failed to allocate %d bytes for the font atlas\n", DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4);
+        logWarn("PS3Overlay: failed to allocate %d bytes for the font atlas\n", DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4);
         return;
     }
 

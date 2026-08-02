@@ -169,20 +169,20 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
 
     ma->alDevice = alcOpenDevice(nullptr);
     if (ma->alDevice == nullptr) {
-        fprintf(stderr, "Audio: Failed to open OpenAL device (error %d)\n", alGetError());
+        logWarn("Audio: Failed to open OpenAL device (error %d)\n", alGetError());
         return;
     }
 
     ma->alContext = alcCreateContext(ma->alDevice, nullptr);
     if (ma->alContext == nullptr) {
-        fprintf(stderr, "Audio: Failed to create OpenAL context (error %d)\n", alGetError());
+        logWarn("Audio: Failed to create OpenAL context (error %d)\n", alGetError());
         alcCloseDevice(ma->alDevice);
         ma->alDevice = nullptr;
         return;
     }
 
     if (!alcMakeContextCurrent(ma->alContext)) {
-        fprintf(stderr, "Audio: Failed to make OpenAL context current (error %d)\n", alGetError());
+        logWarn("Audio: Failed to make OpenAL context current (error %d)\n", alGetError());
         alcDestroyContext(ma->alContext);
         alcCloseDevice(ma->alDevice);
         ma->alContext = nullptr;
@@ -193,7 +193,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 
-    fprintf(stderr, "Audio: OpenAL engine initialized\n");
+    logInfo("Audio: OpenAL engine initialized\n");
 }
 
 static void maDestroy(AudioSystem* audio) {
@@ -347,14 +347,14 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     if (isStream) {
         int32_t streamSlot = soundIndex - AUDIO_STREAM_INDEX_BASE;
         if (0 > streamSlot || streamSlot >= MAX_AUDIO_STREAMS || !ma->streams[streamSlot].active) {
-            fprintf(stderr, "Audio: Invalid stream index %d\n", soundIndex);
+            logWarn("Audio: Invalid stream index %d\n", soundIndex);
             return -1;
         }
         streamPath = ma->streams[streamSlot].filePath;
     } else {
         DataWin* dw = ma->base.audioGroups[0]; // Audio Group 0 should always be data.win
         if (0 > soundIndex || (uint32_t) soundIndex >= dw->sond.count) {
-            fprintf(stderr, "Audio: Invalid sound index %d\n", soundIndex);
+            logWarn("Audio: Invalid sound index %d\n", soundIndex);
             return -1;
         }
         sound = &dw->sond.sounds[soundIndex];
@@ -362,7 +362,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     SoundInstance* slot = findFreeSlot(ma);
     if (slot == nullptr) {
-        fprintf(stderr, "Audio: No free sound slots for sound %d\n", soundIndex);
+        logWarn("Audio: No free sound slots for sound %d\n", soundIndex);
         return -1;
     }
 
@@ -380,7 +380,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         int err = 0;
         stb_vorbis* v = stb_vorbis_open_filename(streamPath, &err, nullptr);
         if (v == nullptr) {
-            fprintf(stderr, "Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
+            logWarn("Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
             return -1;
         }
         stb_vorbis_info info = stb_vorbis_get_info(v);
@@ -397,7 +397,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         alGenSources(1, &slot->alSource);
         alGenBuffers(AL_STREAM_BUFFER_COUNT, slot->streamBuffers);
         if (alGetError() != AL_NO_ERROR) {
-            fprintf(stderr, "Audio: alGenSources/alGenBuffers failed for stream\n");
+            logWarn("Audio: alGenSources/alGenBuffers failed for stream\n");
             stb_vorbis_close(v);
             free(slot->decodeScratch);
             slot->streaming = false;
@@ -428,7 +428,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         alGenSources(1, &slot->alSource);
         alGenBuffers(1, &slot->alBuffer);
         if (alGetError() != AL_NO_ERROR) {
-            fprintf(stderr, "Audio: alGenSources/alGenBuffers failed for sound %d\n", soundIndex);
+            logWarn("Audio: alGenSources/alGenBuffers failed for sound %d\n", soundIndex);
             return -1;
         }
         bool isRegular = (sound->flags & AUDIO_ENTRY_FLAG_REGULAR) == AUDIO_ENTRY_FLAG_REGULAR;
@@ -439,7 +439,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         if (inAudo) {
            // Embedded audio: decode from AUDO chunk memory
             if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) {
-                fprintf(stderr, "Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
+                logWarn("Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
                 return -1;
             }
 
@@ -461,7 +461,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             }
 
             if (audioData == nullptr || audioDataLen == 0) {
-                fprintf(stderr, "Audio: No audio data for '%s'\n", sound->name);
+                logWarn("Audio: No audio data for '%s'\n", sound->name);
                 return -1;
             }
 
@@ -470,7 +470,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             {
                 if (bitsPerSample == 8)
                     format = AL_FORMAT_MONO8;
-                else 
+                else
                     format = AL_FORMAT_MONO16;
             }
             else {
@@ -496,7 +496,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 #endif
             ALenum alErr = alGetError();
             if (alErr != AL_NO_ERROR) {
-                fprintf(stderr, "Audio: alBufferData failed for '%s' format=0x%x len=%u rate=%u err=%d\n",
+                logWarn("Audio: alBufferData failed for '%s' format=0x%x len=%u rate=%u err=%d\n",
                     sound->name, format, audioDataLen, sampleRate, alErr);
                 return -1;
             }
@@ -505,7 +505,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             // External audio: load from file
             char* path = resolveExternalPath(ma, sound);
             if (path == nullptr) {
-                fprintf(stderr, "Audio: Could not resolve path for sound '%s'\n", sound->name);
+                logWarn("Audio: Could not resolve path for sound '%s'\n", sound->name);
                 return -1;
             }
 
@@ -514,19 +514,19 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             short* data = NULL;
             int len = stb_vorbis_decode_filename(path, &channels, &sample_rate, &data);
             if (len <= 0 || data == nullptr) {
-                fprintf(stderr, "Audio: stb_vorbis_decode failed for '%s' path='%s' len=%d\n", sound->name, path, len);
+                logWarn("Audio: stb_vorbis_decode failed for '%s' path='%s' len=%d\n", sound->name, path, len);
                 free(path);
                 return -1;
             }
             alBufferData(
-                slot->alBuffer, 
-                (channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16, 
-                (void*)data, 
-                len*channels*sizeof(uint16_t), 
+                slot->alBuffer,
+                (channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
+                (void*)data,
+                len*channels*sizeof(uint16_t),
                 sample_rate
             );
             if (alGetError() != AL_NO_ERROR) {
-                fprintf(stderr, "Audio: alBufferData failed for external '%s'\n", sound->name);
+                logWarn("Audio: alBufferData failed for external '%s'\n", sound->name);
                 free(data);
                 free(path);
                 return -1;
@@ -566,7 +566,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     alSourcePlay(slot->alSource);
     if (alGetError() != AL_NO_ERROR) {
-        fprintf(stderr, "Audio: alSourcePlay failed for sound %d (stream=%d)\n", soundIndex, isStream);
+        logWarn("Audio: alSourcePlay failed for sound %d (stream=%d)\n", soundIndex, isStream);
     }
 
     return slot->instanceId;
@@ -801,7 +801,7 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
 static float streamCursorSeconds(SoundInstance* inst) {
     if (0 >= inst->streamSampleRate)
         return 0.0f;
-    
+
     ALint sampleOffset = 0;
     alGetSourcei(inst->alSource, AL_SAMPLE_OFFSET, &sampleOffset);
     uint64_t total = inst->playedSamples + (uint64_t) sampleOffset;
@@ -941,7 +941,7 @@ static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
         FileSystem* fileSystem = ((AlAudioSystem*)audio)->fileSystem;
         char* resolvedPath = (((AlAudioSystem*)audio)->fileSystem->vtable->resolvePath(((AlAudioSystem*)audio)->fileSystem, buf));
         if (!fileSystem->vtable->fileExists(fileSystem, resolvedPath)) {
-            fprintf(stderr, "Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
+            logWarn("Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist!\n", groupIndex, groupIndex);
             free(buf);
             return;
         }
@@ -976,13 +976,13 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     }
 
     if (0 > freeSlot) {
-        fprintf(stderr, "Audio: No free stream slots for '%s'\n", filename);
+        logWarn("Audio: No free stream slots for '%s'\n", filename);
         return -1;
     }
 
     char* resolved = ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
     if (resolved == nullptr) {
-        fprintf(stderr, "Audio: Could not resolve path for stream '%s'\n", filename);
+        logWarn("Audio: Could not resolve path for stream '%s'\n", filename);
         return -1;
     }
 
@@ -990,7 +990,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
-    fprintf(stderr, "Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 
@@ -999,7 +999,7 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
     int32_t slotIndex = streamIndex - AUDIO_STREAM_INDEX_BASE;
     if (0 > slotIndex || slotIndex >= MAX_AUDIO_STREAMS) {
-        fprintf(stderr, "Audio: Invalid stream index %d for destroy\n", streamIndex);
+        logWarn("Audio: Invalid stream index %d for destroy\n", streamIndex);
         return false;
     }
 
@@ -1017,7 +1017,7 @@ static bool maDestroyStream(AudioSystem* audio, int32_t streamIndex) {
     free(entry->filePath);
     entry->filePath = nullptr;
     entry->active = false;
-    fprintf(stderr, "Audio: Destroyed stream %d\n", streamIndex);
+    logInfo("Audio: Destroyed stream %d\n", streamIndex);
     return true;
 }
 

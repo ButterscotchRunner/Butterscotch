@@ -48,7 +48,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-        
+
         SDL_Window *newWindow = SDL_CreateWindow(
             title,
             reqW,
@@ -78,16 +78,16 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
 
         if (GLCommon_versions[i].gles) {
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-        } else {            
+        } else {
             if (GLCommon_versions[i].major >= 3) {
                 if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                     contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
                 }
             } else {
-                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
             }
         }
-        
+
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
 
         newWindow = SDL_CreateWindow(
@@ -103,7 +103,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             }
             SDL_DestroyWindow(newWindow);
         }
-        
+
     }
     return NULL;
 }
@@ -149,7 +149,7 @@ static bool platformGetWindowFocus(void) {
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
-        fprintf(stderr, "Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
@@ -162,27 +162,27 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     fbHeight = reqH;
 
     window = tryOpenWindow(fbWidth, fbHeight, title, flags);
-    
+
     if (!window && gfx != SOFTWARE) {
-        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
-    
+
     if (!window && gfx == SOFTWARE) {
         const SDL_DisplayMode *mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
         if (mode != NULL) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
-                        "Warning: %dx%d unavailable, falling back to %dx%d: %s",
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                        "%dx%d unavailable, falling back to %dx%d: %s",
                         fbWidth, fbHeight, mode->w, mode->h, SDL_GetError());
-            
+
             fbWidth = mode->w;
             fbHeight = mode->h;
-            
+
             window = SDL_CreateWindow(title, fbWidth, fbHeight, flags);
         }
     }
     if (!window) {
-        fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
     if (gfx != SOFTWARE) {

@@ -88,6 +88,25 @@ static bool padWasStable[2] = {false, false};
 // Whether the controllers should be exposed via the GameMaker gamepad API
 static bool gamepadApiEnabled = false;
 
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
+
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
     JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
@@ -98,7 +117,7 @@ static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping*
         JsonValue* gmlKeyVal = JsonReader_getJsonValueByIndex(mappingsObj, i);
         mappings[i].padButton = (uint16_t) atoi(padButtonStr);
         mappings[i].gmlKey = (int32_t) JsonReader_getInt(gmlKeyVal);
-        printf("CONFIG.JSN: %s mapping pad=%d -> gmlKey=%d\n", logLabel, mappings[i].padButton, mappings[i].gmlKey);
+        logInfo("CONFIG.JSN: %s mapping pad=%d -> gmlKey=%d\n", logLabel, mappings[i].padButton, mappings[i].gmlKey);
     }
     *outMappings = mappings;
     *outCount = count;
@@ -253,15 +272,15 @@ int main(int argc, char* argv[]) {
 
     PS2Utils_extractDeviceKey(argv[0]);
 
-    fprintf(stderr, "argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
+    logInfo("argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
 
     PS2Utils_loadFSDrivers();
 
-    fprintf(stderr, "Loaded FS drivers!\n");
+    logInfo("Loaded FS drivers!\n");
 
     char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
 
-    printf("Butterscotch PS2 - Loading %s\n", dataWinPath);
+    logInfo("Butterscotch PS2 - Loading %s\n", dataWinPath);
 
     // ===[ Initialize gsKit ]===
     // This must happen first so we can show the loading screen during other init steps
@@ -294,51 +313,51 @@ int main(int argc, char* argv[]) {
     int ret;
     ret = SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freesio2: %d\n", ret);
+        logError("Failed to load freesio2: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcman_irx, size_mcman_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load mcman: %d\n", ret);
+        logError("Failed to load mcman: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcserv_irx, size_mcserv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load mcserv: %d\n", ret);
+        logError("Failed to load mcserv: %d\n", ret);
         return 1;
     }
     ret = mcInit(MC_TYPE_MC);
     if (0 > ret) {
-        printf("Failed to init libmc: %d\n", ret);
+        logError("Failed to init libmc: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freepad: %d\n", ret);
+        logError("Failed to load freepad: %d\n", ret);
         return 1;
     }
 
     padInit(0);
     padOpened[0] = (padPortOpen(0, 0, padBuf[0]) != 0);
     padOpened[1] = (padPortOpen(1, 0, padBuf[1]) != 0);
-    if (!padOpened[0]) printf("Warning: failed to open pad port 0\n");
-    if (!padOpened[1]) printf("Warning: failed to open pad port 1\n");
+    if (!padOpened[0]) logWarn("failed to open pad port 0\n");
+    if (!padOpened[1]) logWarn("failed to open pad port 1\n");
 
     // ===[ Load USB Keyboard IOP Modules ]===
     int usbdRet = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > usbdRet) {
-        printf("Warning: failed to load usbd: %d (keyboard disabled)\n", usbdRet);
+        logWarn("failed to load usbd: %d (keyboard disabled)\n", usbdRet);
     } else {
         int kbdRet = SifExecModuleBuffer(ps2kbd_irx, size_ps2kbd_irx, 0, nullptr, nullptr);
         if (0 > kbdRet) {
-            printf("Warning: failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
+            logWarn("failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
         } else if (PS2KbdInit() == 0) {
-            printf("Warning: PS2KbdInit failed (keyboard disabled)\n");
+            logWarn("PS2KbdInit failed (keyboard disabled)\n");
         } else {
             PS2KbdSetReadmode(PS2KBD_READMODE_RAW);
             PS2KbdSetBlockingMode(PS2KBD_NONBLOCKING);
             kbdAvailable = true;
-            printf("USB keyboard initialized\n");
+            logInfo("USB keyboard initialized\n");
         }
     }
 
@@ -346,11 +365,11 @@ int main(int argc, char* argv[]) {
     // ===[ Load Audio IOP Modules ]===
     ret = SifExecModuleBuffer(freesd_irx, size_freesd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freesd: %d\n", ret);
+        logWarn("Failed to load freesd: %d\n", ret);
     }
     ret = SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load audsrv: %d\n", ret);
+        logWarn("Failed to load audsrv: %d\n", ret);
     }
 #endif
 
@@ -361,7 +380,7 @@ int main(int argc, char* argv[]) {
         padState = padGetState(0, 0);
     } while (PAD_STATE_STABLE != padState && PAD_STATE_FINDCTP1 != padState);
 
-    printf("Controller initialized\n");
+    logInfo("Controller initialized\n");
 
     // ===[ Load CONFIG.JSN ]===
     PS2Overlay_drawStatusScreen(nullptr, "Loading CONFIG.JSN...", false);
@@ -431,7 +450,7 @@ int main(int argc, char* argv[]) {
     options.eagerlyLoadedRooms = eagerRooms;
     options.progressCallback = PS2Overlay_statusScreenCallback;
     options.progressCallbackUserData = PS2Overlay_getCallbackData();
-    
+
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
     free(dataWinPath);
     shfree(eagerRooms);
@@ -458,7 +477,7 @@ int main(int argc, char* argv[]) {
         void* heapTop = sbrk(0);
         int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
         int32_t freeBytes = MAX_MEMORY_BYTES - usedBytes;
-        printf("Memory after data.win parsing: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
+        logInfo("Memory after data.win parsing: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
     }
 
     FileSystem* fileSystem = Ps2FileSystem_create(configRoot, dataWin->gen8.displayName);
@@ -499,7 +518,7 @@ int main(int argc, char* argv[]) {
             if (elem != nullptr && JsonReader_isString(elem)) {
                 const char* objName = JsonReader_getString(elem);
                 shput(runner->disabledObjects, objName, 1);
-                printf("Disabled object: %s\n", objName);
+                logInfo("Disabled object: %s\n", objName);
             }
         }
     }
@@ -513,14 +532,14 @@ int main(int argc, char* argv[]) {
         gamepadApiEnabled = JsonReader_getBool(JsonReader_getJsonValueByKey(gamepadObj, "enabled"));
     }
     if (gamepadApiEnabled) {
-        printf("CONFIG.JSN: GameMaker gamepad API enabled\n");
+        logInfo("CONFIG.JSN: GameMaker gamepad API enabled\n");
     }
 
     {
         void* heapTop = sbrk(0);
         int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
         int32_t freeBytes = MAX_MEMORY_BYTES - usedBytes;
-        printf("Memory after VM and runner creation: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
+        logInfo("Memory after VM and runner creation: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
     }
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Initializing first room...", true);
@@ -538,7 +557,7 @@ int main(int argc, char* argv[]) {
         PS2Utils_loadMassStorageDrivers();
 
     gprof_start();
-    fprintf(stderr, "gprof: Profiling started!\n");
+    logInfo("gprof: Profiling started!\n");
 #endif
 
     Gen8* gen8 = &dataWin->gen8;
@@ -607,7 +626,7 @@ int main(int argc, char* argv[]) {
                 int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                 runner->pendingRoom = nextIdx;
                 runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                fprintf(stderr, "Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                logDebug("Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
             }
         }
 
@@ -632,7 +651,7 @@ int main(int argc, char* argv[]) {
             int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
             Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
-            printf("Changed global.interact [%d] value!\n", interactVarId);
+            logInfo("Changed global.interact [%d] value!\n", interactVarId);
         }
 
         // ===[ Game Logic ]===
@@ -708,9 +727,9 @@ int main(int argc, char* argv[]) {
         } else {
             gprofPath = "mass:gmon.out";
         }
-        fprintf(stderr, "gprof: Writing profiling data to %s\n", gprofPath);
+        logInfo("gprof: Writing profiling data to %s\n", gprofPath);
         gprof_stop(gprofPath, 1);
-        fprintf(stderr, "gprof: Done\n");
+        logInfo("gprof: Done\n");
     }
 #endif
 

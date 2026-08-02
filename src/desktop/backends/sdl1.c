@@ -137,7 +137,7 @@ static void loadGamepadMappings(void) {
     const char* dbPath = "gamecontrollerdb.txt";
     FILE* f = fopen(dbPath, "rb");
     if (!f) {
-        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
+        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s, ignoring mappings\n", dbPath);
         return;
     }
 
@@ -194,7 +194,7 @@ static void loadGamepadMappings(void) {
                 const char* jname = SDL_JoystickName(i);
                 if (jname && strcasecmp(jname, name) == 0) {
                     joystickMappings[i] = temp;
-                    fprintf(stderr, "Gamepad: Mapped '%s' (slot %d)\n", jname, i);
+                    logInfo("Gamepad: Mapped '%s' (slot %d)\n", jname, i);
                 }
             }
         }
@@ -240,13 +240,13 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless && gfx != SOFTWARE) {
-        fprintf(stderr, "Headless mode on SDL 1.2 requires the software renderer!\n");
+        logError("Headless mode on SDL 1.2 requires the software renderer!\n");
         return false;
     }
 
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_JOYSTICK)) {
-        fprintf(stderr, "Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
@@ -271,7 +271,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
         if (!scr && gfx == SOFTWARE) {
             SDL_Rect** modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
             if (modes && modes != (SDL_Rect**) -1 && modes[0]) {
-                fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+                logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
                         reqW, reqH, modes[0]->w, modes[0]->h, SDL_GetError());
                 scr = SDL_SetVideoMode(modes[0]->w, modes[0]->h, 0, 0);
                 fbWidth = modes[0]->w;
@@ -279,7 +279,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
             }
         }
         if (!scr) {
-            fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+            logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
             return false;
         }
     }
@@ -416,11 +416,11 @@ static void platformResetJoysticks(void) {
             openJoysticks[i] = NULL;
         }
     }
-    
+
     SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     SDL_InitSubSystem(SDL_INIT_JOYSTICK);
     SDL_JoystickEventState(SDL_IGNORE);
-    
+
     int numJoysticks = SDL_NumJoysticks();
     bool needsRemap = false;
     for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; i++) {
@@ -432,11 +432,11 @@ static void platformResetJoysticks(void) {
             needsRemap = true;
         }
     }
-    
+
     for (int i = numJoysticks; i < MAX_GAMEPADS; i++) {
         joystickMappings[i].valid = false;
     }
-    
+
     if (needsRemap) {
         loadGamepadMappings();
     }
@@ -502,7 +502,7 @@ bool platformHandleEvents(void) {
                         float norm = val / 32767.0f;
                         if (map->axis_button_sign[btn] < 0) norm = -norm;
                         if (norm < 0.0f) norm = 0.0f;
-                        
+
                         if (norm > slot->buttonValue[btn]) {
                             slot->buttonValue[btn] = norm;
                         }

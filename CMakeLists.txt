@@ -115,6 +115,7 @@ if(PLATFORM STREQUAL "web-meta")
     set(SOURCES
         src/data_win.c
         src/binary_reader.c
+		src/log.c
     )
 else()
     file(GLOB SOURCES src/*.c)
