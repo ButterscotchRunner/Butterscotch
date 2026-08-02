@@ -393,7 +393,8 @@ jobs:
             DRAW_SPEEDHACK=1 \
             HAVE_SHADER_CACHE=1 \
             MATH_SPEEDHACK=1 \
-            HAVE_TEXTURE_CACHE=1
+            HAVE_TEXTURE_CACHE=1 \
+            -j$(nproc)
 
       - name: Configure
         run: |
