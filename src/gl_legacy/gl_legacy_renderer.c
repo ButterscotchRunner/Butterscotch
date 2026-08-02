@@ -87,7 +87,7 @@ static bool hasGLExtension(const char* name) {
 #endif
 
 static bool hasFBO() {
-#ifdef PLATFORM_PS3
+#if defined(PLATFORM_PS3) || defined(__VITA__)
     return true;
 #else
     return (glGenFramebuffers && glBlitFramebuffer);
