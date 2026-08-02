@@ -384,8 +384,8 @@ jobs:
 
       - name: Build vitaGL with speedhacks
         run: |
-          cd vendor/vitaGL
-          make install \
+          make -C vendor/vitaGL \
+            install \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
             LOG_ERRORS=1 \
