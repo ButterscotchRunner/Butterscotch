@@ -371,6 +371,26 @@ jobs:
           name: butterscotch-ps3
           path: build/butterscotch.elf
 
+  build-vita:
+    name: Build (PS Vita)
+    runs-on: ubuntu-24.04
+    container: vitasdk/vitasdk:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DWERROR=ON -DPLATFORM=vita
+
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-vita
+          path: build/Butterscotch.vpk
+
   build-old-gcc:
     strategy:
       fail-fast: false
