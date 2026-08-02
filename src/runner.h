@@ -545,7 +545,7 @@ struct Runner {
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
-    DsStack* dsStackPool; // stb_ds array of DsStack    
+    DsStack* dsStackPool; // stb_ds array of DsStack
     DsPriority* dsPriorityPool; // stb_ds array of DsPriority
     DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
@@ -725,7 +725,7 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
         GameObject* objDef = &runner->dataWin->objt.objects[instance->objectIndex];
 
         if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
-            fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
+            logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
         }
     }
 #else

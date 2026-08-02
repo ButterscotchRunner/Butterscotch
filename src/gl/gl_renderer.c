@@ -88,7 +88,7 @@ static GLuint compileShader(GLenum type, const char* source, bool* ok) {
     if (!success) {
         char infoLog[512];
         glGetShaderInfoLog(shader, sizeof(infoLog), nullptr, infoLog);
-        fprintf(stderr, "GL: Shader compilation failed: %s\n", infoLog);
+        logError("GL: Shader compilation failed: %s\n", infoLog);
         *ok = false;
         return 0;
     }
@@ -112,11 +112,11 @@ static GLuint linkProgram(const char* name, uint32_t vertexAttributeCount, const
     if (!success) {
         char infoLog[512];
         glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
-        fprintf(stderr, "GL: Shader %s linking failed: %s\n", name, infoLog);
+        logError("GL: Shader %s linking failed: %s\n", name, infoLog);
         *success2 = false;
     } else {
         *success2 = true;
-        fprintf(stderr, "GL: Shader %s succesfully linked!\n", name);
+        logInfo("GL: Shader %s succesfully linked!\n", name);
     }
     return program;
 }
@@ -153,15 +153,13 @@ static void flushBatch(GLRenderer* gl) {
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
         int32_t stride = sizeof(Vertex);
@@ -203,18 +201,18 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
 // ===[ Vtable Implementations ]===
 
 static bool compileProgram(GMLShader* gmlShader, const char* name, const char* vertexShaderSource, const char* fragmentShaderSource, uint32_t vertexAttributeCount, const char** vertexAttributes) {
-    fprintf(stderr, "GL: Compiling %s vertex shader\n", name);
+    logInfo("GL: Compiling %s vertex shader\n", name);
     bool vertexShaderOK = false;
     bool fragmentShaderOK = false;
     GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, vertexShaderSource, &vertexShaderOK);
     if (!vertexShaderOK) {
-        fprintf(stderr, "GL: Failed to compile %s vertex shader!\n", name);
+        logError("GL: Failed to compile %s vertex shader!\n", name);
         return false;
     }
-    fprintf(stderr, "GL: Compiling %s fragment shader\n", name);
+    logInfo("GL: Compiling %s fragment shader\n", name);
     GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource, &fragmentShaderOK);
     if (!fragmentShaderOK) {
-        fprintf(stderr, "GL: Failed to compile %s fragment shader!\n", name);
+        logError("GL: Failed to compile %s fragment shader!\n", name);
         return false;
     }
 
@@ -271,7 +269,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
     GLVer ver = GLCommon_getGLVersion();
     if (ver.major < 2) {
-        fprintf(stderr, "GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
+        logError("GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
         abort();
     }
     gl->isGL3 = (ver.major >= 3);
@@ -282,7 +280,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #endif
 
     if (!hasFBO()) {
-        fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
+        logError("GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
 
@@ -342,7 +340,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };
     bool success = compileProgram(defaultShader, "default", vertSrc, fragSrc, 3, defaultAttributes);
     if (!success) {
-        fprintf(stderr, "GL: Failed to compile default shaders! Bailing...\n");
+        logError("GL: Failed to compile default shaders! Bailing...\n");
         abort();
     }
 
@@ -355,7 +353,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->uTexture = findShaderUniformByName(defaultShader, "uTexture");
 
     gl->gmlShaders = (GMLShader *)safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
-    fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
+    logInfo("GL: %u Shaders Found\n", dataWin->shdr.count);
 
     repeat(dataWin->shdr.count, i) {
         Shader* shdr = &dataWin->shdr.shaders[i];
@@ -363,11 +361,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         if (!shdr->present) {
             gl->gmlShaderCount++;
-            fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", (int)i);
+            logWarn("GL: Skipping shader %d because it isn't present!\n", (int)i);
             continue;
         }
 
-        fprintf(stderr, "GL: Compiling %s\n", shdr->name);
+        logInfo("GL: Compiling %s\n", shdr->name);
 
         const char* vertexShaderSource = gl->isGLES ? shdr->glslES_Vertex : shdr->glsl_Vertex;
         const char* fragmentShaderSource = gl->isGLES ? shdr->glslES_Fragment : shdr->glsl_Fragment;
@@ -500,7 +498,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->originalTpagCount = dataWin->tpag.count;
     gl->originalSpriteCount = dataWin->sprt.count;
 
-    fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
+    logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
 static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
@@ -569,7 +567,7 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
 static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,const Matrix4f* projectionMatrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    
+
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
 
@@ -582,13 +580,13 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
 
     Matrix4f worldViewProjection;
     Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
-  
-    renderer->gmlMatrices[MATRIX_VIEW] = view;   
+
+    renderer->gmlMatrices[MATRIX_VIEW] = view;
     renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
     //oh my I hope it's good enough.
-    glShaderSettingsRefresh(renderer);    
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glGpuResetShader(Renderer* renderer) {
@@ -875,10 +873,10 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
         if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
-            fprintf(stderr, "GL: Failed to load Vita TXTR page %u", pageId);
+            logError("GL: Failed to load Vita TXTR page %u", pageId);
             return false;
         }
-        fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
         return true;
     }
 #endif
@@ -892,7 +890,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
     uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
-        fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
+        logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
     if (!txtr->mapped) {
@@ -916,7 +914,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
-    fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+    logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
 }
 
@@ -1603,11 +1601,11 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         // This gets the vertex data for the new triangle batch
         Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE;
         uint8_t ca = floatToUnormByte(alpha);
-        
+
         verts[0].x = x1; verts[0].y = y1; verts[0].u = 0.0f; verts[0].v = 0.0f; verts[0].r = (uint8_t) BGR_R(color1); verts[0].g = (uint8_t) BGR_G(color1); verts[0].b = (uint8_t) BGR_B(color1); verts[0].a = ca;
         verts[1].x = x2; verts[1].y = y2; verts[1].u = 0.0f; verts[1].v = 0.0f; verts[1].r = (uint8_t) BGR_R(color2); verts[1].g = (uint8_t) BGR_G(color2); verts[1].b = (uint8_t) BGR_B(color2); verts[1].a = ca;
         verts[2].x = x3; verts[2].y = y3; verts[2].u = 0.0f; verts[2].v = 0.0f; verts[2].r = (uint8_t) BGR_R(color3); verts[2].g = (uint8_t) BGR_G(color3); verts[2].b = (uint8_t) BGR_B(color3); verts[2].a = ca;
-        
+
         gl->batchCount++;
     }
 }
@@ -1966,7 +1964,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
 
-    fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
+    logInfo("GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     return (int32_t) surfaceIndex;
@@ -2005,7 +2003,7 @@ static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     gl->surfaceTexture[surfaceID] = 0;
     gl->surfaceWidth[surfaceID] = 0;
     gl->surfaceHeight[surfaceID] = 0;
-    fprintf(stderr, "GL: Freed Surface %u\n", surfaceID);
+    logInfo("GL: Freed Surface %u\n", surfaceID);
 }
 
 static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
@@ -2035,7 +2033,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
 
-    fprintf(stderr, "GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
+    logInfo("GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 }
 
@@ -2313,7 +2311,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->maskCount = 0;
     sprite->masks = nullptr;
 
-    fprintf(stderr, "GL: Created dynamic sprite %u (%dx%d) from surface %d at (%d,%d)\n", spriteIndex, w, h, surfaceID, x, y);
+    logInfo("GL: Created dynamic sprite %u (%dx%d) from surface %d at (%d,%d)\n", spriteIndex, w, h, surfaceID, x, y);
     return (int32_t) spriteIndex;
 }
 
@@ -2325,7 +2323,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
 
     // Refuse to delete original data.win sprites
     if (gl->originalSpriteCount > (uint32_t) spriteIndex) {
-        fprintf(stderr, "GL: Cannot delete data.win sprite %d\n", spriteIndex);
+        logWarn("GL: Cannot delete data.win sprite %d\n", spriteIndex);
         return;
     }
 
@@ -2354,7 +2352,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     memset(sprite, 0, sizeof(Sprite));
     sprite->name = keepName;
 
-    fprintf(stderr, "GL: Deleted sprite %d\n", spriteIndex);
+    logInfo("GL: Deleted sprite %d\n", spriteIndex);
 }
 
 static BlendFactors glGpuGetBlendFactors(Renderer* renderer) {
@@ -2379,7 +2377,7 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
     gl->currentDFactor = GLCommon_blendModeToDFactor(mode);
-    gl->currentSFactorAlpha = gl->currentSFactor; 
+    gl->currentSFactorAlpha = gl->currentSFactor;
     gl->currentDFactorAlpha = gl->currentDFactor;
 
     glBlendEquation(GLCommon_blendModeToEquation(mode));
@@ -2396,9 +2394,9 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
     gl->currentDFactorAlpha = dfactor_alpha;
 
     glBlendFuncSeparate(
-        GLCommon_blendFactorToGL(sfactor), 
-        GLCommon_blendFactorToGL(dfactor), 
-        GLCommon_blendFactorToGL(sfactor_alpha), 
+        GLCommon_blendFactorToGL(sfactor),
+        GLCommon_blendFactorToGL(dfactor),
+        GLCommon_blendFactorToGL(sfactor_alpha),
         GLCommon_blendFactorToGL(dfactor_alpha)
     );
 }
@@ -2477,7 +2475,7 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
         }
     }
 
-    fprintf(stderr, "GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
+    logWarn("GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
     return -1;
 }
 
@@ -2572,7 +2570,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     if (slot < 0) {
-        fprintf(stderr, "GL: Invalid Texture Stage\n");
+        logWarn("GL: Invalid Texture Stage\n");
         return;
     }
     TexturePageItem* tpag;
@@ -2583,7 +2581,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
         gl->currentTextureId = texID;
     }
     if (slot > MAX_TEXTURE_STAGES) {
-        fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
+        logWarn("GL: Texture Stage Higher Than Max\n");
         return;
     }
     glActiveTexture(GL_TEXTURE0 + slot);
@@ -2677,8 +2675,8 @@ static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix)
 
     Matrix4f worldViewProjection;
     Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
-  
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;   
+
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
 

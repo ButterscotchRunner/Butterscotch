@@ -82,7 +82,7 @@ static void parseSoundBank(Ps2AudioSystem* ps2) {
     FILE* f = fopen(path, "rb");
     free(path);
     if (f == nullptr) {
-        fprintf(stderr, "PS2AudioSystem: Could not open SOUNDBNK.BIN\n");
+        logWarn("PS2AudioSystem: Could not open SOUNDBNK.BIN\n");
         return;
     }
 
@@ -93,7 +93,7 @@ static void parseSoundBank(Ps2AudioSystem* ps2) {
     fread(&ps2->audoEntryCount, 2, 1, f);
     fread(&ps2->musEntryCount, 2, 1, f);
 
-    fprintf(stderr, "PS2AudioSystem: SOUNDBNK v%d, %d SOND entries, %d AUDO entries, %d MUS entries\n", version, ps2->sondEntryCount, ps2->audoEntryCount, ps2->musEntryCount);
+    logInfo("PS2AudioSystem: SOUNDBNK v%d, %d SOND entries, %d AUDO entries, %d MUS entries\n", version, ps2->sondEntryCount, ps2->audoEntryCount, ps2->musEntryCount);
 
     // Parse SOND entries (12 bytes each)
     ps2->sondEntries = safeMalloc(ps2->sondEntryCount * sizeof(Ps2SondEntry));
@@ -148,7 +148,7 @@ static void parseSoundBank(Ps2AudioSystem* ps2) {
     }
 
     if (ps2->musEntryCount > 0) {
-        fprintf(stderr, "PS2AudioSystem: Loaded %d MUS entries\n", ps2->musEntryCount);
+        logInfo("PS2AudioSystem: Loaded %d MUS entries\n", ps2->musEntryCount);
     }
 
     fclose(f);
@@ -163,12 +163,12 @@ static void openSoundsBin(Ps2AudioSystem* ps2) {
 
     ps2->soundsFile = fopen(path, "rb");
     if (ps2->soundsFile == nullptr) {
-        fprintf(stderr, "PS2AudioSystem: Could not open SOUNDS.BIN at %s\n", path);
+        logWarn("PS2AudioSystem: Could not open SOUNDS.BIN at %s\n", path);
         free(path);
         return;
     }
 
-    fprintf(stderr, "PS2AudioSystem: Opened SOUNDS.BIN for streaming (%s)\n", path);
+    logInfo("PS2AudioSystem: Opened SOUNDS.BIN for streaming (%s)\n", path);
     free(path);
 }
 
@@ -221,7 +221,7 @@ static DecodedPcmEntry* cacheInsert(Ps2AudioSystem* ps2, int32_t audoIndex) {
         }
 
         if (slot == nullptr) {
-            // fprintf(stderr, "PS2AudioSystem: Cache full, all entries in use! Cannot decode audoIndex %" PRId32 "\n", audoIndex);
+            // logWarn("PS2AudioSystem: Cache full, all entries in use! Cannot decode audoIndex %" PRId32 "\n", audoIndex);
             return nullptr;
         }
 
@@ -533,14 +533,14 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
     // Parse sound bank index
     parseSoundBank(ps2);
     if (ps2->sondEntries == nullptr || ps2->audoEntries == nullptr) {
-        fprintf(stderr, "PS2AudioSystem: Failed to parse SOUNDBNK.BIN, audio disabled\n");
+        logWarn("PS2AudioSystem: Failed to parse SOUNDBNK.BIN, audio disabled\n");
         return;
     }
 
     // Open SOUNDS.BIN for streaming (kept open for on-demand reads)
     openSoundsBin(ps2);
     if (ps2->soundsFile == nullptr) {
-        fprintf(stderr, "PS2AudioSystem: Failed to open SOUNDS.BIN, audio disabled\n");
+        logWarn("PS2AudioSystem: Failed to open SOUNDS.BIN, audio disabled\n");
         return;
     }
 
@@ -559,7 +559,7 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
     // Initialize audsrv
     int ret = audsrv_init();
     if (ret != 0) {
-        fprintf(stderr, "PS2AudioSystem: audsrv_init failed (%d)\n", ret);
+        logWarn("PS2AudioSystem: audsrv_init failed (%d)\n", ret);
         return;
     }
 
@@ -570,7 +570,7 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
 
     ret = audsrv_set_format(&format);
     if (ret != 0) {
-        fprintf(stderr, "PS2AudioSystem: audsrv_set_format failed (%d)\n", ret);
+        logWarn("PS2AudioSystem: audsrv_set_format failed (%d)\n", ret);
         audsrv_quit();
         return;
     }
@@ -578,7 +578,7 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
     audsrv_set_volume(MAX_VOLUME);
 
     ps2->initialized = true;
-    fprintf(stderr, "PS2AudioSystem: Initialized (output: %d Hz, 16-bit, stereo)\n", AUDSRV_OUTPUT_FREQ);
+    logInfo("PS2AudioSystem: Initialized (output: %d Hz, 16-bit, stereo)\n", AUDSRV_OUTPUT_FREQ);
 }
 
 static void ps2Destroy(AudioSystem* audio) {
@@ -657,7 +657,7 @@ static void ps2Update(AudioSystem* audio, float deltaTime) {
     repeat(MAX_MUSIC_STREAMS, i) {
         Ps2MusicStream* stream = &ps2->musicStreams[i];
         if (!stream->active || !stream->needsRefill) continue;
-        // fprintf(stderr, "PS2AudioSystem: Filling music stream %d back buffers...\n", stream->soundIndex);
+        // logInfo("PS2AudioSystem: Filling music stream %d back buffers...\n", stream->soundIndex);
 
         int backBuffer = stream->activeBuffer ^ 1;
         streamFillBuffer(ps2, stream, backBuffer);
@@ -667,16 +667,16 @@ static void ps2Update(AudioSystem* audio, float deltaTime) {
     // Fill audsrv ring buffer
     int32_t chunkBytes = MIX_BUFFER_SAMPLES * 2 * (int32_t) sizeof(int16_t);
     while (audsrv_available() >= chunkBytes) {
-        // fprintf(stderr, "PS2AudioSystem: Filling audsrv ring buffer... audsrv_available: %d, chunkBytes: %d\n", audsrv_available(), chunkBytes);
+        // logInfo("PS2AudioSystem: Filling audsrv ring buffer... audsrv_available: %d, chunkBytes: %d\n", audsrv_available(), chunkBytes);
         mixAudio(ps2, ps2->mixBuffer, MIX_BUFFER_SAMPLES);
         audsrv_play_audio((char*) ps2->mixBuffer, chunkBytes);
     }
 
-    // fprintf(stderr, "PS2AudioSystem: Finished ticking the audio system\n");
+    // logInfo("PS2AudioSystem: Finished ticking the audio system\n");
 }
 
 static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t priority, bool loop) {
-    // fprintf(stderr, "PS2AudioSystem: Attempting to play sound index %d with priority %d, should loop? %d\n", soundIndex, priority, loop);
+    // logInfo("PS2AudioSystem: Attempting to play sound index %d with priority %d, should loop? %d\n", soundIndex, priority, loop);
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     if (!ps2->initialized) return -1;
 
@@ -732,13 +732,13 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         stream->readPosition = 0;
         stream->needsRefill = false;
 
-        // fprintf(stderr, "PS2AudioSystem: Streaming MUS '%s', size=%" PRIu32 " bytes, instanceId=%" PRId32 "\n", mus->name, mus->dataSize, instanceId);
+        // logInfo("PS2AudioSystem: Streaming MUS '%s', size=%" PRIu32 " bytes, instanceId=%" PRId32 "\n", mus->name, mus->dataSize, instanceId);
 
         return instanceId;
     }
 
     if (0 > soundIndex || (uint16_t) soundIndex >= ps2->sondEntryCount) {
-        // fprintf(stderr, "PS2AudioSystem: Invalid sound index %" PRId32 "\n", soundIndex);
+        // logWarn("PS2AudioSystem: Invalid sound index %" PRId32 "\n", soundIndex);
         return -1;
     }
 
@@ -750,7 +750,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     }
 
     if (sond->audoIndex >= ps2->audoEntryCount) {
-        // fprintf(stderr, "PS2AudioSystem: Invalid audo index %d for sound %" PRId32 "\n", sond->audoIndex, soundIndex);
+        // logWarn("PS2AudioSystem: Invalid audo index %d for sound %" PRId32 "\n", sond->audoIndex, soundIndex);
         return -1;
     }
 
@@ -767,7 +767,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     Ps2AudoEntry* audoForSize = &ps2->audoEntries[sond->audoIndex];
     uint32_t decodedPcmBytes = audoForSize->dataSize * 2 * (uint32_t) sizeof(int16_t);
     if ((isEmbedded || isCompressed) && decodedPcmBytes > PS2_SFX_CACHE_MAX_BYTES) {
-        fprintf(stderr, "PS2AudioSystem: Sound %" PRId32 " (audo %d) would need %" PRIu32 " bytes of PCM in the cache! isEmbedded? %s; isCompressed? %s; Streaming instead...\n", soundIndex, sond->audoIndex, decodedPcmBytes, isEmbedded ? "true" : "false", isCompressed ? "true" : "false");
+        logWarn("PS2AudioSystem: Sound %" PRId32 " (audo %d) would need %" PRIu32 " bytes of PCM in the cache! isEmbedded? %s; isCompressed? %s; Streaming instead...\n", soundIndex, sond->audoIndex, decodedPcmBytes, isEmbedded ? "true" : "false", isCompressed ? "true" : "false");
         isEmbedded = false;
         isCompressed = false;
     }
@@ -786,7 +786,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         }
 
         if (stream == nullptr) {
-            // fprintf(stderr, "PS2AudioSystem: No free music stream slots for sound %" PRId32 "\n", soundIndex);
+            // logWarn("PS2AudioSystem: No free music stream slots for sound %" PRId32 "\n", soundIndex);
             return -1;
         }
 
@@ -825,7 +825,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         stream->readPosition = 0;
         stream->needsRefill = false;
 
-        // fprintf(stderr, "PS2AudioSystem: Streaming music soundIndex=%" PRId32 " audoIndex=%d, size=%" PRIu32 " bytes, instanceId=%" PRId32 "\n", soundIndex, sond->audoIndex, audo->dataSize, instanceId);
+        // logInfo("PS2AudioSystem: Streaming music soundIndex=%" PRId32 " audoIndex=%d, size=%" PRIu32 " bytes, instanceId=%" PRId32 "\n", soundIndex, sond->audoIndex, audo->dataSize, instanceId);
 
         return instanceId;
     }
@@ -836,7 +836,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     if (cached == nullptr) {
         cached = cacheInsert(ps2, sond->audoIndex);
         if (cached == nullptr) {
-            // fprintf(stderr, "PS2AudioSystem: Failed to cache decoded audio for sound %" PRId32 "\n", soundIndex);
+            // logWarn("PS2AudioSystem: Failed to cache decoded audio for sound %" PRId32 "\n", soundIndex);
             return -1;
         }
     }
@@ -844,7 +844,7 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     // Find a free SFX instance slot
     Ps2SoundInstance* slot = findFreeSlot(ps2);
     if (slot == nullptr) {
-        // fprintf(stderr, "PS2AudioSystem: No free sound slots for sound %" PRId32 "\n", soundIndex);
+        // logWarn("PS2AudioSystem: No free sound slots for sound %" PRId32 "\n", soundIndex);
         return -1;
     }
 
@@ -978,12 +978,12 @@ static void actionSetPitch(Ps2SoundInstance* sfx, Ps2MusicStream* music, void* u
 // ===[ Vtable: Stop/Pause/Resume/Gain/Pitch ]===
 
 static void ps2StopSound(AudioSystem* audio, int32_t soundOrInstance) {
-    // fprintf(stderr, "PS2AudioSystem: Stopping sound %d\n", soundOrInstance);
+    // logInfo("PS2AudioSystem: Stopping sound %d\n", soundOrInstance);
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionStop, nullptr);
 }
 
 static void ps2StopAll(AudioSystem* audio) {
-    // fprintf(stderr, "PS2AudioSystem: Stopping all audios!\n");
+    // logInfo("PS2AudioSystem: Stopping all audios!\n");
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     repeat(MAX_PS2_SOUND_INSTANCES, i) {
         ps2->instances[i].active = false;
@@ -1023,17 +1023,17 @@ static bool ps2IsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
 }
 
 static void ps2PauseSound(AudioSystem* audio, int32_t soundOrInstance) {
-    // fprintf(stderr, "PS2AudioSystem: Pausing sound %d\n", soundOrInstance);
+    // logInfo("PS2AudioSystem: Pausing sound %d\n", soundOrInstance);
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionPause, nullptr);
 }
 
 static void ps2ResumeSound(AudioSystem* audio, int32_t soundOrInstance) {
-    // fprintf(stderr, "PS2AudioSystem: Resuming sound %d\n", soundOrInstance);
+    // logInfo("PS2AudioSystem: Resuming sound %d\n", soundOrInstance);
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionResume, nullptr);
 }
 
 static void ps2PauseAll(AudioSystem* audio) {
-    // fprintf(stderr, "PS2AudioSystem: Pausing all sounds!\n");
+    // logInfo("PS2AudioSystem: Pausing all sounds!\n");
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     repeat(MAX_PS2_SOUND_INSTANCES, i) {
         if (ps2->instances[i].active) ps2->instances[i].paused = true;
@@ -1044,7 +1044,7 @@ static void ps2PauseAll(AudioSystem* audio) {
 }
 
 static void ps2ResumeAll(AudioSystem* audio) {
-    // fprintf(stderr, "PS2AudioSystem: Resuming all sounds!\n");
+    // logInfo("PS2AudioSystem: Resuming all sounds!\n");
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     repeat(MAX_PS2_SOUND_INSTANCES, i) {
         if (ps2->instances[i].active) ps2->instances[i].paused = false;
@@ -1082,7 +1082,7 @@ static float ps2GetSoundGain(AudioSystem* audio, int32_t soundOrInstance) {
 }
 
 static void ps2SetSoundPitch(AudioSystem* audio, int32_t soundOrInstance, float pitch) {
-    // fprintf(stderr, "PS2AudioSystem: Setting pitch of sound %d to %f\n", soundOrInstance, pitch);
+    // logInfo("PS2AudioSystem: Setting pitch of sound %d to %f\n", soundOrInstance, pitch);
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionSetPitch, &pitch);
 }
 
@@ -1175,7 +1175,7 @@ static void seekMusicStream(Ps2AudioSystem* ps2, Ps2MusicStream* music, float po
 }
 
 static void ps2SetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, float positionSeconds) {
-    // fprintf(stderr, "PS2AudioSystem: Setting track position of sound %d to %f\n", soundOrInstance, positionSeconds);
+    // logInfo("PS2AudioSystem: Setting track position of sound %d to %f\n", soundOrInstance, positionSeconds);
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
 
     if (soundOrInstance >= PS2_AUDIO_STREAM_INDEX_BASE) {
@@ -1264,7 +1264,7 @@ static float ps2GetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
 }
 
 static void ps2SetMasterGain(AudioSystem* audio, float gain) {
-    // fprintf(stderr, "PS2AudioSystem: Setting master gain to %f\n", gain);
+    // logInfo("PS2AudioSystem: Setting master gain to %f\n", gain);
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     ps2->masterGain = gain;
 }
@@ -1295,12 +1295,12 @@ static int32_t ps2CreateStream(AudioSystem* audio, const char* filename) {
     for (int i = 0; ps2->musEntryCount > i; i++) {
         if (strcmp(ps2->musEntries[i].name, filename) == 0) {
             int32_t streamIndex = PS2_AUDIO_STREAM_INDEX_BASE + i;
-            fprintf(stderr, "PS2AudioSystem: Created stream %" PRId32 " for '%s'\n", streamIndex, filename);
+            logInfo("PS2AudioSystem: Created stream %" PRId32 " for '%s'\n", streamIndex, filename);
             return streamIndex;
         }
     }
 
-    fprintf(stderr, "PS2AudioSystem: audio_create_stream: '%s' not found in MUS entries\n", filename);
+    logWarn("PS2AudioSystem: audio_create_stream: '%s' not found in MUS entries\n", filename);
     return -1;
 }
 

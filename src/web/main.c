@@ -22,6 +22,25 @@ static int32_t gAudioSampleRate = 48000;
 uint8_t keyDown[GML_KEY_COUNT] = {0};
 uint8_t keyUp[GML_KEY_COUNT] = {0};
 
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
+
 // Configures the sample rate that miniaudio will mix at. Must match the AudioContext's sampleRate
 // on the JS side, and must be called BEFORE startRunner.
 void setAudioSampleRate(int32_t rate) {
@@ -53,7 +72,7 @@ int getKeyCount() {
 }
 
 int main() {
-    printf("Howdy! Loritta is so cute! lol\n");
+    logInfo("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
 }
@@ -62,12 +81,12 @@ int main() {
 int mountOpfs(void) {
     backend_t opfs = wasmfs_create_opfs_backend();
     if (!opfs) {
-        fprintf(stderr, "Failed to create OPFS backend\n");
+        logWarn("Failed to create OPFS backend\n");
         return -1;
     }
     int rc = wasmfs_create_directory("/butterscotch", 0777, opfs);
     if (rc != 0) {
-        fprintf(stderr, "Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
+        logWarn("Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
         return -1;
     }
     return 0;
@@ -163,7 +182,7 @@ void* loop() {
     }
 
     // Cleanup
-    fprintf(stderr, "Cleaning up runner!\n");
+    logInfo("Cleaning up runner!\n");
 
     gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
     gRunner->audioSystem = nullptr;
@@ -189,7 +208,7 @@ void setWindowTitle(const char* title) {
 // gamePath: WASMFS path to the data.win to load (example: "/butterscotch/games/undertale/data.win").
 // savesPath: WASMFS directory where saves should live (example: "/butterscotch/saves/undertale" - Created if it does not exist).
 void startRunner(const char* gamePath, const char* savesPath) {
-    fprintf(stderr, "Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
+    logInfo("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
@@ -206,7 +225,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (0 >= ctx) {
-        printf("Failed to create WebGL context: %d\n", (int)ctx);
+        logError("Failed to create WebGL context: %d\n", (int)ctx);
         abort();
     }
 
@@ -218,7 +237,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // Make sure the saves directory exists. The FileSystem impl will write into it.
     if (savesPath != nullptr && savesPath[0] != '\0') {
         if (mkdirP(savesPath) != 0) {
-            fprintf(stderr, "Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
+            logWarn("failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
         }
     }
 
@@ -295,6 +314,6 @@ void startRunner(const char* gamePath, const char* savesPath) {
 }
 
 void stopRunner() {
-    fprintf(stderr, "Marked runner to exit!\n");
+    logInfo("Marked runner to exit!\n");
     gRunner->shouldExit = true;
 }

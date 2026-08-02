@@ -16,11 +16,9 @@
 #include "gl/gl_renderer.h"
 #include "stb_ds.h"
 
-#define LOG_TAG "Butterscotch"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#include "log.h"
 
+#define LOG_TAG "Butterscotch"
 // ===[ Runner state ]===
 
 static Runner* gRunner = nullptr;
@@ -39,6 +37,26 @@ static float gNormalizedCursorX = 0.0f;
 static float gNormalizedCursorY = 0.0f;
 // We don't need to worry about game changes because the profiler will be automatically disabled then
 static int32_t gProfilerStartedAtFrame = 0;
+
+void platformLog(const logType type, const char *format, va_list va) {
+    int prio;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            prio = ANDROID_LOG_INFO;
+            break;
+        case LOG_TYPE_WARNING:
+            prio = ANDROID_LOG_WARN;
+            break;
+        case LOG_TYPE_ERROR:
+            prio = ANDROID_LOG_ERROR;
+            break;
+        case LOG_TYPE_DEBUG:
+            prio = ANDROID_LOG_DEBUG;
+            break;
+    }
+
+    __android_log_vprint(prio, LOG_TAG, format, va);
+}
 
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host
 // passes into stepAndDraw and expose it through the getWindowSize hook below.
@@ -74,7 +92,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
 
     jclass localCls = (*env)->FindClass(env, "net/perfectdreams/butterscotch/android/ButterscotchNative");
     if (localCls == nullptr) {
-        LOGE("JNI_OnLoad: FindClass failed for ButterscotchNative");
+        logError("JNI_OnLoad: FindClass failed for ButterscotchNative");
         return JNI_ERR;
     }
     gNativeClass = (*env)->NewGlobalRef(env, localCls);
@@ -83,7 +101,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
     gOnTitleChangedMethod = (*env)->GetStaticMethodID(env, gNativeClass, "onTitleChanged", "(Ljava/lang/String;)V");
     gOnGameSizeChangedMethod = (*env)->GetStaticMethodID(env, gNativeClass, "onGameSizeChanged", "(II)V");
     if (gOnTitleChangedMethod == nullptr || gOnGameSizeChangedMethod == nullptr) {
-        LOGE("JNI_OnLoad: GetStaticMethodID failed");
+        logError("JNI_OnLoad: GetStaticMethodID failed");
         return JNI_ERR;
     }
     return JNI_VERSION_1_6;
@@ -91,7 +109,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
 
 static void setWindowTitle(const char* title) {
     if (title == nullptr) title = "";
-    LOGI("Window title: %s", title);
+    logInfo("Window title: %s", title);
     JNIEnv* env = getEnvNoAttach();
     if (env == nullptr || gNativeClass == nullptr) return;
     jstring jTitle = (*env)->NewStringUTF(env, title);
@@ -107,7 +125,7 @@ JNIEXPORT void JNICALL JNI_FN(init)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclas
     // Set stdout and stderr to not be buffered
     setvbuf(stdout, nullptr, _IOLBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
-    LOGI("Butterscotch native init");
+    logInfo("Butterscotch native init");
 }
 
 JNIEXPORT jint JNICALL JNI_FN(getTargetFrameHz)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
@@ -276,12 +294,12 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
     requireNotNull(gameArgs);
 
     if (gRunner != nullptr) {
-        LOGW("startRunnerFromPath called while a runner is already alive; ignoring");
+        logWarn("startRunnerFromPath called while a runner is already alive; ignoring");
         return false;
     }
 
     if (mkdir(savesPath, 0777) != 0 && errno != EEXIST) {
-        LOGW("Could not create saves dir %s: %s", savesPath, strerror(errno));
+        logWarn("Could not create saves dir %s: %s", savesPath, strerror(errno));
     }
 
     DataWin* dataWin = DataWin_parse(
@@ -318,7 +336,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
     );
 
     if (dataWin == nullptr) {
-        LOGE("Failed to parse data.win at %s", dataWinPath);
+        logError("Failed to parse data.win at %s", dataWinPath);
         return false;
     }
 
@@ -341,7 +359,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
 
     AudioSystem* audioSystem = (AudioSystem*) MaAudioSystem_create(dataWin);
     if (audioSystem == nullptr) {
-        LOGW("MaAudioSystem_create returned NULL; falling back to silent audio");
+        logWarn("MaAudioSystem_create returned NULL; falling back to silent audio");
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
     }
 
@@ -379,7 +397,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
     gReportedOs = jOsType;
 
     gRunner = runner;
-    LOGI("Runner started OK");
+    logInfo("Runner started OK");
     return true;
 }
 
@@ -402,7 +420,7 @@ static void teardownRunner() {
 
 JNIEXPORT jboolean JNICALL JNI_FN(startRunner)(JNIEnv* env, MAYBE_UNUSED jclass cls, jstring jDataWinPath, jstring jSavesPath, jint jOsType, jint jHostFramebuffer) {
     if (gRunner != nullptr) {
-        LOGW("startRunner called while a runner is already alive; ignoring");
+        logWarn("startRunner called while a runner is already alive; ignoring");
         return JNI_FALSE;
     }
     gHostFramebuffer = (GLuint) jHostFramebuffer;
@@ -633,7 +651,7 @@ static bool performGameChange(const char* workingDirectory, char* launchParamete
     }
 
     if (dataWinFilename == nullptr) {
-        fprintf(stderr, "Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", launchParameters);
+        logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", launchParameters);
         repeat(arrlen(newArguments), i) {
             free(newArguments[i]);
         }
@@ -808,7 +826,7 @@ JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED
     if (gRunner == nullptr)
         return;
 
-    LOGI("Stopping runner");
+    logInfo("Stopping runner");
 
     teardownRunner();
 

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include "string_compat.h"
 
+#include "log.h"
+
 // We stream the texture pages on demand from the file instead of loading everything in RAM.
 
 #define PAGE_HEADER_SIZE 12  // u16 w, u16 h, u32 pixelOffset, u32 pixelDataSize
@@ -44,7 +46,7 @@ bool PS3Textures_init(const char* texturesBinPath) {
 
     gFp = fopen(texturesBinPath, "rb");
     if (gFp == NULL) {
-        fprintf(stderr, "PS3Textures: cannot open %s\n", texturesBinPath);
+        logWarn("PS3Textures: cannot open %s\n", texturesBinPath);
         return false;
     }
 
@@ -52,7 +54,7 @@ bool PS3Textures_init(const char* texturesBinPath) {
     uint8_t headerBuf[7];
     if (fread(headerBuf, 1, 7, gFp) != 7) goto fail;
     if (headerBuf[0] != 0) {
-        fprintf(stderr, "PS3Textures: unsupported version %u\n", headerBuf[0]);
+        logWarn("PS3Textures: unsupported version %u\n", headerBuf[0]);
         goto fail;
     }
     gClutCount = readU16BE(headerBuf + 1);
@@ -63,7 +65,7 @@ bool PS3Textures_init(const char* texturesBinPath) {
     size_t clutBytes = (size_t) gClutCount * 256 * 4;
     uint8_t* clutBuf = (uint8_t*) malloc(clutBytes);
     if (clutBuf == NULL) {
-        fprintf(stderr, "PS3Textures: malloc(%zu) for CLUT failed\n", clutBytes);
+        logWarn("PS3Textures: malloc(%zu) for CLUT failed\n", clutBytes);
         goto fail;
     }
     if (fread(clutBuf, 1, clutBytes, gFp) != clutBytes) {
@@ -112,7 +114,7 @@ bool PS3Textures_init(const char* texturesBinPath) {
     // Pixel block starts here. Pages are streamed from disk on demand.
     gPixelBlockBase = ftell(gFp);
 
-    fprintf(stderr, "PS3Textures: opened %s (clutCount=%u pages=%u tpags=%u, streaming pixels)\n", texturesBinPath, gClutCount, gPageCount, gTpagCount);
+    logInfo("PS3Textures: opened %s (clutCount=%u pages=%u tpags=%u, streaming pixels)\n", texturesBinPath, gClutCount, gPageCount, gTpagCount);
 
     gInitialized = true;
     return true;
@@ -152,7 +154,7 @@ bool PS3Textures_loadPage(uint32_t pageId, int* outW, int* outH, uint8_t** outPi
 
     uint8_t* buf = (uint8_t*) malloc(h->pixelDataSize);
     if (buf == NULL) {
-        fprintf(stderr, "PS3Textures: malloc(%u) for page %u failed\n", h->pixelDataSize, pageId);
+        logWarn("PS3Textures: malloc(%u) for page %u failed\n", h->pixelDataSize, pageId);
         return false;
     }
 

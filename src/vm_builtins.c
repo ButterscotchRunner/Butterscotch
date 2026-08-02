@@ -107,7 +107,7 @@ static void logStubbedFunction(VMContext* ctx, const char* funcName) {
     if (ctx->alwaysLogStubbedFunctions || 0 > shgeti(ctx->loggedStubbedFuncs, dedupKey)) {
         // shput stores the key pointer, so don't free it when inserting
         shput(ctx->loggedStubbedFuncs, dedupKey, true);
-        fprintf(stderr, "VM: [%s] Stubbed function \"%s\"!\n", callerName, funcName);
+        logWarn("VM: [%s] Stubbed function \"%s\"!\n", callerName, funcName);
     } else {
         free(dedupKey);
     }
@@ -120,7 +120,7 @@ static void logSemiStubbedFunction(VMContext* ctx, const char* funcName) {
     if (ctx->alwaysLogStubbedFunctions || 0 > shgeti(ctx->loggedStubbedFuncs, dedupKey)) {
         // shput stores the key pointer, so don't free it when inserting
         shput(ctx->loggedStubbedFuncs, dedupKey, true);
-        fprintf(stderr, "VM: [%s] Semi-Stubbed function \"%s\"!\n", callerName, funcName);
+        logWarn("VM: [%s] Semi-Stubbed function \"%s\"!\n", callerName, funcName);
     } else {
         free(dedupKey);
     }
@@ -1300,7 +1300,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             break;
     }
 
-    fprintf(stderr, "VM: [%s] Unhandled built-in variable read '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
+    logWarn("VM: [%s] Unhandled built-in variable read '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
     return RValue_makeReal(0.0);
 }
 
@@ -1517,7 +1517,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
 #ifdef ENABLE_VM_TRACING
                 if (inst->objectIndex >= 0 && (shgeti(ctx->alarmsToBeTraced, "*") != -1 || shgeti(ctx->alarmsToBeTraced, runner->dataWin->objt.objects[inst->objectIndex].name) != -1)) {
-                    fprintf(stderr, "VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, arrayIndex, newValue, inst->instanceId);
+                    logInfo("VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, arrayIndex, newValue, inst->instanceId);
                 }
 #endif
 
@@ -1821,23 +1821,23 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_DEBUG_MODE:
         case BUILTIN_VAR_ROOM_FIRST:
         case BUILTIN_VAR_ROOM_LAST:
-            fprintf(stderr, "VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
+            logWarn("VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
             return;
     }
 
-    fprintf(stderr, "VM: [%s] Unhandled built-in variable write '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
+    logWarn("VM: [%s] Unhandled built-in variable write '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
 }
 
 // ===[ BUILTIN FUNCTION IMPLEMENTATIONS ]===
 
 static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[show_debug_message] Expected at least 1 argument\n");
+        logWarn("[show_debug_message] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
 
     char* val = RValue_toString(args[0]);
-    printf("Game: %s\n", val);
+    logInfo("Game: %s\n", val);
     free(val);
 
     return RValue_makeUndefined();
@@ -3360,7 +3360,7 @@ static RValue builtin_room_goto_next(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     if ((int32_t) runner->dataWin->gen8.roomOrderCount > nextPos) {
         runner->pendingRoom = runner->dataWin->gen8.roomOrder[nextPos];
     } else {
-        fprintf(stderr, "VM: room_goto_next - already at last room!\n");
+        logWarn("VM: room_goto_next - already at last room!\n");
     }
     return RValue_makeUndefined();
 }
@@ -3372,7 +3372,7 @@ static RValue builtin_room_goto_previous(VMContext* ctx, MAYBE_UNUSED RValue* ar
     if (previousPos >= 0) {
         runner->pendingRoom = runner->dataWin->gen8.roomOrder[previousPos];
     } else {
-        fprintf(stderr, "VM: room_goto_previous - already at first room!\n");
+        logWarn("VM: room_goto_previous - already at first room!\n");
     }
     return RValue_makeUndefined();
 }
@@ -4147,7 +4147,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
         // Fallback: treat as SCPT index (BC16 and earlier, or when FUNC lookup failed)
         if (0 > codeId) {
             if (0 > rawArg || (uint32_t) rawArg >= ctx->dataWin->scpt.count) {
-                fprintf(stderr, "VM: script_execute - invalid script index %d\n", rawArg);
+                logWarn("VM: script_execute - invalid script index %d\n", rawArg);
                 return RValue_makeUndefined();
             }
             codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
@@ -4155,7 +4155,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     }
 
     if (0 > codeId || ctx->dataWin->code.count <= (uint32_t) codeId) {
-        fprintf(stderr, "VM: script_execute - invalid codeId %d\n", codeId);
+        logWarn("VM: script_execute - invalid codeId %d\n", codeId);
         return RValue_makeUndefined();
     }
 
@@ -6676,7 +6676,7 @@ static RValue builtin_audio_group_is_loaded(VMContext* ctx, RValue* args, MAYBE_
 
 static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->dataWin->gen8.wadVersion >= 14) {
-        fprintf(stderr, "VM: [%s] audio_play_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
+        logWarn("VM: [%s] audio_play_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
         return RValue_makeUndefined();
     }
 
@@ -6692,7 +6692,7 @@ static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSE
 
 static RValue builtin_audio_stop_music(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->dataWin->gen8.wadVersion >= 14) {
-        fprintf(stderr, "VM: [%s] audio_stop_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
+        logWarn("VM: [%s] audio_stop_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
         return RValue_makeUndefined();
     }
 
@@ -7204,7 +7204,7 @@ static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t 
 
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
-        fprintf(stderr, "Warning: Too many open text files!\n");
+        logError("Too many open text files!\n");
         abort();
     }
 
@@ -7234,7 +7234,7 @@ static RValue builtin_file_text_open_write(VMContext* ctx, RValue* args, int32_t
 
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
-        fprintf(stderr, "Warning: Too many open text files!\n");
+        logError("Too many open text files!\n");
         abort();
     }
 
@@ -7545,7 +7545,7 @@ static RValue builtin_file_bin_open(VMContext* ctx, RValue* args, int32_t argCou
 
     int32_t slot = findFreeBinaryFileSlot(runner);
     if (0 > slot) {
-        fprintf(stderr, "Warning: Too many open binary files!\n");
+        logWarn("Too many open binary files!\n");
         return RValue_makeReal(-1.0);
     }
 
@@ -7927,7 +7927,7 @@ static RValue builtin_window_set_caption(VMContext* ctx, MAYBE_UNUSED RValue* ar
         runner->windowTitle = safeStrdup(val);
         if (runner->setWindowTitle) {
             runner->setWindowTitle(val);
-            printf("Runner: Window title set to: %s\n", val);
+            logInfo("Runner: Window title set to: %s\n", val);
         }
     }
 
@@ -8095,7 +8095,7 @@ static RValue builtin_instance_create(VMContext* ctx, RValue* args, int32_t argC
     GMLReal y = RValue_toReal(args[1]);
     int32_t objectIndex = RValue_toInt32(args[2]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        fprintf(stderr, "VM: instance_create: objectIndex %d out of range\n", objectIndex);
+        logWarn("VM: instance_create: objectIndex %d out of range\n", objectIndex);
         return RValue_makeReal(0.0);
     }
     Instance* callerInst = ctx->currentInstance;
@@ -8111,7 +8111,7 @@ static RValue builtin_instance_copy(VMContext* ctx, RValue* args, int32_t argCou
     Runner* runner = ctx->runner;
     Instance* source = ctx->currentInstance;
     if (source == nullptr) {
-        fprintf(stderr, "VM: instance_copy: no current instance\n");
+        logWarn("VM: instance_copy: no current instance\n");
         return RValue_makeReal(INSTANCE_NOONE);
     }
     bool performEvent = argCount > 0 ? RValue_toBool(args[0]) : false;
@@ -8169,7 +8169,7 @@ static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_
     int32_t depth = RValue_toInt32(args[2]);
     int32_t objectIndex = RValue_toInt32(args[3]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        fprintf(stderr, "VM: instance_create: objectIndex %d out of range\n", objectIndex);
+        logWarn("VM: instance_create: objectIndex %d out of range\n", objectIndex);
         return RValue_makeReal(0.0);
     }
     Instance* callerInst = ctx->currentInstance;
@@ -8192,7 +8192,7 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     bool performEvents = RValue_toBool(args[1]);
 
     if (0 > objectIndex || (uint32_t) objectIndex >= runner->dataWin->objt.count) {
-        fprintf(stderr, "VM: instance_change: objectIndex %d out of range\n", objectIndex);
+        logWarn("VM: instance_change: objectIndex %d out of range\n", objectIndex);
         return RValue_makeUndefined();
     }
 
@@ -8371,20 +8371,20 @@ static RValue builtin_event_inherited(VMContext* ctx, MAYBE_UNUSED RValue* args,
     Runner* runner = ctx->runner;
     Instance* inst = ctx->currentInstance;
     if (inst == nullptr || 0 > ctx->currentEventObjectIndex || 0 > ctx->currentEventType) {
-        fprintf(stderr, "VM: event_inherited called with no event context (inst=%p, eventObjIdx=%d, eventType=%d)\n", (void*) inst, ctx->currentEventObjectIndex, ctx->currentEventType);
+        logWarn("VM: event_inherited called with no event context (inst=%p, eventObjIdx=%d, eventType=%d)\n", (void*) inst, ctx->currentEventObjectIndex, ctx->currentEventType);
         return RValue_makeReal(0.0);
     }
 
     DataWin* dataWin = ctx->dataWin;
     int32_t ownerObjectIndex = ctx->currentEventObjectIndex;
     if ((uint32_t) ownerObjectIndex >= dataWin->objt.count) {
-        fprintf(stderr, "VM: event_inherited ownerObjectIndex %d out of range\n", ownerObjectIndex);
+        logWarn("VM: event_inherited ownerObjectIndex %d out of range\n", ownerObjectIndex);
         return RValue_makeReal(0.0);
     }
 
     int32_t parentObjectIndex = dataWin->objt.objects[ownerObjectIndex].parentId;
     if (ctx->traceEventInherited) {
-        fprintf(stderr, "VM: [%s] event_inherited owner=%s(%d) parent=%s(%d) event=%s (instanceId=%d)\n", dataWin->objt.objects[inst->objectIndex].name, dataWin->objt.objects[ownerObjectIndex].name, ownerObjectIndex, (0 > parentObjectIndex) ? "none" : dataWin->objt.objects[parentObjectIndex].name, parentObjectIndex, Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype), inst->instanceId);
+        logInfo("VM: [%s] event_inherited owner=%s(%d) parent=%s(%d) event=%s (instanceId=%d)\n", dataWin->objt.objects[inst->objectIndex].name, dataWin->objt.objects[ownerObjectIndex].name, ownerObjectIndex, (0 > parentObjectIndex) ? "none" : dataWin->objt.objects[parentObjectIndex].name, parentObjectIndex, Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype), inst->instanceId);
     }
     if (0 > parentObjectIndex) return RValue_makeReal(0.0);
 
@@ -8433,7 +8433,7 @@ static RValue builtin_action_create_object(VMContext* ctx, RValue* args, int32_t
     GMLReal x = RValue_toReal(args[1]);
     GMLReal y = RValue_toReal(args[2]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        fprintf(stderr, "VM: action_create_object: objectIndex %d out of range\n", objectIndex);
+        logWarn("VM: action_create_object: objectIndex %d out of range\n", objectIndex);
         return RValue_makeUndefined();
     }
     Instance* callerInst = ctx->currentInstance;
@@ -8958,7 +8958,7 @@ static RValue builtin_buffer_write(MAYBE_UNUSED VMContext* ctx, RValue* args, MA
             break;
         }
         default:
-            fprintf(stderr, "buffer_write: unsupported data type %d\n", dataType);
+            logWarn("buffer_write: unsupported data type %d\n", dataType);
             break;
     }
 
@@ -9069,7 +9069,7 @@ static RValue builtin_buffer_read(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
             break;
         }
         default:
-            fprintf(stderr, "buffer_read: unsupported data type %d\n", dataType);
+            logWarn("buffer_read: unsupported data type %d\n", dataType);
             break;
     }
 
@@ -9289,7 +9289,7 @@ static RValue builtin_buffer_save_async(MAYBE_UNUSED VMContext* ctx, RValue* arg
 static RValue builtin_buffer_async_group_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->asyncBufferGroupActive) {
-        fprintf(stderr, "buffer_async_group_begin: a buffer group is already open\n");
+        logWarn("buffer_async_group_begin: a buffer group is already open\n");
         return RValue_makeUndefined();
     }
     free(runner->asyncBufferGroupName);
@@ -9301,7 +9301,7 @@ static RValue builtin_buffer_async_group_begin(MAYBE_UNUSED VMContext* ctx, RVal
 static RValue builtin_buffer_async_group_end(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (!runner->asyncBufferGroupActive) {
-        fprintf(stderr, "buffer_async_group_end: no matching buffer_async_group_begin\n");
+        logWarn("buffer_async_group_end: no matching buffer_async_group_begin\n");
         return RValue_makeReal(-1.0);
     }
 
@@ -10671,7 +10671,7 @@ static RValue builtin_surface_copy_part(VMContext* ctx, RValue* args, MAYBE_UNUS
     float ys = (float) RValue_toReal(args[5]);
     float ws = (float) RValue_toReal(args[6]);
     float hs = (float) RValue_toReal(args[7]);
-    //fprintf(stderr, "Set Surface Target Yes\n");
+    // logInfo("Set Surface Target Yes\n");
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
         runner->renderer->vtable->surfaceCopy(runner->renderer, sourceID, x, y, destinationID, xs, ys, ws, hs, true);
@@ -10684,7 +10684,7 @@ static RValue builtin_surface_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     float x = (float) RValue_toReal(args[1]);
     float y = (float) RValue_toReal(args[2]);
     int32_t destinationID = (int32_t) RValue_toReal(args[3]);
-    //fprintf(stderr, "Set Surface Target Yes\n");
+    // logInfo("Set Surface Target Yes\n");
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
         runner->renderer->vtable->surfaceCopy(runner->renderer, sourceID, x, y, destinationID, 0.0, 0.0, 0.0, 0.0, false);
@@ -12262,7 +12262,7 @@ static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args
 #ifdef ENABLE_VM_TRACING
         Runner* runner = ctx->runner;
         if (shgeti(ctx->alarmsToBeTraced, "*") != -1 || shgeti(ctx->alarmsToBeTraced, runner->dataWin->objt.objects[inst->objectIndex].name) != -1) {
-            fprintf(stderr, "VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, alarmIndex, steps, inst->instanceId);
+            logInfo("VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, alarmIndex, steps, inst->instanceId);
         }
 #endif
 
@@ -12288,7 +12288,7 @@ static RValue builtin_alarm_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
 #ifdef ENABLE_VM_TRACING
         Runner* runner = ctx->runner;
         if (shgeti(ctx->alarmsToBeTraced, "*") != -1 || shgeti(ctx->alarmsToBeTraced, runner->dataWin->objt.objects[inst->objectIndex].name) != -1) {
-            fprintf(stderr, "VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, alarmIndex, value, inst->instanceId);
+            logInfo("VM: [%s] Setting Alarm[%d] = %d (instanceId=%d)\n", runner->dataWin->objt.objects[inst->objectIndex].name, alarmIndex, value, inst->instanceId);
         }
 #endif
 
@@ -12681,7 +12681,7 @@ static RValue builtin_action_sprite_color(VMContext* ctx, RValue* args, MAYBE_UN
 // action_message(text) - shows a dialog.
 static RValue builtin_action_message(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     char* text = RValue_toString(args[0]);
-    fprintf(stderr, "VM: action_message: %s\n", text);
+    logInfo("VM: action_message: %s\n", text);
     free(text);
     return RValue_makeUndefined();
 }
@@ -12707,7 +12707,7 @@ static RValue builtin_action_next_room(VMContext* ctx, MAYBE_UNUSED RValue* args
     if ((int32_t) runner->dataWin->gen8.roomOrderCount > nextPos) {
         runner->pendingRoom = runner->dataWin->gen8.roomOrder[nextPos];
     } else {
-        fprintf(stderr, "VM: action_next_room - already at last room!\n");
+        logWarn("VM: action_next_room - already at last room!\n");
     }
     return RValue_makeUndefined();
 }
@@ -12852,7 +12852,7 @@ static RValue builtin_tile_add(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_
 
     int32_t backgroundIndex = RValue_toInt32(args[0]);
     if (0 > backgroundIndex || backgroundIndex >= (int32_t) ctx->dataWin->bgnd.count) {
-        fprintf(stderr, "VM: tile_add: background does not exist (%d)\n", backgroundIndex);
+        logWarn("VM: tile_add: background does not exist (%d)\n", backgroundIndex);
         return RValue_makeReal(-1.0);
     }
 
@@ -12945,7 +12945,7 @@ static RValue builtin_tile_delete(VMContext* ctx, RValue* args, MAYBE_UNUSED int
         runner->drawableListStructureDirty = true;
         return RValue_makeUndefined();
     }
-    fprintf(stderr, "VM: tile_delete: tile does not exist (%u)\n", id);
+    logWarn("VM: tile_delete: tile does not exist (%u)\n", id);
     return RValue_makeUndefined();
 }
 
@@ -12961,7 +12961,7 @@ static RValue builtin_tile_set_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED 
         room->tiles[i].alpha = alpha;
         return RValue_makeUndefined();
     }
-    fprintf(stderr, "VM: tile_set_alpha: tile does not exist (%u)\n", id);
+    logWarn("VM: tile_set_alpha: tile does not exist (%u)\n", id);
     return RValue_makeUndefined();
 }
 
@@ -14253,7 +14253,7 @@ static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int
     uint32_t cell = (uint32_t) RValue_toInt32(args[1]);
     uint32_t tileIndex = (cell >> 0) & TILEINDEX_SHIFTEDMASK;
     if (tileset != nullptr && tileset->gms2TileCount != 0 && tileIndex >= tileset->gms2TileCount) {
-        fprintf(stderr, "VM: [%s] tilemap_set() - tile index outside tile set count\n", ctx->currentCodeName);
+        logWarn("VM: [%s] tilemap_set() - tile index outside tile set count\n", ctx->currentCodeName);
         return RValue_makeBool(false);
     }
 
@@ -14277,7 +14277,7 @@ static RValue builtin_tilemap_set_at_pixel(VMContext* ctx, RValue* args, MAYBE_U
     uint32_t cell = (uint32_t) RValue_toInt32(args[1]);
     uint32_t tileIndex = cell & TILEINDEX_SHIFTEDMASK;
     if (tileset->gms2TileCount != 0 && tileIndex >= tileset->gms2TileCount) {
-        fprintf(stderr, "VM: [%s] tilemap_set_at_pixel() - tile index outside tile set count\n", ctx->currentCodeName);
+        logWarn("VM: [%s] tilemap_set_at_pixel() - tile index outside tile set count\n", ctx->currentCodeName);
         return RValue_makeBool(false);
     }
 
@@ -14466,7 +14466,7 @@ static RValue builtin_SetStatic(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
 // We reuse Instance (with objectIndex = STRUCT_OBJECT_INDEX) the same way globalScopeInstance is used for GLOB scripts, instead of introducing a separate struct type.
 static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "VM: @@NewGMLObject@@ called with no arguments\n");
+        logWarn("VM: @@NewGMLObject@@ called with no arguments\n");
         return RValue_makeUndefined();
     }
 
@@ -14488,7 +14488,7 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
         }
     }
     if (0 > codeIndex || (uint32_t) codeIndex > ctx->dataWin->code.count) {
-        fprintf(stderr, "VM: @@NewGMLObject@@ method has invalid codeIndex %d\n", codeIndex);
+        logWarn("VM: @@NewGMLObject@@ method has invalid codeIndex %d\n", codeIndex);
         return RValue_makeUndefined();
     }
 
@@ -14548,7 +14548,7 @@ static RValue builtin_try_hook(VMContext* ctx, RValue* args, int32_t argCount) {
     exceptionStackHandler->stackTop = ctx->stack.top;
 
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
-    fprintf(stderr, "VM: Configured exception handler for jump on exception: %d, jump on success: %d\n", jumpToOnException, jumpToOnSuccess);
+    logInfo("VM: Configured exception handler for jump on exception: %d, jump on success: %d\n", jumpToOnException, jumpToOnSuccess);
 #endif
 
     return RValue_makeUndefined();
@@ -15601,7 +15601,7 @@ static RValue jsonDecodeValue(VMContext* ctx, JsonValue* json) {
 
 static RValue builtin_json_decode(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[json_decode] Expected at least 1 argument\n");
+        logWarn("[json_decode] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
 
@@ -15666,7 +15666,7 @@ static RValue builtin_object_get_solid(VMContext* ctx, RValue* args, int32_t arg
 
 static RValue builtin_object_get_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[object_get_sprite] Expected at least 1 argument\n");
+        logWarn("[object_get_sprite] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
 
@@ -15806,7 +15806,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
     DataWin* dw = ctx->dataWin;
 
     if (0 > spriteIndex || (uint32_t) spriteIndex >= dw->sprt.count) {
-        fprintf(stderr, "[font_add_sprite] Invalid sprite index %d\n", spriteIndex);
+        logWarn("[font_add_sprite] Invalid sprite index %d\n", spriteIndex);
         return RValue_makeReal(-1.0);
     }
 
@@ -15930,7 +15930,7 @@ static RValue fontAddSpriteImpl(VMContext* ctx, int32_t spriteIndex, uint16_t* c
 
 static RValue builtin_font_get_name(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[font_get_name] Expected 1 argument, got 0");
+        logWarn("[font_get_name] Expected 1 argument, got 0");
         return RValue_makeUndefined();
     }
 
@@ -15941,7 +15941,7 @@ static RValue builtin_font_get_name(VMContext* ctx, RValue* args, int32_t argCou
 
 static RValue builtin_font_get_size(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[font_get_size] Expected 1 argument, got 0");
+        logError("[font_get_size] Expected 1 argument, got 0");
         return RValue_makeUndefined();
     }
 
@@ -15993,7 +15993,7 @@ static RValue builtin_font_get_info(VMContext* ctx, RValue* args, int32_t argCou
 // font_add_sprite_ext(sprite, string_map, prop, sep)
 static RValue builtin_font_add_sprite_ext(VMContext* ctx, RValue* args, int32_t argCount) {
     if (4 > argCount) {
-        fprintf(stderr, "[font_add_sprite_ext] Expected 4 arguments, got %d\n", argCount);
+        logWarn("[font_add_sprite_ext] Expected 4 arguments, got %d\n", argCount);
         return RValue_makeReal(-1.0);
     }
 
@@ -16018,7 +16018,7 @@ static RValue builtin_font_add_sprite_ext(VMContext* ctx, RValue* args, int32_t 
 // font_add_sprite(sprite, first, prop, sep)
 static RValue builtin_font_add_sprite(VMContext* ctx, RValue* args, int32_t argCount) {
     if (4 > argCount) {
-        fprintf(stderr, "[font_add_sprite] Expected 4 arguments, got %d\n", argCount);
+        logWarn("[font_add_sprite] Expected 4 arguments, got %d\n", argCount);
         return RValue_makeReal(-1.0);
     }
 
@@ -16045,7 +16045,7 @@ static RValue builtin_font_add_sprite(VMContext* ctx, RValue* args, int32_t argC
 
 static RValue builtin_asset_get_index(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
-        fprintf(stderr, "[asset_get_index] Expected at least 1 argument\n");
+        logWarn("[asset_get_index] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
 
@@ -16209,8 +16209,8 @@ static RValue builtin_parameter_string(VMContext* ctx, RValue* args, int32_t arg
 
 static RValue builtin_shader_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
-    //fprintf(stderr, "Set Shader ID %u\n", ShaderID);
-    //gpuSetShader
+    // logInfo("Set Shader ID %u\n", ShaderID);
+    // gpuSetShader
     ctx->runner->renderer->vtable->gpuSetShader(ctx->runner->renderer, ShaderID);
     return RValue_makeUndefined();
 }
@@ -16266,7 +16266,7 @@ static RValue builtin_texture_set_stage(VMContext* ctx, MAYBE_UNUSED RValue* arg
 static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t handle = (int32_t) RValue_toReal(args[0]);
     float value1, value2, value3, value4;
-    //fprintf(stderr, "Set ARG Count %u\n", argCount);
+    // logInfo("Set ARG Count %u\n", argCount);
     if (argCount == 2) {
         value1 = (float) RValue_toReal(args[1]);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 1, value1, 0.0, 0.0, 0.0);
@@ -16284,7 +16284,7 @@ static RValue builtin_shader_set_uniformF(VMContext* ctx, MAYBE_UNUSED RValue* a
         value2 = (float) RValue_toReal(args[2]);
         value3 = (float) RValue_toReal(args[3]);
         value4 = (float) RValue_toReal(args[4]);
-        //fprintf(stderr, "Value4  %.8f\n", value4);
+        // logInfo("Value4  %.8f\n", value4);
         ctx->runner->renderer->vtable->shaderSetUniformF(ctx->runner->renderer, handle, 4, value1, value2, value3, value4);
     }
     return RValue_makeUndefined();

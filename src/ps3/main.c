@@ -81,7 +81,7 @@ const StickMapping STICK_MAPPINGS[] = {
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
 // ===[ MAIN ]===
-static double freq = 0; 
+static double freq = 0;
 #define PS3_GET_TIME ((double)__builtin_ppc_get_timebase() / (double)freq)
 bool shouldExit = false;
 
@@ -94,7 +94,7 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
             break;
-        
+
         case SYSUTIL_MENU_OPEN:
         case SYSUTIL_MENU_CLOSE:
             break;
@@ -155,9 +155,27 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
 static char buffer[9999];
 int main(int argc, char* argv[]) {
-    printf("%s\n", argv[0]);
+   	logInfo("%s\n", argv[0]);
     if (argc > 0)
         strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
@@ -176,7 +194,7 @@ int main(int argc, char* argv[]) {
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-    printf("Loading %s...\n", dataWinPath);
+    logInfo("Loading %s...\n", dataWinPath);
 
     DataWinParserOptions options = {0};
     options.parseGen8 = true;
@@ -210,7 +228,7 @@ int main(int argc, char* argv[]) {
     DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-    printf("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+    logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -254,7 +272,7 @@ int main(int argc, char* argv[]) {
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
-            fprintf(stderr, "FATAL: failed to load %s\n", texturesBinPath);
+            logError("Fatal: failed to load %s\n", texturesBinPath);
             return 1;
         }
         free(texturesBinPath);
@@ -285,7 +303,7 @@ int main(int argc, char* argv[]) {
         glUseProgram(gPalettedProgram);
         glUniform1i(uPaletteLoc, 1);
         glUseProgram(0);
-        printf("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
+        logInfo("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
     }
 
     // Initialize the runner
@@ -310,7 +328,7 @@ int main(int argc, char* argv[]) {
         bool shouldStep = true;
         if (runner->debugMode && debugPaused) {
             shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-            if (shouldStep) fprintf(stderr, "Debug: Frame advance (frame %d)\n", runner->frameCount);
+            if (shouldStep) logDebug("Frame advance (frame %d)\n", runner->frameCount);
         }
 
 
@@ -450,6 +468,6 @@ int main(int argc, char* argv[]) {
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
     gcmSetWaitFlip(context);
     rsxFinish(context,1);
-    printf("Bye! :3\n");
+    logInfo("Bye! :3\n");
     return 0;
 }

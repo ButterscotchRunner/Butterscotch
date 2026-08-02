@@ -33,23 +33,23 @@ void PS2Utils_loadFSDrivers() {
     require(deviceKeyLoaded);
 
     if (deviceKey.usesISO9660) {
-        fprintf(stderr, "PS2Utils: Loading CDVD drivers for device key '%s'\n", deviceKey.key);
+        logInfo("PS2Utils: Loading CDVD drivers for device key '%s'\n", deviceKey.key);
 
         int ret;
         ret = SifLoadModule("rom0:CDVDMAN", 0, nullptr);
         if (0 > ret) {
-            fprintf(stderr, "PS2Utils: Failed to load CDVDMAN: %d\n", ret);
+            logError("PS2Utils: Failed to load CDVDMAN: %d\n", ret);
             abort();
         }
 
         ret = SifLoadModule("rom0:CDVDFSV", 0, nullptr);
         if (0 > ret) {
-            fprintf(stderr, "PS2Utils: Failed to load CDVDFSV: %d\n", ret);
+            logError("PS2Utils: Failed to load CDVDFSV: %d\n", ret);
             abort();
         }
 
         sceCdInit(SCECdINIT);
-        fprintf(stderr, "PS2Utils: CDVD initialized\n");
+        logInfo("PS2Utils: CDVD initialized\n");
     }
 }
 
@@ -67,33 +67,33 @@ extern unsigned int size_usbmass_bd_irx;
 void PS2Utils_loadMassStorageDrivers() {
     require(deviceKeyLoaded);
 
-    fprintf(stderr, "PS2Utils: Loading USB mass storage drivers for gprof output...\n");
+    logInfo("PS2Utils: Loading USB mass storage drivers for gprof output...\n");
 
     int ret;
     ret = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load usbd: %d\n", ret);
+        logWarn("PS2Utils: Failed to load usbd: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(bdm_irx, size_bdm_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load bdm: %d\n", ret);
+        logWarn("PS2Utils: Failed to load bdm: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load bdmfs_fatfs: %d\n", ret);
+        logWarn("PS2Utils: Failed to load bdmfs_fatfs: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(usbmass_bd_irx, size_usbmass_bd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load usbmass_bd: %d\n", ret);
+        logWarn("PS2Utils: Failed to load usbmass_bd: %d\n", ret);
     }
 
     // Wait for USB device detection
     sleep(3);
 
-    fprintf(stderr, "PS2Utils: USB mass storage drivers loaded\n");
+    logInfo("PS2Utils: USB mass storage drivers loaded\n");
 }
 #endif
 

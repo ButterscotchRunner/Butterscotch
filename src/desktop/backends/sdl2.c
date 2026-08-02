@@ -28,7 +28,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-        
+
         SDL_Window *newWindow = SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
@@ -45,7 +45,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         }
         return NULL;
     }
-    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {        
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         SDL_Window *newWindow;
         int contextFlags = 0;
 
@@ -60,16 +60,16 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
 
         if (GLCommon_versions[i].gles) {
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-        } else {            
+        } else {
             if (GLCommon_versions[i].major >= 3) {
                 if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
                     contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
                 }
             } else {
-                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); 
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
             }
         }
-        
+
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
 
         newWindow = SDL_CreateWindow(
@@ -86,7 +86,7 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             }
             SDL_DestroyWindow(newWindow);
         }
-        
+
     }
     return NULL;
 }
@@ -163,14 +163,14 @@ static bool platformGetWindowFocus(void) {
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
-        fprintf(stderr, "Failed to initialize SDL\n");
+        logError("Failed to initialize SDL\n");
         return false;
     }
 
     for (int i = 0; i < MAX_GAMEPADS; i++) {
         openControllers[i] = NULL;
     }
-  
+
     Uint32 flags;
     if (headless)
         flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
@@ -179,18 +179,18 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #if SDL_VERSION_ATLEAST(2, 0, 1)
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
-    
+
     window = tryOpenWindow(reqW, reqH, title, flags);
-    
+
     if (!window && gfx != SOFTWARE) {
-        fprintf(stderr, "Fatal: Could not open window: %s\n", SDL_GetError());
+        logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
-    
+
     if (!window && gfx == SOFTWARE) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
-            fprintf(stderr, "Warning: %dx%d unavailable, falling back to %dx%d: %s\n",
+            logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
                     reqW, reqH, mode.w, mode.h, SDL_GetError());
             reqW = mode.w;
             reqH = mode.h;
@@ -204,7 +204,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         }
     }
     if (!window) {
-        fprintf(stderr, "Fatal: Could not set any video mode: %s\n", SDL_GetError());
+        logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
     if (gfx != SOFTWARE) {
@@ -218,9 +218,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
-        fprintf(stderr, "Gamepad: Loaded SDL gamecontroller mappings successfully\n");
+        logInfo("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
     } else {
-        fprintf(stderr, "Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
+        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
     }
 
     return true;

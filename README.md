@@ -10,7 +10,7 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > Butterscotch is still VERY early in development and it is NOT that good yet.
 
 When you create a game in GameMaker: Studio and export it, GameMaker: Studio exports the game code as bytecode instead of native compiled code, and that bytecode is compatible with any other GameMaker: Studio runner (also known as YoYo runner), as long as they have matching GameMaker: Studio versions. This is similar to how Java applications work.
@@ -52,7 +52,7 @@ However, that doesn't mean that a game that uses a compatible version WILL run! 
 
 Of course, there are exceptions that break game compatibility altogether:
 
-* Games compiled with YYC, because they use native code instead of bytecode. 
+* Games compiled with YYC, because they use native code instead of bytecode.
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
 
 ## Supported Platforms
@@ -153,6 +153,8 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --profile-opcodes                      - Rank which GML opcodes were executed the most
 --lazy-textures                        - Load textures into VRAM on first use, improving startup times
 --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
+--disable-log-colours                  - Disable colours for warning, error, and debug logs
+--disable-log-colors                   - Same as --disable-log-colours, but different spelling
 ```
 
 ## Debug Features
@@ -173,7 +175,7 @@ Performance is pretty good on any modern computer, but when running on low end t
 
 ## Then why not have a transpiler?
 
-The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any 
+The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any
 *improvement* from it, you would need to create a *good* transpiler that actually transpiles it into *good* code, and that's way harder.
 
 Having a transpiler also have other disadvantages:

@@ -188,7 +188,7 @@ void loop(const char* dataWinPath) {
     if (fileExists(texBinPath)) {
         options.parseTxtr = false;
         if (!VitaTextures_Init(texBinPath)) {
-            fprintf(stderr, "FATAL: failed to load %s\n", texBinPath);
+            logError("FATAL: failed to load %s\n", texBinPath);
             return;
         }
     }
@@ -278,7 +278,7 @@ void loop(const char* dataWinPath) {
                         int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                         runner->pendingRoom = nextIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        fprintf(stderr, "Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                        logDebug("Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
                     }
                 }
                 // Go to previous room
@@ -288,7 +288,7 @@ void loop(const char* dataWinPath) {
                         int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
                         runner->pendingRoom = prevIdx;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                        fprintf(stderr, "Debug: Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
+                        logDebug("Debug: Going to previous room -> %s\n", dw->room.rooms[prevIdx].name);
                     }
                 }
             }

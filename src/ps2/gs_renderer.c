@@ -22,7 +22,7 @@
 static void rendererPrintf(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vLogInfo(fmt, args);
     va_end(args);
 }
 #else
@@ -47,7 +47,7 @@ static uint8_t* loadFileRaw(const char* path, uint32_t* outSize) {
 
     FILE* f = fopen(textureBinPath, "rb");
     if (f == nullptr) {
-        fprintf(stderr, "GsRenderer: Failed to open %s\n", path);
+        logError("GsRenderer: Failed to open %s\n", path);
         abort();
     }
 
@@ -62,7 +62,7 @@ static uint8_t* loadFileRaw(const char* path, uint32_t* outSize) {
     fclose(f);
 
     if (read != (size_t) size) {
-        fprintf(stderr, "GsRenderer: Short read on %s (expected %ld, got %zu)\n", path, size, read);
+        logError("GsRenderer: Short read on %s (expected %ld, got %zu)\n", path, size, read);
         abort();
     }
 
@@ -76,7 +76,7 @@ static void loadAtlas(GsRenderer* gs) {
     char* atlasBinPath = PS2Utils_createDevicePath("ATLAS.BIN");
     FILE* f = fopen(atlasBinPath, "rb");
     if (f == nullptr) {
-        fprintf(stderr, "GsRenderer: Failed to open %s\n", atlasBinPath);
+        logError("GsRenderer: Failed to open %s\n", atlasBinPath);
         abort();
     }
 
@@ -88,7 +88,7 @@ static void loadAtlas(GsRenderer* gs) {
 
     uint8_t version = BinaryReader_readUint8(&reader);
     if (version != 0) {
-        fprintf(stderr, "GsRenderer: Unsupported ATLAS.BIN version %u\n", version);
+        logError("GsRenderer: Unsupported ATLAS.BIN version %u\n", version);
         abort();
     }
 
@@ -111,7 +111,7 @@ static void loadAtlas(GsRenderer* gs) {
         gs->atlasDataSizes[i] = BinaryReader_readUint32(&reader);
         gs->atlasCompressionType[i] = BinaryReader_readUint8(&reader);
         if (gs->atlasBpp[i] != 4 && gs->atlasBpp[i] != 8) {
-            fprintf(stderr, "GsRenderer: Atlas %u has unsupported bpp %u\n", i, gs->atlasBpp[i]);
+            logError("GsRenderer: Atlas %u has unsupported bpp %u\n", i, gs->atlasBpp[i]);
             abort();
         }
     }
@@ -175,7 +175,7 @@ static void loadAtlas(GsRenderer* gs) {
         gs->atlasToChunk[i] = -1;
     }
 
-    fprintf(stderr, "GsRenderer: ATLAS.BIN loaded - %u TPAG entries, %u tile entries, %u atlases\n", gs->atlasTPAGCount, gs->atlasTileCount, gs->atlasCount);
+    logInfo("GsRenderer: ATLAS.BIN loaded - %u TPAG entries, %u tile entries, %u atlases\n", gs->atlasTPAGCount, gs->atlasTileCount, gs->atlasCount);
 
     free(atlasBinPath);
 }
@@ -197,7 +197,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         uint32_t clut4FileSize;
         uint8_t* clut4Data = loadFileRaw("CLUT4.BIN", &clut4FileSize);
         gs->clut4Count = clut4FileSize / CLUT4_ENTRY_SIZE;
-        fprintf(stderr, "GsRenderer: CLUT4.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut4Count, clut4FileSize);
+        logInfo("GsRenderer: CLUT4.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut4Count, clut4FileSize);
 
         gs->clut4VramAddrs = (uint32_t *)safeMalloc(gs->clut4Count * sizeof(uint32_t));
 
@@ -206,7 +206,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
             uint32_t vramSize = gsKit_texture_size(8, 2, GS_PSM_CT32);
             uint32_t vramAddr = gsKit_vram_alloc(gsGlobal, vramSize, GSKIT_ALLOC_USERBUFFER);
             if (vramAddr == GSKIT_ALLOC_ERROR) {
-                fprintf(stderr, "GsRenderer: Failed to allocate VRAM for CLUT4 index %u\n", i);
+                logError("GsRenderer: Failed to allocate VRAM for CLUT4 index %u\n", i);
                 abort();
             }
 
@@ -216,7 +216,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
             gs->clut4VramAddrs[i] = vramAddr;
         }
 
-        fprintf(stderr, "GsRenderer: CLUT4 uploaded (%u CLUTs)\n", gs->clut4Count);
+        logInfo("GsRenderer: CLUT4 uploaded (%u CLUTs)\n", gs->clut4Count);
         free(clut4Data);
     }
 
@@ -225,7 +225,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
         uint32_t clut8FileSize;
         uint8_t* clut8Data = loadFileRaw("CLUT8.BIN", &clut8FileSize);
         gs->clut8Count = clut8FileSize / CLUT8_ENTRY_SIZE;
-        fprintf(stderr, "GsRenderer: CLUT8.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut8Count, clut8FileSize);
+        logInfo("GsRenderer: CLUT8.BIN loaded - %u CLUTs (%u bytes)\n", gs->clut8Count, clut8FileSize);
 
         gs->clut8VramAddrs = (uint32_t *)safeMalloc(gs->clut8Count * sizeof(uint32_t));
 
@@ -234,7 +234,7 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
             uint32_t vramSize = gsKit_texture_size(16, 16, GS_PSM_CT32);
             uint32_t vramAddr = gsKit_vram_alloc(gsGlobal, vramSize, GSKIT_ALLOC_USERBUFFER);
             if (vramAddr == GSKIT_ALLOC_ERROR) {
-                fprintf(stderr, "GsRenderer: Failed to allocate VRAM for CLUT8 index %u\n", i);
+                logError("GsRenderer: Failed to allocate VRAM for CLUT8 index %u\n", i);
                 abort();
             }
 
@@ -243,13 +243,13 @@ static void loadAndUploadCLUTs(GsRenderer* gs) {
             gs->clut8VramAddrs[i] = vramAddr;
         }
 
-        fprintf(stderr, "GsRenderer: CLUT8 uploaded (%u CLUTs)\n", gs->clut8Count);
+        logInfo("GsRenderer: CLUT8 uploaded (%u CLUTs)\n", gs->clut8Count);
         free(clut8Data);
     }
 
     free(tempBuf);
 
-    fprintf(stderr, "GsRenderer: VRAM after CLUTs: 0x%08X / 0x%08X\n", gsGlobal->CurrentPointer, GS_VRAM_SIZE);
+    logInfo("GsRenderer: VRAM after CLUTs: 0x%08X / 0x%08X\n", gsGlobal->CurrentPointer, GS_VRAM_SIZE);
 }
 
 // ===[ VRAM Texture Cache (Buddy System with LRU Eviction) ]===
@@ -283,7 +283,7 @@ static void initTextureCache(GsRenderer* gs) {
     // Advance CurrentPointer past our chunk pool so any future gsKit allocations fail loudly.
     gs->gsGlobal->CurrentPointer = gs->textureVramBase + gs->chunkCount * VRAM_CHUNK_SIZE;
 
-    fprintf(stderr, "GsRenderer: Texture cache initialized - %u chunks (%u KB each), base 0x%08X, %u KB for textures\n", gs->chunkCount, VRAM_CHUNK_SIZE / 1024, gs->textureVramBase, gs->chunkCount * (VRAM_CHUNK_SIZE / 1024));
+    logInfo("GsRenderer: Texture cache initialized - %u chunks (%u KB each), base 0x%08X, %u KB for textures\n", gs->chunkCount, VRAM_CHUNK_SIZE / 1024, gs->textureVramBase, gs->chunkCount * (VRAM_CHUNK_SIZE / 1024));
 }
 
 // A chunk is free if no atlas, snapshot, or surface occupies it. Snapshots and surfaces both pin the chunk against LRU eviction.
@@ -470,7 +470,7 @@ static void computeAtlasReservation(GsRenderer* gs) {
     }
     if (worst > gs->chunkCount) worst = gs->chunkCount;
     gs->reservedAtlasChunks = worst;
-    fprintf(stderr, "GsRenderer: Reserving first %u chunk(s) (%u KB) as atlas-only fail-safe (largest atlas @ 8bpp)\n", worst, worst * (VRAM_CHUNK_SIZE / 1024));
+    logInfo("GsRenderer: Reserving first %u chunk(s) (%u KB) as atlas-only fail-safe (largest atlas @ 8bpp)\n", worst, worst * (VRAM_CHUNK_SIZE / 1024));
 }
 
 // Initialize the EE RAM cache. Called from gsInit after opening TEXTURES.BIN.
@@ -607,7 +607,7 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
         fseek(gs->texturesFile, (long) gs->atlasOffsets[atlasId], SEEK_SET);
         size_t bytesRead = fread(compressedBuf, 1, dataSize, gs->texturesFile);
         if (bytesRead != dataSize) {
-            fprintf(stderr, "GsRenderer: Short read for atlas %u (expected %u, got %zu)\n", atlasId, dataSize, bytesRead);
+            logError("GsRenderer: Short read for atlas %u (expected %u, got %zu)\n", atlasId, dataSize, bytesRead);
             abort();
         }
 
@@ -668,7 +668,7 @@ static void uploadAtlasToChunk(GsRenderer* gs, uint16_t atlasId, int32_t firstCh
 // Returns true on success, false on failure.
 static bool ensureAtlasLoaded(GsRenderer* gs, uint16_t atlasId) {
     if (atlasId >= gs->atlasCount) {
-        fprintf(stderr, "GsRenderer: Atlas ID %u out of range (max %u)\n", atlasId, gs->atlasCount - 1);
+        logWarn("GsRenderer: Atlas ID %u out of range (max %u)\n", atlasId, gs->atlasCount - 1);
         return false;
     }
 
@@ -693,7 +693,7 @@ static bool ensureAtlasLoaded(GsRenderer* gs, uint16_t atlasId) {
     // Determine how many chunks we need
     uint8_t bpp = gs->atlasBpp[atlasId];
     if (bpp != 4 && bpp != 8) {
-        fprintf(stderr, "GsRenderer: Atlas %u has unknown bpp %u\n", atlasId, bpp);
+        logWarn("GsRenderer: Atlas %u has unknown bpp %u\n", atlasId, bpp);
         return false;
     }
     int chunksNeeded = atlasChunkCount(gs->atlasWidth[atlasId], gs->atlasHeight[atlasId], bpp);
@@ -705,7 +705,7 @@ static bool ensureAtlasLoaded(GsRenderer* gs, uint16_t atlasId) {
     // Allocate chunks (may evict or defrag)
     int32_t chunkIdx = allocateChunks(gs, chunksNeeded, 0);
     if (0 > chunkIdx) {
-        fprintf(stderr, "GsRenderer: VRAM exhausted! Cannot allocate %d chunk(s) for atlas %u (%ubpp)\n", chunksNeeded, atlasId, bpp);
+        logError("GsRenderer: VRAM exhausted! Cannot allocate %d chunk(s) for atlas %u (%ubpp)\n", chunksNeeded, atlasId, bpp);
         abort();
     }
 
@@ -903,7 +903,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
         tex->ClutPSM = GS_PSM_CT32;
 
         if (entry->clutIndex >= gs->clut4Count) {
-            fprintf(stderr, "GsRenderer: CLUT4 index %u out of range (max %u) for TPAG %d\n", entry->clutIndex, gs->clut4Count - 1, tpagIndex);
+            logError("GsRenderer: CLUT4 index %u out of range (max %u) for TPAG %d\n", entry->clutIndex, gs->clut4Count - 1, tpagIndex);
             abort();
         }
 
@@ -913,7 +913,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
         tex->ClutPSM = GS_PSM_CT32;
 
         if (entry->clutIndex >= gs->clut8Count) {
-            fprintf(stderr, "GsRenderer: CLUT8 index %u out of range (max %u) for TPAG %d\n", entry->clutIndex, gs->clut8Count - 1, tpagIndex);
+            logError("GsRenderer: CLUT8 index %u out of range (max %u) for TPAG %d\n", entry->clutIndex, gs->clut8Count - 1, tpagIndex);
             abort();
         }
 
@@ -965,7 +965,7 @@ static bool setupTextureForTile(GsRenderer* gs, GSTEXTURE* tex, AtlasTileEntry* 
         tex->ClutPSM = GS_PSM_CT32;
 
         if (entry->clutIndex >= gs->clut4Count) {
-            fprintf(stderr, "GsRenderer: CLUT4 index %u out of range (max %u) for tile (bg=%d)\n", entry->clutIndex, gs->clut4Count - 1, entry->bgDef);
+            logError("GsRenderer: CLUT4 index %u out of range (max %u) for tile (bg=%d)\n", entry->clutIndex, gs->clut4Count - 1, entry->bgDef);
             abort();
         }
 
@@ -975,7 +975,7 @@ static bool setupTextureForTile(GsRenderer* gs, GSTEXTURE* tex, AtlasTileEntry* 
         tex->ClutPSM = GS_PSM_CT32;
 
         if (entry->clutIndex >= gs->clut8Count) {
-            fprintf(stderr, "GsRenderer: CLUT8 index %u out of range (max %u) for tile (bg=%d)\n", entry->clutIndex, gs->clut8Count - 1, entry->bgDef);
+            logError("GsRenderer: CLUT8 index %u out of range (max %u) for tile (bg=%d)\n", entry->clutIndex, gs->clut8Count - 1, entry->bgDef);
             abort();
         }
 
@@ -1060,7 +1060,7 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
     char* texturesBinPath = PS2Utils_createDevicePath("TEXTURES.BIN");
     gs->texturesFile = fopen(texturesBinPath, "rb");
     if (gs->texturesFile == nullptr) {
-        fprintf(stderr, "GsRenderer: Failed to open %s\n", texturesBinPath);
+        logError("GsRenderer: Failed to open %s\n", texturesBinPath);
         abort();
     }
     setvbuf(gs->texturesFile, nullptr, _IOFBF, 128 * 1024);
@@ -1081,7 +1081,7 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
     // Initialize EE RAM cache for compressed atlas data
     initEeCache(gs);
 
-    fprintf(stderr, "GsRenderer: Initialized (textured mode)\n");
+    logInfo("GsRenderer: Initialized (textured mode)\n");
 }
 
 static void gsDestroy(Renderer* renderer) {
@@ -2295,7 +2295,7 @@ static void gsDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     if (0 > spriteIndex || (uint32_t) spriteIndex >= dw->sprt.count) return;
     // Refuse to delete original data.win sprites - their tpagIndices point into the static atlas, not snapshot pool.
     if (gs->originalSpriteCount > (uint32_t) spriteIndex) {
-        fprintf(stderr, "GsRenderer: Cannot delete data.win sprite %d\n", spriteIndex);
+        logWarn("GsRenderer: Cannot delete data.win sprite %d\n", spriteIndex);
         return;
     }
 
@@ -2378,9 +2378,9 @@ static u64 gmsBlendModeToGSAlpha(int32_t mode) {
 static BlendFactors gsGpuGetBlendFactors(Renderer* renderer) {
     GsRenderer* gs = (GsRenderer*)renderer;
     return (BlendFactors){
-        gs->currentSFactor, 
-        gs->currentDFactor, 
-        gs->currentSFactorAlpha, 
+        gs->currentSFactor,
+        gs->currentDFactor,
+        gs->currentSFactorAlpha,
         gs->currentDFactorAlpha
     };
 }
@@ -2405,7 +2405,7 @@ static void gsGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
     gs->currentDFactorAlpha = dfactor_alpha;
     u64 alpha;
     if (!gmsFactorPairToGSAlpha(sfactor, dfactor, &alpha) && !gs->blendModeWarned) {
-        fprintf(stderr, "GsRenderer: blend mode (sf=%d, df=%d) not exactly representable on PS2; approximating\n", sfactor, dfactor);
+        logWarn("GsRenderer: blend mode (sf=%d, df=%d) not exactly representable on PS2; approximating\n", sfactor, dfactor);
         gs->blendModeWarned = true;
     }
     gs->currentBlendAlpha = alpha;
@@ -2668,7 +2668,7 @@ static int32_t gsCreateSurface(Renderer* renderer, int32_t width, int32_t height
     }
 
     if (phantomReason != nullptr) {
-        fprintf(stderr, "GsRenderer: surface_create(%d, %d) phantom (%s); needed %d chunks (%u bytes)\n", width, height, phantomReason, chunksNeeded, bytes);
+        logWarn("GsRenderer: surface_create(%d, %d) phantom (%s); needed %d chunks (%u bytes)\n", width, height, phantomReason, chunksNeeded, bytes);
         Surface* s = &gs->surfaces[row];
         s->firstChunk = 0;
         s->chunkCount = 0;
