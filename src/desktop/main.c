@@ -15,6 +15,10 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <io.h>
+#include <psapi.h>
+#endif
+#ifdef __APPLE__
+#include <mach/mach.h>
 #endif
 #ifdef __GLIBC__
 #include <malloc.h>
@@ -77,7 +81,7 @@ const GLuint *hostFramebuffer;
 #endif
 
 static size_t get_used_memory(void) {
-#ifdef __linux__
+#if defined(__linux__)
     int fd = open("/proc/self/smaps_rollup", O_RDONLY);
     if (fd < 0)
         return 0;
@@ -104,6 +108,32 @@ static size_t get_used_memory(void) {
             p++;
         if (*p)
             p++;
+    }
+#elif defined(__APPLE__)
+    task_basic_info_data_t info;
+    mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
+        return info.resident_size;
+    }
+#elif defined(_WIN32)
+    typedef BOOL (WINAPI *GetProcessMemoryInfo_t)(HANDLE, PPROCESS_MEMORY_COUNTERS, DWORD);
+    static GetProcessMemoryInfo_t func = NULL;
+    static bool initialized = false;
+
+    if (!initialized) {
+        initialized = true;
+        HMODULE dll = LoadLibrary("psapi.dll");
+        if (dll) {
+            FARPROC p = GetProcAddress(dll, "GetProcessMemoryInfo");
+            memcpy(&func, &p, sizeof(func));
+        }
+    }
+
+    if (func) {
+        PROCESS_MEMORY_COUNTERS pmc;
+        pmc.cb = sizeof(pmc);
+        if (func(GetCurrentProcess(), &pmc, sizeof(pmc)))
+            return pmc.WorkingSetSize;
     }
 #endif
     return 0;
