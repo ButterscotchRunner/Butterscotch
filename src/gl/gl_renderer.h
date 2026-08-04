@@ -6,6 +6,8 @@
 #include "runner.h"
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
+#elif PLATFORM_VITA
+#include <vitaGL.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -91,6 +93,13 @@ typedef struct {
 
     bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
     bool isGLES;  // TRUE if running on OpenGL ES (GLES)
+
+    // Cached default shader uniforms
+    GLShaderUniform* uWorldViewProjection;
+    GLShaderUniform* uFogColor;
+    GLShaderUniform* uAlphaTestRef;
+    GLShaderUniform* uAlphaTestEnabled;
+    GLShaderUniform* uTexture;
 } GLRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);

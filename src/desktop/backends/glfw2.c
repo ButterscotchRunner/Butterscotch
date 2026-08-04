@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <time.h>
 
 #ifdef _WIN32
@@ -29,7 +29,7 @@ static bool tryOpenWindow(int reqW, int reqH) {
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, GLCommon_versions[i].major);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, GLCommon_versions[i].minor);
-            
+
         if (GLCommon_versions[i].major >= 3) {
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
             if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
@@ -186,18 +186,18 @@ static void GLFWCALL scrollCallback(int pos) {
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     if (headless) {
-        fprintf(stderr, "Headless mode is not supported with GLFW 2\n");
+        logError("Headless mode is not supported with GLFW 2\n");
         return false;
     }
 
     // Init GLFW
     if (!glfwInit()) {
-        fprintf(stderr, "Failed to initialize GLFW\n");
+        logError("Failed to initialize GLFW\n");
         return false;
     }
 
     if (!tryOpenWindow(reqW, reqH)) {
-        fprintf(stderr, "Failed to create GLFW window\n");
+        logError("Failed to create GLFW window\n");
         glfwTerminate();
         return false;
     }
@@ -224,9 +224,19 @@ void platformExit(void) {
 static void platformSetCursor(int32_t cursorType) {
     // GLFW2 only supports showing/hiding
     if (cursorType == GML_CR_NONE) {
+        // GLFW2's mouse cursor locks the mouse position when it's invisible on Windows.
+        // This just makes it visible/invisible as intended.
+#ifdef _WIN32
+        while (ShowCursor(FALSE) >= 0);
+#else
         glfwDisable(GLFW_MOUSE_CURSOR);
+#endif
     } else {
+#ifdef _WIN32
+        while (ShowCursor(TRUE) < 0);
+#else
         glfwEnable(GLFW_MOUSE_CURSOR);
+#endif
     }
 }
 
@@ -291,7 +301,7 @@ bool platformHandleEvents(void) {
 }
 
 void platformSleepUntil(uint64_t time) {
-    double remaining = ((int64_t)time - nowNanos()) / 1000000000.0;
+    double remaining = ((int64_t)time - (int64_t)nowNanos()) / 1000000000.0;
     if (remaining > 0.002) // glfwSleep takes seconds as a double
         glfwSleep(remaining - 0.001);
 

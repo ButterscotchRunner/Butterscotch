@@ -4,12 +4,15 @@
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
+#elif PLATFORM_VITA
+#include <vitaGL.h>
+#include "vita_textures.h"
 #else
 #include <glad/glad.h>
 #endif
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "stb_image.h"
@@ -17,6 +20,7 @@
 #include "utils.h"
 #include "image_decoder.h"
 #include "gl_common.h"
+#include "gl_wrappers.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -27,9 +31,9 @@
 // ===[ Shader Sources ]===
 
 static const char* baseVertexShader =
-    "uniform mat4 uProjection;\n"
+    "uniform mat4 uWorldViewProjection;\n"
     "void main() {\n"
-    "    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);\n"
+    "    gl_Position = uWorldViewProjection * vec4(aPos, 0.0, 1.0);\n"
     "    vTexCoord = aTexCoord;\n"
     "    vColor = aColor;\n"
     "}\n";
@@ -52,7 +56,7 @@ static const char* baseFragmentShader =
 
 static bool hasFBO() {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
-    return (glGenFramebuffers || glGenFramebuffersEXT);
+    return glGenFramebuffers;
 #else
     return true;
 #endif
@@ -60,13 +64,11 @@ static bool hasFBO() {
 
 static bool hasVAO() {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
-    return (glGenVertexArrays || glGenVertexArraysOES);
+    return glGenVertexArrays;
 #else
     return true;
 #endif
 }
-
-#include "gl_wrappers.h"
 
 static inline uint8_t floatToUnormByte(float v) {
     if (v <= 0.0f) return 0;
@@ -86,7 +88,7 @@ static GLuint compileShader(GLenum type, const char* source, bool* ok) {
     if (!success) {
         char infoLog[512];
         glGetShaderInfoLog(shader, sizeof(infoLog), nullptr, infoLog);
-        fprintf(stderr, "GL: Shader compilation failed: %s\n", infoLog);
+        logError("GL: Shader compilation failed: %s\n", infoLog);
         *ok = false;
         return 0;
     }
@@ -110,11 +112,11 @@ static GLuint linkProgram(const char* name, uint32_t vertexAttributeCount, const
     if (!success) {
         char infoLog[512];
         glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
-        fprintf(stderr, "GL: Shader %s linking failed: %s\n", name, infoLog);
+        logError("GL: Shader %s linking failed: %s\n", name, infoLog);
         *success2 = false;
     } else {
         *success2 = true;
-        fprintf(stderr, "GL: Shader %s succesfully linked!\n", name);
+        logInfo("GL: Shader %s succesfully linked!\n", name);
     }
     return program;
 }
@@ -151,15 +153,13 @@ static void flushBatch(GLRenderer* gl) {
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
     } else {
-        glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-        glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
         int32_t stride = sizeof(Vertex);
@@ -201,18 +201,18 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
 // ===[ Vtable Implementations ]===
 
 static bool compileProgram(GMLShader* gmlShader, const char* name, const char* vertexShaderSource, const char* fragmentShaderSource, uint32_t vertexAttributeCount, const char** vertexAttributes) {
-    fprintf(stderr, "GL: Compiling %s vertex shader\n", name);
+    logInfo("GL: Compiling %s vertex shader\n", name);
     bool vertexShaderOK = false;
     bool fragmentShaderOK = false;
     GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, vertexShaderSource, &vertexShaderOK);
     if (!vertexShaderOK) {
-        fprintf(stderr, "GL: Failed to compile %s vertex shader!\n", name);
+        logError("GL: Failed to compile %s vertex shader!\n", name);
         return false;
     }
-    fprintf(stderr, "GL: Compiling %s fragment shader\n", name);
+    logInfo("GL: Compiling %s fragment shader\n", name);
     GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource, &fragmentShaderOK);
     if (!fragmentShaderOK) {
-        fprintf(stderr, "GL: Failed to compile %s fragment shader!\n", name);
+        logError("GL: Failed to compile %s fragment shader!\n", name);
         return false;
     }
 
@@ -262,30 +262,25 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+    Matrix4f world;
+    Matrix4f_identity(&world);
+    renderer->gmlMatrices[MATRIX_WORLD] = world;
+
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
-    const char* versionStr = (const char*) glGetString(GL_VERSION);
-    fprintf(stderr, "OpenGL version: %s\n", versionStr);
-    int major = 0;
-    int minor = 0;
-
-    if (versionStr != nullptr) {
-        const char* p = versionStr;
-        while (*p && (*p < '0' || *p > '9')) {
-            p++;
-        }
-        if (*p) {
-            sscanf(p, "%d", &major);
-        }
-        p = strchr(p, '.');
-        if (p && *p) {
-            sscanf(p + 1, "%d", &minor);
-        }
+    GLVer ver = GLCommon_getGLVersion();
+    if (ver.major < 2) {
+        logError("GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
+        abort();
     }
+    gl->isGL3 = (ver.major >= 3);
+    gl->isGLES = ver.isGLES;
 
-    gl->isGL3 = (major >= 3);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA)
+    gl_init_wrappers();
+#endif
 
     if (!hasFBO()) {
-        fprintf(stderr, "GL: The modern-gl renderer requires FBO support\n");
+        logError("GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
 
@@ -345,14 +340,20 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };
     bool success = compileProgram(defaultShader, "default", vertSrc, fragSrc, 3, defaultAttributes);
     if (!success) {
-        fprintf(stderr, "GL: Failed to compile default shaders! Bailing...\n");
+        logError("GL: Failed to compile default shaders! Bailing...\n");
         abort();
     }
 
     gl->defaultShaderProgram = defaultShader;
 
+    gl->uWorldViewProjection = findShaderUniformByName(defaultShader, "uWorldViewProjection");
+    gl->uFogColor = findShaderUniformByName(defaultShader, "uFogColor");
+    gl->uAlphaTestRef = findShaderUniformByName(defaultShader, "uAlphaTestRef");
+    gl->uAlphaTestEnabled = findShaderUniformByName(defaultShader, "uAlphaTestEnabled");
+    gl->uTexture = findShaderUniformByName(defaultShader, "uTexture");
+
     gl->gmlShaders = (GMLShader *)safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
-    fprintf(stderr, "GL: %u Shaders Found\n", dataWin->shdr.count);
+    logInfo("GL: %u Shaders Found\n", dataWin->shdr.count);
 
     repeat(dataWin->shdr.count, i) {
         Shader* shdr = &dataWin->shdr.shaders[i];
@@ -360,11 +361,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         if (!shdr->present) {
             gl->gmlShaderCount++;
-            fprintf(stderr, "GL: Skipping shader %d because it isn't present!\n", (int)i);
+            logWarn("GL: Skipping shader %d because it isn't present!\n", (int)i);
             continue;
         }
 
-        fprintf(stderr, "GL: Compiling %s\n", shdr->name);
+        logInfo("GL: Compiling %s\n", shdr->name);
 
         const char* vertexShaderSource = gl->isGLES ? shdr->glslES_Vertex : shdr->glsl_Vertex;
         const char* fragmentShaderSource = gl->isGLES ? shdr->glslES_Fragment : shdr->glsl_Fragment;
@@ -372,7 +373,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         char* patchedVertexSource = nullptr;
         char* patchedFragmentSource = nullptr;
 
-        if (!gl->isGLES && major == 2 && minor == 0) { // super opengl 2.0 fuckery go go
+        if (!gl->isGLES && ver.major == 2 && ver.minor == 0) { // super opengl 2.0 fuckery go go
             if (vertexShaderSource && strstr(vertexShaderSource, "#version 120")) {
                 patchedVertexSource = safeStrdup(vertexShaderSource);
                 char* loc = strstr(patchedVertexSource, "#version 120");
@@ -456,7 +457,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
+#if defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
+#else
     gl->textureCount = dataWin->txtr.count;
+#endif
     gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
     gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
@@ -490,7 +498,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->originalTpagCount = dataWin->tpag.count;
     gl->originalSpriteCount = dataWin->sprt.count;
 
-    fprintf(stderr, "GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
+    logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
 static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
@@ -508,8 +516,14 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
     GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
 
+    Matrix4f flippedClip[MATRICES_MAX];
+    memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
+
+    Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
+    Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
+
     if (gmMatricesUniform != nullptr) {
-        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, renderer->gmlMatrices[0].m);
+        glUniformMatrix4fv(gmMatricesUniform->location, 5, GL_FALSE, flippedClip[0].m);
     }
     if (gmFogColourUniform != nullptr) {
         glUniform1i(gmFogColourUniform->location, gl->fogColor);
@@ -536,18 +550,43 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
 
         glUseProgram(gl->defaultShaderProgram->shaderId);
 
-        GLShaderUniform* uProjection = findShaderUniformByName(gl->defaultShaderProgram, "uProjection");
-        GLShaderUniform* uFogColor = findShaderUniformByName(gl->defaultShaderProgram, "uFogColor");
-        GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
-        GLShaderUniform* uAlphaTestEnabled = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestEnabled");
-        GLShaderUniform* uTexture = findShaderUniformByName(gl->defaultShaderProgram, "uTexture");
+        Matrix4f flippedClip[MATRICES_MAX];
+        memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
+        //I was making the Legacy OpenGL renderer work with the projections, then I realized I think I only need to flip the Projection(s) and not the other ones
+        Matrix4f_flipClipY(&flippedClip[MATRIX_PROJECTION]);
+        Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
 
-        glUniformMatrix4fv(uProjection->location, 1, GL_FALSE, renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION].m);
-        glUniform4f(uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
-        glUniform1f(uAlphaTestRef->location, gl->alphaTestRef);
-        glUniform1i(uAlphaTestEnabled->location, gl->alphaTestEnable);
-        glUniform1i(uTexture->location, 1);
+        glUniformMatrix4fv(gl->uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
+        glUniform4f(gl->uFogColor->location, fogR, fogG, fogB, gl->fogEnable ? 1.0f : 0.0f);
+        glUniform1f(gl->uAlphaTestRef->location, gl->alphaTestRef);
+        glUniform1i(gl->uAlphaTestEnabled->location, gl->alphaTestEnable);
+        glUniform1i(gl->uTexture->location, 1);
     }
+}
+
+// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
+static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,const Matrix4f* projectionMatrix) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    // Flush first so pending quads draw under the projection they were issued with.
+    flushBatch(gl);
+
+    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f view = *viewMatrix;
+    Matrix4f projection = *projectionMatrix;
+
+    Matrix4f worldView;
+    Matrix4f_multiply(&worldView, &view, &world);
+
+    Matrix4f worldViewProjection;
+    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
+
+    renderer->gmlMatrices[MATRIX_VIEW] = view;
+    renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
+    //oh my I hope it's good enough.
+    glShaderSettingsRefresh(renderer);
 }
 
 static void glGpuResetShader(Renderer* renderer) {
@@ -623,7 +662,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     gl->base.CPortH = gameH;
 }
 
-static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {
+static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
@@ -632,28 +671,30 @@ static void glBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_
     // Set viewport and scissor to the port rectangle within the FBO
     // FBO uses game resolution, port coordinates are in game space
     // OpenGL viewport Y is bottom-up, game Y is top-down
-    int32_t glPortY = gl->gameH - portY - portH;
-    glViewport(portX, glPortY, portW, portH);
+
+    glViewport(portX, portY, portW, portH);
 
     gl->base.CPortX = portX;
-    gl->base.CPortY = glPortY;
+    gl->base.CPortY = portY;
     gl->base.CPortW = portW;
     gl->base.CPortH = portH;
 
     glEnable(GL_SCISSOR_TEST);
-    glScissor(portX, glPortY, portW, portH);
+    glScissor(portX, portY, portW, portH);
 
-    // World -> clip transform for this view.
-    Matrix4f projection;
-    Matrix4f_viewProjection(&projection, (float) viewX, (float) viewY, (float) viewW, (float) viewH, viewAngle);
-    Matrix4f_flipClipY(&projection);
+    int32_t viewCurrent = 0;
+    if (renderer->runner->viewsEnabled) {
+    viewCurrent = renderer->runner->viewCurrent;
+    }
+    RuntimeView* view = &renderer->runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
     glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
     if (hasVAO()) glBindVertexArray(gl->vao);
-    renderer->previousViewMatrix = projection;
 
 }
 
@@ -663,19 +704,7 @@ static void glEndView(Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-// camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, const Matrix4f* worldToClip) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    // Flush first so pending quads draw under the projection they were issued with.
-    flushBatch(gl);
-    Matrix4f projection = *worldToClip;
-    Matrix4f_flipClipY(&projection);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glShaderSettingsRefresh(renderer);
-    renderer->previousViewMatrix = projection;
-}
-
-static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
+static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, MAYBE_UNUSED int32_t portH, int32_t targetSurfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
@@ -695,27 +724,70 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     }
 
     glEnable(GL_SCISSOR_TEST);
+    //I dunno hopefully this is at least somewhat correct...
+    gl->base.cameraCurrent = GUI_CAMERA;
+    GMLCamera* camera = &renderer->runner->guiCamera;
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = guiW;
+    camera->viewHeight = guiH;
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
 
-    Matrix4f projection;
-    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
 
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glShaderSettingsRefresh(renderer);
+    Matrix4f viewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+
+
     glActiveTexture(GL_TEXTURE1);
 
     if (hasVAO()) glBindVertexArray(gl->vao);
 }
 
-static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
+static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-    Matrix4f projection;
-    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
+
     // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
-    // Flip the projection when we are rendering to a user surface so it comes back upright.
-    if (renderingToUserSurface) Matrix4f_flipClipY(&projection);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glShaderSettingsRefresh(renderer);
+    gl->base.cameraCurrent = GUI_CAMERA;
+    GMLCamera* camera = &renderer->runner->guiCamera;
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = guiW;
+    camera->viewHeight = guiH;
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+
+    //yeah no I have no idea how to do the GUI
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projectionMatrix);
+    Matrix4f viewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 }
 
 static void glEndGUI(Renderer* renderer) {
@@ -784,11 +856,10 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     float b = (float) BGR_B(color) / 255.0f;
 
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
-    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-    if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+    //No it doesn't?
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
-    if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
+
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -797,6 +868,18 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     if (gl->textureLoaded[pageId]) return (gl->textureWidths[pageId] != 0);
 
     gl->textureLoaded[pageId] = true;
+
+#if defined(PLATFORM_VITA)
+    if (VitaTextures_Active()) {
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+        if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
+            logError("GL: Failed to load Vita TXTR page %u", pageId);
+            return false;
+        }
+        logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        return true;
+    }
+#endif
 
     DataWin* dw = gl->base.dataWin;
     Texture* txtr = &dw->txtr.textures[pageId];
@@ -807,11 +890,13 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
     uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
-        fprintf(stderr, "GL: Failed to decode TXTR page %u\n", pageId);
+        logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
     }
-    free(txtr->blobData);
-    txtr->blobData = nullptr;
+    if (!txtr->mapped) {
+        free(txtr->blobData);
+        txtr->blobData = nullptr;
+    }
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
@@ -829,7 +914,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
-    fprintf(stderr, "GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
+    logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
 }
 
@@ -1516,11 +1601,11 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         // This gets the vertex data for the new triangle batch
         Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE;
         uint8_t ca = floatToUnormByte(alpha);
-        
+
         verts[0].x = x1; verts[0].y = y1; verts[0].u = 0.0f; verts[0].v = 0.0f; verts[0].r = (uint8_t) BGR_R(color1); verts[0].g = (uint8_t) BGR_G(color1); verts[0].b = (uint8_t) BGR_B(color1); verts[0].a = ca;
         verts[1].x = x2; verts[1].y = y2; verts[1].u = 0.0f; verts[1].v = 0.0f; verts[1].r = (uint8_t) BGR_R(color2); verts[1].g = (uint8_t) BGR_G(color2); verts[1].b = (uint8_t) BGR_B(color2); verts[1].a = ca;
         verts[2].x = x3; verts[2].y = y3; verts[2].u = 0.0f; verts[2].v = 0.0f; verts[2].r = (uint8_t) BGR_R(color3); verts[2].g = (uint8_t) BGR_G(color3); verts[2].b = (uint8_t) BGR_B(color3); verts[2].a = ca;
-        
+
         gl->batchCount++;
     }
 }
@@ -1879,7 +1964,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
 
-    fprintf(stderr, "GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
+    logInfo("GL: Created surface %u with size (%dx%d)\n", surfaceIndex, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     return (int32_t) surfaceIndex;
@@ -1918,7 +2003,7 @@ static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     gl->surfaceTexture[surfaceID] = 0;
     gl->surfaceWidth[surfaceID] = 0;
     gl->surfaceHeight[surfaceID] = 0;
-    fprintf(stderr, "GL: Freed Surface %u\n", surfaceID);
+    logInfo("GL: Freed Surface %u\n", surfaceID);
 }
 
 static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
@@ -1948,7 +2033,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
 
-    fprintf(stderr, "GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
+    logInfo("GL: Resized Surface %u Size (%dx%d)\n", surfaceID, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 }
 
@@ -1966,6 +2051,15 @@ static bool glSurfaceGetPixels(Renderer* renderer, int32_t surfaceId, uint8_t* o
 
 static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    int32_t viewCurrent = 0;
+    if (renderer->runner->viewsEnabled) {
+    viewCurrent = renderer->runner->viewCurrent;
+    }
+    RuntimeView* view = &renderer->runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
 
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return false;
     if (gl->surfaces[surfaceId] == 0) return false;
@@ -1975,19 +2069,46 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
-        renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = renderer->previousViewMatrix;
-        glShaderSettingsRefresh(renderer);
+
+        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+
         return true;
     }
 
-    // Normal surface bind: surface-local ortho covering the whole surface, no scissor.
-    Matrix4f projection;
-    Matrix4f_identity(&projection);
-    Matrix4f_ortho(&projection, 0.0f, (float) gl->surfaceWidth[surfaceId], 0.0f, (float) gl->surfaceHeight[surfaceId], -1.0f, 1.0f);
+
+    if (surfaceId == view->surfaceId) {
+    //the surface belongs to the view we are rending, we use the view's camera.
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = projection;
-    glShaderSettingsRefresh(renderer);
+    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+    return true;
+    } else {
+    //camera will use full surface.
+    gl->base.cameraCurrent = SURFACE_CAMERA;
+    GMLCamera* camera =  &renderer->runner->surfaceCamera;
+
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = gl->surfaceWidth[surfaceId];
+    camera->viewHeight = gl->surfaceHeight[surfaceId];
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+    Runner_updateCameraViewSimple(camera);
+
+    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glDisable(GL_SCISSOR_TEST);
+    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+    return true;
+    }
+
+
+    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+    glDisable(GL_SCISSOR_TEST);
 
     return true;
 }
@@ -2190,7 +2311,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     sprite->maskCount = 0;
     sprite->masks = nullptr;
 
-    fprintf(stderr, "GL: Created dynamic sprite %u (%dx%d) from surface %d at (%d,%d)\n", spriteIndex, w, h, surfaceID, x, y);
+    logInfo("GL: Created dynamic sprite %u (%dx%d) from surface %d at (%d,%d)\n", spriteIndex, w, h, surfaceID, x, y);
     return (int32_t) spriteIndex;
 }
 
@@ -2202,7 +2323,7 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
 
     // Refuse to delete original data.win sprites
     if (gl->originalSpriteCount > (uint32_t) spriteIndex) {
-        fprintf(stderr, "GL: Cannot delete data.win sprite %d\n", spriteIndex);
+        logWarn("GL: Cannot delete data.win sprite %d\n", spriteIndex);
         return;
     }
 
@@ -2231,17 +2352,17 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     memset(sprite, 0, sizeof(Sprite));
     sprite->name = keepName;
 
-    fprintf(stderr, "GL: Deleted sprite %d\n", spriteIndex);
+    logInfo("GL: Deleted sprite %d\n", spriteIndex);
 }
 
 static BlendFactors glGpuGetBlendFactors(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*)renderer;
-    return (BlendFactors){
-        gl->currentSFactor, 
-        gl->currentDFactor, 
-        gl->currentSFactorAlpha, 
-        gl->currentDFactorAlpha
-    };
+    BlendFactors ret;
+    ret.src = gl->currentSFactor;
+    ret.dst = gl->currentDFactor;
+    ret.srcAlpha = gl->currentSFactorAlpha;
+    ret.dstAlpha = gl->currentDFactorAlpha;
+    return ret;
 }
 
 static int32_t glGpuGetBlendMode(Renderer* renderer) {
@@ -2256,7 +2377,7 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
     gl->currentDFactor = GLCommon_blendModeToDFactor(mode);
-    gl->currentSFactorAlpha = gl->currentSFactor; 
+    gl->currentSFactorAlpha = gl->currentSFactor;
     gl->currentDFactorAlpha = gl->currentDFactor;
 
     glBlendEquation(GLCommon_blendModeToEquation(mode));
@@ -2273,9 +2394,9 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
     gl->currentDFactorAlpha = dfactor_alpha;
 
     glBlendFuncSeparate(
-        GLCommon_blendFactorToGL(sfactor), 
-        GLCommon_blendFactorToGL(dfactor), 
-        GLCommon_blendFactorToGL(sfactor_alpha), 
+        GLCommon_blendFactorToGL(sfactor),
+        GLCommon_blendFactorToGL(dfactor),
+        GLCommon_blendFactorToGL(sfactor_alpha),
         GLCommon_blendFactorToGL(dfactor_alpha)
     );
 }
@@ -2354,7 +2475,7 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
         }
     }
 
-    fprintf(stderr, "GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
+    logWarn("GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
     return -1;
 }
 
@@ -2449,7 +2570,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     if (slot < 0) {
-        fprintf(stderr, "GL: Invalid Texture Stage\n");
+        logWarn("GL: Invalid Texture Stage\n");
         return;
     }
     TexturePageItem* tpag;
@@ -2460,7 +2581,7 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
         gl->currentTextureId = texID;
     }
     if (slot > MAX_TEXTURE_STAGES) {
-        fprintf(stderr, "GL: Texture Stage Higher Than Max\n");
+        logWarn("GL: Texture Stage Higher Than Max\n");
         return;
     }
     glActiveTexture(GL_TEXTURE0 + slot);
@@ -2539,6 +2660,29 @@ static bool glShadersSupported(void) {
     return true;
 }
 
+static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    renderer->gmlMatrices[matrixType] = matrix;
+    //yeah just recalculate everything when we change a matrix
+    //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
+    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f view = renderer->gmlMatrices[MATRIX_VIEW];
+    Matrix4f projection = renderer->gmlMatrices[MATRIX_PROJECTION];
+
+    Matrix4f worldView;
+    Matrix4f_multiply(&worldView, &view, &world);
+
+    Matrix4f worldViewProjection;
+    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
+
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
+
+
+    glShaderSettingsRefresh(renderer);
+}
+
 // ===[ Vtable ]===
 
 static RendererVtable glVtable;
@@ -2613,6 +2757,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.textureSetStage = glTextureSetStage,
     glVtable.shaderIsCompiled = glShaderIsCompiled,
     glVtable.shadersSupported = glShadersSupported,
+    glVtable.setMatrix = glSetMatrix,
 
     gl->base.drawColor = 0xFFFFFF; // white (BGR)
     gl->base.drawAlpha = 1.0f;
@@ -2621,5 +2766,6 @@ Renderer* GLRenderer_create(void) {
     gl->base.drawValign = 0;
     gl->base.circlePrecision = 24;
     gl->base.currentShader = -1;
+    gl->base.cameraCurrent = 0;
     return (Renderer*) gl;
 }

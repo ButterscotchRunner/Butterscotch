@@ -7,6 +7,8 @@
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
+#elif PLATFORM_VITA
+#include <vitaGL.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -42,6 +44,10 @@ typedef struct {
     int32_t* surfaceWidth;
     int32_t* surfaceHeight;
     uint32_t surfaceCount;
+
+    // True if the GPU doesn't support NPOT textures (GL < 2.0), requiring
+    // FBO color-attachment textures to have power-of-two dimensions.
+    bool needsPOT;
 
     // Blending mode + factors
     int32_t currentBlendMode;

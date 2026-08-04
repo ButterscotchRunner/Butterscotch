@@ -7,6 +7,8 @@ if [ -z "$CC" ]; then
     exit 1
 fi
 
+export MSYS2_ARG_CONV_EXCL='*'
+
 # cd to the directory this script is in
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
@@ -62,8 +64,8 @@ check() {
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
-    printf 'cmd: %s\n' "$CC $cflags tmp/test.c ${output}tmp/a.out $*" >> tmp/config.log
-    if $CC $cflags tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
+    printf 'cmd: %s\n' "$CC $cflags ${srcflag}tmp/test.c ${output}tmp/a.out $*" >> tmp/config.log
+    if $CC $cflags ${srcflag}tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printyes
         return 0
     else
@@ -89,17 +91,17 @@ int main(void){return 0;}
 " > tmp/test.c
 
 configlog 'checking the C compiler CLI syntax'
-if $CC /nologo tmp/test.c /Fe:tmp/a.out >> tmp/config.log 2>&1; then
+if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     printgreen 'msvc'
     syntax=msvc
     CC="$CC /nologo"
     cflags='/Oi-' # equivalent to -fno-builtin
     compile_obj='/c'
-    output_obj='/Fo:'
-    output_exe='/Fe:'
-    config 'MSVC := 1'
+    output_obj='/Fo'
+    output_exe='/Fe'
+    config "OUTPUT_OBJ := $output_obj"
+    config "OUTPUT_EXE := $output_exe"
     config 'OBJ_EXT := obj'
-    config "_CC := \$(CC) /nologo"
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
     config 'DEFINE := /D'
@@ -108,10 +110,11 @@ elif $CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1; then
     syntax=gcc
     lm='-lm'
     compile_obj='-c'
-    output_obj='-o'
-    output_exe='-o'
+    output_obj='-o '
+    output_exe='-o '
+    config "OUTPUT_OBJ := -o\$(space)"
+    config "OUTPUT_EXE := -o\$(space)"
     config 'OBJ_EXT := o'
-    config "_CC := \$(CC)"
     config 'CFLAGS := -O2 -DNDEBUG'
     config 'INCLUDE := -I'
     config 'DEFINE := -D'
@@ -122,8 +125,7 @@ else
     exit 1
 fi
 config "COMPILE_OBJ := $compile_obj"
-config "OUTPUT_OBJ := $output_obj"
-config "OUTPUT_EXE := $output_exe"
+config "SYNTAX := $syntax"
 
 configlog 'checking if we are cross compiling'
 chmod +x tmp/a.out
@@ -133,6 +135,28 @@ else
     printyes
     cross_compiling=1
 fi
+
+printf '%s' "\
+int main(void){
+    int a = 0;
+    ++a;
+    int b = a;
+    return b;
+}
+" > tmp/test.c
+
+if ! nolink=1 check 'if C supports mixed declarations and code'; then
+    if [ "$syntax" = 'msvc' ]; then
+        # compile all sources as C++
+        srcflag='/Tp'
+        config 'SRCFLAG := /Tp'
+    else
+        printf 'Support for mixed declarations and code is required, maybe try building in C++ mode.\n'
+        exit 1
+    fi
+fi
+
+config "_CC := $CC"
 
 configlog 'checking the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -149,12 +173,12 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/test.c
 
-if [ "$syntax" != 'msvc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
+if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
     # function tests might have false positives without this
     cflags='-fno-builtin'
 fi
 
-if [ "$syntax" = 'msvc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
+if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
     config 'DISABLE_MMD := 1'
 fi
 rm -f tmp/test.d
@@ -195,6 +219,7 @@ int main(void){return 0;}
 if ! nolink=1 check 'if stdbool.h works'; then
     # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
     include 'compat/stdbool'
+    config 'HEADERS += compat/stdbool/stdbool.h'
 fi
 
 printf '%s' "\
@@ -204,13 +229,26 @@ int main(void){return 0;}
 
 if ! nolink=1 check 'if stdint.h works'; then
     include 'compat/stdint'
-    printf '%s' "\
+    config 'HEADERS += compat/stdint/stdint.h'
+    if [ "$syntax" != 'msvc' ]; then
+        printf '%s' "\
 #include <sys/types.h>
 int main(void){return 0;}
 " > tmp/test.c
-    if nolink=1 check 'if sys/types.h works'; then
-        define 'HAVE_SYS_TYPES_H'
+        if nolink=1 check 'if sys/types.h works'; then
+            define 'HAVE_SYS_TYPES_H'
+        fi
     fi
+fi
+
+printf '%s' "\
+#include <strings.h>
+int main(void){return 0;}
+" > tmp/test.c
+
+if ! nolink=1 check 'if strings.h works'; then
+    define 'NO_STRINGS_H'
+    no_strings_h=1
 fi
 
 printf '%s' "\
@@ -317,11 +355,38 @@ fi
 
 printf '%s' "\
 #include <math.h>
+int main(void){return floorf(0);}
+" > tmp/test.c
+
+if ! check 'for floorf' $lm; then
+    define 'NO_FLOORF'
+fi
+
+printf '%s' "\
+#include <math.h>
 int main(void){return roundf(0);}
 " > tmp/test.c
 
 if ! check 'for roundf' $lm; then
     define 'NO_ROUNDF'
+fi
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isinf(0.0);}
+" > tmp/test.c
+
+if ! check 'for isinf' $lm; then
+    define 'NO_ISINF'
+fi
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isnan(0.0);}
+" > tmp/test.c
+
+if ! check 'for isnan' $lm; then
+    define 'NO_ISNAN'
 fi
 
 printf '%s' "\
@@ -337,6 +402,22 @@ if ! check 'for strtok_r'; then
     define 'NO_STRTOK_R'
 fi
 
+if [ -n "$no_strings_h" ]; then
+    printf '#include <string.h>\n' > tmp/test.c
+else
+    printf '#include <strings.h>\n' > tmp/test.c
+fi
+
+printf '%s' "\
+int main(void){
+    return strcasecmp(\"\", \"\");
+}
+" >> tmp/test.c
+
+if ! check 'for strcasecmp'; then
+    define 'NO_STRCASECMP'
+fi
+
 printf '%s' "\
 #include <getopt.h>
 int main(int argc,char *argv[]){
@@ -349,6 +430,22 @@ int main(int argc,char *argv[]){
 
 if ! check 'for getopt_long'; then
     include 'compat/getopt'
+    config 'HEADERS += compat/getopt/getopt.h'
+fi
+
+printf '%s' "\
+#include <stdio.h>
+int main(void){
+    char buf[8];
+    return snprintf(buf, sizeof(buf), \"test\");
+}
+" > tmp/test.c
+
+if ! check 'for snprintf'; then
+    include 'compat/stdio'
+    define 'NO_SNPRINTF'
+    config 'SRCS += compat/stdio/printf.c'
+    config 'HEADERS += compat/stdio/printf.h'
 fi
 
 rm -f tmp/test.c tmp/a.out test.obj

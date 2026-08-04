@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
 
 #include "utils.h"
 
@@ -15,7 +15,8 @@ typedef struct DataWin DataWin;
 
 typedef enum {
     DATAWINLOADTYPE_LOAD_PER_CHUNK,
-    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME
+    DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
+    DATAWINLOADTYPE_MAP_FILE
 } DataWinLoadType;
 
 typedef struct {
@@ -49,6 +50,8 @@ typedef struct {
     bool lazyLoadRooms;
     // If true, TXTR objects will be loaded on demand via DataWin_loadTxtrIfNeeded, and unloaded if memory is tight.
     bool lazyLoadTextures;
+    // If true, AUDO objects will be loaded on demand via DataWin_loadAudoIfNeeded.
+    bool lazyLoadAudio;
 
     // When lazyLoadRooms is true, this list indicates which rooms should be loaded during load time instead of demand. They will also not be freed.
     StringBooleanEntry* eagerlyLoadedRooms;
@@ -398,7 +401,7 @@ typedef struct {
     bool present;
     const char* name;
     const char* displayName;
-    uint32_t emSize;
+    float emSize;
     bool bold;
     bool italic;
     uint16_t rangeStart;
@@ -848,6 +851,7 @@ typedef struct {
 // ===[ TXTR - Embedded Textures ]===
 typedef struct {
     bool present;
+    bool mapped;
     uint32_t scaled;
     uint32_t generatedMips; // GMS 2.0.6+: number of generated mipmaps (0 for GMS 1.x)
     uint32_t textureBlockSize; // GMS 2022.3+: size of the texture block (0 for older versions)
@@ -930,9 +934,11 @@ struct DataWin {
     // nullptr when lazy loading is disabled. Closed by DataWin_free.
     FILE* lazyLoadFile;
     char* lazyLoadFilePath; // owned strdup of the original file path, for diagnostics
+    uint8_t* mappedFile;
     size_t fileSize; // cached size of the DataWin, captured at parse time. Used for platforms where fseek(SEEK_END)+ftell is unreliable due to buffering (like the PlayStation 2).
     bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
     bool lazyLoadTextures; // ditto, but with TXTR pages
+    bool lazyLoadAudio; // ditto, but with AUDO entries
 };
 
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options);
@@ -953,5 +959,6 @@ void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t
 void GamePath_computeInternal(GamePath* path);
 PathPositionResult GamePath_getPosition(GamePath* path, float t);
 void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId);
+void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId);
 
 #endif /* _BS_DATA_WIN_H_ */

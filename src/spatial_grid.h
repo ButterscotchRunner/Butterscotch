@@ -60,7 +60,12 @@ static inline SpatialGridRange SpatialGrid_computeCellRange(SpatialGrid* grid, G
     if (minGridY > grid->gridHeight - 1) minGridY = grid->gridHeight - 1;
     if (maxGridX > grid->gridWidth - 1) maxGridX = grid->gridWidth - 1;
     if (maxGridY > grid->gridHeight - 1) maxGridY = grid->gridHeight - 1;
-    return (SpatialGridRange){ (uint16_t)minGridX, (uint16_t)minGridY, (uint16_t)maxGridX, (uint16_t)maxGridY };
+    SpatialGridRange ret;
+    ret.minGridX = minGridX;
+    ret.minGridY = minGridY;
+    ret.maxGridX = maxGridX;
+    ret.maxGridY = maxGridY;
+    return ret;
 }
 
 static inline bool SpatialGrid_instanceOverlapsRange(Instance* instance, SpatialGridRange range) {
