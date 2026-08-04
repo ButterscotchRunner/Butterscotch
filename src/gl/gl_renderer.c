@@ -2383,6 +2383,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (mode == gl->currentBlendMode) return;
     flushBatch(gl);
 
     gl->currentBlendMode = mode;
@@ -2397,6 +2398,8 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (sfactor == gl->currentSFactor && dfactor == gl->currentDFactor && \
+            sfactor_alpha == gl->currentSFactorAlpha && dfactor_alpha == gl->currentDFactorAlpha) return;
     flushBatch(gl);
     gl->currentBlendMode = bm_complex;
     gl->currentSFactor = sfactor;
