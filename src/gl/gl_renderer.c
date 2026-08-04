@@ -139,7 +139,7 @@ static void flushBatch(GLRenderer* gl) {
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[gl->base.currentShader];
 
-        GLShaderUniform* uniform = findShaderUniformByName(shader, "gm_BaseTexture");
+        GLShaderUniform* uniform = shader->gmBaseTexture;
         if (uniform != nullptr)
             glActiveTexture(GL_TEXTURE0 + uniform->samplerSlot);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
@@ -251,6 +251,17 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
             gmlShader->uniforms[b].samplerSlot = samplerIndex;
             samplerIndex += 1;
         }
+
+        if (strcmp(uniformName, "gm_BaseTexture") == 0)
+            gmlShader->gmBaseTexture = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_Matrices[0]") == 0)
+            gmlShader->gmMatrices = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_FogColour") == 0)
+            gmlShader->gmFogColour = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_AlphaTestEnabled") == 0)
+            gmlShader->gmAlphaTestEnabled = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_AlphaRefValue") == 0)
+            gmlShader->gmAlphaRefValue = &gmlShader->uniforms[b];
     }
 
     gmlShader->shaderId = shaderId;
@@ -508,13 +519,13 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
 
     glUseProgram(gmlShader->shaderId);
     //Gotta set those built-ins! they ain't gonna set themselves
-    GLShaderUniform* gmMatricesUniform = findShaderUniformByName(gmlShader, "gm_Matrices[0]");
-    GLShaderUniform* gmFogColourUniform = findShaderUniformByName(gmlShader, "gm_FogColour");
+    GLShaderUniform* gmMatricesUniform = gmlShader->gmMatrices;
+    GLShaderUniform* gmFogColourUniform = gmlShader->gmFogColour;
 
     //Lights are for another time
 
-    GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
-    GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
+    GLShaderUniform* gmAlphaTestEnabledUniform = gmlShader->gmAlphaTestEnabled;
+    GLShaderUniform* gmAlphaRefValue = gmlShader->gmAlphaRefValue;
 
     Matrix4f flippedClip[MATRICES_MAX];
     memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
