@@ -2444,6 +2444,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->colorWriteR == red && gl->colorWriteG == green && gl->colorWriteB == blue && gl->colorWriteA == alpha) return;
     flushBatch(gl);
     gl->colorWriteR = red;
     gl->colorWriteG = green;
