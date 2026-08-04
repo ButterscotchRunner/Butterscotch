@@ -61,11 +61,13 @@ include() {
 
 check() {
     configlog "checking $1"
+    srcname=$2
+    shift
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
-    printf 'cmd: %s\n' "$CC $cflags ${srcflag}tmp/test.c ${output}tmp/a.out $*" >> tmp/config.log
-    if $CC $cflags ${srcflag}tmp/test.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
+    printf 'cmd: %s\n' "$CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out $*" >> tmp/config.log
+    if $CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
         printyes
         return 0
     else
@@ -80,18 +82,18 @@ checkdefine() {
 #error not defined
 #endif
 int main(void){return 0;}
-" > tmp/test.c
+" > "tmp/checkdefine_$1.c"
 
-    nolink=1 check "if $1 is defined"
+    nolink=1 check "if $1 is defined" "checkdefine_$1"
     return $?
 }
 
 printf '%s' "\
 int main(void){return 0;}
-" > tmp/test.c
+" > tmp/nothing.c
 
 configlog 'checking the C compiler CLI syntax'
-if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
+if $CC /nologo tmp/nothing.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     printgreen 'msvc'
     syntax=msvc
     CC="$CC /nologo"
@@ -105,7 +107,7 @@ if $CC /nologo tmp/test.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
     config 'DEFINE := /D'
-elif $CC tmp/test.c -o tmp/a.out >> tmp/config.log 2>&1; then
+elif $CC tmp/nothing.c -o tmp/a.out >> tmp/config.log 2>&1; then
     printgreen 'gcc'
     syntax=gcc
     lm='-lm'
@@ -143,9 +145,9 @@ int main(void){
     int b = a;
     return b;
 }
-" > tmp/test.c
+" > tmp/mixed.c
 
-if ! nolink=1 check 'if C supports mixed declarations and code'; then
+if ! nolink=1 check 'if C supports mixed declarations and code' mixed; then
     if [ "$syntax" = 'msvc' ]; then
         # compile all sources as C++
         srcflag='/Tp'
@@ -169,26 +171,22 @@ else
     printgreen 'unix'
 fi
 
-printf '%s' "\
-int main(void){return 0;}
-" > tmp/test.c
-
-if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' -fno-builtin; then
+if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
     # function tests might have false positives without this
     cflags='-fno-builtin'
 fi
 
-if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' -MMD -MP -MF tmp/test.d; then
+if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' nothing -MMD -MP -MF tmp/test.d; then
     config 'DISABLE_MMD := 1'
 fi
 rm -f tmp/test.d
 
-if [ "$syntax" != 'msvc' ] && check 'for librt' -lrt; then
+if [ "$syntax" != 'msvc' ] && check 'for librt' nothing -lrt; then
     # sometimes needed for clock_gettime
     config 'LIBS += -lrt'
 fi
 
-if [ "$syntax" != 'msvc' ] && check 'for libdl' -ldl; then
+if [ "$syntax" != 'msvc' ] && check 'for libdl' nothing -ldl; then
     # sometimes needed for glad or miniaudio
     config 'LIBS += -ldl'
 fi
@@ -214,9 +212,9 @@ fi
 printf '%s' "\
 #include <stdbool.h>
 int main(void){return 0;}
-" > tmp/test.c
+" > tmp/stdbool.c
 
-if ! nolink=1 check 'if stdbool.h works'; then
+if ! nolink=1 check 'if stdbool.h works' stdbool; then
     # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
     include 'compat/stdbool'
     config 'HEADERS += compat/stdbool/stdbool.h'
@@ -225,17 +223,17 @@ fi
 printf '%s' "\
 #include <stdint.h>
 int main(void){return 0;}
-" > tmp/test.c
+" > tmp/stdint.c
 
-if ! nolink=1 check 'if stdint.h works'; then
+if ! nolink=1 check 'if stdint.h works' stdint; then
     include 'compat/stdint'
     config 'HEADERS += compat/stdint/stdint.h'
     if [ "$syntax" != 'msvc' ]; then
         printf '%s' "\
 #include <sys/types.h>
 int main(void){return 0;}
-" > tmp/test.c
-        if nolink=1 check 'if sys/types.h works'; then
+" > tmp/systypes.c
+        if nolink=1 check 'if sys/types.h works' systypes; then
             define 'HAVE_SYS_TYPES_H'
         fi
     fi
@@ -244,9 +242,9 @@ fi
 printf '%s' "\
 #include <strings.h>
 int main(void){return 0;}
-" > tmp/test.c
+" > tmp/strings.c
 
-if ! nolink=1 check 'if strings.h works'; then
+if ! nolink=1 check 'if strings.h works' strings; then
     define 'NO_STRINGS_H'
     no_strings_h=1
 fi
@@ -257,135 +255,135 @@ int main(void){
     puts(__func__);
     return 0;
 }
-" > tmp/test.c
+" > tmp/__func__.c
 
-if ! check 'if __func__ works'; then
+if ! check 'if __func__ works' __func__; then
     define '__func__=\"unknown\"'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return fmin(0,0);}
-" > tmp/test.c
+" > tmp/fmin.c
 
-if ! check 'for fmin' $lm; then
+if ! check 'for fmin' fmin $lm; then
     define 'NO_FMIN'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return fmax(0,0);}
-" > tmp/test.c
+" > tmp/fmax.c
 
-if ! check 'for fmax' $lm; then
+if ! check 'for fmax' fmax $lm; then
     define 'NO_FMAX'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return round(0);}
-" > tmp/test.c
+" > tmp/round.c
 
-if ! check 'for round' $lm; then
+if ! check 'for round' round $lm; then
     define 'NO_ROUND'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return log2(1);}
-" > tmp/test.c
+" > tmp/log2.c
 
-if ! check 'for log2' $lm; then
+if ! check 'for log2' log2 $lm; then
     define 'NO_LOG2'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return lround(0);}
-" > tmp/test.c
+" > tmp/lround.c
 
-if ! check 'for lround' $lm; then
+if ! check 'for lround' lround $lm; then
     define 'NO_LROUND'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return sqrtf(0);}
-" > tmp/test.c
+" > tmp/sqrtf.c
 
-if ! check 'for sqrtf' $lm; then
+if ! check 'for sqrtf' sqrtf $lm; then
     define 'NO_SQRTF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return fabsf(0);}
-" > tmp/test.c
+" > tmp/fabsf.c
 
-if ! check 'for fabsf' $lm; then
+if ! check 'for fabsf' fabsf $lm; then
     define 'NO_FABSF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return fmodf(1,1);}
-" > tmp/test.c
+" > tmp/fmodf.c
 
-if ! check 'for fmodf' $lm; then
+if ! check 'for fmodf' fmodf $lm; then
     define 'NO_FMODF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return sinf(0);}
-" > tmp/test.c
+" > tmp/sinf.c
 
-if ! check 'for sinf' $lm; then
+if ! check 'for sinf' sinf $lm; then
     define 'NO_SINF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return cosf(0);}
-" > tmp/test.c
+" > tmp/cosf.c
 
-if ! check 'for cosf' $lm; then
+if ! check 'for cosf' cosf $lm; then
     define 'NO_COSF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return floorf(0);}
-" > tmp/test.c
+" > tmp/floorf.c
 
-if ! check 'for floorf' $lm; then
+if ! check 'for floorf' floorf $lm; then
     define 'NO_FLOORF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return roundf(0);}
-" > tmp/test.c
+" > tmp/roundf.c
 
-if ! check 'for roundf' $lm; then
+if ! check 'for roundf' roundf $lm; then
     define 'NO_ROUNDF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return isinf(0.0);}
-" > tmp/test.c
+" > tmp/isinf.c
 
-if ! check 'for isinf' $lm; then
+if ! check 'for isinf' isinf $lm; then
     define 'NO_ISINF'
 fi
 
 printf '%s' "\
 #include <math.h>
 int main(void){return isnan(0.0);}
-" > tmp/test.c
+" > tmp/isnan.c
 
-if ! check 'for isnan' $lm; then
+if ! check 'for isnan' isnan $lm; then
     define 'NO_ISNAN'
 fi
 
@@ -396,25 +394,25 @@ int main(void){
     strtok_r(NULL, \"\", &saveptr);
     return 0;
 }
-" > tmp/test.c
+" > tmp/strtok_r.c
 
-if ! check 'for strtok_r'; then
+if ! check 'for strtok_r' strtok_r; then
     define 'NO_STRTOK_R'
 fi
 
 if [ -n "$no_strings_h" ]; then
-    printf '#include <string.h>\n' > tmp/test.c
+    printf '#include <string.h>\n' > tmp/strcasecmp.c
 else
-    printf '#include <strings.h>\n' > tmp/test.c
+    printf '#include <strings.h>\n' > tmp/strcasecmp.c
 fi
 
 printf '%s' "\
 int main(void){
     return strcasecmp(\"\", \"\");
 }
-" >> tmp/test.c
+" >> tmp/strcasecmp.c
 
-if ! check 'for strcasecmp'; then
+if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
@@ -426,9 +424,9 @@ int main(int argc,char *argv[]){
     getopt_long(argc,argv,\"\",opts,&idx);
     return 0;
 }
-" > tmp/test.c
+" > tmp/getopt_long.c
 
-if ! check 'for getopt_long'; then
+if ! check 'for getopt_long' getopt_long; then
     include 'compat/getopt'
     config 'HEADERS += compat/getopt/getopt.h'
 fi
@@ -439,13 +437,13 @@ int main(void){
     char buf[8];
     return snprintf(buf, sizeof(buf), \"test\");
 }
-" > tmp/test.c
+" > tmp/snprintf.c
 
-if ! check 'for snprintf'; then
+if ! check 'for snprintf' snprintf; then
     include 'compat/stdio'
     define 'NO_SNPRINTF'
     config 'SRCS += compat/stdio/printf.c'
     config 'HEADERS += compat/stdio/printf.h'
 fi
 
-rm -f tmp/test.c tmp/a.out test.obj
+rm -f tmp/*.c *.obj tmp/a.out
