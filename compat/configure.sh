@@ -15,6 +15,10 @@ cd "$scriptroot"
 
 : > config.mk
 
+cleanup() {
+    rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d
+}
+
 config() {
     printf '%s\n' "$1" >> config.mk
 }
@@ -133,6 +137,7 @@ else
     printred 'unknown'
     printf 'unable to find a working compiler syntax, this is probably because your compiler is broken.\n'
     rm -f config.mk
+    cleanup
     exit 1
 fi
 config "COMPILE_OBJ := $compile_obj"
@@ -163,6 +168,7 @@ if ! nolink=1 check 'if C supports mixed declarations and code' mixed; then
         config 'SRCFLAG := /Tp'
     else
         printf 'Support for mixed declarations and code is required, maybe try building in C++ mode.\n'
+        cleanup
         exit 1
     fi
 fi
@@ -544,4 +550,4 @@ if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
-rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d
+cleanup
