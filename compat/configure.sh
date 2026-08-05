@@ -174,6 +174,20 @@ if checkdefine '_WIN32' > /dev/null; then
 elif checkdefine '__APPLE__' > /dev/null; then
     printgreen 'darwin'
     config 'OS := Darwin'
+elif checkdefine '__sun' > /dev/null; then
+    printgreen 'sunos'
+    printf '%s' "\
+#if __STDC_VERSION__ - 0 < 199901L
+#error not c99
+#endif
+int main(void){return 0;}
+" > tmp/c99.c
+    if check 'if the compiler is C99 or newer' c99; then
+        define '_POSIX_C_SOURCE=200112L'
+    else
+        define '_POSIX_C_SOURCE=199506L'
+    fi
+    define '__EXTENSIONS__'
 else
     printgreen 'unix'
 fi
