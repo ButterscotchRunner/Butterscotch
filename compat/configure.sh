@@ -178,16 +178,6 @@ else
     printgreen 'unix'
 fi
 
-if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
-    # function tests might have false positives without this
-    cflags='-fno-builtin'
-fi
-
-if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP -MF test.d' nothing -MMD -MP -MF tmp/test.d; then
-    config 'DISABLE_MMD := 1'
-fi
-rm -f tmp/test.d
-
 if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
     checklog 'if /usr/X11R6/include exists'
     if [ -d /usr/X11R6/include ]; then
@@ -204,6 +194,16 @@ if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
     else
         printno
     fi
+fi
+
+if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
+    # function tests might have false positives without this
+    cflags='-fno-builtin'
+fi
+
+if [ "$syntax" = 'gcc' ]; then
+    nolink=1 check '' nothing -MMD -MP -MF tmp/test.d > /dev/null &
+    mmd_pid=$!
 fi
 
 if [ "$syntax" != 'msvc' ]; then
@@ -396,6 +396,10 @@ int main(void){
 check '' snprintf > /dev/null &
 snprintf_pid=$!
 
+if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF test.d' "$mmd_pid"; then
+    config 'DISABLE_MMD := 1'
+fi
+
 if [ "$syntax" != 'msvc' ]; then
     # sometimes needed for clock_gettime
     if checkend 'for librt' "$librt_pid"; then
@@ -524,4 +528,4 @@ if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
-rm -f tmp/*.c *.obj tmp/a.out
+rm -f tmp/*.c *.obj tmp/a.out test/test.d
