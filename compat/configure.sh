@@ -544,4 +544,4 @@ if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
-rm -f tmp/*.c *.obj tmp/a.out tmp/test.d
+rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d
