@@ -62,7 +62,7 @@ check() {
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
-    if $CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out "$@" > /dev/null 2>&1; then
+    if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${srcname}.out" 2>&1; then
         printyes
         return 0
     else
