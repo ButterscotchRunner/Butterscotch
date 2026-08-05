@@ -64,11 +64,13 @@ check() {
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
     if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${srcname}.out" 2>&1; then
         printyes
-        return 0
+        ret=0
     else
         printno
-        return 1
+        ret=1
     fi
+    [ -s "tmp/${srcname}.out" ] || rm -f "tmp/${srcname}.out"
+    return "$ret"
 }
 
 checkdefine() {
@@ -542,4 +544,4 @@ if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
-rm -f tmp/*.c *.obj tmp/a.out test/test.d
+rm -f tmp/*.c *.obj tmp/a.out tmp/test.d
