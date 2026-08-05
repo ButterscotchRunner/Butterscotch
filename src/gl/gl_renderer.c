@@ -2472,12 +2472,92 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (shaderIndex < 0 || (uint32_t) shaderIndex >= gl->gmlShaderCount) return -1;
-    GMLShader* shader = &gl->gmlShaders[shaderIndex];
-    repeat(shader->uniformCount, b) {
-        if (strcmp(shader->uniforms[b].name, uniform) == 0) return b;
+    int32_t targetShader = (shaderIndex != -1) ? shaderIndex : renderer->currentShader;
+    if (targetShader == -1) return -1;
+
+    GMLShader* shader = &gl->gmlShaders[targetShader];
+    if (!shader->compiled || shader->shaderId == 0) return -1;
+
+    GLint loc = glGetUniformLocation(shader->shaderId, uniform);
+    if (loc != -1) return loc;
+
+    char arrayName[256];
+    snprintf(arrayName, sizeof(arrayName), "%s[0]", uniform);
+    return glGetUniformLocation(shader->shaderId, arrayName);
+}
+
+static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t location) {
+    if (!shader || location == -1) return GL_NONE;
+    for (uint32_t i = 0; i < shader->uniformCount; i++) {
+        if (shader->uniforms[i].location == location) {
+            return shader->uniforms[i].type;
+        }
     }
-    return -1;
+    return GL_NONE;
+}
+
+static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_FLOAT:      glUniform1f(handle, value1); break;
+        case GL_FLOAT_VEC2: glUniform2f(handle, value1, value2); break;
+        case GL_FLOAT_VEC3: glUniform3f(handle, value1, value2, value3); break;
+        case GL_FLOAT_VEC4: glUniform4f(handle, value1, value2, value3, value4); break;
+        default:
+            if (count == 1)      glUniform1f(handle, value1);
+            else if (count == 2) glUniform2f(handle, value1, value2);
+            else if (count == 3) glUniform3f(handle, value1, value2, value3);
+            else if (count >= 4) glUniform4f(handle, value1, value2, value3, value4);
+            break;
+    }
+}
+
+static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_FLOAT:      glUniform1fv(handle, count, values); break;
+        case GL_FLOAT_VEC2: glUniform2fv(handle, count / 2, values); break;
+        case GL_FLOAT_VEC3: glUniform3fv(handle, count / 3, values); break;
+        case GL_FLOAT_VEC4: glUniform4fv(handle, count / 4, values); break;
+        case GL_FLOAT_MAT2: glUniformMatrix2fv(handle, count / 4, GL_FALSE, values); break;
+        case GL_FLOAT_MAT3: glUniformMatrix3fv(handle, count / 9, GL_FALSE, values); break;
+        case GL_FLOAT_MAT4: glUniformMatrix4fv(handle, count / 16, GL_FALSE, values); break;
+        default:            glUniform1fv(handle, count, values); break;
+    }
+}
+
+static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_INT: glUniform1i(handle, value1); break;
+        case GL_INT_VEC2: glUniform2i(handle, value1, value2); break;
+        case GL_INT_VEC3: glUniform3i(handle, value1, value2, value3); break;
+        case GL_INT_VEC4: glUniform4i(handle, value1, value2, value3, value4); break;
+        default:
+            if (count == 1)      glUniform1i(handle, value1);
+            else if (count == 2) glUniform2i(handle, value1, value2);
+            else if (count == 3) glUniform3i(handle, value1, value2, value3);
+            else if (count >= 4) glUniform4i(handle, value1, value2, value3, value4);
+            break;
+    }
 }
 
 static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
@@ -2490,61 +2570,8 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
         }
     }
 
-    logWarn("GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
+    fprintf(stderr, "GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
     return -1;
-}
-
-static void glShaderSetUniformF(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, float value1, float value2, float value3, float value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_FLOAT) {
-            glUniform1f(uniform.location, value1);
-        } else if (uniform.type == GL_FLOAT_VEC2) {
-            glUniform2f(uniform.location, value1, value2);
-        } else if (uniform.type == GL_FLOAT_VEC3) {
-            glUniform3f(uniform.location, value1, value2, value3);
-        } else if (uniform.type == GL_FLOAT_VEC4) {
-            glUniform4f(uniform.location, value1, value2, value3, value4);
-        }
-    }
-}
-
-static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_FLOAT) glUniform1fv(uniform.location, count, values);
-        else if (uniform.type == GL_FLOAT_VEC2) glUniform2fv(uniform.location, count / 2, values);
-        else if (uniform.type == GL_FLOAT_VEC3) glUniform3fv(uniform.location, count / 3, values);
-        else if (uniform.type == GL_FLOAT_VEC4) glUniform4fv(uniform.location, count / 4, values);
-        else if (uniform.type == GL_FLOAT_MAT4) glUniformMatrix4fv(uniform.location, count / 16, GL_FALSE, values);
-        else if (uniform.type == GL_FLOAT_MAT3) glUniformMatrix3fv(uniform.location, count / 9, GL_FALSE, values);
-        else if (uniform.type == GL_FLOAT_MAT2) glUniformMatrix2fv(uniform.location, count / 4, GL_FALSE, values);
-    }
-}
-
-static void glShaderSetUniformI(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_INT) glUniform1i(uniform.location, value1);
-        else if (uniform.type == GL_INT_VEC2) glUniform2i(uniform.location, value1, value2);
-        else if (uniform.type == GL_INT_VEC3) glUniform3i(uniform.location, value1, value2, value3);
-        else if (uniform.type == GL_INT_VEC4) glUniform4i(uniform.location, value1, value2, value3, value4);
-    }
 }
 
 static uint32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
