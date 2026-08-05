@@ -14,7 +14,6 @@ export MSYS2_ARG_CONV_EXCL='*'
 cd "$scriptroot"
 
 : > config.mk
-: > tmp/config.log
 
 config() {
     printf '%s\n' "$1" >> config.mk
@@ -26,7 +25,6 @@ printgreen() {
     else
         printf '%s\n' "$1"
     fi
-    printf 'result: %s\n' "$1" >> tmp/config.log
 }
 
 printred() {
@@ -35,7 +33,6 @@ printred() {
     else
         printf '%s\n' "$1"
     fi
-    printf 'result: %s\n' "$1" >> tmp/config.log
 }
 
 printyes() {
@@ -46,9 +43,8 @@ printno() {
     printred 'no'
 }
 
-configlog() {
-    printf "%s: " "$1"
-    printf "%s:\n" "$1" >> tmp/config.log
+checklog() {
+    printf "checking %s: " "$1"
 }
 
 define() {
@@ -60,14 +56,13 @@ include() {
 }
 
 check() {
-    configlog "checking $1"
+    checklog "$1"
     srcname=$2
     shift
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
-    printf 'cmd: %s\n' "$CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out $*" >> tmp/config.log
-    if $CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out "$@" >> tmp/config.log 2>&1; then
+    if $CC $cflags ${srcflag}tmp/${srcname}.c ${output}tmp/a.out "$@" > /dev/null 2>&1; then
         printyes
         return 0
     else
@@ -88,12 +83,24 @@ int main(void){return 0;}
     return $?
 }
 
+checkend() {
+    wait "$2"
+    ret=$?
+    checklog "$1"
+    if [ "$ret" = 0 ]; then
+        printyes
+    else
+        printno
+    fi
+    return "$ret"
+}
+
 printf '%s' "\
 int main(void){return 0;}
 " > tmp/nothing.c
 
-configlog 'checking the C compiler CLI syntax'
-if $CC /nologo tmp/nothing.c /Fetmp/a.out >> tmp/config.log 2>&1; then
+checklog 'the C compiler CLI syntax'
+if $CC /nologo tmp/nothing.c /Fetmp/a.out > /dev/null 2>&1; then
     printgreen 'msvc'
     syntax=msvc
     CC="$CC /nologo"
@@ -107,7 +114,7 @@ if $CC /nologo tmp/nothing.c /Fetmp/a.out >> tmp/config.log 2>&1; then
     config 'CFLAGS := /O2 /DNDEBUG'
     config 'INCLUDE := /I'
     config 'DEFINE := /D'
-elif $CC tmp/nothing.c -o tmp/a.out >> tmp/config.log 2>&1; then
+elif $CC tmp/nothing.c -o tmp/a.out > /dev/null 2>&1; then
     printgreen 'gcc'
     syntax=gcc
     lm='-lm'
@@ -129,7 +136,7 @@ fi
 config "COMPILE_OBJ := $compile_obj"
 config "SYNTAX := $syntax"
 
-configlog 'checking if we are cross compiling'
+checklog 'if we are cross compiling'
 chmod +x tmp/a.out
 if tmp/a.out > /dev/null 2>&1; then
     printno
@@ -160,7 +167,7 @@ fi
 
 config "_CC := $CC"
 
-configlog 'checking the target OS'
+checklog 'the target OS'
 if checkdefine '_WIN32' > /dev/null; then
     printgreen 'windows'
     config 'OS := Windows'
@@ -181,18 +188,8 @@ if [ "$syntax" != 'gcc' ] || ! nolink=1 check 'if the compiler supports -MMD -MP
 fi
 rm -f tmp/test.d
 
-if [ "$syntax" != 'msvc' ] && check 'for librt' nothing -lrt; then
-    # sometimes needed for clock_gettime
-    config 'LIBS += -lrt'
-fi
-
-if [ "$syntax" != 'msvc' ] && check 'for libdl' nothing -ldl; then
-    # sometimes needed for glad or miniaudio
-    config 'LIBS += -ldl'
-fi
-
 if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
-    configlog 'checking if /usr/X11R6/include exists'
+    checklog 'if /usr/X11R6/include exists'
     if [ -d /usr/X11R6/include ]; then
         printyes
         include '/usr/X11R6/include'
@@ -200,7 +197,7 @@ if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
         printno
     fi
 
-    configlog 'checking if /usr/X11R6/lib exists'
+    checklog 'if /usr/X11R6/lib exists'
     if [ -d /usr/X11R6/lib ]; then
         printyes
         config 'LIBS += -L/usr/X11R6/lib'
@@ -209,15 +206,11 @@ if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
     fi
 fi
 
-printf '%s' "\
-#include <stdbool.h>
-int main(void){return 0;}
-" > tmp/stdbool.c
-
-if ! nolink=1 check 'if stdbool.h works' stdbool; then
-    # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
-    include 'compat/stdbool'
-    config 'HEADERS += compat/stdbool/stdbool.h'
+if [ "$syntax" != 'msvc' ]; then
+    check '' nothing -lrt > /dev/null &
+    librt_pid=$!
+    check '' nothing -ldl > /dev/null &
+    libdl_pid=$!
 fi
 
 printf '%s' "\
@@ -225,7 +218,196 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/stdint.c
 
-if ! nolink=1 check 'if stdint.h works' stdint; then
+nolink=1 check '' stdint > /dev/null &
+stdint_pid=$!
+
+printf '%s' "\
+#include <stdbool.h>
+int main(void){return 0;}
+" > tmp/stdbool.c
+
+nolink=1 check '' stdbool > /dev/null &
+stdbool_pid=$!
+
+printf '%s' "\
+#include <strings.h>
+int main(void){return 0;}
+" > tmp/strings.c
+
+nolink=1 check '' strings > /dev/null &
+strings_pid=$!
+
+printf '%s' "\
+#include <stdio.h>
+int main(void){
+    puts(__func__);
+    return 0;
+}
+" > tmp/__func__.c
+
+nolink=1 check '' __func__ > /dev/null &
+func_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return fmin(0,0);}
+" > tmp/fmin.c
+
+check '' fmin $lm > /dev/null &
+fmin_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return fmax(0,0);}
+" > tmp/fmax.c
+
+check '' fmax $lm > /dev/null &
+fmax_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return round(0);}
+" > tmp/round.c
+
+check '' round $lm > /dev/null &
+round_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return log2(1);}
+" > tmp/log2.c
+
+check '' log2 $lm > /dev/null &
+log2_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return lround(0);}
+" > tmp/lround.c
+
+check '' lround $lm > /dev/null &
+lround_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return sqrtf(0);}
+" > tmp/sqrtf.c
+
+check '' sqrtf $lm > /dev/null &
+sqrtf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return fabsf(0);}
+" > tmp/fabsf.c
+
+check '' fabsf $lm > /dev/null &
+fabsf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return fmodf(1,1);}
+" > tmp/fmodf.c
+
+check '' fmodf $lm > /dev/null &
+fmodf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return sinf(0);}
+" > tmp/sinf.c
+
+check '' sinf $lm > /dev/null &
+sinf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return cosf(0);}
+" > tmp/cosf.c
+
+check '' cosf $lm > /dev/null &
+cosf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return floorf(0);}
+" > tmp/floorf.c
+
+check '' floorf $lm > /dev/null &
+floorf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return roundf(0);}
+" > tmp/roundf.c
+
+check '' roundf $lm > /dev/null &
+roundf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isinf(0.0);}
+" > tmp/isinf.c
+
+check '' isinf $lm > /dev/null &
+isinf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return isnan(0.0);}
+" > tmp/isnan.c
+
+check '' isnan $lm > /dev/null &
+isnan_pid=$!
+
+printf '%s' "\
+#include <string.h>
+int main(void){
+    char *saveptr;
+    strtok_r(NULL, \"\", &saveptr);
+    return 0;
+}
+" > tmp/strtok_r.c
+
+check '' strtok_r > /dev/null &
+strtok_r_pid=$!
+
+printf '%s' "\
+#include <getopt.h>
+int main(int argc,char *argv[]){
+    static struct option opts[]={{0,0,0,0}};
+    int idx=0;
+    getopt_long(argc,argv,\"\",opts,&idx);
+    return 0;
+}
+" > tmp/getopt_long.c
+
+check '' getopt_long > /dev/null &
+getopt_long_pid=$!
+
+printf '%s' "\
+#include <stdio.h>
+int main(void){
+    char buf[8];
+    return snprintf(buf, sizeof(buf), \"test\");
+}
+" > tmp/snprintf.c
+
+check '' snprintf > /dev/null &
+snprintf_pid=$!
+
+if [ "$syntax" != 'msvc' ]; then
+    # sometimes needed for clock_gettime
+    if checkend 'for librt' "$librt_pid"; then
+        config 'LIBS += -lrt'
+    fi
+    # sometimes needed for glad or miniaudio
+    if checkend 'for libdl' "$libdl_pid"; then
+        config 'LIBS += -ldl'
+    fi
+fi
+
+if ! checkend 'if stdint.h works' "$stdint_pid"; then
     include 'compat/stdint'
     config 'HEADERS += compat/stdint/stdint.h'
     if [ "$syntax" != 'msvc' ]; then
@@ -239,165 +421,91 @@ int main(void){return 0;}
     fi
 fi
 
-printf '%s' "\
-#include <strings.h>
-int main(void){return 0;}
-" > tmp/strings.c
+if ! checkend 'if stdbool.h works' "$stdbool_pid"; then
+    # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
+    include 'compat/stdbool'
+    config 'HEADERS += compat/stdbool/stdbool.h'
+fi
 
-if ! nolink=1 check 'if strings.h works' strings; then
+if ! checkend 'if strings.h works' "$strings_pid"; then
     define 'NO_STRINGS_H'
     no_strings_h=1
 fi
 
-printf '%s' "\
-#include <stdio.h>
-int main(void){
-    puts(__func__);
-    return 0;
-}
-" > tmp/__func__.c
-
-if ! check 'if __func__ works' __func__; then
+if ! checkend 'if __func__ works' "$func_pid"; then
     define '__func__=\"unknown\"'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return fmin(0,0);}
-" > tmp/fmin.c
-
-if ! check 'for fmin' fmin $lm; then
+if ! checkend 'for fmin' "$fmin_pid"; then
     define 'NO_FMIN'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return fmax(0,0);}
-" > tmp/fmax.c
-
-if ! check 'for fmax' fmax $lm; then
+if ! checkend 'for fmax' "$fmax_pid"; then
     define 'NO_FMAX'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return round(0);}
-" > tmp/round.c
-
-if ! check 'for round' round $lm; then
+if ! checkend 'for round' "$round_pid"; then
     define 'NO_ROUND'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return log2(1);}
-" > tmp/log2.c
-
-if ! check 'for log2' log2 $lm; then
+if ! checkend 'for log2' "$log2_pid"; then
     define 'NO_LOG2'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return lround(0);}
-" > tmp/lround.c
-
-if ! check 'for lround' lround $lm; then
+if ! checkend 'for lround' "$lround_pid"; then
     define 'NO_LROUND'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return sqrtf(0);}
-" > tmp/sqrtf.c
-
-if ! check 'for sqrtf' sqrtf $lm; then
+if ! checkend 'for sqrtf' "$sqrtf_pid"; then
     define 'NO_SQRTF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return fabsf(0);}
-" > tmp/fabsf.c
-
-if ! check 'for fabsf' fabsf $lm; then
+if ! checkend 'for fabsf' "$fabsf_pid"; then
     define 'NO_FABSF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return fmodf(1,1);}
-" > tmp/fmodf.c
-
-if ! check 'for fmodf' fmodf $lm; then
+if ! checkend 'for fmodf' "$fmodf_pid"; then
     define 'NO_FMODF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return sinf(0);}
-" > tmp/sinf.c
-
-if ! check 'for sinf' sinf $lm; then
+if ! checkend 'for sinf' "$sinf_pid"; then
     define 'NO_SINF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return cosf(0);}
-" > tmp/cosf.c
-
-if ! check 'for cosf' cosf $lm; then
+if ! checkend 'for cosf' "$cosf_pid"; then
     define 'NO_COSF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return floorf(0);}
-" > tmp/floorf.c
-
-if ! check 'for floorf' floorf $lm; then
+if ! checkend 'for floorf' "$floorf_pid"; then
     define 'NO_FLOORF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return roundf(0);}
-" > tmp/roundf.c
-
-if ! check 'for roundf' roundf $lm; then
+if ! checkend 'for roundf' "$roundf_pid"; then
     define 'NO_ROUNDF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return isinf(0.0);}
-" > tmp/isinf.c
-
-if ! check 'for isinf' isinf $lm; then
+if ! checkend 'for isinf' "$isinf_pid"; then
     define 'NO_ISINF'
 fi
 
-printf '%s' "\
-#include <math.h>
-int main(void){return isnan(0.0);}
-" > tmp/isnan.c
-
-if ! check 'for isnan' isnan $lm; then
+if ! checkend 'for isnan' "$isnan_pid"; then
     define 'NO_ISNAN'
 fi
 
-printf '%s' "\
-#include <string.h>
-int main(void){
-    char *saveptr;
-    strtok_r(NULL, \"\", &saveptr);
-    return 0;
-}
-" > tmp/strtok_r.c
-
-if ! check 'for strtok_r' strtok_r; then
+if ! checkend 'for strtok_r' "$strtok_r_pid"; then
     define 'NO_STRTOK_R'
+fi
+
+if ! checkend 'for getopt_long' "$getopt_long_pid"; then
+    include 'compat/getopt'
+    config 'HEADERS += compat/getopt/getopt.h'
+fi
+
+if ! checkend 'for snprintf' "$snprintf_pid"; then
+    include 'compat/stdio'
+    define 'NO_SNPRINTF'
+    config 'SRCS += compat/stdio/printf.c'
+    config 'HEADERS += compat/stdio/printf.h'
 fi
 
 if [ -n "$no_strings_h" ]; then
@@ -414,36 +522,6 @@ int main(void){
 
 if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
-fi
-
-printf '%s' "\
-#include <getopt.h>
-int main(int argc,char *argv[]){
-    static struct option opts[]={{0,0,0,0}};
-    int idx=0;
-    getopt_long(argc,argv,\"\",opts,&idx);
-    return 0;
-}
-" > tmp/getopt_long.c
-
-if ! check 'for getopt_long' getopt_long; then
-    include 'compat/getopt'
-    config 'HEADERS += compat/getopt/getopt.h'
-fi
-
-printf '%s' "\
-#include <stdio.h>
-int main(void){
-    char buf[8];
-    return snprintf(buf, sizeof(buf), \"test\");
-}
-" > tmp/snprintf.c
-
-if ! check 'for snprintf' snprintf; then
-    include 'compat/stdio'
-    define 'NO_SNPRINTF'
-    config 'SRCS += compat/stdio/printf.c'
-    config 'HEADERS += compat/stdio/printf.h'
 fi
 
 rm -f tmp/*.c *.obj tmp/a.out
