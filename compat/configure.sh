@@ -422,17 +422,6 @@ if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF t
     config 'DISABLE_MMD := 1'
 fi
 
-if [ "$syntax" != 'msvc' ]; then
-    # sometimes needed for clock_gettime
-    if checkend 'for librt' "$librt_pid"; then
-        config 'LIBS += -lrt'
-    fi
-    # sometimes needed for glad or miniaudio
-    if checkend 'for libdl' "$libdl_pid"; then
-        config 'LIBS += -ldl'
-    fi
-fi
-
 if ! checkend 'if stdint.h works' "$stdint_pid"; then
     include 'compat/stdint'
     config 'HEADERS += compat/stdint/stdint.h'
@@ -460,6 +449,22 @@ fi
 
 if ! checkend 'if __func__ works' "$func_pid"; then
     define '__func__=\"unknown\"'
+fi
+
+if [ -n "$no_strings_h" ]; then
+    printf '#include <string.h>\n' > tmp/strcasecmp.c
+else
+    printf '#include <strings.h>\n' > tmp/strcasecmp.c
+fi
+
+printf '%s' "\
+int main(void){
+    return strcasecmp(\"\", \"\");
+}
+" >> tmp/strcasecmp.c
+
+if ! check 'for strcasecmp' strcasecmp; then
+    define 'NO_STRCASECMP'
 fi
 
 if ! checkend 'for fmin' "$fmin_pid"; then
@@ -534,20 +539,15 @@ if ! checkend 'for snprintf' "$snprintf_pid"; then
     config 'HEADERS += compat/stdio/printf.h'
 fi
 
-if [ -n "$no_strings_h" ]; then
-    printf '#include <string.h>\n' > tmp/strcasecmp.c
-else
-    printf '#include <strings.h>\n' > tmp/strcasecmp.c
-fi
-
-printf '%s' "\
-int main(void){
-    return strcasecmp(\"\", \"\");
-}
-" >> tmp/strcasecmp.c
-
-if ! check 'for strcasecmp' strcasecmp; then
-    define 'NO_STRCASECMP'
+if [ "$syntax" != 'msvc' ]; then
+    # sometimes needed for clock_gettime
+    if checkend 'for librt' "$librt_pid"; then
+        config 'LIBS += -lrt'
+    fi
+    # sometimes needed for glad or miniaudio
+    if checkend 'for libdl' "$libdl_pid"; then
+        config 'LIBS += -ldl'
+    fi
 fi
 
 cleanup
