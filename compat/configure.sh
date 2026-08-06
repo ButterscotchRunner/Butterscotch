@@ -161,7 +161,7 @@ int main(void){
 }
 " > tmp/mixed.c
 
-if ! nolink=1 check 'if C supports mixed declarations and code' mixed; then
+if ! nolink=1 check 'if the compiler supports mixed declarations and code' mixed; then
     if [ "$syntax" = 'msvc' ]; then
         # compile all sources as C++
         srcflag='/Tp'
