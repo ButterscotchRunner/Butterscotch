@@ -62,18 +62,19 @@ include() {
 check() {
     checklog "$1"
     srcname=$2
+    outname=${outname:-$srcname}
     shift
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
-    if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${srcname}.out" 2>&1; then
+    if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${outname}.out" 2>&1; then
         printyes
         ret=0
     else
         printno
         ret=1
     fi
-    [ -s "tmp/${srcname}.out" ] || rm -f "tmp/${srcname}.out"
+    [ -s "tmp/${outname}.out" ] || rm -f "tmp/${outname}.out"
     return "$ret"
 }
 
@@ -218,20 +219,20 @@ if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
     fi
 fi
 
-if [ "$syntax" = 'gcc' ] && nolink=1 check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
+if [ "$syntax" = 'gcc' ] && nolink=1 outname=fno-builtin check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
     # function tests might have false positives without this
     cflags='-fno-builtin'
 fi
 
 if [ "$syntax" = 'gcc' ]; then
-    nolink=1 check '' nothing -MMD -MP -MF tmp/test.d > /dev/null &
+    nolink=1 outname=mmd check '' nothing -MMD -MP -MF tmp/test.d > /dev/null &
     mmd_pid=$!
 fi
 
 if [ "$syntax" != 'msvc' ]; then
-    check '' nothing -lrt > /dev/null &
+    outname=librt check '' nothing -lrt > /dev/null &
     librt_pid=$!
-    check '' nothing -ldl > /dev/null &
+    outname=libdl check '' nothing -ldl > /dev/null &
     libdl_pid=$!
 fi
 
