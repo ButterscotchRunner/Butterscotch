@@ -63,7 +63,7 @@ static inline int32_t nextPow2(int32_t v) {
 // (glGetStringi + GL_NUM_EXTENSIONS) path when glGetStringi is non-null
 // (GL 3.0+), otherwise falls back to the legacy glGetString(GL_EXTENSIONS)
 // approach so the code works with any GL loader (glad, PS3, etc.).
-#ifndef PLATFORM_PS3
+#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
 static bool hasGLExtension(const char* name) {
     if (glGetStringi) {
         GLint numExts = 0;
@@ -87,7 +87,7 @@ static bool hasGLExtension(const char* name) {
 #endif
 
 static bool hasFBO() {
-#ifdef PLATFORM_PS3
+#if defined(PLATFORM_PS3) || defined(PLATFORM_VITA)
     return true;
 #else
     return (glGenFramebuffers && glBlitFramebuffer);
@@ -156,7 +156,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
     // that actually need it (Intel 82865G etc.).
     {
-#ifdef PLATFORM_PS3
+#if defined(PLATFORM_PS3) || defined(PLATFORM_VITA)
         gl->needsPOT = false;
 #else
         GLVer ver = GLCommon_getGLVersion();
@@ -417,9 +417,9 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     gl->textureLoaded[pageId] = true;
 
     int w, h;
+    uint8_t* pixels = nullptr;
 #ifdef PLATFORM_PS3
     // We'll load the textures on demand.
-    uint8_t* pixels;
     if (!PS3Textures_loadPage(pageId, &w, &h, &pixels)) {
         logWarn("GL: PS3 page %u has no pixels\n", pageId);
         return false;
@@ -437,8 +437,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     free(pixels);
-#else
-#if defined(PLATFORM_VITA)
+#elif defined(PLATFORM_VITA)
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
         if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
@@ -455,7 +454,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     DataWin_loadTxtrIfNeeded(dw, pageId);
 
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
-    uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
+    pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
     if (pixels == nullptr) {
         logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
@@ -477,7 +476,6 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-#endif
     logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     return true;
 }
