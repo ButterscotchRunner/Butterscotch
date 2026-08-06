@@ -1894,39 +1894,15 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     }
 #endif
 
-    // Normal dup mode: total bytes to duplicate = (operand + 1) * sizeof(type1)
-    // WAD17+ uses the low 15 bits of operand.
-    // WAD16 and below uses the low 15 bits of operand.
-    // Bit 15 is the swap-mode flag, handled above.
-    int32_t operandCount;
-#if IS_WAD17_OR_HIGHER_ENABLED
-    operandCount = IS_WAD17_OR_HIGHER(ctx) ? (int32_t)(operand & 0x7FFF) : (int32_t)(operand & 0xFF);
-#else
-    operandCount = (int32_t)(operand & 0xFF);
-#endif
-    int32_t totalBytes = (operandCount + 1) * typeSize;
-    int32_t count = bytesToSlotCount(ctx, totalBytes, ctx->stack.top);
-
-    // Copy 'count' items from the top of the stack (preserving order)
-    int32_t startIdx = ctx->stack.top - count;
-    for (int32_t i = 0; count > i; i++) {
-        RValue copy = ctx->stack.slots[startIdx + i];
-
-        // If the value owns a string, duplicate it to avoid double-free.
-        // For arrays and methods, bump the refcount so each duplicate independently owns a reference.
-        if (copy.type == RVALUE_STRING && copy.ownsReference && copy.string != nullptr) {
-            copy.string = safeStrdup(copy.string);
-        } else if (copy.type == RVALUE_ARRAY && copy.ownsReference && copy.array != nullptr) {
-            GMLArray_incRef(copy.array);
-#if IS_WAD17_OR_HIGHER_ENABLED
-        } else if (copy.type == RVALUE_METHOD && copy.ownsReference && copy.method != nullptr) {
-            GMLMethod_incRef(copy.method);
-#endif
-        } else if (copy.type == RVALUE_STRUCT && copy.ownsReference && copy.structInst != nullptr) {
-            Instance_structIncRef(copy.structInst);
-        }
-
-        stackPush(ctx, copy);
+    // In the YoYo Runner, the type1 would've been used to figure out how many bytes to be copied from the stack
+    // Because all of our types are tagged RValues, we don't need to rely on it (yay)
+    // extra = how many additional elements will be copied from the stack, that is...
+    // If the stack is [a, b], and extra is 1, the result will be [a, b, a, b]
+    int32_t total = operand + 1;
+    int32_t dupBottom = ctx->stack.top - total;
+    repeat(total, i) {
+        RValue target = ctx->stack.slots[dupBottom + i];
+        stackPush(ctx, RValue_makeIndependent(target));
     }
 }
 
