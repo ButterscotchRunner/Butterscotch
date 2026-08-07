@@ -217,6 +217,22 @@ if [ -z "$cross_compiling" ] && [ "$syntax" != 'msvc' ]; then
     else
         printno
     fi
+
+    checklog 'if /usr/X11R7/include exists'
+    if [ -d /usr/X11R7/include ]; then
+        printyes
+        include '/usr/X11R7/include'
+    else
+        printno
+    fi
+
+    checklog 'if /usr/X11R7/lib exists'
+    if [ -d /usr/X11R7/lib ]; then
+        printyes
+        config 'LIBS += -L/usr/X11R7/lib'
+    else
+        printno
+    fi
 fi
 
 if [ "$syntax" = 'gcc' ] && nolink=1 outname=fno-builtin check 'if the compiler supports -fno-builtin' nothing -fno-builtin; then
