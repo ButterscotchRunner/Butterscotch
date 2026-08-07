@@ -414,16 +414,7 @@ jobs:
     name: Build (Android)
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout Butterscotch
-        uses: actions/checkout@v4
-        with:
-          path: Butterscotch
-  
-      - name: Checkout Android frontend
-        uses: actions/checkout@v4
-        with:
-          repository: ButterscotchRunner/ButterscotchAndroid
-          path: ButterscotchAndroid
+      - uses: actions/checkout@v4
   
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -431,18 +422,18 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
           cache: 'gradle'
-          cache-dependency-path: ButterscotchAndroid/gradle/wrapper/gradle-wrapper.properties
-  
-      - name: Build Android
+          cache-dependency-path: src/android/frontend/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build APK
         run: |
-          cd ButterscotchAndroid
+          cd src/android/frontend
           ./gradlew assembleDebug
   
-      - name: Upload Android APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-android
-          path: ButterscotchAndroid/app/build/outputs/apk/debug/app-debug.apk
+          path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
 
 
   build-old-gcc:
