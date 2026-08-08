@@ -75,9 +75,10 @@ typedef struct {
     int32_t dstAlpha;
 } BlendFactors;
 
-// Vertex
+// Vertex    
 
 typedef enum {
+    PRIMITIVE_NONE = -1,
     PRIMITIVE_POINTS = 0,
     PRIMITIVE_LINES = 1,
     PRIMITIVE_LINE_STRIP = 2,

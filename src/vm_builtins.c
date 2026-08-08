@@ -17775,6 +17775,20 @@ static RValue builtin_vertex_freeze(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeReal(0);
 }
 
+static int translateVertexSubmitPrimitive(int primitive) {
+    switch (primitive) {
+        case 1: return PRIMITIVE_POINTS;
+        case 2: return PRIMITIVE_LINES;
+        case 3: return PRIMITIVE_LINE_STRIP;
+        case 4: return PRIMITIVE_TRIANGLES;
+        case 5: return PRIMITIVE_TRIANGLE_STRIP;
+        case 6: return PRIMITIVE_TRIANGLE_FAN;
+        case 7: return PRIMITIVE_TRIANGLES;
+    }
+
+    return primitive;
+}
+
 RValue _vertex_submit_ext(VMContext* ctx, int id, int primitive, int texture, int offset, int count) {
     VertexBuffer *buffer = getVertexBuffer(id);
 
@@ -17800,7 +17814,7 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
     int offset = (int)RValue_toReal(args[3]);
     int count = (int)RValue_toReal(args[4]);
     
-    return _vertex_submit_ext(ctx, id, primitive, texture, offset, count);
+    return _vertex_submit_ext(ctx, id, translateVertexSubmitPrimitive(primitive), texture, offset, count);
 }
 
 static RValue builtin_vertex_submit(
@@ -17818,7 +17832,7 @@ static RValue builtin_vertex_submit(
     return _vertex_submit_ext(
         ctx,
         id,
-        primitive,
+        translateVertexSubmitPrimitive(primitive),
         texture,
         0,
         -1
