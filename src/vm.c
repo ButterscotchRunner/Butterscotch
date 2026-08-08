@@ -1853,9 +1853,9 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
 
 static void handleDup(VMContext* ctx, uint32_t instr) {
     uint16_t operand = (uint16_t)(instr & 0xFFFF);
-    uint8_t type1 = instrType1(instr);
 
 #if IS_WAD17_OR_HIGHER_ENABLED
+    uint8_t type1 = instrType1(instr);
     int32_t typeSize = gmlTypeNativeSize(type1);
 
     // Swap mode (WAD17+): bit 15 of operand is set.
