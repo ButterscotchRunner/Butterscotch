@@ -41,6 +41,7 @@ static char* formatStackContents(VMContext* ctx) {
 }
 #endif
 
+#if IS_WAD17_OR_HIGHER_ENABLED
 // Returns the native byte size of a GML data type on the runner's stack.
 // The Dup instruction (and several BC17+ BREAK sub-opcodes) encode byte counts, not slot counts.
 static int gmlTypeNativeSize(uint8_t gmlType) {
@@ -56,6 +57,7 @@ static int gmlTypeNativeSize(uint8_t gmlType) {
         default:                return 16;
     }
 }
+#endif
 
 static void stackPush(VMContext* ctx, RValue val) {
     require(VM_STACK_SIZE > ctx->stack.top);
@@ -1832,6 +1834,7 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
     stackPush(ctx,RValue_makeBool(result));
 }
 
+#if IS_WAD17_OR_HIGHER_ENABLED
 // Converts a native byte count to RValue slot count by walking the stack backwards from a given position.
 // Reads each slot's gmlStackType (set at push time) to compute its native footprint.
 static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t stackPos) {
@@ -1846,13 +1849,15 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
     require(remaining == 0); // Byte count must align exactly to slot boundaries
     return slots;
 }
+#endif
 
 static void handleDup(VMContext* ctx, uint32_t instr) {
     uint16_t operand = (uint16_t)(instr & 0xFFFF);
     uint8_t type1 = instrType1(instr);
-    int32_t typeSize = gmlTypeNativeSize(type1);
 
 #if IS_WAD17_OR_HIGHER_ENABLED
+    int32_t typeSize = gmlTypeNativeSize(type1);
+
     // Swap mode (WAD17+): bit 15 of operand is set.
     // The Dup instruction doubles as a stack rotation when bit 15 is set.
     // It takes the top N items and moves them below the next M items.
