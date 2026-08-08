@@ -125,6 +125,7 @@ typedef struct {
 
     uint8_t currentVertex[256];
     uint32_t currentOffset;
+    uint32_t currentElementMask;
 
     bool isFrozen;
     bool vertexStarted; 

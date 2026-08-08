@@ -1634,6 +1634,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     if (!buffer || !buffer->format)
         return;
 
+    GLRenderer* gl = (GLRenderer*) renderer;
+
     typedef struct {
         GLuint vbo;
     } GLVertexBuffer;
@@ -1734,9 +1736,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         }
     }
 
-    if (texture != -1) {
-        glBindTexture(GL_TEXTURE_2D, texture);
-    }
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, texture == -1 ? gl->whiteTexture : (GLuint) texture);
 
     int vertexCount = buffer->size / buffer->format->stride;
     if (offset < 0) offset = 0;
