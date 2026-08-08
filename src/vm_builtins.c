@@ -16606,7 +16606,7 @@ VertexBuffer *getVertexBuffer(int id) {
 static VertexElement *findElement(VertexFormat *format, VertexUsage usage, VertexType type) {
     for (int i = 0; i < format->numElements; i++) {
         VertexElement *e = &format->elements[i];
-        if (e->usage == usage && e->type == type)
+        if ((usage == (VertexUsage)-1 || e->usage == usage) && e->type == type)
             return e;
     }
     return nullptr;
@@ -16732,7 +16732,7 @@ static RValue builtin_vertex_format_exists(VMContext* ctx, RValue* args, int32_t
         return RValue_makeBool(false);
     }
 
-    return RValue_makeBool(vertexFormats[local_id]->numElements > 0);
+    return RValue_makeBool(vertexFormats[local_id] != nullptr && vertexFormats[local_id]->numElements > 0);
 }
 
 static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -16743,6 +16743,9 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
     }
 
     VertexFormat *format = vertexFormats[local_id];
+    if (!format) {
+        return RValue_makeUndefined();
+    }
 
     Instance* ret = Runner_createStruct(ctx->runner);
     VM_structSetAndFreeVal(ctx, ret, "num_elements", RValue_makeReal(format->numElements), -1);
@@ -16773,6 +16776,8 @@ int createBuffer(size_t initialCapacity) {
     buffer->vertexSize = 0;
     buffer->currentOffset = 0;
     buffer->isFrozen = false;
+    buffer->vertexStarted = false;
+    memset(buffer->currentVertex, 0, sizeof(buffer->currentVertex));
     buffer->rendererData = NULL;
 
     int id;
@@ -16948,7 +16953,7 @@ static RValue builtin_vertex_begin(VMContext* ctx, RValue* args, int32_t argCoun
     int vb = RValue_toInt32(args[0]);
     int fmt = RValue_toInt32(args[1]) & 0x00FFFFFF;
 
-    if (vb < 0 || vb >= nextVertexBufferId || fmt < 0 || (fmt) >= nextVertexFormatId)
+    if (vb < 0 || vb >= nextVertexBufferId || fmt < 0 || fmt >= nextVertexFormatId)
         return RValue_makeReal(0);
 
     VertexBuffer *buffer = getVertexBuffer(vb);
@@ -16956,9 +16961,16 @@ static RValue builtin_vertex_begin(VMContext* ctx, RValue* args, int32_t argCoun
         return RValue_makeReal(0);
 
     VertexFormat *format = vertexFormats[fmt];
+    if (!format)
+        return RValue_makeReal(0);
 
     buffer->format = format;
     buffer->vertexSize = format->stride;
+    buffer->size = 0;
+    buffer->vertexStarted = false;
+    if (buffer->vertexSize > 0 && buffer->vertexSize <= sizeof(buffer->currentVertex)) {
+        memset(buffer->currentVertex, 0, buffer->vertexSize);
+    }
 
     return RValue_makeReal(0);
 }
@@ -16975,11 +16987,16 @@ static bool vertexWrite(VertexBuffer *vb, VertexUsage usage, VertexType type, co
 
 static void vertexCommit(VertexBuffer *vb)
 {
-    if (vb->size + vb->format->stride > vb->capacity)
-        return;
+    if (vb->size + vb->format->stride > vb->capacity) {
+        size_t newCapacity = vb->capacity ? vb->capacity * 2 : vb->format->stride * 2;
+        while (newCapacity < vb->size + vb->format->stride) {
+            newCapacity *= 2;
+        }
+        vb->data = (uint8_t *)safeRealloc(vb->data, newCapacity);
+        vb->capacity = newCapacity;
+    }
 
     memcpy(vb->data + vb->size, vb->currentVertex, vb->format->stride);
-
     vb->size += vb->format->stride;
 }
 
@@ -16987,6 +17004,8 @@ static void vertexBeginNew(VertexBuffer *vb)
 {
     if (vb->vertexStarted) {
         vertexCommit(vb);
+        memset(vb->currentVertex, 0, vb->format->stride);
+    } else if (vb->format) {
         memset(vb->currentVertex, 0, vb->format->stride);
     }
 
@@ -17041,7 +17060,18 @@ static RValue builtin_vertex_color(VMContext* c, RValue* a, int32_t n)
 
 static RValue builtin_vertex_argb(VMContext* c, RValue* a, int32_t n)
 {
-    return builtin_vertex_colour_common(a, n, VERTEX_USAGE_COLOR);
+    if (n < 2)
+        return RValue_makeReal(0);
+
+    VertexBuffer *vb = vertexGetBufferFromArgs(a);
+    if (!vb)
+        return RValue_makeReal(0);
+
+    uint32_t argb = (uint32_t)RValue_toInt32(a[1]);
+    uint32_t packed = (argb & 0xff000000) | ((argb & 0x000000ff) << 16) | (argb & 0x0000ff00) | ((argb & 0x00ff0000) >> 16);
+    vertexWrite(vb, VERTEX_USAGE_COLOR, VERTEX_TYPE_COLOR, &packed, sizeof(packed));
+
+    return RValue_makeReal(0);
 }
 
 static RValue builtin_vertex_normal(VMContext* ctx, RValue* args, int32_t argCount)
@@ -17153,7 +17183,7 @@ static RValue builtin_vertex_floatN(
         default: return RValue_makeReal(0);
     }
 
-    vertexWrite(vb, VERTEX_USAGE_POSITION, type, data, sizeof(float) * count);
+    vertexWrite(vb, (VertexUsage)-1, type, data, sizeof(float) * count);
 
     return RValue_makeReal(0);
 }static RValue builtin_vertex_float1(VMContext* c, RValue* a, int32_t n)
@@ -17181,50 +17211,29 @@ static RValue builtin_vertex_ubyte4(VMContext* ctx, RValue* args, int32_t argCou
         return RValue_makeReal(0);
     }
 
-    int id = RValue_toInt32(args[0]);
-    VertexBuffer *vb = getVertexBuffer(id);
-    if (!vb || vb->isFrozen)
+    VertexBuffer *vb = vertexGetBufferFromArgs(args);
+    if (!vb)
         return RValue_makeReal(0);
 
-    uint8_t x = (uint8_t)RValue_toInt32(args[1]);;
-    uint8_t y = (uint8_t)RValue_toInt32(args[2]);;
-    uint8_t z = (uint8_t)RValue_toInt32(args[3]);;
-    uint8_t w = (uint8_t)RValue_toInt32(args[4]);;
+    uint8_t values[4];
+    values[0] = (uint8_t)RValue_toInt32(args[1]);
+    values[1] = (uint8_t)RValue_toInt32(args[2]);
+    values[2] = (uint8_t)RValue_toInt32(args[3]);
+    values[3] = (uint8_t)RValue_toInt32(args[4]);
 
-    VertexElement *e = findElement(vb->format, VERTEX_USAGE_COLOR, VERTEX_TYPE_UBYTE4);
-    if (!e) {
-        printf("Couldn't find UBYTE4 element!\n");
-
-        for (int i = 0; i < vb->format->numElements; i++) {
-            VertexElement *el = &vb->format->elements[i];
-            printf("element %d: usage=%d type=%d offset=%d\n",
-                i, el->usage, el->type, el->offset);
-        }
-
-        return RValue_makeReal(0);
-    }
-
-    memcpy(vb->currentVertex + e->offset, &x, sizeof(uint8_t));
-    memcpy(vb->currentVertex + e->offset + sizeof(uint8_t), &y, sizeof(uint8_t));
-    memcpy(vb->currentVertex + e->offset + sizeof(uint8_t) * 2, &z, sizeof(uint8_t));
-    memcpy(vb->currentVertex + e->offset + sizeof(uint8_t) * 3, &w, sizeof(uint8_t));
+    vertexWrite(vb, (VertexUsage)-1, VERTEX_TYPE_UBYTE4, values, sizeof(values));
 
     return RValue_makeReal(0);
 }
 
 static RValue builtin_vertex_end(VMContext* ctx, RValue* args, int32_t argCount) {
-    printf("builtin_vertex_end()\n");
     int id = RValue_toInt32(args[0]);
     VertexBuffer *vb = getVertexBuffer(id);
     if (!vb || vb->isFrozen)
         return RValue_makeReal(0);
 
-    if (vb->size + vb->vertexSize > vb->capacity) {
-        vb->capacity *= 2;
-        vb->data = (uint8_t *)safeRealloc(vb->data, vb->capacity);
-    }
-    memcpy(vb->data + vb->size, vb->currentVertex, vb->vertexSize);
-    vb->size += vb->vertexSize;
+    vertexCommit(vb);
+    vb->vertexStarted = false;
 
     return RValue_makeReal(0);
 }
@@ -18265,6 +18274,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_format_add_position", builtin_vertex_format_add_position);
     VM_registerBuiltin(ctx, "vertex_format_add_position_3d", builtin_vertex_format_add_position_3d);
     VM_registerBuiltin(ctx, "vertex_format_add_texcoord", builtin_vertex_format_add_texcoord);
+    VM_registerBuiltin(ctx, "vertex_format_add_textcoord", builtin_vertex_format_add_texcoord);
     VM_registerBuiltin(ctx, "vertex_format_add_normal", builtin_vertex_format_add_normal);
     VM_registerBuiltin(ctx, "vertex_format_add_custom", builtin_vertex_format_add_custom);
     VM_registerBuiltin(ctx, "vertex_format_end", builtin_vertex_format_end);
