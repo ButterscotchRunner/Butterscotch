@@ -16480,7 +16480,7 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
 // Vertex
 
 static VertexFormat buildingFormat;
-static bool building = false;
+MAYBE_UNUSED static bool building = false;
 
 static int nextVertexFormatId = 0;
 static VertexFormat **vertexFormats = nullptr;
@@ -17054,9 +17054,9 @@ static RValue builtin_vertex_normal(VMContext* ctx, RValue* args, int32_t argCou
         return RValue_makeReal(0);
 
     float data[3] = {
-        RValue_toReal(args[1]),
-        RValue_toReal(args[2]),
-        RValue_toReal(args[3])
+        (float)RValue_toReal(args[1]),
+        (float)RValue_toReal(args[2]),
+        (float)RValue_toReal(args[3])
     };
 
     vertexWrite(vb, VERTEX_USAGE_NORMAL, VERTEX_TYPE_FLOAT3, data, sizeof(data));
@@ -17076,8 +17076,8 @@ static RValue builtin_vertex_position(VMContext* ctx, RValue* args, int32_t argC
     vertexBeginNew(vb);
 
     float data[2] = {
-        RValue_toReal(args[1]),
-        RValue_toReal(args[2])
+        (float)RValue_toReal(args[1]),
+        (float)RValue_toReal(args[2])
     };
 
     vertexWrite(vb, VERTEX_USAGE_POSITION, VERTEX_TYPE_FLOAT2, data, sizeof(data));
@@ -17097,9 +17097,9 @@ static RValue builtin_vertex_position_3d(VMContext* ctx, RValue* args, int32_t a
     vertexBeginNew(vb);
 
     float data[3] = {
-        RValue_toReal(args[1]),
-        RValue_toReal(args[2]),
-        RValue_toReal(args[3])
+        (float)RValue_toReal(args[1]),
+        (float)RValue_toReal(args[2]),
+        (float)RValue_toReal(args[3])
     };
 
     vertexWrite(vb, VERTEX_USAGE_POSITION, VERTEX_TYPE_FLOAT3, data, sizeof(data));
@@ -17117,8 +17117,8 @@ static RValue builtin_vertex_texcoord(VMContext* ctx, RValue* args, int32_t argC
         return RValue_makeReal(0);
 
     float data[2] = {
-        RValue_toReal(args[1]),
-        RValue_toReal(args[2])
+        (float)RValue_toReal(args[1]),
+        (float)RValue_toReal(args[2])
     };
 
     vertexWrite(vb, VERTEX_USAGE_TEXCOORD, VERTEX_TYPE_FLOAT2, data, sizeof(data));
