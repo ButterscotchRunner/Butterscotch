@@ -398,7 +398,7 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -DWERROR=ON -DPLATFORM=vita
+          cmake -B build -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal
 
       - name: Build
         run: |
