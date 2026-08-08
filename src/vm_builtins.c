@@ -15079,7 +15079,13 @@ static RValue builtin_path_exists(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeBool(getPath(ctx->runner, RValue_toInt32(args[0])) != nullptr);
 }
 
-// path_add() - create a new empty path, returns a path reference (AssetRef) to it, or -1 on failure.
+// path_exists(path)
+static RValue builtin_path_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeBool(false);
+    return RValue_makeBool(getPath(ctx->runner, RValue_toInt32(args[0])) != nullptr);
+}
+
+// path_add() - create a new empty path, return its index
 static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     PathChunk* pc = &runner->dataWin->path;
@@ -15228,6 +15234,317 @@ static RValue builtin_path_delete(VMContext* ctx, RValue* args, int32_t argCount
     free(p->internalPoints); p->internalPoints = nullptr; p->internalPointCount = 0;
     p->length = 0.0;
     p->exists = false;
+    return RValue_makeUndefined();
+}
+
+// path_duplicate(path) - creates a new path with the same points as the given path, returns the new path index
+static RValue builtin_path_duplicate(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 1)
+        return RValue_makeInt32(-1);
+
+    Runner* runner = ctx->runner;
+    PathChunk* pc = &runner->dataWin->path;
+
+    int32_t srcIdx = RValue_toInt32(args[0]);
+
+    if (srcIdx < 0 || (uint32_t)srcIdx >= pc->count)
+        return RValue_makeInt32(-1);
+
+    // Make a copy of the source before realloc can invalidate pointers
+    GamePath source = pc->paths[srcIdx];
+
+    uint32_t newIdx = pc->count;
+
+    GamePath* paths = (GamePath*)safeRealloc(
+        pc->paths,
+        (newIdx + 1) * sizeof(GamePath)
+    );
+
+    if (paths == nullptr)
+        return RValue_makeInt32(-1);
+
+    pc->paths = paths;
+
+    GamePath* newPath = &pc->paths[newIdx];
+
+    memset(newPath, 0, sizeof(GamePath));
+
+    // Copy basic properties
+    newPath->name = (char*)safeStrdup(source.name);
+
+    if (source.name != nullptr && newPath->name == nullptr)
+        return RValue_makeInt32(-1);
+
+    newPath->isSmooth = source.isSmooth;
+    newPath->isClosed = source.isClosed;
+    newPath->precision = source.precision;
+    newPath->pointCount = source.pointCount;
+    newPath->internalPointCount = source.internalPointCount;
+    newPath->length = source.length;
+
+    // Copy external points
+    if (source.pointCount > 0) {
+        newPath->points = (PathPoint*)safeMalloc(
+            source.pointCount * sizeof(PathPoint)
+        );
+
+        if (newPath->points == nullptr) {
+            memset(newPath, 0, sizeof(GamePath));
+            return RValue_makeInt32(-1);
+        }
+
+        memcpy(
+            newPath->points,
+            source.points,
+            source.pointCount * sizeof(PathPoint)
+        );
+    }
+
+    // Copy internal points
+    if (source.internalPointCount > 0) {
+        newPath->internalPoints = (InternalPathPoint*)safeMalloc(
+            source.internalPointCount * sizeof(InternalPathPoint)
+        );
+
+        if (newPath->internalPoints == nullptr) {
+            free(newPath->points);
+            memset(newPath, 0, sizeof(GamePath));
+            return RValue_makeInt32(-1);
+        }
+
+        memcpy(
+            newPath->internalPoints,
+            source.internalPoints,
+            source.internalPointCount * sizeof(InternalPathPoint)
+        );
+    }
+
+    pc->count = newIdx + 1;
+
+    return RValue_makeInt32((int32_t)newIdx);
+}
+
+typedef struct {
+    GMLReal minX;
+    GMLReal maxX;
+    GMLReal minY;
+    GMLReal maxY;
+    GMLReal centreX;
+    GMLReal centreY;
+} PathBounds;
+
+static bool GamePath_getBounds(GamePath* p, PathBounds* bounds) {
+    if (p == nullptr || p->pointCount == 0)
+        return false;
+
+    bounds->minX = p->points[0].x;
+    bounds->maxX = p->points[0].x;
+    bounds->minY = p->points[0].y;
+    bounds->maxY = p->points[0].y;
+
+    for (uint32_t i = 1; i < p->pointCount; i++) {
+        GMLReal x = p->points[i].x;
+        GMLReal y = p->points[i].y;
+
+        if (x < bounds->minX) bounds->minX = x;
+        if (x > bounds->maxX) bounds->maxX = x;
+        if (y < bounds->minY) bounds->minY = y;
+        if (y > bounds->maxY) bounds->maxY = y;
+    }
+
+    bounds->centreX = (bounds->minX + bounds->maxX) / 2;
+    bounds->centreY = (bounds->minY + bounds->maxY) / 2;
+
+    return true;
+}
+
+static RValue builtin_path_flip(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 1)
+        return RValue_makeUndefined();
+
+    GamePath* p = getPath(ctx->runner, RValue_toInt32(args[0]));
+
+    if (p == nullptr)
+        return RValue_makeUndefined();
+
+    if (p->pointCount == 0)
+        return RValue_makeUndefined();
+
+    PathBounds b;
+
+    if (!GamePath_getBounds(p, &b))
+        return RValue_makeUndefined();
+
+    for (uint32_t i = 0; i < p->pointCount; i++) {
+        p->points[i].x = b.centreX - (p->points[i].x - b.centreX);
+        p->points[i].y = b.centreY - (p->points[i].y - b.centreY);
+    }
+
+    GamePath_computeInternal(p);
+
+    return RValue_makeUndefined();
+}
+
+// path_mirror(path) - mirrors the path points horizontally
+static RValue builtin_path_mirror(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 1)
+        return RValue_makeUndefined();
+
+    GamePath* p = getPath(ctx->runner, RValue_toInt32(args[0]));
+
+    if (p == nullptr)
+        return RValue_makeUndefined();
+
+    if (p->pointCount == 0)
+        return RValue_makeUndefined();
+
+    PathBounds b;
+
+    if (!GamePath_getBounds(p, &b))
+        return RValue_makeUndefined();
+
+    for (uint32_t i = 0; i < p->pointCount; i++) {
+        p->points[i].x = b.centreX - (p->points[i].x - b.centreX);
+    }
+
+    GamePath_computeInternal(p);
+
+    return RValue_makeUndefined();
+}
+
+// path_reverse(path) - reverses the order of the path points
+static RValue builtin_path_reverse(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    GamePath* p = getPath(ctx->runner, RValue_toInt32(args[0]));
+    if (p == nullptr) return RValue_makeUndefined();
+    for (uint32_t i = 0; i < p->pointCount / 2; i++) {
+        PathPoint tmp = p->points[i];
+        p->points[i] = p->points[p->pointCount - 1 - i];
+        p->points[p->pointCount - 1 - i] = tmp;
+    }
+    GamePath_computeInternal(p);
+    return RValue_makeUndefined();
+}
+
+// path_rotate(path, angle) - rotates the path points around its centre
+static RValue builtin_path_rotate(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 2)
+        return RValue_makeUndefined();
+
+    GamePath* p = getPath(ctx->runner, RValue_toInt32(args[0]));
+
+    if (p == nullptr)
+        return RValue_makeUndefined();
+
+    if (p->pointCount == 0)
+        return RValue_makeUndefined();
+
+    PathBounds b;
+
+    if (!GamePath_getBounds(p, &b))
+        return RValue_makeUndefined();
+
+    float angle = (float)RValue_toReal(args[1]);
+    float rad = angle * (float)M_PI / 180.0f;
+    float cosA = cosf(rad);
+    float sinA = sinf(rad);
+
+    for (uint32_t i = 0; i < p->pointCount; i++) {
+        float x = p->points[i].x - b.centreX;
+        float y = p->points[i].y - b.centreY;
+
+        p->points[i].x =
+            x * cosA + y * sinA + b.centreX;
+
+        p->points[i].y =
+            -x * sinA + y * cosA + b.centreY;
+    }
+
+    GamePath_computeInternal(p);
+
+    return RValue_makeUndefined();
+}
+
+// path_rescale(path, scaleX, scaleY) - rescales the path points around its centre
+static RValue builtin_path_rescale(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 3)
+        return RValue_makeUndefined();
+
+    GamePath* p = getPath(ctx->runner, RValue_toInt32(args[0]));
+
+    if (p == nullptr)
+        return RValue_makeUndefined();
+
+    if (p->pointCount == 0)
+        return RValue_makeUndefined();
+
+    float scaleX = (float)RValue_toReal(args[1]);
+    float scaleY = (float)RValue_toReal(args[2]);
+
+    PathBounds b;
+
+    if (!GamePath_getBounds(p, &b))
+        return RValue_makeUndefined();
+
+    for (uint32_t i = 0; i < p->pointCount; i++) {
+        p->points[i].x =
+            b.centreX + (p->points[i].x - b.centreX) * scaleX;
+
+        p->points[i].y =
+            b.centreY + (p->points[i].y - b.centreY) * scaleY;
+    }
+
+    GamePath_computeInternal(p);
+
+    return RValue_makeUndefined();
+}
+
+// path_set_closed(path, closed) - recomputes the path
+static RValue builtin_path_set_closed(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    GamePath* path = getPath(ctx->runner, RValue_toInt32(args[0]));
+    if (path == nullptr) return RValue_makeUndefined();
+    path->isClosed = RValue_toBool(args[1]);
+    GamePath_computeInternal(path);
+    return RValue_makeUndefined();
+}
+
+// path_set_kind(path, kind) - 0=straight, 1=smooth; recomputes the path
+static RValue builtin_path_set_kind(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    GamePath* path = getPath(ctx->runner, RValue_toInt32(args[0]));
+    if (path == nullptr) return RValue_makeUndefined();
+    int32_t kind = RValue_toInt32(args[1]);
+    path->isSmooth = (kind == 1);
+    GamePath_computeInternal(path);
+    return RValue_makeUndefined();
+}
+
+// path_set_precision(path, prec) - clamped to 0..8; recomputes the path
+static RValue builtin_path_set_precision(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+    GamePath* path = getPath(ctx->runner, RValue_toInt32(args[0]));
+    if (path == nullptr) return RValue_makeUndefined();
+    int32_t prec = RValue_toInt32(args[1]);
+    if (0 > prec) prec = 0;
+    if (prec > 8) prec = 8;
+    path->precision = (uint32_t) prec;
+    GamePath_computeInternal(path);
+    return RValue_makeUndefined();
+}
+
+// path_shift(path, dx, dy) - shifts the path points by the given offsets
+static RValue builtin_path_shift(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeUndefined();
+    GamePath* path = getPath(ctx->runner, RValue_toInt32(args[0]));
+    if (path == nullptr) return RValue_makeUndefined();
+    float dx = (float) RValue_toReal(args[1]);
+    float dy = (float) RValue_toReal(args[2]);
+    for (uint32_t i = 0; i < path->pointCount; i++) {
+        path->points[i].x += dx;
+        path->points[i].y += dy;
+    }
+    GamePath_computeInternal(path);
     return RValue_makeUndefined();
 }
 
