@@ -3801,7 +3801,7 @@ void Runner_step(Runner* runner) {
             if (entry->units == 1) {
                 entry->elapsed += (double)1.0;
             } else {
-                entry->elapsed += (double)runner->deltaTime / 1000000.0;
+                entry->elapsed += runner->deltaTime / (double)1000000.0;
             }
 
             if (entry->elapsed >= entry->period) {
