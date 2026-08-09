@@ -1,8 +1,9 @@
-#pragma once
+#ifndef _BS_PROFILER_H_
+#define _BS_PROFILER_H_
 
 #include <common.h>
 #include <stdint.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 // GML script profiler.
 // Tracks self-time (exclusive of nested script calls) and self-instruction-count per code name.
@@ -55,3 +56,5 @@ void Profiler_reset(Profiler* p);
 static inline void Profiler_tickInstruction(Profiler* p) {
     if (p != nullptr) p->instructionCount++;
 }
+
+#endif /* _BS_PROFILER_H_ */

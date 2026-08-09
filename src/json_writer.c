@@ -1,9 +1,9 @@
 #include "json_writer.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 // ===[ Internal Helpers ]===
 
@@ -40,10 +40,10 @@ static void writeEscapedString(JsonWriter* writer, const char* str) {
 // ===[ Lifecycle ]===
 
 JsonWriter JsonWriter_create(void) {
-    return (JsonWriter) {
-        .out = StringBuilder_create(256),
-        .needsComma = false,
-    };
+    JsonWriter ret = {0};
+    ret.out = StringBuilder_create(256);
+    ret.needsComma = false;
+    return ret;
 }
 
 void JsonWriter_free(JsonWriter* writer) {
@@ -97,13 +97,19 @@ void JsonWriter_string(JsonWriter* writer, const char* value) {
 
 void JsonWriter_int(JsonWriter* writer, int64_t value) {
     writeCommaIfNeeded(writer);
-    StringBuilder_appendFormat(&writer->out, "%lld", (long long) value);
+    StringBuilder_appendFormat(&writer->out, "%lld", (longlong) value);
     writer->needsComma = true;
 }
 
 void JsonWriter_double(JsonWriter* writer, double value) {
     writeCommaIfNeeded(writer);
     StringBuilder_appendFormat(&writer->out, "%.17g", value);
+    writer->needsComma = true;
+}
+
+void JsonWriter_rawValue(JsonWriter* writer, const char* formattedValue) {
+    writeCommaIfNeeded(writer);
+    StringBuilder_append(&writer->out, formattedValue);
     writer->needsComma = true;
 }
 

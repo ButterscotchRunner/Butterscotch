@@ -1,9 +1,21 @@
-#pragma once
+#ifndef _BS_REAL_TYPE_H_
+#define _BS_REAL_TYPE_H_
 
 #include "common.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#ifndef INFINITY
+#define INFINITY ((float)1e39)
+#endif
+
+#ifdef NO_ISNAN
+#define isnan(x) (x != x)
+#endif
+#ifdef NO_ISINF
+#define isinf(x) ((x) == INFINITY || (x) == -INFINITY)
+#endif
 
 #ifdef USE_FLOAT_REALS
 
@@ -13,6 +25,7 @@ typedef int32_t GMLReal_int;
 #define GMLReal_sin sinf
 #define GMLReal_cos cosf
 #define GMLReal_tan tanf
+#define GMLReal_acos acosf
 #define GMLReal_asin asinf
 #define GMLReal_atan atanf
 #define GMLReal_atan2 atan2f
@@ -37,6 +50,7 @@ typedef int64_t GMLReal_int;
 #define GMLReal_sin sin
 #define GMLReal_cos cos
 #define GMLReal_tan tan
+#define GMLReal_acos acos
 #define GMLReal_asin asin
 #define GMLReal_atan atan
 #define GMLReal_atan2 atan2
@@ -67,3 +81,5 @@ static inline GMLReal GMLReal_bankersRound(GMLReal v) {
     }
     return (frac > 0.5) ? (f + 1.0) : f;
 }
+
+#endif /* _BS_REAL_TYPE_H_ */

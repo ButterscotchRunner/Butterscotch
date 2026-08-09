@@ -1,19 +1,22 @@
 #include "instance.h"
 
 #include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include "string_compat.h"
+#include "math_compat.h"
 
 #include "stb_ds.h"
 #include "utils.h"
 #include "int_rvalue_hashmap.h"
 
 Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, GMLReal y) {
-    Instance* inst = safeCalloc(1, sizeof(Instance));
+    Instance* inst = (Instance *)safeCalloc(1, sizeof(Instance));
     inst->instanceId = instanceId;
     inst->objectIndex = objectIndex;
     inst->refCount = 0;
+    inst->pinned = false;
     inst->structRegistryIndex = -1;
+    inst->constructorCodeIndex = -1;
+    inst->staticParent = nullptr;
     inst->x = (float) x;
     inst->y = (float) y;
     inst->xprevious = (float) x;
@@ -64,11 +67,13 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
 
 void Instance_structIncRef(Instance* inst) {
     if (inst == nullptr) return;
+    if (inst->pinned) return;
     inst->refCount++;
 }
 
 void Instance_structDecRef(Instance* inst) {
     if (inst == nullptr) return;
+    if (inst->pinned) return;
     require(inst->refCount > 0);
     inst->refCount--;
     // Never free here. The runner-side sweep reaps structs whose refCount has dropped to 1. (that is: when only the structInstances holds it)
@@ -144,11 +149,13 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->timelineRunning = source->timelineRunning;
 
     // Deep-copy self variables (Instance_setSelfVar handles string duplication + array incRef)
+    {
     repeat(source->selfVars.capacity, i) {
         IntRValueEntry* entry = &source->selfVars.entries[i];
         if (entry->key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             Instance_setSelfVar(destination, entry->key, entry->value);
         }
+    }
     }
 }
 
@@ -175,7 +182,7 @@ void Instance_computeSpeedFromComponents(Instance* inst) {
     if (GMLReal_fabs(inst->direction - GMLReal_round(inst->direction)) < 0.0001) {
         inst->direction = (float) GMLReal_round(inst->direction);
     }
-    inst->direction = (float) GMLReal_fmod(inst->direction, 360.0);
+    inst->direction = (float) GMLReal_fmod((GMLReal) inst->direction, 360.0);
 
     // Speed
     inst->speed = (float) GMLReal_sqrt(inst->hspeed * inst->hspeed + inst->vspeed * inst->vspeed);

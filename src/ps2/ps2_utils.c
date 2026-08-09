@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
 #include <unistd.h>
 #include <loadfile.h>
 #include <libcdvd.h>
@@ -16,15 +16,13 @@ void PS2Utils_extractDeviceKey(const char* path) {
     requireNotNull(pos);
 
     size_t length = pos - path;
-    char* result = safeMalloc((length + 1) * sizeof(char));
+    char* result = (char *)safeMalloc((length + 1) * sizeof(char));
     strncpy(result, path, length);
     result[length] = '\0';
 
     // The "result" is the device key as a string (example: "mass" or "host")
-    deviceKey = (PS2DeviceKey) {
-        .key = result,
-        .usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0,
-    };
+    deviceKey.key = result;
+    deviceKey.usesISO9660 = strncmp(result, "cdrom", strlen("cdrom")) == 0;
 
     deviceKeyLoaded = true;
 }
@@ -35,23 +33,23 @@ void PS2Utils_loadFSDrivers() {
     require(deviceKeyLoaded);
 
     if (deviceKey.usesISO9660) {
-        fprintf(stderr, "PS2Utils: Loading CDVD drivers for device key '%s'\n", deviceKey.key);
+        logInfo("PS2Utils: Loading CDVD drivers for device key '%s'\n", deviceKey.key);
 
         int ret;
         ret = SifLoadModule("rom0:CDVDMAN", 0, nullptr);
         if (0 > ret) {
-            fprintf(stderr, "PS2Utils: Failed to load CDVDMAN: %d\n", ret);
+            logError("PS2Utils: Failed to load CDVDMAN: %d\n", ret);
             abort();
         }
 
         ret = SifLoadModule("rom0:CDVDFSV", 0, nullptr);
         if (0 > ret) {
-            fprintf(stderr, "PS2Utils: Failed to load CDVDFSV: %d\n", ret);
+            logError("PS2Utils: Failed to load CDVDFSV: %d\n", ret);
             abort();
         }
 
         sceCdInit(SCECdINIT);
-        fprintf(stderr, "PS2Utils: CDVD initialized\n");
+        logInfo("PS2Utils: CDVD initialized\n");
     }
 }
 
@@ -69,33 +67,33 @@ extern unsigned int size_usbmass_bd_irx;
 void PS2Utils_loadMassStorageDrivers() {
     require(deviceKeyLoaded);
 
-    fprintf(stderr, "PS2Utils: Loading USB mass storage drivers for gprof output...\n");
+    logInfo("PS2Utils: Loading USB mass storage drivers for gprof output...\n");
 
     int ret;
     ret = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load usbd: %d\n", ret);
+        logWarn("PS2Utils: Failed to load usbd: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(bdm_irx, size_bdm_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load bdm: %d\n", ret);
+        logWarn("PS2Utils: Failed to load bdm: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(bdmfs_fatfs_irx, size_bdmfs_fatfs_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load bdmfs_fatfs: %d\n", ret);
+        logWarn("PS2Utils: Failed to load bdmfs_fatfs: %d\n", ret);
     }
 
     ret = SifExecModuleBuffer(usbmass_bd_irx, size_usbmass_bd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        fprintf(stderr, "PS2Utils: Failed to load usbmass_bd: %d\n", ret);
+        logWarn("PS2Utils: Failed to load usbmass_bd: %d\n", ret);
     }
 
     // Wait for USB device detection
     sleep(3);
 
-    fprintf(stderr, "PS2Utils: USB mass storage drivers loaded\n");
+    logInfo("PS2Utils: USB mass storage drivers loaded\n");
 }
 #endif
 
@@ -106,12 +104,12 @@ char* PS2Utils_createDevicePath(const char* path) {
 
     if (deviceKey.usesISO9660) {
         size_t len = strlen(deviceKey.key) + 3 + strlen(path) + 2 + 1;
-        char* devicePath = safeMalloc(len);
+        char* devicePath = (char *)safeMalloc(len);
         snprintf(devicePath, len, "%s:\\%s;1", deviceKey.key, path);
         return devicePath;
     } else {
         size_t len = strlen(deviceKey.key) + 1 + strlen(path) + 1;
-        char* devicePath = safeMalloc(len);
+        char* devicePath = (char *)safeMalloc(len);
         snprintf(devicePath, len, "%s:%s", deviceKey.key, path);
         return devicePath;
     }

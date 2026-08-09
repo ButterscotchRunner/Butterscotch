@@ -1,8 +1,12 @@
-#pragma once
+#ifndef _BS_SPATIAL_GRID_H_
+#define _BS_SPATIAL_GRID_H_
 #include <stdint.h>
 
 // Forward declarations
+#ifndef RUNNER_DEFINED
+#define RUNNER_DEFINED
 typedef struct Runner Runner;
+#endif
 
 #include "instance.h"
 #include "real_type.h"
@@ -56,7 +60,12 @@ static inline SpatialGridRange SpatialGrid_computeCellRange(SpatialGrid* grid, G
     if (minGridY > grid->gridHeight - 1) minGridY = grid->gridHeight - 1;
     if (maxGridX > grid->gridWidth - 1) maxGridX = grid->gridWidth - 1;
     if (maxGridY > grid->gridHeight - 1) maxGridY = grid->gridHeight - 1;
-    return (SpatialGridRange){ minGridX, minGridY, maxGridX, maxGridY };
+    SpatialGridRange ret;
+    ret.minGridX = minGridX;
+    ret.minGridY = minGridY;
+    ret.maxGridX = maxGridX;
+    ret.maxGridY = maxGridY;
+    return ret;
 }
 
 static inline bool SpatialGrid_instanceOverlapsRange(Instance* instance, SpatialGridRange range) {
@@ -79,7 +88,10 @@ typedef struct {
     SpatialGridRange range;
     bool filterByObject;
     bool filterByInstanceId;
+    bool matchAll;
     uint32_t queryId;
 } SpatialGridQuery;
 
 SpatialGridQuery SpatialGrid_prepareQuery(Runner* runner, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, int32_t target);
+
+#endif /* _BS_SPATIAL_GRID_H_ */

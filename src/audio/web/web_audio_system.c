@@ -6,9 +6,9 @@
 #include "data_win.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "stb_ds.h"
 
 // ===[ Helpers ]===
@@ -79,7 +79,7 @@ static void webInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem
 
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
-        fprintf(stderr, "Audio: Failed to initialize miniaudio engine in noDevice mode (error %d)\n", result);
+        logError("Audio: Failed to initialize miniaudio engine in noDevice mode (error %d)\n", result);
         ma->engineReady = false;
         return;
     }
@@ -88,7 +88,7 @@ static void webInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
 
-    fprintf(stderr, "Audio: web miniaudio engine initialized (noDevice, %d Hz, 2 ch)\n", ma->sampleRate);
+    logInfo("Audio: web miniaudio engine initialized (noDevice, %d Hz, 2 ch)\n", ma->sampleRate);
 }
 
 static void webDestroy(AudioSystem* audio) {
@@ -166,14 +166,14 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     if (isStream) {
         int32_t streamSlot = soundIndex - WEB_AUDIO_STREAM_INDEX_BASE;
         if (0 > streamSlot || streamSlot >= WEB_MAX_AUDIO_STREAMS || !ma->streams[streamSlot].active) {
-            fprintf(stderr, "Audio: Invalid stream index %d\n", soundIndex);
+            logWarn("Audio: Invalid stream index %d\n", soundIndex);
             return -1;
         }
         streamPath = ma->streams[streamSlot].filePath;
     } else {
         DataWin* dw = ma->base.audioGroups[0];
         if (0 > soundIndex || (uint32_t) soundIndex >= dw->sond.count) {
-            fprintf(stderr, "Audio: Invalid sound index %d\n", soundIndex);
+            logWarn("Audio: Invalid sound index %d\n", soundIndex);
             return -1;
         }
         sound = &dw->sond.sounds[soundIndex];
@@ -181,7 +181,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
     WebSoundInstance* slot = findFreeSlot(ma);
     if (slot == nullptr) {
-        fprintf(stderr, "Audio: No free sound slots for sound %d\n", soundIndex);
+        logWarn("Audio: No free sound slots for sound %d\n", soundIndex);
         return -1;
     }
 
@@ -191,7 +191,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     if (isStream) {
         result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
-            fprintf(stderr, "Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
+            logWarn("Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
         }
         slot->ownsDecoder = false;
@@ -203,36 +203,38 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
         if (inAudo) {
             if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) {
-                fprintf(stderr, "Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
+                logWarn("Audio: Invalid audio file index %d for sound '%s'\n", sound->audioFile, sound->name);
                 return -1;
             }
 
-            AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+            DataWin* audioGroup = ma->base.audioGroups[sound->audioGroup];
+            DataWin_loadAudoIfNeeded(audioGroup, (uint32_t)sound->audioFile);
+            AudioEntry* entry = &audioGroup->audo.entries[sound->audioFile];
 
             ma_decoder_config decoderConfig = ma_decoder_config_init_default();
             result = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &slot->decoder);
             if (result != MA_SUCCESS) {
-                fprintf(stderr, "Audio: Failed to init decoder for '%s' (error %d)\n", sound->name, result);
+                logWarn("Audio: Failed to init decoder for '%s' (error %d)\n", sound->name, result);
                 return -1;
             }
             slot->ownsDecoder = true;
 
             result = ma_sound_init_from_data_source(&ma->engine, &slot->decoder, 0, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
-                fprintf(stderr, "Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
+                logWarn("Audio: Failed to init sound from decoder for '%s' (error %d)\n", sound->name, result);
                 ma_decoder_uninit(&slot->decoder);
                 return -1;
             }
         } else {
             char* path = resolveExternalPath(ma, sound);
             if (path == nullptr) {
-                fprintf(stderr, "Audio: Could not resolve path for sound '%s'\n", sound->name);
+                logWarn("Audio: Could not resolve path for sound '%s'\n", sound->name);
                 return -1;
             }
 
             result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, nullptr, nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
-                fprintf(stderr, "Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
+                logWarn("Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
                 free(path);
                 return -1;
             }
@@ -369,6 +371,18 @@ static void webResumeAll(AudioSystem* audio) {
         WebSoundInstance* inst = &ma->instances[i];
         if (inst->active) ma_sound_start(&inst->maSound);
     }
+}
+
+static void webSuspend(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_stop(ma_engine_get_device(&ma->engine));
+}
+
+static void webResume(AudioSystem* audio) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    ma_device_start(ma_engine_get_device(&ma->engine));
 }
 
 static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
@@ -535,7 +549,9 @@ static float webGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     ma_result decResult;
     if (inAudo) {
         if (0 > sound->audioFile || (uint32_t) sound->audioFile >= ma->base.audioGroups[sound->audioGroup]->audo.count) return 0.0f;
-        AudioEntry* entry = &ma->base.audioGroups[sound->audioGroup]->audo.entries[sound->audioFile];
+        DataWin* audioGroup = ma->base.audioGroups[sound->audioGroup];
+        DataWin_loadAudoIfNeeded(audioGroup, (uint32_t)sound->audioFile);
+        AudioEntry* entry = &audioGroup->audo.entries[sound->audioFile];
         ma_decoder_config decoderConfig = ma_decoder_config_init_default();
         decResult = ma_decoder_init_memory(entry->data, entry->dataSize, &decoderConfig, &decoder);
     } else {
@@ -563,18 +579,45 @@ static void webSetMasterGain(AudioSystem* audio, float gain) {
     ma_engine_set_volume(&ma->engine, gain);
 }
 
+
+static void webSetMasterGainForListener(AudioSystem* audio, float gain, int32_t id) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    if (!ma->engineReady) return;
+    if (id < 0 || id >= MAX_LISTENERS) return;
+    ma->listenerGains[id] = gain;
+    ma_sound_group_set_volume(&ma->listenerGroups[id], gain);
+}
+
 static void webSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
 static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
-    if (groupIndex > 0) {
-        WebAudioSystem* ma = (WebAudioSystem*) audio;
-        int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
-        char buf[sz + 1];
-        snprintf(buf, sizeof(buf), "audiogroup%d.dat", groupIndex);
-        DataWin* audioGroup = DataWin_parse(
-            ma->fileSystem->vtable->resolvePath(ma->fileSystem, buf),
-            (DataWinParserOptions) { .parseAudo = true }
-        );
+    if (groupIndex > 0 && audio->dw->agrp.count > (uint32_t) groupIndex) {
+        AudioGroup* audioGroupEntry = &audio->dw->agrp.audioGroups[groupIndex];
+
+        char* buf;
+        if (audioGroupEntry->path == nullptr) {
+            int sz = snprintf(nullptr, 0, "audiogroup%d.dat", groupIndex);
+            buf = safeMalloc(sz + 1);
+            snprintf(buf, sz + 1, "audiogroup%d.dat", groupIndex);
+        } else {
+            size_t length = strlen(audioGroupEntry->path);
+            buf = safeMalloc(length + 1);
+            memcpy(buf, audioGroupEntry->path, length);
+            buf[length] = '\0';
+        }
+
+        // The original runner does not care if the file doesn't exist (this may happen if someone uses "audio_group_load" on a non-existent group)
+        FileSystem* fileSystem = ((WebAudioSystem*)audio)->fileSystem;
+        if (!fileSystem->vtable->fileExists(fileSystem, buf)) {
+            logWarn("Audio: Wanted to load Audio Group %d, but Audio Group %d does not exist in the file system!\n", groupIndex, groupIndex);
+            free(buf);
+            return;
+        }
+
+        DataWinParserOptions options = {0};
+        options.parseAudo = true;
+        options.lazyLoadAudio = audio->dw->lazyLoadAudio;
+        DataWin *audioGroup = DataWin_parse(((WebAudioSystem*)audio)->fileSystem->vtable->resolvePath(((WebAudioSystem*)audio)->fileSystem, buf), options);
         arrput(audio->audioGroups, audioGroup);
     }
 }
@@ -596,13 +639,13 @@ static int32_t webCreateStream(AudioSystem* audio, const char* filename) {
     }
 
     if (0 > freeSlot) {
-        fprintf(stderr, "Audio: No free stream slots for '%s'\n", filename);
+        logWarn("Audio: No free stream slots for '%s'\n", filename);
         return -1;
     }
 
     char* resolved = ma->fileSystem->vtable->resolvePath(ma->fileSystem, filename);
     if (resolved == nullptr) {
-        fprintf(stderr, "Audio: Could not resolve path for stream '%s'\n", filename);
+        logWarn("Audio: Could not resolve path for stream '%s'\n", filename);
         return -1;
     }
 
@@ -610,7 +653,7 @@ static int32_t webCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
 
     int32_t streamIndex = WEB_AUDIO_STREAM_INDEX_BASE + freeSlot;
-    fprintf(stderr, "Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
+    logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
     return streamIndex;
 }
 
@@ -620,7 +663,7 @@ static bool webDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
     int32_t slotIndex = streamIndex - WEB_AUDIO_STREAM_INDEX_BASE;
     if (0 > slotIndex || slotIndex >= WEB_MAX_AUDIO_STREAMS) {
-        fprintf(stderr, "Audio: Invalid stream index %d for destroy\n", streamIndex);
+        logWarn("Audio: Invalid stream index %d for destroy\n", streamIndex);
         return false;
     }
 
@@ -645,37 +688,40 @@ static bool webDestroyStream(AudioSystem* audio, int32_t streamIndex) {
 
 // ===[ Vtable ]===
 
-static AudioSystemVtable webAudioSystemVtable = {
-    .init = webInit,
-    .destroy = webDestroy,
-    .update = webUpdate,
-    .playSound = webPlaySound,
-    .stopSound = webStopSound,
-    .stopAll = webStopAll,
-    .isPlaying = webIsPlaying,
-    .pauseSound = webPauseSound,
-    .resumeSound = webResumeSound,
-    .pauseAll = webPauseAll,
-    .resumeAll = webResumeAll,
-    .setSoundGain = webSetSoundGain,
-    .getSoundGain = webGetSoundGain,
-    .setSoundPitch = webSetSoundPitch,
-    .getSoundPitch = webGetSoundPitch,
-    .getTrackPosition = webGetTrackPosition,
-    .setTrackPosition = webSetTrackPosition,
-    .getSoundLength = webGetSoundLength,
-    .setMasterGain = webSetMasterGain,
-    .setChannelCount = webSetChannelCount,
-    .groupLoad = webGroupLoad,
-    .groupIsLoaded = webGroupIsLoaded,
-    .createStream = webCreateStream,
-    .destroyStream = webDestroyStream,
-};
+static AudioSystemVtable webAudioSystemVtable;
 
 // ===[ Lifecycle ]===
 
-WebAudioSystem* WebAudioSystem_create(int32_t sampleRate) {
+WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate) {
     WebAudioSystem* ma = safeCalloc(1, sizeof(WebAudioSystem));
+    webAudioSystemVtable.init = webInit;
+    webAudioSystemVtable.destroy = webDestroy;
+    webAudioSystemVtable.update = webUpdate;
+    webAudioSystemVtable.playSound = webPlaySound;
+    webAudioSystemVtable.stopSound = webStopSound;
+    webAudioSystemVtable.stopAll = webStopAll;
+    webAudioSystemVtable.isPlaying = webIsPlaying;
+    webAudioSystemVtable.pauseSound = webPauseSound;
+    webAudioSystemVtable.resumeSound = webResumeSound;
+    webAudioSystemVtable.pauseAll = webPauseAll;
+    webAudioSystemVtable.resumeAll = webResumeAll;
+    webAudioSystemVtable.suspend = webSuspend;
+    webAudioSystemVtable.resume = webResume;
+    webAudioSystemVtable.setSoundGain = webSetSoundGain;
+    webAudioSystemVtable.getSoundGain = webGetSoundGain;
+    webAudioSystemVtable.setSoundPitch = webSetSoundPitch;
+    webAudioSystemVtable.getSoundPitch = webGetSoundPitch;
+    webAudioSystemVtable.getTrackPosition = webGetTrackPosition;
+    webAudioSystemVtable.setTrackPosition = webSetTrackPosition;
+    webAudioSystemVtable.getSoundLength = webGetSoundLength;
+    webAudioSystemVtable.setMasterGain = webSetMasterGain;
+    webAudioSystemVtable.setMasterGainForListener = webSetMasterGainForListener;
+    webAudioSystemVtable.setChannelCount = webSetChannelCount;
+    webAudioSystemVtable.groupLoad = webGroupLoad;
+    webAudioSystemVtable.groupIsLoaded = webGroupIsLoaded;
+    webAudioSystemVtable.createStream = webCreateStream;
+    webAudioSystemVtable.destroyStream = webDestroyStream;
+    ma->base.dw = dataWin;
     ma->base.vtable = &webAudioSystemVtable;
     ma->sampleRate = sampleRate > 0 ? sampleRate : 48000;
     return ma;

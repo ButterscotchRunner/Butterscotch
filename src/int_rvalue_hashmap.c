@@ -1,13 +1,13 @@
 #include "int_rvalue_hashmap.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #define INITIAL_CAPACITY 8
 
 static void allocEmpty(IntRValueHashMap* map, uint32_t capacity) {
     // memset 0xFF makes every key int32_t = -1 (the empty sentinel). The value bytes also become 0xFF but are unread for empty slots, so no harm.
-    map->entries = safeMalloc(capacity * sizeof(IntRValueEntry));
+    map->entries = (IntRValueEntry *)safeMalloc(capacity * sizeof(IntRValueEntry));
     memset(map->entries, 0xFF, capacity * sizeof(IntRValueEntry));
     map->capacity = capacity;
     map->mask = capacity - 1;
@@ -81,7 +81,7 @@ RValue* IntRValueHashMap_getOrInsertUndefined(IntRValueHashMap* map, int32_t key
         if (slotKey == key) return &map->entries[idx].value;
         if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) {
             map->entries[idx].key = key;
-            map->entries[idx].value = (RValue){ .type = RVALUE_UNDEFINED };
+            map->entries[idx].value = RValue_makeUndefined();
             map->count++;
             return &map->entries[idx].value;
         }

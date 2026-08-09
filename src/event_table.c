@@ -1,8 +1,8 @@
 #include "event_table.h"
 #include "utils.h"
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 // ===[ EventSlotMap ]===
 
@@ -32,18 +32,21 @@ void EventSlotMap_build(EventSlotMap* outMap, DataWin* dw) {
     }
 
     // Pass 2: allocate denseLookup arrays sized to (maxSubtype + 1) per type, fill with -1.
+    {
     repeat(OBJT_EVENT_TYPE_COUNT, t) {
         int32_t maxSub = outMap->maxSubtypeByType[t];
         if (0 > maxSub) continue;
         size_t entryCount = (size_t)(maxSub + 1);
-        outMap->denseLookup[t] = safeMalloc(entryCount * sizeof(int16_t));
+        outMap->denseLookup[t] = (int16_t *)safeMalloc(entryCount * sizeof(int16_t));
         repeat(entryCount, i) outMap->denseLookup[t][i] = -1;
+    }
     }
 
     // Pass 3: assign dense slot indexes deterministically.
     // Iteration order is (eventType ascending, eventSubtype ascending), so slots are stable across runs of the same data.win.
     // The "if not yet assigned" check makes this idempotent for duplicate declarations.
     int32_t nextSlot = 0;
+    {
     repeat(OBJT_EVENT_TYPE_COUNT, t) {
         int32_t maxSub = outMap->maxSubtypeByType[t];
         if (0 > maxSub) continue;
@@ -57,6 +60,7 @@ void EventSlotMap_build(EventSlotMap* outMap, DataWin* dw) {
                 table[sub] = (int16_t) nextSlot++;
             }
         }
+    }
     }
     outMap->slotCount = nextSlot;
 }
@@ -115,7 +119,7 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     int32_t slotCount = slotMap->slotCount;
 
     if (objectCount > MAX_EVENT_TABLE_OBJECT_COUNT) {
-        fprintf(stderr, "ResolvedEventTable: objectCount=%d exceeds max %d!\n", objectCount, MAX_EVENT_TABLE_OBJECT_COUNT);
+        logError("ResolvedEventTable: objectCount=%d exceeds max %d!\n", objectCount, MAX_EVENT_TABLE_OBJECT_COUNT);
         abort();
     }
 
@@ -128,10 +132,10 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     outTable->totalEntries = 0;
 
     // Pass 1: count resolved entries per object so we can allocate flat arrays.
-    int32_t* scratchCodeId = safeMalloc((size_t) slotCount * sizeof(int32_t));
-    int16_t* scratchOwner = safeMalloc((size_t) slotCount * sizeof(int16_t));
+    int32_t* scratchCodeId = (int32_t *)safeMalloc((size_t) slotCount * sizeof(int32_t));
+    int16_t* scratchOwner = (int16_t *)safeMalloc((size_t) slotCount * sizeof(int16_t));
 
-    outTable->byObjectStart = safeMalloc((size_t)(objectCount + 1) * sizeof(uint32_t));
+    outTable->byObjectStart = (uint32_t *)safeMalloc((size_t)(objectCount + 1) * sizeof(uint32_t));
     outTable->byObjectStart[0] = 0;
 
     uint32_t totalEntries = 0;
@@ -145,9 +149,10 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
     outTable->totalEntries = totalEntries;
 
     // Pass 2: fill byObject. Walking slots in ascending order means each object's range is already sorted by slot (no extra qsort needed).
-    outTable->byObject = safeMalloc((size_t) totalEntries * sizeof(ObjectEventEntry));
+    outTable->byObject = (ObjectEventEntry *)safeMalloc((size_t) totalEntries * sizeof(ObjectEventEntry));
 
     uint32_t cursor = 0;
+    {
     repeat(objectCount, oi) {
         resolveHandlersForObject(dw, slotMap, (int32_t) oi, scratchCodeId, scratchOwner);
         repeat(slotCount, s) {
@@ -158,24 +163,28 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
             cursor++;
         }
     }
+    }
 
     free(scratchCodeId);
     free(scratchOwner);
 
     // Pass 3: histogram + prefix sum + scatter to build bySlot. Walking byObject in object-major order means each slot's range ends up sorted by concreteObjectId for free.
-    outTable->bySlotStart = safeMalloc((size_t)(slotCount + 1) * sizeof(uint32_t));
+    outTable->bySlotStart = (uint32_t *)safeMalloc((size_t)(slotCount + 1) * sizeof(uint32_t));
     repeat(slotCount + 1, i) outTable->bySlotStart[i] = 0;
+    {
     repeat(totalEntries, i) {
         outTable->bySlotStart[outTable->byObject[i].slot + 1]++;
+    }
     }
     repeat(slotCount, s) {
         outTable->bySlotStart[s + 1] += outTable->bySlotStart[s];
     }
 
-    outTable->bySlot = safeMalloc((size_t) totalEntries * sizeof(SlotResponderEntry));
-    uint32_t* slotCursor = safeMalloc((size_t) slotCount * sizeof(uint32_t));
+    outTable->bySlot = (SlotResponderEntry *)safeMalloc((size_t) totalEntries * sizeof(SlotResponderEntry));
+    uint32_t* slotCursor = (uint32_t *)safeMalloc((size_t) slotCount * sizeof(uint32_t));
     memset(slotCursor, 0, (size_t) slotCount * sizeof(uint32_t));
 
+    {
     repeat(objectCount, oi) {
         uint32_t lo = outTable->byObjectStart[oi];
         uint32_t hi = outTable->byObjectStart[oi + 1];
@@ -186,6 +195,7 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
             outTable->bySlot[dst].ownerObjectId = e->ownerObjectId;
             outTable->bySlot[dst].codeId = e->codeId;
         }
+    }
     }
     free(slotCursor);
 }

@@ -1,7 +1,8 @@
-#pragma once
+#ifndef _BS_MATRIX_MATH_H_
+#define _BS_MATRIX_MATH_H_
 #include "common.h"
-#include <math.h>
-#include <string.h>
+#include "math_compat.h"
+#include "string_compat.h"
 
 // ===[ Matrix4f Type ]===
 
@@ -48,6 +49,76 @@ static inline Matrix4f* Matrix4f_multiply(Matrix4f* dest, const Matrix4f* a, con
         }
     }
     memcpy(dest->m, tmp, sizeof(tmp));
+    return dest;
+}
+
+static inline Matrix4f* Matrix4f_LookAt(Matrix4f* dest, float xFrom, float yFrom, float zFrom, float xTo, float yTo, float zTo, float xUp, float yUp, float zUp) {
+
+    float magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    float xLook = xTo - xFrom;
+    float yLook = yTo - yFrom;
+    float zLook = zTo - zFrom;
+    float magLook = sqrt(xLook * xLook + yLook * yLook + zLook * zLook);
+    xLook /= magLook;
+    yLook /= magLook;
+    zLook /= magLook;
+
+    // normalised cross product between Up and Look
+    float xRight = yUp * zLook - zUp * yLook;
+    float yRight = zUp * xLook - xUp * zLook;
+    float zRight = xUp * yLook - yUp * xLook;
+    float magRight = sqrt(xRight * xRight + yRight * yRight + zRight * zRight);
+    xRight /= magRight;
+    yRight /= magRight;
+    zRight /= magRight;
+
+    // normalised cross product between Look and Right
+    xUp = yLook * zRight - zLook * yRight;
+    yUp = zLook * xRight - xLook * zRight;
+    zUp = xLook * yRight - yLook * xRight;
+    magUp = sqrt(xUp * xUp + yUp * yUp + zUp * zUp);
+    xUp /= magUp;
+    yUp /= magUp;
+    zUp /= magUp;
+
+    float x, y, z;
+    x = xFrom * xRight + yFrom * yRight + zFrom * zRight;
+    y = xFrom * xUp + yFrom * yUp + zFrom * zUp;
+    z = xFrom * xLook + yFrom * yLook + zFrom * zLook;
+
+    dest->m[Matrix_getIndex(0, 0)] = xRight;
+    dest->m[Matrix_getIndex(1, 0)] = xUp;
+    dest->m[Matrix_getIndex(2, 0)] = xLook;
+
+    dest->m[Matrix_getIndex(0, 1)] = yRight;
+    dest->m[Matrix_getIndex(1, 1)] = yUp;
+    dest->m[Matrix_getIndex(2, 1)] = yLook;
+
+    dest->m[Matrix_getIndex(0, 2)] = zRight;
+    dest->m[Matrix_getIndex(1, 2)] = zUp;
+    dest->m[Matrix_getIndex(2, 2)] = zLook;
+
+    dest->m[Matrix_getIndex(0, 3)] = -x;
+    dest->m[Matrix_getIndex(1, 3)] = -y;
+    dest->m[Matrix_getIndex(2, 3)] = -z;
+
+    return dest;
+}
+
+static inline Matrix4f* Matrix4f_Orthographic(Matrix4f* dest, float width, float height, float zfar, float znear) {
+
+    memset(dest->m, 0, sizeof(dest->m));
+    dest->m[Matrix_getIndex(0,0)] = 2.0f / width;
+    dest->m[Matrix_getIndex(1,1)] = 2.0f / height;
+    dest->m[Matrix_getIndex(2,2)] = 1.0f / (zfar - znear);
+    dest->m[Matrix_getIndex(3,3)] = 1.0f;
+
+    dest->m[Matrix_getIndex(2,3)] = znear / (znear - zfar);
+
     return dest;
 }
 
@@ -143,6 +214,61 @@ static inline Matrix4f* Matrix4f_setTransform2D(Matrix4f* dest, float x, float y
     return dest;
 }
 
+// ===[ Camera View-Projection ]===
+
+// Mirrors a world -> clip matrix vertically in NDC (negates the clip-space Y row).
+// Renderers whose framebuffer is stored opposite to GameMaker's top-down convention apply this locally before upload.
+static inline void Matrix4f_flipClipY(Matrix4f* m) {
+    m->m[1] = -m->m[1];
+    m->m[5] = -m->m[5];
+    m->m[9] = -m->m[9];
+    m->m[13] = -m->m[13];
+}
+
+// Builds the world -> clip (NDC) transform for a 2D camera that shows the room rectangle [left, left+width] x [top, top+height] in GameMaker's
+// Y-down coordinate space, optionally rotated by angleDeg counter-clockwise about the view center (matching GML view_angle).
+static inline Matrix4f* Matrix4f_viewProjection(Matrix4f* dest, float left, float top, float width, float height, float angleDeg) {
+    Matrix4f_identity(dest);
+    Matrix4f_ortho(dest, left, left + width, top + height, top, -1.0f, 1.0f);
+
+    if (angleDeg != 0.0f) {
+        // Rotate the world opposite the camera, about the view center, to spin the camera by angleDeg.
+        float cx = left + width * 0.5f;
+        float cy = top + height * 0.5f;
+        Matrix4f rot;
+        Matrix4f_identity(&rot);
+        Matrix4f_translate(&rot, cx, cy, 0.0f);
+        Matrix4f_rotateZ(&rot, -angleDeg * (float) M_PI / 180.0f);
+        Matrix4f_translate(&rot, -cx, -cy, 0.0f);
+        Matrix4f_multiply(dest, dest, &rot);
+    }
+    return dest;
+}
+
+// ===[ GUI Projection ]===
+
+// Ortho for the GUI layer that preserves the guiW:guiH aspect inside a viewportW:viewportH viewport, centering
+// (pillarbox/letterbox) instead of stretching. Identity to a plain ortho(0,guiW,guiH,0) when the aspects match.
+static inline Matrix4f* Matrix4f_guiProjection(Matrix4f* dest, float guiW, float guiH, float viewportW, float viewportH) {
+    float left = 0.0f, right = guiW, top = 0.0f, bottom = guiH;
+    if (guiW > 0.0f && guiH > 0.0f && viewportW > 0.0f && viewportH > 0.0f) {
+        float viewAspect = viewportW / viewportH;
+        float guiAspect = guiW / guiH;
+        if (viewAspect > guiAspect) {
+            float margin = (guiH * viewAspect - guiW) * 0.5f;
+            left = -margin;
+            right = guiW + margin;
+        } else if (viewAspect < guiAspect) {
+            float margin = (guiW / viewAspect - guiH) * 0.5f;
+            top = -margin;
+            bottom = guiH + margin;
+        }
+    }
+    Matrix4f_identity(dest);
+    Matrix4f_ortho(dest, left, right, bottom, top, -1.0f, 1.0f);
+    return dest;
+}
+
 // ===[ Transform Point ]===
 
 // Transform a 2D point (x, y) through the matrix (w=1), writing results to outX, outY
@@ -150,6 +276,13 @@ static inline Matrix4f* Matrix4f_setTransform2D(Matrix4f* dest, float x, float y
 static inline void Matrix4f_transformPoint(const Matrix4f* mat, float x, float y, float* outX, float* outY) {
     *outX = mat->m[0] * x + mat->m[4] * y + mat->m[12];
     *outY = mat->m[1] * x + mat->m[5] * y + mat->m[13];
+}
+
+// Returns true if the matrix is a 2D affinte transformation in the xy plane.
+static inline bool Matrix4f_isAffine2D(const Matrix4f* mat) {
+    const float eps = 1e-6f;
+    return eps > fabsf(mat->m[3]) && eps > fabsf(mat->m[7]) && eps > fabsf(mat->m[11]) && eps > fabsf(mat->m[15] - 1.0f) // no perspective row
+        && eps > fabsf(mat->m[8]) && eps > fabsf(mat->m[9]); // no z coupling into x/y
 }
 
 
@@ -312,3 +445,5 @@ static inline bool Matrix4f_inverse(Matrix4f *inv, const Matrix4f *mat) {
     for (int i = 0; i < 16; i++) inv->m[i] *= invDet;
     return true;
 }
+
+#endif /* _BS_MATRIX_MATH_H_ */

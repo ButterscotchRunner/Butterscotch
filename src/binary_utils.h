@@ -1,9 +1,10 @@
-#pragma once
+#ifndef _BS_BINARY_UTILS_H_
+#define _BS_BINARY_UTILS_H_
 
 #include "common.h"
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
+#include "string_compat.h"
 
 // Binary reads/writes from a raw byte buffer.
 // When IS_BIG_ENDIAN is defined, reads are byte-swapped to interpret serialized little-endian data.
@@ -23,7 +24,7 @@ static inline uint32_t BinaryUtils_bswap32(uint32_t value) {
 static inline uint64_t BinaryUtils_bswap64(uint64_t value) {
     return __builtin_bswap64(value);
 }
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1300
 static inline uint16_t BinaryUtils_bswap16(uint16_t value) {
     return _byteswap_ushort(value);
 }
@@ -48,6 +49,16 @@ static inline uint32_t BinaryUtils_bswap32(uint32_t value) {
 }
 
 static inline uint64_t BinaryUtils_bswap64(uint64_t value) {
+#ifdef _MSC_VER
+    return ((value & 0x00000000000000FFui64) << 56) |
+           ((value & 0x000000000000FF00ui64) << 40) |
+           ((value & 0x0000000000FF0000ui64) << 24) |
+           ((value & 0x00000000FF000000ui64) << 8)  |
+           ((value & 0x000000FF00000000ui64) >> 8)  |
+           ((value & 0x0000FF0000000000ui64) >> 24) |
+           ((value & 0x00FF000000000000ui64) >> 40) |
+           ((value & 0xFF00000000000000ui64) >> 56);
+#else
     return ((value & 0x00000000000000FFull) << 56) |
            ((value & 0x000000000000FF00ull) << 40) |
            ((value & 0x0000000000FF0000ull) << 24) |
@@ -56,6 +67,7 @@ static inline uint64_t BinaryUtils_bswap64(uint64_t value) {
            ((value & 0x0000FF0000000000ull) >> 24) |
            ((value & 0x00FF000000000000ull) >> 40) |
            ((value & 0xFF00000000000000ull) >> 56);
+#endif
 }
 #endif
 
@@ -212,3 +224,5 @@ static inline double BinaryUtils_readFloat64Aligned(const uint8_t* data) {
     memcpy(&val, &bits, 8);
     return val;
 }
+
+#endif /* _BS_BINARY_UTILS_H_ */

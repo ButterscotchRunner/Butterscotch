@@ -1,22 +1,22 @@
 #include "string_builder.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <stdarg.h>
 
 #define STRING_BUILDER_MIN_CAPACITY 16
 
 StringBuilder StringBuilder_create(size_t initialCapacity) {
     if (STRING_BUILDER_MIN_CAPACITY > initialCapacity) initialCapacity = STRING_BUILDER_MIN_CAPACITY;
-    char* buffer = safeMalloc(initialCapacity);
+    char* buffer = (char *)safeMalloc(initialCapacity);
     buffer[0] = '\0';
-    return (StringBuilder) {
-        .buffer = buffer,
-        .length = 0,
-        .capacity = initialCapacity,
-    };
+    StringBuilder ret = {0};
+    ret.buffer = buffer;
+    ret.length = 0;
+    ret.capacity = initialCapacity;
+    return ret;
 }
 
 void StringBuilder_free(StringBuilder* sb) {
@@ -39,7 +39,7 @@ void StringBuilder_ensureCapacity(StringBuilder* sb, size_t additionalBytes) {
     while (required > newCapacity) {
         newCapacity *= 2;
     }
-    sb->buffer = safeRealloc(sb->buffer, newCapacity);
+    sb->buffer = (char *)safeRealloc(sb->buffer, newCapacity);
     sb->capacity = newCapacity;
 }
 

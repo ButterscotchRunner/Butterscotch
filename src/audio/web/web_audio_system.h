@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_WEB_AUDIO_SYSTEM_H_
+#define _BS_WEB_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
@@ -8,6 +9,7 @@
 #define WEB_SOUND_INSTANCE_ID_BASE 100000
 #define WEB_MAX_AUDIO_STREAMS 32
 #define WEB_AUDIO_STREAM_INDEX_BASE 300000
+#define MAX_LISTENERS 4
 
 typedef struct {
     bool active;
@@ -38,12 +40,16 @@ typedef struct {
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
     WebAudioStreamEntry streams[WEB_MAX_AUDIO_STREAMS];
+    ma_sound_group listenerGroups[MAX_LISTENERS];
+    float listenerGains[MAX_LISTENERS];
 } WebAudioSystem;
 
 // Creates a no-device miniaudio engine that mixes into a buffer when WebAudioSystem_pullFrames is called.
 // sampleRate must match the AudioContext's sampleRate on the JS side.
-WebAudioSystem* WebAudioSystem_create(int32_t sampleRate);
+WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate);
 
 // Pulls frameCount interleaved-stereo float32 frames into out.
 // out must have at least frameCount * 2 floats of space. Underruns are zero-filled by miniaudio.
 void WebAudioSystem_pullFrames(WebAudioSystem* audio, float* out, int32_t frameCount);
+
+#endif /* _BS_WEB_AUDIO_SYSTEM_H_ */

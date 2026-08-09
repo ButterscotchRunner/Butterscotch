@@ -1,8 +1,8 @@
 #include "json_reader.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #include "utils.h"
 
@@ -38,11 +38,7 @@ static char advance(JsonParser* parser) {
 }
 
 static JsonValue* makeValue(JsonValueType type) {
-    JsonValue* value = safeCalloc(1, sizeof(JsonValue));
-    if (value == nullptr) {
-        fprintf(stderr, "JsonReader: calloc failed\n");
-        abort();
-    }
+    JsonValue* value = (JsonValue *)safeCalloc(1, sizeof(JsonValue));
     value->type = type;
     return value;
 }
@@ -56,11 +52,7 @@ static JsonValue* parseString(JsonParser* parser) {
 
     size_t capacity = 64;
     size_t length = 0;
-    char* buffer = safeMalloc(capacity);
-    if (buffer == nullptr) {
-        fprintf(stderr, "JsonReader: malloc failed\n");
-        abort();
-    }
+    char* buffer = (char *)safeMalloc(capacity);
 
     while (parser->position < parser->length) {
         char c = advance(parser);
@@ -99,14 +91,14 @@ static JsonValue* parseString(JsonParser* parser) {
                     } else if (2048 > codePoint) {
                         if (length + 2 >= capacity) {
                             capacity *= 2;
-                            buffer = safeRealloc(buffer, capacity);
+                            buffer = (char *)safeRealloc(buffer, capacity);
                         }
                         buffer[length++] = (char) (0xC0 | (codePoint >> 6));
                         c = (char) (0x80 | (codePoint & 0x3F));
                     } else {
                         if (length + 3 >= capacity) {
                             capacity *= 2;
-                            buffer = safeRealloc(buffer, capacity);
+                            buffer = (char *)safeRealloc(buffer, capacity);
                         }
                         buffer[length++] = (char) (0xE0 | (codePoint >> 12));
                         buffer[length++] = (char) (0x80 | ((codePoint >> 6) & 0x3F));
@@ -115,7 +107,7 @@ static JsonValue* parseString(JsonParser* parser) {
                     break;
                 }
                 default:
-                    fprintf(stderr, "JsonReader: unknown escape sequence '\\%c'\n", escaped);
+                    logWarn("JsonReader: unknown escape sequence '\\%c'\n", escaped);
                     free(buffer);
                     return nullptr;
             }
@@ -124,17 +116,13 @@ static JsonValue* parseString(JsonParser* parser) {
         // Grow buffer if needed
         if (length + 1 >= capacity) {
             capacity *= 2;
-            buffer = safeRealloc(buffer, capacity);
-            if (buffer == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
+            buffer = (char *)safeRealloc(buffer, capacity);
         }
         buffer[length++] = c;
     }
 
     // Unterminated string
-    fprintf(stderr, "JsonReader: unterminated string\n");
+    logWarn("JsonReader: unterminated string\n");
     free(buffer);
     return nullptr;
 }
@@ -144,7 +132,7 @@ static JsonValue* parseNumber(JsonParser* parser) {
     char* end = nullptr;
     double number = strtod(start, &end);
     if (end == start) {
-        fprintf(stderr, "JsonReader: invalid number\n");
+        logWarn("JsonReader: invalid number\n");
         return nullptr;
     }
     parser->position += (size_t) (end - start);
@@ -180,11 +168,7 @@ static JsonValue* parseArray(JsonParser* parser) {
         // Grow items array if needed
         if (value->array.count >= value->array.capacity) {
             int newCapacity = (value->array.capacity == 0) ? 8 : value->array.capacity * 2;
-            value->array.items = safeRealloc(value->array.items, (size_t) newCapacity * sizeof(JsonValue));
-            if (value->array.items == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
+            value->array.items = (JsonValue *)safeRealloc(value->array.items, (size_t) newCapacity * sizeof(JsonValue));
             value->array.capacity = newCapacity;
         }
 
@@ -199,7 +183,7 @@ static JsonValue* parseArray(JsonParser* parser) {
             advance(parser);
             return value;
         } else {
-            fprintf(stderr, "JsonReader: expected ',' or ']' in array\n");
+            logWarn("JsonReader: expected ',' or ']' in array\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -225,7 +209,7 @@ static JsonValue* parseObject(JsonParser* parser) {
     while (true) {
         skipWhitespace(parser);
         if (peek(parser) != '"') {
-            fprintf(stderr, "JsonReader: expected string key in object\n");
+            logWarn("JsonReader: expected string key in object\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -241,7 +225,7 @@ static JsonValue* parseObject(JsonParser* parser) {
 
         skipWhitespace(parser);
         if (peek(parser) != ':') {
-            fprintf(stderr, "JsonReader: expected ':' after object key\n");
+            logWarn("JsonReader: expected ':' after object key\n");
             free(key);
             JsonReader_free(value);
             return nullptr;
@@ -259,12 +243,8 @@ static JsonValue* parseObject(JsonParser* parser) {
         // Grow arrays if needed
         if (value->object.count >= value->object.capacity) {
             int newCapacity = (value->object.capacity == 0) ? 8 : value->object.capacity * 2;
-            value->object.keys = safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
-            value->object.values = safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
-            if (value->object.keys == nullptr || value->object.values == nullptr) {
-                fprintf(stderr, "JsonReader: realloc failed\n");
-                abort();
-            }
+            value->object.keys = (char **)safeRealloc(value->object.keys, (size_t) newCapacity * sizeof(char*));
+            value->object.values = (JsonValue *)safeRealloc(value->object.values, (size_t) newCapacity * sizeof(JsonValue));
             value->object.capacity = newCapacity;
         }
 
@@ -280,7 +260,7 @@ static JsonValue* parseObject(JsonParser* parser) {
             advance(parser);
             return value;
         } else {
-            fprintf(stderr, "JsonReader: expected ',' or '}' in object\n");
+            logWarn("JsonReader: expected ',' or '}' in object\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -312,7 +292,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 't': {
             JsonValue* value = parseLiteral(parser, "true", 4);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             value->type = JSON_BOOL;
@@ -322,7 +302,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 'f': {
             JsonValue* value = parseLiteral(parser, "false", 5);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             value->type = JSON_BOOL;
@@ -332,7 +312,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 'n': {
             JsonValue* value = parseLiteral(parser, "null", 4);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             return value;
@@ -341,7 +321,7 @@ static JsonValue* parseValue(JsonParser* parser) {
             if (c == '-' || (c >= '0' && c <= '9')) {
                 return parseNumber(parser);
             }
-            fprintf(stderr, "JsonReader: unexpected character '%c' at position %zu\n", c, parser->position);
+            logWarn("JsonReader: unexpected character '%c' at position %zu\n", c, parser->position);
             return nullptr;
     }
 }
@@ -352,15 +332,15 @@ JsonValue* JsonReader_parse(const char* json) {
     if (json == nullptr) return nullptr;
 
     size_t pos = 0;
-    if (memcmp(json, "\xEF\xBB\xBF", 3) == 0) {
+    int len = strlen(json);
+    if (len >= 3 && memcmp(json, "\xEF\xBB\xBF", 3) == 0) {
         pos = 3;
     }
 
-    JsonParser parser = {
-        .input = json,
-        .position = pos,
-        .length = strlen(json),
-    };
+    JsonParser parser;
+    parser.input = json;
+    parser.position = pos;
+    parser.length = len;
 
     JsonValue* result = parseValue(&parser);
 
@@ -368,7 +348,7 @@ JsonValue* JsonReader_parse(const char* json) {
     if (result != nullptr) {
         skipWhitespace(&parser);
         if (parser.position < parser.length) {
-            fprintf(stderr, "JsonReader: trailing content after JSON value at position %zu\n", parser.position);
+            logWarn("JsonReader: trailing content after JSON value at position %zu\n", parser.position);
             JsonReader_free(result);
             return nullptr;
         }
@@ -385,18 +365,22 @@ static void freeContents(JsonValue* value) {
             free(value->stringValue);
             break;
         case JSON_ARRAY:
+            {
             repeat(value->array.count, i) {
                 freeContents(&value->array.items[i]);
             }
             free(value->array.items);
+            }
             break;
         case JSON_OBJECT:
+            {
             repeat(value->object.count, i) {
                 free(value->object.keys[i]);
                 freeContents(&value->object.values[i]);
             }
             free(value->object.keys);
             free(value->object.values);
+            }
             break;
         default:
             break;
@@ -488,8 +472,8 @@ int JsonReader_objectLength(const JsonValue* value) {
     return value->object.count;
 }
 
-JsonValue* JsonReader_getObject(const JsonValue* value, const char* key) {
-    repeat(value->object.count, i) {
+JsonValue* JsonReader_getJsonValueByKey(const JsonValue* value, const char* key) {
+    for (int i = 0; i < value->object.count; ++i) {
         if (strcmp(value->object.keys[i], key) == 0) {
             return &value->object.values[i];
         }
@@ -497,12 +481,12 @@ JsonValue* JsonReader_getObject(const JsonValue* value, const char* key) {
     return nullptr;
 }
 
-const char* JsonReader_getObjectKey(const JsonValue* value, int index) {
+const char* JsonReader_getJsonKeyByIndex(const JsonValue* value, int index) {
     if (0 > index || index >= value->object.count) return nullptr;
     return value->object.keys[index];
 }
 
-JsonValue* JsonReader_getObjectValue(const JsonValue* value, int index) {
+JsonValue* JsonReader_getJsonValueByIndex(const JsonValue* value, int index) {
     if (0 > index || index >= value->object.count) return nullptr;
     return &value->object.values[index];
 }

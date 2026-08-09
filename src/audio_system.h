@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_AUDIO_SYSTEM_H_
+#define _BS_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include <stdint.h>
@@ -23,6 +24,8 @@ typedef struct {
     void (*resumeSound)(AudioSystem* audio, int32_t soundOrInstance);
     void (*pauseAll)(AudioSystem* audio);
     void (*resumeAll)(AudioSystem* audio);
+    void (*suspend)(AudioSystem* audio);
+    void (*resume)(AudioSystem* audio);
     void (*setSoundGain)(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs);
     float (*getSoundGain)(AudioSystem* audio, int32_t soundOrInstance);
     void (*setSoundPitch)(AudioSystem* audio, int32_t soundOrInstance, float pitch);
@@ -33,6 +36,7 @@ typedef struct {
     // Returns 0.0 if unknown (e.g. stream not yet loaded or invalid index).
     float (*getSoundLength)(AudioSystem* audio, int32_t soundOrInstance);
     void (*setMasterGain)(AudioSystem* audio, float gain);
+    void (*setMasterGainForListener)(AudioSystem* audio, float gain, int32_t listenerId);
     void (*setChannelCount)(AudioSystem* audio, int32_t count);
     void (*groupLoad)(AudioSystem* audio, int32_t groupIndex);
     bool (*groupIsLoaded)(AudioSystem* audio, int32_t groupIndex);
@@ -44,5 +48,8 @@ typedef struct {
 
 struct AudioSystem {
     AudioSystemVtable* vtable;
+    DataWin* dw;
     DataWin** audioGroups;
 };
+
+#endif /* _BS_AUDIO_SYSTEM_H_ */

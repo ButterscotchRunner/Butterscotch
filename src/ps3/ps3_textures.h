@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS3_TEXTURES_H_
+#define _BS_PS3_TEXTURES_H_
 
 #include <ps3gl.h>
 #include <stdbool.h>
@@ -24,3 +25,5 @@ GLuint PS3Textures_getClutTexture();
 // Pre-normalized V coordinate (row center) for the CLUT belonging to a given
 // TPAG. Returns -1.0f if the TPAG is unmapped (no pixels) or out of range.
 float PS3Textures_getTpagPaletteV(int32_t tpagIndex);
+
+#endif /* _BS_PS3_TEXTURES_H_ */

@@ -1,11 +1,12 @@
-#pragma once
+#ifndef _BS_PS2_AUDIO_SYSTEM_H_
+#define _BS_PS2_AUDIO_SYSTEM_H_
 
 #include "common.h"
 #include "audio_system.h"
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 #define MAX_PS2_SOUND_INSTANCES 64
 #define PS2_SOUND_INSTANCE_ID_BASE 100000
@@ -173,3 +174,5 @@ typedef struct {
 } Ps2AudioSystem;
 
 Ps2AudioSystem* Ps2AudioSystem_create(void);
+
+#endif /* _BS_PS2_AUDIO_SYSTEM_H_ */

@@ -1,6 +1,7 @@
 // This is auto generated!
 // Font: "JetBrains Mono ExtraBold"
-#pragma once
+#ifndef _BS_DEBUG_FONT_H_
+#define _BS_DEBUG_FONT_H_
 
 #include <stdint.h>
 
@@ -22,3 +23,5 @@ typedef struct {
 
 extern const uint8_t debugFontPixels[DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H];
 extern const DebugFontGlyphEntry debugFontGlyphs[DEBUGFONT_GLYPH_COUNT];
+
+#endif /* _BS_DEBUG_FONT_H_ */

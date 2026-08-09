@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
 #include <errno.h>
 #include <sys/stat.h>
 #include <emscripten.h>
@@ -12,6 +12,7 @@
 #include "overlay_file_system.h"
 #include "runner.h"
 #include "gl/gl_renderer.h"
+#include "gettime.h"
 
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = 0;
 static Runner* gRunner;
@@ -20,6 +21,25 @@ static int32_t gAudioSampleRate = 48000;
 
 uint8_t keyDown[GML_KEY_COUNT] = {0};
 uint8_t keyUp[GML_KEY_COUNT] = {0};
+
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
 
 // Configures the sample rate that miniaudio will mix at. Must match the AudioContext's sampleRate
 // on the JS side, and must be called BEFORE startRunner.
@@ -52,7 +72,7 @@ int getKeyCount() {
 }
 
 int main() {
-    printf("Howdy! Loritta is so cute! lol\n");
+    logInfo("Howdy! Loritta is so cute! lol\n");
     emscripten_exit_with_live_runtime();
     return 0;
 }
@@ -61,12 +81,12 @@ int main() {
 int mountOpfs(void) {
     backend_t opfs = wasmfs_create_opfs_backend();
     if (!opfs) {
-        fprintf(stderr, "Failed to create OPFS backend\n");
+        logWarn("Failed to create OPFS backend\n");
         return -1;
     }
     int rc = wasmfs_create_directory("/butterscotch", 0777, opfs);
     if (rc != 0) {
-        fprintf(stderr, "Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
+        logWarn("Failed to mount OPFS at /butterscotch: %s\n", strerror(errno));
         return -1;
     }
     return 0;
@@ -90,9 +110,14 @@ static int mkdirP(const char* path) {
 }
 
 void* loop() {
-    double lastFrameTimeMs = emscripten_get_now();
+    double lastFrameStartMs = emscripten_get_now(); // for delta_time and frame pacing
 
+    gRunner->gameStartTime = nowNanos();
     while (!gRunner->shouldExit) {
+        double frameStartMs = emscripten_get_now();
+        gRunner->deltaTime = (frameStartMs - lastFrameStartMs) * 1000.0;
+        lastFrameStartMs = frameStartMs;
+
         RunnerKeyboard_beginFrame(gRunner->keyboard);
 
         // Process inputs
@@ -109,8 +134,7 @@ void* loop() {
 
         emscripten_webgl_make_context_current(ctx);
 
-        double nowMs = emscripten_get_now();
-        float audioDt = (float) ((nowMs - lastFrameTimeMs) / 1000.0);
+        float audioDt = (float) (gRunner->deltaTime / 1000000.0);
         if (0.0f > audioDt) audioDt = 0.0f;
         if (audioDt > 0.1f) audioDt = 0.1f;
         gRunner->audioSystem->vtable->update(gRunner->audioSystem, audioDt);
@@ -121,33 +145,11 @@ void* loop() {
         int32_t gameW = (int32_t) gRunner->dataWin->gen8.defaultWindowWidth;
         int32_t gameH = (int32_t) gRunner->dataWin->gen8.defaultWindowHeight;
 
-        // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-        // It is a bit hard to understand, but here's how it works:
-        // The Port X/Port Y controls the position of the game viewport within the application surface.
-        // The Port W/Port H controls the size of the game viewport within the application surface.
-        // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-        // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-        float displayScaleX;
-        float displayScaleY;
-
         Runner_drawPre(gRunner, 640, 480);
-        Runner_computeViewDisplayScale(gRunner, gameW, gameH, &displayScaleX, &displayScaleY);
 
-        Runner_beginFrame(gRunner, gameW, gameH, 640, 480);
+        Runner_beginFrame(gRunner, gameW, gameH, 640, 480, 640, 480);
 
-        // Clear FBO with room background color
-        if (gRunner->drawBackgroundColor) {
-            int rInt = BGR_R(gRunner->backgroundColor);
-            int gInt = BGR_G(gRunner->backgroundColor);
-            int bInt = BGR_B(gRunner->backgroundColor);
-            int aInt = BGR_A(gRunner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        Runner_drawViews(gRunner, gameW, gameH, displayScaleX, displayScaleY, false);
+        Runner_drawViews(gRunner, gameW, gameH, false);
         gRunner->renderer->vtable->endFrameInit(gRunner->renderer);
         Runner_drawPost(gRunner, 640, 480);
         gRunner->renderer->vtable->endFrameEnd(gRunner->renderer);
@@ -164,27 +166,23 @@ void* loop() {
         // emscripten_get_now() returns milliseconds (performance.now()) and works in workers.
         if (gRunner->currentRoom != nullptr && gRunner->currentRoom->speed > 0) {
             double targetFrameTimeMs = 1000.0 / (double) gRunner->currentRoom->speed;
-            double nextFrameTimeMs = lastFrameTimeMs + targetFrameTimeMs;
+            double nextFrameTimeMs = lastFrameStartMs + targetFrameTimeMs;
             double remainingMs = nextFrameTimeMs - emscripten_get_now();
             // Sleep for most of the remaining time, then spin-wait for precision.
             if (remainingMs > 2.0) {
-                struct timespec ts = {
-                    .tv_sec = 0,
-                    .tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0)
-                };
+                struct timespec ts;
+                ts.tv_sec = 0;
+                ts.tv_nsec = (long) ((remainingMs - 1.0) * 1000000.0);
                 nanosleep(&ts, nullptr);
             }
             while (emscripten_get_now() < nextFrameTimeMs) {
                 // Spin-wait for the remaining sub-millisecond
             }
-            lastFrameTimeMs = nextFrameTimeMs;
-        } else {
-            lastFrameTimeMs = emscripten_get_now();
         }
     }
 
     // Cleanup
-    fprintf(stderr, "Cleaning up runner!\n");
+    logInfo("Cleaning up runner!\n");
 
     gRunner->audioSystem->vtable->destroy(gRunner->audioSystem);
     gRunner->audioSystem = nullptr;
@@ -203,14 +201,14 @@ void* loop() {
     return nullptr;
 }
 
-void setWindowTitle(MAYBE_UNUSED void* nativeWindow, const char* title) {
+void setWindowTitle(const char* title) {
     MAIN_THREAD_EM_ASM({ postMessage({ type: 'windowTitle', title: UTF8ToString($0) }); }, title);
 }
 
 // gamePath: WASMFS path to the data.win to load (example: "/butterscotch/games/undertale/data.win").
 // savesPath: WASMFS directory where saves should live (example: "/butterscotch/saves/undertale" - Created if it does not exist).
 void startRunner(const char* gamePath, const char* savesPath) {
-    fprintf(stderr, "Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
+    logInfo("Starting runner! gamePath=%s savesPath=%s\n", gamePath, savesPath);
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
@@ -227,7 +225,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // But that's how Emscripten works for SOME REASON
     ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (0 >= ctx) {
-        printf("Failed to create WebGL context: %d\n", (int)ctx);
+        logError("Failed to create WebGL context: %d\n", (int)ctx);
         abort();
     }
 
@@ -239,41 +237,38 @@ void startRunner(const char* gamePath, const char* savesPath) {
     // Make sure the saves directory exists. The FileSystem impl will write into it.
     if (savesPath != nullptr && savesPath[0] != '\0') {
         if (mkdirP(savesPath) != 0) {
-            fprintf(stderr, "Warning: failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
+            logWarn("failed to ensure saves dir exists at %s: %s\n", savesPath, strerror(errno));
         }
     }
 
-    DataWin* dataWin = DataWin_parse(
-        gamePath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = false,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            .parseTxtr = true,
-            .parseAudo = true,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = false,
-            .eagerlyLoadedRooms = nullptr
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    options.parseTxtr = true;
+    options.parseAudo = true;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = false;
+    options.eagerlyLoadedRooms = nullptr;
+    DataWin* dataWin = DataWin_parse(gamePath, options);
 
     // return strdup(dataWin->gen8.name);
 
@@ -288,7 +283,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     const char* lastSlash = strrchr(gamePath, '/');
     if (lastSlash != nullptr) {
         size_t len = (size_t) (lastSlash - gamePath + 1);
-        bundleDir = safeMalloc(len + 1);
+        bundleDir = (char *)safeMalloc(len + 1);
         memcpy(bundleDir, gamePath, len);
         bundleDir[len] = '\0';
     } else {
@@ -297,16 +292,15 @@ void startRunner(const char* gamePath, const char* savesPath) {
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, savesPath);
     free(bundleDir);
 
-    gWebAudio = WebAudioSystem_create(gAudioSampleRate);
+    gWebAudio = WebAudioSystem_create(dataWin, gAudioSampleRate);
     AudioSystem* audioSystem = (AudioSystem*) gWebAudio;
 
     // Initialize the runner
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
-    runner->nativeWindow = nullptr;
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 
-    setWindowTitle(nullptr, dataWin->gen8.name);
+    setWindowTitle(dataWin->gen8.name);
 
     gRunner = runner;
 
@@ -320,6 +314,6 @@ void startRunner(const char* gamePath, const char* savesPath) {
 }
 
 void stopRunner() {
-    fprintf(stderr, "Marked runner to exit!\n");
+    logInfo("Marked runner to exit!\n");
     gRunner->shouldExit = true;
 }

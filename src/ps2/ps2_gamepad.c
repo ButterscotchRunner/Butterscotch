@@ -2,21 +2,13 @@
 #include "ps2_gamepad.h"
 
 #include <libpad.h>
-#include <stdio.h>
-#include <string.h>
+#include "stdio_compat.h"
+#include "string_compat.h"
+
+#include "log.h"
 
 // Track DualShock-mode handshake completion per port so poll() can lazily kick it off if it hasn't run yet.
 static bool analogModeReady[2] = {false, false};
-
-static float applyDeadzone(float value, float deadzone) {
-    if (value < 0.0f) {
-        if (value > -deadzone) return 0.0f;
-        return (value + deadzone) / (1.0f - deadzone);
-    } else {
-        if (value < deadzone) return 0.0f;
-        return (value - deadzone) / (1.0f - deadzone);
-    }
-}
 
 static float stickByteToFloat(unsigned char raw) {
     return ((float) raw - 128.0f) * (1.0f / 127.5f);
@@ -43,21 +35,21 @@ static void setupAnalogMode(int port) {
         }
     }
     if (!supportsDualshock) {
-        printf("Ps2Gamepad: port %d does not support DualShock mode\n", port);
+        logWarn("Ps2Gamepad: port %d does not support DualShock mode\n", port);
         analogModeReady[port] = true;
         return;
     }
 
     if (padSetMainMode(port, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK) == 0) {
-        printf("Ps2Gamepad: padSetMainMode failed on port %d\n", port);
+        logWarn("Ps2Gamepad: padSetMainMode failed on port %d\n", port);
         return;
     }
     if (!waitForRequest(port)) {
-        printf("Ps2Gamepad: DualShock mode request did not complete on port %d\n", port);
+        logWarn("Ps2Gamepad: DualShock mode request did not complete on port %d\n", port);
         return;
     }
     analogModeReady[port] = true;
-    printf("Ps2Gamepad: port %d set to DualShock analog mode\n", port);
+    logInfo("Ps2Gamepad: port %d set to DualShock analog mode\n", port);
 }
 
 void Ps2Gamepad_poll(RunnerGamepadState* gp, int port) {
@@ -108,10 +100,10 @@ void Ps2Gamepad_poll(RunnerGamepadState* gp, int port) {
     if (buttons & PAD_RIGHT) slot->buttonDown[15] = true;
 
     if (analogModeReady[port]) {
-        slot->axisValue[0] = applyDeadzone(stickByteToFloat(padStatus.ljoy_h), slot->deadzone);
-        slot->axisValue[1] = applyDeadzone(stickByteToFloat(padStatus.ljoy_v), slot->deadzone);
-        slot->axisValue[2] = applyDeadzone(stickByteToFloat(padStatus.rjoy_h), slot->deadzone);
-        slot->axisValue[3] = applyDeadzone(stickByteToFloat(padStatus.rjoy_v), slot->deadzone);
+        slot->axisValue[0] = stickByteToFloat(padStatus.ljoy_h);
+        slot->axisValue[1] = stickByteToFloat(padStatus.ljoy_v);
+        slot->axisValue[2] = stickByteToFloat(padStatus.rjoy_h);
+        slot->axisValue[3] = stickByteToFloat(padStatus.rjoy_v);
     }
 
     for (int i = 0; GP_BUTTON_COUNT > i; i++) {

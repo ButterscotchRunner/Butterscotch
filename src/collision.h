@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_COLLISION_H_
+#define _BS_COLLISION_H_
 
 #include "common.h"
 #include "data_win.h"
@@ -6,14 +7,14 @@
 #include "runner.h"
 #include "vm.h"
 
-#include <math.h>
+#include "math_compat.h"
 
 // Checks if an instance matches a collision target.
-// target >= 100000: instance ID (match specific instance)
+// target >= INSTANCE_ID_BASE: instance ID (match specific instance)
 // target == INSTANCE_ALL (-3): match any instance
-// target >= 0 && < 100000: object index (match via parent chain)
+// target >= 0 && < INSTANCE_ID_BASE: object index (match via parent chain)
 static inline bool Collision_matchesTarget(DataWin* dataWin, Instance* inst, int32_t target) {
-    if (target >= 100000) return inst->instanceId == (uint32_t) target;
+    if (target >= INSTANCE_ID_BASE) return inst->instanceId == (uint32_t) target;
     if (target == INSTANCE_ALL) return true;
     return VM_isObjectOrDescendant(dataWin, inst->objectIndex, target);
 }
@@ -27,20 +28,20 @@ static inline Sprite* Collision_getSprite(DataWin* dataWin, Instance* inst) {
 
 // Computes the axis-aligned bounding box for an instance using its collision sprite
 static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst) {
-    // Fast path: return cached AABB when nothing bbox-affecting has changed.
     if (inst->bboxCacheValid) return inst->cachedBBox;
-
+    InstanceBBox ret;
     Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (spr == nullptr) {
-        inst->cachedBBox      = (InstanceBBox){0, 0, 0, 0, false};
-        inst->bboxCacheValid  = true;
-        return inst->cachedBBox;
+        ZERO_STRUCT(ret);
+        inst->cachedBBox = ret;
+        inst->bboxCacheValid = true;
+        return ret;
     }
 
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = (spr->bboxMode == 1) ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = (spr->bboxMode == 1) ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
 
@@ -99,11 +100,13 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
         bottom = GMLReal_bankersRound(bottom);
     }
 
-    result = (InstanceBBox){left, right, top, bottom, true};
-
-    inst->cachedBBox     = result;
-    inst->bboxCacheValid = true;
-    return result;
+    ret.left = left;
+    ret.right = right;
+    ret.top = top;
+    ret.bottom = bottom;
+    ret.valid = true;
+    inst->cachedBBox = ret;
+    return ret;
 }
 
 static inline bool Collision_hasFrameMasks(Sprite* sprite) {
@@ -124,10 +127,10 @@ static inline InstanceOBB Collision_instanceOBB(Sprite* spr, Instance* inst) {
     InstanceOBB obb;
     obb.x = inst->x;
     obb.y = inst->y;
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = spr->bboxMode == 1 ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = spr->bboxMode == 1 ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
     obb.lx0 = inst->imageXscale * (marginL - originX);
@@ -242,8 +245,9 @@ static inline bool Collision_circleOverlapsInstance(Runner* runner, Instance* in
     return dx * dx + dy * dy <= rSq;
 }
 
-// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2]. Returns true if the segment intersects the rect.
-static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2].
+// Returns true if the segment intersects the rect, and writes the clipped parametric range to *outTEnter/*outTExit.
+static inline bool Collision_segmentVsAARectClip(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2, GMLReal* outTEnter, GMLReal* outTExit) {
     GMLReal tEnter = 0.0, tExit = 1.0;
     GMLReal dx = x2 - x1, dy = y2 - y1;
     GMLReal p[4] = { -dx, dx, -dy, dy };
@@ -261,7 +265,14 @@ static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2,
         }
         if (tEnter > tExit) return false;
     }
+    *outTEnter = tEnter;
+    *outTExit = tExit;
     return true;
+}
+
+static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+    GMLReal tEnter, tExit;
+    return Collision_segmentVsAARectClip(x1, y1, x2, y2, rx1, ry1, rx2, ry2, &tEnter, &tExit);
 }
 
 // Line segment (x1,y1)-(x2,y2) vs instance collision rect.
@@ -324,8 +335,13 @@ static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLRea
         // Pick mask for current frame
         uint32_t frameIdx = ((uint32_t) inst->imageIndex) % spr->maskCount;
         uint8_t* mask = spr->masks[frameIdx];
-        uint32_t bytesPerRow = (spr->width + 7) / 8;
-        return (mask[iy * bytesPerRow + (ix >> 3)] & (1 << (7 - (ix & 7)))) != 0;
+        // Masks are stored at maskWidth x maskHeight starting at (maskOffsetX, maskOffsetY) in sprite-local space.
+        // Pre-2024.6 this is the full sprite with zero offset; 2024.6+ it is the bounding box.
+        int32_t mx = ix - spr->maskOffsetX;
+        int32_t my = iy - spr->maskOffsetY;
+        if (0 > mx || 0 > my || mx >= (int32_t) spr->maskWidth || my >= (int32_t) spr->maskHeight) return false;
+        uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+        return (mask[my * bytesPerRow + (mx >> 3)] & (1 << (7 - (mx & 7)))) != 0;
     }
 
     return true;
@@ -436,3 +452,5 @@ static inline bool Collision_instancesOverlapPrecise(Runner* runner, Instance* a
 
     return false;
 }
+
+#endif /* _BS_COLLISION_H_ */

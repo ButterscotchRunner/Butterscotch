@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_PS2_FILE_SYSTEM_H_
+#define _BS_PS2_FILE_SYSTEM_H_
 
 #include "common.h"
 #include "../file_system.h"
@@ -11,3 +12,5 @@
 // gameTitle: the game's display name (used for icon.sys on memory card saves)
 FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle);
 void Ps2FileSystem_destroy(FileSystem* fs);
+
+#endif /* _BS_PS2_FILE_SYSTEM_H_ */

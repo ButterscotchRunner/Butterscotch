@@ -1,7 +1,7 @@
 #include <kernel.h>
 #include <sifrpc.h>
 #include <loadfile.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <malloc.h>
 #include <dmaKit.h>
 #include <gsKit.h>
@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
+#include "gettime.h"
 
 #ifdef GPROF_PROFILING
 #include <ps2prof.h>
@@ -62,7 +63,7 @@ static int MAX_MEMORY_BYTES = 0;
 static int heapCeilingBytes = 0;
 
 // 256-byte aligned buffers for libpad (one per port)
-static char padBuf[2][256] __attribute__((aligned(64)));
+static char padBuf[2][256] BS_ALIGN(64);
 
 // Controller button to GML key mapping
 typedef struct {
@@ -87,17 +88,36 @@ static bool padWasStable[2] = {false, false};
 // Whether the controllers should be exposed via the GameMaker gamepad API
 static bool gamepadApiEnabled = false;
 
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
+
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
-    JsonValue* mappingsObj = JsonReader_getObject(configRoot, key);
+    JsonValue* mappingsObj = JsonReader_getJsonValueByKey(configRoot, key);
     if (mappingsObj == nullptr || !JsonReader_isObject(mappingsObj)) return;
     int count = JsonReader_objectLength(mappingsObj);
-    PadMapping* mappings = safeMalloc(sizeof(PadMapping) * count);
+    PadMapping* mappings = (PadMapping *)safeMalloc(sizeof(PadMapping) * count);
     repeat(count, i) {
-        const char* padButtonStr = JsonReader_getObjectKey(mappingsObj, i);
-        JsonValue* gmlKeyVal = JsonReader_getObjectValue(mappingsObj, i);
+        const char* padButtonStr = JsonReader_getJsonKeyByIndex(mappingsObj, i);
+        JsonValue* gmlKeyVal = JsonReader_getJsonValueByIndex(mappingsObj, i);
         mappings[i].padButton = (uint16_t) atoi(padButtonStr);
         mappings[i].gmlKey = (int32_t) JsonReader_getInt(gmlKeyVal);
-        printf("CONFIG.JSN: %s mapping pad=%d -> gmlKey=%d\n", logLabel, mappings[i].padButton, mappings[i].gmlKey);
+        logInfo("CONFIG.JSN: %s mapping pad=%d -> gmlKey=%d\n", logLabel, mappings[i].padButton, mappings[i].gmlKey);
     }
     *outMappings = mappings;
     *outCount = count;
@@ -237,6 +257,7 @@ static unsigned int hidUsageToAsciiChar(uint8_t hid, bool shift) {
 
 
 int main(int argc, char* argv[]) {
+    (void)argc;
     SifInitRpc(0);
     sbv_patch_enable_lmb();
 
@@ -251,15 +272,15 @@ int main(int argc, char* argv[]) {
 
     PS2Utils_extractDeviceKey(argv[0]);
 
-    fprintf(stderr, "argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
+    logInfo("argv0 is %s, device key is %s\n", argv[0], deviceKey.key);
 
     PS2Utils_loadFSDrivers();
 
-    fprintf(stderr, "Loaded FS drivers!\n");
+    logInfo("Loaded FS drivers!\n");
 
-    const char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
+    char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
 
-    printf("Butterscotch PS2 - Loading %s\n", dataWinPath);
+    logInfo("Butterscotch PS2 - Loading %s\n", dataWinPath);
 
     // ===[ Initialize gsKit ]===
     // This must happen first so we can show the loading screen during other init steps
@@ -292,51 +313,51 @@ int main(int argc, char* argv[]) {
     int ret;
     ret = SifExecModuleBuffer(freesio2_irx, size_freesio2_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freesio2: %d\n", ret);
+        logError("Failed to load freesio2: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcman_irx, size_mcman_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load mcman: %d\n", ret);
+        logError("Failed to load mcman: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(mcserv_irx, size_mcserv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load mcserv: %d\n", ret);
+        logError("Failed to load mcserv: %d\n", ret);
         return 1;
     }
     ret = mcInit(MC_TYPE_MC);
     if (0 > ret) {
-        printf("Failed to init libmc: %d\n", ret);
+        logError("Failed to init libmc: %d\n", ret);
         return 1;
     }
     ret = SifExecModuleBuffer(freepad_irx, size_freepad_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freepad: %d\n", ret);
+        logError("Failed to load freepad: %d\n", ret);
         return 1;
     }
 
     padInit(0);
     padOpened[0] = (padPortOpen(0, 0, padBuf[0]) != 0);
     padOpened[1] = (padPortOpen(1, 0, padBuf[1]) != 0);
-    if (!padOpened[0]) printf("Warning: failed to open pad port 0\n");
-    if (!padOpened[1]) printf("Warning: failed to open pad port 1\n");
+    if (!padOpened[0]) logWarn("failed to open pad port 0\n");
+    if (!padOpened[1]) logWarn("failed to open pad port 1\n");
 
     // ===[ Load USB Keyboard IOP Modules ]===
     int usbdRet = SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, nullptr, nullptr);
     if (0 > usbdRet) {
-        printf("Warning: failed to load usbd: %d (keyboard disabled)\n", usbdRet);
+        logWarn("failed to load usbd: %d (keyboard disabled)\n", usbdRet);
     } else {
         int kbdRet = SifExecModuleBuffer(ps2kbd_irx, size_ps2kbd_irx, 0, nullptr, nullptr);
         if (0 > kbdRet) {
-            printf("Warning: failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
+            logWarn("failed to load ps2kbd: %d (keyboard disabled)\n", kbdRet);
         } else if (PS2KbdInit() == 0) {
-            printf("Warning: PS2KbdInit failed (keyboard disabled)\n");
+            logWarn("PS2KbdInit failed (keyboard disabled)\n");
         } else {
             PS2KbdSetReadmode(PS2KBD_READMODE_RAW);
             PS2KbdSetBlockingMode(PS2KBD_NONBLOCKING);
             kbdAvailable = true;
-            printf("USB keyboard initialized\n");
+            logInfo("USB keyboard initialized\n");
         }
     }
 
@@ -344,11 +365,11 @@ int main(int argc, char* argv[]) {
     // ===[ Load Audio IOP Modules ]===
     ret = SifExecModuleBuffer(freesd_irx, size_freesd_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load freesd: %d\n", ret);
+        logWarn("Failed to load freesd: %d\n", ret);
     }
     ret = SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, nullptr, nullptr);
     if (0 > ret) {
-        printf("Failed to load audsrv: %d\n", ret);
+        logWarn("Failed to load audsrv: %d\n", ret);
     }
 #endif
 
@@ -359,7 +380,7 @@ int main(int argc, char* argv[]) {
         padState = padGetState(0, 0);
     } while (PAD_STATE_STABLE != padState && PAD_STATE_FINDCTP1 != padState);
 
-    printf("Controller initialized\n");
+    logInfo("Controller initialized\n");
 
     // ===[ Load CONFIG.JSN ]===
     PS2Overlay_drawStatusScreen(nullptr, "Loading CONFIG.JSN...", false);
@@ -373,7 +394,7 @@ int main(int argc, char* argv[]) {
         long configSize = ftell(configFile);
         fseek(configFile, 0, SEEK_SET);
 
-        char* configJsonText = safeMalloc((size_t) configSize + 1);
+        char* configJsonText = (char *)safeMalloc((size_t) configSize + 1);
         size_t configBytesRead = fread(configJsonText, 1, (size_t) configSize, configFile);
         configJsonText[configBytesRead] = '\0';
         fclose(configFile);
@@ -388,9 +409,9 @@ int main(int argc, char* argv[]) {
         while (true) {}
     }
 
-    bool lazyLoadRooms = JsonReader_getBool(JsonReader_getObject(configRoot, "lazyLoadRooms"));
+    bool lazyLoadRooms = JsonReader_getBool(JsonReader_getJsonValueByKey(configRoot, "lazyLoadRooms"));
     StringBooleanEntry* eagerRooms = nullptr; // stb_ds string-keyed set; keys borrowed from configRoot
-    JsonValue* eagerArr = JsonReader_getObject(configRoot, "eagerlyLoadedRooms");
+    JsonValue* eagerArr = JsonReader_getJsonValueByKey(configRoot, "eagerlyLoadedRooms");
     int n = JsonReader_arrayLength(eagerArr);
     repeat(n, i) {
         const char* name = JsonReader_getString(JsonReader_getArrayElement(eagerArr, i));
@@ -400,56 +421,54 @@ int main(int argc, char* argv[]) {
     // ===[ Parse data.win ]===
     PS2Overlay_drawStatusScreen(nullptr, "Loading data.win...", false);
 
-    DataWin* dataWin = DataWin_parse(
-        dataWinPath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = false,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            .parseTxtr = false,
-            .parseAudo = false,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = lazyLoadRooms,
-            .eagerlyLoadedRooms = eagerRooms,
-            .progressCallback = PS2Overlay_statusScreenCallback,
-            .progressCallbackUserData = PS2Overlay_getCallbackData(),
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    options.parseTxtr = false;
+    options.parseAudo = false;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = lazyLoadRooms;
+    options.eagerlyLoadedRooms = eagerRooms;
+    options.progressCallback = PS2Overlay_statusScreenCallback;
+    options.progressCallbackUserData = PS2Overlay_getCallbackData();
+
+    DataWin* dataWin = DataWin_parse(dataWinPath, options);
     free(dataWinPath);
     shfree(eagerRooms);
 
-    bool bytecodeVersionSupported = false;
-#ifdef ENABLE_BC14
-    if (dataWin->gen8.bytecodeVersion == 13 || dataWin->gen8.bytecodeVersion == 14) bytecodeVersionSupported = true;
+    bool wadVersionSupported = false;
+#ifdef ENABLE_WAD14
+    if (14 >= dataWin->gen8.wadVersion) wadVersionSupported = true;
 #endif
-#ifdef ENABLE_BC16
-    if (dataWin->gen8.bytecodeVersion == 15 || dataWin->gen8.bytecodeVersion == 16) bytecodeVersionSupported = true;
+#ifdef ENABLE_WAD16
+    if (dataWin->gen8.wadVersion == 15 || dataWin->gen8.wadVersion == 16) wadVersionSupported = true;
 #endif
-#ifdef ENABLE_BC17
-    if (dataWin->gen8.bytecodeVersion == 17) bytecodeVersionSupported = true;
+#ifdef ENABLE_WAD17
+    if (dataWin->gen8.wadVersion == 17) wadVersionSupported = true;
 #endif
 
-    if (!bytecodeVersionSupported) {
+    if (!wadVersionSupported) {
         char errorText[128];
-        snprintf(errorText, sizeof(errorText), "Unsupported bytecode version %u!", dataWin->gen8.bytecodeVersion);
+        snprintf(errorText, sizeof(errorText), "Unsupported WAD version %u!", dataWin->gen8.wadVersion);
         PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, errorText, true);
         while (true) {}
     }
@@ -458,7 +477,7 @@ int main(int argc, char* argv[]) {
         void* heapTop = sbrk(0);
         int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
         int32_t freeBytes = MAX_MEMORY_BYTES - usedBytes;
-        printf("Memory after data.win parsing: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
+        logInfo("Memory after data.win parsing: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
     }
 
     FileSystem* fileSystem = Ps2FileSystem_create(configRoot, dataWin->gen8.displayName);
@@ -474,7 +493,7 @@ int main(int argc, char* argv[]) {
     // ===[ Initialize Renderer ]===
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Initializing renderer...", true);
 
-    int64_t eeAtlasCacheBytes = JsonReader_getInt(JsonReader_getObject(configRoot, "eeAtlasCacheBytes"));
+    int64_t eeAtlasCacheBytes = JsonReader_getInt(JsonReader_getJsonValueByKey(configRoot, "eeAtlasCacheBytes"));
     Renderer* renderer = GsRenderer_create(gsGlobal, eeAtlasCacheBytes);
 
     // ===[ Initialize Audio System ]===
@@ -490,7 +509,7 @@ int main(int argc, char* argv[]) {
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem);
 
     // Parse disabledObjects from CONFIG.JSN
-    JsonValue* disabledObjectsArr = JsonReader_getObject(configRoot, "disabledObjects");
+    JsonValue* disabledObjectsArr = JsonReader_getJsonValueByKey(configRoot, "disabledObjects");
     if (disabledObjectsArr != nullptr && JsonReader_isArray(disabledObjectsArr)) {
         sh_new_strdup(runner->disabledObjects);
         int disabledCount = JsonReader_arrayLength(disabledObjectsArr);
@@ -499,7 +518,7 @@ int main(int argc, char* argv[]) {
             if (elem != nullptr && JsonReader_isString(elem)) {
                 const char* objName = JsonReader_getString(elem);
                 shput(runner->disabledObjects, objName, 1);
-                printf("Disabled object: %s\n", objName);
+                logInfo("Disabled object: %s\n", objName);
             }
         }
     }
@@ -508,19 +527,19 @@ int main(int argc, char* argv[]) {
     parsePadMappings(configRoot, "controller1Mappings", &pad1Mappings, &pad1MappingCount, "controller1");
     parsePadMappings(configRoot, "controller2Mappings", &pad2Mappings, &pad2MappingCount, "controller2");
 
-    JsonValue* gamepadObj = JsonReader_getObject(configRoot, "gamepad");
+    JsonValue* gamepadObj = JsonReader_getJsonValueByKey(configRoot, "gamepad");
     if (gamepadObj != nullptr && JsonReader_isObject(gamepadObj)) {
-        gamepadApiEnabled = JsonReader_getBool(JsonReader_getObject(gamepadObj, "enabled"));
+        gamepadApiEnabled = JsonReader_getBool(JsonReader_getJsonValueByKey(gamepadObj, "enabled"));
     }
     if (gamepadApiEnabled) {
-        printf("CONFIG.JSN: GameMaker gamepad API enabled\n");
+        logInfo("CONFIG.JSN: GameMaker gamepad API enabled\n");
     }
 
     {
         void* heapTop = sbrk(0);
         int32_t usedBytes = (int32_t) (uintptr_t) heapTop;
         int32_t freeBytes = MAX_MEMORY_BYTES - usedBytes;
-        printf("Memory after VM and runner creation: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
+        logInfo("Memory after VM and runner creation: used=%d bytes (%.1f KB), total=%d bytes (%.1f KB), free=%d bytes (%.1f KB)\n", usedBytes, (double) (usedBytes / 1024.0f), MAX_MEMORY_BYTES, (double) (MAX_MEMORY_BYTES / 1024.0f), freeBytes, (double) (freeBytes / 1024.0f));
     }
 
     PS2Overlay_drawStatusScreen(dataWin->gen8.displayName, "Initializing first room...", true);
@@ -538,7 +557,7 @@ int main(int argc, char* argv[]) {
         PS2Utils_loadMassStorageDrivers();
 
     gprof_start();
-    fprintf(stderr, "gprof: Profiling started!\n");
+    logInfo("gprof: Profiling started!\n");
 #endif
 
     Gen8* gen8 = &dataWin->gen8;
@@ -550,12 +569,16 @@ int main(int argc, char* argv[]) {
     StartTimerSystemTime();
 
     // ===[ Main Loop ]===
-    bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getObject(configRoot, "debugOverlayEnabled"));
+    bool debugOverlayStartEnabled = JsonReader_getBool(JsonReader_getJsonValueByKey(configRoot, "debugOverlayEnabled"));
     PS2Overlay_setDebugOverlayState(debugOverlayStartEnabled ? STATS_ENABLED : STATS_DISABLED, runner);
-    uint16_t prevOverlayPadButtons = 0xFFFF;
 
+    u64 lastFrameStartTime = GetTimerSystemTime(); // for delta_time
     while (!runner->shouldExit) {
         u64 frameStartTime = GetTimerSystemTime();
+        u64 deltaTicks = frameStartTime - lastFrameStartTime;
+        runner->deltaTime = (double) (deltaTicks * 1000000ULL / (u64) kBUSCLK);
+        lastFrameStartTime = frameStartTime;
+
         // ===[ Poll Controller (always poll every vsync) ]===
         // NOTE: We do NOT call RunnerKeyboard_beginFrame here! Pressed/released edges accumulate across vsyncs so that quick taps on non-game-frame
         // vsyncs are not lost
@@ -603,7 +626,7 @@ int main(int argc, char* argv[]) {
                 int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
                 runner->pendingRoom = nextIdx;
                 runner->audioSystem->vtable->stopAll(runner->audioSystem);
-                fprintf(stderr, "Debug: Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
+                logDebug("Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
             }
         }
 
@@ -625,10 +648,10 @@ int main(int argc, char* argv[]) {
 
         // Reset global interact state because I HATE when I get stuck while moving through rooms
         if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
-            int32_t interactVarId = shget(runner->vmContext->globalVarNameMap, "interact");
+            int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
-            runner->vmContext->globalVars[interactVarId] = RValue_makeInt32(0);
-            printf("Changed global.interact [%d] value!\n", interactVarId);
+            Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
+            logInfo("Changed global.interact [%d] value!\n", interactVarId);
         }
 
         // ===[ Game Logic ]===
@@ -641,21 +664,11 @@ int main(int argc, char* argv[]) {
         gsKit_clear(gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
 
         Runner_drawPre(runner, 640, 448);
-        Runner_beginFrame(runner, gameW, gameH, 640, 448);
-
-        // Clear with room background color
-        if (runner->drawBackgroundColor) {
-            uint8_t bgR = BGR_R(runner->backgroundColor);
-            uint8_t bgG = BGR_G(runner->backgroundColor);
-            uint8_t bgB = BGR_B(runner->backgroundColor);
-            uint8_t bgA = BGR_A(runner->backgroundColor);
-            u64 bgColor = GS_SETREG_RGBAQ(bgR, bgG, bgB, bgA, 0x00);
-            gsKit_prim_sprite(gsGlobal, 0, 0, 640, 448, 0, bgColor);
-        }
+        Runner_beginFrame(runner, gameW, gameH, 640, 448, 640, 448);
 
         // Render views
         u64 drawStartTime = GetTimerSystemTime();
-        Runner_drawViews(runner, gameW, gameH, 1.0f, 1.0f, false);
+        Runner_drawViews(runner, gameW, gameH, false);
         runner->viewCurrent = 0;
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, 640, 448);
@@ -714,9 +727,9 @@ int main(int argc, char* argv[]) {
         } else {
             gprofPath = "mass:gmon.out";
         }
-        fprintf(stderr, "gprof: Writing profiling data to %s\n", gprofPath);
+        logInfo("gprof: Writing profiling data to %s\n", gprofPath);
         gprof_stop(gprofPath, 1);
-        fprintf(stderr, "gprof: Done\n");
+        logInfo("gprof: Done\n");
     }
 #endif
 

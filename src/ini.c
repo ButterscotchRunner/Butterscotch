@@ -1,16 +1,16 @@
 #include "ini.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #include "text_utils.h"
 
 // ===[ Internal Helpers ]===
 
 static IniSection* findSection(const IniFile* ini, const char* name) {
-    repeat(ini->count, i) {
+    for (int i = 0; i < ini->count; ++i) {
         if (strcmp(ini->sections[i].name, name) == 0) {
             return &ini->sections[i];
         }
@@ -19,7 +19,7 @@ static IniSection* findSection(const IniFile* ini, const char* name) {
 }
 
 static int findKeyIndex(const IniSection* section, const char* key) {
-    repeat(section->count, i) {
+    for (int i = 0; i < section->count; ++i) {
         if (strcmp(section->keys[i], key) == 0) {
             return i;
         }
@@ -30,7 +30,7 @@ static int findKeyIndex(const IniSection* section, const char* key) {
 static IniSection* addSection(IniFile* ini, const char* name) {
     if (ini->count >= ini->capacity) {
         ini->capacity = (ini->capacity == 0) ? 4 : ini->capacity * 2;
-        ini->sections = safeRealloc(ini->sections, (size_t) ini->capacity * sizeof(IniSection));
+        ini->sections = (IniSection *)safeRealloc(ini->sections, (size_t) ini->capacity * sizeof(IniSection));
     }
     IniSection* section = &ini->sections[ini->count++];
     section->name = safeStrdup(name);
@@ -44,8 +44,8 @@ static IniSection* addSection(IniFile* ini, const char* name) {
 static void addKeyValue(IniSection* section, const char* key, const char* value) {
     if (section->count >= section->capacity) {
         section->capacity = (section->capacity == 0) ? 4 : section->capacity * 2;
-        section->keys = safeRealloc(section->keys, (size_t) section->capacity * sizeof(char*));
-        section->values = safeRealloc(section->values, (size_t) section->capacity * sizeof(char*));
+        section->keys = (char **)safeRealloc(section->keys, (size_t) section->capacity * sizeof(char*));
+        section->values = (char **)safeRealloc(section->values, (size_t) section->capacity * sizeof(char*));
     }
     section->keys[section->count] = safeStrdup(key);
     section->values[section->count] = safeStrdup(value);
@@ -72,7 +72,7 @@ static char* normalizeValue(char* value) {
 // ===[ Lifecycle ]===
 
 IniFile* Ini_parse(const char* text) {
-    IniFile* ini = safeCalloc(1, sizeof(IniFile));
+    IniFile* ini = (IniFile *)safeCalloc(1, sizeof(IniFile));
 
     if (text == nullptr || *text == '\0') {
         return ini;
@@ -114,7 +114,7 @@ IniFile* Ini_parse(const char* text) {
                     currentSection = addSection(ini, nameStart);
                 }
             } else {
-                fprintf(stderr, "Ini: malformed section header: %s\n", trimmed);
+                logWarn("Ini: malformed section header: %s\n", trimmed);
             }
         } else {
             // Key=value pair
@@ -256,8 +256,10 @@ void Ini_deleteSection(IniFile* ini, const char* section) {
     free(sec->name);
 
     // Shift remaining sections down
+    {
     for (int i = sectionIndex; ini->count - 1 > i; i++) {
         ini->sections[i] = ini->sections[i + 1];
+    }
     }
     ini->count--;
 }
@@ -267,10 +269,10 @@ void Ini_deleteSection(IniFile* ini, const char* section) {
 char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
     size_t capacity = initialCapacity;
     size_t length = 0;
-    char* buffer = safeMalloc(capacity);
+    char* buffer = (char *)safeMalloc(capacity);
     buffer[0] = '\0';
 
-    repeat(ini->count, i) {
+    for (int i = 0; i < ini->count; ++i) {
         IniSection* section = &ini->sections[i];
 
         // Blank line before section (unless at start of output)
@@ -291,7 +293,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
         while (length + needed + 1 > capacity) {
             capacity *= 2;
         }
-        buffer = safeRealloc(buffer, capacity);
+        buffer = (char *)safeRealloc(buffer, capacity);
 
         // Write section header
         if (length > 0) {
@@ -304,6 +306,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
         buffer[length++] = '\n';
 
         // Write key=value pairs
+        {
         repeat(section->count, j) {
             const char* key = section->keys[j];
             const char* value = section->values[j];
@@ -318,6 +321,7 @@ char* Ini_serialize(const IniFile* ini, size_t initialCapacity) {
             length += valueLen;
             buffer[length++] = '"';
             buffer[length++] = '\n';
+        }
         }
     }
 

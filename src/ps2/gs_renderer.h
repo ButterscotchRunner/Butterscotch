@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BS_GS_RENDERER_H_
+#define _BS_GS_RENDERER_H_
 
 #include "common.h"
 #include "renderer.h"
@@ -192,6 +193,15 @@ typedef struct {
     float    savedOffsetY;
     int32_t  savedViewX;
     int32_t  savedViewY;
+
+    // Blending mode + factors
+    int32_t  currentBlendMode;
+    int32_t  currentSFactor;
+    int32_t  currentDFactor;
+    int32_t  currentSFactorAlpha;
+    int32_t  currentDFactorAlpha;
 } GsRenderer;
 
 Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB);
+
+#endif /* _BS_GS_RENDERER_H_ */

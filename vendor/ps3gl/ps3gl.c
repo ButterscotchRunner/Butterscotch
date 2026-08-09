@@ -110,6 +110,16 @@ void glBlendFunc( GLenum sfactor, GLenum dfactor )
 {
 	_opengl_state.blend_func_sfactor = sfactor;
 	_opengl_state.blend_func_dfactor = dfactor;
+	_opengl_state.blend_func_sfactor_alpha = sfactor;
+	_opengl_state.blend_func_dfactor_alpha = dfactor;
+}
+
+void glBlendFuncSeparate( GLenum sfactor, GLenum dfactor, GLenum sfactor_alpha, GLenum dfactor_alpha )
+{
+	_opengl_state.blend_func_sfactor = sfactor;
+	_opengl_state.blend_func_dfactor = dfactor;
+	_opengl_state.blend_func_sfactor_alpha = sfactor_alpha;
+	_opengl_state.blend_func_dfactor_alpha = dfactor_alpha;
 }
 
 void glLogicOp( GLenum opcode )
@@ -1783,8 +1793,8 @@ void _setup_draw_env(void) {
 	rsxSetBlendFunc(context, 
 		_opengl_state.blend_func_sfactor, 
 		_opengl_state.blend_func_dfactor, 
-		_opengl_state.blend_func_sfactor, 
-		_opengl_state.blend_func_dfactor
+		_opengl_state.blend_func_sfactor_alpha, 
+		_opengl_state.blend_func_dfactor_alpha
 	);
 	rsxSetBlendEquation(context, _opengl_state.blend_equation, _opengl_state.blend_equation);
 	

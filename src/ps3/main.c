@@ -3,9 +3,9 @@
 #include "rsxutil.h"
 #include "vm.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <time.h>
 #include <malloc.h>
 
@@ -25,6 +25,7 @@
 
 #include "utils.h"
 #include "profiler.h"
+#include "gettime.h"
 
 // Paletted fragment shader.
 extern unsigned char paletted_fpo[];
@@ -58,7 +59,7 @@ const PadMapping PAD_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_R1,       VK_PAGEUP },
     { PAD_BUTTON_OFFSET_DIGITAL2, PAD_CTRL_L2,       VK_F10 },
 };
-static const int PAD_MAPPING_COUNT = sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]);
+#define PAD_MAPPING_COUNT (sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0]))
 static bool prevState[sizeof(PAD_MAPPINGS) / sizeof(PAD_MAPPINGS[0])] = {0};
 
 #define STICK_CENTER 0x80 // The center of the stick (range 0x00-0xFF)
@@ -76,22 +77,24 @@ const StickMapping STICK_MAPPINGS[] = {
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, -1, VK_UP    },
     { PAD_BUTTON_OFFSET_ANALOG_LEFT_Y, +1, VK_DOWN  },
 };
-static const int STICK_MAPPING_COUNT = sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]);
+#define STICK_MAPPING_COUNT (sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0]))
 static bool prevStickState[sizeof(STICK_MAPPINGS) / sizeof(STICK_MAPPINGS[0])] = {0};
 
 // ===[ MAIN ]===
-static double freq = 0; 
+static double freq = 0;
 #define PS3_GET_TIME ((double)__builtin_ppc_get_timebase() / (double)freq)
 bool shouldExit = false;
 
 // ===[ MAIN ]===
 
 static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
+    (void)param;
+    (void)userdata;
     switch (status) {
         case SYSUTIL_EXIT_GAME:
             shouldExit = true;
             break;
-        
+
         case SYSUTIL_MENU_OPEN:
         case SYSUTIL_MENU_CLOSE:
             break;
@@ -152,12 +155,31 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
+void platformLog(const logType type, const char *format, va_list va) {
+    FILE *out = stderr;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            out = stdout;
+            break;
+        case LOG_TYPE_WARNING:
+            fputs("Warning: ", out);
+            break;
+        case LOG_TYPE_ERROR:
+            fputs("Error: ", out);
+            break;
+		case LOG_TYPE_DEBUG:
+            fputs("Debug: ", out);
+            break;
+    }
+    vfprintf(out, format, va);
+}
 static char buffer[9999];
 int main(int argc, char* argv[]) {
-    printf("%s\n", argv[0]);
-    strcpy(buffer, argv[0]);
+   	logInfo("%s\n", argv[0]);
+    if (argc > 0)
+        strcpy(buffer, argv[0]);
     char* tmp = str_replace(buffer, "butterscotch.elf", "");
-	char* tmp2 = str_replace(tmp, "butterscotch.self", "");
+    char* tmp2 = str_replace(tmp, "butterscotch.self", "");
     char* tmp3 = str_replace(tmp2, "EBOOT.BIN", "");
     char* dataWinPath = malloc(strlen(tmp3) + strlen("data.win") + 1);
     if (!dataWinPath) {
@@ -168,47 +190,45 @@ int main(int argc, char* argv[]) {
     strcat(dataWinPath, "data.win");
     free(tmp);
     free(tmp2);
-	free(tmp3);
+    free(tmp3);
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
-    printf("Loading %s...\n", dataWinPath);
+    logInfo("Loading %s...\n", dataWinPath);
 
-    DataWin* dataWin = DataWin_parse(
-        dataWinPath,
-        (DataWinParserOptions) {
-            .parseGen8 = true,
-            .parseOptn = true,
-            .parseLang = true,
-            .parseExtn = false,
-            .parseSond = true,
-            .parseAgrp = true,
-            .parseSprt = true,
-            .parseBgnd = true,
-            .parsePath = true,
-            .parseScpt = true,
-            .parseGlob = true,
-            .parseShdr = true,
-            .parseFont = true,
-            .parseTmln = true,
-            .parseObjt = true,
-            .parseRoom = true,
-            .parseTpag = true,
-            .parseCode = true,
-            .parseVari = true,
-            .parseFunc = true,
-            .parseStrg = true,
-            // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
-            .parseTxtr = false,
-            .parseAudo = true,
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
-            .lazyLoadRooms = true,
-            //.eagerlyLoadedRooms = args.eagerRooms
-        }
-    );
+    DataWinParserOptions options = {0};
+    options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
+    options.parseSprt = true;
+    options.parseBgnd = true;
+    options.parsePath = true;
+    options.parseScpt = true;
+    options.parseGlob = true;
+    options.parseShdr = true;
+    options.parseFont = true;
+    options.parseTmln = true;
+    options.parseObjt = true;
+    options.parseRoom = true;
+    options.parseTpag = true;
+    options.parseCode = true;
+    options.parseVari = true;
+    options.parseFunc = true;
+    options.parseStrg = true;
+    // TXTR pages live in TEXTURES.BIN on PS3, not in data.win.
+    options.parseTxtr = false;
+    options.parseAudo = true;
+    options.skipLoadingPreciseMasksForNonPreciseSprites = true;
+    options.lazyLoadRooms = true;
+    //options.eagerlyLoadedRooms = args.eagerRooms;
+
+    DataWin* dataWin = DataWin_parse(dataWinPath, options);
 
     Gen8* gen8 = &dataWin->gen8;
-    printf("Loaded \"%s\" (%d) successfully! [Bytecode Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->bytecodeVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
+    logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
     // Initialize VM
     VMContext* vm = VM_create(dataWin);
@@ -217,8 +237,8 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
     vm->opcodeProfilerEnabled = true;
     if (vm->opcodeProfilerEnabled) {
-        vm->opcodeVariantCounts = safeCalloc(256 * 256, sizeof(uint64_t));
-        vm->opcodeRValueTypeCounts = safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeVariantCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
+        vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
     }
 #endif
 
@@ -231,7 +251,7 @@ int main(int argc, char* argv[]) {
             lastSlash = lastBackslash;
         if (lastSlash != nullptr) {
             size_t len = (size_t) (lastSlash - dataWinPath + 1);
-            dataWinDir = safeMalloc(len + 1);
+            dataWinDir = (char *)safeMalloc(len + 1);
             memcpy(dataWinDir, dataWinPath, len);
             dataWinDir[len] = '\0';
         } else {
@@ -248,11 +268,11 @@ int main(int argc, char* argv[]) {
     // Load TEXTURES.BIN
     {
         size_t dirLen = strlen(dataWinDir);
-        char* texturesBinPath = safeMalloc(dirLen + strlen("textures.bin") + 1);
+        char* texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 1);
         memcpy(texturesBinPath, dataWinDir, dirLen);
         strcpy(texturesBinPath + dirLen, "textures.bin");
         if (!PS3Textures_init(texturesBinPath)) {
-            fprintf(stderr, "FATAL: failed to load %s\n", texturesBinPath);
+            logError("Fatal: failed to load %s\n", texturesBinPath);
             return 1;
         }
         free(texturesBinPath);
@@ -283,7 +303,7 @@ int main(int argc, char* argv[]) {
         glUseProgram(gPalettedProgram);
         glUniform1i(uPaletteLoc, 1);
         glUseProgram(0);
-        printf("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
+        logInfo("Paletted shader: program=%u uPaletteV=%d uPalette=%d\n", gPalettedProgram, gPalettedUPaletteVLoc, uPaletteLoc);
     }
 
     // Initialize the runner
@@ -297,7 +317,7 @@ int main(int argc, char* argv[]) {
     // Main loop
     bool debugPaused = false;
     bool debugShowCollisionMasks = false;
-    double lastFrameTime = PS3_GET_TIME;
+    double lastFrameStartTime = PS3_GET_TIME; // for delta_time and frame pacing
     while (!shouldExit && !runner->shouldExit) {
         // Clear last frame's pressed/released state, then poll new input events
         RunnerKeyboard_beginFrame(runner->keyboard);
@@ -308,7 +328,7 @@ int main(int argc, char* argv[]) {
         bool shouldStep = true;
         if (runner->debugMode && debugPaused) {
             shouldStep = RunnerKeyboard_checkPressed(runner->keyboard, 'O');
-            if (shouldStep) fprintf(stderr, "Debug: Frame advance (frame %d)\n", runner->frameCount);
+            if (shouldStep) logDebug("Frame advance (frame %d)\n", runner->frameCount);
         }
 
 
@@ -366,6 +386,9 @@ int main(int argc, char* argv[]) {
         }
 
         double frameStartTime = PS3_GET_TIME;
+        runner->deltaTime = (frameStartTime - lastFrameStartTime) * 1000000.0;
+        lastFrameStartTime = frameStartTime;
+
         double stepTime = 0.0;
         double audioTime = 0.0;
         if (shouldStep) {
@@ -375,7 +398,7 @@ int main(int argc, char* argv[]) {
             stepTime = PS3_GET_TIME - stepStart;
 
             // Update audio system (gain fading, cleanup ended sounds)
-            float dt = (float) (PS3_GET_TIME - lastFrameTime);
+            float dt = (float) (runner->deltaTime / 1000000.0);
             if (0.0f > dt) dt = 0.0f;
             if (dt > 0.1f) dt = 0.1f; // cap delta to avoid huge fades on lag spikes
             double audioStart = PS3_GET_TIME;
@@ -392,34 +415,12 @@ int main(int argc, char* argv[]) {
         int32_t gameW = (int32_t) gen8->defaultWindowWidth;
         int32_t gameH = (int32_t) gen8->defaultWindowHeight;
 
-        // The application surface (FBO) is sized to defaultWindowWidth x defaultWindowHeight.
-        // It is a bit hard to understand, but here's how it works:
-        // The Port X/Port Y controls the position of the game viewport within the application surface.
-        // The Port W/Port H controls the size of the game viewport within the application surface.
-        // Think of it like if you had an image (or... well, a framebuffer) and you are "pasting" it over the application surface.
-        // And the Port W/Port H are scaled by the window size too (set by the GEN8 chunk)
-        float displayScaleX;
-        float displayScaleY;
-
         Runner_drawPre(runner, fbWidth, fbHeight);
-        Runner_computeViewDisplayScale(runner, gameW, gameH, &displayScaleX, &displayScaleY);
 
-        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight);
-
-        // Clear FBO with room background color
-        if (runner->drawBackgroundColor) {
-            int rInt = BGR_R(runner->backgroundColor);
-            int gInt = BGR_G(runner->backgroundColor);
-            int bInt = BGR_B(runner->backgroundColor);
-            int aInt = BGR_A(runner->backgroundColor);
-            glClearColor(rInt / 255.0f, gInt / 255.0f, bInt / 255.0f, aInt / 255.0f);
-        } else {
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        }
-        glClear(GL_COLOR_BUFFER_BIT);
+        Runner_beginFrame(runner, gameW, gameH, fbWidth, fbHeight, fbWidth, fbHeight);
 
         double drawStart = PS3_GET_TIME;
-        Runner_drawViews(runner, gameW, gameH, displayScaleX, displayScaleY, debugShowCollisionMasks);
+        Runner_drawViews(runner, gameW, gameH, debugShowCollisionMasks);
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight);
         renderer->vtable->endFrameEnd(renderer);
@@ -437,26 +438,15 @@ int main(int argc, char* argv[]) {
         }
         Runner_handlePendingRoomChange(runner);
 
-        double now = PS3_GET_TIME;
-
         // Limit frame rate to room speed
         if (runner->currentRoom->speed > 0) {
             double targetFrameTime = 1.0 / runner->currentRoom->speed;
-            double nextFrameTime = lastFrameTime + targetFrameTime;
-
-            if (now < nextFrameTime) {
-                while (PS3_GET_TIME < nextFrameTime) {
-                    __sync();
-                    sysUtilCheckCallback();
-                    sysUsleep(5);
-                }
-                lastFrameTime = nextFrameTime;
-            } else {
-                // Frame took too long → resync
-                lastFrameTime = now;
+            double nextFrameTime = lastFrameStartTime + targetFrameTime;
+            while (PS3_GET_TIME < nextFrameTime) {
+                __sync();
+                sysUtilCheckCallback();
+                sysUsleep(5);
             }
-        } else {
-            lastFrameTime = now;
         }
     }
 
@@ -476,8 +466,8 @@ int main(int argc, char* argv[]) {
     DataWin_free(dataWin);
 
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
-	gcmSetWaitFlip(context);
-	rsxFinish(context,1);
-    printf("Bye! :3\n");
+    gcmSetWaitFlip(context);
+    rsxFinish(context,1);
+    logInfo("Bye! :3\n");
     return 0;
 }

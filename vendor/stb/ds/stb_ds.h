@@ -513,7 +513,12 @@ extern void * stbds_shmode_func(size_t elemsize, int mode);
 #endif
 
 #if !defined(__cplusplus)
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+// This causes issues with old compilers, (GCC 3.0, Clang 1.1, and maybe more), and all it does
+// is allow the stb_ds functions to work on rvalues, which we don't do anywhere in the codebase.
+// I don't feel like figuring out the oldest version of every compiler this works on and writing
+// a huge conditional, so just disable it entirely.
+//#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#if 0
 #define STBDS_HAS_LITERAL_ARRAY
 #endif
 #endif
@@ -687,12 +692,13 @@ enum
    STBDS_SH_ARENA
 };
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && (!defined(__GNUC__) || __GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8))
 // in C we use implicit assignment from these void*-returning functions to T*.
 // in C++ these templates make the same code work
 template<class T> static T * stbds_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_cap) {
   return (T*)stbds_arrgrowf((void *)a, elemsize, addlen, min_cap);
 }
+#define stbds_arrgrowf_wrapper(a,b,c,d) stbds_arrgrowf_wrapper(a,b,(size_t)c,(size_t)d)
 template<class T> static T * stbds_hmget_key_wrapper(T *a, size_t elemsize, void *key, size_t keysize, int mode) {
   return (T*)stbds_hmget_key((void*)a, elemsize, key, keysize, mode);
 }
@@ -708,9 +714,11 @@ template<class T> static T * stbds_hmput_key_wrapper(T *a, size_t elemsize, void
 template<class T> static T * stbds_hmdel_key_wrapper(T *a, size_t elemsize, void *key, size_t keysize, size_t keyoffset, int mode){
   return (T*)stbds_hmdel_key((void*)a, elemsize, key, keysize, keyoffset, mode);
 }
+#define stbds_hmdel_key_wrapper(a,b,c,d,e,f) stbds_hmdel_key_wrapper(a,b,c,d,(size_t)e,f)
 template<class T> static T * stbds_shmode_func_wrapper(T *, size_t elemsize, int mode) {
   return (T*)stbds_shmode_func(elemsize, mode);
 }
+#define stbds_shmode_func_wrapper(a,b,c) stbds_shmode_func_wrapper(a,b,(int)c)
 #else
 #define stbds_arrgrowf_wrapper            stbds_arrgrowf
 #define stbds_hmget_key_wrapper           stbds_hmget_key

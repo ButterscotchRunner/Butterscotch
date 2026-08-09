@@ -1,64 +1,16 @@
 #include "profiler.h"
 
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <sys/time.h>
+#include "string_compat.h"
+#include "stdio_compat.h"
 
 #include "utils.h"
 #include "stb_ds.h"
 #include "string_builder.h"
-
-#include "clock_gettime_macos.h"
-
-#if defined(PLATFORM_PS2)
-#include <timer.h>
-#elif defined(PLATFORM_PS3)
-#include <sys/systime.h>
-#elif defined(_WIN32)
-#include <windows.h>
-#else
-#include <time.h>
-#endif
-
-static uint64_t nowNanos(void) {
-#if defined(PLATFORM_PS2)
-    // kBUSCLK is bus clock ticks per second (~147 MHz).
-    // Split to avoid u64 overflow in ticks * 1e9.
-    uint64_t t = (uint64_t) GetTimerSystemTime();
-    uint64_t clk = (uint64_t) kBUSCLK;
-    uint64_t sec = t / clk;
-    uint64_t rem = t % clk;
-    return sec * 1000000000ull + (rem * 1000000000ull) / clk;
-#elif defined(PLATFORM_PS3)
-    return ((double)__builtin_ppc_get_timebase()/(double)sysGetTimebaseFrequency());
-#elif defined(_WIN32)
-    static LARGE_INTEGER freq;
-    static bool freqInitialized = false;
-    if (!freqInitialized) {
-        QueryPerformanceFrequency(&freq);
-        freqInitialized = true;
-    }
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    uint64_t t = (uint64_t) now.QuadPart;
-    uint64_t f = (uint64_t) freq.QuadPart;
-    uint64_t sec = t / f;
-    uint64_t rem = t % f;
-    return sec * 1000000000ull + (rem * 1000000000ull) / f;
-#elif defined(CLOCK_MONOTONIC)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
-#else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t) tv.tv_sec * 1000000000ull + (uint64_t) tv.tv_usec * 1000;
-#endif
-}
+#include "gettime.h"
 
 Profiler* Profiler_create(void) {
-    Profiler* p = safeMalloc(sizeof(Profiler));
+    Profiler* p = (Profiler *)safeMalloc(sizeof(Profiler));
     p->entries = nullptr;
     p->frameDepth = 0;
     p->instructionCount = 0;
@@ -106,7 +58,9 @@ void Profiler_exit(Profiler* p) {
 
     ptrdiff_t i = shgeti(p->entries, f->name);
     if (0 > i) {
-        ProfilerStats stats = { .nanos = selfNanos, .ops = selfOps };
+        ProfilerStats stats = {0};
+        stats.nanos = selfNanos;
+        stats.ops = selfOps;
         shput(p->entries, f->name, stats);
     } else {
         p->entries[i].value.nanos += selfNanos;
@@ -170,14 +124,14 @@ char* Profiler_createReport(const Profiler* p, int topN, int framesInWindow) {
     StringBuilder stringBuilder = StringBuilder_create(64);
 
     double frames = (double) framesInWindow;
-    double totalMs = total.nanos / 1000000.0;
-    double totalOpsPerFrame = (double) total.ops / frames;
+    double totalMs = (int64_t)total.nanos / 1000000.0;
+    double totalOpsPerFrame = (double)(int64_t)total.ops / frames;
 
     StringBuilder_appendFormat(&stringBuilder, "GML Profiler (avg %d frames)\n", framesInWindow);
     repeat(limit, i) {
-        double perFrameMs = ((double) sorted[i].value.nanos / (double) 1000000) / frames;
-        double opsPerFrame = (double) sorted[i].value.ops / frames;
-        double nsPerOp = sorted[i].value.ops > 0 ? (double) sorted[i].value.nanos / (double) sorted[i].value.ops : (double) 0;
+        double perFrameMs = ((double)(int64_t)sorted[i].value.nanos / (double) 1000000) / frames;
+        double opsPerFrame = (double)(int64_t)sorted[i].value.ops / frames;
+        double nsPerOp = sorted[i].value.ops > 0 ? (double)(int64_t)sorted[i].value.nanos / (double)(int64_t)sorted[i].value.ops : (double) 0;
         StringBuilder_appendFormat(&stringBuilder, "%.2fms %.0f ops (%.0f ns/op) %s\n", perFrameMs, opsPerFrame, nsPerOp, sorted[i].key);
     }
     StringBuilder_appendFormat(&stringBuilder, "total %.2fms/frame, %.0f ops/frame (%zu scripts)", totalMs / frames, totalOpsPerFrame, sortedEntriesCount);
