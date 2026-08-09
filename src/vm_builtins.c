@@ -14085,7 +14085,7 @@ static RValue builtin_tilemap_get_width(VMContext* ctx, RValue* args, MAYBE_UNUS
 
 	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-    if (!data) return RValue_makeUndefined();
+    if (!data) return RValue_makeReal(-1.0);
 
     return RValue_makeReal(data->tilesX);
 }
@@ -14096,7 +14096,7 @@ static RValue builtin_tilemap_get_height(VMContext* ctx, RValue* args, MAYBE_UNU
 
 	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-    if (!data) return RValue_makeUndefined();
+    if (!data) return RValue_makeReal(-1.0);
 
     return RValue_makeReal(data->tilesY);
 }
@@ -14107,7 +14107,7 @@ static RValue builtin_tilemap_get_tile_width(VMContext* ctx, RValue* args, MAYBE
 
 	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-	if (!data) return RValue_makeUndefined();
+	if (!data) return RValue_makeReal(-1.0);
 
 	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
 	return RValue_makeReal(tileset->gms2TileWidth);
@@ -14119,7 +14119,7 @@ static RValue builtin_tilemap_get_tile_height(VMContext* ctx, RValue* args, MAYB
 
 	RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-	if (!data) return RValue_makeUndefined();
+	if (!data) return RValue_makeReal(-1.0);
 
 	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
 	return RValue_makeReal(tileset->gms2TileHeight);
