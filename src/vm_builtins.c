@@ -9635,8 +9635,8 @@ static RValue builtin_draw_vertex(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = 0.0f;
-    uint32_t color = 0xFFFFFFFF;
+    float z = x;
+    uint32_t color = runner->renderer->drawColor;
     float alpha = 1.0f;
     float u = 0.0f;
     float v = 0.0f;
@@ -9656,11 +9656,14 @@ static RValue builtin_draw_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* arg
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = 0.0f; 
+    float z = 0.0f;
     uint32_t color = (uint32_t) RValue_toInt32(args[2]);
     float alpha = (float) RValue_toReal(args[3]);
     float u = 0.0f;
     float v = 0.0f;
+
+    if (alpha > 1.0f) alpha = 1.0f;
+    if (alpha < 0.0f) alpha = 0.0f;
 
     Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
     return RValue_makeUndefined();
@@ -9678,7 +9681,7 @@ static RValue builtin_draw_vertex_texture(MAYBE_UNUSED VMContext* ctx, RValue* a
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
     float z = 0.0f;
-    uint32_t color = 0xFFFFFFFF;
+    uint32_t color = runner->renderer->drawColor;
     float alpha = 1.0f;
     float u = (float) RValue_toReal(args[2]);
     float v = (float) RValue_toReal(args[3]);
@@ -9703,6 +9706,9 @@ static RValue builtin_draw_vertex_texture_color(MAYBE_UNUSED VMContext* ctx, RVa
     float v = (float) RValue_toReal(args[3]);
     uint32_t color = (uint32_t) RValue_toInt32(args[4]);
     float alpha = (float) RValue_toReal(args[5]);
+
+    if (alpha > 1.0f) alpha = 1.0f;
+    if (alpha < 0.0f) alpha = 0.0f;
 
     Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
     return RValue_makeUndefined();
