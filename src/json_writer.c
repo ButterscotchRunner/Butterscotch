@@ -1,9 +1,9 @@
 #include "json_writer.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 // ===[ Internal Helpers ]===
 
@@ -97,7 +97,7 @@ void JsonWriter_string(JsonWriter* writer, const char* value) {
 
 void JsonWriter_int(JsonWriter* writer, int64_t value) {
     writeCommaIfNeeded(writer);
-    StringBuilder_appendFormat(&writer->out, "%lld", (long long) value);
+    StringBuilder_appendFormat(&writer->out, "%lld", (longlong) value);
     writer->needsComma = true;
 }
 

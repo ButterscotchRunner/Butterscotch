@@ -425,6 +425,9 @@ typedef struct {
     FlattenedCollisionEvent* events;
 } FlattenedCollisionEventList;
 
+typedef struct { char* key; int32_t value; } AssetsByNameEntry;
+typedef struct { char* key; int value; } DisabledObjEntry;
+
 struct Runner {
     DataWin* dataWin;
     VMContext* vmContext;
@@ -447,7 +450,7 @@ struct Runner {
     // Precomputed per-object and per-slot CSR tables of resolved event handlers. Replaces the per-dispatch parent-chain walk in findEventCodeIdAndOwner.
     ResolvedEventTable eventTable;
     // Precomputed assets map.
-    struct { char* key; int32_t value; }* assetsByName;
+    AssetsByNameEntry* assetsByName;
     // For each event type, the deduplicated list of object indices that respond to ANY subtype of that event (including via inheritance). Derived from the event table; used by collision dispatch to skip non-collision objects in the outer loop.
     // Length = OBJT_EVENT_TYPE_COUNT.
     int32_t** objectsWithAnyEventOfType;
@@ -517,7 +520,7 @@ struct Runner {
     int32_t viewportY;   // Y offset in window (letterboxing)
     int32_t viewportW;   // Scaled game width in window
     int32_t viewportH;   // Scaled game height in window
-    struct { char* key; int value; }* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
+    DisabledObjEntry* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
     struct { int key; Instance* value; }* instancesById;
     bool forceDrawDepth;
     bool applyOffsetForPrimitives;
@@ -542,7 +545,7 @@ struct Runner {
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
     DsQueue* dsQueuePool; // stb_ds array of DsQueue
-    DsStack* dsStackPool; // stb_ds array of DsStack    
+    DsStack* dsStackPool; // stb_ds array of DsStack
     DsPriority* dsPriorityPool; // stb_ds array of DsPriority
     DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
@@ -722,7 +725,7 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
         GameObject* objDef = &runner->dataWin->objt.objects[instance->objectIndex];
 
         if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
-            fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
+            logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) marked as %s at (%f, %f)\n", objDef->name, instance->instanceId, instance->objectIndex, active ? "active" : "inactive", instance->x, instance->y);
         }
     }
 #else

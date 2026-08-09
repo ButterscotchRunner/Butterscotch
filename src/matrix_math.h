@@ -2,7 +2,7 @@
 #define _BS_MATRIX_MATH_H_
 #include "common.h"
 #include "math_compat.h"
-#include <string.h>
+#include "string_compat.h"
 
 // ===[ Matrix4f Type ]===
 

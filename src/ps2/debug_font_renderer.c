@@ -8,9 +8,9 @@
 #include <gsKit.h>
 #include <gsFontM.h>
 #include <malloc.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #define DEBUGFONT_LINE_HEIGHT_SCALE 0.80f
 
@@ -20,7 +20,7 @@ static uint32_t uploadTable(GSGLOBAL* gsGlobal, const void* srcData, size_t srcB
     uint32_t vramSize = gsKit_texture_size(width, height, psm);
     uint32_t vramAddr = gsKit_vram_alloc(gsGlobal, vramSize, GSKIT_ALLOC_USERBUFFER);
     if (vramAddr == GSKIT_ALLOC_ERROR) {
-        fprintf(stderr, "DebugFontRenderer: Failed to allocate VRAM for %s\n", what);
+        logError("DebugFontRenderer: Failed to allocate VRAM for %s\n", what);
         abort();
     }
 
@@ -58,7 +58,7 @@ DebugFontRenderer* DebugFontRenderer_create(GSGLOBAL* gsGlobal) {
     tex->Filter = GS_FILTER_LINEAR;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
-    fprintf(stderr, "DebugFontRenderer: uploaded - CLUT 0x%08lX, atlas 0x%08lX\n", (unsigned long) clutVram, (unsigned long) atlasVram);
+    logInfo("DebugFontRenderer: uploaded - CLUT 0x%08lX, atlas 0x%08lX\n", (unsigned long) clutVram, (unsigned long) atlasVram);
     return r;
 }
 

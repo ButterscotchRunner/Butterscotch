@@ -1,9 +1,11 @@
 #include "image_decoder.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <bzlib.h>
+
+#include "log.h"
 
 #include "stb_image.h"
 
@@ -134,7 +136,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     unsigned int destLen = (unsigned int) uncompressedCapacity;
     int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, &destLen, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
     if (rc != BZ_OK) {
-        fprintf(stderr, "ImageDecoder: BZ2 decompress failed (rc=%d)\n", rc);
+        logWarn("ImageDecoder: BZ2 decompress failed (rc=%d)\n", rc);
         free(uncompressed);
         return nullptr;
     }

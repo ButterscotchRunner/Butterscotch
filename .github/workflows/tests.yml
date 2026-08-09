@@ -11,7 +11,7 @@ jobs:
     name: Butterscotch Tests (GLFW/Linux x86_64)
     runs-on: ubuntu-latest
     env:
-      DOWNLOAD_COMMERCIAL_GAMES: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      DOWNLOAD_COMMERCIAL_GAMES: ${{ secrets.COMMERCIAL_GAMES_URL != '' }}
     steps:
       - uses: actions/checkout@v4
 

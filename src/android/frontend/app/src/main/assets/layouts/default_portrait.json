@@ -1,0 +1,97 @@
+{
+    "id": "a28067d5-e1fb-41f8-bf53-9dcd88b120a2",
+    "fancyName": "UNDERTALE",
+    "orientation": "PORTRAIT",
+    "elements": [
+        {
+            "type": "Joystick",
+            "id": "0d4c8b5a-795a-414a-8713-ce3ef1c9aef3",
+            "positionX": 0.25,
+            "positionY": 0.5625,
+            "scale": 0.5050617456436157,
+            "opacity": 1.0,
+            "up": {
+                "type": "Keyboard",
+                "vk": 38
+            },
+            "down": {
+                "type": "Keyboard",
+                "vk": 40
+            },
+            "left": {
+                "type": "Keyboard",
+                "vk": 37
+            },
+            "right": {
+                "type": "Keyboard",
+                "vk": 39
+            }
+        },
+        {
+            "type": "Key",
+            "id": "b5c9a912-0e36-4f20-a608-aeccc446aa21",
+            "positionX": 0.75,
+            "positionY": 0.44999998807907104,
+            "scale": 0.2,
+            "opacity": 1.0,
+            "label": null,
+            "trigger": {
+                "type": "Press"
+            },
+            "binding": {
+                "type": "Keyboard",
+                "vk": 67
+            }
+        },
+        {
+            "type": "Key",
+            "id": "2c93d2ba-4335-43e8-a859-519f8aec277a",
+            "positionX": 0.625,
+            "positionY": 0.675000011920929,
+            "scale": 0.2,
+            "opacity": 1.0,
+            "label": null,
+            "trigger": {
+                "type": "Press"
+            },
+            "binding": {
+                "type": "Keyboard",
+                "vk": 88
+            }
+        },
+        {
+            "type": "Key",
+            "id": "309bc146-94d2-48b7-b849-6baccf6bb711",
+            "positionX": 0.875,
+            "positionY": 0.675000011920929,
+            "scale": 0.2,
+            "opacity": 1.0,
+            "label": null,
+            "trigger": {
+                "type": "Press"
+            },
+            "binding": {
+                "type": "Keyboard",
+                "vk": 90
+            }
+        },
+        {
+            "type": "Menu",
+            "id": "9d74012d-4e32-434a-a271-5c868086035e",
+            "positionX": 0.9375,
+            "positionY": 0.11249999701976776,
+            "scale": 0.10864197462797165,
+            "opacity": 1.0
+        },
+        {
+            "type": "FastForward",
+            "id": "e181eb4f-820e-4cf7-bdc7-069b786379d7",
+            "positionX": 0.8125,
+            "positionY": 0.11249999701976776,
+            "scale": 0.10981482267379761,
+            "opacity": 1.0,
+            "speed": 2.0,
+            "toggle": true
+        }
+    ]
+}

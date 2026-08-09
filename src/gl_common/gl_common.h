@@ -9,6 +9,8 @@
 #elif PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
+#elif PLATFORM_VITA
+#include <vitaGL.h>
 #else
 #include <glad/glad.h>
 #endif

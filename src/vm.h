@@ -111,6 +111,9 @@
 #define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
 #define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
+// Max amount of args a function call can have until the args are heap-alloced.
+#define VM_MAX_STACK_ARGS 16
+
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
 #define VARTYPE_ARRAYPOPAF  0x90  // Push array reference (write context)
@@ -186,6 +189,10 @@ typedef struct {
     char* message;
 } VMException;
 
+typedef struct { char* key; int32_t value; } CodeIndexByNameEntry;
+typedef struct { char* key; CodeLocals* value; } CodeLocalsMapEntry;
+typedef struct { int32_t key; int32_t* value; } CrossRefMapEntry;
+
 // ===[ VMContext - Holds all VM state ]===
 // Fields are ordered by access frequency so that the hottest data sits in the first bytes of the struct
 // This way data can be kept "hot" in the CPU cache or, depending on the platform, in scratchpad RAM
@@ -245,9 +252,9 @@ struct VMContext {
     BuiltinEntry* builtinMap;
     bool registeredBuiltinFunctions;
     // funcName -> codeIndex hash map (stb_ds)
-    struct { char* key; int32_t value; }* codeIndexByName;
+    CodeIndexByNameEntry* codeIndexByName;
     // codeName -> CodeLocals* hash map (stb_ds)
-    struct { char* key; CodeLocals* value; }* codeLocalsMap;
+    CodeLocalsMapEntry* codeLocalsMap;
     // BC13/BC14/BC17+: A map of CODE indexes -> localVars slot lookup map
     IntIntHashMap* codeLocalsSlotMaps;
     // varName -> varID hash map for self/instance-scoped variables (stb_ds).
@@ -258,7 +265,7 @@ struct VMContext {
     // "codeName\tfuncName" -> true, for deduplicating stubbed function warnings
     StringBooleanEntry* loggedStubbedFuncs;
     // Cross-reference map for disassembler: targetCodeIndex -> stb_ds array of callerCodeIndex
-    struct { int32_t key; int32_t* value; }* crossRefMap;
+    CrossRefMapEntry* crossRefMap;
     bool alwaysLogUnknownFunctions;
     bool alwaysLogStubbedFunctions;
 #ifdef ENABLE_VM_TRACING
@@ -310,6 +317,11 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex);
 void VM_printOpcodeProfilerReport(const VMContext* ctx);
 #endif
 void VM_registerBuiltin(VMContext* ctx, const char* name, BuiltinFunc func);
+#if defined(_MSC_VER) && !defined(__clang__)
+// Some versions of MSVC complain that the functions aren't the right type because of struct bullshit.
+// We guard this behind _MSC_VER to keep type checking on other compilers to find legitimate type mismatch errors.
+#define VM_registerBuiltin(ctx,name,func) VM_registerBuiltin(ctx,name,(BuiltinFunc)func)
+#endif
 BuiltinFunc VM_findBuiltin(VMContext* ctx, const char* name);
 
 char* VM_getVariableNameByVarId(VMContext* ctx, int32_t varId);
@@ -402,7 +414,7 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
     char instanceIdBuf[28] = "";
     if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
-    fprintf(stderr, "VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }
 #endif

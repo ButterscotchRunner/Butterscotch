@@ -360,14 +360,6 @@ jobs:
       - name: Configure
         run: cmake -B build -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build bzip2 for PS3
-        run: |
-          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
-          tar -xf /tmp/bzip2.tar.gz -C /tmp
-          make -C /tmp/bzip2-1.0.8 libbz2.a CFLAGS="-mcpu=cell -mtune=cell -maltivec -mhard-float -fmodulo-sched -ffunction-sections -fdata-sections -fomit-frame-pointer -fstrict-aliasing -funroll-loops -ftree-vectorize -Wall -Winline -O2 -g -D_FILE_OFFSET_BITS=64" CC=powerpc64-ps3-elf-gcc AR=powerpc64-ps3-elf-ar RANLIB=powerpc64-ps3-elf-ranlib -j$(nproc)
-          cp /tmp/bzip2-1.0.8/libbz2.a /usr/local/ps3dev/portlibs/ppu/lib/
-          cp /tmp/bzip2-1.0.8/bzlib.h /usr/local/ps3dev/portlibs/ppu/include/
-
       - name: Build
         run: |
           cmake --build build -j$(nproc)
@@ -378,6 +370,71 @@ jobs:
         with:
           name: butterscotch-ps3
           path: build/butterscotch.elf
+
+  build-vita:
+    name: Build (PS Vita)
+    runs-on: ubuntu-24.04
+    container: vitasdk/vitasdk:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout vitaGL
+        run: |
+          git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git vendor/vitaGL
+
+      - name: Build vitaGL with speedhacks
+        run: |
+          make -C vendor/vitaGL \
+            install \
+            NO_DEBUG=1 \
+            NO_SPLASHSCREEN=1 \
+            LOG_ERRORS=1 \
+            SHARED_RENDERTARGETS=1 \
+            DRAW_SPEEDHACK=1 \
+            HAVE_SHADER_CACHE=1 \
+            MATH_SPEEDHACK=1 \
+            HAVE_TEXTURE_CACHE=1 \
+            -j$(nproc)
+
+      - name: Configure
+        run: |
+          cmake -B build -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal
+
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-vita
+          path: build/Butterscotch.vpk
+
+  build-android:
+    name: Build (Android)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+          cache-dependency-path: src/android/frontend/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build APK
+        run: |
+          cd src/android/frontend
+          ./gradlew assembleDebug
+  
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-android
+          path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
+
 
   build-old-gcc:
     strategy:
