@@ -3831,7 +3831,6 @@ void Runner_step(Runner* runner) {
     tickTimelines(runner);
 
     dispatchMouseEvents(runner);
-    if (runner->pendingRoom >= 0) { Runner_handlePendingRoomChange(runner); return; }
 
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
