@@ -9587,6 +9587,127 @@ static RValue builtin_psn_setup_trophies(MAYBE_UNUSED VMContext* ctx, RValue* ar
 }
 
 // Draw functions
+static RValue builtin_draw_primitive_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (1 > argCount) {
+        logWarn("[draw_primitive_begin]: Expected 1 argument, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    int32_t primitiveType = RValue_toInt32(args[0]);
+    Renderer_primitiveBegin(runner->renderer, primitiveType);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_primitive_begin_texture(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) {
+        logWarn("[draw_primitive_begin_texture]: Expected 2 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+    
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    int32_t primitiveType = RValue_toInt32(args[0]);
+    int32_t textureId = RValue_toInt32(args[1]);
+    Renderer_primitiveBeginTexture(runner->renderer, primitiveType, textureId);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_primitive_end(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    Renderer_primitiveEnd(runner->renderer);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_vertex(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (2 > argCount) {
+        logWarn("[draw_vertex]: Expected 2 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    float z = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float alpha = 1.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+
+    Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (4 > argCount) {
+        logWarn("[draw_vertex_color]: Expected 4 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    float z = 0.0f; 
+    uint32_t color = (uint32_t) RValue_toInt32(args[2]);
+    float alpha = (float) RValue_toReal(args[3]);
+    float u = 0.0f;
+    float v = 0.0f;
+
+    Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_vertex_texture(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (4 > argCount) {
+        logWarn("[draw_vertex_texture]: Expected 4 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    float z = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float alpha = 1.0f;
+    float u = (float) RValue_toReal(args[2]);
+    float v = (float) RValue_toReal(args[3]);
+
+    Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_vertex_texture_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (6 > argCount) {
+        logWarn("[draw_vertex_texture_color]: Expected 6 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer == nullptr) return RValue_makeUndefined();
+
+    float x = (float) RValue_toReal(args[0]);
+    float y = (float) RValue_toReal(args[1]);
+    float z = 0.0f;
+    uint32_t color = (uint32_t) RValue_toInt32(args[2]);
+    float alpha = (float) RValue_toReal(args[3]);
+    float u = (float) RValue_toReal(args[4]);
+    float v = (float) RValue_toReal(args[5]);
+
+    Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
@@ -18757,6 +18878,8 @@ static RValue builtin_vertex_submit(VMContext* ctx, RValue* args, int32_t argCou
     extArgs[4] = RValue_makeInt32(-1);
     return builtin_vertex_submit_ext(ctx, extArgs, 5);
 }
+
+
 
 // ===[ REGISTRATION ]===
 
