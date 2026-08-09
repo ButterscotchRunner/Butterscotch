@@ -2299,7 +2299,7 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
     char* str = RValue_toString(args[0]);
 	char* substr = RValue_toString(args[1]);
 
-    bool ret = (memcmp(str, substr, strlen(substr)) == 0);
+    bool ret = strcmp(str, substr) == 0;
 
     free(substr);
     free(str);
