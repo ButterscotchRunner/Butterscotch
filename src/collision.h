@@ -45,7 +45,6 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
 
-    InstanceBBox result;
     GMLReal left, right, top, bottom;
     if (GMLReal_fabs(inst->imageAngle) > 0.0001) {
         // Compute rotated AABB: transform the 4 corners of the unrotated bbox
