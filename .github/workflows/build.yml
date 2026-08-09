@@ -207,6 +207,10 @@ jobs:
           rm sdl2.pkg
 
       - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_DIR: ""
+          PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
+          PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
         run: |
           cmake -S . -B build \
             -DDESKTOP_BACKEND=sdl2 \
