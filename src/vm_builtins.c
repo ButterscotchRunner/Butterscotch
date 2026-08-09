@@ -2299,7 +2299,7 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
     char* str = RValue_toString(args[0]);
 	char* substr = RValue_toString(args[1]);
 
-    bool ret = (memcmp(str, substr, strlen(substr)) == 0);
+    bool ret = strncmp(str, substr, strlen(substr)) == 0;
 
     free(substr);
     free(str);
@@ -4177,6 +4177,53 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
 
     ctx->currentInstance = savedInstance;
     return result;
+}
+
+// ===[ TIME SOURCE FUNCTIONS ]===
+
+static RValue builtin_call_later(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+
+    double period = RValue_toReal(args[0]);
+    int32_t units = RValue_toInt32(args[1]);
+    RValue callback = args[2];
+    bool repeat = argCount > 3 ? RValue_toBool(args[3]) : false;
+
+    if (callback.type != RVALUE_METHOD && callback.type != RVALUE_INT32) {
+        return RValue_makeUndefined();
+    }
+
+    int32_t id = runner->nextCallLaterId++;
+    CallLaterEntry entry = {0};
+    entry.id = id;
+    entry.active = true;
+    entry.repeat = repeat;
+    entry.executing = false;
+    entry.units = units;
+    entry.period = period;
+    entry.elapsed = 0.0;
+    entry.callback = RValue_makeIndependent(callback);
+
+    arrput(runner->callLaterEntries, entry);
+    return RValue_makeReal((GMLReal) id);
+}
+
+static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+
+    int32_t handle = RValue_toInt32(args[0]);
+    size_t count = arrlenu(runner->callLaterEntries);
+    for (size_t i = 0; i < count; ++i) {
+        if (runner->callLaterEntries[i].id == handle && runner->callLaterEntries[i].active) {
+            runner->callLaterEntries[i].active = false;
+            RValue_free(&runner->callLaterEntries[i].callback);
+            return RValue_makeReal(0.0);
+        }
+    }
+
+    return RValue_makeReal(0.0);
 }
 
 // ===[ OS FUNCTIONS ]===
@@ -17067,6 +17114,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "method", builtin_method);
 #endif
+
+    // Time sources
+#if IS_WAD17_OR_HIGHER_ENABLED
+    VM_registerBuiltin(ctx, "call_later", builtin_call_later);
+    VM_registerBuiltin(ctx, "call_cancel", builtin_call_cancel);
+#endif  
 
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
