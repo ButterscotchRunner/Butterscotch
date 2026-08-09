@@ -180,6 +180,30 @@ jobs:
       - name: Pack cache
         run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
 
+  build-sdl2-freebsd-x86_64:
+    name: Build (SDL2/FreeBSD x86_64)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+  
+      - name: Build in FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y cmake ninja sdl2
+          run: |
+            cmake -S . -B build -GNinja -DDESKTOP_BACKEND=sdl2 -DCMAKE_BUILD_TYPE=Release
+            cmake --build build
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-sdl2-freebsd-x86_64
+          path: build/butterscotch
+      
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
     runs-on: ubuntu-24.04
