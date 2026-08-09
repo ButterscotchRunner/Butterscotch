@@ -354,6 +354,7 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
 
 
 
+#if IS_WAD17_OR_HIGHER_ENABLED
 static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     if (ctx == nullptr) return;
     if (callback.type == RVALUE_METHOD && callback.method != nullptr) {
@@ -364,7 +365,6 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     int32_t rawArg = RValue_toInt32(callback);
     int32_t codeId = -1;
 
-#if IS_WAD17_OR_HIGHER_ENABLED
     if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
         const char* funcName = ctx->dataWin->func.functions[rawArg].name;
         if (funcName != nullptr) {
@@ -374,7 +374,6 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             }
         }
     }
-#endif
 
     if (codeId < 0) {
         if (0 <= rawArg && (uint32_t) rawArg < ctx->dataWin->scpt.count) {
@@ -386,6 +385,7 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
         VM_callCodeIndex(ctx, codeId, nullptr, 0);
     }
 }
+#endif
 
 // Some events check if there's a pending room and, if there is, the events are NOT dispatched.
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
@@ -3790,6 +3790,7 @@ void Runner_step(Runner* runner) {
     }
     }
 
+#if IS_WAD17_OR_HIGHER_ENABLED
     // Tick call_later timers.
     {
         VMContext* ctx = runner->vmContext;
@@ -3819,6 +3820,7 @@ void Runner_step(Runner* runner) {
             }
         }
     }
+#endif
 
     // Execute Begin Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_BEGIN);

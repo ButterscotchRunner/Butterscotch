@@ -17116,8 +17116,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #endif
 
     // Time sources
+#if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "call_later", builtin_call_later);
     VM_registerBuiltin(ctx, "call_cancel", builtin_call_cancel);
+#endif  
 
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
