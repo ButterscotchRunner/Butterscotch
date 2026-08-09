@@ -185,7 +185,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
-      FREEBSD_VERSION: 14.3
+      FREEBSD_MAJOR: 14
+      FREEBSD_MINOR: 3
       FREEBSD_ARCH: amd64
     
     steps:
@@ -194,15 +195,14 @@ jobs:
   
       - name: Download FreeBSD sysroot
         run: |
-          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ env.FREEBSD_ARCH }}/${{ env.FREEBSD_VERSION }}-RELEASE/base.txz
+          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ env.FREEBSD_ARCH }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
           sudo mkdir -p ${{ env.FREEBSD_SYSROOT }}
           sudo tar -xJf sysroot.tar.xz -C ${{ env.FREEBSD_SYSROOT }}
           rm sysroot.tar.xz
 
       - name: Download SDL2 for FreeBSD
         run: |
-          FREEBSD_MAJOR=$(echo "${{ env.FREEBSD_VERSION }}" | cut -d. -f1)
-          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${FREEBSD_MAJOR}:${{ env.FREEBSD_ARCH }}/latest/All/Hashed/sdl2-2.32.10_2~2$w6kzs95d.pkg"
+          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ env.FREEBSD_ARCH }}/latest/All/Hashed/sdl2-2.32.10_2~2$w6kzs95d.pkg"
           sudo tar -xf sdl2.pkg -C ${{ env.FREEBSD_SYSROOT }}
           rm sdl2.pkg
 
