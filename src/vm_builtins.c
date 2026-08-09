@@ -16865,7 +16865,7 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
     return RValue_makeStructAndIncRef(ret);
 }
 
-// Vertex
+// Vertex Formats
 
 enum yyVertexType {
     yyVTFLOAT1 = 0x1,
@@ -16968,6 +16968,26 @@ static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* a
     g_FormatBit = 1;
 
     return RValue_makeUndefined();
+}
+
+
+
+static int vertexFormatTypeSize(enum yyVertexType type) {
+    switch (type) {
+    case yyVTFLOAT1:
+        return 4;
+    case yyVTFLOAT2:
+        return 8;
+    case yyVTFLOAT3:
+        return 12;
+    case yyVTFLOAT4:
+        return 16;
+    case yyVTCOLOR:
+    case yyVTUBYTE4:
+        return 4;
+    default:
+        return 0;
+    }
 }
 
 static void vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
@@ -17143,13 +17163,13 @@ static RValue builtin_vertex_format_add_custom(
         return RValue_makeUndefined();
     }
 
-    yyVertexType type = (yyVertexType) RValue_toInt32(args[0]);
+    enum yyVertexType type = (enum yyVertexType) RValue_toInt32(args[0]);
     if (type < yyVTFLOAT1 || type > yyVTMaxType) {
         logWarn("[vertex_format_add_custom] Illegal types\n");
         return RValue_makeUndefined();
     }
 
-    yyVertexUsage usage = (yyVertexUsage) RValue_toInt32(args[1]);
+    enum yyVertexUsage usage = (enum yyVertexUsage) RValue_toInt32(args[1]);
     if (usage < yyVUPOSITION || usage > yyVUMaxVertexUsage) {
         logWarn("[vertex_format_add_custom] Illegal usage\n");
         return RValue_makeUndefined();
@@ -17315,24 +17335,6 @@ static RValue builtin_vertex_format_exists(VMContext* ctx, RValue* args, int32_t
     return RValue_makeBool(vertexFormat != nullptr);
 }
 
-static int vertexFormatTypeSize(enum yyVertexType type) {
-    switch (type) {
-    case yyVTFLOAT1:
-        return 4;
-    case yyVTFLOAT2:
-        return 8;
-    case yyVTFLOAT3:
-        return 12;
-    case yyVTFLOAT4:
-        return 16;
-    case yyVTCOLOR:
-    case yyVTUBYTE4:
-        return 4;
-    default:
-        return 0;
-    }
-}
-
 static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32_t argCount) {
     if (argCount != 1) {
         logWarn("[vertex_format_get_info] Expected 1 argument, got %d\n", argCount);
@@ -17372,7 +17374,260 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
     return RValue_makeStructAndIncRef(ret);
 }
 
+// Vertex Buffers
 
+typedef struct VmVertexBuffer {
+    struct VmVertexBuffer* pPrev;
+    struct VmVertexBuffer* pNext;
+    uint32_t flags;
+    void *pVertexBuffer;
+    void *pHW0;
+    void *pHW1;
+    void *pHW2;
+    void *pHW3;
+    int32_t FVF;
+    int32_t FVFSize;
+    int32_t lockCurrent;
+    int32_t current;
+    int32_t total;
+    void *pAddress;
+    uint64_t frameLock;
+} VmVertexBuffer;
+
+typedef union Buffer_Vertex_u_0 {
+    uint32_t *pBuffer32;
+    uint16_t *pBuffer16;
+    uint8_t  *pBuffer8;
+    float    *pBufferF32;
+} Buffer_Vertex_u_0;
+
+typedef struct {
+    Buffer_Vertex_u_0 buffer;
+    uint32_t bufferSize;
+    uint32_t streamStart;
+    uint32_t elementIndex;
+    uint32_t elementCount;
+    uint32_t currentMask;
+    int32_t vertexCount;
+    uint32_t deletionCountdown;
+    bool frozen;
+    int32_t currentFormat;
+    int32_t storedFormat;
+    VmVertexFormat *pCurrentFormatVFRelease;
+    VmVertexBuffer *pFrozenVB;
+} Buffer_Vertex_t;
+typedef Buffer_Vertex_t Buffer_Vertex;
+
+static Buffer_Vertex** g_VertexBuffers = nullptr;
+static int32_t g_VertexBufferCount = 0;
+
+static int allocBufferVertex(int32_t bufferSize) {
+    if (bufferSize < 0) {
+        bufferSize = 0;
+    }
+
+    if (g_VertexBuffers != nullptr && g_VertexBufferCount > 0) {
+        for (int32_t i = 0; i < g_VertexBufferCount; ++i) {
+            if (g_VertexBuffers[i] == nullptr) {
+                Buffer_Vertex* buffer = (Buffer_Vertex*) safeMalloc(sizeof(Buffer_Vertex));
+                if (buffer == nullptr) {
+                    logError("[vertex_create_buffer] Memory allocation failed\n");
+                    return -1;
+                }
+
+                memset(buffer, 0, sizeof(*buffer));
+                if (bufferSize > 0) {
+                    buffer->buffer.pBuffer8 = (uint8_t*) safeMalloc((size_t) bufferSize);
+                    if (buffer->buffer.pBuffer8 == nullptr) {
+                        free(buffer);
+                        logError("[vertex_create_buffer] Memory allocation failed\n");
+                        return -1;
+                    }
+                }
+
+                buffer->bufferSize = (uint32_t) bufferSize;
+                buffer->currentFormat = -1;
+                buffer->storedFormat = -1;
+
+                g_VertexBuffers[i] = buffer;
+                return i;
+            }
+        }
+    }
+
+    int32_t oldCount = g_VertexBufferCount;
+    int32_t newCount = oldCount == 0 ? 32 : oldCount * 2;
+
+    Buffer_Vertex** newBuffers = (Buffer_Vertex**) safeRealloc(
+        g_VertexBuffers,
+        (size_t) newCount * sizeof(Buffer_Vertex*)
+    );
+    if (newBuffers == nullptr) {
+        logError("[vertex_create_buffer] Memory allocation failed\n");
+        return -1;
+    }
+
+    if (newCount > oldCount) {
+        memset(newBuffers + oldCount, 0, (size_t)(newCount - oldCount) * sizeof(Buffer_Vertex*));
+    }
+
+    g_VertexBuffers = newBuffers;
+    g_VertexBufferCount = newCount;
+
+    Buffer_Vertex* buffer = (Buffer_Vertex*) safeMalloc(sizeof(Buffer_Vertex));
+    if (buffer == nullptr) {
+        logError("[vertex_create_buffer] Memory allocation failed\n");
+        return -1;
+    }
+
+    memset(buffer, 0, sizeof(*buffer));
+    if (bufferSize > 0) {
+        buffer->buffer.pBuffer8 = (uint8_t*) safeMalloc((size_t) bufferSize);
+        if (buffer->buffer.pBuffer8 == nullptr) {
+            free(buffer);
+            logError("[vertex_create_buffer] Memory allocation failed\n");
+            return -1;
+        }
+    }
+
+    buffer->bufferSize = (uint32_t) bufferSize;
+    buffer->currentFormat = -1;
+    buffer->storedFormat = -1;
+
+    g_VertexBuffers[oldCount] = buffer;
+    return oldCount;
+}
+
+static RValue builtin_vertex_create_buffer_ext(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount != 1) {
+        logWarn("[vertex_create_buffer_ext] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    int32_t bufferSize = RValue_toInt32(args[0]);
+    if (bufferSize < 0x100) {
+        bufferSize = 0x100;
+    }
+
+    int32_t bufferIndex = allocBufferVertex(bufferSize);
+    return RValue_makeInt32(bufferIndex);
+}
+
+static RValue builtin_vertex_create_buffer(VMContext* ctx, MAYBE_UNUSED RValue* args, int32_t argCount) {
+    if (argCount != 0) {
+        logWarn("[vertex_create_buffer] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    int32_t bufferIndex = allocBufferVertex(0x8000);
+    return RValue_makeInt32(bufferIndex);
+}
+
+static RValue builtin_vertex_create_buffer_from_buffer_ext(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount != 4) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    int32_t bufferId = RValue_toInt32(args[0]);
+    uint32_t formatId = (uint32_t) RValue_toInt32(args[1]);
+    int32_t srcOffset = RValue_toInt32(args[2]);
+    int32_t vertNum = RValue_toInt32(args[3]);
+
+    if (srcOffset < 0) srcOffset = 0;
+    if (vertNum < -1) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Illegal vertex count: %d", vertNum);
+        return RValue_makeInt32(-1);
+    }
+
+    GmlBuffer* srcBuffer = gmlBufferGet(ctx->runner, bufferId);
+    if (srcBuffer == nullptr) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Source buffer does not exist");
+        return RValue_makeInt32(-1);
+    }
+
+    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    if (vertexFormat == nullptr) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Specified vertex format doesn't exist");
+        return RValue_makeInt32(-1);
+    }
+
+    int32_t vertexSize = (int32_t) vertexFormat->size;
+    if (vertexSize <= 0) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Invalid vertex format stride");
+        return RValue_makeInt32(-1);
+    }
+
+    if (srcOffset > srcBuffer->usedSize) {
+        logWarn("[vertex_create_buffer_from_buffer_ext] Source offset is beyond buffer size");
+        return RValue_makeInt32(-1);
+    }
+
+    int32_t totalBytes;
+    if (vertNum == -1) {
+        totalBytes = srcBuffer->usedSize - srcOffset;
+        if (totalBytes < 0) {
+            totalBytes = 0;
+        }
+        vertNum = totalBytes / vertexSize;
+        totalBytes = vertNum * vertexSize;
+    } else {
+        int64_t requestedBytes = (int64_t) vertNum * vertexSize;
+        if (requestedBytes + srcOffset > srcBuffer->usedSize) {
+            totalBytes = srcBuffer->usedSize - srcOffset;
+            if (totalBytes < 0) {
+                totalBytes = 0;
+            }
+            vertNum = totalBytes / vertexSize;
+            totalBytes = vertNum * vertexSize;
+        } else {
+            totalBytes = (int32_t) requestedBytes;
+        }
+    }
+
+    int32_t bufferIndex = allocBufferVertex(totalBytes);
+    if (bufferIndex < 0) {
+        return RValue_makeInt32(-1);
+    }
+
+    Buffer_Vertex* dest = g_VertexBuffers[bufferIndex];
+    if (dest == nullptr) {
+        return RValue_makeInt32(-1);
+    }
+
+    if (totalBytes > 0 && dest->buffer.pBuffer8 != nullptr) {
+        memcpy(dest->buffer.pBuffer8, srcBuffer->data + srcOffset, (size_t) totalBytes);
+    }
+
+    dest->bufferSize = (uint32_t) totalBytes;
+    dest->vertexCount = vertNum;
+    dest->currentFormat = (int32_t) formatId;
+    dest->storedFormat = (int32_t) formatId;
+    dest->streamStart = 0;
+    dest->elementIndex = 0;
+    dest->elementCount = 0;
+    dest->currentMask = 0;
+    dest->deletionCountdown = 0;
+    dest->frozen = false;
+    dest->pCurrentFormatVFRelease = nullptr;
+    dest->pFrozenVB = nullptr;
+
+    return RValue_makeInt32(bufferIndex);
+}
+
+static RValue builtin_vertex_create_buffer_from_buffer(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount != 2) {
+        logWarn("[vertex_create_buffer_from_buffer] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    RValue extArgs[4];
+    extArgs[0] = args[0];
+    extArgs[1] = args[1];
+    extArgs[2] = RValue_makeInt32(0);
+    extArgs[3] = RValue_makeInt32(-1);
+    return builtin_vertex_create_buffer_from_buffer_ext(ctx, extArgs, 4);
+}
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -18368,10 +18623,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_format_exists", builtin_vertex_format_exists);
     VM_registerBuiltin(ctx, "vertex_format_get_info", builtin_vertex_format_get_info);
 
-    // VM_registerBuiltin(ctx, "vertex_create_buffer", builtin_vertex_create_buffer);
-    // VM_registerBuiltin(ctx, "vertex_create_buffer_ext", builtin_vertex_create_buffer_ext);
-    // VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer", builtin_vertex_create_buffer_from_buffer);
-    // VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer_ext", builtin_vertex_create_buffer_from_buffer_ext);
+    VM_registerBuiltin(ctx, "vertex_create_buffer", builtin_vertex_create_buffer);
+    VM_registerBuiltin(ctx, "vertex_create_buffer_ext", builtin_vertex_create_buffer_ext);
+    VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer", builtin_vertex_create_buffer_from_buffer);
+    VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer_ext", builtin_vertex_create_buffer_from_buffer_ext);
     // VM_registerBuiltin(ctx, "vertex_update_buffer_from_buffer", builtin_vertex_update_buffer_from_buffer);
     // VM_registerBuiltin(ctx, "vertex_update_buffer_from_vertex", builtin_vertex_update_buffer_from_vertex);
     // VM_registerBuiltin(ctx, "vertex_get_buffer_size", builtin_vertex_get_buffer_size);
