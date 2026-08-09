@@ -9699,10 +9699,10 @@ static RValue builtin_draw_vertex_texture_color(MAYBE_UNUSED VMContext* ctx, RVa
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
     float z = 0.0f;
-    uint32_t color = (uint32_t) RValue_toInt32(args[2]);
-    float alpha = (float) RValue_toReal(args[3]);
-    float u = (float) RValue_toReal(args[4]);
-    float v = (float) RValue_toReal(args[5]);
+    float u = (float) RValue_toReal(args[2]);
+    float v = (float) RValue_toReal(args[3]);
+    uint32_t color = (uint32_t) RValue_toInt32(args[4]);
+    float alpha = (float) RValue_toReal(args[5]);
 
     Renderer_drawVertex(runner->renderer, x, y, z, color, alpha, u, v);
     return RValue_makeUndefined();
