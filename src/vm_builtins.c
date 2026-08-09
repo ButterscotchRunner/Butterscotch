@@ -16990,7 +16990,11 @@ static int vertexFormatTypeSize(enum yyVertexType type) {
     }
 }
 
-static void vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
+static bool vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
+    if (vertexFormat == nullptr || g_FormatBit == 0) {
+        return false;
+    }
+
     arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
 
     VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
@@ -17003,6 +17007,7 @@ static void vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexTy
     vertexFormat->bitMask |= g_FormatBit;
     vertexFormat->size += vertexFormatTypeSize(type);
     g_FormatBit <<= 1;
+    return true;
 }
 
 static RValue builtin_vertex_format_add_color(
@@ -17025,7 +17030,11 @@ static RValue builtin_vertex_format_add_color(
         return RValue_makeUndefined();
     }
 
-    vertexFormatAddElement(g_NewFormat, yyVTCOLOR, yyVUCOLOR);
+    if (!vertexFormatAddElement(g_NewFormat, yyVTCOLOR, yyVUCOLOR)) {
+        logWarn("[vertex_format_add_colour] Failed to add colour element\n");
+        return RValue_makeUndefined();
+    }
+
     return RValue_makeUndefined();
 }
 
@@ -17049,16 +17058,11 @@ static RValue builtin_vertex_format_add_position(
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = g_NewFormat;
-    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUPOSITION)) {
+        logWarn("[vertex_format_add_position] Failed to add position element\n");
+        return RValue_makeUndefined();
+    }
 
-    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
-    element->offset = vertexFormat->size;
-    element->type = yyVTFLOAT2;
-    element->usage = yyVUPOSITION;
-    element->bit = g_FormatBit;
-
-    vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUPOSITION);
     return RValue_makeUndefined();
 }
 
@@ -17082,7 +17086,11 @@ static RValue builtin_vertex_format_add_position_3d(
         return RValue_makeUndefined();
     }
 
-    vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUPOSITION);
+    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUPOSITION)) {
+        logWarn("[vertex_format_add_position_3d] Failed to add position element\n");
+        return RValue_makeUndefined();
+    }
+
     return RValue_makeUndefined();
 }
 
@@ -17106,7 +17114,11 @@ static RValue builtin_vertex_format_add_textcoord(
         return RValue_makeUndefined();
     }
 
-    vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUTEXCOORD);
+    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUTEXCOORD)) {
+        logWarn("[vertex_format_add_textcoord] Failed to add texture coordinate element\n");
+        return RValue_makeUndefined();
+    }
+
     return RValue_makeUndefined();
 }
 
@@ -17130,16 +17142,11 @@ static RValue builtin_vertex_format_add_normal(
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = g_NewFormat;
-    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUNORMAL)) {
+        logWarn("[vertex_format_add_normal] Failed to add normal element\n");
+        return RValue_makeUndefined();
+    }
 
-    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
-    element->offset = vertexFormat->size;
-    element->type = yyVTFLOAT3;
-    element->usage = yyVUNORMAL;
-    element->bit = g_FormatBit;
-
-    vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUNORMAL);
     return RValue_makeUndefined();
 }
 
@@ -17175,16 +17182,11 @@ static RValue builtin_vertex_format_add_custom(
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = g_NewFormat;
-    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+    if (!vertexFormatAddElement(g_NewFormat, type, usage)) {
+        logWarn("[vertex_format_add_custom] Failed to add custom element\n");
+        return RValue_makeUndefined();
+    }
 
-    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
-    element->offset = vertexFormat->size;
-    element->type = type;
-    element->usage = usage;
-    element->bit = g_FormatBit;
-
-    vertexFormatAddElement(g_NewFormat, type, usage);
     return RValue_makeUndefined();
 }
 
@@ -18049,6 +18051,36 @@ static RValue builtin_vertex_buffer_exists(MAYBE_UNUSED VMContext* ctx, RValue* 
     return RValue_makeBool(buffer != nullptr);
 }
 
+static bool vertexBufferResolve(int32_t bufferIndex, const char* functionName, bool allowFrozen, Buffer_Vertex** outBuffer) {
+    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+        logWarn("[%s] Illegal vertex buffer specified\n", functionName);
+        return false;
+    }
+
+    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    if (buffer == nullptr || (!allowFrozen && buffer->frozen)) {
+        logWarn("[%s] Illegal vertex buffer specified\n", functionName);
+        return false;
+    }
+
+    *outBuffer = buffer;
+    return true;
+}
+
+static bool vertexBufferGetWritablePtr(Buffer_Vertex* buffer, int32_t* outOffset, uint8_t** outPtr, const char* functionName) {
+    if (buffer == nullptr || outOffset == nullptr || outPtr == nullptr) {
+        return false;
+    }
+
+    if (*outOffset < 0 || buffer->buffer.pBuffer8 == nullptr) {
+        logWarn("[%s] Illegal vertex format or vertex write state\n", functionName);
+        return false;
+    }
+
+    *outPtr = buffer->buffer.pBuffer8 + *outOffset;
+    return true;
+}
+
 static RValue builtin_vertex_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (argCount != 2) {
         logWarn("[vertex_begin] Illegal argument count: %d", argCount);
@@ -18058,14 +18090,8 @@ static RValue builtin_vertex_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     int32_t bufferIndex = RValue_toInt32(args[0]);
     int32_t formatId = RValue_toInt32(args[1]);
 
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_begin] Illegal vertex buffer specified");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_begin] Illegal vertex buffer specified");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_begin", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -18130,19 +18156,13 @@ static RValue builtin_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_color] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_color] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_color", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUCOLOR, yyVTCOLOR);
-    if (dataOffset < 0 || buffer->buffer.pBuffer8 == nullptr) {
+    if (dataOffset < 0) {
         logWarn("[vertex_color] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18164,14 +18184,6 @@ static RValue builtin_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     return RValue_makeUndefined();
 }
 
-static bool vertexBufferGetWritablePtr(Buffer_Vertex* buffer, int32_t* outOffset, uint8_t** outPtr) {
-    if (buffer == nullptr || outOffset == nullptr || outPtr == nullptr) return false;
-    if (buffer->buffer.pBuffer8 == nullptr) return false;
-    if (*outOffset < 0) return false;
-    *outPtr = buffer->buffer.pBuffer8 + *outOffset;
-    return true;
-}
-
 static RValue builtin_vertex_normal(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (argCount != 4) {
         logWarn("[vertex_normal] Illegal argument count: %d\n", argCount);
@@ -18179,20 +18191,14 @@ static RValue builtin_vertex_normal(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_normal] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_normal] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_normal", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUNORMAL, yyVTFLOAT3);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_normal")) {
         logWarn("[vertex_normal] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18211,20 +18217,14 @@ static RValue builtin_vertex_position(MAYBE_UNUSED VMContext* ctx, RValue* args,
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_position] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_position] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_position", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUPOSITION, yyVTFLOAT2);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_position")) {
         logWarn("[vertex_position] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18242,20 +18242,14 @@ static RValue builtin_vertex_position_3d(MAYBE_UNUSED VMContext* ctx, RValue* ar
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_position_3d] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_position_3d] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_position_3d", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUPOSITION, yyVTFLOAT3);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_position_3d")) {
         logWarn("[vertex_position_3d] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18274,20 +18268,14 @@ static RValue builtin_vertex_argb(MAYBE_UNUSED VMContext* ctx, RValue* args, int
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_argb] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_argb] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_argb", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUCOLOR, yyVTCOLOR);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_argb")) {
         logWarn("[vertex_argb] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18303,20 +18291,14 @@ static RValue builtin_vertex_texcoord(MAYBE_UNUSED VMContext* ctx, RValue* args,
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_texcoord] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_texcoord] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_texcoord", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, yyVUTEXCOORD, yyVTFLOAT2);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_texcoord")) {
         logWarn("[vertex_texcoord] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18334,20 +18316,14 @@ static RValue builtin_vertex_float1(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_float1] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_float1] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_float1", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, -1, yyVTFLOAT1);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_float1")) {
         logWarn("[vertex_float1] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18363,20 +18339,14 @@ static RValue builtin_vertex_float2(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_float2] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_float2] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_float2", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, -1, yyVTFLOAT2);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_float2")) {
         logWarn("[vertex_float2] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18394,20 +18364,14 @@ static RValue builtin_vertex_float3(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_float3] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_float3] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_float3", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, -1, yyVTFLOAT3);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_float3")) {
         logWarn("[vertex_float3] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18426,20 +18390,14 @@ static RValue builtin_vertex_float4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_float4] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_float4] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_float4", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, -1, yyVTFLOAT4);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_float4")) {
         logWarn("[vertex_float4] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18459,20 +18417,14 @@ static RValue builtin_vertex_ubyte4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_ubyte4] Illegal vertex buffer specified\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_ubyte4] Illegal vertex buffer specified\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_ubyte4", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
     int32_t dataOffset = vertexBufferFindNextUsage(buffer, -1, yyVTUBYTE4);
     uint8_t* dst = nullptr;
-    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst)) {
+    if (!vertexBufferGetWritablePtr(buffer, &dataOffset, &dst, "vertex_ubyte4")) {
         logWarn("[vertex_ubyte4] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
@@ -18491,14 +18443,8 @@ static RValue builtin_vertex_end(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_end] Illegal vertex buffer specified.\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_end] Illegal vertex buffer specified.\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_end", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -18521,14 +18467,8 @@ static RValue builtin_vertex_freeze(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
-        logWarn("[vertex_freeze] Illegal vertex buffer specified.\n");
-        return RValue_makeUndefined();
-    }
-
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
-    if (buffer == nullptr || buffer->frozen) {
-        logWarn("[vertex_freeze] Illegal vertex buffer specified.\n");
+    Buffer_Vertex* buffer = nullptr;
+    if (!vertexBufferResolve(bufferIndex, "vertex_freeze", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
