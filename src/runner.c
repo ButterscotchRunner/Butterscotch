@@ -352,6 +352,41 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     }
 }
 
+
+
+static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
+    if (ctx == nullptr) return;
+    if (callback.type == RVALUE_METHOD && callback.method != nullptr) {
+        VM_callCodeIndex(ctx, callback.method->codeIndex, nullptr, 0);
+        return;
+    }
+
+    int32_t rawArg = RValue_toInt32(callback);
+    int32_t codeId = -1;
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+        const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+        if (funcName != nullptr) {
+            ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+            if (idx >= 0) {
+                codeId = ctx->codeIndexByName[idx].value;
+            }
+        }
+    }
+#endif
+
+    if (codeId < 0) {
+        if (0 <= rawArg && (uint32_t) rawArg < ctx->dataWin->scpt.count) {
+            codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
+        }
+    }
+
+    if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
+        VM_callCodeIndex(ctx, codeId, nullptr, 0);
+    }
+}
+
 // Some events check if there's a pending room and, if there is, the events are NOT dispatched.
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
 // This mirrors what the official YoYo runner does.
@@ -1883,6 +1918,12 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
 
+    repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+        RValue_free(&runner->callLaterEntries[i].callback);
+    }
+    arrfree(runner->callLaterEntries);
+    runner->callLaterEntries = nullptr;
+
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
     // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
@@ -2003,6 +2044,8 @@ void Runner_reset(Runner* runner) {
     runner->xboxAccountPickerPendingId = -1;
     runner->xboxAccountPickerPadIndex = 0;
     runner->xboxAsyncIdCounter = 1;
+    arrsetlen(runner->callLaterEntries, 0);
+    runner->nextCallLaterId = 1;
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
@@ -3745,6 +3788,36 @@ void Runner_step(Runner* runner) {
         rl->xOffset += rl->hSpeed;
         rl->yOffset += rl->vSpeed;
     }
+    }
+
+    // Tick call_later timers.
+    {
+        VMContext* ctx = runner->vmContext;
+        repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+            CallLaterEntry* entry = &runner->callLaterEntries[i];
+            if (!entry->active) continue;
+
+            if (entry->units == 1) {
+                entry->elapsed += 1.0;
+            } else {
+                entry->elapsed += runner->deltaTime / 1000000.0;
+            }
+
+            if (entry->elapsed >= entry->period) {
+                entry->executing = true;
+                entry->elapsed = 0.0;
+
+                if (ctx != nullptr) {
+                    Runner_executeCallLaterCallback(ctx, entry->callback);
+                }
+
+                entry->executing = false;
+                if (!entry->repeat) {
+                    entry->active = false;
+                    RValue_free(&entry->callback);
+                }
+            }
+        }
     }
 
     // Execute Begin Step for all instances
