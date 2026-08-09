@@ -16970,6 +16970,204 @@ static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* a
     return RValue_makeUndefined();
 }
 
+static void vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
+    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+
+    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
+    element->offset = vertexFormat->size;
+    element->type = type;
+    element->usage = usage;
+    element->bit = g_FormatBit;
+
+    vertexFormat->count++;
+    vertexFormat->bitMask |= g_FormatBit;
+    vertexFormat->size += vertexFormatTypeSize(type);
+    g_FormatBit <<= 1;
+}
+
+static RValue builtin_vertex_format_add_color(
+    MAYBE_UNUSED VMContext* ctx,
+    MAYBE_UNUSED RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 0) {
+        logWarn("[vertex_format_add_colour] Expected 0 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_colour] Can't add colour, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_colour] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    vertexFormatAddElement(g_NewFormat, yyVTCOLOR, yyVUCOLOR);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_format_add_position(
+    MAYBE_UNUSED VMContext* ctx,
+    MAYBE_UNUSED RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 0) {
+        logWarn("[vertex_format_add_position] Expected 0 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_position] Can't add position, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_position] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* vertexFormat = g_NewFormat;
+    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+
+    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
+    element->offset = vertexFormat->size;
+    element->type = yyVTFLOAT2;
+    element->usage = yyVUPOSITION;
+    element->bit = g_FormatBit;
+
+    vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUPOSITION);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_format_add_position_3d(
+    MAYBE_UNUSED VMContext* ctx,
+    MAYBE_UNUSED RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 0) {
+        logWarn("[vertex_format_add_position_3d] Expected 0 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_position_3d] Can't add 3D position, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_position_3d] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUPOSITION);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_format_add_textcoord(
+    MAYBE_UNUSED VMContext* ctx,
+    MAYBE_UNUSED RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 0) {
+        logWarn("[vertex_format_add_textcoord] Expected 0 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_textcoord] Can't add textcoord, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_textcoord] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUTEXCOORD);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_format_add_normal(
+    MAYBE_UNUSED VMContext* ctx,
+    MAYBE_UNUSED RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 0) {
+        logWarn("[vertex_format_add_normal] Expected 0 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_normal] Can't add normal, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_normal] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* vertexFormat = g_NewFormat;
+    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+
+    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
+    element->offset = vertexFormat->size;
+    element->type = yyVTFLOAT3;
+    element->usage = yyVUNORMAL;
+    element->bit = g_FormatBit;
+
+    vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUNORMAL);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_format_add_custom(
+    MAYBE_UNUSED VMContext* ctx,
+    RValue* args,
+    int32_t argCount
+) {
+    if (argCount != 2) {
+        logWarn("[vertex_format_add_custom] Expected 2 arguments, got %d\n", argCount);
+        return RValue_makeUndefined();
+    }
+
+    if (g_NewFormat == nullptr) {
+        logWarn("[vertex_format_add_custom] Can't add custom element, no format is under construction.\n");
+        return RValue_makeUndefined();
+    }
+
+    if (g_FormatBit == 0) {
+        logWarn("[vertex_format_add_custom] Too many elements\n");
+        return RValue_makeUndefined();
+    }
+
+    yyVertexType type = (yyVertexType) RValue_toInt32(args[0]);
+    if (type < yyVTFLOAT1 || type > yyVTMaxType) {
+        logWarn("[vertex_format_add_custom] Illegal types\n");
+        return RValue_makeUndefined();
+    }
+
+    yyVertexUsage usage = (yyVertexUsage) RValue_toInt32(args[1]);
+    if (usage < yyVUPOSITION || usage > yyVUMaxVertexUsage) {
+        logWarn("[vertex_format_add_custom] Illegal usage\n");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* vertexFormat = g_NewFormat;
+    arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
+
+    VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
+    element->offset = vertexFormat->size;
+    element->type = type;
+    element->usage = usage;
+    element->bit = g_FormatBit;
+
+    vertexFormatAddElement(g_NewFormat, type, usage);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_vertex_format_end(
     MAYBE_UNUSED VMContext* ctx,
     MAYBE_UNUSED RValue* args,
@@ -18159,14 +18357,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Vertex
     VM_registerBuiltin(ctx, "vertex_format_begin", builtin_vertex_format_begin);
-    // VM_registerBuiltin(ctx, "vertex_format_add_colour", builtin_vertex_format_add_color);
-    // VM_registerBuiltin(ctx, "vertex_format_add_color", builtin_vertex_format_add_color);
-    // VM_registerBuiltin(ctx, "vertex_format_add_position", builtin_vertex_format_add_position);
-    // VM_registerBuiltin(ctx, "vertex_format_add_position_3d", builtin_vertex_format_add_position_3d);
-    // VM_registerBuiltin(ctx, "vertex_format_add_texcoord", builtin_vertex_format_add_texcoord);
-    // VM_registerBuiltin(ctx, "vertex_format_add_textcoord", builtin_vertex_format_add_texcoord);
-    // VM_registerBuiltin(ctx, "vertex_format_add_normal", builtin_vertex_format_add_normal);
-    // VM_registerBuiltin(ctx, "vertex_format_add_custom", builtin_vertex_format_add_custom);
+    VM_registerBuiltin(ctx, "vertex_format_add_colour", builtin_vertex_format_add_color);
+    VM_registerBuiltin(ctx, "vertex_format_add_position", builtin_vertex_format_add_position);
+    VM_registerBuiltin(ctx, "vertex_format_add_position_3d", builtin_vertex_format_add_position_3d);
+    VM_registerBuiltin(ctx, "vertex_format_add_textcoord", builtin_vertex_format_add_textcoord);
+    VM_registerBuiltin(ctx, "vertex_format_add_normal", builtin_vertex_format_add_normal);
+    VM_registerBuiltin(ctx, "vertex_format_add_custom", builtin_vertex_format_add_custom);
     VM_registerBuiltin(ctx, "vertex_format_end", builtin_vertex_format_end);
     VM_registerBuiltin(ctx, "vertex_format_delete", builtin_vertex_format_delete);
     VM_registerBuiltin(ctx, "vertex_format_exists", builtin_vertex_format_exists);
