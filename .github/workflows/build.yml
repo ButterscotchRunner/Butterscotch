@@ -180,6 +180,64 @@ jobs:
       - name: Pack cache
         run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
 
+  build-sdl2-freebsd:
+    name: Build (SDL2/FreeBSD ${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, i386]
+    env:
+      FREEBSD_SYSROOT: /opt/freebsd-sysroot
+      FREEBSD_MAJOR: 14
+      FREEBSD_MINOR: 3
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+  
+      - name: Download FreeBSD sysroot
+        run: |
+          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
+          sudo mkdir -p ${{ env.FREEBSD_SYSROOT }}
+          sudo tar -xJf sysroot.tar.xz -C ${{ env.FREEBSD_SYSROOT }}
+          rm sysroot.tar.xz
+
+      - name: Download SDL2 for FreeBSD
+        run: |
+          # first we get the packagesite
+          curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.pkg"
+          mkdir -p /tmp/packagesite
+          tar -xf packagesite.pkg -C /tmp/packagesite
+          rm packagesite.pkg
+          SDL2_REPOPATH="$(grep -m 1 '"name":"sdl2"' /tmp/packagesite/packagesite.yaml | sed -n 's/.*"path":"\([^"]*\)".*/\1/p')"
+          
+          # then we get SDL2
+          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/${SDL2_REPOPATH}"
+          sudo tar -xf sdl2.pkg -C ${{ env.FREEBSD_SYSROOT }}
+          rm sdl2.pkg
+
+      - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_DIR: ""
+          PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
+          PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
+        run: |
+          cmake -S . -B build \
+            -DDESKTOP_BACKEND=sdl2 \
+            -DAUDIO_BACKEND=miniaudio \
+            -DWERROR=ON \
+            -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-${{ matrix.arch }}.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -- -j $(nproc)
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-sdl2-freebsd-${{ matrix.arch }}
+          path: build/butterscotch
+      
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
     runs-on: ubuntu-24.04
