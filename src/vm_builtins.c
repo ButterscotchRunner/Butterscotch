@@ -17628,6 +17628,338 @@ static RValue builtin_vertex_create_buffer_from_buffer(VMContext* ctx, RValue* a
     extArgs[3] = RValue_makeInt32(-1);
     return builtin_vertex_create_buffer_from_buffer_ext(ctx, extArgs, 4);
 }
+
+static int vertexFormatElementSize(enum yyVertexType type) {
+    switch (type) {
+        case yyVTFLOAT1:
+        case yyVTFLOAT2:
+        case yyVTFLOAT3:
+        case yyVTFLOAT4:
+            return 4;
+        case yyVTCOLOR:
+        case yyVTUBYTE4:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static bool vertexBufferOffsetIsAligned(Buffer_Vertex* buffer, uint32_t offset) {
+    if (buffer == nullptr) return false;
+
+    VmVertexFormat* vertexFormat = vertexFormatById((uint32_t) buffer->storedFormat);
+    if (vertexFormat == nullptr || vertexFormat->count == 0 || vertexFormat->format == nullptr) {
+        return false;
+    }
+
+    uint32_t vertexSize = vertexFormat->size;
+    if (vertexSize == 0) return false;
+
+    uint32_t vertexIndex = offset / vertexSize;
+    uint32_t offsetInVertex = offset - vertexIndex * vertexSize;
+
+    for (uint32_t i = 0; i < vertexFormat->count; ++i) {
+        VmVertexElement* element = &vertexFormat->format[i];
+        uint32_t elementTypeSize = (uint32_t) vertexFormatTypeSize(element->type);
+
+        if (offsetInVertex >= (uint32_t)element->offset && offsetInVertex < element->offset + elementTypeSize) {
+            int elementSize = vertexFormatElementSize(element->type);
+            if (elementSize <= 0) return false;
+
+            uint32_t elementOffset = offsetInVertex - element->offset;
+            return (elementOffset % (uint32_t) elementSize) == 0;
+        }
+    }
+
+    return false;
+}
+
+static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 3 || argCount > 5) {
+        logWarn("[vertex_update_buffer_from_buffer] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    int32_t bufferId = RValue_toInt32(args[0]);
+    int32_t destOffset = RValue_toInt32(args[1]);
+    int32_t srcBufferId = RValue_toInt32(args[2]);
+    int32_t srcOffset = 0;
+    int32_t srcSize = -1;
+
+    if (argCount >= 4) {
+        srcOffset = RValue_toInt32(args[3]);
+    }
+    if (argCount >= 5) {
+        srcSize = RValue_toInt32(args[4]);
+    }
+
+    if (destOffset < 0) {
+        logWarn("[vertex_update_buffer_from_buffer] destination offset must be a positive number");
+        return RValue_makeUndefined();
+    }
+
+    if (bufferId < 0 || bufferId >= g_VertexBufferCount) {
+        logWarn("[vertex_update_buffer_from_buffer] Vertex Buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    Buffer_Vertex* dest = g_VertexBuffers[bufferId];
+    if (dest == nullptr) {
+        logWarn("[vertex_update_buffer_from_buffer] Vertex Buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    if (srcOffset < 0) {
+        logWarn("[vertex_update_buffer_from_buffer] source offset must be a positive number");
+        return RValue_makeUndefined();
+    }
+
+    GmlBuffer* srcBuffer = gmlBufferGet(ctx->runner, srcBufferId);
+    if (srcBuffer == nullptr) {
+        logWarn("[vertex_update_buffer_from_buffer] specified buffer doesn't exist");
+        return RValue_makeUndefined();
+    }
+
+    if (srcOffset > srcBuffer->usedSize) {
+        logWarn("[vertex_update_buffer_from_buffer] source offset is beyond buffer size");
+        return RValue_makeUndefined();
+    }
+
+    if (srcSize < 0) {
+        srcSize = srcBuffer->usedSize;
+    }
+
+    if ((int64_t) srcSize + srcOffset > srcBuffer->usedSize) {
+        srcSize = srcBuffer->usedSize - srcOffset;
+    }
+
+    if (srcSize == 0) {
+        return RValue_makeUndefined();
+    }
+
+    if (dest->frozen) {
+        logWarn("[vertex_update_buffer_from_buffer] cannot update a frozen vertex buffer");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* vertexFormat = vertexFormatById((uint32_t) dest->storedFormat);
+    if (vertexFormat == nullptr) {
+        logWarn("[vertex_update_buffer_from_buffer] unknown vertex buffer format");
+        return RValue_makeUndefined();
+    }
+
+    int32_t vertexSize = (int32_t) vertexFormat->size;
+    if (vertexSize <= 0) {
+        logWarn("[vertex_update_buffer_from_buffer] invalid vertex buffer format stride");
+        return RValue_makeUndefined();
+    }
+
+    if (!vertexBufferOffsetIsAligned(dest, (uint32_t) destOffset)) {
+        logWarn("[vertex_update_buffer_from_buffer] destination offset must be aligned to a vertex element");
+        return RValue_makeUndefined();
+    }
+
+    int64_t destSize64 = (int64_t) destOffset + (int64_t) srcSize;
+    if (destSize64 < 0 || destSize64 > INT32_MAX) {
+        logWarn("[vertex_update_buffer_from_buffer] destination size is invalid");
+        return RValue_makeUndefined();
+    }
+
+    uint32_t destSize = (uint32_t) destSize64;
+    if (!vertexBufferOffsetIsAligned(dest, destSize)) {
+        logWarn("[vertex_update_buffer_from_buffer] destination size must be aligned to a vertex element");
+        return RValue_makeUndefined();
+    }
+
+    if (destSize > dest->bufferSize) {
+        uint8_t* newBuffer = (uint8_t*) safeRealloc(dest->buffer.pBuffer8, (size_t) destSize);
+        if (newBuffer == nullptr) {
+            logError("[vertex_update_buffer_from_buffer] Memory allocation failed\n");
+            return RValue_makeUndefined();
+        }
+
+        dest->buffer.pBuffer8 = newBuffer;
+        dest->bufferSize = destSize;
+    }
+
+    if (srcSize > 0 && dest->buffer.pBuffer8 != nullptr) {
+        memcpy(dest->buffer.pBuffer8 + destOffset, srcBuffer->data + srcOffset, (size_t) srcSize);
+    }
+
+    if ((uint32_t) dest->vertexCount < (uint32_t) (destSize / vertexSize)) {
+        dest->vertexCount = (int32_t) (destSize / vertexSize);
+    }
+
+    dest->currentFormat = -1;
+    dest->streamStart = 0;
+    dest->elementIndex = 0;
+    dest->elementCount = vertexFormat->count;
+    dest->currentMask = 0;
+    dest->pCurrentFormatVFRelease = nullptr;
+
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_vertex_update_buffer_from_vertex(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 3 || argCount > 5) {
+        logWarn("[vertex_update_buffer_from_vertex] Illegal argument count: %d", argCount);
+        return RValue_makeUndefined();
+    }
+
+    int32_t destBufferId = RValue_toInt32(args[0]);
+    int32_t destVertex = RValue_toInt32(args[1]);
+    int32_t srcBufferId = RValue_toInt32(args[2]);
+    int32_t srcVertex = 0;
+    int32_t srcVertNum = -1;
+
+    if (argCount >= 4) {
+        srcVertex = RValue_toInt32(args[3]);
+    }
+    if (argCount >= 5) {
+        srcVertNum = RValue_toInt32(args[4]);
+    }
+
+    if (destVertex < 0) {
+        logWarn("[vertex_update_buffer_from_vertex] destination vertex must be a positive number");
+        return RValue_makeUndefined();
+    }
+
+    if (srcVertex < 0) {
+        logWarn("[vertex_update_buffer_from_vertex] source vertex must be a positive number");
+        return RValue_makeUndefined();
+    }
+
+    if (destBufferId < 0 || destBufferId >= g_VertexBufferCount) {
+        logWarn("[vertex_update_buffer_from_vertex] destination vertex buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    Buffer_Vertex* dest = g_VertexBuffers[destBufferId];
+    if (dest == nullptr) {
+        logWarn("[vertex_update_buffer_from_vertex] destination vertex buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    if (srcBufferId < 0 || srcBufferId >= g_VertexBufferCount) {
+        logWarn("[vertex_update_buffer_from_vertex] source vertex buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    Buffer_Vertex* src = g_VertexBuffers[srcBufferId];
+    if (src == nullptr) {
+        logWarn("[vertex_update_buffer_from_vertex] source vertex buffer index is out of range");
+        return RValue_makeUndefined();
+    }
+
+    if (dest == src) {
+        logWarn("[vertex_update_buffer_from_vertex] source and destination cannot be the same vertex buffer");
+        return RValue_makeUndefined();
+    }
+
+    if (dest->frozen) {
+        logWarn("[vertex_update_buffer_from_vertex] destination vertex buffer cannot be frozen");
+        return RValue_makeUndefined();
+    }
+
+    if (src->frozen) {
+        logWarn("[vertex_update_buffer_from_vertex] source vertex buffer cannot be frozen");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* srcFormat = vertexFormatById((uint32_t) src->storedFormat);
+    if (srcFormat == nullptr) {
+        logWarn("[vertex_update_buffer_from_vertex] unknown source vertex buffer format");
+        return RValue_makeUndefined();
+    }
+
+    VmVertexFormat* destFormat = vertexFormatById((uint32_t) dest->storedFormat);
+    if (destFormat == nullptr) {
+        dest->storedFormat = src->storedFormat;
+        destFormat = srcFormat;
+    } else {
+        if (destFormat->count != srcFormat->count) {
+            logWarn("[vertex_update_buffer_from_vertex] source and destination vertex buffers must use the same vertex format");
+            return RValue_makeUndefined();
+        }
+
+        for (uint32_t i = 0; i < destFormat->count; ++i) {
+            VmVertexElement* destElem = &destFormat->format[i];
+            VmVertexElement* srcElem = &srcFormat->format[i];
+            if (destElem->offset != srcElem->offset || destElem->type != srcElem->type ||
+                destElem->usage != srcElem->usage || destElem->bit != srcElem->bit) {
+                logWarn("[vertex_update_buffer_from_vertex] source and destination vertex buffers must use the same vertex format");
+                return RValue_makeUndefined();
+            }
+        }
+    }
+
+    int32_t vertexSize = (int32_t) destFormat->size;
+    if (vertexSize <= 0) {
+        logWarn("[vertex_update_buffer_from_vertex] invalid vertex buffer format");
+        return RValue_makeUndefined();
+    }
+
+    int32_t srcOffset = srcVertex * vertexSize;
+    int32_t maxSrcBytes = src->vertexCount * vertexSize;
+    if (srcOffset < 0 || srcOffset > maxSrcBytes) {
+        logWarn("[vertex_update_buffer_from_vertex] source vertex must be a positive number");
+        return RValue_makeUndefined();
+    }
+
+    int32_t srcSize;
+    if (srcVertNum < 0) {
+        srcSize = maxSrcBytes - srcOffset;
+    } else {
+        srcSize = srcVertNum * vertexSize;
+        if (srcOffset + srcSize > maxSrcBytes) {
+            srcSize = maxSrcBytes - srcOffset;
+        }
+    }
+
+    if (srcSize <= 0) {
+        return RValue_makeUndefined();
+    }
+
+    int32_t destOffset = destVertex * vertexSize;
+    int64_t destSize64 = (int64_t) destOffset + (int64_t) srcSize;
+    if (destSize64 < 0 || destSize64 > INT32_MAX) {
+        logWarn("[vertex_update_buffer_from_vertex] destination size is invalid");
+        return RValue_makeUndefined();
+    }
+
+    uint32_t destSize = (uint32_t) destSize64;
+    if (destSize > dest->bufferSize) {
+        uint8_t* newBuffer = (uint8_t*) safeRealloc(dest->buffer.pBuffer8, (size_t) destSize);
+        if (newBuffer == nullptr) {
+            logError("[vertex_update_buffer_from_vertex] Memory allocation failed\n");
+            return RValue_makeUndefined();
+        }
+
+        dest->buffer.pBuffer8 = newBuffer;
+        dest->bufferSize = destSize;
+    }
+
+    if (srcSize > 0 && dest->buffer.pBuffer8 != nullptr) {
+        memcpy(dest->buffer.pBuffer8 + destOffset, src->buffer.pBuffer8 + srcOffset, (size_t) srcSize);
+    }
+
+    if ((uint32_t) dest->vertexCount < (uint32_t) (destSize / vertexSize)) {
+        dest->vertexCount = (int32_t) (destSize / vertexSize);
+    }
+
+    dest->currentFormat = -1;
+    dest->streamStart = 0;
+    dest->elementIndex = 0;
+    dest->elementCount = destFormat->count;
+    dest->currentMask = 0;
+    dest->pCurrentFormatVFRelease = nullptr;
+
+    return RValue_makeUndefined();
+}
+
+
+
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -18627,8 +18959,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_create_buffer_ext", builtin_vertex_create_buffer_ext);
     VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer", builtin_vertex_create_buffer_from_buffer);
     VM_registerBuiltin(ctx, "vertex_create_buffer_from_buffer_ext", builtin_vertex_create_buffer_from_buffer_ext);
-    // VM_registerBuiltin(ctx, "vertex_update_buffer_from_buffer", builtin_vertex_update_buffer_from_buffer);
-    // VM_registerBuiltin(ctx, "vertex_update_buffer_from_vertex", builtin_vertex_update_buffer_from_vertex);
+    VM_registerBuiltin(ctx, "vertex_update_buffer_from_buffer", builtin_vertex_update_buffer_from_buffer);
+    VM_registerBuiltin(ctx, "vertex_update_buffer_from_vertex", builtin_vertex_update_buffer_from_vertex);
     // VM_registerBuiltin(ctx, "vertex_get_buffer_size", builtin_vertex_get_buffer_size);
     // VM_registerBuiltin(ctx, "vertex_get_number", builtin_vertex_get_number);
     // VM_registerBuiltin(ctx, "vertex_delete_buffer", builtin_vertex_delete_buffer);
