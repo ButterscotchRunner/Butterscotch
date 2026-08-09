@@ -198,6 +198,8 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
     gl->currentTextureId = textureId;
 }
 
+static bool glResolveTextureHandle(GLRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH);
+
 static GLenum primitiveTypeToGL(int32_t primitiveType) {
     switch (primitiveType) {
         case PRIMITIVE_POINTS:
@@ -232,8 +234,18 @@ static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, i
     glPrimitiveBegin(renderer, primitiveType);
 
     if (texture > 0) {
-        gl->primitiveTextureId = (GLuint) texture;
-        gl->primitiveHasTexture = true;
+        TexturePageItem* tpag = nullptr;
+        GLuint resolvedTexId = 0;
+        int32_t resolvedTexW = 0;
+        int32_t resolvedTexH = 0;
+
+        if (glResolveTextureHandle(gl, (uint32_t) texture, &tpag, &resolvedTexId, &resolvedTexW, &resolvedTexH) && resolvedTexId != 0) {
+            gl->primitiveTextureId = resolvedTexId;
+            gl->primitiveHasTexture = true;
+        } else if (glIsTexture((GLuint) texture)) {
+            gl->primitiveTextureId = (GLuint) texture;
+            gl->primitiveHasTexture = true;
+        }
     }
 }
 
