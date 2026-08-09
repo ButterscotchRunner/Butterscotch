@@ -202,7 +202,7 @@ jobs:
       - name: Download SDL2 for FreeBSD
         run: |
           FREEBSD_MAJOR=$(echo "${{ env.FREEBSD_VERSION }}" | cut -d. -f1)
-          curl -L -o sdl2.pkg 'https://pkg.freebsd.org/FreeBSD:${FREEBSD_MAJOR}:${{ env.FREEBSD_ARCH }}/latest/All/Hashed/sdl2-2.32.10_2~2$w6kzs95d.pkg'
+          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${FREEBSD_MAJOR}:${{ env.FREEBSD_ARCH }}/latest/All/Hashed/sdl2-2.32.10_2~2$w6kzs95d.pkg"
           sudo tar -xf sdl2.pkg -C ${{ env.FREEBSD_SYSROOT }}
           rm sdl2.pkg
 
