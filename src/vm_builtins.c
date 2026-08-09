@@ -16919,6 +16919,10 @@ VmVertexFormat* g_NewFormat = nullptr;
 uint32_t g_FormatBit = 0;
 int g_currVertexFormatID = 1;
 
+static inline uint32_t vertexFormatPendingResourceId(void) {
+    return ((uint32_t) g_currVertexFormatID) | RESOURCE_VERTEX_FORMAT;
+}
+
 static inline uint32_t vertexFormatIdToIndex(uint32_t formatId) {
     return formatId & ~RESOURCE_VERTEX_FORMAT;
 }
@@ -16955,6 +16959,10 @@ static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* a
         logError("[vertex_format_begin] Memory allocation failed\n");
         return RValue_makeUndefined();
     }
+
+        printf("[vertex_format_begin] Begin format build: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
 
     vertexFormat->id = 0;
     vertexFormat->count = 0;
@@ -16997,6 +17005,8 @@ static bool vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexTy
 
     arrsetlen(vertexFormat->format, (int32_t)(vertexFormat->count + 1));
 
+    printf("[vertex_format_add_element] Adding element: type=%d, usage=%d, offset=%d, bit=%u\n", type, usage, vertexFormat->size, g_FormatBit);
+
     VmVertexElement* element = &vertexFormat->format[vertexFormat->count];
     element->offset = vertexFormat->size;
     element->type = type;
@@ -17030,6 +17040,10 @@ static RValue builtin_vertex_format_add_color(
         return RValue_makeUndefined();
     }
 
+        printf("[vertex_format_add_colour] Adding color element to pending format: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
+
     if (!vertexFormatAddElement(g_NewFormat, yyVTCOLOR, yyVUCOLOR)) {
         logWarn("[vertex_format_add_colour] Failed to add colour element\n");
         return RValue_makeUndefined();
@@ -17057,6 +17071,10 @@ static RValue builtin_vertex_format_add_position(
         logWarn("[vertex_format_add_position] Too many elements\n");
         return RValue_makeUndefined();
     }
+
+        printf("[vertex_format_add_position] Adding position element to pending format: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
 
     if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUPOSITION)) {
         logWarn("[vertex_format_add_position] Failed to add position element\n");
@@ -17086,6 +17104,10 @@ static RValue builtin_vertex_format_add_position_3d(
         return RValue_makeUndefined();
     }
 
+        printf("[vertex_format_add_position_3d] Adding 3D position element to pending format: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
+
     if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUPOSITION)) {
         logWarn("[vertex_format_add_position_3d] Failed to add position element\n");
         return RValue_makeUndefined();
@@ -17114,6 +17136,10 @@ static RValue builtin_vertex_format_add_textcoord(
         return RValue_makeUndefined();
     }
 
+        printf("[vertex_format_add_textcoord] Adding texture coordinate element to pending format: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
+
     if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUTEXCOORD)) {
         logWarn("[vertex_format_add_textcoord] Failed to add texture coordinate element\n");
         return RValue_makeUndefined();
@@ -17141,6 +17167,10 @@ static RValue builtin_vertex_format_add_normal(
         logWarn("[vertex_format_add_normal] Too many elements\n");
         return RValue_makeUndefined();
     }
+
+        printf("[vertex_format_add_normal] Adding normal element to pending format: slot=%d, pending_resource_id=%u\n",
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
 
     if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUNORMAL)) {
         logWarn("[vertex_format_add_normal] Failed to add normal element\n");
@@ -17181,6 +17211,12 @@ static RValue builtin_vertex_format_add_custom(
         logWarn("[vertex_format_add_custom] Illegal usage\n");
         return RValue_makeUndefined();
     }
+
+        printf("[vertex_format_add_custom] Adding custom element: type=%d, usage=%d to pending format: slot=%d, pending_resource_id=%u\n",
+            type,
+            usage,
+            g_currVertexFormatID,
+            vertexFormatPendingResourceId());
 
     if (!vertexFormatAddElement(g_NewFormat, type, usage)) {
         logWarn("[vertex_format_add_custom] Failed to add custom element\n");
@@ -17275,6 +17311,12 @@ static RValue builtin_vertex_format_end(
         }
     }
 
+        printf("[vertex_format_end] Finalized vertex format: slot=%u, resource_id=%u, elements=%u, stride=%u bytes\n",
+            vertexFormatIdToIndex(formatId),
+            formatId,
+            vertexFormat->count,
+            vertexFormat->size);
+
     vertexFormat->pNative = nativeFormat;
     g_NewFormat = nullptr;
     g_FormatBit = 0;
@@ -17313,6 +17355,8 @@ static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t
         vertexFormat->format = nullptr;
     }
 
+    printf("[vertex_format_delete] Deleted vertex format ID %d\n", formatId);
+
     uint32_t index = vertexFormatIdToIndex(formatId);
     if (index < (uint32_t) arrlen(g_VertexFormats)) {
         g_VertexFormats[index] = nullptr;
@@ -17332,6 +17376,8 @@ static RValue builtin_vertex_format_exists(VMContext* ctx, RValue* args, int32_t
     if ((formatId & RESOURCE_VERTEX_FORMAT) != RESOURCE_VERTEX_FORMAT) {
         return RValue_makeBool(false);
     }
+
+    printf("[vertex_format_exists] Checking existence of vertex format ID %d\n", formatId);
 
     VmVertexFormat* vertexFormat = vertexFormatById(formatId);
     return RValue_makeBool(vertexFormat != nullptr);
@@ -17371,6 +17417,8 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
 
         *GMLArray_slot(elements, (int32_t) i) = RValue_makeStructAndIncRef(element);
     }
+
+    printf("[vertex_format_get_info] Retrieved info for vertex format ID %d: stride=%d, num_elements=%d\n", formatId, vertexFormat->size, vertexFormat->count);
 
     VM_structSetAndFreeVal(ctx, ret, "elements", RValue_makeArray(elements), -1);
     return RValue_makeStructAndIncRef(ret);
@@ -17492,6 +17540,8 @@ static int allocBufferVertex(int32_t bufferSize) {
         }
     }
 
+    printf("[vertex_create_buffer] Allocated new vertex buffer at index %d with size %d bytes\n", oldCount, bufferSize);
+
     buffer->bufferSize = (uint32_t) bufferSize;
     buffer->currentFormat = -1;
     buffer->storedFormat = -1;
@@ -17511,6 +17561,8 @@ static RValue builtin_vertex_create_buffer_ext(VMContext* ctx, RValue* args, int
         bufferSize = 0x100;
     }
 
+    printf("[vertex_create_buffer_ext] Creating vertex buffer with size %d bytes\n", bufferSize);
+
     int32_t bufferIndex = allocBufferVertex(bufferSize);
     return RValue_makeInt32(bufferIndex);
 }
@@ -17520,6 +17572,8 @@ static RValue builtin_vertex_create_buffer(VMContext* ctx, MAYBE_UNUSED RValue* 
         logWarn("[vertex_create_buffer] Illegal argument count: %d", argCount);
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_create_buffer] Creating vertex buffer with default size 0x8000 bytes\n");
 
     int32_t bufferIndex = allocBufferVertex(0x8000);
     return RValue_makeInt32(bufferIndex);
@@ -17601,6 +17655,8 @@ static RValue builtin_vertex_create_buffer_from_buffer_ext(VMContext* ctx, RValu
         memcpy(dest->buffer.pBuffer8, srcBuffer->data + srcOffset, (size_t) totalBytes);
     }
 
+    printf("[vertex_create_buffer_from_buffer_ext] Created vertex buffer at index %d from source buffer %d, offset %d, vertex count %d, total bytes %d\n", bufferIndex, bufferId, srcOffset, vertNum, totalBytes);
+
     dest->bufferSize = (uint32_t) totalBytes;
     dest->vertexCount = vertNum;
     dest->currentFormat = (int32_t) formatId;
@@ -17622,6 +17678,8 @@ static RValue builtin_vertex_create_buffer_from_buffer(VMContext* ctx, RValue* a
         logWarn("[vertex_create_buffer_from_buffer] Illegal argument count: %d", argCount);
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_create_buffer_from_buffer] Creating vertex buffer from source buffer %d with format %d\n", RValue_toInt32(args[0]), RValue_toInt32(args[1]));
 
     RValue extArgs[4];
     extArgs[0] = args[0];
@@ -17659,6 +17717,8 @@ static bool vertexBufferOffsetIsAligned(Buffer_Vertex* buffer, uint32_t offset) 
 
     uint32_t vertexIndex = offset / vertexSize;
     uint32_t offsetInVertex = offset - vertexIndex * vertexSize;
+
+    printf("[vertexBufferOffsetIsAligned] Checking alignment for offset %u in vertex buffer with format ID %d, vertex size %u\n", offset, buffer->storedFormat, vertexSize);
 
     for (uint32_t i = 0; i < vertexFormat->count; ++i) {
         VmVertexElement* element = &vertexFormat->format[i];
@@ -17791,6 +17851,8 @@ static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* a
     if ((uint32_t) dest->vertexCount < (uint32_t) (destSize / vertexSize)) {
         dest->vertexCount = (int32_t) (destSize / vertexSize);
     }
+
+    printf("[vertex_update_buffer_from_buffer] Updated vertex buffer %d from source buffer %d, dest offset %d, src offset %d, src size %d, new vertex count %d\n", bufferId, srcBufferId, destOffset, srcOffset, srcSize, dest->vertexCount);
 
     dest->currentFormat = -1;
     dest->streamStart = 0;
@@ -17949,6 +18011,8 @@ static RValue builtin_vertex_update_buffer_from_vertex(VMContext* ctx, RValue* a
         dest->vertexCount = (int32_t) (destSize / vertexSize);
     }
 
+    printf("[vertex_update_buffer_from_vertex] Updated vertex buffer %d from source vertex buffer %d, dest vertex %d, src vertex %d, src vertex count %d, new vertex count %d\n", destBufferId, srcBufferId, destVertex, srcVertex, srcVertNum, dest->vertexCount);
+
     dest->currentFormat = -1;
     dest->streamStart = 0;
     dest->elementIndex = 0;
@@ -17976,6 +18040,8 @@ static RValue builtin_vertex_get_buffer_size(MAYBE_UNUSED VMContext* ctx, RValue
         logWarn("[vertex_get_buffer_size] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
     }
+    
+    printf("[vertex_get_buffer_size] Vertex buffer %d has size %u bytes\n", bufferIndex, buffer->bufferSize);
 
     return RValue_makeReal((GMLReal) buffer->bufferSize);
 }
@@ -17998,6 +18064,8 @@ static RValue builtin_vertex_get_number(MAYBE_UNUSED VMContext* ctx, RValue* arg
         logWarn("[vertex_get_number] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
     }
+
+    printf("[vertex_get_number] Vertex buffer %d has %d vertices\n", bufferIndex, buffer->vertexCount);
 
     return RValue_makeReal((GMLReal) buffer->vertexCount);
 }
@@ -18026,9 +18094,16 @@ static RValue builtin_vertex_delete_buffer(MAYBE_UNUSED VMContext* ctx, RValue* 
     }
 
     if (buffer->pFrozenVB != nullptr) {
+        if (buffer->pFrozenVB->pVertexBuffer != nullptr) {
+            free(buffer->pFrozenVB->pVertexBuffer);
+            buffer->pFrozenVB->pVertexBuffer = nullptr;
+        }
+
         free(buffer->pFrozenVB);
         buffer->pFrozenVB = nullptr;
     }
+
+    printf("[vertex_delete_buffer] Deleted vertex buffer at index %d\n", bufferIndex);
 
     free(buffer);
     g_VertexBuffers[bufferIndex] = nullptr;
@@ -18047,6 +18122,8 @@ static RValue builtin_vertex_buffer_exists(MAYBE_UNUSED VMContext* ctx, RValue* 
         return RValue_makeBool(false);
     }
 
+    printf("[vertex_buffer_exists] Checking existence of vertex buffer at index %d\n", bufferIndex);
+
     Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
     return RValue_makeBool(buffer != nullptr);
 }
@@ -18063,6 +18140,8 @@ static bool vertexBufferResolve(int32_t bufferIndex, const char* functionName, b
         return false;
     }
 
+    printf("[%s] Resolved vertex buffer at index %d\n", functionName, bufferIndex);
+
     *outBuffer = buffer;
     return true;
 }
@@ -18076,6 +18155,8 @@ static bool vertexBufferGetWritablePtr(Buffer_Vertex* buffer, int32_t* outOffset
         logWarn("[%s] Illegal vertex format or vertex write state\n", functionName);
         return false;
     }
+
+    printf("[%s] Obtained writable pointer for vertex buffer at offset %d\n", functionName, *outOffset);
 
     *outPtr = buffer->buffer.pBuffer8 + *outOffset;
     return true;
@@ -18101,6 +18182,8 @@ static RValue builtin_vertex_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, in
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_begin] Beginning vertex buffer %d with format ID %d\n", bufferIndex, formatId);
+
     buffer->currentMask = 0;
     buffer->currentFormat = vertexFormat->id;
     buffer->streamStart = 0;
@@ -18121,6 +18204,8 @@ static int32_t vertexBufferFindNextUsage(Buffer_Vertex* buffer, int32_t usage, e
     if (vertexFormat->format == nullptr || vertexFormat->count == 0) {
         return -1;
     }
+
+    printf("[vertexBufferFindNextUsage] Searching for next usage %d with type %d in vertex buffer\n", usage, type);
 
     for (uint32_t i = 0; i < vertexFormat->count; ++i) {
         VmVertexElement* element = &vertexFormat->format[i];
@@ -18180,6 +18265,15 @@ static RValue builtin_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, in
         finalColor = (color & 0xffffffu) | ((uint32_t) alphaInt << 24);
     }
 
+        printf("[vertex_color] Writing color 0x%08X to vertex buffer %d at offset %d (bytes: %02X %02X %02X %02X)\n",
+            finalColor,
+            bufferIndex,
+            dataOffset,
+            (unsigned int) (finalColor & 0xFFu),
+            (unsigned int) ((finalColor >> 8) & 0xFFu),
+            (unsigned int) ((finalColor >> 16) & 0xFFu),
+            (unsigned int) ((finalColor >> 24) & 0xFFu));
+
     *(uint32_t*) (buffer->buffer.pBuffer8 + dataOffset) = finalColor;
     return RValue_makeUndefined();
 }
@@ -18202,6 +18296,8 @@ static RValue builtin_vertex_normal(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         logWarn("[vertex_normal] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_normal] Writing normal vector (%f, %f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), bufferIndex, dataOffset);
 
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
@@ -18229,6 +18325,8 @@ static RValue builtin_vertex_position(MAYBE_UNUSED VMContext* ctx, RValue* args,
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_position] Writing position (%f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), bufferIndex, dataOffset);
+
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
     out[1] = (float) RValue_toReal(args[2]);
@@ -18253,6 +18351,8 @@ static RValue builtin_vertex_position_3d(MAYBE_UNUSED VMContext* ctx, RValue* ar
         logWarn("[vertex_position_3d] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_position_3d] Writing position (%f, %f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), bufferIndex, dataOffset);
 
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
@@ -18280,7 +18380,17 @@ static RValue builtin_vertex_argb(MAYBE_UNUSED VMContext* ctx, RValue* args, int
         return RValue_makeUndefined();
     }
 
-    *(uint32_t*) dst = (uint32_t) RValue_toInt32(args[1]);
+        uint32_t argbColor = (uint32_t) RValue_toInt32(args[1]);
+        printf("[vertex_argb] Writing ARGB color 0x%08X to vertex buffer %d at offset %d (bytes: %02X %02X %02X %02X)\n",
+            argbColor,
+            bufferIndex,
+            dataOffset,
+            (unsigned int) (argbColor & 0xFFu),
+            (unsigned int) ((argbColor >> 8) & 0xFFu),
+            (unsigned int) ((argbColor >> 16) & 0xFFu),
+            (unsigned int) ((argbColor >> 24) & 0xFFu));
+
+        *(uint32_t*) dst = argbColor;
     return RValue_makeUndefined();
 }
 
@@ -18302,6 +18412,8 @@ static RValue builtin_vertex_texcoord(MAYBE_UNUSED VMContext* ctx, RValue* args,
         logWarn("[vertex_texcoord] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_texcoord] Writing texture coordinates (%f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), bufferIndex, dataOffset);
 
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
@@ -18328,6 +18440,8 @@ static RValue builtin_vertex_float1(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_float1] Writing float value %f to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), bufferIndex, dataOffset);
+
     ((float*) dst)[0] = (float) RValue_toReal(args[1]);
     return RValue_makeUndefined();
 }
@@ -18350,6 +18464,8 @@ static RValue builtin_vertex_float2(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         logWarn("[vertex_float2] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_float2] Writing float values (%f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), bufferIndex, dataOffset);
 
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
@@ -18376,6 +18492,8 @@ static RValue builtin_vertex_float3(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_float3] Writing float values (%f, %f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), bufferIndex, dataOffset);
+
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
     out[1] = (float) RValue_toReal(args[2]);
@@ -18401,6 +18519,8 @@ static RValue builtin_vertex_float4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         logWarn("[vertex_float4] Illegal vertex format or vertex write state\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_float4] Writing float values (%f, %f, %f, %f) to vertex buffer %d at offset %d\n", RValue_toReal(args[1]), RValue_toReal(args[2]), RValue_toReal(args[3]), RValue_toReal(args[4]), bufferIndex, dataOffset);
 
     float* out = (float*) dst;
     out[0] = (float) RValue_toReal(args[1]);
@@ -18429,6 +18549,8 @@ static RValue builtin_vertex_ubyte4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_ubyte4] Writing unsigned byte values (%d, %d, %d, %d) to vertex buffer %d at offset %d\n", RValue_toInt32(args[1]), RValue_toInt32(args[2]), RValue_toInt32(args[3]), RValue_toInt32(args[4]), bufferIndex, dataOffset);
+
     dst[0] = (uint8_t) RValue_toInt32(args[1]);
     dst[1] = (uint8_t) RValue_toInt32(args[2]);
     dst[2] = (uint8_t) RValue_toInt32(args[3]);
@@ -18453,6 +18575,8 @@ static RValue builtin_vertex_end(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
         return RValue_makeUndefined();
     }
 
+    printf("[vertex_end] Ending vertex buffer %d, total vertices: %d\n", bufferIndex, buffer->vertexCount);
+
     buffer->currentMask = 0;
     buffer->pCurrentFormatVFRelease = nullptr;
     buffer->storedFormat = buffer->currentFormat;
@@ -18476,6 +18600,8 @@ static RValue builtin_vertex_freeze(MAYBE_UNUSED VMContext* ctx, RValue* args, i
         logWarn("[vertex_freeze] Must end the vertex builder first\n");
         return RValue_makeUndefined();
     }
+
+    printf("[vertex_freeze] Freezing vertex buffer %d, total vertices: %d\n", bufferIndex, buffer->vertexCount);
 
     buffer->frozen = true;
     return RValue_makeUndefined();
@@ -18508,6 +18634,8 @@ static bool vertexBuildRendererFormat(VmVertexFormat* src, VertexFormat* dst) {
 
     dst->numElements = 0;
     dst->stride = src->size;
+
+    printf("[vertexBuildRendererFormat] Building renderer format from VM format ID %d with %d elements and stride %d\n", src->id, src->count, src->size);
 
     for (uint32_t i = 0; i < src->count && dst->numElements < 16; ++i) {
         int32_t ru = vmUsageToRendererUsage(src->format[i].usage);
@@ -18580,6 +18708,9 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
     tempBuffer.isFrozen = buffer->frozen;
     tempBuffer.rendererData = buffer->pFrozenVB ? buffer->pFrozenVB->pVertexBuffer : nullptr;
 
+    printf("[vertex_submit_ext] Submitting vertex buffer %d with %zu bytes, %d vertices, primitive type %d, texture %d, offset %d, number %d\n",
+           bufferIndex, tempBuffer.size, buffer->vertexCount, primitive - 1, RValue_toInt32(args[2]), RValue_toInt32(args[3]), RValue_toInt32(args[4]));
+
     int32_t texture = RValue_toInt32(args[2]);
     int32_t offset = RValue_toInt32(args[3]);
     int32_t number = RValue_toInt32(args[4]);
@@ -18594,6 +18725,19 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
             offset,
             number
         );
+
+        if (tempBuffer.rendererData != nullptr) {
+            if (buffer->pFrozenVB == nullptr) {
+                buffer->pFrozenVB = (VmVertexBuffer*) safeMalloc(sizeof(VmVertexBuffer));
+                if (buffer->pFrozenVB != nullptr) {
+                    memset(buffer->pFrozenVB, 0, sizeof(VmVertexBuffer));
+                }
+            }
+
+            if (buffer->pFrozenVB != nullptr) {
+                buffer->pFrozenVB->pVertexBuffer = tempBuffer.rendererData;
+            }
+        }
     }
 
     return RValue_makeUndefined();

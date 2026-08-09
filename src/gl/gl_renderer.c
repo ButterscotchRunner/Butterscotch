@@ -1630,11 +1630,14 @@ static int vertex_type_components(int type)
     return 4;
 }
 
+static bool glResolveTextureHandle(GLRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH);
+
 static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t number) {
     if (!buffer || !buffer->format)
         return;
 
     GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
 
     typedef struct {
         GLuint vbo;
@@ -1682,6 +1685,9 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
 
+    bool hasColor = false;
+    bool hasTexcoord = false;
+
     for (int i = 0; i < buffer->format->numElements; i++) {
         VertexElement *e = &buffer->format->elements[i];
 
@@ -1699,6 +1705,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                 break;
 
             case VERTEX_USAGE_COLOR:
+                hasColor = true;
                 glEnableVertexAttribArray(1);
                 glVertexAttribPointer(
                     1,
@@ -1711,9 +1718,9 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                 break;
 
             case VERTEX_USAGE_NORMAL:
-                glEnableVertexAttribArray(2);
+                glEnableVertexAttribArray(3);
                 glVertexAttribPointer(
-                    2,
+                    3,
                     3,
                     GL_FLOAT,
                     GL_FALSE,
@@ -1723,9 +1730,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                 break;
 
             case VERTEX_USAGE_TEXCOORD:
-                glEnableVertexAttribArray(3);
+                hasTexcoord = true;
+                glEnableVertexAttribArray(2);
                 glVertexAttribPointer(
-                    3,
+                    2,
                     2,
                     GL_FLOAT,
                     GL_FALSE,
@@ -1736,12 +1744,51 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         }
     }
 
+    if (!hasColor) {
+        glDisableVertexAttribArray(1);
+        glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    if (!hasTexcoord) {
+        glDisableVertexAttribArray(2);
+        glVertexAttrib2f(2, 0.5f, 0.5f);
+    }
+
+    GLuint drawTexture = gl->whiteTexture;
+    if (texture != -1) {
+        TexturePageItem* textureTpag = nullptr;
+        GLuint resolvedTexId = 0;
+        int32_t resolvedTexW = 0;
+        int32_t resolvedTexH = 0;
+
+        if (glResolveTextureHandle(gl, (uint32_t) texture, &textureTpag, &resolvedTexId, &resolvedTexW, &resolvedTexH) && resolvedTexId != 0) {
+            drawTexture = resolvedTexId;
+        } else if (glIsTexture((GLuint) texture)) {
+            // Backward compatibility with callers that already pass raw GL ids.
+            drawTexture = (GLuint) texture;
+        }
+    }
+
+    // Position/color-only vertex formats should render untextured.
+    if (!hasTexcoord) {
+        drawTexture = gl->whiteTexture;
+    }
+
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, texture == -1 ? gl->whiteTexture : (GLuint) texture);
+    glBindTexture(GL_TEXTURE_2D, drawTexture);
 
     int vertexCount = buffer->size / buffer->format->stride;
+    if (vertexCount <= 0) {
+        for (int i = 0; i < buffer->format->numElements; i++) {
+            glDisableVertexAttribArray(i);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        return;
+    }
+
     if (offset < 0) offset = 0;
-    if (offset >= vertexCount) offset = vertexCount - 1;
+    if (offset > vertexCount) offset = vertexCount;
 
     if (number == -1) {
         number = vertexCount - offset;
@@ -1750,6 +1797,15 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         if (offset + number > vertexCount) {
             number = vertexCount - offset;
         }
+    }
+
+    if (number <= 0) {
+        for (int i = 0; i < buffer->format->numElements; i++) {
+            glDisableVertexAttribArray(i);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        return;
     }
 
     glDrawArrays(
