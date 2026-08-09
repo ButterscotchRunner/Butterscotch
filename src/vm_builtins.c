@@ -17430,7 +17430,7 @@ static RValue builtin_vertex_format_end(
             nativeElements[i].usage = element->usage;
             nativeElements[i].normalized = 0;
 
-            if (element->usage >= 0 && element->usage < 16) {
+            if (element->usage < yyVUMaxVertexUsage) {
                 usageCounts[element->usage]++;
             }
         }
