@@ -357,13 +357,38 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
 #if IS_WAD17_OR_HIGHER_ENABLED
 static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     if (ctx == nullptr) return;
+
+    Instance* savedInstance = ctx->currentInstance;
+    Instance* targetInstance = nullptr;
+    int32_t rawArg = RValue_toInt32(callback);
+    int32_t codeId = -1;
+    BuiltinFunc builtin = nullptr;
+
     if (callback.type == RVALUE_METHOD && callback.method != nullptr) {
-        VM_callCodeIndex(ctx, callback.method->codeIndex, nullptr, 0);
+        GMLMethod* method = callback.method;
+        if (method->boundInstanceId >= 0) {
+            targetInstance = hmget(ctx->runner->instancesById, method->boundInstanceId);
+        }
+        if (targetInstance == nullptr) {
+            targetInstance = ctx->globalScopeInstance;
+        }
+        ctx->currentInstance = targetInstance;
+
+        if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
+            VM_callCodeIndex(ctx, method->codeIndex, nullptr, 0);
+        } else if (method->builtin != nullptr) {
+            method->builtin(ctx, nullptr, 0);
+        } else if (method->unresolvedName != nullptr) {
+#ifdef ENABLE_VM_STUB_LOGS
+            logWarn("VM: call_later callback method unresolved: %s\n", method->unresolvedName);
+#endif
+        }
+
+        ctx->currentInstance = savedInstance;
         return;
     }
 
-    int32_t rawArg = RValue_toInt32(callback);
-    int32_t codeId = -1;
+    ctx->currentInstance = ctx->globalScopeInstance;
 
     if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
         const char* funcName = ctx->dataWin->func.functions[rawArg].name;
@@ -371,6 +396,9 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
             if (idx >= 0) {
                 codeId = ctx->codeIndexByName[idx].value;
+            } else {
+                ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                if (bidx >= 0) builtin = ctx->builtinMap[bidx].value;
             }
         }
     }
@@ -383,7 +411,11 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
 
     if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
         VM_callCodeIndex(ctx, codeId, nullptr, 0);
+    } else if (builtin != nullptr) {
+        builtin(ctx, nullptr, 0);
     }
+
+    ctx->currentInstance = savedInstance;
 }
 #endif
 
