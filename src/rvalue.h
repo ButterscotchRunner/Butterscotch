@@ -471,9 +471,17 @@ static inline int32_t RValue_toInt32(RValue val) {
 // ones keep their bit pattern.
 static inline uint32_t RValue_toColour(RValue val) {
     if (val.type == RVALUE_REAL) {
-        double d = (double) val.real;
-        if (d >= 0.0) return (d >= 4294967295.0) ? 0xFFFFFFFFu : (uint32_t) d;
-        return (uint32_t) (int32_t) RValue_toInt32(val);
+        if (val.real < (GMLReal) 0) {
+            return (uint32_t) (int32_t) RValue_toInt32(val);
+        }
+        // Clamped at 2^32 rather than 0xFFFFFFFF: where GMLReal is a float, 0xFFFFFFFF is not
+        // representable and rounds up to exactly 2^32, and casting that to uint32_t is undefined.
+        // Everything stays in GMLReal on purpose -- the PS2 has no hardware double, and it builds
+        // with -fsingle-precision-constant -Werror=double-promotion.
+        if (val.real >= (GMLReal) 4294967296.0) {
+            return 0xFFFFFFFFu;
+        }
+        return (uint32_t) val.real;
     }
     return (uint32_t) RValue_toInt32(val);
 }
