@@ -180,14 +180,16 @@ jobs:
       - name: Pack cache
         run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
 
-  build-sdl2-freebsd-amd64:
-    name: Build (SDL2/FreeBSD amd64)
+  build-sdl2-freebsd:
+    name: Build (SDL2/FreeBSD ${{ matrix.arch }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, i386]
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
       FREEBSD_MAJOR: 14
       FREEBSD_MINOR: 3
-      FREEBSD_ARCH: amd64
     
     steps:
       - name: Checkout Code
@@ -195,14 +197,22 @@ jobs:
   
       - name: Download FreeBSD sysroot
         run: |
-          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ env.FREEBSD_ARCH }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
+          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
           sudo mkdir -p ${{ env.FREEBSD_SYSROOT }}
           sudo tar -xJf sysroot.tar.xz -C ${{ env.FREEBSD_SYSROOT }}
           rm sysroot.tar.xz
 
       - name: Download SDL2 for FreeBSD
         run: |
-          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ env.FREEBSD_ARCH }}/latest/All/Hashed/sdl2-2.32.10_2~2\$w6kzs95d.pkg"
+          # first we get the packagesite
+          curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.txz"
+          mkdir -p /tmp/packagesite
+          tar -xf packagesite.pkg packagesite.yaml -C /tmp/packagesite
+          rm packagesite.pkg
+          SDL2_REPOPATH="$(grep -m 1 '"name":"sdl2"' /tmp/packagesite/packagesite.yaml | sed -n 's/.*"path":"\([^"]*\)".*/\1/p')"
+          
+          # then we get SDL2
+          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/${SDL2_REPOPATH}"
           sudo tar -xf sdl2.pkg -C ${{ env.FREEBSD_SYSROOT }}
           rm sdl2.pkg
 
@@ -216,7 +226,7 @@ jobs:
             -DDESKTOP_BACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-amd64.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-${{ matrix.arch }}.cmake \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build -- -j $(nproc)
       
