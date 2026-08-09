@@ -193,7 +193,7 @@ jobs:
         with:
           usesh: true
           prepare: |
-            pkg install -y cmake ninja sdl2
+            pkg install -y cmake ninja sdl2 pkgconf
           run: |
             cmake -S . -B build -GNinja -DDESKTOP_BACKEND=sdl2 -DCMAKE_BUILD_TYPE=Release
             cmake --build build
