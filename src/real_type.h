@@ -34,6 +34,7 @@ typedef float GMLReal;
 #define GMLReal_floor floorf
 #define GMLReal_ceil ceilf
 #define GMLReal_round roundf
+#define GMLReal_trunc truncf
 #define GMLReal_pow powf
 #define GMLReal_log2 log2f
 #define GMLReal_fmax fmaxf
@@ -58,6 +59,7 @@ typedef double GMLReal;
 #define GMLReal_floor floor
 #define GMLReal_ceil ceil
 #define GMLReal_round round
+#define GMLReal_trunc trunc
 #define GMLReal_pow pow
 #define GMLReal_log2 log2
 #define GMLReal_fmax fmax

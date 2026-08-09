@@ -1560,10 +1560,10 @@ static void handleRem(VMContext* ctx, uint32_t instr) {
     if ((type1 == GML_TYPE_INT32 || type1 == GML_TYPE_INT64) && (type2 == GML_TYPE_INT32 || type2 == GML_TYPE_INT64)) {
         requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
     }
-    GMLReal result = GMLReal_fmod(RValue_toReal(a), divisor);
+    GMLReal result = GMLReal_trunc(RValue_toReal(a) / divisor);
     RValue_free(&a);
     RValue_free(&b);
-    stackPushTyped(ctx, RValue_makeInt64(result), instrType2(instr));
+    stackPushTyped(ctx, RValue_makeReal(result), instrType2(instr));
 }
 
 static void handleMod(VMContext* ctx, uint32_t instr) {
