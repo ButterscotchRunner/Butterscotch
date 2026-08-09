@@ -184,6 +184,7 @@ jobs:
     name: Build (SDL2/FreeBSD ${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, i386]
     env:
