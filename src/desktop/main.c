@@ -75,7 +75,7 @@ enum GraphicsAPI gfx;
 const GLuint *hostFramebuffer;
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 #include <fcntl.h>
 #include <unistd.h>
 #endif
