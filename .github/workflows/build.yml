@@ -187,7 +187,6 @@ jobs:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
       FREEBSD_VERSION: 14.3
       FREEBSD_ARCH: amd64
-      SDL2_PKG: 
     
     steps:
       - name: Checkout Code
