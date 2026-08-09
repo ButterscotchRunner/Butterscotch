@@ -43,6 +43,17 @@ static GMLReal GMLReal_round(GMLReal x) {
 
 #endif
 
+#ifdef NO_TRUNC
+
+#undef GMLReal_trunc
+static GMLReal GMLReal_trunc(GMLReal x) {
+    if (x >= 9007199254740992.0 || x <= -9007199254740992.0) return x;
+    if (x >= 0.0) return (GMLReal)((int64_t)x);
+    else          return (GMLReal)((int64_t)x);
+}
+
+#endif
+
 #ifdef NO_LOG2
 
 #undef GMLReal_log2
@@ -108,6 +119,16 @@ static float roundf(float x) {
     if (x >= 2147483648.0f || x <= -2147483648.0f) return x;
     if (x >= 0.0f) return (float)((int32_t)(x + 0.5f));
     else           return (float)((int32_t)(x - 0.5f));
+}
+
+#endif
+
+#ifdef NO_TRUNCF
+
+static float truncf(float x) {
+    if (x >= 2147483648.0f || x <= -2147483648.0f) return x;
+    if (x >= 0.0f) return (float)((int32_t)x);
+    else           return (float)((int32_t)x);
 }
 
 #endif

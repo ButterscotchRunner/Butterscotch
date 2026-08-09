@@ -286,6 +286,14 @@ round_pid=$!
 
 printf '%s' "\
 #include <math.h>
+int main(void){return trunc(0);}
+" > tmp/trunc.c
+
+check '' trunc $lm > /dev/null &
+trunc_pid=$!
+
+printf '%s' "\
+#include <math.h>
 int main(void){return log2(1);}
 " > tmp/log2.c
 
@@ -355,6 +363,14 @@ int main(void){return roundf(0);}
 
 check '' roundf $lm > /dev/null &
 roundf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return truncf(0);}
+" > tmp/truncf.c
+
+check '' truncf $lm > /dev/null &
+truncf_pid=$!
 
 printf '%s' "\
 #include <math.h>
@@ -469,6 +485,10 @@ if ! checkend 'for round' "$round_pid"; then
     define 'NO_ROUND'
 fi
 
+if ! checkend 'for trunc' "$truncf_pid"; then
+    define 'NO_TRUNC'
+fi
+
 if ! checkend 'for log2' "$log2_pid"; then
     define 'NO_LOG2'
 fi
@@ -503,6 +523,10 @@ fi
 
 if ! checkend 'for roundf' "$roundf_pid"; then
     define 'NO_ROUNDF'
+fi
+
+if ! checkend 'for truncf' "$truncf_pid"; then
+    define 'NO_TRUNCF'
 fi
 
 if ! checkend 'for isinf' "$isinf_pid"; then
