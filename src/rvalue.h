@@ -463,6 +463,21 @@ static inline int32_t RValue_toInt32(RValue val) {
     }
 }
 
+// A GML colour lives in an RValue as a double, and it is quite happily 32-bit wide: DELTARUNE
+// Chapter 5 stores 4294967295 (0xFFFFFFFF) in the platforming floor's tint. Casting that through
+// a signed int32 saturates to INT32_MIN (0x80000000), whose three colour bytes are all zero -- the
+// white wall behind the floor came out black, and merge_color(c_white, 4294967295, 1) returned 0.
+// Take the bits, not the sign: values inside the int32 range behave exactly as before, and negative
+// ones keep their bit pattern.
+static inline uint32_t RValue_toColour(RValue val) {
+    if (val.type == RVALUE_REAL) {
+        double d = (double) val.real;
+        if (d >= 0.0) return (d >= 4294967295.0) ? 0xFFFFFFFFu : (uint32_t) d;
+        return (uint32_t) (int32_t) RValue_toInt32(val);
+    }
+    return (uint32_t) RValue_toInt32(val);
+}
+
 static inline int64_t RValue_toInt64(RValue val) {
     switch (val.type) {
         case RVALUE_REAL:   return (int64_t) val.real;
