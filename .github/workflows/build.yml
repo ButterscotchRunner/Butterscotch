@@ -207,7 +207,7 @@ jobs:
           # first we get the packagesite
           curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.pkg"
           mkdir -p /tmp/packagesite
-          tar -xf packagesite.pkg packagesite.yaml -C /tmp/packagesite
+          tar -xf packagesite.pkg -C /tmp/packagesite
           rm packagesite.pkg
           SDL2_REPOPATH="$(grep -m 1 '"name":"sdl2"' /tmp/packagesite/packagesite.yaml | sed -n 's/.*"path":"\([^"]*\)".*/\1/p')"
           
