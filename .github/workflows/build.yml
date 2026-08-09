@@ -205,7 +205,7 @@ jobs:
       - name: Download SDL2 for FreeBSD
         run: |
           # first we get the packagesite
-          curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.txz"
+          curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.pkg"
           mkdir -p /tmp/packagesite
           tar -xf packagesite.pkg packagesite.yaml -C /tmp/packagesite
           rm packagesite.pkg
