@@ -207,12 +207,14 @@ jobs:
           rm sdl2.pkg
 
       - name: Configure and build Butterscotch
-        run: cmake -S . -B build \
-          -DDESKTOP_BACKEND=sdl2 \
-          -DAUDIO_BACKEND=miniaudio \
-          -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
-          -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-amd64.cmake \
-          -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build \
+            -DDESKTOP_BACKEND=sdl2 \
+            -DAUDIO_BACKEND=miniaudio \
+            -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-amd64.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -- -j $(nproc)
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
