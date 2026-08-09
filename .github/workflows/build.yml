@@ -182,7 +182,7 @@ jobs:
 
   build-sdl2-freebsd:
     name: Build (SDL2/FreeBSD ${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -226,6 +226,7 @@ jobs:
           cmake -S . -B build \
             -DDESKTOP_BACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
+            -DWERROR=ON \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-${{ matrix.arch }}.cmake \
             -DCMAKE_BUILD_TYPE=Release
