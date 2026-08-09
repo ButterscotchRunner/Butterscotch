@@ -198,6 +198,102 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
     gl->currentTextureId = textureId;
 }
 
+static GLenum primitiveTypeToGL(int32_t primitiveType) {
+    switch (primitiveType) {
+        case PRIMITIVE_POINTS:
+            return GL_POINTS;
+        case PRIMITIVE_LINES:
+            return GL_LINES;
+        case PRIMITIVE_LINE_STRIP:
+            return GL_LINE_STRIP;
+        case PRIMITIVE_TRIANGLES:
+            return GL_TRIANGLES;
+        case PRIMITIVE_TRIANGLE_STRIP:
+            return GL_TRIANGLE_STRIP;
+        case PRIMITIVE_TRIANGLE_FAN:
+            return GL_TRIANGLE_FAN;
+        default:
+            return GL_TRIANGLES;
+    }
+}
+
+static void glPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+
+    gl->primitiveType = primitiveType;
+    gl->primitiveVertexCount = 0;
+    gl->primitiveTextureId = gl->whiteTexture;
+    gl->primitiveHasTexture = false;
+}
+
+static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    glPrimitiveBegin(renderer, primitiveType);
+
+    if (texture > 0) {
+        gl->primitiveTextureId = (GLuint) texture;
+        gl->primitiveHasTexture = true;
+    }
+}
+
+static void glPrimitiveEnd(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->primitiveVertexCount <= 0) return;
+
+    GLuint textureId = gl->primitiveHasTexture ? gl->primitiveTextureId : gl->whiteTexture;
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(gl->primitiveVertexCount * sizeof(Vertex)), gl->vertexData, GL_DYNAMIC_DRAW);
+
+    if (hasVAO()) {
+        glBindVertexArray(gl->vao);
+    } else {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
+
+        int32_t stride = sizeof(Vertex);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
+        glEnableVertexAttribArray(2);
+    }
+
+    glDrawArrays(primitiveTypeToGL(gl->primitiveType), 0, gl->primitiveVertexCount);
+
+    if (!hasVAO()) {
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
+    }
+
+    gl->primitiveVertexCount = 0;
+}
+
+static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    if (gl->primitiveVertexCount < 0) {
+        gl->primitiveVertexCount = 0;
+    }
+
+    Vertex* vert = &gl->vertexData[gl->primitiveVertexCount];
+    vert->x = x;
+    vert->y = y;
+    vert->z = z;
+    vert->u = u;
+    vert->v = v;
+    vert->r = (uint8_t) BGR_R(color);
+    vert->g = (uint8_t) BGR_G(color);
+    vert->b = (uint8_t) BGR_B(color);
+    vert->a = floatToUnormByte(alpha);
+
+    gl->primitiveVertexCount++;
+}
+
 // ===[ Vtable Implementations ]===
 
 static bool compileProgram(GMLShader* gmlShader, const char* name, const char* vertexShaderSource, const char* fragmentShaderSource, uint32_t vertexAttributeCount, const char** vertexAttributes) {
@@ -2925,6 +3021,10 @@ Renderer* GLRenderer_create(void) {
     glVtable.drawVertexBuffer = glDrawVertexBuffer;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
+    glVtable.primitiveBegin = glPrimitiveBegin;
+    glVtable.primitiveBeginTexture = glPrimitiveBeginTexture;
+    glVtable.primitiveEnd = glPrimitiveEnd;
+    glVtable.drawVertex = glDrawVertex;
     glVtable.flush = glRendererFlush;
     glVtable.clearScreen = glClearScreen;
     glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;

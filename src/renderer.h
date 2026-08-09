@@ -158,6 +158,10 @@ typedef struct {
     void (*drawLineColor)(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha);
     void (*drawText)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation);
     void (*drawTextColor)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation);
+    void (*primitiveBegin)(Renderer* renderer, int32_t primitiveType);
+    void (*primitiveBeginTexture)(Renderer* renderer, int32_t primitiveType, int32_t texture);
+    void (*primitiveEnd)(Renderer* renderer);
+    void (*drawVertex)(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v);
     void (*drawVertexBuffer)(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t count);
     void (*flush)(Renderer* renderer);
     void (*clearScreen)(Renderer* renderer, uint32_t color, float alpha);
@@ -377,6 +381,30 @@ static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t sprite
 // Partial draw: draw_sprite_part(sprite, subimg, left, top, width, height, x, y)
 static inline void Renderer_drawSpritePart(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y) {
     Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, left, top, width, height, x, y, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0xFFFFFF, renderer->drawAlpha);
+}
+
+static inline void Renderer_primitiveBegin(Renderer* renderer, int32_t primitiveType) {
+    if (renderer != nullptr && renderer->vtable != nullptr && renderer->vtable->primitiveBegin != nullptr) {
+        renderer->vtable->primitiveBegin(renderer, primitiveType);
+    }
+}
+
+static inline void Renderer_primitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
+    if (renderer != nullptr && renderer->vtable != nullptr && renderer->vtable->primitiveBeginTexture != nullptr) {
+        renderer->vtable->primitiveBeginTexture(renderer, primitiveType, texture);
+    }
+}
+
+static inline void Renderer_primitiveEnd(Renderer* renderer) {
+    if (renderer != nullptr && renderer->vtable != nullptr && renderer->vtable->primitiveEnd != nullptr) {
+        renderer->vtable->primitiveEnd(renderer);
+    }
+}
+
+static inline void Renderer_drawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
+    if (renderer != nullptr && renderer->vtable != nullptr && renderer->vtable->drawVertex != nullptr) {
+        renderer->vtable->drawVertex(renderer, x, y, z, color, alpha, u, v);
+    }
 }
 
 // Resolves tpag and converts nine-slice bounding-box coords to tpag source-page space for drawTiledPart.

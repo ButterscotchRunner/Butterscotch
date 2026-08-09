@@ -56,6 +56,10 @@ typedef struct {
     Vertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
 
     BatchType batchType;
+    int32_t primitiveType;
+    int32_t primitiveVertexCount;
+    GLuint primitiveTextureId;
+    bool primitiveHasTexture;
     int32_t batchCount;
     GLuint currentTextureId;
 

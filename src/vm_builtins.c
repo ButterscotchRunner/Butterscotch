@@ -19468,6 +19468,15 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "psn_setup_trophies", builtin_psn_setup_trophies);
 
     // Draw
+    VM_registerBuiltin(ctx, "draw_primitive_begin", builtin_draw_primitive_begin);
+    VM_registerBuiltin(ctx, "draw_primitive_begin_texture", builtin_draw_primitive_begin_texture);
+    VM_registerBuiltin(ctx, "draw_primitive_end", builtin_draw_primitive_end);
+    VM_registerBuiltin(ctx, "draw_vertex", builtin_draw_vertex);
+    VM_registerBuiltin(ctx, "draw_vertex_color", builtin_draw_vertex_color);
+    VM_registerBuiltin(ctx, "draw_vertex_colour", builtin_draw_vertex_color);
+    VM_registerBuiltin(ctx, "draw_vertex_texture", builtin_draw_vertex_texture);
+    VM_registerBuiltin(ctx, "draw_vertex_texture_color", builtin_draw_vertex_texture_color);
+    VM_registerBuiltin(ctx, "draw_vertex_texture_colour", builtin_draw_vertex_texture_color);
     VM_registerBuiltin(ctx, "draw_sprite", builtin_draw_sprite);
     VM_registerBuiltin(ctx, "draw_sprite_ext", builtin_draw_sprite_ext);
     VM_registerBuiltin(ctx, "draw_sprite_tiled", builtin_draw_sprite_tiled);
