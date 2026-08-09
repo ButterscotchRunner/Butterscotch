@@ -4181,6 +4181,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
 
 // ===[ TIME SOURCE FUNCTIONS ]===
 
+#if IS_WAD17_OR_HIGHER_ENABLED
 static RValue builtin_call_later(VMContext* ctx, RValue* args, int32_t argCount) {
     if (3 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
@@ -4225,6 +4226,7 @@ static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount
 
     return RValue_makeReal(0.0);
 }
+#endif
 
 // ===[ OS FUNCTIONS ]===
 
