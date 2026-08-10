@@ -294,8 +294,10 @@ static void flushBatch(GLRenderer* gl) {
 
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
-#ifdef PLATFORM_VITA // Just upload the data directly instead of using BufferSubData
-    glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
+#ifdef PLATFORM_VITA
+    vglBufferData(GL_ARRAY_BUFFER, (void*)gl->vertexData);
+    gl->vertexData = (Vertex*)vglAllocFromScratch((size_t)totalVboSize);
+    //glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
 #else
     int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
     int32_t vertexCount = gl->batchCount * singleVertexCount;
@@ -588,9 +590,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glGenBuffers(1, &gl->ebo);
 
     // VBO: sized for max quads
-    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+#ifndef PLATFORM_VITA // We don't really need to warm up the buffer since we have scratch memory on VitaGL...
+    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
+#endif
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
     uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
@@ -616,7 +620,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     // Allocate CPU-side vertex buffer
+#if PLATFORM_VITA
+    gl->vertexData = (Vertex*)vglAllocFromScratch(MAX_QUADS *VERTICES_PER_QUAD * sizeof(Vertex));
+#else
     gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+#endif
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
 #if defined(PLATFORM_VITA)
@@ -800,7 +808,9 @@ static void glDestroy(Renderer* renderer) {
     free(gl->textureWidths);
     free(gl->textureHeights);
     free(gl->textureLoaded);
+#ifndef PLATFORM_VITA
     free(gl->vertexData);
+#endif
     free(gl);
 }
 
