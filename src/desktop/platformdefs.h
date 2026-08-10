@@ -3,11 +3,8 @@
 
 #include <stdbool.h>
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "runner.h"
 #include "input_recording.h"
-#include "data_win.h"
 
 #ifdef ENABLE_GUI
 typedef struct {
