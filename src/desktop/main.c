@@ -1085,7 +1085,6 @@ int main(int argc, char* argv[]) {
     logColour = !args.disableLogColours;
 
     char* currentDataWinPath = args.dataWinPath ? safeStrdup(args.dataWinPath) : NULL;
-    bool argsHeadlessRequested = args.headless;
     char** currentGameArgs = args.gameArgs;
     repeat(arrlen(args.gameArgs), i) {
         arrput(currentGameArgs, args.gameArgs[i]);
@@ -1097,6 +1096,8 @@ int main(int argc, char* argv[]) {
     int32_t inputFrameCount = 0;
 
 #ifdef ENABLE_GUI
+    bool argsHeadlessRequested = args.headless;
+    
     if (currentDataWinPath == NULL) {
         args.headless = true;
         if (!platformInit(640, 480, "Butterscotch", true)) {
