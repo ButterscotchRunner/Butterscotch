@@ -4,6 +4,7 @@
 #import <AppKit/AppKit.h>
 #import <Cocoa/Cocoa.h>
 #import <GameController/GameController.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dlfcn.h>
 
 #include "common.h"
@@ -16,6 +17,8 @@ static Runner *g_runner;
 static NSWindow *window = nil;
 static NSOpenGLContext *glContext = nil;
 static NSOpenGLView *glView = nil;
+static char *pendingDataWinPath = NULL;
+static bool appShouldQuit = false;
 
 #define USE_PRIVATE_API 0
 
@@ -56,7 +59,15 @@ static void appkitMapControllerToSlot(GCController *controller, GamepadSlot *slo
     slot->guid[sizeof(slot->guid) - 1] = '\0';
 
     GCExtendedGamepad *extended = controller.extendedGamepad;
-    GCGamepad *gamepad = controller.gamepad;
+
+    // The GCGamepad profile is deprecated in macOS 10.12 and later, but we still support it for older versions.
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 101200
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+GCGamepad *gamepad = controller.gamepad;
+#pragma clang diagnostic pop
+#endif
+
     GCMicroGamepad *micro = controller.microGamepad;
 
     if (extended) {
@@ -101,7 +112,9 @@ static void appkitMapControllerToSlot(GCController *controller, GamepadSlot *slo
         slot->buttonDown[13] = extended.dpad.down.pressed;
         slot->buttonDown[14] = extended.dpad.left.pressed;
         slot->buttonDown[15] = extended.dpad.right.pressed;
-    } else if (gamepad) {
+    }
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101200
+    else if (gamepad) {
         slot->buttonDown[0] = gamepad.buttonA.pressed;
         slot->buttonValue[0] = gamepad.buttonA.value;
         slot->buttonDown[1] = gamepad.buttonB.pressed;
@@ -120,7 +133,9 @@ static void appkitMapControllerToSlot(GCController *controller, GamepadSlot *slo
         slot->buttonDown[13] = gamepad.dpad.down.pressed;
         slot->buttonDown[14] = gamepad.dpad.left.pressed;
         slot->buttonDown[15] = gamepad.dpad.right.pressed;
-    } else if (micro) {
+    }
+#endif
+    else if (micro) {
         slot->buttonDown[0] = micro.buttonA.pressed;
         slot->buttonValue[0] = micro.buttonA.value;
         slot->buttonDown[1] = micro.buttonX.pressed;
@@ -352,6 +367,16 @@ NSMenu* createAppMenu() {
 
     [appMenu addItem:[NSMenuItem separatorItem]];
 
+    // Open data.win
+    NSMenuItem *openItem = [[NSMenuItem alloc]
+        initWithTitle:@"Open game..."
+        action:@selector(openDataWin:)
+        keyEquivalent:@"o"];
+    [openItem setKeyEquivalentModifierMask:NSEventModifierFlagCommand];
+    [appMenu addItem:openItem];
+
+    [appMenu addItem:[NSMenuItem separatorItem]];
+
     // Preferences
     NSMenuItem *prefsItem = [[NSMenuItem alloc]
         initWithTitle:@"Settings..."
@@ -455,7 +480,7 @@ NSMenu* createWindowMenu() {
     return windowMenu;
 }
 
-@interface AppDelegate : NSObject <NSApplicationDelegate>
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property (strong) NSWindow *preferencesWindow;
 @end
 
@@ -463,6 +488,42 @@ NSMenu* createWindowMenu() {
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     [self setupMenu];
+}
+
+- (BOOL)windowShouldClose:(id)sender {
+    appShouldQuit = true;
+    return YES;
+}
+
+- (void)openDataWin:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles = YES;
+    panel.canChooseDirectories = NO;
+    panel.allowsMultipleSelection = NO;
+
+    // Set allowed file types based on macOS version
+    if (@available(macOS 12.0, *)) {
+        panel.allowedContentTypes = @[
+            [UTType typeWithFilenameExtension:@"win"],
+            [UTType typeWithFilenameExtension:@"ios"]
+        ];
+    } else {
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        // For macOS versions prior to 12.0, use allowedFileTypes
+        panel.allowedFileTypes = @[@"win", @"ios"];
+    #pragma clang diagnostic pop
+    }
+
+    panel.directoryURL = [NSURL fileURLWithPath:NSHomeDirectory()];
+
+    if ([panel runModal] == NSModalResponseOK) {
+        NSURL *url = panel.URLs.firstObject;
+        if (url != nil) {
+            free(pendingDataWinPath);
+            pendingDataWinPath = strdup([[url path] UTF8String]);
+        }
+    }
 }
 
 - (void)setupMenu {
@@ -541,6 +602,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (!window)
         return false;
 
+    [window setDelegate:delegate];
     [window setTitle:[NSString stringWithFormat:@"%s", title]];
     [window setAcceptsMouseMovedEvents:YES];
 
@@ -579,6 +641,18 @@ void platformExit(void) {
     glContext = nil;
     glView = nil;
     window = nil;
+}
+
+void platformShowWindow(void) {
+    if (window) {
+        [window makeKeyAndOrderFront:nil];
+    }
+}
+
+char* platformConsumePendingDataWinPath(void) {
+    char* path = pendingDataWinPath;
+    pendingDataWinPath = NULL;
+    return path;
 }
 
 static void platformSetCursor(int32_t cursorType) {
@@ -655,9 +729,6 @@ void *platformGetProcAddress(const char *name) {
 
 bool platformHandleEvents(void)
 {
-    if (![window isVisible])
-        return true;
-
     NSEvent *event;
     while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                        untilDate:[NSDate distantPast]
@@ -667,6 +738,10 @@ bool platformHandleEvents(void)
     }
 
     [NSApp updateWindows];
+
+    if (appShouldQuit) {
+        return true;
+    }
 
     if (g_runner && g_runner->gamepads) {
         NSArray<GCController *> *controllers = [GCController controllers];

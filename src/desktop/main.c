@@ -854,11 +854,15 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
+#ifdef REQUIRE_CLI_ARGS
         printUsage(argv[0]);
         exit(1);
+#else
+        args->dataWinPath = NULL;
+#endif
+    } else {
+        args->dataWinPath = argv[optind];
     }
-
-    args->dataWinPath = argv[optind];
 
     if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
         logError("--screenshot-at-frame requires --screenshot to be set\n");
@@ -1069,7 +1073,8 @@ int main(int argc, char* argv[]) {
 
     logColour = !args.disableLogColours;
 
-    char* currentDataWinPath = safeStrdup(args.dataWinPath);
+    char* currentDataWinPath = args.dataWinPath ? safeStrdup(args.dataWinPath) : NULL;
+    bool argsHeadlessRequested = args.headless;
     char** currentGameArgs = args.gameArgs;
     repeat(arrlen(args.gameArgs), i) {
         arrput(currentGameArgs, args.gameArgs[i]);
@@ -1079,6 +1084,50 @@ int main(int argc, char* argv[]) {
 
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
+
+#ifndef REQUIRE_CLI_ARGS
+    if (currentDataWinPath == NULL) {
+        args.headless = true;
+        if (!platformInit(640, 480, "Butterscotch", true)) {
+            freeCommandLineArgs(&args);
+            return 1;
+        }
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#if defined(USE_GLFW3) || defined(USE_GLFW2)
+        if (!platformInitGlad()) {
+#else
+        if (!platformInitGlad()) {
+#endif
+            logError("Failed to initialize GLAD\n");
+            platformExit();
+            freeCommandLineArgs(&args);
+            return 1;
+        }
+#endif
+        platformInitialized = true;
+
+        while (true) {
+            if (platformHandleEvents()) {
+                platformExit();
+                freeCommandLineArgs(&args);
+                return 0;
+            }
+
+            char* pendingPath = platformConsumePendingDataWinPath();
+            if (pendingPath != NULL) {
+                currentDataWinPath = pendingPath;
+                args.dataWinPath = currentDataWinPath;
+                if (!argsHeadlessRequested) {
+                    args.headless = false;
+                    platformShowWindow();
+                }
+                break;
+            }
+
+            platformSleepUntil(nowNanos() + 16666666);
+        }
+    }
+#endif
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
