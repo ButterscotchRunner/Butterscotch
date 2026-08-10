@@ -294,10 +294,15 @@ static void flushBatch(GLRenderer* gl) {
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+#ifdef PLATFORM_VITA // Just upload the data directly instead of using BufferSubData
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), (void*)gl->vertexData, GL_DYNAMIC_DRAW);
+#else
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+#endif
+
 
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
