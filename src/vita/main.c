@@ -21,6 +21,7 @@
 #include <psp2/ctrl.h>
 #include <psp2/kernel/clib.h> 
 #include <psp2/kernel/processmgr.h>
+#include <psp2/message_dialog.h>
 
 #include <stdio.h>
 
@@ -132,6 +133,24 @@ void vitaSetWindowSize(int32_t width, int32_t height) {
     currentWindowHeight = height;
 }
 
+void vitaShowErrorDialogue(const char *message)
+{
+    SceMsgDialogParam param;
+    memset(&param, 0, sizeof(param));
+
+    param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
+    param.userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
+    param.userMsg.msg = message;
+
+    sceMsgDialogInit(&param);
+
+    while (sceMsgDialogGetStatus() == SCE_COMMON_DIALOG_STATUS_RUNNING) {
+        sceMsgDialogUpdate(NULL);
+        sceKernelDelayThread(1000 * 10);
+    }
+
+    sceMsgDialogTerm();
+}
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function
@@ -264,6 +283,7 @@ void loop(const char* dataWinPath) {
     runner->debugMode = true; // for now
     runner->setWindowSize = vitaSetWindowSize;
     runner->getWindowSize = vitaGetWindowSize;
+    runner->showErrorDialogue = vitaShowErrorDialogue;
     Runner_initFirstRoom(runner);
 
     sceClibPrintf("Runner successfully created and inited first room!!\n");
