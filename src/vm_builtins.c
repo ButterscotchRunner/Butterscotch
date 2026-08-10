@@ -14592,7 +14592,9 @@ static RValue builtin_throw(VMContext* ctx, RValue* args, int32_t argCount) {
 static GamePath* getPath(Runner* runner, int32_t pathIdx) {
     if (0 > pathIdx) return nullptr;
     if ((uint32_t) pathIdx >= runner->dataWin->path.count) return nullptr;
-    return &runner->dataWin->path.paths[pathIdx];
+    
+    GamePath* p = &runner->dataWin->path.paths[pathIdx];
+    return p->exists ? p : nullptr;
 }
 
 // path_exists(path)
@@ -14620,6 +14622,7 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     p->internalPointCount = 0;
     p->internalPoints = nullptr;
     p->length = 0.0;
+    p->exists = true;
     pc->count = newIdx + 1;
     return RValue_makeInt32((int32_t) newIdx);
 }
@@ -14744,6 +14747,7 @@ static RValue builtin_path_delete(VMContext* ctx, RValue* args, int32_t argCount
     free(p->points); p->points = nullptr; p->pointCount = 0;
     free(p->internalPoints); p->internalPoints = nullptr; p->internalPointCount = 0;
     p->length = 0.0;
+    p->exists = false;
     return RValue_makeUndefined();
 }
 
