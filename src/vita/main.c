@@ -137,7 +137,7 @@ void vitaShowErrorDialogue(const char *message) {
     SceMsgDialogUserMessageParam userMsg = {0};
     SceMsgDialogParam param = {0};
 
-    const char *prefix = "Error: ";
+    const char *prefix = "Error\n\n";
     size_t len = strlen(prefix) + strlen(message) + 1;
 
     char *msg = malloc(len);
