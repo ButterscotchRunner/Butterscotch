@@ -1895,12 +1895,16 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     if (IS_WAD17_OR_HIGHER(ctx) && (operand & 0x8000) != 0) {
         int32_t topNativeCount = operand & 0x7FF;
         int32_t bottomNativeCount = (operand >> 11) & 0xF;
-        int32_t topBytes = topNativeCount * typeSize;
-        int32_t bottomBytes = bottomNativeCount * typeSize;
 
-        // Convert byte counts to slot counts
-        int32_t topSlots = bytesToSlotCount(ctx, topBytes, ctx->stack.top);
-        int32_t bottomSlots = bytesToSlotCount(ctx, bottomBytes, ctx->stack.top - topSlots);
+        int32_t topSlots = topNativeCount;
+        int32_t bottomSlots = bottomNativeCount;
+
+        if (type1 != GML_TYPE_VARIABLE) {
+            int32_t topBytes = topNativeCount * typeSize;
+            int32_t bottomBytes = bottomNativeCount * typeSize;
+            topSlots = bytesToSlotCount(ctx, topBytes, ctx->stack.top);
+            bottomSlots = bytesToSlotCount(ctx, bottomBytes, ctx->stack.top - topSlots);
+        }
 
         int32_t totalSlots = topSlots + bottomSlots;
         int32_t baseIdx = ctx->stack.top - totalSlots;
