@@ -70,13 +70,16 @@ DEFINES += $(DEFINE)ENABLE_WAD17
 endif
 
 # TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c) src/desktop/backends/$(DESKTOP_BACKEND).c
+SRCS += $(wildcard src/desktop/*.c)
+SRCS += $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c src/desktop/backends/$(DESKTOP_BACKEND).m)
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
+GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+SYSCFLAGS += $(GLFW3_CFLAGS)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
@@ -102,7 +105,11 @@ SDL3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl3)
 LIBS += $(SDL3_LIBS)
 DEFINES += $(DEFINE)USE_SDL3
 endif
-
+ifeq ($(DESKTOP_BACKEND),appkit)
+LIBS += -framework Cocoa -framework GameController
+DEFINES += $(DEFINE)USE_APPKIT
+SYSCFLAGS += -Wno-deprecated-declarations
+endif
 
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
 ifndef DISABLE_LEGACY_GL
@@ -193,7 +200,8 @@ ifndef VERBOSE
 V := @
 endif
 
-OBJS := $(addprefix build/,$(SRCS:.c=.c.$(OBJ_EXT)))
+OBJS := $(addprefix build/,$(SRCS))
+OBJS := $(OBJS:%=%.$(OBJ_EXT))
 
 all: build/butterscotch
 
@@ -211,10 +219,10 @@ build/butterscotch: $(OBJS)
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
 
-build/%.c.$(OBJ_EXT): %.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
+build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build
