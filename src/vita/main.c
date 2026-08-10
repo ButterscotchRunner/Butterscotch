@@ -24,7 +24,7 @@
 
 #include <stdio.h>
 
-int _newlib_heap_size_user = 128 * 1024 * 1024;
+int _newlib_heap_size_user = 192 * 1024 * 1024;
 
 #define GAME_DATA_PATH "ux0:data/butterscotch/"
 #define GAME_DATA_WIN_PATH GAME_DATA_PATH "data.win"
@@ -430,12 +430,11 @@ free_butterscotch:
 int main() {
     vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
     vglSetupGarbageCollector(127, 0x20000);
-
     vglUseTripleBuffering(GL_FALSE);
     vglSetCircularPoolSize(128 * 1024 * 1024);
     vglSetupDisplayRenderTarget(2);
     vglSetParamBufferSize(6 * 1024 * 1024);
-    vglInitWithCustomThreshold(0, 960, 544, 6 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
+    vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
 

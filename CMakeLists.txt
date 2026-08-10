@@ -784,6 +784,8 @@ elseif(PLATFORM STREQUAL "vita")
         SceVshBridge_stub
         SceAvPlayer_stub
         SceNpTrophy_stub
+        SceRazorCapture_stub
+        SceRazorHud_stub
     )
 
     vita_create_self(eboot.bin butterscotch UNSAFE)

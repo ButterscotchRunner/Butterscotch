@@ -290,15 +290,15 @@ static void flushBatch(GLRenderer* gl) {
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
-    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
-    int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-#ifdef PLATFORM_VITA // Just upload the data directly instead of using BufferSubData
-    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), (void*)gl->vertexData, GL_DYNAMIC_DRAW);
-#else
     int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+#ifdef PLATFORM_VITA // Just upload the data directly instead of using BufferSubData
+    glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
+#else
+    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
+    int32_t vertexCount = gl->batchCount * singleVertexCount;
     glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
 #endif
