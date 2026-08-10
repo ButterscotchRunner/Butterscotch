@@ -2,6 +2,7 @@
 # meant to be extremely portable to weird unix-like systems
 
 CC := cc
+CXX := c++
 PKG_CONFIG := pkg-config
 
 empty :=
@@ -102,7 +103,7 @@ QT6_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags Qt6Widgets)
 QT6_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs Qt6Widgets)
 SYSCFLAGS += $(QT6_CFLAGS)
 LIBS += $(QT6_LIBS)
-SRCS += src/desktop/platform/qt.c
+SRCS += src/desktop/platform/qt.cpp
 endif
 
 INCLUDES += $(INCLUDE)src/desktop
@@ -239,6 +240,8 @@ all: build/butterscotch
 
 -include $(OBJS:.$(OBJ_EXT)=.d)
 
+CXXFLAGS := $(CFLAGS)
+
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
 
 compat/config.mk: compat/configure.sh compat/tmp/cc
@@ -254,7 +257,7 @@ build/butterscotch: $(OBJS)
 build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(if $(filter %.cpp %.cxx %.cc,$<),$(CXX),$(_CC)) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(if $(filter %.cpp %.cxx %.cc,$<),$(CXXFLAGS),$(CFLAGS)) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build

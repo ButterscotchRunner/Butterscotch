@@ -233,7 +233,7 @@ if(PLATFORM STREQUAL "desktop")
     elseif(LINUX_GUI STREQUAL "qt6")
         enable_language(CXX)
         find_package(Qt6 REQUIRED COMPONENTS Widgets)
-        target_sources(butterscotch PRIVATE src/desktop/platform/qt.c)
+        target_sources(butterscotch PRIVATE src/desktop/platform/qt.cpp)
         target_link_libraries(butterscotch PRIVATE Qt6::Widgets)
     endif()
 
