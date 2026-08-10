@@ -133,14 +133,21 @@ void vitaSetWindowSize(int32_t width, int32_t height) {
     currentWindowHeight = height;
 }
 
-void vitaShowErrorDialogue(const char *message){
+void vitaShowErrorDialogue(const char *message) {
     SceMsgDialogUserMessageParam userMsg = {0};
     SceMsgDialogParam param = {0};
 
+    const char *prefix = "Error: ";
+    size_t len = strlen(prefix) + strlen(message) + 1;
+
+    char *msg = malloc(len);
+    if (!msg)
+        return;
+
+    snprintf(msg, len, "%s%s", prefix, message);
+
     userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-    const SceChar8 *prefix = (const SceChar8 *)"Error: ";
-    userMsg.msg = (const SceChar8 *)malloc(strlen(prefix) + strlen(message) + 1);
-    sprintf((char *)userMsg.msg, "%s%s", prefix, message);
+    userMsg.msg = (const SceChar8 *)msg;
 
     param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
     param.userMsgParam = &userMsg;
@@ -153,7 +160,7 @@ void vitaShowErrorDialogue(const char *message){
 
     sceMsgDialogTerm();
 
-    free((void *)userMsg.msg);
+    free(msg);
 }
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
