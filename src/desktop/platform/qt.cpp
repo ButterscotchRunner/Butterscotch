@@ -1,7 +1,7 @@
 #include <QApplication>
 #include <QMessageBox>
 
-void show_error_box(const char *message) {
+extern "C" void show_error_box(const char *message) {
     QMessageBox::critical(
         nullptr,
         "Error",
