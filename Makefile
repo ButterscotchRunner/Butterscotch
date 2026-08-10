@@ -91,6 +91,11 @@ LIBS += -framework Cocoa
 endif
 endif
 
+# Add Windows-specific source files for show_error_message
+ifeq ($(OS),Windows)
+SRCS += src/desktop/platform/windows.c
+endif
+
 ifeq ($(LINUX_GUI),gtk3)
 GTK3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags gtk+-3.0)
 GTK3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs gtk+-3.0)
