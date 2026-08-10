@@ -135,18 +135,19 @@ void vitaSetWindowSize(int32_t width, int32_t height) {
 
 void vitaShowErrorDialogue(const char *message)
 {
-    SceMsgDialogParam param;
-    memset(&param, 0, sizeof(param));
+    SceMsgDialogUserMessageParam userMsg = {0};
+    SceMsgDialogParam param = {0};
+
+    userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
+    userMsg.msg = message;
 
     param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
-    param.userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-    param.userMsg.msg = message;
+    param.userMsgParam = &userMsg;
 
     sceMsgDialogInit(&param);
 
     while (sceMsgDialogGetStatus() == SCE_COMMON_DIALOG_STATUS_RUNNING) {
-        sceMsgDialogUpdate(NULL);
-        sceKernelDelayThread(1000 * 10);
+        sceKernelDelayThread(10000);
     }
 
     sceMsgDialogTerm();
