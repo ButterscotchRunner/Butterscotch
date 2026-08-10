@@ -76,7 +76,9 @@ PKG_CONFIG_FLAGS := --static
 endif
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
-GLFW3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
+GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
+CFLAGS += $(GLFW3_CFLAGS)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
