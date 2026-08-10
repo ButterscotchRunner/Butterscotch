@@ -58,6 +58,7 @@ Of course, there are exceptions that break game compatibility altogether:
 ## Supported Platforms
 
 * Windows
+* macOS
 * Web
 * PlayStation 2
 * PlayStation 3
@@ -75,6 +76,7 @@ The following backends are available for desktop platforms (Windows and POSIX sy
 * SDL 1.2
 * SDL 2
 * SDL 3
+* AppKit (macOS only)
 
 The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
 * GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
