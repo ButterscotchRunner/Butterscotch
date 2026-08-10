@@ -133,13 +133,12 @@ void vitaSetWindowSize(int32_t width, int32_t height) {
     currentWindowHeight = height;
 }
 
-void vitaShowErrorDialogue(const char *message)
-{
+void vitaShowErrorDialogue(const char *message) {
     SceMsgDialogUserMessageParam userMsg = {0};
     SceMsgDialogParam param = {0};
 
     userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-    userMsg.msg = message;
+    userMsg.msg = (const SceChar8 *)message;
 
     param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
     param.userMsgParam = &userMsg;
