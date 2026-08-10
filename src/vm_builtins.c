@@ -1854,7 +1854,6 @@ static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount)
     bool abort = RValue_toBool(args[1]);
 
     Runner* runner = ctx->runner;
-    int32_t currentEventType = ctx->currentEventType;
 
     const char* codeName = ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
     const char* objectName = "<unknown>";
@@ -1936,6 +1935,10 @@ static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount)
         runner->showErrorDialogue(error_msg);
     }
     free(error_msg);
+
+    if (abort) {
+        runner->shouldExit = true;
+    }
 
     return RValue_makeUndefined();
 }
