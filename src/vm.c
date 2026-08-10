@@ -1153,6 +1153,28 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     scope = resolveInstanceStackTop(ctx);
                 }
 
+                // Built-in variables do NOT live in selfVars: argument[] is the call frame, not a
+                // member. Falling through would call getOrInsertUndefined, find nothing, materialise
+                // a FRESH EMPTY array in that slot and drill into it -- so argument[0][i] came back
+                // undefined while argument[0] (which goes through resolveVariableRead) was correct.
+                // Read the real value and hand out a weak ref to it instead.
+                if (varDef->builtinVarId >= 0) {
+                    Instance* builtinInst = (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
+                        ? (Instance*) ctx->otherInstance
+                        : (scope == INSTANCE_GLOBAL) ? ctx->globalScopeInstance
+                        : (scope >= 0) ? VM_findInstanceByTarget(ctx, scope)
+                        : (Instance*) ctx->currentInstance;
+                    RValue builtinVal = VMBuiltins_getVariable(ctx, builtinInst, varDef->builtinVarId, varDef->name, firstIndex);
+                    // Only a borrowed array can become a weak ref: freeing an owned one here would
+                    // leave the stack pointing at released memory. Anything else keeps the old path,
+                    // so this cannot turn a working case into an abort.
+                    if (builtinVal.type == RVALUE_ARRAY && builtinVal.array != nullptr && !builtinVal.ownsReference) {
+                        stackPush(ctx, RValue_makeArrayWeak(builtinVal.array));
+                        break;
+                    }
+                    RValue_free(&builtinVal);
+                }
+
                 // Resolve the slot for this scope.
                 RValue* slot = nullptr;
                 switch (scope) {
@@ -1275,6 +1297,18 @@ static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraD
         if (inst == nullptr) {
             logError("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
             abort();
+        }
+        // Same trap as in handlePush: a built-in has no selfVars slot, and materialising one there
+        // would replace the real value with an empty array. PushBltn only ever names built-ins, but
+        // the index of the first step is NOT on the stack here -- this opcode form carries no array
+        // index, so read the variable whole (arrayIndex -1) and hand out a weak ref to it.
+        if (varDef->builtinVarId >= 0) {
+            RValue builtinVal = VMBuiltins_getVariable(ctx, inst, varDef->builtinVarId, varDef->name, -1);
+            if (builtinVal.type == RVALUE_ARRAY && builtinVal.array != nullptr && !builtinVal.ownsReference) {
+                stackPush(ctx, RValue_makeArrayWeak(builtinVal.array));
+                return;
+            }
+            RValue_free(&builtinVal);
         }
         RValue* slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);
         pushTopLevelArrayRef(ctx, slot, varType == VARTYPE_ARRAYPOPAF);

@@ -463,6 +463,29 @@ static inline int32_t RValue_toInt32(RValue val) {
     }
 }
 
+// A GML colour lives in an RValue as a double, and it is quite happily 32-bit wide: DELTARUNE
+// Chapter 5 stores 4294967295 (0xFFFFFFFF) in the platforming floor's tint. Casting that through
+// a signed int32 saturates to INT32_MIN (0x80000000), whose three colour bytes are all zero -- the
+// white wall behind the floor came out black, and merge_color(c_white, 4294967295, 1) returned 0.
+// Take the bits, not the sign: values inside the int32 range behave exactly as before, and negative
+// ones keep their bit pattern.
+static inline uint32_t RValue_toColour(RValue val) {
+    if (val.type == RVALUE_REAL) {
+        if (val.real < (GMLReal) 0) {
+            return (uint32_t) (int32_t) RValue_toInt32(val);
+        }
+        // Clamped at 2^32 rather than 0xFFFFFFFF: where GMLReal is a float, 0xFFFFFFFF is not
+        // representable and rounds up to exactly 2^32, and casting that to uint32_t is undefined.
+        // Everything stays in GMLReal on purpose -- the PS2 has no hardware double, and it builds
+        // with -fsingle-precision-constant -Werror=double-promotion.
+        if (val.real >= (GMLReal) 4294967296.0) {
+            return 0xFFFFFFFFu;
+        }
+        return (uint32_t) val.real;
+    }
+    return (uint32_t) RValue_toInt32(val);
+}
+
 static inline int64_t RValue_toInt64(RValue val) {
     switch (val.type) {
         case RVALUE_REAL:   return (int64_t) val.real;
