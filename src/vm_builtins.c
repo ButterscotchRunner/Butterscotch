@@ -3110,6 +3110,15 @@ static RValue builtin_matrix_build_lookat(MAYBE_UNUSED VMContext *ctx, RValue *a
 // ===[ RANDOM FUNCTIONS ]===
 
 
+static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    GMLReal seed = RValue_toReal(args[0]);
+    bool fixRangeBug = RValue_toBool(args[1]); 
+    srand((uint32_t) seed);
+    (void) fixRangeBug; // do we even need to do anything with this?
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_random(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal n = RValue_toReal(args[0]);
@@ -16989,6 +16998,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "matrix_get", builtin_matrix_get);
     VM_registerBuiltin(ctx, "matrix_set", builtin_matrix_set);
     // Random
+    VM_registerBuiltin(ctx, "random_set_seed", builtin_random_set_seed);
     VM_registerBuiltin(ctx, "random", builtin_random);
     VM_registerBuiltin(ctx, "random_range", builtin_random_range);
     VM_registerBuiltin(ctx, "irandom", builtin_irandom);
