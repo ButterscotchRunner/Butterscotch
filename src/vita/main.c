@@ -139,6 +139,7 @@ void vitaShowErrorDialogue(const char *message) {
 
     userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
     userMsg.msg = (const SceChar8 *)message;
+    userMsg.title = (const SceChar8 *)"Error";
 
     param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
     param.userMsgParam = &userMsg;
