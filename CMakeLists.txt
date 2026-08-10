@@ -252,9 +252,9 @@ if(PLATFORM STREQUAL "desktop")
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
-    # Require CLI arguments
-    option(REQUIRE_CLI_ARGS "Require CLI arguments to be passed to the runner" ON)
-    # We add the compile definition later so that it can be overridden by the desktop backend (e.g., appkit)
+    # GUI support (for desktop backends that support it, like AppKit)
+    option(ENABLE_GUI "Enable GUI" OFF)
+    # We add the compile definition later so that it can be overridden by the desktop backend
 
     # GLAD
     add_library(glad STATIC vendor/glad/src/glad.c)
@@ -327,7 +327,7 @@ if(PLATFORM STREQUAL "desktop")
         set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
     elseif(DESKTOP_BACKEND STREQUAL "appkit")
         add_compile_definitions(USE_APPKIT)
-        set(REQUIRE_CLI_ARGS OFF)
+        set(ENABLE_GUI ON)
         target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)
         set(BACKEND_LIBRARIES "-framework Cocoa" "-framework GameController -framework UniformTypeIdentifiers")
     endif()
@@ -339,8 +339,8 @@ if(PLATFORM STREQUAL "desktop")
         target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
     endif()
 
-    if(REQUIRE_CLI_ARGS)
-        add_compile_definitions(REQUIRE_CLI_ARGS)
+    if(ENABLE_GUI)
+        add_compile_definitions(ENABLE_GUI)
     endif()
 
     # Enable AddressSanitizer by default in Debug builds

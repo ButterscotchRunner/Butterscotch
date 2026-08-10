@@ -3,6 +3,7 @@
 
 #import <AppKit/AppKit.h>
 #import <Cocoa/Cocoa.h>
+#import <Carbon/Carbon.h>
 #import <GameController/GameController.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dlfcn.h>
@@ -17,8 +18,141 @@ static Runner *g_runner;
 static NSWindow *window = nil;
 static NSOpenGLContext *glContext = nil;
 static NSOpenGLView *glView = nil;
-static char *pendingDataWinPath = NULL;
 static bool appShouldQuit = false;
+
+#ifdef ENABLE_GUI
+static char *pendingDataWinPath = NULL;
+
+static PlatformGuiSettings g_platformGuiSettings = {
+    .renderer = "modern-gl",
+    .loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
+    .lazyRooms = false,
+    .lazyTextures = false,
+    .lazyAudio = false,
+    .speedMultiplier = 1.0,
+    .fastForwardSpeed = 0.0,
+};
+
+static NSPopUpButton *rendererPopup = nil;
+static NSPopUpButton *loadTypePopup = nil;
+static NSButton *lazyRoomsCheckbox = nil;
+static NSButton *lazyTexturesCheckbox = nil;
+static NSButton *lazyAudioCheckbox = nil;
+static NSSlider *speedSlider = nil;
+static NSSlider *fastForwardSpeedSlider = nil;
+static NSTextField *speedValueLabel = nil;
+static NSTextField *fastForwardSpeedValueLabel = nil;
+
+#define kPreferencesWindowWidth 420
+#define kPreferencesWindowHeight 300
+
+static const char* rendererNames[] = { "modern-gl", "legacy-gl", "software" };
+static const char* loadTypeNames[] = { "load-in-memory-ahead-of-time", "map-file", "load-per-chunk" };
+
+static const char* GetRendererNameForIndex(NSInteger index) {
+    if (index < 0 || index >= (NSInteger)(sizeof(rendererNames) / sizeof(rendererNames[0])))
+        return rendererNames[0];
+    return rendererNames[index];
+}
+
+static NSInteger GetRendererIndexForName(const char *name) {
+    if (name == NULL) return 0;
+    for (NSInteger i = 0; i < (NSInteger)(sizeof(rendererNames) / sizeof(rendererNames[0])); i++) {
+        if (strcmp(name, rendererNames[i]) == 0)
+            return i;
+    }
+    return 0;
+}
+
+static DataWinLoadType GetLoadTypeForName(NSString *name) {
+    if (name == nil) return DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+    if ([name isEqualToString:[NSString stringWithUTF8String:loadTypeNames[0]]]) {
+        return DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+    }
+    if ([name isEqualToString:[NSString stringWithUTF8String:loadTypeNames[1]]]) {
+        return DATAWINLOADTYPE_MAP_FILE;
+    }
+    if ([name isEqualToString:[NSString stringWithUTF8String:loadTypeNames[2]]]) {
+        return DATAWINLOADTYPE_LOAD_PER_CHUNK;
+    }
+    return DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+}
+
+static NSInteger GetLoadTypeIndexForValue(DataWinLoadType loadType) {
+    switch (loadType) {
+        case DATAWINLOADTYPE_MAP_FILE:
+            return 1;
+        case DATAWINLOADTYPE_LOAD_PER_CHUNK:
+            return 2;
+        case DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME:
+        default:
+            return 0;
+    }
+}
+
+void platformInitGuiSettings(const PlatformGuiSettings *settings) {
+    if (settings != NULL) {
+        g_platformGuiSettings = *settings;
+    }
+}
+
+void platformGetGuiSettings(PlatformGuiSettings *settingsOut) {
+    if (settingsOut == NULL) return;
+    *settingsOut = g_platformGuiSettings;
+}
+
+static void UpdateSpeedValueLabels(void) {
+    if (speedValueLabel) {
+        double speedValue = g_platformGuiSettings.speedMultiplier;
+        speedValue = speedValue > 0 ? speedValue : 1.0;
+        [speedValueLabel setStringValue:[NSString stringWithFormat:@"%.1fx", speedValue]];
+    }
+    if (fastForwardSpeedValueLabel) {
+        if (g_platformGuiSettings.fastForwardSpeed > 0.0) {
+            [fastForwardSpeedValueLabel setStringValue:[NSString stringWithFormat:@"%.1fx", (double)g_platformGuiSettings.fastForwardSpeed]];
+        } else {
+            [fastForwardSpeedValueLabel setStringValue:@"N/A"];
+        }
+    }
+}
+
+void platformGetSpeeds(double *speedMultiplier, double *fastForwardSpeed) {
+    if (speedMultiplier) {
+        double speedValue = g_platformGuiSettings.speedMultiplier;
+        speedValue = speedValue > 0 ? speedValue : 1.0;
+        *speedMultiplier = speedValue;
+    }
+    if (fastForwardSpeed) *fastForwardSpeed = g_platformGuiSettings.fastForwardSpeed;
+}
+
+static void UpdatePreferencesControlsFromSettings(void) {
+    if (!rendererPopup || !loadTypePopup || !lazyRoomsCheckbox || !lazyTexturesCheckbox || !lazyAudioCheckbox || !speedSlider || !fastForwardSpeedSlider)
+        return;
+
+    [rendererPopup selectItemAtIndex:GetRendererIndexForName(g_platformGuiSettings.renderer)];
+    [loadTypePopup selectItemAtIndex:GetLoadTypeIndexForValue(g_platformGuiSettings.loadType)];
+    [lazyRoomsCheckbox setState:g_platformGuiSettings.lazyRooms ? NSControlStateValueOn : NSControlStateValueOff];
+    [lazyTexturesCheckbox setState:g_platformGuiSettings.lazyTextures ? NSControlStateValueOn : NSControlStateValueOff];
+    [lazyAudioCheckbox setState:g_platformGuiSettings.lazyAudio ? NSControlStateValueOn : NSControlStateValueOff];
+    double speedMultiplier = g_platformGuiSettings.speedMultiplier;
+    speedMultiplier = speedMultiplier > 0 ? speedMultiplier : 1.0;
+    [speedSlider setDoubleValue:speedMultiplier];
+    [fastForwardSpeedSlider setDoubleValue:g_platformGuiSettings.fastForwardSpeed];
+    UpdateSpeedValueLabels();
+}
+
+static void SavePreferencesControlsToSettings(void) {
+    g_platformGuiSettings.renderer = GetRendererNameForIndex([rendererPopup indexOfSelectedItem]);
+    g_platformGuiSettings.loadType = GetLoadTypeForName([loadTypePopup titleOfSelectedItem]);
+    g_platformGuiSettings.lazyRooms = ([lazyRoomsCheckbox state] == NSControlStateValueOn);
+    g_platformGuiSettings.lazyTextures = ([lazyTexturesCheckbox state] == NSControlStateValueOn);
+    g_platformGuiSettings.lazyAudio = ([lazyAudioCheckbox state] == NSControlStateValueOn);
+    double speedValue = [speedSlider doubleValue];
+    speedValue = speedValue > 0 ? speedValue : 1.0;
+    g_platformGuiSettings.speedMultiplier = speedValue;
+    g_platformGuiSettings.fastForwardSpeed = [fastForwardSpeedSlider doubleValue];
+}
+#endif
 
 #define USE_PRIVATE_API 0
 
@@ -367,12 +501,14 @@ NSMenu* createAppMenu() {
 
     [appMenu addItem:[NSMenuItem separatorItem]];
 
+#ifdef ENABLE_GUI
     // Open data.win
     NSMenuItem *openItem = [[NSMenuItem alloc]
         initWithTitle:@"Open game..."
         action:@selector(openDataWin:)
         keyEquivalent:@"o"];
     [openItem setKeyEquivalentModifierMask:NSEventModifierFlagCommand];
+    [openItem setTarget:[NSApp delegate]];
     [appMenu addItem:openItem];
 
     [appMenu addItem:[NSMenuItem separatorItem]];
@@ -382,8 +518,10 @@ NSMenu* createAppMenu() {
         initWithTitle:@"Settings..."
         action:@selector(openPreferences:)
         keyEquivalent:@","];
+    [prefsItem setTarget:[NSApp delegate]];
 
     [appMenu addItem:prefsItem];
+#endif
 
     [appMenu addItem:[NSMenuItem separatorItem]];
 
@@ -484,6 +622,8 @@ NSMenu* createWindowMenu() {
 @property (strong) NSWindow *preferencesWindow;
 @end
 
+static AppDelegate *g_appDelegate = nil;
+
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -495,6 +635,19 @@ NSMenu* createWindowMenu() {
     return YES;
 }
 
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    printf("applicationShouldTerminate called\n");
+    appShouldQuit = true;
+    return NSTerminateNow;
+}
+
+- (void)handleQuitEvent:(NSAppleEventDescriptor *)event
+          withReplyEvent:(NSAppleEventDescriptor *)replyEvent
+{
+    appShouldQuit = true;
+}
+
+#ifdef ENABLE_GUI
 - (void)openDataWin:(id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseFiles = YES;
@@ -525,6 +678,145 @@ NSMenu* createWindowMenu() {
         }
     }
 }
+
+- (void)openPreferences:(id)sender {
+    if (self.preferencesWindow == nil) {
+        CGFloat contentHeight = kPreferencesWindowHeight;
+        NSRect contentRect = NSMakeRect(0, 0, kPreferencesWindowWidth, contentHeight);
+        self.preferencesWindow = [[NSWindow alloc] initWithContentRect:contentRect
+                                                              styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                                                                backing:NSBackingStoreBuffered
+                                                                  defer:NO];
+        [self.preferencesWindow setTitle:@"Settings"];
+        [self.preferencesWindow setReleasedWhenClosed:NO];
+        [self.preferencesWindow center];
+
+        NSView *contentView = [[NSView alloc] initWithFrame:contentRect];
+        [self.preferencesWindow setContentView:contentView];
+
+        CGFloat labelX = 20;
+        CGFloat controlX = 180;
+        CGFloat rowY = contentHeight - 40;
+        CGFloat rowHeight = 24;
+        CGFloat spacing = 34;
+
+        NSArray<NSString *> *labels = @[
+            @"Renderer:",
+            @"Load type:",
+            @"Speed:",
+            @"Fast-forward speed:",
+            @"Lazy rooms:",
+            @"Lazy textures:",
+            @"Lazy audio:",
+        ];
+
+        for (NSUInteger i = 0; i < labels.count; i++) {
+            NSTextField *label = [[NSTextField alloc] initWithFrame:NSMakeRect(labelX, rowY - i * spacing, 140, rowHeight)];
+            [label setStringValue:labels[i]];
+            [label setBezeled:NO];
+            [label setDrawsBackground:NO];
+            [label setEditable:NO];
+            [label setSelectable:NO];
+            [contentView addSubview:label];
+        }
+
+        int spaceMult = 0;
+
+        rendererPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult++, 200, rowHeight) pullsDown:NO];
+        [rendererPopup addItemsWithTitles:@[
+            @"Modern GL",
+            @"Legacy GL",
+            // @"Software"
+        ]];
+        [contentView addSubview:rendererPopup];
+
+        loadTypePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult++, 200, rowHeight) pullsDown:NO];
+        [loadTypePopup addItemsWithTitles:@[
+            @"Load into memory",
+            @"Memory map",
+            @"Load on demand"
+        ]];
+        [contentView addSubview:loadTypePopup];
+
+        speedSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult, 160, rowHeight)];
+        [speedSlider setMinValue:0.5];
+        [speedSlider setMaxValue:8.0];
+        [speedSlider setDoubleValue:g_platformGuiSettings.speedMultiplier];
+        [speedSlider setTarget:self];
+        [speedSlider setAction:@selector(speedSliderChanged:)];
+        [contentView addSubview:speedSlider];
+        [speedSlider setNumberOfTickMarks:16];
+        [speedSlider setAllowsTickMarkValuesOnly:YES];
+
+        speedValueLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(controlX + 120, rowY - spacing * spaceMult++, 80, rowHeight)];
+        [speedValueLabel setBezeled:NO];
+        [speedValueLabel setDrawsBackground:NO];
+        [speedValueLabel setEditable:NO];
+        [speedValueLabel setSelectable:NO];
+        [speedValueLabel setAlignment:NSTextAlignmentRight];
+        [contentView addSubview:speedValueLabel];
+
+        fastForwardSpeedSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult, 160, rowHeight)];
+        [fastForwardSpeedSlider setMinValue:0.0];
+        [fastForwardSpeedSlider setMaxValue:8.0];
+        [fastForwardSpeedSlider setDoubleValue:g_platformGuiSettings.fastForwardSpeed];
+        [fastForwardSpeedSlider setTarget:self];
+        [fastForwardSpeedSlider setAction:@selector(fastForwardSpeedSliderChanged:)];
+        [fastForwardSpeedSlider setNumberOfTickMarks:17];
+        [contentView addSubview:fastForwardSpeedSlider];
+
+        fastForwardSpeedValueLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(controlX + 120, rowY - spacing * spaceMult++, 80, rowHeight)];
+        [fastForwardSpeedValueLabel setBezeled:NO];
+        [fastForwardSpeedValueLabel setDrawsBackground:NO];
+        [fastForwardSpeedValueLabel setEditable:NO];
+        [fastForwardSpeedValueLabel setSelectable:NO];
+        [fastForwardSpeedValueLabel setAlignment:NSTextAlignmentRight];
+        [contentView addSubview:fastForwardSpeedValueLabel];
+
+        lazyRoomsCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult++, 200, rowHeight)];
+        [lazyRoomsCheckbox setButtonType:NSButtonTypeSwitch];
+        [lazyRoomsCheckbox setTitle:@""];
+        [contentView addSubview:lazyRoomsCheckbox];
+
+        lazyTexturesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult++, 200, rowHeight)];
+        [lazyTexturesCheckbox setButtonType:NSButtonTypeSwitch];
+        [lazyTexturesCheckbox setTitle:@""];
+        [contentView addSubview:lazyTexturesCheckbox];
+
+        lazyAudioCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(controlX, rowY - spacing * spaceMult++, 200, rowHeight)];
+        [lazyAudioCheckbox setButtonType:NSButtonTypeSwitch];
+        [lazyAudioCheckbox setTitle:@""];
+        [contentView addSubview:lazyAudioCheckbox];
+
+        NSButton *saveButton = [[NSButton alloc] initWithFrame:NSMakeRect(kPreferencesWindowWidth - 120, 20, 100, 28)];
+        [saveButton setTitle:@"Apply"];
+        [saveButton setBezelStyle:NSBezelStyleRounded];
+        [saveButton setTarget:self];
+        [saveButton setAction:@selector(savePreferences:)];
+        [contentView addSubview:saveButton];
+
+        UpdatePreferencesControlsFromSettings();
+    }
+
+    [self.preferencesWindow makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)speedSliderChanged:(NSSlider *)sender {
+    g_platformGuiSettings.speedMultiplier = [sender doubleValue];
+    UpdateSpeedValueLabels();
+}
+
+- (void)fastForwardSpeedSliderChanged:(NSSlider *)sender {
+    g_platformGuiSettings.fastForwardSpeed = [sender doubleValue];
+    UpdateSpeedValueLabels();
+}
+
+- (void)savePreferences:(id)sender {
+    SavePreferencesControlsToSettings();
+    [self.preferencesWindow close];
+}
+#endif
 
 - (void)setupMenu {
     NSMenu *appMenu = createAppMenu();
@@ -560,10 +852,18 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-    AppDelegate *delegate = [[AppDelegate alloc] init];
-    [NSApp setDelegate:delegate];
+    g_appDelegate = [[AppDelegate alloc] init];
+    NSAppleEventManager *appleEventManager =
+        [NSAppleEventManager sharedAppleEventManager];
 
-    [delegate setupMenu];
+    [appleEventManager setEventHandler:g_appDelegate
+                        andSelector:@selector(handleQuitEvent:withReplyEvent:)
+                        forEventClass:kCoreEventClass
+                            andEventID:kAEQuitApplication];
+    
+    [NSApp setDelegate:g_appDelegate];
+
+    [g_appDelegate setupMenu];
 
     if (@available(macOS 10.15, *)) {
         [GCController startWirelessControllerDiscoveryWithCompletionHandler:nil];
@@ -602,7 +902,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (!window)
         return false;
 
-    [window setDelegate:delegate];
+    [window setDelegate:g_appDelegate];
     [window setTitle:[NSString stringWithFormat:@"%s", title]];
     [window setAcceptsMouseMovedEvents:YES];
 
@@ -643,6 +943,7 @@ void platformExit(void) {
     window = nil;
 }
 
+#ifdef ENABLE_GUI
 void platformShowWindow(void) {
     if (window) {
         [window makeKeyAndOrderFront:nil];
@@ -654,6 +955,7 @@ char* platformConsumePendingDataWinPath(void) {
     pendingDataWinPath = NULL;
     return path;
 }
+#endif
 
 static void platformSetCursor(int32_t cursorType) {
     [NSCursor unhide];
@@ -733,6 +1035,13 @@ bool platformHandleEvents(void)
     while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                        untilDate:[NSDate distantPast]
                                           inMode:NSDefaultRunLoopMode
+                                         dequeue:YES])) {
+        [NSApp sendEvent:event];
+    }
+
+    while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                       untilDate:[NSDate distantPast]
+                                          inMode:NSEventTrackingRunLoopMode
                                          dequeue:YES])) {
         [NSApp sendEvent:event];
     }

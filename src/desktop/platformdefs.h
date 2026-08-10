@@ -3,8 +3,30 @@
 
 #include <stdbool.h>
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "runner.h"
 #include "input_recording.h"
+#include "data_win.h"
+
+#ifdef ENABLE_GUI
+typedef struct {
+    const char* renderer;
+    DataWinLoadType loadType;
+    bool lazyRooms;
+    bool lazyTextures;
+    bool lazyAudio;
+    double speedMultiplier;
+    double fastForwardSpeed;
+} PlatformGuiSettings;
+
+void platformInitGuiSettings(const PlatformGuiSettings *settings);
+void platformGetGuiSettings(PlatformGuiSettings *settingsOut);
+void platformGetSpeeds(double *speedMultiplier, double *fastForwardSpeed);
+
+void platformShowWindow(void);
+char* platformConsumePendingDataWinPath(void);
+#endif
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless);
 void platformInitFunctions(Runner *);
@@ -18,8 +40,6 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH);
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH);
 void platformSetWindowSize(int32_t width, int32_t height);
 void platformSetWindowTitle(const char* title);
-void platformShowWindow(void);
-char* platformConsumePendingDataWinPath(void);
 void platformSleepUntil(uint64_t time);
 
 enum GraphicsAPI {

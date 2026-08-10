@@ -854,11 +854,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
-#ifdef REQUIRE_CLI_ARGS
+#ifdef ENABLE_GUI
+        args->dataWinPath = NULL;
+#else
         printUsage(argv[0]);
         exit(1);
-#else
-        args->dataWinPath = NULL;
 #endif
     } else {
         args->dataWinPath = argv[optind];
@@ -1071,6 +1071,17 @@ int main(int argc, char* argv[]) {
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
 
+#ifdef ENABLE_GUI
+    PlatformGuiSettings guiSettings = {
+        .renderer = args.renderer,
+        .loadType = args.loadType,
+        .lazyRooms = args.lazyRooms,
+        .lazyTextures = args.lazyTextures,
+        .lazyAudio = args.lazyAudio,
+    };
+    platformInitGuiSettings(&guiSettings);
+#endif
+
     logColour = !args.disableLogColours;
 
     char* currentDataWinPath = args.dataWinPath ? safeStrdup(args.dataWinPath) : NULL;
@@ -1085,7 +1096,7 @@ int main(int argc, char* argv[]) {
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
 
-#ifndef REQUIRE_CLI_ARGS
+#ifdef ENABLE_GUI
     if (currentDataWinPath == NULL) {
         args.headless = true;
         if (!platformInit(640, 480, "Butterscotch", true)) {
@@ -1132,6 +1143,16 @@ int main(int argc, char* argv[]) {
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
     while (true) {
+#ifdef ENABLE_GUI
+        PlatformGuiSettings guiSettings;
+        platformGetGuiSettings(&guiSettings);
+        args.renderer = guiSettings.renderer;
+        args.loadType = guiSettings.loadType;
+        args.lazyRooms = guiSettings.lazyRooms;
+        args.lazyTextures = guiSettings.lazyTextures;
+        args.lazyAudio = guiSettings.lazyAudio;
+        platformGetSpeeds(&args.speedMultiplier, &args.fastForwardSpeed);
+#endif
         logInfo("Loading %s...\n", args.dataWinPath);
 
         DataWinParserOptions options = {0};
@@ -1920,6 +1941,9 @@ int main(int argc, char* argv[]) {
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
             if (!args.headless && runner->currentRoom->speed > 0) {
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, VK_TAB);
+#ifdef ENABLE_GUI
+                platformGetSpeeds(&args.speedMultiplier, &args.fastForwardSpeed);
+#endif
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
                     lastFrameTime = nowNanos();
