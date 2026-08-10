@@ -1862,7 +1862,7 @@ static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
     if (abort) {
         fprintf(stderr, "Game aborted due to show_error() call.\n");
-        exit(EXIT_FAILURE);
+        runner->shouldExit = true;
     }
 
     return RValue_makeUndefined();
