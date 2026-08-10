@@ -319,6 +319,7 @@ typedef struct {
     uint32_t internalPointCount;
     InternalPathPoint* internalPoints;
     float length; // total arc length
+    bool exists;
 } GamePath;
 
 typedef struct {
