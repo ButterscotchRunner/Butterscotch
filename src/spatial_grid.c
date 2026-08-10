@@ -34,11 +34,13 @@ void SpatialGrid_free(SpatialGrid* grid) {
 }
 
 static void removeInstanceFromGridCells(SpatialGrid* grid, Instance* instance) {
+    int32_t totalCells = (int32_t)grid->gridWidth * (int32_t)grid->gridHeight;
     repeat(arrlen(instance->collisionCells), i) {
         uint32_t gridCoordinates = instance->collisionCells[i];
         int32_t gridX = SpatialGrid_unpackGridX(gridCoordinates);
         int32_t gridY = SpatialGrid_unpackGridY(gridCoordinates);
         int32_t cellIndex = SpatialGrid_cellIndex(grid, gridX, gridY);
+        if (cellIndex < 0 || cellIndex >= totalCells) continue;
         repeat(arrlen(grid->grid[cellIndex]), j) {
             if (grid->grid[cellIndex][j] == instance) {
                 arrdel(grid->grid[cellIndex], j);
