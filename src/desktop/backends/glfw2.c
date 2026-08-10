@@ -1,10 +1,6 @@
 #include "stdio_compat.h"
 #include <time.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 #ifdef ENABLE_SW_RENDERER
 #include <glad/glad.h>
 #endif
@@ -56,19 +52,18 @@ static bool tryOpenWindow(int reqW, int reqH) {
 #endif
 }
 
-#ifdef TARGET_OS_MAC
-// Forward declaration for macOS error box function: src/desktop/platform/macos.m
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(LINUX_GUI)
+#define PLATFORM_HAS_ERROR_BOX
+#endif
+
+#ifdef PLATFORM_HAS_ERROR_BOX
 void show_error_box(const char *message);
 #endif
 
 void platformShowErrorDialogue(const char* message) {
-#ifdef _WIN32
-    MessageBoxA(NULL, message, "Error", MB_OK | MB_ICONERROR);
-#elif defined(TARGET_OS_MAC)
+#ifdef PLATFORM_HAS_ERROR_BOX
     show_error_box(message);
 #else
-    // The error message is printed to console in builtin_show_error, and there's no GUI error box for Linux yet.
-    // If you're seeing this, feel free to add a GUI for your favorite Linux desktop environment :)
     (void)message; // Suppress unused parameter warning
 #endif
 }
