@@ -56,6 +56,23 @@ static bool tryOpenWindow(int reqW, int reqH) {
 #endif
 }
 
+#ifdef TARGET_OS_MAC
+// Forward declaration for macOS error box function: src/desktop/platform/macos.m
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef _WIN32
+    MessageBoxA(NULL, message, "Error", MB_OK | MB_ICONERROR);
+#elif defined(TARGET_OS_MAC)
+    show_error_box(message);
+#else
+    // The error message is printed to console in builtin_show_error, and there's no GUI error box for Linux yet.
+    // If you're seeing this, feel free to add a GUI for your favorite Linux desktop environment :)
+    (void)message; // Suppress unused parameter warning
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);

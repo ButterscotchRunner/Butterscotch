@@ -75,6 +75,16 @@ SRCS += $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c src/desktop/backend
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
+
+# Add macOS-specific source files for show_error_message
+ifeq ($(OS),Darwin)
+# In SDL2/SDL3, error messages are handled by SDL, so we don't need to add any additional source files for that backend.
+ifeq ($(filter sdl2 sdl3,$(DESKTOP_BACKEND)),)
+SRCS += src/desktop/platform/macos.m
+LIBS += -framework Cocoa
+endif
+endif
+
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
 GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
