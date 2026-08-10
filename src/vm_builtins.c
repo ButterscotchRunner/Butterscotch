@@ -1844,17 +1844,34 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
 }
 
 // show_error(str, abort) - Displays an error message and optionally aborts the game
-static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) {
         fprintf(stderr, "[show_error] Expected at least 2 arguments\n");
         return RValue_makeUndefined();
     }
 
-    char* error_msg = RValue_toString(args[0]);
+    char* raw_error_msg = RValue_toString(args[0]);
     bool abort = RValue_toBool(args[1]);
 
-    fprintf(stderr, "[show_error] %s\n", error_msg);
     Runner* runner = ctx->runner;
+    int32_t currentEventType = ctx->currentEventType;
+
+    const char* codeName = ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
+    const char* eventName = Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype);
+    const char* objectName = "<unknown>";
+    if (runner != nullptr && runner->dataWin != nullptr && ctx->currentEventObjectIndex >= 0 &&
+        (uint32_t) ctx->currentEventObjectIndex < runner->dataWin->objt.count) {
+        objectName = runner->dataWin->objt.objects[ctx->currentEventObjectIndex].name;
+    }
+
+    int formattedLen = snprintf(NULL, 0, "ERROR in %s event for object %s (%s): %s",
+                                eventName, objectName, codeName, raw_error_msg);
+    char* error_msg = (char*) safeMalloc((size_t) formattedLen + 1);
+    snprintf(error_msg, (size_t) formattedLen + 1, "ERROR in %s event for object %s (%s): %s",
+             eventName, objectName, codeName, raw_error_msg);
+    free(raw_error_msg);
+
+    fprintf(stderr, "[show_error] %s\n", error_msg);
     if (runner->showErrorDialogue) {
         runner->showErrorDialogue(error_msg);
     }
