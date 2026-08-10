@@ -1730,7 +1730,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             return;
         case BUILTIN_VAR_BACKGROUND_COLOR:
         case BUILTIN_VAR_BACKGROUND_COLOUR:
-            runner->backgroundColor = (uint32_t) RValue_toInt32(val);
+            runner->backgroundColor = RValue_toColour(val);
             return;
 
         // Room properties
@@ -9616,7 +9616,7 @@ static RValue builtin_draw_sprite_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED
     float xscale = (float) RValue_toReal(args[4]);
     float yscale = (float) RValue_toReal(args[5]);
     float rot = (float) RValue_toReal(args[6]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[7]);
+    uint32_t color = RValue_toColour(args[7]);
     float alpha = (float) RValue_toReal(args[8]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -9656,7 +9656,7 @@ static RValue builtin_draw_sprite_tiled_ext(VMContext* ctx, RValue* args, MAYBE_
     float y = (float) RValue_toReal(args[3]);
     float xscale = (float) RValue_toReal(args[4]);
     float yscale = (float) RValue_toReal(args[5]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color = RValue_toColour(args[6]);
     float alpha = (float) RValue_toReal(args[7]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -9698,7 +9698,7 @@ static RValue builtin_draw_sprite_stretched_ext(VMContext* ctx, RValue* args, MA
     float y = (float) RValue_toReal(args[3]);
     float w = (float) RValue_toReal(args[4]);
     float h = (float) RValue_toReal(args[5]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color = RValue_toColour(args[6]);
     float alpha = (float) RValue_toReal(args[7]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -9745,7 +9745,7 @@ static RValue builtin_draw_sprite_part_ext(VMContext* ctx, RValue* args, MAYBE_U
     float y = (float) RValue_toReal(args[7]);
     float xscale = (float) RValue_toReal(args[8]);
     float yscale = (float) RValue_toReal(args[9]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[10]);
+    uint32_t color = RValue_toColour(args[10]);
     float alpha = (float) RValue_toReal(args[11]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -9772,7 +9772,7 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
     float xscale = (float) RValue_toReal(args[8]);
     float yscale = (float) RValue_toReal(args[9]);
     float rot = (float) RValue_toReal(args[10]);
-    uint32_t c1 = (uint32_t) RValue_toInt32(args[11]);
+    uint32_t c1 = RValue_toColour(args[11]);
     float alpha = (float) RValue_toReal(args[15]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
@@ -9835,10 +9835,10 @@ static RValue builtin_draw_rectangle_color(VMContext* ctx, RValue* args, MAYBE_U
     float y1 = (float) RValue_toReal(args[1]);
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
-    uint32_t color1 = (uint32_t) RValue_toInt32(args[4]);
-    uint32_t color2 = (uint32_t) RValue_toInt32(args[5]);
-    uint32_t color3 = (uint32_t) RValue_toInt32(args[6]);
-    uint32_t color4 = (uint32_t) RValue_toInt32(args[7]);
+    uint32_t color1 = RValue_toColour(args[4]);
+    uint32_t color2 = RValue_toColour(args[5]);
+    uint32_t color3 = RValue_toColour(args[6]);
+    uint32_t color4 = RValue_toColour(args[7]);
     bool outline = RValue_toBool(args[8]);
     if (runner->applyOffsetForPrimitives) {
         x2 += 1.0f; y2 += 1.0f;
@@ -9863,9 +9863,9 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     float healthbarX = (x1 * (1-amount) + x2 * amount);
     //float healthbarY = (y1 * (1-amount) + y2 * amount);
 
-    uint32_t backCol = (uint32_t) RValue_toInt32(args[5]);
-    uint32_t minCol = (uint32_t) RValue_toInt32(args[6]);
-    uint32_t maxCol = (uint32_t) RValue_toInt32(args[7]);
+    uint32_t backCol = RValue_toColour(args[5]);
+    uint32_t minCol = RValue_toColour(args[6]);
+    uint32_t maxCol = RValue_toColour(args[7]);
     uint32_t intermediateColor = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, amount);
 
     bool showBack = RValue_toBool(args[9]);
@@ -9881,7 +9881,7 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
 static RValue builtin_draw_set_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        runner->renderer->drawColor = (uint32_t) RValue_toInt32(args[0]);
+        runner->renderer->drawColor = RValue_toColour(args[0]);
     }
     return RValue_makeUndefined();
 }
@@ -9889,7 +9889,7 @@ static RValue builtin_draw_set_color(VMContext* ctx, RValue* args, MAYBE_UNUSED 
 static RValue builtin_draw_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        uint32_t color = (uint32_t) RValue_toInt32(args[0]);
+        uint32_t color = RValue_toColour(args[0]);
         runner->renderer->vtable->clearScreen(runner->renderer, color, 1.0f);
     }
     return RValue_makeUndefined();
@@ -9898,7 +9898,7 @@ static RValue builtin_draw_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 static RValue builtin_draw_clear_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        uint32_t color = (uint32_t) RValue_toInt32(args[0]);
+        uint32_t color = RValue_toColour(args[0]);
         float alpha = RValue_toReal(args[1]);
         runner->renderer->vtable->clearScreen(runner->renderer, color, alpha);
     }
@@ -10034,10 +10034,10 @@ static RValue builtin_draw_text_color(VMContext* ctx, RValue* args, MAYBE_UNUSED
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
     char* str = RValue_toString(args[2]);
-    int32_t c1 = RValue_toInt32(args[3]);
-    int32_t c2 = RValue_toInt32(args[4]);
-    int32_t c3 = RValue_toInt32(args[5]);
-    int32_t c4 = RValue_toInt32(args[6]);
+    int32_t c1 = (int32_t) RValue_toColour(args[3]);
+    int32_t c2 = (int32_t) RValue_toColour(args[4]);
+    int32_t c3 = (int32_t) RValue_toColour(args[5]);
+    int32_t c4 = (int32_t) RValue_toColour(args[6]);
     float alpha = (float) RValue_toReal(args[7]);
 
     PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
@@ -10057,10 +10057,10 @@ static RValue builtin_draw_text_color_transformed(VMContext* ctx, RValue* args, 
     float xscale = (float) RValue_toReal(args[3]);
     float yscale = (float) RValue_toReal(args[4]);
     float angle = (float) RValue_toReal(args[5]);
-    int32_t c1 = RValue_toInt32(args[6]);
-    int32_t c2 = RValue_toInt32(args[7]);
-    int32_t c3 = RValue_toInt32(args[8]);
-    int32_t c4 = RValue_toInt32(args[9]);
+    int32_t c1 = (int32_t) RValue_toColour(args[6]);
+    int32_t c2 = (int32_t) RValue_toColour(args[7]);
+    int32_t c3 = (int32_t) RValue_toColour(args[8]);
+    int32_t c4 = (int32_t) RValue_toColour(args[9]);
     float alpha = (float) RValue_toReal(args[10]);
 
     PreprocessedText processedText = TextUtils_preprocessGmlTextIfNeeded(runner, str);
@@ -10092,10 +10092,10 @@ static RValue builtin_draw_text_color_ext(VMContext* ctx, RValue* args, MAYBE_UN
     char* str = RValue_toString(args[2]);
     int32_t separation = RValue_toInt32(args[3]);
     int32_t width = RValue_toInt32(args[4]);
-    int32_t c1 = RValue_toInt32(args[5]);
-    int32_t c2 = RValue_toInt32(args[6]);
-    int32_t c3 = RValue_toInt32(args[7]);
-    int32_t c4 = RValue_toInt32(args[8]);
+    int32_t c1 = (int32_t) RValue_toColour(args[5]);
+    int32_t c2 = (int32_t) RValue_toColour(args[6]);
+    int32_t c3 = (int32_t) RValue_toColour(args[7]);
+    int32_t c4 = (int32_t) RValue_toColour(args[8]);
     float alpha = (float) RValue_toReal(args[9]);
 
     drawTextColorExtCommon(runner, str, x, y, 1.0f, 1.0f, 0.0f, separation, width, c1, c2, c3, c4, alpha);
@@ -10115,10 +10115,10 @@ static RValue builtin_draw_text_color_ext_transformed(VMContext* ctx, RValue* ar
     float xscale = (float) RValue_toReal(args[5]);
     float yscale = (float) RValue_toReal(args[6]);
     float angle = (float) RValue_toReal(args[7]);
-    int32_t c1 = RValue_toInt32(args[8]);
-    int32_t c2 = RValue_toInt32(args[9]);
-    int32_t c3 = RValue_toInt32(args[10]);
-    int32_t c4 = RValue_toInt32(args[11]);
+    int32_t c1 = (int32_t) RValue_toColour(args[8]);
+    int32_t c2 = (int32_t) RValue_toColour(args[9]);
+    int32_t c3 = (int32_t) RValue_toColour(args[10]);
+    int32_t c4 = (int32_t) RValue_toColour(args[11]);
     float alpha = (float) RValue_toReal(args[12]);
 
     drawTextColorExtCommon(runner, str, x, y, xscale, yscale, angle, separation, width, c1, c2, c3, c4, alpha);
@@ -10151,7 +10151,7 @@ static RValue builtin_draw_background_ext(VMContext* ctx, RValue* args, MAYBE_UN
     float xscale = (float) RValue_toReal(args[3]);
     float yscale = (float) RValue_toReal(args[4]);
     float rot = (float) RValue_toReal(args[5]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color = RValue_toColour(args[6]);
     float alpha = (float) RValue_toReal(args[7]);
 
     int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(runner->dataWin, bgIndex);
@@ -10214,7 +10214,7 @@ static RValue builtin_draw_background_part_ext(VMContext* ctx, RValue* args, MAY
     float y = (float) RValue_toReal(args[6]);
     float xscale = (float) RValue_toReal(args[7]);
     float yscale = (float) RValue_toReal(args[8]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[9]);
+    uint32_t color = RValue_toColour(args[9]);
     float alpha = (float) RValue_toReal(args[10]);
 
     int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(runner->dataWin, bgIndex);
@@ -10250,7 +10250,7 @@ static RValue builtin_draw_background_tiled_ext(VMContext* ctx, RValue* args, MA
     float y = (float) RValue_toReal(args[2]);
     float xscale = (float) RValue_toReal(args[3]);
     float yscale = (float) RValue_toReal(args[4]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[5]);
+    uint32_t color = RValue_toColour(args[5]);
     float alpha = (float) RValue_toReal(args[6]);
 
     int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(runner->dataWin, bgIndex);
@@ -10304,7 +10304,7 @@ static RValue builtin_draw_point_color(VMContext* ctx, RValue* args, MAYBE_UNUSE
     if (runner->renderer == nullptr) return RValue_makeUndefined();
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    uint32_t col = (uint32_t) RValue_toInt32(args[2]);
+    uint32_t col = RValue_toColour(args[2]);
     if (runner->applyOffsetForPrimitives) { x += 1.0f; y += 1.0f; }
     runner->renderer->vtable->drawRectangle(runner->renderer, x, y, x + 1.0f, y + 1.0f,
         col, runner->renderer->drawAlpha, false);
@@ -10374,8 +10374,8 @@ static RValue builtin_draw_line_width_colour(VMContext* ctx, RValue* args, MAYBE
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
         float w = (float) RValue_toReal(args[4]);
-        uint32_t col1 = (uint32_t) RValue_toInt32(args[5]);
-        uint32_t col2 = (uint32_t) RValue_toInt32(args[6]);
+        uint32_t col1 = RValue_toColour(args[5]);
+        uint32_t col2 = RValue_toColour(args[6]);
         if (runner->applyOffsetForPrimitives) {
             x1 += 1.0f; y1 += 1.0f;
             x2 += 1.0f; y2 += 1.0f;
@@ -10417,9 +10417,9 @@ static RValue builtin_draw_triangle_color(VMContext* ctx, RValue* args, MAYBE_UN
         float y2 = (float) RValue_toReal(args[3]);
         float x3 = (float) RValue_toReal(args[4]);
         float y3 = (float) RValue_toReal(args[5]);
-        uint32_t col1 = (uint32_t) RValue_toInt32(args[6]);
-        uint32_t col2 = (uint32_t) RValue_toInt32(args[7]);
-        uint32_t col3 = (uint32_t) RValue_toInt32(args[8]);
+        uint32_t col1 = RValue_toColour(args[6]);
+        uint32_t col2 = RValue_toColour(args[7]);
+        uint32_t col3 = RValue_toColour(args[8]);
         bool outline = RValue_toBool(args[9]);
         if (runner->applyOffsetForPrimitives) {
             x1 += 1.0f; y1 += 1.0f;
@@ -10454,8 +10454,8 @@ static RValue builtin_draw_circle_color(VMContext* ctx, RValue* args, MAYBE_UNUS
         float x = (float) RValue_toReal(args[0]);
         float y = (float) RValue_toReal(args[1]);
         float r = (float) RValue_toReal(args[2]);
-        uint32_t col1 = (uint32_t) RValue_toInt32(args[3]);
-        uint32_t col2 = (uint32_t) RValue_toInt32(args[4]);
+        uint32_t col1 = RValue_toColour(args[3]);
+        uint32_t col2 = RValue_toColour(args[4]);
         bool outline = RValue_toBool(args[5]);
         Renderer_drawCircleColor(runner->renderer, x, y, r, col1, col2, outline);
     }
@@ -10489,8 +10489,8 @@ static RValue builtin_draw_ellipse_color(VMContext* ctx, RValue* args, MAYBE_UNU
         float y1 = (float) RValue_toReal(args[1]);
         float x2 = (float) RValue_toReal(args[2]);
         float y2 = (float) RValue_toReal(args[3]);
-        uint32_t col1 = (uint32_t) RValue_toInt32(args[4]);
-        uint32_t col2 = (uint32_t) RValue_toInt32(args[5]);
+        uint32_t col1 = RValue_toColour(args[4]);
+        uint32_t col2 = RValue_toColour(args[5]);
         bool outline = RValue_toBool(args[6]);
         if (runner->applyOffsetForPrimitives) {
             x1 += 1.0f; y1 += 1.0f;
@@ -10522,7 +10522,7 @@ static RValue builtin_draw_get_circle_precision(VMContext* ctx, MAYBE_UNUSED RVa
 static RValue builtin_draw_set_colour(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        runner->renderer->drawColor = (uint32_t) RValue_toInt32(args[0]);
+        runner->renderer->drawColor = RValue_toColour(args[0]);
     }
     return RValue_makeUndefined();
 }
@@ -10594,8 +10594,8 @@ static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount)
 
 // merge_color(col1, col2, amount) - lerps between two colors
 static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    int32_t col1 = RValue_toInt32(args[0]);
-    int32_t col2 = RValue_toInt32(args[1]);
+    int32_t col1 = (int32_t) RValue_toColour(args[0]);
+    int32_t col2 = (int32_t) RValue_toColour(args[1]);
     float amount = (float) RValue_toReal(args[2]);
     return RValue_makeReal((GMLReal) Color_lerp(col1, col2, amount));
 }
@@ -10722,7 +10722,7 @@ static RValue builtin_draw_surface_ext(VMContext* ctx, RValue* args, MAYBE_UNUSE
     float xscale = (float) RValue_toReal(args[3]);
     float yscale = (float) RValue_toReal(args[4]);
     float rot = (float) RValue_toReal(args[5]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[6]);
+    uint32_t color = RValue_toColour(args[6]);
     float alpha = (float) RValue_toReal(args[7]);
 
 
@@ -10766,7 +10766,7 @@ static RValue builtin_draw_surface_part_ext(VMContext* ctx, RValue* args, MAYBE_
 
     float xscale = (float) RValue_toReal(args[7]);
     float yscale = (float) RValue_toReal(args[8]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[9]);
+    uint32_t color = RValue_toColour(args[9]);
     float alpha = (float) RValue_toReal(args[10]);
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
@@ -10800,7 +10800,7 @@ static RValue builtin_draw_surface_stretched_ext(VMContext* ctx, RValue* args, M
     float y = (float) RValue_toReal(args[2]);
     float width = (float) RValue_toReal(args[3]);
     float height = (float) RValue_toReal(args[4]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[5]);
+    uint32_t color = RValue_toColour(args[5]);
     float alpha = (float) RValue_toReal(args[6]);
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
@@ -10832,7 +10832,7 @@ static RValue builtin_draw_surface_tiled_ext(VMContext* ctx, RValue* args, MAYBE
     float y = (float) RValue_toReal(args[2]);
     float xscale = (float) RValue_toReal(args[3]);
     float yscale = (float) RValue_toReal(args[4]);
-    uint32_t color = (uint32_t) RValue_toInt32(args[5]);
+    uint32_t color = RValue_toColour(args[5]);
     float alpha = (float) RValue_toReal(args[6]);
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
@@ -11204,21 +11204,21 @@ static void Color_RGBtoHSV(int32_t col, GMLReal* outH, GMLReal* outS, GMLReal* o
 static RValue builtin_color_get_hue(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal h, s, v;
-    Color_RGBtoHSV(RValue_toInt32(args[0]), &h, &s, &v);
+    Color_RGBtoHSV((int32_t) RValue_toColour(args[0]), &h, &s, &v);
     return RValue_makeReal(h);
 }
 
 static RValue builtin_color_get_saturation(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal h, s, v;
-    Color_RGBtoHSV(RValue_toInt32(args[0]), &h, &s, &v);
+    Color_RGBtoHSV((int32_t) RValue_toColour(args[0]), &h, &s, &v);
     return RValue_makeReal(s);
 }
 
 static RValue builtin_color_get_value(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal h, s, v;
-    Color_RGBtoHSV(RValue_toInt32(args[0]), &h, &s, &v);
+    Color_RGBtoHSV((int32_t) RValue_toColour(args[0]), &h, &s, &v);
     return RValue_makeReal(v);
 }
 
@@ -12673,7 +12673,7 @@ static RValue builtin_action_sprite_set(VMContext* ctx, RValue* args, MAYBE_UNUS
 static RValue builtin_action_sprite_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* inst = ctx->currentInstance;
     if (inst == nullptr) return RValue_makeUndefined();
-    inst->imageBlend = (uint32_t) RValue_toInt32(args[0]);
+    inst->imageBlend = RValue_toColour(args[0]);
     inst->imageAlpha = (float) RValue_toReal(args[1]);
     return RValue_makeUndefined();
 }
@@ -12734,7 +12734,7 @@ static RValue builtin_action_reverse_ydir(VMContext* ctx, MAYBE_UNUSED RValue* a
 static RValue builtin_action_color(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr) {
-        runner->renderer->drawColor = (uint32_t) RValue_toInt32(args[0]);
+        runner->renderer->drawColor = RValue_toColour(args[0]);
     }
     return RValue_makeUndefined();
 }
@@ -13468,7 +13468,7 @@ static RValue builtin_layer_background_stretch(VMContext* ctx, RValue* args, MAY
 static RValue builtin_layer_background_blend(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
-    uint32_t blend = (uint32_t) RValue_toInt32(args[1]) & 0x00FFFFFF;
+    uint32_t blend = RValue_toColour(args[1]) & 0x00FFFFFF;
     RuntimeBackgroundElement* bg = findBackgroundElement(runner, id);
     if (bg != nullptr)
         bg->blend = blend;
@@ -14592,7 +14592,9 @@ static RValue builtin_throw(VMContext* ctx, RValue* args, int32_t argCount) {
 static GamePath* getPath(Runner* runner, int32_t pathIdx) {
     if (0 > pathIdx) return nullptr;
     if ((uint32_t) pathIdx >= runner->dataWin->path.count) return nullptr;
-    return &runner->dataWin->path.paths[pathIdx];
+    
+    GamePath* p = &runner->dataWin->path.paths[pathIdx];
+    return p->exists ? p : nullptr;
 }
 
 // path_exists(path)
@@ -14620,6 +14622,7 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     p->internalPointCount = 0;
     p->internalPoints = nullptr;
     p->length = 0.0;
+    p->exists = true;
     pc->count = newIdx + 1;
     return RValue_makeInt32((int32_t) newIdx);
 }
@@ -14744,6 +14747,7 @@ static RValue builtin_path_delete(VMContext* ctx, RValue* args, int32_t argCount
     free(p->points); p->points = nullptr; p->pointCount = 0;
     free(p->internalPoints); p->internalPoints = nullptr; p->internalPointCount = 0;
     p->length = 0.0;
+    p->exists = false;
     return RValue_makeUndefined();
 }
 
@@ -16500,10 +16504,10 @@ static RValue builtin_gpu_set_fog(VMContext* ctx, RValue* args, int32_t argCount
     if (argCount == 1 && args[0].type == RVALUE_ARRAY && args[0].array != nullptr && GMLArray_length1D(args[0].array) >= 2) {
         GMLArray* arr = args[0].array;
         enable = RValue_toBool(*GMLArray_slot(arr, 0));
-        color = RValue_toInt32(*GMLArray_slot(arr, 1));
+        color = (int32_t) RValue_toColour(*GMLArray_slot(arr, 1));
     } else if (argCount >= 2) {
         enable = RValue_toBool(args[0]);
-        color = RValue_toInt32(args[1]);
+        color = (int32_t) RValue_toColour(args[1]);
     } else {
         return RValue_makeUndefined();
     }
