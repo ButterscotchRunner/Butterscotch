@@ -371,7 +371,7 @@ static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int3
 
 // Executes an already-resolved event handler (see findEventCodeIdAndOwner) and verified codeId >= 0.
 static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
-    if (isEventBlockedByPendingRoom(runner, instance, eventType))
+    if (isEventBlockedByPendingRoom(runner, instance, eventType) || runner->shouldExit)
         return;
 
     VMContext* vm = runner->vmContext;
