@@ -1845,21 +1845,20 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
 
 // show_error(str, abort) - Displays an error message and optionally aborts the game
 static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
-    if (1 > argCount) {
-        fprintf(stderr, "[show_error] Expected at least 1 argument\n");
+    if (2 > argCount) {
+        fprintf(stderr, "[show_error] Expected at least 2 arguments\n");
         return RValue_makeUndefined();
     }
 
-    char* val = RValue_toString(args[0]);
-    bool abort = false;
-    if (2 <= argCount) abort = RValue_toBool(args[1]);
+    char* error_msg = RValue_toString(args[0]);
+    bool abort = RValue_toBool(args[1]);
 
-    fprintf(stderr, "[show_error] %s\n", val);
+    fprintf(stderr, "[show_error] %s\n", error_msg);
     Runner* runner = ctx->runner;
     if (runner->showErrorDialogue) {
-        runner->showErrorDialogue(val);
+        runner->showErrorDialogue(error_msg);
     }
-    free(val);
+    free(error_msg);
 
     if (abort) {
         fprintf(stderr, "Game aborted due to show_error() call.\n");
