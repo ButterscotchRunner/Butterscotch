@@ -2206,7 +2206,7 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem) {
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
     requireNotNull(renderer);
@@ -2242,6 +2242,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
+    runner->random = Random_create(randomSeed);
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
