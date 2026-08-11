@@ -162,7 +162,7 @@ jobs:
       - name: Install LLVM-MinGW
         run: |
           curl -L \
-            https://github.com/mstorsjo/llvm-mingw/releases/latest/download/llvm-mingw-20260129-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-aarch64.tar.xz \ 
             -o /tmp/llvm-mingw.tar.xz
 
           sudo mkdir -p /opt/llvm-mingw
