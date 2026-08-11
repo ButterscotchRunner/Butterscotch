@@ -290,7 +290,7 @@ jobs:
             extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=OFF -DENABLE_WAD17=ON"
     steps:
       - name: Install build tools
-        run: apk add --no-cache cmake ninja ccache gmp-dev mpfr-dev mpc1-dev git
+        run: apk add --no-cache cmake ninja ccache gmp-dev mpfr-dev mpc1-dev git tar
 
       - uses: actions/checkout@v4
 
@@ -494,7 +494,7 @@ jobs:
 
       - name: Install Ninja
         run: |
-          apk add --no-cache ninja ccache
+          apk add --no-cache ninja ccache tar
 
       - uses: actions/cache@v5
         with:
