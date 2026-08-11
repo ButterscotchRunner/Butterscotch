@@ -580,7 +580,9 @@ jobs:
       - name: Build APK
         run: |
           cd src/android/frontend
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug  \
+            -Pandroid.cxx.ndk.ccache=true \
+            -Porg.gradle.caching=true
   
       - name: Upload APK
         uses: actions/upload-artifact@v4
