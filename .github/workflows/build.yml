@@ -33,60 +33,6 @@ jobs:
         with:
           name: butterscotch-glfw-linux-x86_64
           path: build/butterscotch
-          
-  build-glfw-macos-arm64:
-    name: Build (GLFW/macOS arm64)
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get commit info
-        id: commit-info
-        run: |
-          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
-
-      - name: Install dependencies
-        run: brew install cmake glfw bzip2
-
-      - name: Configure
-        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
-
-      - name: Build
-        run: cmake --build build -- -j$(sysctl -n hw.ncpu)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: butterscotch-glfw-macos-arm64
-          path: build/butterscotch
-
-  build-glfw-macos-x86_64:
-    name: Build (GLFW/macOS x86_64)
-    runs-on: macos-26-intel
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get commit info
-        id: commit-info
-        run: |
-          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
-
-      - name: Install dependencies
-        run: brew install cmake glfw bzip2
-
-      - name: Configure
-        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
-
-      - name: Build
-        run: cmake --build build -- -j$(sysctl -n hw.ncpu)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: butterscotch-glfw-macos-x86_64
-          path: build/butterscotch
 
   build-glfw-windows-x86_64:
     name: Build (GLFW/Windows x86_64)
@@ -233,6 +179,42 @@ jobs:
           path: build/butterscotch.exe
       - name: Pack cache
         run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
+  
+  build-glfw-macos:
+    name: Build (GLFW/macOS ${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x86_64
+            runner: macos-26-intel
+          - label: arm64
+            runner: macos-26
+        
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+  
+      - name: Install dependencies
+        run: brew install cmake ninja glfw bzip2
+  
+      - name: Configure
+        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+  
+      - name: Build
+        run: cmake --build build
+  
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-glfw-macos-${{ matrix.label }}
+          path: build/butterscotch
 
   build-ps2:
     name: Build (PS2)${{ matrix.label }}
