@@ -142,6 +142,94 @@ jobs:
           name: butterscotch-glfw-windows-x86_64
           path: build/butterscotch.exe
 
+  build-glfw-windows-arm64:
+  name: Build (GLFW/Windows ARM64)
+  runs-on: ubuntu-24.04
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Get commit info
+      id: commit-info
+      run: |
+        echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake curl make tar
+
+    - name: Install LLVM-MinGW
+      run: |
+        curl -L \
+          https://github.com/mstorsjo/llvm-mingw/releases/latest/download/llvm-mingw-20260129-ucrt-ubuntu-22.04-x86_64.tar.xz \
+          -o /tmp/llvm-mingw.tar.xz
+
+        sudo mkdir -p /opt/llvm-mingw
+        sudo tar -xf /tmp/llvm-mingw.tar.xz \
+          --strip-components=1 \
+          -C /opt/llvm-mingw
+
+        echo "/opt/llvm-mingw/bin" >> $GITHUB_PATH
+
+    - name: Verify compiler
+      run: |
+        aarch64-w64-mingw32-clang --version
+        aarch64-w64-mingw32-clang++ --version
+
+    - name: Build GLFW for MinGW ARM64
+      run: |
+        git clone https://github.com/glfw/glfw.git /tmp/glfw
+        git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
+
+        cmake -B /tmp/glfw/build -S /tmp/glfw \
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/mingw-arm64.cmake \
+          -DCMAKE_INSTALL_PREFIX=/opt/llvm-mingw/aarch64-w64-mingw32 \
+          -DGLFW_BUILD_EXAMPLES=OFF \
+          -DGLFW_BUILD_TESTS=OFF \
+          -DGLFW_BUILD_DOCS=OFF
+
+        cmake --build /tmp/glfw/build -j$(nproc)
+        sudo cmake --install /tmp/glfw/build
+
+    - name: Build bzip2 for MinGW ARM64
+      run: |
+        curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz \
+          -o /tmp/bzip2.tar.gz
+
+        tar -xf /tmp/bzip2.tar.gz -C /tmp
+
+        make -C /tmp/bzip2-1.0.8 libbz2.a \
+          CC=aarch64-w64-mingw32-clang \
+          AR=aarch64-w64-mingw32-llvm-ar \
+          RANLIB=aarch64-w64-mingw32-llvm-ranlib \
+          -j$(nproc)
+
+        sudo cp /tmp/bzip2-1.0.8/libbz2.a \
+          /opt/llvm-mingw/aarch64-w64-mingw32/lib/
+
+        sudo cp /tmp/bzip2-1.0.8/bzlib.h \
+          /opt/llvm-mingw/aarch64-w64-mingw32/include/
+
+    - name: Configure
+      run: |
+        cmake -B build \
+          -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-arm64.cmake \
+          -DWERROR=ON \
+          -DDESKTOP_BACKEND=glfw3 \
+          -DCMAKE_BUILD_TYPE=Release \
+          "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
+          "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: butterscotch-glfw-windows-arm64
+        path: build/butterscotch.exe
+
   build-glfw-linux-x86:
     name: Build (GLFW/Linux x86)
     runs-on: ubuntu-24.04
