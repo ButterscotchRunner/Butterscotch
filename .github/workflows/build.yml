@@ -567,6 +567,16 @@ jobs:
           cache: 'gradle'
           cache-dependency-path: src/android/frontend/gradle/wrapper/gradle-wrapper.properties
 
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-android-${{ github.sha }}
+          restore-keys: |
+            ccache-android-
+
       - name: Build APK
         run: |
           cd src/android/frontend
