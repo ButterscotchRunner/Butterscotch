@@ -148,19 +148,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Time
-        id: get-time
-        run: echo "time=$(date -u '+%Y-%m-%d-%H:%M:%S')" >> $GITHUB_OUTPUT
+      - name: Setup cache
       - uses: actions/cache@v5
         with:
-          path: ~/ccache.tar.xz
-          key: win32-artifact-${{ steps.get-time.outputs.time }}
+          path: |
+              ~/.cache/ccache
+              ~/toolchain-i486.tar
+          key: win32-artifact-${{ github.sha }}
           restore-keys: win32-artifact-
-      - name: Unpack cache
-        run: |
-          cd ~
-          [ -f ccache.tar.xz ] && tar xf ccache.tar.xz || true
-          [ -f workspacecache.tar ] && mv workspacecache.tar ${{ github.workspace }} || true
 
       - name: Get commit info
         id: commit-info
@@ -168,14 +163,20 @@ jobs:
           echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
+      - name: Unpack toolchain cache
+        run: |
+          if [ -f ~/toolchain-i486.tar ]; then
+            tar xf ~/toolchain-i486.tar -C ${{ github.workspace }}
+          fi
+
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
-          [ -f workspacecache.tar ] && tar xf workspacecache.tar
-          ARCH=i486 ./artifacts/windows/build-toolchain.sh
-          tar cf workspacecache.tar artifacts/windows/build/toolchain-i486
-          mv workspacecache.tar ~
+          
+          if [ ! -d "artifacts/windows/build/toolchain-i486" ]; then
+            ARCH=i486 ./artifacts/windows/build-toolchain.sh
+          fi
 
       - name: Build
         run: |
@@ -189,13 +190,17 @@ jobs:
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
               BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
 
+      - name: Pack toolchain cache
+        run: |
+          if [ -d "artifacts/windows/build/toolchain-i486" ]; then
+            tar cf ~/toolchain-i486.tar artifacts/windows/build/toolchain-i486
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-glfw-windows-x86
           path: build/butterscotch.exe
-      - name: Pack cache
-        run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
 
   build-sdl2-freebsd:
     name: Build (SDL2/FreeBSD ${{ matrix.arch }})
