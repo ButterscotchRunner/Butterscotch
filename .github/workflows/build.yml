@@ -253,7 +253,7 @@ jobs:
             extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=OFF -DENABLE_WAD17=ON"
     steps:
       - name: Install build tools
-        run: apk add --no-cache cmake make gmp-dev mpfr-dev mpc1-dev git
+        run: apk add --no-cache cmake ninja gmp-dev mpfr-dev mpc1-dev git
 
       - uses: actions/checkout@v4
 
