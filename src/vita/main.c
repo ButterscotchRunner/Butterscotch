@@ -137,17 +137,8 @@ void vitaShowErrorDialogue(const char *message) {
     SceMsgDialogUserMessageParam userMsg = {0};
     SceMsgDialogParam param = {0};
 
-    const char *prefix = "Error\n\n";
-    size_t len = strlen(prefix) + strlen(message) + 1;
-
-    char *msg = malloc(len);
-    if (!msg)
-        return;
-
-    snprintf(msg, len, "%s%s", prefix, message);
-
     userMsg.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
-    userMsg.msg = (const SceChar8 *)msg;
+    userMsg.msg = (const SceChar8 *)message;
 
     param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
     param.userMsgParam = &userMsg;
@@ -159,8 +150,6 @@ void vitaShowErrorDialogue(const char *message) {
     }
 
     sceMsgDialogTerm();
-
-    free(msg);
 }
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
