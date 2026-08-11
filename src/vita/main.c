@@ -272,7 +272,7 @@ void loop(const char* dataWinPath) {
     AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
 #endif
 
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, 0);
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = true; // for now
     runner->setWindowSize = vitaSetWindowSize;
     runner->getWindowSize = vitaGetWindowSize;
