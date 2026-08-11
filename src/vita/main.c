@@ -24,6 +24,8 @@
 
 #include <stdio.h>
 
+int _newlib_heap_size_user = 192 * 1024 * 1024;
+
 #define GAME_DATA_PATH "ux0:data/butterscotch/"
 #define GAME_DATA_WIN_PATH GAME_DATA_PATH "data.win"
 
@@ -43,6 +45,7 @@ static float stickByteToFloat(unsigned char raw) {
     return ((float) raw - 128.0f) * (1.0f / 127.5f);
 }
 void handleVitaGamepad(RunnerGamepadState* gp, int port) {
+    sceCtrlPeekBufferPositiveExt2(0, &pad, 1);
     GamepadSlot* slot = &gp->slots[port];
     
     memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
@@ -102,20 +105,29 @@ void handleVitaGamepad(RunnerGamepadState* gp, int port) {
 
 void platformLog(const logType type, const char *format, va_list va) {
     FILE *out = stderr;
+    const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
+    const char* textPrefix = "";
     switch (type) {
         case LOG_TYPE_NORMAL:
             out = stdout;
             break;
         case LOG_TYPE_WARNING:
-            fputs("Warning: ", out);
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
+            textPrefix = "Warning: ";
             break;
         case LOG_TYPE_ERROR:
-            fputs("Error: ", out);
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_RED;
+            textPrefix = "Error: ";
             break;
-		case LOG_TYPE_DEBUG:
-            fputs("Debug: ", out);
+        case LOG_TYPE_DEBUG:
+            colourPrefix = ANSI_COLOUR_CODE_BOLD_PURPLE;
+            textPrefix = "Debug: ";
             break;
     }
+
+    fputs(colourPrefix, out);
+    fputs(textPrefix, out);
+    fputs(ANSI_COLOUR_CODE_RESET, out);
     vfprintf(out, format, va);
 }
 
@@ -277,7 +289,6 @@ void loop(const char* dataWinPath) {
         RunnerKeyboard_beginFrame(runner->keyboard);
 
         RunnerGamepad_beginFrame(runner->gamepads);
-        sceCtrlPeekBufferPositive(0, &pad, 1);
         handleVitaGamepad(runner->gamepads, 0);
 
         bool shouldStep = true;
@@ -291,7 +302,7 @@ void loop(const char* dataWinPath) {
         if (shouldStep) {
             // Go to next room
             if (runner->debugMode) {
-                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADR) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
+                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADD) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
                     DataWin* dw = runner->dataWin;
                     if ((int32_t) dw->gen8.roomOrderCount > runner->currentRoomOrderPosition + 1) {
                         int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
@@ -301,7 +312,7 @@ void loop(const char* dataWinPath) {
                     }
                 }
                 // Go to previous room
-                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADL) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
+                if (RunnerGamepad_buttonCheck(runner->gamepads, 0, GP_PADU) && RunnerGamepad_buttonCheckPressed(runner->gamepads, 0, GP_START)) {
                     DataWin* dw = runner->dataWin;
                     if (runner->currentRoomOrderPosition > 0) {
                         int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
@@ -371,7 +382,7 @@ void loop(const char* dataWinPath) {
         // taken from desktop/main.c
 
         glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
-        glClear(GL_COLOR_BUFFER_BIT);
+        //glClear(GL_COLOR_BUFFER_BIT);
 
         int32_t fbWidth = 960;
         int32_t fbHeight = 544;
@@ -395,8 +406,7 @@ void loop(const char* dataWinPath) {
             double targetFrameTime = 1.0 / runner->currentRoom->speed;
             double nextFrameTime = lastFrameStartTime + targetFrameTime;
             while (osTime() < nextFrameTime) {
-                sceKernelCheckCallback();
-                sceKernelDelayThread(5);
+                sceKernelDelayThreadCB(5);
             }
         }
     }
@@ -419,9 +429,11 @@ free_butterscotch:
 int main() {
     vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
     vglSetupGarbageCollector(127, 0x20000);
-    // let's try to get as much ram as possible
-    vglSetParamBufferSize(2 * 1024 * 1024);
-    vglInitWithCustomThreshold(0, 960, 544, 12 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
+    vglUseTripleBuffering(GL_FALSE);
+    vglSetCircularPoolSize(128 * 1024 * 1024);
+    vglSetupDisplayRenderTarget(2);
+    vglSetParamBufferSize(6 * 1024 * 1024);
+    vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
 

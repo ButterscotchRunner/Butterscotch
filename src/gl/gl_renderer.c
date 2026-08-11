@@ -10,6 +10,7 @@
 #else
 #include <glad/glad.h>
 #endif
+#include <ctype.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
 #include "string_compat.h"
@@ -78,9 +79,147 @@ static inline uint8_t floatToUnormByte(float v) {
 
 // ===[ Shader Compilation ]===
 
+#ifdef PLATFORM_VITA
+// replaces every instance of (thing *= blahblah) with (thing = thing * (blahblah).)
+// vitaGL doesn't support the operator *= so...
+// this assumes that every line ends with ; so its a bit finicky
+char *fixShaderForVita(const char *src) {
+    size_t src_len = strlen(src);
+    size_t cap = src_len * 2 + 64;
+    char *out = malloc(cap);
+    size_t out_len = 0;
+    if (!out) return NULL;
+
+    #define ENSURE(n) do { \
+    if (out_len + (size_t)(n) + 1 > cap) { \
+        cap = (out_len + (size_t)(n) + 1) * 2; \
+        char *tmp = realloc(out, cap); \
+        if (!tmp) { free(out); return NULL; } \
+            out = tmp; \
+    } \
+    } while (0)
+
+    #define APPEND(s, n) do { ENSURE(n); memcpy(out + out_len, (s), (n)); out_len += (n); } while (0)
+    #define APPEND_STR(s) APPEND((s), strlen(s))
+    #define APPEND_CH(c) do { ENSURE(1); out[out_len++] = (char)(c); } while (0)
+
+    size_t i = 0;
+    while (i < src_len) {
+        char c = src[i];
+        if (c == '/' && i + 1 < src_len && src[i + 1] == '/') {
+            size_t start = i;
+            while (i < src_len && src[i] != '\n') i++;
+            APPEND(src + start, i - start);
+            continue;
+        }
+
+        if (c == '/' && i + 1 < src_len && src[i + 1] == '*') {
+            size_t start = i;
+            i += 2;
+            while (i + 1 < src_len && !(src[i] == '*' && src[i + 1] == '/')) i++;
+            i = (i + 1 < src_len) ? i + 2 : src_len;
+            APPEND(src + start, i - start);
+            continue;
+        }
+
+        if (isalpha((unsigned char)c) || c == '_') {
+            size_t id_start = i;
+            size_t j = i;
+
+            while (j < src_len && (isalnum((unsigned char)src[j]) || src[j] == '_')) j++;
+
+            size_t k = j;
+            for (;;) {
+                size_t save = k;
+                while (k < src_len && isspace((unsigned char)src[k])) k++;
+
+                if (k < src_len && src[k] == '.') {
+                    size_t after_dot = k + 1;
+                    while (after_dot < src_len && isspace((unsigned char)src[after_dot])) after_dot++;
+                    if (after_dot < src_len && (isalpha((unsigned char)src[after_dot]) || src[after_dot] == '_')) {
+                        k = after_dot;
+                        while (k < src_len && (isalnum((unsigned char)src[k]) || src[k] == '_')) k++;
+                        continue;
+                    }
+                    k = save;
+                    break;
+                } else if (k < src_len && src[k] == '[') {
+                    int depth = 1;
+                    size_t m = k + 1;
+                    while (m < src_len && depth > 0) {
+                        if (src[m] == '[') depth++;
+                        else if (src[m] == ']') depth--;
+                        m++;
+                    }
+                    if (depth == 0) { k = m; continue; }
+                    k = save;
+                    break;
+                } else {
+                    k = save;
+                    break;
+                }
+            }
+
+            size_t m = k;
+            while (m < src_len && isspace((unsigned char)src[m])) m++;
+
+            if (m + 1 < src_len && src[m] == '*' && src[m + 1] == '=' &&
+                !(m + 2 < src_len && src[m + 2] == '=')) {
+
+                size_t rhs_start = m + 2;
+            size_t p = rhs_start;
+            int depth = 0;
+            while (p < src_len) {
+                char rc = src[p];
+                if (rc == '(' || rc == '[') depth++;
+                else if (rc == ')' || rc == ']') depth--;
+                else if (rc == ';' && depth == 0) break;
+                p++;
+            }
+
+            if (p < src_len && src[p] == ';') {
+                size_t rhs_end = p;
+                while (rhs_end > rhs_start && isspace((unsigned char)src[rhs_end - 1])) rhs_end--;
+                size_t rhs_s = rhs_start;
+                while (rhs_s < rhs_end && isspace((unsigned char)src[rhs_s])) rhs_s++;
+
+                APPEND(src + id_start, k - id_start);   /* lvalue */
+                APPEND_STR(" = ");
+                APPEND(src + id_start, k - id_start);   /* lvalue again */
+                APPEND_STR(" * (");
+                APPEND(src + rhs_s, rhs_end - rhs_s);   /* expr */
+                APPEND_CH(')');
+                APPEND_CH(';');
+
+                i = p + 1;
+                continue;
+            }
+                }
+        }
+
+        APPEND_CH(c);
+        i++;
+    }
+
+    ENSURE(0);
+    out[out_len] = '\0';
+    return out;
+
+    #undef ENSURE
+    #undef APPEND
+    #undef APPEND_STR
+    #undef APPEND_CH
+}
+#endif
+
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
+    #ifdef PLATFORM_VITA
+    const char* actualSource = fixShaderForVita(source);
+    #else
+    const char* actualSource = source;
+    #endif
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
+    glShaderSource(shader, 1, &actualSource, nullptr);
     glCompileShader(shader);
 
     GLint success;
@@ -93,6 +232,9 @@ static GLuint compileShader(GLenum type, const char* source, bool* ok) {
         return 0;
     }
     *ok = true;
+    #ifdef PLATFORM_VITA
+    free((char*)actualSource);
+    #endif
     return shader;
 }
 
@@ -148,14 +290,21 @@ static void flushBatch(GLRenderer* gl) {
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
-    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
-    int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+#ifdef PLATFORM_VITA
+    vglBufferData(GL_ARRAY_BUFFER, (void*)gl->vertexData);
+    gl->vertexData = (Vertex*)vglAllocFromScratch((size_t)totalVboSize);
+    //glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
+#else
+    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
+    int32_t vertexCount = gl->batchCount * singleVertexCount;
     glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+#endif
+
 
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
@@ -254,7 +403,11 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
 
         if (strcmp(uniformName, "gm_BaseTexture") == 0)
             gmlShader->gmBaseTexture = &gmlShader->uniforms[b];
+#ifdef PLATFORM_VITA
+        if (strcmp(uniformName, "gm_Matrices") == 0)
+#else
         if (strcmp(uniformName, "gm_Matrices[0]") == 0)
+#endif
             gmlShader->gmMatrices = &gmlShader->uniforms[b];
         if (strcmp(uniformName, "gm_FogColour") == 0)
             gmlShader->gmFogColour = &gmlShader->uniforms[b];
@@ -437,9 +590,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glGenBuffers(1, &gl->ebo);
 
     // VBO: sized for max quads
-    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+#ifndef PLATFORM_VITA // We don't really need to warm up the buffer since we have scratch memory on VitaGL...
+    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
+#endif
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
     uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
@@ -465,7 +620,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     // Allocate CPU-side vertex buffer
+#if PLATFORM_VITA
+    gl->vertexData = (Vertex*)vglAllocFromScratch(MAX_QUADS *VERTICES_PER_QUAD * sizeof(Vertex));
+#else
     gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+#endif
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
 #if defined(PLATFORM_VITA)
@@ -649,7 +808,9 @@ static void glDestroy(Renderer* renderer) {
     free(gl->textureWidths);
     free(gl->textureHeights);
     free(gl->textureLoaded);
+#ifndef PLATFORM_VITA
     free(gl->vertexData);
+#endif
     free(gl);
 }
 
@@ -834,7 +995,9 @@ static void glEndFrameEnd(Renderer* renderer) {
         if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+#ifndef PLATFORM_VITA
         glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
         glViewport(0, 0, gl->windowW, gl->windowH);
 
@@ -869,7 +1032,9 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
     //No it doesn't?
     glClearColor(r, g, b, alpha);
+#ifndef PLATFORM_VITA
     glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
 }
 
