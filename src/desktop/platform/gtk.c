@@ -10,6 +10,7 @@ void show_error_box(const char *message) {
         message
     );
 
+    gtk_window_set_title(GTK_WINDOW(dialog), "Error");
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 }
