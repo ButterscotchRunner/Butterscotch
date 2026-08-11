@@ -266,7 +266,7 @@ typedef struct {
     int traceBytecodeAfterFrame;
     double speedMultiplier;
     double fastForwardSpeed;
-    int seed;
+    uint32_t seed;
     bool hasSeed;
     bool debug;
     bool traceEventInherited;
@@ -495,7 +495,7 @@ static void printUsage(const char *argv0) {
 }
 
 static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
-    memset(args, 0, sizeof(CommandLineArgs));
+    ZERO_STRUCT(*args);
 
     static struct option longOptions[] = {
         {"help",          no_argument, nullptr, 'H'},
@@ -557,11 +557,8 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 
     args->screenshotFrames = nullptr;
     args->exitAtFrame = -1;
-    args->traceBytecodeAfterFrame = 0;
     args->speedMultiplier = 1.0;
-    args->fastForwardSpeed = 0.0;
     args->osType = OS_WINDOWS;
-    args->profilerFramesBetween = 0;
     args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     args->disableLogColours = !isatty(1); // 1 == stdout
     // TODO: detect available driver features
@@ -754,7 +751,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 break;
             case 'Z': {
                 char* endPtr;
-                int seedVal = strtol(optarg, &endPtr, 10);
+                uint32_t seedVal = strtoul(optarg, &endPtr, 10);
                 if (*endPtr != '\0') {
                     logError("Invalid seed value '%s' for --seed\n", optarg);
                     exit(1);
@@ -1145,11 +1142,8 @@ int main(int argc, char* argv[]) {
             vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
-
         if (args.hasSeed) {
-            srand((unsigned int) args.seed);
             vm->hasFixedSeed = true;
-            logInfo("Using fixed RNG seed: %d\n", args.seed);
         }
 
         if (args.printRooms) {
@@ -1467,7 +1461,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Initialize the runner
-        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
 
         if (!args.lazyTextures) {
             repeat(runner->dataWin->txtr.count, i) {

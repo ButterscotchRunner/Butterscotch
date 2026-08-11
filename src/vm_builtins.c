@@ -9,6 +9,7 @@
 #include "runner_gamepad.h"
 #include "matrix_math.h"
 #include "utils.h"
+#include "random.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -2002,6 +2003,15 @@ static RValue builtin_max(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(result);
 }
 
+static RValue builtin_max3(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(0.0);
+    GMLReal x = RValue_toReal(args[0]);
+    GMLReal y = RValue_toReal(args[1]);
+    GMLReal z = RValue_toReal(args[2]);
+    GMLReal result = (x > y) ? ((x > z) ? x : z) : ((y > z) ? y : z);
+    return RValue_makeReal(result);
+}
+
 static RValue builtin_min(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal result = INFINITY;
@@ -2009,6 +2019,15 @@ static RValue builtin_min(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t arg
         GMLReal val = RValue_toReal(args[i]);
         if (result > val) result = val;
     }
+    return RValue_makeReal(result);
+}
+
+static RValue builtin_min3(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeReal(0.0);
+    GMLReal x = RValue_toReal(args[0]);
+    GMLReal y = RValue_toReal(args[1]);
+    GMLReal z = RValue_toReal(args[2]);
+    GMLReal result = (x < y) ? ((x < z) ? x : z) : ((y < z) ? y : z);
     return RValue_makeReal(result);
 }
 
@@ -2053,9 +2072,26 @@ static RValue builtin_sqrt(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(GMLReal_sqrt(RValue_toReal(args[0])));
 }
 
+static RValue builtin_ln(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    return RValue_makeReal(GMLReal_log(RValue_toReal(args[0])));
+}
+
 static RValue builtin_log2(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     return RValue_makeReal(GMLReal_log2(RValue_toReal(args[0])));
+}
+
+static RValue builtin_log10(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+    return RValue_makeReal(GMLReal_log10(RValue_toReal(args[0])));
+}
+
+static RValue builtin_logn(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeReal(0.0);
+    GMLReal base = RValue_toReal(args[0]);
+    GMLReal val = RValue_toReal(args[1]);
+    return RValue_makeReal(GMLReal_log(val) / GMLReal_log(base));
 }
 
 static RValue builtin_sqr(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -2609,6 +2645,13 @@ static RValue builtin_arctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeReal(GMLReal_atan(y));
 }
 
+static RValue builtin_arctan2(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeReal(0.0);
+    GMLReal y = RValue_toReal(args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+    return RValue_makeReal(GMLReal_atan2(y, x));
+}
+
 static RValue builtin_darctan(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal y = RValue_toReal(args[0]);
@@ -2698,6 +2741,51 @@ static RValue builtin_dot_product(MAYBE_UNUSED VMContext* ctx, RValue* args, int
     GMLReal x2 = RValue_toReal(args[2]);
     GMLReal y2 = RValue_toReal(args[3]);
     return RValue_makeReal(x1 * x2 + y1 * y2);
+}
+
+static RValue builtin_dot_product_3d(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (6 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal z1 = RValue_toReal(args[2]);
+    GMLReal x2 = RValue_toReal(args[3]);
+    GMLReal y2 = RValue_toReal(args[4]);
+    GMLReal z2 = RValue_toReal(args[5]);
+    return RValue_makeReal(x1 * x2 + y1 * y2 + z1 * z2);
+}
+
+static RValue builtin_dot_product_3d_normalised(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (6 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal z1 = RValue_toReal(args[2]);
+    GMLReal x2 = RValue_toReal(args[3]);
+    GMLReal y2 = RValue_toReal(args[4]);
+    GMLReal z2 = RValue_toReal(args[5]);
+
+    GMLReal len1 = GMLReal_sqrt(x1 * x1 + y1 * y1 + z1 * z1);
+    GMLReal len2 = GMLReal_sqrt(x2 * x2 + y2 * y2 + z2 * z2);
+    
+    if (len1 == 0.0 || len2 == 0.0) return RValue_makeReal(0.0); 
+
+    GMLReal dot = x1 * x2 + y1 * y2 + z1 * z2;
+    return RValue_makeReal(dot / (len1 * len2));
+}
+
+static RValue builtin_dot_product_normalised(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (4 > argCount) return RValue_makeReal(0.0);
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+
+    GMLReal len1 = GMLReal_sqrt(x1 * x1 + y1 * y1);
+    GMLReal len2 = GMLReal_sqrt(x2 * x2 + y2 * y2);
+    
+    if (len1 == 0.0 || len2 == 0.0) return RValue_makeReal(0.0); 
+
+    GMLReal dot = x1 * x2 + y1 * y2;
+    return RValue_makeReal(dot / (len1 * len2));
 }
 
 static RValue builtin_point_distance(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3114,7 +3202,7 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal seed = RValue_toReal(args[0]);
     bool fixRangeBug = RValue_toBool(args[1]); 
-    srand((uint32_t) seed);
+    Random_setSeed(&ctx->runner->random, (uint32_t) seed);
     (void) fixRangeBug; // do we even need to do anything with this?
     return RValue_makeUndefined();
 }
@@ -3122,21 +3210,21 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static RValue builtin_random(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal n = RValue_toReal(args[0]);
-    return RValue_makeReal(((GMLReal) rand() / (GMLReal) RAND_MAX) * n);
+    return RValue_makeReal(((GMLReal) Random_nextUInt32(&ctx->runner->random) / (GMLReal) 0xFFFFFFFF) * n);
 }
 
 static RValue builtin_random_range(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal lo = RValue_toReal(args[0]);
     GMLReal hi = RValue_toReal(args[1]);
-    return RValue_makeReal(lo + ((GMLReal) rand() / (GMLReal) RAND_MAX) * (hi - lo));
+    return RValue_makeReal(lo + ((GMLReal) Random_nextUInt32(&ctx->runner->random) / (GMLReal) 0xFFFFFFFF) * (hi - lo));
 }
 
 static RValue builtin_irandom(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     int32_t n = RValue_toInt32(args[0]);
     if (0 >= n) return RValue_makeReal(0.0);
-    return RValue_makeReal((GMLReal) (rand() % (n + 1)));
+    return RValue_makeReal((GMLReal) (Random_nextUInt32(&ctx->runner->random) % (n + 1)));
 }
 
 static RValue builtin_irandom_range(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3146,12 +3234,12 @@ static RValue builtin_irandom_range(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     if (lo > hi) { int32_t tmp = lo; lo = hi; hi = tmp; }
     int32_t range = hi - lo + 1;
     if (0 >= range) return RValue_makeReal((GMLReal) lo);
-    return RValue_makeReal((GMLReal) (lo + rand() % range));
+    return RValue_makeReal((GMLReal) (lo + Random_nextUInt32(&ctx->runner->random) % range));
 }
 
 static RValue builtin_choose(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
-    int32_t idx = rand() % argCount;
+    int32_t idx = Random_nextUInt32(&ctx->runner->random) % argCount;
     // Steal ownership: the caller's RValue_free of args[idx] becomes a no-op, and the returned value owns the ref instead.
     RValue val = args[idx];
     if (val.type == RVALUE_STRING && val.string != nullptr && !val.ownsReference) {
@@ -3163,7 +3251,12 @@ static RValue builtin_choose(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_randomize(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->hasFixedSeed) return RValue_makeUndefined();
-    srand((unsigned int) time(nullptr) + (ctx->runner->frameCount * 2654435761u)); // 2654435761u = Knuth's multiplier
+    /*
+     * nowNanos() can be in multiples of 1000 on some systems, for example when gettimeofday()
+     * is used as the source. we divide by 1000 to improve entropy on such systems.
+     * 2654435761u = Knuth's multiplier.
+     */
+    Random_setSeed(&ctx->runner->random, (uint32_t)(nowNanos() / 1000) * 2654435761u);
     return RValue_makeUndefined();
 }
 
@@ -4188,6 +4281,55 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     return result;
 }
 
+// ===[ TIME SOURCE FUNCTIONS ]===
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+static RValue builtin_call_later(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (3 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+
+    double period = RValue_toReal(args[0]);
+    int32_t units = RValue_toInt32(args[1]);
+    RValue callback = args[2];
+    bool repeat = argCount > 3 ? RValue_toBool(args[3]) : false;
+
+    if (callback.type != RVALUE_METHOD && callback.type != RVALUE_INT32) {
+        return RValue_makeUndefined();
+    }
+
+    int32_t id = runner->nextCallLaterId++;
+    CallLaterEntry entry = {0};
+    entry.id = id;
+    entry.active = true;
+    entry.repeat = repeat;
+    entry.executing = false;
+    entry.units = units;
+    entry.period = period;
+    entry.elapsed = 0.0;
+    entry.callback = RValue_makeIndependent(callback);
+
+    arrput(runner->callLaterEntries, entry);
+    return RValue_makeReal((GMLReal) id);
+}
+
+static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+
+    int32_t handle = RValue_toInt32(args[0]);
+    size_t count = arrlenu(runner->callLaterEntries);
+    for (size_t i = 0; i < count; ++i) {
+        if (runner->callLaterEntries[i].id == handle && runner->callLaterEntries[i].active) {
+            runner->callLaterEntries[i].active = false;
+            RValue_free(&runner->callLaterEntries[i].callback);
+            return RValue_makeReal(0.0);
+        }
+    }
+
+    return RValue_makeReal(0.0);
+}
+#endif
+
 // ===[ OS FUNCTIONS ]===
 
 static RValue builtin_os_get_language(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -4704,7 +4846,7 @@ static RValue builtin_ds_list_shuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
     for (int32_t i = 1; i < argCount; i++) {
-        int32_t j = rand() % (i + 1);
+        int32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
         RValue temp = list->items[i];
         list->items[i] = list->items[j];
         list->items[j] = temp;
@@ -8494,7 +8636,7 @@ static RValue builtin_action_move(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
     }
 
     // Pick one at random
-    int pick = candidates[0 == count - 1 ? 0 : rand() % count];
+    int pick = candidates[0 == count - 1 ? 0 : Random_nextUInt32(&ctx->runner->random) % count];
 
     if (ctx->currentInstance != nullptr) {
         Instance* inst = ctx->currentInstance;
@@ -10440,6 +10582,46 @@ static RValue builtin_draw_triangle_color(VMContext* ctx, RValue* args, MAYBE_UN
     return RValue_makeUndefined();
 }
 
+// draw_arrow(x1, y1, x2, y2, size)
+static RValue builtin_draw_arrow(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    if (argCount < 5) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    
+    float x1 = (float) RValue_toReal(args[0]);
+    float y1 = (float) RValue_toReal(args[1]);
+    float x2 = (float) RValue_toReal(args[2]);
+    float y2 = (float) RValue_toReal(args[3]);
+    float size = (float) RValue_toReal(args[4]);
+    
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float dd = (float) GMLReal_sqrt(dx * dx + dy * dy);
+    
+    if (dd != 0.0) {    
+        if (size > dd) {
+            size = dd;
+        }
+        
+        float xx = size * dx / dd;
+        float yy = size * dy / dd;
+        
+        float tx1 = x2 - xx - yy / 3.0;
+        float ty1 = y2 - yy + xx / 3.0;
+        float tx2 = x2;
+        float ty2 = y2;
+        float tx3 = x2 - xx + yy / 3.0;
+        float ty3 = y2 - yy - xx / 3.0;
+        
+        uint32_t color = runner->renderer->drawColor;
+        float alpha = runner->renderer->drawAlpha;
+
+        runner->renderer->vtable->drawLine(runner->renderer, x1, y1, x2, y2, color, color, alpha);
+        runner->renderer->vtable->drawTriangle(runner->renderer, tx1, ty1, tx2, ty2, tx3, ty3, color, color, color, alpha, false);
+    }
+    
+    return RValue_makeUndefined();
+}
+
 // draw_circle(x, y, r, outline)
 static RValue builtin_draw_circle(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -12371,7 +12553,7 @@ static RValue builtin_action_if_dice(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     if (probability <= 1) {
         return RValue_makeBool(probability > 0);
     }
-    return RValue_makeBool((rand() % probability) == 0);
+    return RValue_makeBool((Random_nextUInt32(&ctx->runner->random) % probability) == 0);
 }
 
 static RValue builtin_action_set_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -12922,6 +13104,22 @@ static RValue builtin_tile_layer_find(VMContext* ctx, RValue* args, MAYBE_UNUSED
     return RValue_makeReal(-1.0);
 }
 
+// tile_layer_depth(depth, newdepth) - changes the depth of all tiles at the given depth to the new depth.
+static RValue builtin_tile_layer_depth(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    Room* room = runner->currentRoom;
+    if (room == nullptr) return RValue_makeUndefined();
+    int32_t depth = RValue_toInt32(args[0]);
+    int32_t newdepth = RValue_toInt32(args[1]);
+    for (int32_t i = 0; i < (int32_t) room->tileCount; i++) {
+        RoomTile* tile = &room->tiles[i];
+        if (tile->tileDepth != depth) continue;
+		tile->tileDepth = newdepth;
+        runner->drawableListSortDirty = true;
+    }
+    return RValue_makeUndefined();
+}
+
 // tile_layer_delete(depth) - removes every tile at the given depth from the current room.
 static RValue builtin_tile_layer_delete(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
@@ -12932,6 +13130,34 @@ static RValue builtin_tile_layer_delete(VMContext* ctx, RValue* args, MAYBE_UNUS
     bool removedAny = false;
     repeat(room->tileCount, i) {
         if (room->tiles[i].tileDepth == depth) { removedAny = true; continue; }
+        if (write != i) room->tiles[write] = room->tiles[i];
+        write++;
+    }
+    room->tileCount = write;
+    if (removedAny) runner->drawableListStructureDirty = true;
+    return RValue_makeUndefined();
+}
+
+// tile_layer_delete_at(depth, x, y) - removes every tile at the given depth and position from the current room.
+static RValue builtin_tile_layer_delete_at(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    Room* room = runner->currentRoom;
+    if (room == nullptr) return RValue_makeUndefined();
+    int32_t depth = RValue_toInt32(args[0]);
+	GMLReal qx = RValue_toReal(args[1]);
+	GMLReal qy = RValue_toReal(args[2]);
+    uint32_t write = 0;
+    bool removedAny = false;
+    repeat(room->tileCount, i) {
+		RoomTile* tile = &room->tiles[i];
+        if (tile->tileDepth == depth) {
+			GMLReal w = (GMLReal) tile->width * (GMLReal) tile->scaleX;
+			GMLReal h = (GMLReal) tile->height * (GMLReal) tile->scaleY;
+			if (qx >= (GMLReal) tile->x && qx < (GMLReal) tile->x + w && qy >= (GMLReal) tile->y && qy < (GMLReal) tile->y + h) {
+				removedAny = true;
+				continue;
+			}
+		}
         if (write != i) room->tiles[write] = room->tiles[i];
         write++;
     }
@@ -16945,17 +17171,23 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "frac", builtin_frac);
     VM_registerBuiltin(ctx, "sign", builtin_sign);
     VM_registerBuiltin(ctx, "max", builtin_max);
+    VM_registerBuiltin(ctx, "max3", builtin_max3);
     VM_registerBuiltin(ctx, "min", builtin_min);
+    VM_registerBuiltin(ctx, "min3", builtin_min3);
     VM_registerBuiltin(ctx, "mean", builtin_mean);
     VM_registerBuiltin(ctx, "median", builtin_median);
     VM_registerBuiltin(ctx, "power", builtin_power);
     VM_registerBuiltin(ctx, "sqrt", builtin_sqrt);
+    VM_registerBuiltin(ctx, "ln", builtin_ln);
     VM_registerBuiltin(ctx, "log2", builtin_log2);
+    VM_registerBuiltin(ctx, "log10", builtin_log10);
+    VM_registerBuiltin(ctx, "logn", builtin_logn);
     VM_registerBuiltin(ctx, "sqr", builtin_sqr);
     VM_registerBuiltin(ctx, "sin", builtin_sin);
     VM_registerBuiltin(ctx, "arccos", builtin_arccos);
     VM_registerBuiltin(ctx, "arcsin", builtin_arcsin);
     VM_registerBuiltin(ctx, "arctan", builtin_arctan);
+    VM_registerBuiltin(ctx, "arctan2", builtin_arctan2);
     VM_registerBuiltin(ctx, "cos", builtin_cos);
     VM_registerBuiltin(ctx, "dsin", builtin_dsin);
     VM_registerBuiltin(ctx, "dcos", builtin_dcos);
@@ -16967,6 +17199,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "lerp", builtin_lerp);
     VM_registerBuiltin(ctx, "tan", builtin_tan);
     VM_registerBuiltin(ctx, "dot_product", builtin_dot_product);
+    VM_registerBuiltin(ctx, "dot_product_3d", builtin_dot_product_3d);
+    VM_registerBuiltin(ctx, "dot_product_3d_normalised", builtin_dot_product_3d_normalised);
+    VM_registerBuiltin(ctx, "dot_product_normalised", builtin_dot_product_normalised);    
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
     VM_registerBuiltin(ctx, "point_in_rectangle", builtin_point_in_rectangle);
     VM_registerBuiltin(ctx, "point_in_circle", builtin_point_in_circle);
@@ -17081,6 +17316,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "method", builtin_method);
 #endif
+
+    // Time sources
+#if IS_WAD17_OR_HIGHER_ENABLED
+    VM_registerBuiltin(ctx, "call_later", builtin_call_later);
+    VM_registerBuiltin(ctx, "call_cancel", builtin_call_cancel);
+#endif  
 
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
@@ -17538,6 +17779,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_triangle", builtin_draw_triangle);
     VM_registerBuiltin(ctx, "draw_triangle_colour", builtin_draw_triangle_color);
     VM_registerBuiltin(ctx, "draw_triangle_color", builtin_draw_triangle_color);
+    VM_registerBuiltin(ctx, "draw_arrow", builtin_draw_arrow);    
     VM_registerBuiltin(ctx, "draw_circle", builtin_draw_circle);
     VM_registerBuiltin(ctx, "draw_circle_colour", builtin_draw_circle_color);
     VM_registerBuiltin(ctx, "draw_circle_color", builtin_draw_circle_color);
@@ -17668,7 +17910,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "tile_add", builtin_tile_add);
         VM_registerBuiltin(ctx, "tile_exists", builtin_tile_exists);
         VM_registerBuiltin(ctx, "tile_layer_find", builtin_tile_layer_find);
+		VM_registerBuiltin(ctx, "tile_layer_depth", builtin_tile_layer_depth);
         VM_registerBuiltin(ctx, "tile_layer_delete", builtin_tile_layer_delete);
+		VM_registerBuiltin(ctx, "tile_layer_delete_at", builtin_tile_layer_delete_at);
         VM_registerBuiltin(ctx, "tile_delete", builtin_tile_delete);
         VM_registerBuiltin(ctx, "tile_get_ids_at_depth", builtin_tile_get_ids_at_depth);
         VM_registerBuiltin(ctx, "tile_set_alpha", builtin_tile_set_alpha);

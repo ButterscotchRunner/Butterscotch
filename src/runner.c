@@ -352,6 +352,73 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     }
 }
 
+
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
+    if (ctx == nullptr) return;
+
+    Instance* savedInstance = ctx->currentInstance;
+    Instance* targetInstance = nullptr;
+    int32_t rawArg = RValue_toInt32(callback);
+    int32_t codeId = -1;
+    BuiltinFunc builtin = nullptr;
+
+    if (callback.type == RVALUE_METHOD && callback.method != nullptr) {
+        GMLMethod* method = callback.method;
+        if (method->boundInstanceId >= 0) {
+            targetInstance = hmget(ctx->runner->instancesById, method->boundInstanceId);
+        }
+        if (targetInstance == nullptr) {
+            targetInstance = ctx->globalScopeInstance;
+        }
+        ctx->currentInstance = targetInstance;
+
+        if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
+            VM_callCodeIndex(ctx, method->codeIndex, nullptr, 0);
+        } else if (method->builtin != nullptr) {
+            method->builtin(ctx, nullptr, 0);
+        } else if (method->unresolvedName != nullptr) {
+#ifdef ENABLE_VM_STUB_LOGS
+            logWarn("VM: call_later callback method unresolved: %s\n", method->unresolvedName);
+#endif
+        }
+
+        ctx->currentInstance = savedInstance;
+        return;
+    }
+
+    ctx->currentInstance = ctx->globalScopeInstance;
+
+    if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+        const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+        if (funcName != nullptr) {
+            ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+            if (idx >= 0) {
+                codeId = ctx->codeIndexByName[idx].value;
+            } else {
+                ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                if (bidx >= 0) builtin = ctx->builtinMap[bidx].value;
+            }
+        }
+    }
+
+    if (codeId < 0) {
+        if (0 <= rawArg && (uint32_t) rawArg < ctx->dataWin->scpt.count) {
+            codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
+        }
+    }
+
+    if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
+        VM_callCodeIndex(ctx, codeId, nullptr, 0);
+    } else if (builtin != nullptr) {
+        builtin(ctx, nullptr, 0);
+    }
+
+    ctx->currentInstance = savedInstance;
+}
+#endif
+
 // Some events check if there's a pending room and, if there is, the events are NOT dispatched.
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
 // This mirrors what the official YoYo runner does.
@@ -1883,6 +1950,12 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
 
+    repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+        RValue_free(&runner->callLaterEntries[i].callback);
+    }
+    arrfree(runner->callLaterEntries);
+    runner->callLaterEntries = nullptr;
+
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
     // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
@@ -2003,6 +2076,8 @@ void Runner_reset(Runner* runner) {
     runner->xboxAccountPickerPendingId = -1;
     runner->xboxAccountPickerPadIndex = 0;
     runner->xboxAsyncIdCounter = 1;
+    arrsetlen(runner->callLaterEntries, 0);
+    runner->nextCallLaterId = 1;
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
@@ -2206,7 +2281,7 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem) {
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
     requireNotNull(renderer);
@@ -2242,6 +2317,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
+    runner->random = Random_create(randomSeed);
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
@@ -3746,6 +3822,38 @@ void Runner_step(Runner* runner) {
         rl->yOffset += rl->vSpeed;
     }
     }
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+    // Tick call_later timers.
+    {
+        VMContext* ctx = runner->vmContext;
+        repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+            CallLaterEntry* entry = &runner->callLaterEntries[i];
+            if (!entry->active) continue;
+
+            if (entry->units == 1) {
+                entry->elapsed += (double)1.0;
+            } else {
+                entry->elapsed += runner->deltaTime / (double)1000000.0;
+            }
+
+            if (entry->elapsed >= entry->period) {
+                entry->executing = true;
+                entry->elapsed = 0.0;
+
+                if (ctx != nullptr) {
+                    Runner_executeCallLaterCallback(ctx, entry->callback);
+                }
+
+                entry->executing = false;
+                if (!entry->repeat) {
+                    entry->active = false;
+                    RValue_free(&entry->callback);
+                }
+            }
+        }
+    }
+#endif
 
     // Execute Begin Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_BEGIN);
