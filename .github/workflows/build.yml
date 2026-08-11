@@ -218,6 +218,7 @@ jobs:
             -DWERROR=ON \
             -DDESKTOP_BACKEND=glfw3 \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="-Wno-error=unused-but-set-global" \
             "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
             "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
