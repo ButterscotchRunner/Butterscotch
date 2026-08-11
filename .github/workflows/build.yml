@@ -85,7 +85,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-macos-amd64
+          name: butterscotch-glfw-macos-x86_64
           path: build/butterscotch
 
   build-glfw-windows-x86_64:
