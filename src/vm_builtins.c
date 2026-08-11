@@ -9,6 +9,7 @@
 #include "runner_gamepad.h"
 #include "matrix_math.h"
 #include "utils.h"
+#include "random.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -3114,7 +3115,7 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal seed = RValue_toReal(args[0]);
     bool fixRangeBug = RValue_toBool(args[1]); 
-    srand((uint32_t) seed);
+    Random_setSeed(&ctx->runner->random, (uint32_t) seed);
     (void) fixRangeBug; // do we even need to do anything with this?
     return RValue_makeUndefined();
 }
@@ -3122,21 +3123,21 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static RValue builtin_random(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     GMLReal n = RValue_toReal(args[0]);
-    return RValue_makeReal(((GMLReal) rand() / (GMLReal) RAND_MAX) * n);
+    return RValue_makeReal(((GMLReal) Random_nextUInt32(&ctx->runner->random) / (GMLReal) 0xFFFFFFFF) * n);
 }
 
 static RValue builtin_random_range(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeReal(0.0);
     GMLReal lo = RValue_toReal(args[0]);
     GMLReal hi = RValue_toReal(args[1]);
-    return RValue_makeReal(lo + ((GMLReal) rand() / (GMLReal) RAND_MAX) * (hi - lo));
+    return RValue_makeReal(lo + ((GMLReal) Random_nextUInt32(&ctx->runner->random) / (GMLReal) 0xFFFFFFFF) * (hi - lo));
 }
 
 static RValue builtin_irandom(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeReal(0.0);
     int32_t n = RValue_toInt32(args[0]);
     if (0 >= n) return RValue_makeReal(0.0);
-    return RValue_makeReal((GMLReal) (rand() % (n + 1)));
+    return RValue_makeReal((GMLReal) (Random_nextUInt32(&ctx->runner->random) % (n + 1)));
 }
 
 static RValue builtin_irandom_range(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -3146,12 +3147,12 @@ static RValue builtin_irandom_range(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     if (lo > hi) { int32_t tmp = lo; lo = hi; hi = tmp; }
     int32_t range = hi - lo + 1;
     if (0 >= range) return RValue_makeReal((GMLReal) lo);
-    return RValue_makeReal((GMLReal) (lo + rand() % range));
+    return RValue_makeReal((GMLReal) (lo + Random_nextUInt32(&ctx->runner->random) % range));
 }
 
 static RValue builtin_choose(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
-    int32_t idx = rand() % argCount;
+    int32_t idx = Random_nextUInt32(&ctx->runner->random) % argCount;
     // Steal ownership: the caller's RValue_free of args[idx] becomes a no-op, and the returned value owns the ref instead.
     RValue val = args[idx];
     if (val.type == RVALUE_STRING && val.string != nullptr && !val.ownsReference) {
@@ -3163,7 +3164,12 @@ static RValue builtin_choose(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_randomize(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->hasFixedSeed) return RValue_makeUndefined();
-    srand((unsigned int) time(nullptr) + (ctx->runner->frameCount * 2654435761u)); // 2654435761u = Knuth's multiplier
+    /*
+     * nowNanos() can be in multiples of 1000 on some systems, for example when gettimeofday()
+     * is used as the source. we divide by 1000 to improve entropy on such systems.
+     * 2654435761u = Knuth's multiplier.
+     */
+    Random_setSeed(&ctx->runner->random, (uint32_t)(nowNanos() / 1000) * 2654435761u);
     return RValue_makeUndefined();
 }
 
@@ -4704,7 +4710,7 @@ static RValue builtin_ds_list_shuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
     for (int32_t i = 1; i < argCount; i++) {
-        int32_t j = rand() % (i + 1);
+        int32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
         RValue temp = list->items[i];
         list->items[i] = list->items[j];
         list->items[j] = temp;
@@ -8494,7 +8500,7 @@ static RValue builtin_action_move(VMContext* ctx, MAYBE_UNUSED RValue* args, MAY
     }
 
     // Pick one at random
-    int pick = candidates[0 == count - 1 ? 0 : rand() % count];
+    int pick = candidates[0 == count - 1 ? 0 : Random_nextUInt32(&ctx->runner->random) % count];
 
     if (ctx->currentInstance != nullptr) {
         Instance* inst = ctx->currentInstance;
@@ -12371,7 +12377,7 @@ static RValue builtin_action_if_dice(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     if (probability <= 1) {
         return RValue_makeBool(probability > 0);
     }
-    return RValue_makeBool((rand() % probability) == 0);
+    return RValue_makeBool((Random_nextUInt32(&ctx->runner->random) % probability) == 0);
 }
 
 static RValue builtin_action_set_score(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
