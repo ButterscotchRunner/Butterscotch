@@ -382,7 +382,7 @@ void loop(const char* dataWinPath) {
         // taken from desktop/main.c
 
         glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
-        glClear(GL_COLOR_BUFFER_BIT);
+        //glClear(GL_COLOR_BUFFER_BIT);
 
         int32_t fbWidth = 960;
         int32_t fbHeight = 544;
@@ -406,8 +406,7 @@ void loop(const char* dataWinPath) {
             double targetFrameTime = 1.0 / runner->currentRoom->speed;
             double nextFrameTime = lastFrameStartTime + targetFrameTime;
             while (osTime() < nextFrameTime) {
-                sceKernelCheckCallback();
-                sceKernelDelayThread(5);
+                sceKernelDelayThreadCB(5);
             }
         }
     }

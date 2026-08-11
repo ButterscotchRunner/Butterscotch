@@ -995,7 +995,9 @@ static void glEndFrameEnd(Renderer* renderer) {
         if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+#ifndef PLATFORM_VITA
         glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
         glViewport(0, 0, gl->windowW, gl->windowH);
 
@@ -1030,7 +1032,9 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     // GML draw_clear ignores the active scissor and clears the whole target. Disable scissor for the clear and restore it after.
     //No it doesn't?
     glClearColor(r, g, b, alpha);
+#ifndef PLATFORM_VITA
     glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
 }
 
