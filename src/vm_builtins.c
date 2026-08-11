@@ -1906,7 +1906,7 @@ static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount)
     }
 
     size_t totalLen = strlen(formattedHeader) + 1;
-    char* atStr = "\nat ";
+    const char* atStr = "\nat ";
     size_t atLen = strlen(atStr);
     
     if (ctx->currentCodeName != nullptr) {
