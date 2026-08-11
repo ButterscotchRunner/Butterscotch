@@ -25,10 +25,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
 
       - name: Configure
-        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -G Ninja -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build Butterscotch
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
