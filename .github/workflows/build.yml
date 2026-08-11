@@ -27,7 +27,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-glfw-linux-x86_64
+          key: ccache-glfw-linux-x86_64-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-linux-x86_64-
 
       - name: Configure
         run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
@@ -63,7 +65,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-glfw-windows-x86_64
+          key: ccache-glfw-windows-x86_64-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-windows-x86_64-
 
       - name: Build GLFW for MinGW
         run: |
@@ -113,7 +117,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-glfw-linux-x86
+          key: ccache-glfw-linux-x86-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-linux-x86-
 
       - name: Build GLFW (32-bit)
         run: |
@@ -225,7 +231,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-freebsd-${{ matrix.arch }}
+          key: ccache-freebsd-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-freebsd-${{ matrix.arch }}-
 
       - name: Download FreeBSD sysroot
         run: |
@@ -302,7 +310,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-ps2-${{ matrix.artifact }}
+          key: ccache-ps2-${{ matrix.artifact }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ps2-${{ matrix.artifact }}-
 
       # Yeah, the safe.directory is needed because "fatal: detected dubious ownership in repository at '/__w/Butterscotch/Butterscotch'"
       - name: Get commit info
@@ -443,7 +453,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-web-${{ matrix.platform }}
+          key: ccache-web-${{ matrix.platform }}-${{ github.sha }}
+          restore-keys: |
+            ccache-web-${{ matrix.platform }}-
 
       - name: Configure
         run: emcmake cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
@@ -472,7 +484,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-ps3
+          key: ccache-ps3-${{ github.sha }}
+          restore-keys: |
+            ccache-ps3-
 
       - name: Configure
         run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
@@ -504,7 +518,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-vita
+          key: ccache-vita-${{ github.sha }}
+          restore-keys: |
+            ccache-vita-
 
       - name: Checkout vitaGL
         run: |
@@ -607,7 +623,9 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-cxx
+          key: ccache-cxx-${{ github.sha }}
+          restore-keys: |
+            ccache-cxx-
 
       - name: Build
         run: make CC='ccache g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1
