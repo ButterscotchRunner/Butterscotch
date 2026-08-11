@@ -202,10 +202,17 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
   
       - name: Install dependencies
-        run: brew install cmake ninja glfw bzip2
+        run: brew install cmake ninja glfw bzip2 ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ matrix.label }}-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-${{ matrix.label }}-
   
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
   
       - name: Build
         run: cmake --build build
@@ -213,7 +220,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-macos-${{ matrix.label }}
+          name: butterscotch-appkit-macos-${{ matrix.label }}
           path: build/butterscotch
 
   build-ps2:
