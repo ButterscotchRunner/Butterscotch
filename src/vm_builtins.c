@@ -1906,24 +1906,27 @@ static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount)
     }
 
     size_t totalLen = strlen(formattedHeader) + 1;
+    char* atStr = "\nat ";
+    size_t atLen = strlen(atStr);
+    
     if (ctx->currentCodeName != nullptr) {
-        totalLen += 4 + strlen(ctx->currentCodeName);
+        totalLen += atLen + strlen(ctx->currentCodeName);
     }
     for (CallFrame* frame = ctx->callStack; frame != nullptr; frame = frame->parent) {
         if (frame->savedCodeName != nullptr) {
-            totalLen += 4 + strlen(frame->savedCodeName);
+            totalLen += atLen + strlen(frame->savedCodeName);
         }
     }
 
     char* error_msg = (char*) safeMalloc(totalLen);
     strcpy(error_msg, formattedHeader);
     if (ctx->currentCodeName != nullptr) {
-        strcat(error_msg, "\n at ");
+        strcat(error_msg, atStr);
         strcat(error_msg, ctx->currentCodeName);
     }
     for (CallFrame* frame = ctx->callStack; frame != nullptr; frame = frame->parent) {
         if (frame->savedCodeName != nullptr) {
-            strcat(error_msg, "\n at ");
+            strcat(error_msg, atStr);
             strcat(error_msg, frame->savedCodeName);
         }
     }
