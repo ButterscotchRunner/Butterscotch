@@ -2509,6 +2509,10 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
         case GL_FLOAT_VEC2: glUniform2f(handle, value1, value2); break;
         case GL_FLOAT_VEC3: glUniform3f(handle, value1, value2, value3); break;
         case GL_FLOAT_VEC4: glUniform4f(handle, value1, value2, value3, value4); break;
+        case GL_INT:        glUniform1i(handle, (GLint)value1); break;
+        case GL_INT_VEC2:   glUniform2i(handle, (GLint)value1, (GLint)value2); break;
+        case GL_INT_VEC3:   glUniform3i(handle, (GLint)value1, (GLint)value2, (GLint)value3); break;
+        case GL_INT_VEC4:   glUniform4i(handle, (GLint)value1, (GLint)value2, (GLint)value3, (GLint)value4); break;
         default:
             if (count == 1)      glUniform1f(handle, value1);
             else if (count == 2) glUniform2f(handle, value1, value2);
