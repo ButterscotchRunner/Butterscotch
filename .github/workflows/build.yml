@@ -506,11 +506,10 @@ jobs:
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
             LOG_ERRORS=1 \
-            SHARED_RENDERTARGETS=1 \
-            DRAW_SPEEDHACK=1 \
             HAVE_SHADER_CACHE=1 \
-            MATH_SPEEDHACK=1 \
-            HAVE_TEXTURE_CACHE=1 \
+            USE_SCRATCH_MEMORY=1 \
+            DEPTH_STENCIL_HACK=1 \
+            READBACKS_SPEEDHACK=1 \
             -j$(nproc)
 
       - name: Configure
