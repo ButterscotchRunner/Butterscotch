@@ -528,9 +528,7 @@ jobs:
 
       - name: Build vitaGL with speedhacks
         run: |
-          export CC="ccache arm-vita-eabi-gcc"
-          export CXX="ccache arm-vita-eabi-g++"
-          make -C vendor/vitaGL \
+          CC="ccache arm-vita-eabi-gcc" CXX="ccache arm-vita-eabi-g++" make -C vendor/vitaGL \
             install \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
