@@ -50,7 +50,7 @@ jobs:
         run: brew install cmake glfw bzip2
 
       - name: Configure
-        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -- -j$(sysctl -n hw.ncpu)
@@ -77,7 +77,7 @@ jobs:
         run: brew install cmake glfw bzip2
 
       - name: Configure
-        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=appkit -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -- -j$(sysctl -n hw.ncpu)
