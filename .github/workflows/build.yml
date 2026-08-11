@@ -181,7 +181,7 @@ jobs:
         run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
   
   build-glfw-macos:
-    name: Build (GLFW/macOS ${{ matrix.label }})
+    name: Build (AppKit/macOS ${{ matrix.label }})
     strategy:
       fail-fast: false
       matrix:
