@@ -363,7 +363,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
         audioSystem = (AudioSystem*) NoopAudioSystem_create();
     }
 
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, 0);
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->osType = jOsType;
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
