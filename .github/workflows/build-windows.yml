@@ -96,7 +96,7 @@ jobs:
           path: build/butterscotch.exe
 
   build-glfw-windows-x86:
-    name: Build (GLFW/Windows i486)
+    name: Build (GLFW2/Windows i486)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
