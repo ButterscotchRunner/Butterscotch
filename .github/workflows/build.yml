@@ -34,9 +34,23 @@ jobs:
           name: butterscotch-glfw-linux-x86_64
           path: build/butterscotch
 
-  build-glfw-windows-x86_64:
-    name: Build (GLFW/Windows x86_64)
+  build-glfw-windows:
+    name: Build (GLFW/Windows ${{ matrix.arch }})
     runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            toolchain: cmake/mingw-w64.cmake
+            triplet: x86_64-w64-mingw32
+          - arch: arm64
+            toolchain: cmake/mingw-arm64.cmake
+            triplet: aarch64-w64-mingw32
+          - arch: i686
+            toolchain: cmake/mingw-w64-i686.cmake
+            triplet: i686-w64-mingw32
+
     steps:
       - uses: actions/checkout@v4
 
@@ -46,32 +60,49 @@ jobs:
           echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
-      - name: Install MinGW and dependencies
+      - name: Install LLVM-MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake mingw-w64
+          sudo apt-get install -y cmake llvm-mingw
 
       - name: Build GLFW for MinGW
         run: |
           git clone https://github.com/glfw/glfw.git /tmp/glfw
           git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
+
           cmake -B /tmp/glfw/build -S /tmp/glfw \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/mingw-w64.cmake \
-            -DCMAKE_INSTALL_PREFIX=/usr/x86_64-w64-mingw32 \
-            -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
-          make -C /tmp/glfw/build -j$(nproc)
-          sudo make -C /tmp/glfw/build install
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/${{ matrix.toolchain }} \
+            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
+            -DGLFW_BUILD_EXAMPLES=OFF \
+            -DGLFW_BUILD_TESTS=OFF \
+            -DGLFW_BUILD_DOCS=OFF
+
+          cmake --build /tmp/glfw/build -j$(nproc)
+          sudo cmake --install /tmp/glfw/build
 
       - name: Build bzip2 for MinGW
         run: |
           curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
           tar -xf /tmp/bzip2.tar.gz -C /tmp
-          make -C /tmp/bzip2-1.0.8 libbz2.a CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar RANLIB=x86_64-w64-mingw32-ranlib -j$(nproc)
-          sudo cp /tmp/bzip2-1.0.8/libbz2.a /usr/x86_64-w64-mingw32/lib/
-          sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/x86_64-w64-mingw32/include/
+
+          make -C /tmp/bzip2-1.0.8 libbz2.a \
+            CC=${{ matrix.triplet }}-gcc \
+            AR=${{ matrix.triplet }}-ar \
+            RANLIB=${{ matrix.triplet }}-ranlib \
+            -j$(nproc)
+
+          sudo cp /tmp/bzip2-1.0.8/libbz2.a /usr/${{ matrix.triplet }}/lib/
+          sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/${{ matrix.triplet }}/include/
 
       - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }} \
+            -DWERROR=ON \
+            -DDESKTOP_BACKEND=glfw3 \
+            -DCMAKE_BUILD_TYPE=Release \
+            "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
+            "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -79,7 +110,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-windows-x86_64
+          name: butterscotch-glfw-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
 
   build-glfw-linux-x86:
