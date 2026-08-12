@@ -17,27 +17,15 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-24.04
-            cc: gcc
-            cxx: g++
-            cflags: ""
-            cxxflags: ""
-            ldflags: ""
 
           - arch: i686
             runner: ubuntu-24.04
-            cc: gcc
-            cxx: g++
             cflags: "-m32"
             cxxflags: "-m32"
             ldflags: "-m32"
 
           - arch: arm64
             runner: ubuntu-24.04-arm64
-            cc: gcc
-            cxx: g++
-            cflags: ""
-            cxxflags: ""
-            ldflags: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -180,8 +168,8 @@ jobs:
             -DWERROR=ON \
             -DDESKTOP_BACKEND=glfw3 \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
-            -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" \
+            -DCMAKE_C_COMPILER="gcc" \
+            -DCMAKE_CXX_COMPILER="g++" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
