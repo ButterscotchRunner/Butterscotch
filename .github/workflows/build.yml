@@ -202,7 +202,10 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
   
       - name: Install dependencies
-        run: brew install cmake ninja glfw bzip2 ccache
+        run: brew install glfw ccache
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
 
       - uses: actions/cache@v5
         with:
