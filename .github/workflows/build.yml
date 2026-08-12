@@ -81,6 +81,7 @@ jobs:
           cmake -B /tmp/glfw/build -S /tmp/glfw \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
+            -DTARGET_TRIPLE=${{ matrix.target }} \
             -DGLFW_BUILD_EXAMPLES=OFF \
             -DGLFW_BUILD_TESTS=OFF \
             -DGLFW_BUILD_DOCS=OFF
