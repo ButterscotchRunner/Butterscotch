@@ -54,7 +54,12 @@ jobs:
           fi
           
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo dpkg --add-architecture arm64
+            sudo apt-get update
+            sudo apt-get install -y \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libc6-dev-arm64-cross
+
             sudo mkdir -p /tmp/apt-arm64
             printf '%s\n' \
               'Types: deb' \
@@ -72,9 +77,6 @@ jobs:
             sudo apt-get install -y \
               -o Dir::Etc::sourcelist=/dev/null \
               -o Dir::Etc::sourceparts=/tmp/apt-arm64 \
-              gcc-aarch64-linux-gnu \
-              g++-aarch64-linux-gnu \
-              libc6-dev-arm64-cross \
               libglfw3-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
