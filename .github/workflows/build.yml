@@ -89,6 +89,8 @@ jobs:
 
           cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DGLFW_BUILD_SHARED_LIBS=OFF \
             -DGLFW_BUILD_EXAMPLES=OFF \
             -DGLFW_BUILD_TESTS=OFF \
