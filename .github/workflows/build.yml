@@ -256,10 +256,13 @@ jobs:
       matrix:
         include:
           - arch: amd64
+            sysroot_arch: amd64
             target_triple: x86_64-unknown-freebsd
           - arch: i386
+            sysroot_arch: i386
             target_triple: i386-unknown-freebsd
           - arch: aarch64
+            sysroot_arch: arm64
             target_triple: aarch64-unknown-freebsd
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
@@ -282,7 +285,7 @@ jobs:
 
       - name: Download FreeBSD sysroot
         run: |
-          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
+          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.sysroot_arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
           sudo mkdir -p ${{ env.FREEBSD_SYSROOT }}
           sudo tar -xJf sysroot.tar.xz -C ${{ env.FREEBSD_SYSROOT }}
           rm sysroot.tar.xz
