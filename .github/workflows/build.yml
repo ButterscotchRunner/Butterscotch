@@ -106,21 +106,7 @@ jobs:
 
           cmake --build /tmp/glfw/build
           sudo cmake --install /tmp/glfw/build
-
-      - name: Build bzip2 for MinGW
-        run: |
-          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
-          tar -xf /tmp/bzip2.tar.gz -C /tmp
-
-          make -C /tmp/bzip2-1.0.8 libbz2.a \
-            CC=${{ matrix.triplet }}-gcc \
-            AR=${{ matrix.triplet }}-ar \
-            RANLIB=${{ matrix.triplet }}-ranlib \
-            -j$(nproc)
-
-          sudo cp /tmp/bzip2-1.0.8/libbz2.a /usr/${{ matrix.triplet }}/lib/
-          sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/${{ matrix.triplet }}/include/
-
+          
       - name: Configure
         run: |
           cmake -B build -G Ninja \
