@@ -44,51 +44,34 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            cmake \
-            ninja-build \
-            ccache \
-            libbz2-dev
-
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             sudo dpkg --add-architecture arm64
+            sudo apt-get update
             sudo apt-get install -y \
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
-              libc6-dev-arm64-cross
+              libc6-dev-arm64-cross \
+              libglfw3-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
+            sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
-              g++-multilib
+              g++-multilib \
+              libglfw3-dev:i386
           else
+            sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
-              g++-multilib
+              g++-multilib \
+              libglfw3-dev
           fi
-
-          case "${{ matrix.desktop_backend }}" in
-            glfw3)
-              if [ "${{ matrix.arch }}" = "i686" ]; then
-                sudo apt-get install -y libglfw3-dev:i386
-              elif [ "${{ matrix.arch }}" = "arm64" ]; then
-                sudo apt-get install -y libglfw3-dev:arm64
-              else
-                sudo apt-get install -y libglfw3-dev
-              fi
-              ;;
-            sdl2)
-              if [ "${{ matrix.arch }}" = "i686" ]; then
-                sudo apt-get install -y libsdl2-dev:i386
-              elif [ "${{ matrix.arch }}" = "arm64" ]; then
-                sudo apt-get install -y libsdl2-dev:arm64
-              else
-                sudo apt-get install -y libsdl2-dev
-              fi
-              ;;
-          esac
+          sudo apt-get install -y \
+              pkg-config \
+              cmake \
+              ninja-build \
+              ccache \
+              libbz2-dev \
 
       - uses: actions/cache@v5
         with:
