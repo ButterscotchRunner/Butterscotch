@@ -263,7 +263,7 @@ static GLuint linkProgram(const char* name, uint32_t vertexAttributeCount, const
     return program;
 }
 
-static GLShaderUniform* getShaderUniform(GMLShader shader, const char* name, GLenum type) {
+static GLShaderUniform* getShaderUniform(GMLShader* shader, const char* name, GLenum type) {
     GLint location = glGetUniformLocation(shader->shaderId, name);
     if (location < 0) return NULL;
 
