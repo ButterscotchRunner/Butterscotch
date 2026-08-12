@@ -78,9 +78,7 @@ jobs:
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
-            "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build --parallel
@@ -167,9 +165,7 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
             -DDESKTOP_BACKEND=glfw3 \
-            -DCMAKE_BUILD_TYPE=Release \
-            "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
-            "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+            -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build
@@ -224,9 +220,7 @@ jobs:
               CC='ccache i486-w64-mingw32-gcc' \
               DESKTOP_BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
-              EXTRALIBS='-latomic' \
-              BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
-              BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
+              EXTRALIBS='-latomic'
 
       - name: Pack toolchain cache
         run: |
