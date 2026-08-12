@@ -82,7 +82,11 @@ jobs:
             libglu1-mesa-dev:i386 \
             pkg-config \
             cmake \
-            ninja-build
+            ninja-build \
+            libwayland-dev:i386 \
+            libwayland-cursor-dev:i386 \
+            libwayland-egl-dev:i386 \
+            libxkbcommon-dev:i386 \
 
           git clone --depth 1 https://github.com/glfw/glfw.git /tmp/glfw
           git -C /tmp/glfw fetch --depth=1 origin fdd14e65b1c29e4e6df875fb5669ec00d6793531
