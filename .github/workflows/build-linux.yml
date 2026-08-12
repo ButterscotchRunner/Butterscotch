@@ -132,9 +132,7 @@ jobs:
               -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
             )
           else
-            export PKG_CONFIG_PATH=""
-            export PKG_CONFIG_LIBDIR=""
-            export PKG_CONFIG_SYSROOT_DIR=""
+            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
             export CC="gcc"
             export CXX="g++"
 
