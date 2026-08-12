@@ -59,18 +59,10 @@ jobs:
             gcc-multilib \
             g++-multilib
 
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ccache
-          key: ccache-glfw-linux-${{ matrix.arch }}-${{ github.sha }}
-          restore-keys: |
-            ccache-glfw-linux-${{ matrix.arch }}-
-
       - name: Build 32-bit GLFW from source
         if: ${{ matrix.arch == 'x86' }}
         run: |
           sudo dpkg --add-architecture i386
-          sudo apt-get update
           sudo apt-get install -y \
             libx11-dev:i386 \
             libxrandr-dev:i386 \
@@ -103,6 +95,13 @@ jobs:
 
           cmake --build /tmp/glfw/build
           cmake --install /tmp/glfw/build
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-glfw-linux-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-linux-${{ matrix.arch }}-
 
       - name: Configure
         env:
