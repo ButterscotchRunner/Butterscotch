@@ -8,6 +8,7 @@
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
 #include <vitaGL.h>
+#define GL_BOOL 0x8B56
 #else
 #include <glad/glad.h>
 #endif
