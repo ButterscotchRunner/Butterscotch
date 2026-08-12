@@ -59,6 +59,12 @@ jobs:
             gcc-multilib \
             g++-multilib
 
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            sudo dpkg --add-architecture i386
+            sudo apt-get update
+            sudo apt-get install -y libglfw3-dev:i386
+          fi
+
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
