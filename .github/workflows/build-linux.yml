@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-desktop-linux:
-    name: Build (${{ matrix.desktop_backend }}/Linux ${{ matrix.arch }})
+    name: Build (${{ matrix.desktop_backend_label }}/Linux ${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
 
     strategy:
@@ -15,10 +15,12 @@ jobs:
           - arch: x86_64
             runner: ubuntu-24.04
             desktop_backend: glfw3
+            desktop_backend_label: GLFW3
 
           - arch: i686
             runner: ubuntu-24.04
             desktop_backend: sdl2
+            desktop_backend_label: SDL2
             cflags: "-m32"
             cxxflags: "-m32"
             ldflags: "-m32"
@@ -26,6 +28,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm64
             desktop_backend: glfw3
+            desktop_backend_label: GLFW3
 
     steps:
       - uses: actions/checkout@v4
