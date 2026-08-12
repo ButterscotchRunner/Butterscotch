@@ -163,7 +163,11 @@ jobs:
               ninja -C /tmp/glfw/build install
               ;;
             sdl2)
-              sudo apt-get install -y libsdl2-dev:i386
+              sudo apt-get install -y \
+                libglib2.0-dev:i386 \
+                libglib2.0-dev-bin:i386 \
+                libglib2.0-dev-bin-linux:i386 \
+                libsdl2-dev:i386
               ;;
           esac
 
