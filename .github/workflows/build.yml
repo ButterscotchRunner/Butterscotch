@@ -44,13 +44,11 @@ jobs:
           - arch: x86_64
             target: x86_64-w64-windows-gnu
             triplet: x86_64-w64-mingw32
-            toolchain: cmake/mingw-w64.cmake
             root: /usr/x86_64-w64-mingw32
 
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
-            toolchain: cmake/mingw-arm64.cmake
             root: /usr/aarch64-w64-mingw32
 
     steps:
@@ -81,7 +79,7 @@ jobs:
           git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
 
           cmake -B /tmp/glfw/build -S /tmp/glfw \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/${{ matrix.toolchain }} \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
             -DGLFW_BUILD_EXAMPLES=OFF \
             -DGLFW_BUILD_TESTS=OFF \
@@ -107,7 +105,7 @@ jobs:
       - name: Configure
         run: |
           cmake -B build -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }} \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DCMAKE_FIND_ROOT_PATH=${{ matrix.root }} \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DWERROR=ON \
@@ -167,7 +165,7 @@ jobs:
         with:
           name: butterscotch-glfw-linux-x86
           path: build/butterscotch
-          
+
   build-glfw-macos:
     name: Build (AppKit/macOS ${{ matrix.label }})
     strategy:
