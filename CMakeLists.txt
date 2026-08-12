@@ -255,6 +255,7 @@ if(PLATFORM STREQUAL "desktop")
     # GLAD
     add_library(glad STATIC vendor/glad/src/glad.c)
     target_include_directories(glad PUBLIC vendor/glad/include)
+    target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
 
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
@@ -273,13 +274,13 @@ if(PLATFORM STREQUAL "desktop")
         add_compile_definitions(USE_GLFW3)
 
         if(MINGW)
-            find_package(glfw3 REQUIRED)
+            find_package(glfw3 CONFIG REQUIRED)
 
             # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
             # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
             target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
             target_link_options(butterscotch PRIVATE -static)
-            set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+            set(BACKEND_LIBRARIES glfw opengl32 gdi32 winmm)
         elseif(MSVC)
             target_compile_definitions(butterscotch PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
             find_package(glfw3 CONFIG REQUIRED)
