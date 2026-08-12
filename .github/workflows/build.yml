@@ -22,7 +22,7 @@ jobs:
             cxxflags: ""
             ldflags: ""
 
-          - arch: x86
+          - arch: i686
             runner: ubuntu-24.04
             cc: gcc
             cxx: g++
@@ -59,56 +59,119 @@ jobs:
             gcc-multilib \
             g++-multilib
 
-      - name: Build 32-bit Wayland/xkbcommon/GLFW for x86
-        if: ${{ matrix.arch == 'x86' }}
+      - name: Build 32-bit Wayland/xkbcommon/GLFW for i686
+        if: ${{ matrix.arch == 'i686' }}
         run: |
           sudo dpkg --add-architecture i386
+          sudo apt-get update
           sudo apt-get install -y \
-            pkg-config \
-            python3-pip \
-            meson \
-            ninja-build \
-            cmake \
+            pkg-config python3-pip meson ninja-build cmake \
             libx11-dev:i386 \
+            libx11-xcb-dev:i386 \
             libxrandr-dev:i386 \
             libxcursor-dev:i386 \
             libxinerama-dev:i386 \
             libxss-dev:i386 \
             libxi-dev:i386 \
+            libxau-dev:i386 \
+            libxdmcp-dev:i386 \
             libgl1-mesa-dev:i386 \
             libglu1-mesa-dev:i386 \
             libxkbcommon-dev:i386 \
             libxcb1-dev:i386 \
             libxcb-xkb-dev:i386 \
-            libxkbcommon-x11-dev:i386
+            libxkbcommon-x11-dev:i386 \
+            libffi-dev:i386 \
+            libexpat1-dev:i386 \
+            libxml2-dev:i386
+
+          python3 -m pip install --user --upgrade "meson>=1.4.0"
+          export PATH="$HOME/.local/bin:/tmp/wayland32/bin:$PATH"
+          hash -r
+          meson --version
+
+          which wayland-scanner || true
+          wayland-scanner --version || true
+
+          mkdir -p /tmp/native-pkgconfig
+          NATIVE_PC=$(pkg-config --variable pcfiledir wayland-scanner)/wayland-scanner.pc
+          cp "$NATIVE_PC" /tmp/native-pkgconfig/
 
           git clone --depth 1 https://gitlab.freedesktop.org/wayland/wayland /tmp/wayland
-          meson setup /tmp/wayland/build /tmp/wayland --prefix=/tmp/wayland32
-          ninja -C /tmp/wayland/build
-          ninja -C /tmp/wayland/build install
 
-          git clone --depth 1 https://gitlab.freedesktop.org/wayland/wayland-protocols /tmp/wayland-protocols
-          meson setup /tmp/wayland-protocols/build /tmp/wayland-protocols --prefix=/tmp/wayland32
+          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
+
+          meson setup /tmp/wayland32-build /tmp/wayland \
+            --prefix=/tmp/wayland32 \
+            -Dc_args=-m32 \
+            -Dcpp_args=-m32 \
+            -Dc_link_args=-m32 \
+            -Dcpp_link_args=-m32 \
+            -Ddocumentation=false
+
+          ninja -C /tmp/wayland32-build
+          ninja -C /tmp/wayland32-build install
+
+          git clone --depth 1 \
+            https://gitlab.freedesktop.org/wayland/wayland-protocols \
+            /tmp/wayland-protocols
+
+          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
+
+          wayland-scanner --version
+          which wayland-scanner
+
+          meson setup /tmp/wayland-protocols/build \
+            /tmp/wayland-protocols \
+            --prefix=/tmp/wayland32 \
+            -Dtests=false
+
           ninja -C /tmp/wayland-protocols/build install
 
-          git clone --depth 1 https://gitlab.freedesktop.org/xkbcommon/libxkbcommon /tmp/xkbcommon
-          meson setup /tmp/xkbcommon/build /tmp/xkbcommon --prefix=/tmp/wayland32
+          git clone --depth 1 \
+            https://github.com/xkbcommon/libxkbcommon \
+            /tmp/xkbcommon
+
+          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
+
+          meson setup /tmp/xkbcommon/build \
+            /tmp/xkbcommon \
+            --prefix=/tmp/wayland32 \
+            -Dc_args=-m32 \
+            -Dcpp_args=-m32 \
+            -Dc_link_args=-m32 \
+            -Dcpp_link_args=-m32
+
           ninja -C /tmp/xkbcommon/build
           ninja -C /tmp/xkbcommon/build install
 
           git clone https://github.com/glfw/glfw.git /tmp/glfw
-          git -C /tmp/glfw fetch --depth=1 origin fdd14e65b1c29e4e6df875fb5669ec00d6793531
+          git -C /tmp/glfw fetch --depth=1 origin \
+            fdd14e65b1c29e4e6df875fb5669ec00d6793531
+          git -C /tmp/glfw checkout FETCH_HEAD
+
+          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
+
           cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
             -DGLFW_BUILD_SHARED_LIBS=OFF \
             -DGLFW_BUILD_EXAMPLES=OFF \
             -DGLFW_BUILD_TESTS=OFF \
             -DGLFW_BUILD_DOCS=OFF \
-            -DGLFW_USE_WAYLAND=ON \
-            -DGLFW_USE_X11=ON \
-            -DCMAKE_C_FLAGS="-m32" \
-            -DCMAKE_CXX_FLAGS="-m32" \
-            -DCMAKE_EXE_LINKER_FLAGS="-m32"
+            -DGLFW_BUILD_WAYLAND=ON \
+            -DGLFW_BUILD_X11=ON \
+            -DCMAKE_C_FLAGS=-m32 \
+            -DCMAKE_CXX_FLAGS=-m32 \
+            -DCMAKE_EXE_LINKER_FLAGS=-m32
+
           ninja -C /tmp/glfw/build
           ninja -C /tmp/glfw/build install
 
@@ -124,7 +187,7 @@ jobs:
           CFLAGS: ${{ matrix.cflags }}
           CXXFLAGS: ${{ matrix.cxxflags }}
           LDFLAGS: ${{ matrix.ldflags }}
-          PKG_CONFIG_PATH: ${{ matrix.arch == 'x86' && '/tmp/glfw32/lib/pkgconfig' || '' }}
+          PKG_CONFIG_PATH: ${{ matrix.arch == 'i686' && '/tmp/glfw32/lib/pkgconfig' || '' }}
         run: |
           cmake -B build -G Ninja \
             -DWERROR=ON \
