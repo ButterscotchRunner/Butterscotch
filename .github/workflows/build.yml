@@ -44,12 +44,12 @@ jobs:
           - arch: x86_64
             target: x86_64-w64-windows-gnu
             triplet: x86_64-w64-mingw32
-            root: /usr/x86_64-w64-mingw32
-
+          - arch: i686
+            target: i686-w64-windows-gnu
+            triplet: i686-w64-mingw32
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
-            root: /usr/aarch64-w64-mingw32
 
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DCMAKE_FIND_ROOT_PATH=${{ matrix.root }} \
+            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DWERROR=ON \
             -DDESKTOP_BACKEND=glfw3 \
