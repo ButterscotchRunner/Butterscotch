@@ -7,14 +7,14 @@ on:
     branches: [main]
 
 jobs:
-  linux:
+  Linux:
     uses: ./.github/workflows/build-linux.yml
 
-  windows:
+  Windows:
     uses: ./.github/workflows/build-windows.yml
 
-  macos:
+  macOS:
     uses: ./.github/workflows/build-macos.yml
 
-  other:
+  Other:
     uses: ./.github/workflows/build-other.yml
