@@ -92,7 +92,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-windows-${{ matrix.arch }}
+          name: butterscotch-glfw3-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
 
   build-glfw-windows-x86:
@@ -150,5 +150,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-windows-x86
+          name: butterscotch-glfw2-windows-x86
           path: build/butterscotch.exe
