@@ -51,20 +51,20 @@ jobs:
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
               libc6-dev-arm64-cross \
-              libglfw3-dev:arm64
+              lib${{ matrix.desktop_backend }}-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
             sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
               g++-multilib \
-              libglfw3-dev:i386
+              lib${{ matrix.desktop_backend }}-dev:i386
           else
             sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
               g++-multilib \
-              libglfw3-dev
+              lib${{ matrix.desktop_backend }}-dev
           fi
           sudo apt-get install -y \
               pkg-config \
