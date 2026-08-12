@@ -79,12 +79,15 @@ jobs:
               gcc-multilib \
               g++-multilib \
               $pkg_name:i386
-          else
+          elif [ "${{ matrix.arch }}" = "x86_64" ]; then
             sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
               g++-multilib \
               $pkg_name
+          else
+            echo "Unknown architecture: ${{ matrix.arch }}"
+            exit 1
           fi
           sudo apt-get install -y \
               pkg-config \
@@ -131,7 +134,18 @@ jobs:
               -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
               -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
             )
-          else
+          elif [ "${{ matrix.arch }}" = "i686" ]; then
+            export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            unset PKG_CONFIG_SYSROOT_DIR
+            export CC="gcc"
+            export CXX="g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_C_COMPILER=gcc
+              -DCMAKE_CXX_COMPILER=g++
+            )
+          elif [ "${{ matrix.arch }}" = "x86_64" ]; then
             unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
             export CC="gcc"
             export CXX="g++"
@@ -140,6 +154,9 @@ jobs:
               -DCMAKE_C_COMPILER=gcc
               -DCMAKE_CXX_COMPILER=g++
             )
+          else
+            echo "Unknown architecture: ${{ matrix.arch }}"
+            exit 1
           fi
 
           cmake -B build -G Ninja "${CMAKE_ARGS[@]}"
