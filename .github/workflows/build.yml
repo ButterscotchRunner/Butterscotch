@@ -86,10 +86,14 @@ jobs:
             libxml2-dev:i386
 
           python3 -m pip install --user --upgrade "meson>=1.4.0"
-          export PATH="$HOME/.local/bin:/tmp/wayland32/bin:$PATH"
-          hash -r
-          meson --version
 
+          export WAYLAND32_PREFIX="/tmp/wayland32"
+          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:${WAYLAND32_PREFIX}/lib/pkgconfig:${WAYLAND32_PREFIX}/lib/x86_64-linux-gnu/pkgconfig:${WAYLAND32_PREFIX}/share/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:${WAYLAND32_PREFIX}/lib/pkgconfig:${WAYLAND32_PREFIX}/lib/x86_64-linux-gnu/pkgconfig:${WAYLAND32_PREFIX}/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          export PATH="${WAYLAND32_PREFIX}/bin:$HOME/.local/bin:$PATH"
+          hash -r
+
+          meson --version
           which wayland-scanner || true
           wayland-scanner --version || true
 
@@ -98,56 +102,35 @@ jobs:
           cp "$NATIVE_PC" /tmp/native-pkgconfig/
 
           git clone --depth 1 https://gitlab.freedesktop.org/wayland/wayland /tmp/wayland
-
-          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
-          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
-
           meson setup /tmp/wayland32-build /tmp/wayland \
-            --prefix=/tmp/wayland32 \
+            --prefix="$WAYLAND32_PREFIX" \
             -Dc_args=-m32 \
             -Dcpp_args=-m32 \
             -Dc_link_args=-m32 \
             -Dcpp_link_args=-m32 \
             -Ddocumentation=false
-
           ninja -C /tmp/wayland32-build
           ninja -C /tmp/wayland32-build install
 
           git clone --depth 1 \
             https://gitlab.freedesktop.org/wayland/wayland-protocols \
             /tmp/wayland-protocols
-
-          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
-          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
-
-          wayland-scanner --version
-          which wayland-scanner
-
           meson setup /tmp/wayland-protocols/build \
             /tmp/wayland-protocols \
-            --prefix=/tmp/wayland32 \
+            --prefix="$WAYLAND32_PREFIX" \
             -Dtests=false
-
           ninja -C /tmp/wayland-protocols/build install
 
           git clone --depth 1 \
             https://github.com/xkbcommon/libxkbcommon \
             /tmp/xkbcommon
-
-          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
-          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
-
           meson setup /tmp/xkbcommon/build \
             /tmp/xkbcommon \
-            --prefix=/tmp/wayland32 \
+            --prefix="$WAYLAND32_PREFIX" \
             -Dc_args=-m32 \
             -Dcpp_args=-m32 \
             -Dc_link_args=-m32 \
             -Dcpp_link_args=-m32
-
           ninja -C /tmp/xkbcommon/build
           ninja -C /tmp/xkbcommon/build install
 
@@ -155,10 +138,6 @@ jobs:
           git -C /tmp/glfw fetch --depth=1 origin \
             fdd14e65b1c29e4e6df875fb5669ec00d6793531
           git -C /tmp/glfw checkout FETCH_HEAD
-
-          export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig"
-          export PKG_CONFIG_PATH="/tmp/native-pkgconfig:/tmp/wayland32/lib/pkgconfig:/tmp/wayland32/lib/x86_64-linux-gnu/pkgconfig:/tmp/wayland32/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-          export PATH="/tmp/wayland32/bin:$HOME/.local/bin:$PATH"
 
           cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
@@ -171,7 +150,6 @@ jobs:
             -DCMAKE_C_FLAGS=-m32 \
             -DCMAKE_CXX_FLAGS=-m32 \
             -DCMAKE_EXE_LINKER_FLAGS=-m32
-
           ninja -C /tmp/glfw/build
           ninja -C /tmp/glfw/build install
 
