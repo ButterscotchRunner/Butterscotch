@@ -54,14 +54,9 @@ jobs:
           fi
 
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get update
-            sudo apt-get install -y \
-              gcc-aarch64-linux-gnu \
-              g++-aarch64-linux-gnu \
-              libc6-dev-arm64-cross
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
 
             sudo dpkg --add-architecture arm64
-            sudo mkdir -p /tmp/apt-arm64
             printf '%s\n' \
               'Types: deb' \
               'URIs: http://ports.ubuntu.com/ubuntu-ports' \
@@ -69,15 +64,13 @@ jobs:
               'Components: main universe restricted multiverse' \
               'Architectures: arm64' \
               'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
-              | sudo tee /tmp/apt-arm64/ubuntu-ports-arm64.sources >/dev/null
+              | sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
 
-            sudo apt-get update \
-              -o Dir::Etc::sourcelist=/dev/null \
-              -o Dir::Etc::sourceparts=/tmp/apt-arm64 \
-              -o APT::Get::List-Cleanup=0
+            sudo apt-get update
             sudo apt-get install -y \
-              -o Dir::Etc::sourcelist=/dev/null \
-              -o Dir::Etc::sourceparts=/tmp/apt-arm64 \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libc6-dev-arm64-cross \
               libglfw3-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
