@@ -44,6 +44,15 @@ jobs:
 
       - name: Install dependencies
         run: |
+          if [ "${{ matrix.desktop_backend }}" = "glfw3" ]; then
+            pkg_name="libglfw3-dev"
+          elif [ "${{ matrix.desktop_backend }}" = "sdl2" ]; then
+            pkg_name="libsdl2-dev"
+          else
+            echo "Unknown desktop backend: ${{ matrix.desktop_backend }}"
+            exit 1
+          fi
+          
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             sudo dpkg --add-architecture arm64
             sudo apt-get update
@@ -51,20 +60,20 @@ jobs:
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
               libc6-dev-arm64-cross \
-              lib${{ matrix.desktop_backend }}-dev:arm64
+              $pkg_name:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
             sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
               g++-multilib \
-              lib${{ matrix.desktop_backend }}-dev:i386
+              $pkg_name:i386
           else
             sudo apt-get update
             sudo apt-get install -y \
               gcc-multilib \
               g++-multilib \
-              lib${{ matrix.desktop_backend }}-dev
+              $pkg_name
           fi
           sudo apt-get install -y \
               pkg-config \
