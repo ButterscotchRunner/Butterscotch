@@ -85,7 +85,7 @@ jobs:
             ninja-build
 
           git clone --depth 1 https://github.com/glfw/glfw.git /tmp/glfw
-          git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
+          git -C /tmp/glfw fetch --depth=1 origin fdd14e65b1c29e4e6df875fb5669ec00d6793531
 
           cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
