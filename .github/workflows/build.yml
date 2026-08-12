@@ -201,6 +201,52 @@ jobs:
         with:
           name: butterscotch-glfw-windows-x86
           path: build/butterscotch.exe
+  
+  build-glfw-macos:
+    name: Build (AppKit/macOS ${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x86_64
+            runner: macos-26-intel
+          - label: arm64
+            runner: macos-26
+        
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+  
+      - name: Install dependencies
+        run: brew install glfw ccache
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ matrix.label }}-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-${{ matrix.label }}-
+  
+      - name: Configure
+        run: cmake -B build -G Ninja -DWERROR=ON -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" -DDESKTOP_BACKEND=appkit -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
+  
+      - name: Build
+        run: cmake --build build
+  
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-appkit-macos-${{ matrix.label }}
+          path: build/butterscotch
 
   build-sdl2-freebsd:
     name: Build (SDL2/FreeBSD ${{ matrix.arch }})
