@@ -59,11 +59,16 @@ jobs:
             gcc-multilib \
             g++-multilib
 
-      - name: Build 32-bit GLFW from source
+      - name: Build 32-bit Wayland/xkbcommon/GLFW for x86
         if: ${{ matrix.arch == 'x86' }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get install -y \
+            pkg-config \
+            python3-pip \
+            meson \
+            ninja-build \
+            cmake \
             libx11-dev:i386 \
             libxrandr-dev:i386 \
             libxcursor-dev:i386 \
@@ -72,29 +77,40 @@ jobs:
             libxi-dev:i386 \
             libgl1-mesa-dev:i386 \
             libglu1-mesa-dev:i386 \
-            pkg-config \
-            cmake \
-            ninja-build \
-            libwayland-dev:i386 \
             libxkbcommon-dev:i386 \
+            libxcb1-dev:i386 \
+            libxcb-xkb-dev:i386 \
+            libxkbcommon-x11-dev:i386
 
-          git clone --depth 1 https://github.com/glfw/glfw.git /tmp/glfw
+          git clone --depth 1 https://gitlab.freedesktop.org/wayland/wayland /tmp/wayland
+          meson setup /tmp/wayland/build /tmp/wayland --prefix=/tmp/wayland32
+          ninja -C /tmp/wayland/build
+          ninja -C /tmp/wayland/build install
+
+          git clone --depth 1 https://gitlab.freedesktop.org/wayland/wayland-protocols /tmp/wayland-protocols
+          meson setup /tmp/wayland-protocols/build /tmp/wayland-protocols --prefix=/tmp/wayland32
+          ninja -C /tmp/wayland-protocols/build install
+
+          git clone --depth 1 https://gitlab.freedesktop.org/xkbcommon/libxkbcommon /tmp/xkbcommon
+          meson setup /tmp/xkbcommon/build /tmp/xkbcommon --prefix=/tmp/wayland32
+          ninja -C /tmp/xkbcommon/build
+          ninja -C /tmp/xkbcommon/build install
+
+          git clone https://github.com/glfw/glfw.git /tmp/glfw
           git -C /tmp/glfw fetch --depth=1 origin fdd14e65b1c29e4e6df875fb5669ec00d6793531
-
           cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DGLFW_BUILD_SHARED_LIBS=OFF \
             -DGLFW_BUILD_EXAMPLES=OFF \
             -DGLFW_BUILD_TESTS=OFF \
             -DGLFW_BUILD_DOCS=OFF \
+            -DGLFW_USE_WAYLAND=ON \
+            -DGLFW_USE_X11=ON \
             -DCMAKE_C_FLAGS="-m32" \
             -DCMAKE_CXX_FLAGS="-m32" \
             -DCMAKE_EXE_LINKER_FLAGS="-m32"
-
-          cmake --build /tmp/glfw/build
-          cmake --install /tmp/glfw/build
+          ninja -C /tmp/glfw/build
+          ninja -C /tmp/glfw/build install
 
       - uses: actions/cache@v5
         with:
