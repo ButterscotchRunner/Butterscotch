@@ -26,9 +26,12 @@ jobs:
             ldflags: "-m32"
 
           - arch: arm64
-            runner: ubuntu-24.04-arm64
+            runner: ubuntu-24.04
             desktop_backend: glfw3
             desktop_backend_label: GLFW3
+            target_triple: aarch64-linux-gnu
+            cflags: "-march=armv8-a"
+            cxxflags: "-march=armv8-a"
 
     steps:
       - uses: actions/checkout@v4
@@ -47,23 +50,40 @@ jobs:
             cmake \
             ninja-build \
             ccache \
-            libbz2-dev \
-            gcc-multilib \
-            g++-multilib
+            libbz2-dev
+
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo dpkg --add-architecture arm64
+            sudo apt-get install -y \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libc6-dev-arm64-cross
+          elif [ "${{ matrix.arch }}" = "i686" ]; then
+            sudo dpkg --add-architecture i386
+            sudo apt-get install -y \
+              gcc-multilib \
+              g++-multilib
+          else
+            sudo apt-get install -y \
+              gcc-multilib \
+              g++-multilib
+          fi
 
           case "${{ matrix.desktop_backend }}" in
             glfw3)
               if [ "${{ matrix.arch }}" = "i686" ]; then
-                sudo dpkg --add-architecture i386
                 sudo apt-get install -y libglfw3-dev:i386
+              elif [ "${{ matrix.arch }}" = "arm64" ]; then
+                sudo apt-get install -y libglfw3-dev:arm64
               else
                 sudo apt-get install -y libglfw3-dev
               fi
               ;;
             sdl2)
               if [ "${{ matrix.arch }}" = "i686" ]; then
-                sudo dpkg --add-architecture i386
                 sudo apt-get install -y libsdl2-dev:i386
+              elif [ "${{ matrix.arch }}" = "arm64" ]; then
+                sudo apt-get install -y libsdl2-dev:arm64
               else
                 sudo apt-get install -y libsdl2-dev
               fi
@@ -83,15 +103,29 @@ jobs:
           CXXFLAGS: ${{ matrix.cxxflags }}
           LDFLAGS: ${{ matrix.ldflags }}
           PKG_CONFIG_PATH: ${{ matrix.arch == 'i686' && matrix.desktop_backend == 'glfw3' && '/tmp/glfw32/lib/pkgconfig' || '' }}
+          PKG_CONFIG_LIBDIR: ${{ matrix.arch == 'arm64' && '/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/:/usr/share/pkgconfig' || '' }}
+          PKG_CONFIG_SYSROOT_DIR: ${{ matrix.arch == 'arm64' && '/' || '' }}
         run: |
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export CC="${{ matrix.target_triple }}-gcc"
+            export CXX="${{ matrix.target_triple }}-g++"
+            export PKG_CONFIG_PATH=""
+          fi
+
           cmake -B build -G Ninja \
             -DWERROR=ON \
             -DDESKTOP_BACKEND=${{ matrix.desktop_backend }} \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER="gcc" \
-            -DCMAKE_CXX_COMPILER="g++" \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER="${{ matrix.arch == 'arm64' && format('{0}-gcc', matrix.target_triple) || 'gcc' }}" \
+            -DCMAKE_CXX_COMPILER="${{ matrix.arch == 'arm64' && format('{0}-g++', matrix.target_triple) || 'g++' }}" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.target_triple }} \
+            -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
 
       - name: Build
         run: cmake --build build --parallel
