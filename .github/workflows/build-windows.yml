@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-glfw-windows:
-    name: Build (GLFW3/Windows ${{ matrix.arch }})
+    name: Build (GLFW3 ${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
     strategy:
@@ -96,7 +96,7 @@ jobs:
           path: build/butterscotch.exe
 
   build-glfw-windows-x86:
-    name: Build (GLFW2/Windows i486)
+    name: Build (GLFW2 i486)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

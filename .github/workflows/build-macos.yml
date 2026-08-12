@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-glfw-macos:
-    name: Build (AppKit/macOS ${{ matrix.label }})
+    name: Build (AppKit ${{ matrix.label }})
     strategy:
       fail-fast: false
       matrix:

@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-desktop-linux:
-    name: Build (${{ matrix.desktop_backend_label }}/Linux ${{ matrix.arch }})
+    name: Build (${{ matrix.desktop_backend_label }} ${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
 
     strategy:
