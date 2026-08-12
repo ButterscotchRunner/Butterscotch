@@ -259,7 +259,7 @@ jobs:
             target_triple: x86_64-unknown-freebsd
           - arch: i386
             target_triple: i386-unknown-freebsd
-          - arch: arm64
+          - arch: aarch64
             target_triple: aarch64-unknown-freebsd
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
