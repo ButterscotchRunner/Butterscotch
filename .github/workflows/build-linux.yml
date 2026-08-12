@@ -14,18 +14,18 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-24.04
-            desktop_backend: GLFW3
+            desktop_backend: glfw3
 
           - arch: i686
             runner: ubuntu-24.04
-            desktop_backend: SDL2
+            desktop_backend: sdl2
             cflags: "-m32"
             cxxflags: "-m32"
             ldflags: "-m32"
 
           - arch: arm64
             runner: ubuntu-24.04-arm64
-            desktop_backend: GLFW3
+            desktop_backend: glfw3
 
     steps:
       - uses: actions/checkout@v4
@@ -49,10 +49,10 @@ jobs:
             g++-multilib
 
           case "${{ matrix.desktop_backend }}" in
-            GLFW3)
+            glfw3)
               sudo apt-get install -y libglfw3-dev
               ;;
-            SDL2)
+            sdl2)
               sudo apt-get install -y libsdl2-dev
               ;;
           esac
@@ -70,7 +70,7 @@ jobs:
           sudo apt-get update
 
           case "${{ matrix.desktop_backend }}" in
-            GLFW3)
+            glfw3)
               sudo apt-get install -y \
                 python3-pip meson ninja-build cmake \
                 libx11-dev:i386 \
@@ -162,7 +162,7 @@ jobs:
               ninja -C /tmp/glfw/build
               ninja -C /tmp/glfw/build install
               ;;
-            SDL2)
+            sdl2)
               sudo apt-get install -y libsdl2-dev:i386
               ;;
           esac
@@ -179,7 +179,7 @@ jobs:
           CFLAGS: ${{ matrix.cflags }}
           CXXFLAGS: ${{ matrix.cxxflags }}
           LDFLAGS: ${{ matrix.ldflags }}
-          PKG_CONFIG_PATH: ${{ matrix.arch == 'i686' && matrix.desktop_backend == 'GLFW3' && '/tmp/glfw32/lib/pkgconfig' || '' }}
+          PKG_CONFIG_PATH: ${{ matrix.arch == 'i686' && matrix.desktop_backend == 'glfw3' && '/tmp/glfw32/lib/pkgconfig' || '' }}
         run: |
           cmake -B build -G Ninja \
             -DWERROR=ON \
