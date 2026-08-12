@@ -20,13 +20,20 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-glfw-linux-x86_64-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-linux-x86_64-
 
       - name: Configure
-        run: cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -49,32 +56,33 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake mingw-w64
+          sudo apt-get install -y cmake ccache mingw-w64
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-glfw-windows-x86_64-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-windows-x86_64-
 
       - name: Build GLFW for MinGW
         run: |
           git clone https://github.com/glfw/glfw.git /tmp/glfw
           git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          cmake -B /tmp/glfw/build -S /tmp/glfw \
+          cmake -B /tmp/glfw/build -S /tmp/glfw -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/mingw-w64.cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_INSTALL_PREFIX=/usr/x86_64-w64-mingw32 \
             -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
-          make -C /tmp/glfw/build -j$(nproc)
-          sudo make -C /tmp/glfw/build install
-
-      - name: Build bzip2 for MinGW
-        run: |
-          curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o /tmp/bzip2.tar.gz
-          tar -xf /tmp/bzip2.tar.gz -C /tmp
-          make -C /tmp/bzip2-1.0.8 libbz2.a CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar RANLIB=x86_64-w64-mingw32-ranlib -j$(nproc)
-          sudo cp /tmp/bzip2-1.0.8/libbz2.a /usr/x86_64-w64-mingw32/lib/
-          sudo cp /tmp/bzip2-1.0.8/bzlib.h /usr/x86_64-w64-mingw32/include/
+          cmake --build /tmp/glfw/build
+          sudo cmake --install /tmp/glfw/build
 
       - name: Configure
-        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -98,26 +106,35 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y cmake gcc-multilib g++-multilib pkg-config libbz2-dev:i386 libx11-dev:i386 libxrandr-dev:i386 libxinerama-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libgl-dev:i386
+          sudo apt-get install -y cmake ccache gcc-multilib g++-multilib pkg-config libbz2-dev:i386 libx11-dev:i386 libxrandr-dev:i386 libxinerama-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libgl-dev:i386
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-glfw-linux-x86-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-linux-x86-
 
       - name: Build GLFW (32-bit)
         run: |
           git clone https://github.com/glfw/glfw.git /tmp/glfw
           git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          cmake -B /tmp/glfw/build -S /tmp/glfw \
+          cmake -B /tmp/glfw/build -S /tmp/glfw -G Ninja \
             -DCMAKE_C_FLAGS=-m32 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_INSTALL_PREFIX=/usr/local/glfw-x86 \
             -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF -DGLFW_BUILD_WAYLAND=OFF
-          make -C /tmp/glfw/build -j$(nproc)
-          sudo make -C /tmp/glfw/build install
+          cmake --build /tmp/glfw/build
+          sudo cmake --install /tmp/glfw/build
 
       - name: Configure
         run: |
           export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -131,19 +148,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Time
-        id: get-time
-        run: echo "time=$(date -u '+%Y-%m-%d-%H:%M:%S')" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v5
+      - name: Setup cache
+        uses: actions/cache@v5
         with:
-          path: ~/ccache.tar.xz
-          key: win32-artifact-${{ steps.get-time.outputs.time }}
+          path: |
+              ~/.cache/ccache
+              ~/toolchain-i486.tar
+          key: win32-artifact-${{ github.sha }}
           restore-keys: win32-artifact-
-      - name: Unpack cache
-        run: |
-          cd ~
-          [ -f ccache.tar.xz ] && tar xf ccache.tar.xz || true
-          [ -f workspacecache.tar ] && mv workspacecache.tar ${{ github.workspace }} || true
 
       - name: Get commit info
         id: commit-info
@@ -151,14 +163,20 @@ jobs:
           echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
+      - name: Unpack toolchain cache
+        run: |
+          if [ -f ~/toolchain-i486.tar ]; then
+            tar xf ~/toolchain-i486.tar -C ${{ github.workspace }}
+          fi
+
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
-          [ -f workspacecache.tar ] && tar xf workspacecache.tar
-          ARCH=i486 ./artifacts/windows/build-toolchain.sh
-          tar cf workspacecache.tar artifacts/windows/build/toolchain-i486
-          mv workspacecache.tar ~
+          
+          if [ ! -d "artifacts/windows/build/toolchain-i486" ]; then
+            ARCH=i486 ./artifacts/windows/build-toolchain.sh
+          fi
 
       - name: Build
         run: |
@@ -172,13 +190,17 @@ jobs:
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
               BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
 
+      - name: Pack toolchain cache
+        run: |
+          if [ -d "artifacts/windows/build/toolchain-i486" ]; then
+            tar cf ~/toolchain-i486.tar artifacts/windows/build/toolchain-i486
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-glfw-windows-x86
           path: build/butterscotch.exe
-      - name: Pack cache
-        run: cd ~ && tar cJf ccache.tar.xz .cache/ccache workspacecache.tar
   
   build-glfw-macos:
     name: Build (AppKit/macOS ${{ matrix.label }})
@@ -242,6 +264,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
   
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-freebsd-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-freebsd-${{ matrix.arch }}-
+
       - name: Download FreeBSD sysroot
         run: |
           curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
@@ -269,14 +301,15 @@ jobs:
           PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
           PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
         run: |
-          cmake -S . -B build \
+          cmake -S . -B build -G Ninja \
             -DDESKTOP_BACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-${{ matrix.arch }}.cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -- -j $(nproc)
+          cmake --build build
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -289,6 +322,8 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: ps2dev/ps2dev:latest
+    env:
+      CCACHE_IGNOREOPTIONS: "-DBUTTERSCOTCH_COMMIT_HASH=* -DBUTTERSCOTCH_COMMIT_DATE=*"
     strategy:
       fail-fast: false
       matrix:
@@ -307,9 +342,16 @@ jobs:
             extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=OFF -DENABLE_WAD17=ON"
     steps:
       - name: Install build tools
-        run: apk add --no-cache cmake make gmp-dev mpfr-dev mpc1-dev git
+        run: apk add --no-cache cmake ninja ccache gmp-dev mpfr-dev mpc1-dev git tar
 
       - uses: actions/checkout@v4
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ps2-${{ matrix.artifact }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ps2-${{ matrix.artifact }}-
 
       # Yeah, the safe.directory is needed because "fatal: detected dubious ownership in repository at '/__w/Butterscotch/Butterscotch'"
       - name: Get commit info
@@ -323,11 +365,11 @@ jobs:
         run: |
           mkdir -p build
           export CFLAGS="-fopt-info-inline-optimized=$PWD/build/inline_report.txt"
-          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: |
-          cmake --build build -j$(nproc)
+          cmake --build build
           cp build/butterscotch build/butterscotch.elf
 
       - name: Check executeLoop I-Cache fit
@@ -442,11 +484,21 @@ jobs:
         with:
           version: latest
 
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-web-${{ matrix.platform }}-${{ github.sha }}
+          restore-keys: |
+            ccache-web-${{ matrix.platform }}-
+
       - name: Configure
-        run: emcmake cmake -B build -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: emcmake cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -461,12 +513,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install ccache
+        run: apt-get update && apt-get install -y ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ps3-${{ github.sha }}
+          restore-keys: |
+            ccache-ps3-
+
       - name: Configure
-        run: cmake -B build -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
-          cmake --build build -j$(nproc)
+          cmake --build build
           sprxlinker build/butterscotch.elf
 
       - name: Upload artifact
@@ -482,13 +544,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Ninja
+        run: |
+          apk add --no-cache ninja ccache tar
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-vita-${{ github.sha }}
+          restore-keys: |
+            ccache-vita-
+
       - name: Checkout vitaGL
         run: |
           git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git vendor/vitaGL
 
       - name: Build vitaGL with speedhacks
         run: |
-          make -C vendor/vitaGL \
+          CC="ccache arm-vita-eabi-gcc" CXX="ccache arm-vita-eabi-g++" make -C vendor/vitaGL \
             install \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
@@ -501,11 +574,11 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal
+          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: |
-          cmake --build build -j$(nproc)
+          cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -527,10 +600,22 @@ jobs:
           cache: 'gradle'
           cache-dependency-path: src/android/frontend/gradle/wrapper/gradle-wrapper.properties
 
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-android-${{ github.sha }}
+          restore-keys: |
+            ccache-android-
+
       - name: Build APK
         run: |
           cd src/android/frontend
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug  \
+            -Pandroid.cxx.ndk.ccache=true \
+            -Porg.gradle.caching=true
   
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -576,7 +661,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libglfw3-dev
+        run: sudo apt-get update && sudo apt-get install -y ccache libglfw3-dev
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ccache-cxx-${{ github.sha }}
+          restore-keys: |
+            ccache-cxx-
 
       - name: Build
-        run: make CC='g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1
+        run: make CC='ccache g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1

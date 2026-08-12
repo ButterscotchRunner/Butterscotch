@@ -19,6 +19,12 @@ val keystoreProperties = Properties().apply {
 
 val butterscotchRepoDir = file("../../../../")
 
+val ccachePath = System.getenv("PATH")
+    .orEmpty()
+    .split(File.pathSeparator)
+    .map { File(it, "ccache") }
+    .firstOrNull { it.canExecute() }
+
 android {
     namespace = "net.perfectdreams.butterscotch.android"
     compileSdk {
@@ -40,11 +46,13 @@ android {
             cmake {
                 arguments += listOf(
                     "-DPLATFORM=android",
-                    "-DENABLE_GLES=ON",
                     "-DENABLE_MODERN_GL=ON",
                     "-DENABLE_LEGACY_GL=OFF",
                     "-DAUDIO_BACKEND=miniaudio"
                 )
+                if (ccachePath != null) {
+                    arguments += listOf("-DCMAKE_C_COMPILER_LAUNCHER=${ccachePath.absolutePath}", "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccachePath.absolutePath}")
+                }
                 cppFlags += "-std=c++17"
                 cFlags += "-std=gnu99"
             }
