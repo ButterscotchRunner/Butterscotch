@@ -7,38 +7,88 @@ on:
     branches: [main]
 
 jobs:
-  build-glfw-linux-x86_64:
-    name: Build (GLFW/Linux x86_64)
+  build-glfw-linux:
+    name: Build (GLFW/Linux ${{ matrix.arch }})
     runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            cc: gcc
+            cxx: g++
+            cflags: ""
+            cxxflags: ""
+            ldflags: ""
+
+          - arch: x86
+            cc: gcc
+            cxx: g++
+            cflags: "-m32"
+            cxxflags: "-m32"
+            ldflags: "-m32"
+
+          - arch: arm64
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            cflags: ""
+            cxxflags: ""
+            ldflags: ""
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Get commit info
         id: commit-info
         run: |
-          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+          echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            ccache \
+            libglfw3-dev \
+            libbz2-dev \
+            gcc-multilib \
+            g++-multilib \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
 
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
-          key: ccache-glfw-linux-x86_64-${{ github.sha }}
+          key: ccache-glfw-linux-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
-            ccache-glfw-linux-x86_64-
+            ccache-glfw-linux-${{ matrix.arch }}-
 
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cxxflags }}
+          LDFLAGS: ${{ matrix.ldflags }}
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DDESKTOP_BACKEND=glfw3 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
+            -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" \
+            "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build --parallel
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-linux-x86_64
+          name: butterscotch-glfw-linux-${{ matrix.arch }}
           path: build/butterscotch
 
   build-glfw-windows:
@@ -130,60 +180,8 @@ jobs:
           name: butterscotch-glfw-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
 
-  build-glfw-linux-x86:
-    name: Build (GLFW/Linux x86)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get commit info
-        id: commit-info
-        run: |
-          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
-
-      - name: Install 32-bit toolchain and dependencies
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y cmake ccache gcc-multilib g++-multilib pkg-config libbz2-dev:i386 libx11-dev:i386 libxrandr-dev:i386 libxinerama-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libgl-dev:i386
-
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ccache
-          key: ccache-glfw-linux-x86-${{ github.sha }}
-          restore-keys: |
-            ccache-glfw-linux-x86-
-
-      - name: Build GLFW (32-bit)
-        run: |
-          git clone https://github.com/glfw/glfw.git /tmp/glfw
-          git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          cmake -B /tmp/glfw/build -S /tmp/glfw -G Ninja \
-            -DCMAKE_C_FLAGS=-m32 \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_INSTALL_PREFIX=/usr/local/glfw-x86 \
-            -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF -DGLFW_BUILD_WAYLAND=OFF
-          cmake --build /tmp/glfw/build
-          sudo cmake --install /tmp/glfw/build
-
-      - name: Configure
-        run: |
-          export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: butterscotch-glfw-linux-x86
-          path: build/butterscotch
-
   build-glfw-windows-x86:
-    name: Build (GLFW/Windows x86)
+    name: Build (GLFW/Windows i486)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
