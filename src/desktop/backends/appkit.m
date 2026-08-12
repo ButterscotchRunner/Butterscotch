@@ -56,8 +56,12 @@ static void appkitMapControllerToSlot(GCController *controller, GamepadSlot *slo
     slot->guid[sizeof(slot->guid) - 1] = '\0';
 
     GCExtendedGamepad *extended = controller.extendedGamepad;
-    GCGamepad *gamepad = controller.gamepad;
     GCMicroGamepad *micro = controller.microGamepad;
+
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    GCGamepad *gamepad = controller.gamepad;
+    #pragma clang diagnostic pop
 
     if (extended) {
         slot->buttonDown[0] = extended.buttonA.pressed;
