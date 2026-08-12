@@ -59,12 +59,6 @@ jobs:
             gcc-multilib \
             g++-multilib
 
-          if [ "${{ matrix.arch }}" = "x86" ]; then
-            sudo dpkg --add-architecture i386
-            sudo apt-get update
-            sudo apt-get install -y libglfw3-dev:i386
-          fi
-
       - uses: actions/cache@v5
         with:
           path: ~/.cache/ccache
@@ -72,11 +66,46 @@ jobs:
           restore-keys: |
             ccache-glfw-linux-${{ matrix.arch }}-
 
+      - name: Build 32-bit GLFW from source
+        if: ${{ matrix.arch == 'x86' }}
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev:i386 \
+            libxrandr-dev:i386 \
+            libxcursor-dev:i386 \
+            libxinerama-dev:i386 \
+            libxss-dev:i386 \
+            libxi-dev:i386 \
+            libgl1-mesa-dev:i386 \
+            libglu1-mesa-dev:i386 \
+            pkg-config \
+            cmake \
+            ninja-build
+
+          git clone --depth 1 https://github.com/glfw/glfw.git /tmp/glfw
+          git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
+
+          cmake -S /tmp/glfw -B /tmp/glfw/build -G Ninja \
+            -DCMAKE_INSTALL_PREFIX=/tmp/glfw32 \
+            -DGLFW_BUILD_SHARED_LIBS=OFF \
+            -DGLFW_BUILD_EXAMPLES=OFF \
+            -DGLFW_BUILD_TESTS=OFF \
+            -DGLFW_BUILD_DOCS=OFF \
+            -DCMAKE_C_FLAGS="-m32" \
+            -DCMAKE_CXX_FLAGS="-m32" \
+            -DCMAKE_EXE_LINKER_FLAGS="-m32"
+
+          cmake --build /tmp/glfw/build
+          cmake --install /tmp/glfw/build
+
       - name: Configure
         env:
           CFLAGS: ${{ matrix.cflags }}
           CXXFLAGS: ${{ matrix.cxxflags }}
           LDFLAGS: ${{ matrix.ldflags }}
+          PKG_CONFIG_PATH: ${{ matrix.arch == 'x86' && '/tmp/glfw32/lib/pkgconfig' || '' }}
         run: |
           cmake -B build -G Ninja \
             -DWERROR=ON \
