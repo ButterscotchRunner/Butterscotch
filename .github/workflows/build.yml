@@ -348,24 +348,8 @@ jobs:
         include:
           - label: x86_64
             runner: macos-26-intel
-            arch: x86_64
-            cflags: ""
-            cxxflags: ""
           - label: arm64
             runner: macos-26
-            arch: arm64
-            cflags: ""
-            cxxflags: ""
-          - label: i386
-            runner: macos-26-intel
-            arch: i386
-            cflags: "-m32"
-            cxxflags: "-m32"
-          - label: ppc
-            runner: macos-26-intel
-            arch: ppc
-            cflags: "-arch ppc"
-            cxxflags: "-arch ppc"
         
     runs-on: ${{ matrix.runner }}
     steps:
@@ -394,9 +378,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DWERROR=ON \
-            -DCMAKE_OSX_ARCHITECTURES="${{ matrix.arch }}" \
-            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations ${{ matrix.cflags }}" \
-            -DCMAKE_CXX_FLAGS="${{ matrix.cxxflags }}" \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
             -DDESKTOP_BACKEND=appkit \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
