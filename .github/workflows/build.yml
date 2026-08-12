@@ -59,11 +59,19 @@ jobs:
         run: |
           echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
-
-      - name: Install LLVM-MinGW and dependencies
+          
+      - name: Install LLVM-MinGW
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake llvm-mingw
+          curl -L \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            -o /tmp/llvm-mingw.tar.xz
+
+          sudo mkdir -p /opt/llvm-mingw
+          sudo tar -xf /tmp/llvm-mingw.tar.xz \
+            --strip-components=1 \
+            -C /opt/llvm-mingw
+
+          echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
       - name: Build GLFW for MinGW
         run: |
