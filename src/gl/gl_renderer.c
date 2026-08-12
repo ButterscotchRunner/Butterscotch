@@ -263,14 +263,14 @@ static GLuint linkProgram(const char* name, uint32_t vertexAttributeCount, const
     return program;
 }
 
-GLShaderUniform* findShaderUniformByName(GMLShader* shader, const char* name) {
-    repeat(shader->uniformCount, b) {
-        if (strcmp(shader->uniforms[b].name, name) == 0) {
-            return &shader->uniforms[b];
-        }
-    }
+static GLShaderUniform* getShaderUniform(GLShaderUniform* uniform, GLuint program, const char* name, GLenum type) {
+    GLint location = glGetUniformLocation(program, name);
+    if (location < 0) return NULL;
 
-    return nullptr;
+    GLShaderUniform* uniform = (GLShaderUniform*) safeCalloc(1, sizeof(GLShaderUniform));
+    uniform->location = location;
+    uniform->type = type;
+    return uniform;
 }
 
 // ===[ Batch Flush ]===
@@ -510,11 +510,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     gl->defaultShaderProgram = defaultShader;
 
-    gl->uWorldViewProjection = findShaderUniformByName(defaultShader, "uWorldViewProjection");
-    gl->uFogColor = findShaderUniformByName(defaultShader, "uFogColor");
-    gl->uAlphaTestRef = findShaderUniformByName(defaultShader, "uAlphaTestRef");
-    gl->uAlphaTestEnabled = findShaderUniformByName(defaultShader, "uAlphaTestEnabled");
-    gl->uTexture = findShaderUniformByName(defaultShader, "uTexture");
+    gl->uWorldViewProjection = getShaderUniform(gl->uWorldViewProjection, defaultShader->shaderId, "uWorldViewProjection", GL_FLOAT_MAT4);
+    gl->uFogColor            = getShaderUniform(gl->uFogColor,            defaultShader->shaderId, "uFogColor",            GL_FLOAT_VEC4);
+    gl->uAlphaTestRef        = getShaderUniform(gl->uAlphaTestRef,        defaultShader->shaderId, "uAlphaTestRef",        GL_FLOAT);
+    gl->uAlphaTestEnabled    = getShaderUniform(gl->uAlphaTestEnabled,    defaultShader->shaderId, "uAlphaTestEnabled",    GL_BOOL);
+    gl->uTexture             = getShaderUniform(gl->uTexture,             defaultShader->shaderId, "uTexture",             GL_SAMPLER_2D);
 
     gl->gmlShaders = (GMLShader *)safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
     logInfo("GL: %u Shaders Found\n", dataWin->shdr.count);
@@ -566,8 +566,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         gl->gmlShaderCount++;
     }
-    GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
-    GLShaderUniform* uFogColor = findShaderUniformByName(gl->defaultShaderProgram, "uFogColor");
+    GLShaderUniform* uAlphaTestRef = getShaderUniform(gl->uAlphaTestRef, gl->defaultShaderProgram->shaderId, "uAlphaTestRef", GL_FLOAT);
+    GLShaderUniform* uFogColor     = getShaderUniform(gl->uFogColor,     gl->defaultShaderProgram->shaderId, "uFogColor",     GL_FLOAT_VEC4);
 
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
