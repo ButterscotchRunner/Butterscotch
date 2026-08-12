@@ -54,6 +54,12 @@ jobs:
           fi
 
           if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get update
+            sudo apt-get install -y \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libc6-dev-arm64-cross
+
             sudo dpkg --add-architecture arm64
             sudo mkdir -p /tmp/apt-arm64
             printf '%s\n' \
@@ -64,12 +70,6 @@ jobs:
               'Architectures: arm64' \
               'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
               | sudo tee /tmp/apt-arm64/ubuntu-ports-arm64.sources >/dev/null
-
-            sudo apt-get update
-            sudo apt-get install -y \
-              gcc-aarch64-linux-gnu \
-              g++-aarch64-linux-gnu \
-              libc6-dev-arm64-cross
 
             sudo apt-get update \
               -o Dir::Etc::sourcelist=/dev/null \
