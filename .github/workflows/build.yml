@@ -42,14 +42,16 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            toolchain: cmake/mingw-w64.cmake
+            target: x86_64-w64-windows-gnu
             triplet: x86_64-w64-mingw32
+            toolchain: cmake/mingw-w64.cmake
+            root: /usr/x86_64-w64-mingw32
+
           - arch: arm64
-            toolchain: cmake/mingw-arm64.cmake
+            target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
-          - arch: i686
-            toolchain: cmake/mingw-w64-i686.cmake
-            triplet: i686-w64-mingw32
+            toolchain: cmake/mingw-arm64.cmake
+            root: /usr/aarch64-w64-mingw32
 
     steps:
       - uses: actions/checkout@v4
@@ -104,8 +106,9 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build \
+          cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ matrix.toolchain }} \
+            -DCMAKE_FIND_ROOT_PATH=${{ matrix.root }} \
             -DWERROR=ON \
             -DDESKTOP_BACKEND=glfw3 \
             -DCMAKE_BUILD_TYPE=Release \
