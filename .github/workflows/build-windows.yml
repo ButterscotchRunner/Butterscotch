@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-glfw-windows:
-    name: Build (GLFW/Windows ${{ matrix.arch }})
+    name: Build (GLFW3/Windows ${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
     strategy:
