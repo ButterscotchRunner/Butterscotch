@@ -9,12 +9,13 @@ on:
 jobs:
   build-glfw-linux:
     name: Build (GLFW/Linux ${{ matrix.arch }})
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       matrix:
         include:
           - arch: x86_64
+            runner: ubuntu-24.04
             cc: gcc
             cxx: g++
             cflags: ""
@@ -22,6 +23,7 @@ jobs:
             ldflags: ""
 
           - arch: x86
+            runner: ubuntu-24.04
             cc: gcc
             cxx: g++
             cflags: "-m32"
@@ -29,8 +31,9 @@ jobs:
             ldflags: "-m32"
 
           - arch: arm64
-            cc: aarch64-linux-gnu-gcc
-            cxx: aarch64-linux-gnu-g++
+            runner: ubuntu-24.04-arm64
+            cc: gcc
+            cxx: g++
             cflags: ""
             cxxflags: ""
             ldflags: ""
@@ -54,9 +57,7 @@ jobs:
             libglfw3-dev \
             libbz2-dev \
             gcc-multilib \
-            g++-multilib \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
+            g++-multilib
 
       - uses: actions/cache@v5
         with:
