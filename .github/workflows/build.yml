@@ -84,8 +84,6 @@ jobs:
             cmake \
             ninja-build \
             libwayland-dev:i386 \
-            libwayland-cursor-dev:i386 \
-            libwayland-egl-dev:i386 \
             libxkbcommon-dev:i386 \
 
           git clone --depth 1 https://github.com/glfw/glfw.git /tmp/glfw
