@@ -81,7 +81,7 @@ static const char* readStringPtr(BinaryReader* reader, DataWin* dw) {
     uint32_t offset = BinaryReader_readUint32(reader);
     if (offset == 0) return nullptr;
     return (const char*) (dw->strgBuffer + (offset - dw->strgBufferBase));
-}
+} 
 
 // Reads a pointer list header: count + absolute-offset pointers.
 // Caller must free the returned array.
