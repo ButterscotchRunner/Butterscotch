@@ -7,9 +7,9 @@
 #include <windows.h>
 #endif
 
-#ifdef ENABLE_SW_RENDERER
+// #ifdef ENABLE_SW_RENDERER
 #include <glad/glad.h>
-#endif
+// #endif
 #include <GLFW/glfw3.h>
 
 #include "common.h"
@@ -79,7 +79,7 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
     return NULL;
 }
 
-#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(LINUX_GUI)
+#if (defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND))
 #define PLATFORM_HAS_ERROR_BOX
 #endif
 
