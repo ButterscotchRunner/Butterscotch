@@ -123,7 +123,7 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v5
         with:
-          path: ${{ github.workspace }}/.cache/ccache
+          path: ~/.cache/ccache
           key: ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
