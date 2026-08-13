@@ -79,7 +79,7 @@ jobs:
               | sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
 
             sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
               libc6-dev-arm64-cross \
@@ -87,13 +87,12 @@ jobs:
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
             sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
               gcc-multilib \
               g++-multilib \
               $pkg_name:i386
           elif [ "${{ matrix.arch }}" = "x86_64" ]; then
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
               gcc-multilib \
               g++-multilib \
               $pkg_name
@@ -101,7 +100,7 @@ jobs:
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
           fi
-          sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
+          sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
               pkg-config \
               cmake \
               ninja-build \
@@ -168,7 +167,7 @@ jobs:
             )
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
-            exit 1 
+            exit 1
           fi
 
           cmake -B build -G Ninja "${CMAKE_ARGS[@]}"
