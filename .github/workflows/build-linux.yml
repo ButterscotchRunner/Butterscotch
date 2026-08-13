@@ -42,19 +42,24 @@ jobs:
           echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare APT cache
+        run: |
+          mkdir -p "$HOME/.apt-cache"
+          sudo chmod -R a+rwX "$HOME/.apt-cache"
+
       - name: Cache APT packages
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.cache/apt
+          path: ${{ github.workspace }}/.apt-cache
           key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
 
       - name: Install dependencies
+        env:
+          APT_CACHE_DIR: ${{ github.workspace }}/.apt-cache
         run: |
-          export APT_CACHE_DIR="$HOME/.cache/apt"
-          mkdir -p "$APT_CACHE_DIR"
+          mkdir -p "$APT_CACHE_DIR/archives"
 
           if [ "${{ matrix.desktop_backend }}" = "glfw3" ]; then
             pkg_name="libglfw3-dev"
@@ -64,6 +69,11 @@ jobs:
             echo "Unknown desktop backend: ${{ matrix.desktop_backend }}"
             exit 1
           fi
+
+          APT_ARGS=(
+            -o "Dir::Cache::archives=$APT_CACHE_DIR/archives"
+            -o "APT::Keep-Downloaded-Packages=true"
+          )
 
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
@@ -78,22 +88,22 @@ jobs:
               'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
               | sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
 
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
               libc6-dev-arm64-cross \
               libglfw3-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-multilib \
               g++-multilib \
               $pkg_name:i386
           elif [ "${{ matrix.arch }}" = "x86_64" ]; then
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
-            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-multilib \
               g++-multilib \
               $pkg_name
@@ -101,16 +111,17 @@ jobs:
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
           fi
-          sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
+          sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               pkg-config \
               cmake \
               ninja-build \
               ccache \
               libbz2-dev \
 
-      - uses: actions/cache@v5
+      - name: Cache ccache
+        uses: actions/cache@v5
         with:
-          path: ~/.cache/ccache
+          path: ${{ github.workspace }}/.cache/ccache
           key: ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
