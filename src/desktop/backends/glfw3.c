@@ -79,7 +79,7 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
     return NULL;
 }
 
-#if (defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND))
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
 #define PLATFORM_HAS_ERROR_BOX
 #endif
 

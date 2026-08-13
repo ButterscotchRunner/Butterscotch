@@ -206,7 +206,7 @@ static void loadGamepadMappings(void) {
     fclose(f);
 }
 
-#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(LINUX_GUI)
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
 #define PLATFORM_HAS_ERROR_BOX
 #endif
 
