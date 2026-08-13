@@ -20,7 +20,7 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev libgtk-3-dev
 
       - uses: actions/cache@v5
         with:
@@ -105,7 +105,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y cmake ccache gcc-multilib g++-multilib pkg-config libbz2-dev:i386 libx11-dev:i386 libxrandr-dev:i386 libxinerama-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libgl-dev:i386
+          sudo apt-get install -y cmake ccache gcc-multilib g++-multilib pkg-config libbz2-dev:i386 libx11-dev:i386 libxrandr-dev:i386 libxinerama-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libgl-dev:i386 libgtk-3-dev:i386
 
       - uses: actions/cache@v5
         with:
