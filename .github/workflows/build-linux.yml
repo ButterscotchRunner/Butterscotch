@@ -47,7 +47,7 @@ jobs:
         with:
           path: |
             /home/runner/.cache/apt-archives
-          key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/build-linux.yml') }}
+          key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
 
