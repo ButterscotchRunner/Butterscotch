@@ -46,14 +46,14 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            /home/runner/.cache/apt-archives
+            ~/.cache/apt
           key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
 
       - name: Install dependencies
         run: |
-          export APT_CACHE_DIR="${HOME}/.cache/apt-archives"
+          export APT_CACHE_DIR="$HOME/.cache/apt"
           mkdir -p "$APT_CACHE_DIR"
 
           if [ "${{ matrix.desktop_backend }}" = "glfw3" ]; then
