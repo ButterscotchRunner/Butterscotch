@@ -42,8 +42,20 @@ jobs:
           echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
 
+      - name: Cache APT packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            /home/runner/.cache/apt-archives
+          key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ hashFiles('.github/workflows/build-linux.yml') }}
+          restore-keys: |
+            apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
+
       - name: Install dependencies
         run: |
+          export APT_CACHE_DIR="${HOME}/.cache/apt-archives"
+          mkdir -p "$APT_CACHE_DIR"
+
           if [ "${{ matrix.desktop_backend }}" = "glfw3" ]; then
             pkg_name="libglfw3-dev"
           elif [ "${{ matrix.desktop_backend }}" = "sdl2" ]; then
@@ -66,22 +78,22 @@ jobs:
               'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
               | sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
 
-            sudo apt-get update
-            sudo apt-get install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
               gcc-aarch64-linux-gnu \
               g++-aarch64-linux-gnu \
               libc6-dev-arm64-cross \
               libglfw3-dev:arm64
           elif [ "${{ matrix.arch }}" = "i686" ]; then
             sudo dpkg --add-architecture i386
-            sudo apt-get update
-            sudo apt-get install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
               gcc-multilib \
               g++-multilib \
               $pkg_name:i386
           elif [ "${{ matrix.arch }}" = "x86_64" ]; then
-            sudo apt-get update
-            sudo apt-get install -y \
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true update
+            sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
               gcc-multilib \
               g++-multilib \
               $pkg_name
@@ -89,7 +101,7 @@ jobs:
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
           fi
-          sudo apt-get install -y \
+          sudo apt-get -o Dir::Cache::archives="$APT_CACHE_DIR" -o APT::Keep-Downloaded-Packages=true install -y \
               pkg-config \
               cmake \
               ninja-build \
