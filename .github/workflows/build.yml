@@ -16,5 +16,8 @@ jobs:
   macOS:
     uses: ./.github/workflows/build-macos.yml
 
+  FreeBSD:
+    uses: ./.github/workflows/build-freebsd.yml
+
   Other:
     uses: ./.github/workflows/build-other.yml
