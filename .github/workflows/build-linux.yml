@@ -112,11 +112,13 @@ jobs:
             exit 1
           fi
           sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
-              pkg-config \
-              cmake \
-              ninja-build \
-              ccache \
-              libbz2-dev \
+            pkg-config \
+            cmake \
+            ninja-build \
+            ccache \
+            libbz2-dev
+
+          sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
 
       - name: Cache ccache
         uses: actions/cache@v5

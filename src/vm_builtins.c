@@ -96,7 +96,7 @@
         logStubbedFunction(ctx, #name); \
         return RValue_makeUndefined(); \
     }
- 
+
 // ===[ STUB LOGGING ]===
 
 #ifdef ENABLE_VM_STUB_LOGS
