@@ -168,7 +168,7 @@ jobs:
             )
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
-            exit 1
+            exit 1 
           fi
 
           cmake -B build -G Ninja "${CMAKE_ARGS[@]}"
