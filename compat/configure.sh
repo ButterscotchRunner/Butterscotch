@@ -91,8 +91,8 @@ int main(void){return 0;}
 }
 
 checkend() {
-    wait "$2"
-    ret=$?
+    ret=0
+    wait "$2" || ret=1
     checklog "$1"
     if [ "$ret" = 0 ]; then
         printyes
