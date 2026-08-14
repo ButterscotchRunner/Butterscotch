@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman drop-repo HaikuPorts
+          pkgman drop-repo -y HaikuPorts
           pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
           pkgman refresh
           pkgman install -y gcc make libsdl2_devel
