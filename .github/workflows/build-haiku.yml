@@ -23,8 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman update -y
-          pkgman add -y gcc make libsdl2_devel
+          curl google.com || ping 1.1.1.1
 
       - name: Cache ccache
         uses: actions/cache@v5
