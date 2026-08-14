@@ -223,7 +223,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          apt-get update && apt-get install -y ninja ccache
+          apt-get update && apt-get install -y ninja-build ccache
 
       - uses: actions/cache@v5
         with:
