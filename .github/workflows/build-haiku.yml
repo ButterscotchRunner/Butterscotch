@@ -31,7 +31,7 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v5
         with:
-          path: /boot/home/.ccache
+          path: .ccache
           key: ccache-haiku-${{ github.sha }}
           restore-keys: |
             ccache-haiku-
@@ -40,6 +40,11 @@ jobs:
         run: |
           export CCACHE_DIR=/boot/home/.ccache
 
+          if [ -d ".ccache" ]; then
+            mkdir -p /boot/home/.ccache
+            cp -R .ccache/* /boot/home/.ccache/ || true
+          fi
+
           cmake -B build -G Ninja \
             -DDESKTOP_BACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
@@ -47,6 +52,13 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
+
+      - name: Persist cache to host
+        run: |
+          mkdir -p host_cache/ccache
+          if [ -d "/boot/home/.ccache" ]; then
+            cp -R /boot/home/.ccache/* .ccache/ || true
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
