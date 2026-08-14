@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman refresh --help
+          pkgman full-sync -y
 
       - name: Cache ccache
         uses: actions/cache@v5
