@@ -221,9 +221,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Ninja
+      - name: Install build dependencies
         run: |
-          apk add --no-cache ninja ccache tar
+          apt-get update && apt-get install -y ninja ccache
 
       - uses: actions/cache@v5
         with:
