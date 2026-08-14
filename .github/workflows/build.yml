@@ -30,7 +30,7 @@ jobs:
             ccache-glfw-linux-x86_64-
 
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -G Ninja -DWERROR=ON -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
@@ -79,7 +79,7 @@ jobs:
           sudo cmake --install /tmp/glfw/build
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DWERROR=ON -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
@@ -131,7 +131,7 @@ jobs:
       - name: Configure
         run: |
           export PKG_CONFIG_PATH=/usr/local/glfw-x86/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
-          cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -B build -G Ninja -DWERROR=ON -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
@@ -184,7 +184,7 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
-              DESKTOP_BACKEND=glfw2 \
+              BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic' \
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
@@ -662,7 +662,7 @@ jobs:
       - name: Build
         run: |
           sudo mv butterscotch ~/woody
-          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
 
   build-cxx:
     name: Build as C++
