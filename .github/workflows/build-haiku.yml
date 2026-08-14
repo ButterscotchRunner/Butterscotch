@@ -5,6 +5,7 @@ on:
 
 jobs:
   build-sdl2-haiku:
+    name: Build (SDL2 x86_64)
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -22,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman install -y cmake ccache ninja sdl2_devel gcc_syslibs_devel devel_min
+          pkgman install -y cmake ccache ninja sdl2_development gcc_syslibs_devel devel_min
 
       - name: Cache ccache
         uses: actions/cache@v5
