@@ -23,9 +23,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman drop-repo -y HaikuPorts
-          pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
-          pkgman refresh
+          yes | pkgman drop-repo HaikuPorts || true
+          yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
+          yes | pkgman refresh
           pkgman install -y gcc make libsdl2_devel
 
       - name: Cache ccache
@@ -39,13 +39,13 @@ jobs:
       - name: Configure and build Butterscotch
         run: |
           export CCACHE_DIR=${{ github.workspace }}/.ccache
-          
+
           make DESKTOP_BACKEND=sdl2 \
             AUDIO_BACKEND=miniaudio \
             CC="ccache gcc" \
             CXX="ccache g++" \
             -j $(nproc)
-            
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
