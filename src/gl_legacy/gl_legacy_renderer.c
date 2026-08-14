@@ -1815,6 +1815,65 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
     glEnd();
 }
 
+static void glLegacyDrawSurfaceColor(Renderer* renderer, int32_t surfaceId, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLuint texId;
+    int32_t texW, texH;
+    if (!resolveSurfaceTexture(gl, surfaceId, &texId, &texW, &texH)) return;
+
+    // Use the logical surface size for the default "draw everything" case,
+    // not the POT texture dimensions (texW/texH may be rounded up).
+    if (0 > srcWidth) {
+        srcLeft = 0;
+        srcTop = 0;
+        srcWidth = gl->surfaceWidth[surfaceId];
+        srcHeight = gl->surfaceHeight[surfaceId];
+    }
+
+    // top-down GML coords -> flipped V for our bottom-up texture
+    float u0 = (float) srcLeft / (float) texW;
+    float u1 = (float) (srcLeft + srcWidth) / (float) texW;
+#ifndef PLATFORM_PS3
+    float v0 = (float) srcTop / (float) texH;
+    float v1 = (float) (srcTop + srcHeight) / (float) texH;
+#else
+    float v1 = (float) srcTop / (float) texH;
+    float v0 = (float) (srcTop + srcHeight) / (float) texH;
+#endif
+
+    float r1 = (float) BGR_R(color1) / 255.0f;
+    float g1 = (float) BGR_G(color1) / 255.0f;
+    float b1 = (float) BGR_B(color1) / 255.0f;
+    float r2 = (float) BGR_R(color2) / 255.0f;
+    float g2 = (float) BGR_G(color2) / 255.0f;
+    float b2 = (float) BGR_B(color2) / 255.0f;
+    float r3 = (float) BGR_R(color3) / 255.0f;
+    float g3 = (float) BGR_G(color3) / 255.0f;
+    float b3 = (float) BGR_B(color3) / 255.0f;
+    float r4 = (float) BGR_R(color4) / 255.0f;
+    float g4 = (float) BGR_G(color4) / 255.0f;
+    float b4 = (float) BGR_B(color4) / 255.0f;
+
+    float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+    Matrix4f transform;
+    Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
+
+    float x0, y0, x1, y1, x2, y2, x3, y3;
+    Matrix4f_transformPoint(&transform, 0.0f,             0.0f,             &x0, &y0);
+    Matrix4f_transformPoint(&transform, (float) srcWidth, 0.0f,             &x1, &y1);
+    Matrix4f_transformPoint(&transform, (float) srcWidth, (float) srcHeight, &x2, &y2);
+    Matrix4f_transformPoint(&transform, 0.0f,             (float) srcHeight, &x3, &y3);
+
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glBegin(GL_QUADS);
+        glColor4f(r1, g1, b1, alpha); glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+        glColor4f(r2, g2, b2, alpha); glTexCoord2f(u1, v0); glVertex2f(x1, y1);
+        glColor4f(r3, g3, b3, alpha); glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+        glColor4f(r4, g4, b4, alpha); glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+    glEnd();
+}
+
+
 static void glLegacySurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
@@ -1970,6 +2029,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.getSurfaceWidth = glLegacyGetSurfaceWidth;
     glVtable.getSurfaceHeight = glLegacyGetSurfaceHeight;
     glVtable.drawSurface = glLegacyDrawSurface;
+    glVtable.drawSurfaceColor = glLegacyDrawSurfaceColor;
     glVtable.drawSurfaceTiled = glLegacyDrawSurfaceTiled;
     glVtable.surfaceResize = glLegacySurfaceResize;
     glVtable.surfaceFree = glLegacySurfaceFree;
