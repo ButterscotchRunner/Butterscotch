@@ -18,6 +18,8 @@
 #include "noop_audio_system.h"
 
 #include <vitaGL.h>
+#include <SDL2/SDL.h>
+
 #include <psp2/ctrl.h>
 #include <psp2/kernel/clib.h> 
 #include <psp2/kernel/processmgr.h>
@@ -38,71 +40,35 @@ char* pendingDataWinPath = NULL;
 int32_t currentWindowWidth = 0;
 int32_t currentWindowHeight = 0;
 
+uint32_t utf8_to_codepoint(const char *s) {
+    const unsigned char *p = (const unsigned char *)s;
+
+    if (p[0] < 0x80)
+        return p[0];
+
+    if ((p[0] & 0xE0) == 0xC0)
+        return ((p[0] & 0x1F) << 6) |
+               (p[1] & 0x3F);
+
+    if ((p[0] & 0xF0) == 0xE0)
+        return ((p[0] & 0x0F) << 12) |
+               ((p[1] & 0x3F) << 6) |
+               (p[2] & 0x3F);
+
+    if ((p[0] & 0xF8) == 0xF0)
+        return ((p[0] & 0x07) << 18) |
+               ((p[1] & 0x3F) << 12) |
+               ((p[2] & 0x3F) << 6) |
+               (p[3] & 0x3F);
+
+    return 0xFFFD; // replacement character
+}
+
+#pragma region vita funcs
+
 double osTime() {
     return (double)sceKernelGetProcessTimeWide() / 1000000.0;
 }
-static float stickByteToFloat(unsigned char raw) {
-    return ((float) raw - 128.0f) * (1.0f / 127.5f);
-}
-void handleVitaGamepad(RunnerGamepadState* gp, int port) {
-    sceCtrlPeekBufferPositiveExt2(0, &pad, 1);
-    GamepadSlot* slot = &gp->slots[port];
-    
-    memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
-    memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
-    memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
-    memset(slot->axisValue, 0, sizeof(slot->axisValue));
-
-    if (pad.buttons & SCE_CTRL_CROSS) slot->buttonDown[0] = true;
-    if (pad.buttons & SCE_CTRL_CIRCLE) slot->buttonDown[1] = true;
-    if (pad.buttons & SCE_CTRL_SQUARE) slot->buttonDown[2] = true;
-    if (pad.buttons & SCE_CTRL_TRIANGLE) slot->buttonDown[3] = true;
-
-    if (pad.buttons & SCE_CTRL_L1) slot->buttonDown[4] = true;
-    if (pad.buttons & SCE_CTRL_R1) slot->buttonDown[5] = true;
-    //if (pad.buttons & SCE_CTRL_L2) slot->buttonDown[6] = true;
-    //if (pad.buttons & SCE_CTRL_R2) slot->buttonDown[7] = true;
-
-    if (pad.buttons & SCE_CTRL_SELECT) slot->buttonDown[8] = true;
-    if (pad.buttons & SCE_CTRL_START) slot->buttonDown[9] = true;
-    if (pad.buttons & SCE_CTRL_PSBUTTON) slot->buttonDown[16] = true;
-
-    if (pad.buttons & SCE_CTRL_L3) slot->buttonDown[10] = true;
-    if (pad.buttons & SCE_CTRL_R3) slot->buttonDown[11] = true;
-
-    if (pad.buttons & SCE_CTRL_UP) slot->buttonDown[12] = true;
-    if (pad.buttons & SCE_CTRL_DOWN) slot->buttonDown[13] = true;
-    if (pad.buttons & SCE_CTRL_LEFT) slot->buttonDown[14] = true;
-    if (pad.buttons & SCE_CTRL_RIGHT) slot->buttonDown[15] = true;
-
-    float lx = stickByteToFloat(pad.lx);
-    float ly = stickByteToFloat(pad.ly);
-    float rx = stickByteToFloat(pad.rx);
-    float ry = stickByteToFloat(pad.ry);
-    slot->axisValue[0] = lx;
-    slot->axisValue[1] = ly;
-    slot->axisValue[2] = rx;
-    slot->axisValue[3] = ry;
-
-    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
-        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
-    }
-
-    if (!slot->connected) {
-        snprintf(slot->description, sizeof(slot->description), "PlayStation Vita");
-        slot->guid[0] = '\0';
-        slot->jid = port;
-    }
-    slot->connected = true;
-
-    for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
-        bool wasDown = slot->buttonDownPrev[btn];
-        if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
-        if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
-    }
-    gp->connectedCount++;
-}
-
 void platformLog(const logType type, const char *format, va_list va) {
     FILE *out = stderr;
     const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
@@ -131,18 +97,374 @@ void platformLog(const logType type, const char *format, va_list va) {
     vfprintf(out, format, va);
 }
 
-bool vitaGetWindowSize(int32_t* outW, int32_t* outH) {
+#pragma endregion
+
+#pragma region sdl2 stuff
+// code is mostly taken from desktop.c
+SDL_Window* sdlWindow;
+SDL_GameController* openControllers[MAX_GAMEPADS];
+
+int32_t SDLMouseButtonToGml(int sdlButton) {
+    switch (sdlButton) {
+        case SDL_BUTTON_LEFT: return GML_MB_LEFT;
+        case SDL_BUTTON_RIGHT: return GML_MB_RIGHT;
+        case SDL_BUTTON_MIDDLE: return GML_MB_MIDDLE;
+        default: return -1;
+    }
+}
+bool sdl2GetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    if (currentWindowWidth <= 0 || currentWindowHeight <= 0) return false;
-    *outW = currentWindowWidth;
-    *outH = currentWindowHeight;
+    int w = 0;
+    int h = 0;
+    SDL_GL_GetDrawableSize(sdlWindow, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
     return true;
 }
-void vitaSetWindowSize(int32_t width, int32_t height) {
-    if (width <= 0 || height <= 0) return;
-    currentWindowWidth = width;
-    currentWindowHeight = height;
+float sdl2GetWindowScale(void) {
+    int32_t draw_w = 0, draw_h = 0;
+    int logical_w = 0, logical_h = 0;
+    sdl2GetWindowSize(&draw_w, &draw_h);
+    SDL_GetWindowSize(sdlWindow, &logical_w, &logical_h);
+    return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
+void sdl2SetWindowSize(int32_t width, int32_t height) {
+    if (width <= 0 || height <= 0) return;
+    float scale = sdl2GetWindowScale();
+    SDL_SetWindowSize(sdlWindow, (int)(width / scale), (int)(height / scale));
+}
+bool sdl2GetScaledWindowSize(int32_t* outW, int32_t* outH) {
+    if (!outW || !outH) return false;
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(sdlWindow, &w, &h);
+    if (w <= 0 || h <= 0) return false;
+    *outW = w;
+    *outH = h;
+    return true;
+}
+bool sdl2GetWindowFocus(void) {
+    return SDL_GetWindowFlags(sdlWindow) & SDL_WINDOW_INPUT_FOCUS;
+}
+void sdl2GetMousePos(double *xPos, double *yPos) {
+    if (!xPos || !yPos) return;
+    int mx = 0, my = 0;
+    SDL_GetMouseState(&mx, &my);
+    float scale = sdl2GetWindowScale();
+    *xPos = (double)mx * scale;
+    *yPos = (double)my * scale;
+}
+int32_t SDLKeyToGml(int sdlkey) {
+    // Letters and numbers are the same as GML
+    if (sdlkey >= 'a' && sdlkey <= 'z') return toupper(sdlkey);
+    if (sdlkey >= '0' && sdlkey <= '9') return sdlkey;
+    // Special keys need mapping
+    switch (sdlkey) {
+        case SDLK_ESCAPE:    return VK_ESCAPE;
+        case SDLK_RETURN:    return VK_ENTER;
+        case SDLK_TAB:       return VK_TAB;
+        case SDLK_BACKSPACE: return VK_BACKSPACE;
+        case SDLK_SPACE:     return VK_SPACE;
+        case SDLK_LSHIFT:
+        case SDLK_RSHIFT:    return VK_SHIFT;
+        case SDLK_LCTRL:
+        case SDLK_RCTRL:     return VK_CONTROL;
+        case SDLK_LALT:
+        case SDLK_RALT:      return VK_ALT;
+        case SDLK_UP:        return VK_UP;
+        case SDLK_DOWN:      return VK_DOWN;
+        case SDLK_LEFT:      return VK_LEFT;
+        case SDLK_RIGHT:     return VK_RIGHT;
+        case SDLK_F1:        return VK_F1;
+        case SDLK_F2:        return VK_F2;
+        case SDLK_F3:        return VK_F3;
+        case SDLK_F4:        return VK_F4;
+        case SDLK_F5:        return VK_F5;
+        case SDLK_F6:        return VK_F6;
+        case SDLK_F7:        return VK_F7;
+        case SDLK_F8:        return VK_F8;
+        case SDLK_F9:        return VK_F9;
+        case SDLK_F10:       return VK_F10;
+        case SDLK_F11:       return VK_F11;
+        case SDLK_F12:       return VK_F12;
+        case SDLK_INSERT:    return VK_INSERT;
+        case SDLK_DELETE:    return VK_DELETE;
+        case SDLK_HOME:      return VK_HOME;
+        case SDLK_END:       return VK_END;
+        case SDLK_PAGEUP:    return VK_PAGEUP;
+        case SDLK_PAGEDOWN:  return VK_PAGEDOWN;
+        default:             return -1; // Unknown
+    }
+}
+void mapSdl2ToGml(SDL_GameController* gc, GamepadSlot* slot) {
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_A)) slot->buttonDown[0] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_B)) slot->buttonDown[1] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_X)) slot->buttonDown[2] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_Y)) slot->buttonDown[3] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) slot->buttonDown[4] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) slot->buttonDown[5] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_BACK)) slot->buttonDown[8] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_START)) slot->buttonDown[9] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_GUIDE)) slot->buttonDown[16] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSTICK)) slot->buttonDown[10] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSTICK)) slot->buttonDown[11] = true;
+
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_UP)) slot->buttonDown[12] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_DOWN)) slot->buttonDown[13] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) slot->buttonDown[14] = true;
+    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) slot->buttonDown[15] = true;
+
+    float lt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) / 32767.0f;
+    float rt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) / 32767.0f;
+    if (lt < 0.0f) lt = 0.0f;
+    if (rt < 0.0f) rt = 0.0f;
+    slot->buttonValue[6] = lt;
+    slot->buttonValue[7] = rt;
+    if (lt >= slot->triggerThreshold) slot->buttonDown[6] = true;
+    if (rt >= slot->triggerThreshold) slot->buttonDown[7] = true;
+
+    float lh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX) / 32767.0f;
+    float lv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY) / 32767.0f;
+    float rh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTX) / 32767.0f;
+    float rv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTY) / 32767.0f;
+
+    slot->axisValue[0] = lh;
+    slot->axisValue[1] = lv;
+    slot->axisValue[2] = rh;
+    slot->axisValue[3] = rv;
+
+    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
+        if (i == 6 || i == 7) continue;
+        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
+    }
+}
+bool sdl2HandleEvents(Runner* runner) {
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+            case SDL_WINDOWEVENT:
+            case SDL_QUIT:
+                break;
+        }
+        switch(e.type) {
+            case SDL_KEYDOWN:
+                // During playback, suppress real keyboard input
+                if (e.key.repeat != 0)
+                    break;
+                RunnerKeyboard_onKeyDown(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                break;
+            case SDL_KEYUP:
+                // During playback, suppress real keyboard input
+                RunnerKeyboard_onKeyUp(runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                break;
+            case SDL_TEXTINPUT:
+                // During playback, suppress real keyboard input
+                RunnerKeyboard_onCharacter(runner->keyboard, utf8_to_codepoint(e.text.text));
+                break;
+            case SDL_MOUSEBUTTONDOWN: {
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonDown(runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEBUTTONUP: {
+                int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
+                if (gmlBtn >= 0) RunnerMouse_onButtonUp(runner->mouse, gmlBtn);
+            } break;
+            case SDL_MOUSEWHEEL:
+                if (e.wheel.y != 0)
+                    RunnerMouse_onWheel(runner->mouse, (float)e.wheel.y);
+                break;
+            case SDL_WINDOWEVENT:
+                break;
+            case SDL_CONTROLLERDEVICEADDED: {
+                int device_index = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i] == NULL) {
+                        openControllers[i] = SDL_GameControllerOpen(device_index);
+                        break;
+                    }
+                }
+                break;
+            }
+            case SDL_CONTROLLERDEVICEREMOVED: {
+                int instance_id = e.cdevice.which;
+                for (int i = 0; i < MAX_GAMEPADS; i++) {
+                    if (openControllers[i]) {
+                        SDL_Joystick* joy = SDL_GameControllerGetJoystick(openControllers[i]);
+                        if (joy && SDL_JoystickInstanceID(joy) == instance_id) {
+                            SDL_GameControllerClose(openControllers[i]);
+                            openControllers[i] = NULL;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            case SDL_QUIT:
+                return true;
+                break;
+            default:
+                break;
+        }
+    }
+
+    runner->gamepads->connectedCount = 0;
+    for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+        GamepadSlot* slot = runner->gamepads->slots + slotIdx;
+        SDL_GameController* gc = openControllers[slotIdx];
+
+        memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
+        memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
+        memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
+        memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
+        memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
+        memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+        if (gc && SDL_GameControllerGetAttached(gc)) {
+            slot->connected = true;
+            slot->jid = slotIdx;
+
+            const char* name = SDL_GameControllerName(gc);
+            if (name != NULL) {
+                strncpy(slot->description, name, sizeof(slot->description) - 1);
+                slot->description[sizeof(slot->description) - 1] = '\0';
+            } else {
+                slot->description[0] = '\0';
+            }
+
+            char guidStr[64] = {0};
+            SDL_Joystick* joy = SDL_GameControllerGetJoystick(gc);
+            if (joy) {
+                SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guidStr, sizeof(guidStr));
+            }
+            strncpy(slot->guid, guidStr, sizeof(slot->guid) - 1);
+            slot->guid[sizeof(slot->guid) - 1] = '\0';
+
+            mapSdl2ToGml(gc, slot);
+
+            for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                bool wasDown = slot->buttonDownPrev[btn];
+                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
+                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+            }
+            runner->gamepads->connectedCount++;
+        } else {
+            if (gc) {
+                SDL_GameControllerClose(gc);
+                openControllers[slotIdx] = NULL;
+            }
+            slot->connected = false;
+            slot->guid[0] = '\0';
+        }
+    }
+
+    return false;
+}
+void sdl2Close(void) {
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        if (openControllers[i]) {
+            SDL_GameControllerClose(openControllers[i]);
+            openControllers[i] = NULL;
+        }
+    }
+    SDL_Quit();
+}
+
+static const struct {
+    uint8_t major, minor;
+    bool gles;
+} GLCommon_versions[] = {
+    /* Desktop GL */
+    { 4, 6, false },
+    { 4, 5, false },
+    { 4, 4, false },
+    { 4, 3, false },
+    { 4, 2, false },
+    { 4, 1, false },
+    { 4, 0, false },
+    { 3, 3, false },
+    { 3, 2, false },
+    { 3, 1, false },
+    { 3, 0, false },
+    { 2, 1, false },
+    { 2, 0, false },
+#ifndef USE_GLFW2
+    /* GLES */
+    { 3, 2, true  },
+    { 3, 1, true  },
+    { 3, 0, true  },
+    { 2, 0, true  },
+#endif
+};
+SDL_Window *sdl2TryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
+    for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        SDL_Window *newWindow;
+        int contextFlags = 0;
+
+#ifndef NDEBUG
+        contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+#endif
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+
+        if (GLCommon_versions[i].gles) {
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        } else {
+            if (GLCommon_versions[i].major >= 3) {
+                if (GLCommon_versions[i].major == 3 && GLCommon_versions[i].minor == 2) {
+                    contextFlags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+                }
+            } else {
+                SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+            }
+        }
+
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+
+        newWindow = SDL_CreateWindow(
+            title,
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            reqW, reqH,
+            flags
+        );
+
+        if (newWindow) {
+            if (SDL_GL_CreateContext(newWindow)) {
+                return newWindow;
+            }
+            SDL_DestroyWindow(newWindow);
+        }
+
+    }
+    return NULL;
+}
+bool sdl2Init(int reqW, int reqH) {
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
+        logError("Failed to initialize SDL\n");
+        return false;
+    }
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+        openControllers[i] = NULL;
+    }
+    sdlWindow = sdl2TryOpenWindow(reqW, reqH, "Butterscotch", SDL_WINDOW_OPENGL);
+    if (!sdlWindow) {
+        logError("Fatal: Could not open window: %s\n", SDL_GetError());
+        return false;
+    }
+
+    SDL_GL_SetSwapInterval(0); // disable vsync
+    sdl2SetWindowSize(reqW, reqH);
+    return true;
+}
+
+#pragma endregion
 
 
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
@@ -250,6 +572,12 @@ void loop(const char* dataWinPath) {
 #endif
     OverlayFileSystem* overlayFs = OverlayFileSystem_create(bundleDir, GAME_DATA_PATH);
 
+    if (!sdl2Init(gen8->defaultWindowWidth, gen8->defaultWindowHeight)) {
+        sceClibPrintf("Failed to initialize SDL2\n");
+        DataWin_free(dataWin);
+        VitaTextures_Free();
+    }
+
     Renderer* renderer = NULL;
     if (forceLegacyGL)
         renderer = GLLegacyRenderer_create();
@@ -274,28 +602,31 @@ void loop(const char* dataWinPath) {
 
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
     runner->debugMode = true; // for now
-    runner->setWindowSize = vitaSetWindowSize;
-    runner->getWindowSize = vitaGetWindowSize;
+    runner->setWindowSize = sdl2SetWindowSize;
+    runner->getWindowSize = sdl2GetWindowSize;
     Runner_initFirstRoom(runner);
 
     sceClibPrintf("Runner successfully created and inited first room!!\n");
-
-    int32_t gameW = (int32_t) gen8->defaultWindowWidth;
-    int32_t gameH = (int32_t) gen8->defaultWindowHeight;
-
     double lastFrameStartTime = osTime();
 
-    while(!runner->shouldExit) {
-        RunnerKeyboard_beginFrame(runner->keyboard);
-
-        RunnerGamepad_beginFrame(runner->gamepads);
-        handleVitaGamepad(runner->gamepads, 0);
-
+    bool shouldExit = false;
+    while(true) {
+        if (shouldExit || runner->shouldExit) {
+            break;
+        }
         bool shouldStep = true;
 
         double frameStartTime = osTime();
         runner->deltaTime = (frameStartTime - lastFrameStartTime);
         lastFrameStartTime = frameStartTime;
+
+        RunnerKeyboard_beginFrame(runner->keyboard);
+        RunnerGamepad_beginFrame(runner->gamepads);
+        RunnerMouse_beginFrame(runner->mouse);
+        if (sdl2HandleEvents(runner)) {
+            shouldExit = true;
+            continue;
+        }
 
         //double stepTime = 0.0;
         //double audioTime = 0.0;
@@ -384,13 +715,36 @@ void loop(const char* dataWinPath) {
         glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
         //glClear(GL_COLOR_BUFFER_BIT);
 
-        int32_t fbWidth = 960;
-        int32_t fbHeight = 544;
-        gameW = runner->applicationWidth;
-        gameH = runner->applicationHeight;
-        
+        // Query actual framebuffer size
+        int32_t fbWidth = 960, fbHeight = 544;
+        sdl2GetWindowSize(&fbWidth, &fbHeight);
+
+        if (!runner->appSurfaceEnabled) {
+            runner->applicationWidth = fbWidth;
+            runner->applicationHeight = fbHeight;
+            runner->usingAppSurface = false;
+        } else {
+            if (runner->applicationWidth <= 0 || runner->applicationHeight <= 0) {
+                runner->applicationWidth = (int32_t) gen8->defaultWindowWidth;
+                runner->applicationHeight = (int32_t) gen8->defaultWindowHeight;
+            }
+            runner->usingAppSurface = true;
+        }
+
+        int32_t gameW = runner->applicationWidth;
+        int32_t gameH = runner->applicationHeight;
+
         Runner_drawPre(runner, fbWidth, fbHeight);
-        Runner_beginFrame(runner, gameW, gameH, currentWindowWidth, currentWindowHeight, fbWidth, fbHeight);
+
+        int32_t winW = 960, winH = 544;
+        sdl2GetScaledWindowSize(&winW, &winH);
+
+        Runner_beginFrame(runner, gameW, gameH, winW, winH, fbWidth, fbHeight);
+
+        double mx, my;
+        sdl2GetMousePos(&mx, &my);
+        Runner_updateMousePosition(runner, winW, winH, mx, my);
+
         Runner_drawViews(runner, gameW, gameH, false);
         renderer->vtable->endFrameInit(renderer);
         Runner_drawPost(runner, fbWidth, fbHeight);
@@ -398,7 +752,7 @@ void loop(const char* dataWinPath) {
         Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
 
         if (runner->pendingRoom == -1) {
-            vglSwapBuffers(GL_FALSE);
+            SDL_GL_SwapWindow(sdlWindow);
         }
         Runner_handlePendingRoomChange(runner);
 
@@ -422,6 +776,7 @@ free_butterscotch:
     runner->audioSystem->vtable->destroy(runner->audioSystem);
     runner->audioSystem = nullptr;
     renderer->vtable->destroy(renderer);
+    sdl2Close();
     DataWin_free(dataWin);
     VitaTextures_Free();
 }
@@ -433,6 +788,7 @@ int main() {
     vglSetCircularPoolSize(128 * 1024 * 1024);
     vglSetupDisplayRenderTarget(2);
     vglSetParamBufferSize(6 * 1024 * 1024);
+    vglSetShaderCachePath("ux0:data/butterscotch/shader_cache");
     vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
 
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
