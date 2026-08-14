@@ -30,7 +30,7 @@ jobs:
             ccache-glfw-linux-x86_64-
 
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -G Ninja -DWERROR=ON -DDESKTOP_BACKEND=sdl1 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
@@ -142,8 +142,8 @@ jobs:
           name: butterscotch-glfw-linux-x86
           path: build/butterscotch
 
-  build-glfw-windows-x86:
-    name: Build (GLFW/Windows x86)
+  build-sdl1-windows-x86:
+    name: Build (SDL1/Windows x86)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -184,8 +184,8 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
-              DESKTOP_BACKEND=glfw2 \
-              GLFW2_LIBS='-lglfw -lopengl32' \
+              DESKTOP_BACKEND=sdl1 \
+              SDL1_LIBS='-lSDL' \
               EXTRALIBS='-latomic' \
               BUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }} \
               BUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}
@@ -199,7 +199,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-glfw-windows-x86
+          name: butterscotch-sdl1-windows-x86
           path: build/butterscotch.exe
   
   build-glfw-macos:
