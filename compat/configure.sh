@@ -16,7 +16,7 @@ cd "$scriptroot"
 : > config.mk
 
 cleanup() {
-    rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d
+    rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
 }
 
 config() {
@@ -86,13 +86,15 @@ checkdefine() {
 int main(void){return 0;}
 " > "tmp/checkdefine_$1.c"
 
-    nolink=1 check "if $1 is defined" "checkdefine_$1"
-    return $?
+    ret=0
+    nolink=1 check "if $1 is defined" "checkdefine_$1" || ret=1
+    return "$ret"
 }
 
 checkend() {
+    ret=0
     wait "$2"
-    ret=$?
+    [ -f "$3" ] && ret=1
     checklog "$1"
     if [ "$ret" = 0 ]; then
         printyes
@@ -214,14 +216,14 @@ if [ "$syntax" = 'gcc' ] && nolink=1 outname=fno-builtin check 'if the compiler 
 fi
 
 if [ "$syntax" = 'gcc' ]; then
-    nolink=1 outname=mmd check '' nothing -MMD -MP -MF tmp/test.d > /dev/null &
+    ( nolink=1 outname=mmd check '' nothing -MMD -MP -MF tmp/test.d > /dev/null || :> tmp/mmd.fail ) &
     mmd_pid=$!
 fi
 
 if [ "$syntax" != 'msvc' ]; then
-    outname=librt check '' nothing -lrt > /dev/null &
+    ( outname=librt check '' nothing -lrt > /dev/null || :> tmp/librt.fail ) &
     librt_pid=$!
-    outname=libdl check '' nothing -ldl > /dev/null &
+    ( outname=libdl check '' nothing -ldl > /dev/null || :> tmp/libdl.fail ) &
     libdl_pid=$!
 fi
 
@@ -230,7 +232,7 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/stdint.c
 
-nolink=1 check '' stdint > /dev/null &
+( nolink=1 check '' stdint > /dev/null || :> tmp/stdint.fail ) &
 stdint_pid=$!
 
 printf '%s' "\
@@ -238,7 +240,7 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/stdbool.c
 
-nolink=1 check '' stdbool > /dev/null &
+( nolink=1 check '' stdbool > /dev/null || :> tmp/stdbool.fail ) &
 stdbool_pid=$!
 
 printf '%s' "\
@@ -246,7 +248,7 @@ printf '%s' "\
 int main(void){return 0;}
 " > tmp/strings.c
 
-nolink=1 check '' strings > /dev/null &
+( nolink=1 check '' strings > /dev/null || :> tmp/strings.fail ) &
 strings_pid=$!
 
 printf '%s' "\
@@ -257,7 +259,7 @@ int main(void){
 }
 " > tmp/__func__.c
 
-nolink=1 check '' __func__ > /dev/null &
+( nolink=1 check '' __func__ > /dev/null || :> tmp/__func__.fail ) &
 func_pid=$!
 
 printf '%s' "\
@@ -265,7 +267,7 @@ printf '%s' "\
 int main(void){return fmin(0,0);}
 " > tmp/fmin.c
 
-check '' fmin $lm > /dev/null &
+( check '' fmin $lm > /dev/null || :> tmp/fmin.fail ) &
 fmin_pid=$!
 
 printf '%s' "\
@@ -273,7 +275,7 @@ printf '%s' "\
 int main(void){return fmax(0,0);}
 " > tmp/fmax.c
 
-check '' fmax $lm > /dev/null &
+( check '' fmax $lm > /dev/null || :> tmp/fmax.fail ) &
 fmax_pid=$!
 
 printf '%s' "\
@@ -281,7 +283,7 @@ printf '%s' "\
 int main(void){return round(0);}
 " > tmp/round.c
 
-check '' round $lm > /dev/null &
+( check '' round $lm > /dev/null || :> tmp/round.fail ) &
 round_pid=$!
 
 printf '%s' "\
@@ -289,7 +291,7 @@ printf '%s' "\
 int main(void){return log2(1);}
 " > tmp/log2.c
 
-check '' log2 $lm > /dev/null &
+( check '' log2 $lm > /dev/null || :> tmp/log2.fail ) &
 log2_pid=$!
 
 printf '%s' "\
@@ -297,7 +299,7 @@ printf '%s' "\
 int main(void){return lround(0);}
 " > tmp/lround.c
 
-check '' lround $lm > /dev/null &
+( check '' lround $lm > /dev/null || :> tmp/lround.fail ) &
 lround_pid=$!
 
 printf '%s' "\
@@ -305,7 +307,7 @@ printf '%s' "\
 int main(void){return sqrtf(0);}
 " > tmp/sqrtf.c
 
-check '' sqrtf $lm > /dev/null &
+( check '' sqrtf $lm > /dev/null || :> tmp/sqrtf.fail ) &
 sqrtf_pid=$!
 
 printf '%s' "\
@@ -313,7 +315,7 @@ printf '%s' "\
 int main(void){return fabsf(0);}
 " > tmp/fabsf.c
 
-check '' fabsf $lm > /dev/null &
+( check '' fabsf $lm > /dev/null || :> tmp/fabsf.fail ) &
 fabsf_pid=$!
 
 printf '%s' "\
@@ -321,7 +323,7 @@ printf '%s' "\
 int main(void){return fmodf(1,1);}
 " > tmp/fmodf.c
 
-check '' fmodf $lm > /dev/null &
+( check '' fmodf $lm > /dev/null || :> tmp/fmodf.fail ) &
 fmodf_pid=$!
 
 printf '%s' "\
@@ -329,7 +331,7 @@ printf '%s' "\
 int main(void){return sinf(0);}
 " > tmp/sinf.c
 
-check '' sinf $lm > /dev/null &
+( check '' sinf $lm > /dev/null || :> tmp/sinf.fail ) &
 sinf_pid=$!
 
 printf '%s' "\
@@ -337,7 +339,7 @@ printf '%s' "\
 int main(void){return cosf(0);}
 " > tmp/cosf.c
 
-check '' cosf $lm > /dev/null &
+( check '' cosf $lm > /dev/null || :> tmp/cosf.fail ) &
 cosf_pid=$!
 
 printf '%s' "\
@@ -345,7 +347,7 @@ printf '%s' "\
 int main(void){return floorf(0);}
 " > tmp/floorf.c
 
-check '' floorf $lm > /dev/null &
+( check '' floorf $lm > /dev/null || :> tmp/floorf.fail ) &
 floorf_pid=$!
 
 printf '%s' "\
@@ -353,7 +355,7 @@ printf '%s' "\
 int main(void){return roundf(0);}
 " > tmp/roundf.c
 
-check '' roundf $lm > /dev/null &
+( check '' roundf $lm > /dev/null || :> tmp/roundf.fail ) &
 roundf_pid=$!
 
 printf '%s' "\
@@ -361,7 +363,7 @@ printf '%s' "\
 int main(void){return isinf(0.0);}
 " > tmp/isinf.c
 
-check '' isinf $lm > /dev/null &
+( check '' isinf $lm > /dev/null || :> tmp/isinf.fail ) &
 isinf_pid=$!
 
 printf '%s' "\
@@ -369,7 +371,7 @@ printf '%s' "\
 int main(void){return isnan(0.0);}
 " > tmp/isnan.c
 
-check '' isnan $lm > /dev/null &
+( check '' isnan $lm > /dev/null || :> tmp/isnan.fail ) &
 isnan_pid=$!
 
 printf '%s' "\
@@ -381,7 +383,7 @@ int main(void){
 }
 " > tmp/strtok_r.c
 
-check '' strtok_r > /dev/null &
+( check '' strtok_r > /dev/null || :> tmp/strtok_r.fail ) &
 strtok_r_pid=$!
 
 printf '%s' "\
@@ -394,7 +396,7 @@ int main(int argc,char *argv[]){
 }
 " > tmp/getopt_long.c
 
-check '' getopt_long > /dev/null &
+( check '' getopt_long > /dev/null || :> tmp/getopt_long.fail ) &
 getopt_long_pid=$!
 
 printf '%s' "\
@@ -405,14 +407,14 @@ int main(void){
 }
 " > tmp/snprintf.c
 
-check '' snprintf > /dev/null &
+( check '' snprintf > /dev/null || :> tmp/snprintf.fail ) &
 snprintf_pid=$!
 
-if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF test.d' "$mmd_pid"; then
+if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF test.d' "$mmd_pid" tmp/mmd.fail; then
     config 'DISABLE_MMD := 1'
 fi
 
-if ! checkend 'if stdint.h works' "$stdint_pid"; then
+if ! checkend 'if stdint.h works' "$stdint_pid" tmp/stdint.fail; then
     include 'compat/stdint'
     config 'HEADERS += compat/stdint/stdint.h'
     if [ "$syntax" != 'msvc' ]; then
@@ -426,18 +428,18 @@ int main(void){return 0;}
     fi
 fi
 
-if ! checkend 'if stdbool.h works' "$stdbool_pid"; then
+if ! checkend 'if stdbool.h works' "$stdbool_pid" tmp/stdbool.fail; then
     # Needed for GCC 2.95, where stdbool.h doesn't work in C++ mode
     include 'compat/stdbool'
     config 'HEADERS += compat/stdbool/stdbool.h'
 fi
 
-if ! checkend 'if strings.h works' "$strings_pid"; then
+if ! checkend 'if strings.h works' "$strings_pid" tmp/strings.fail; then
     define 'NO_STRINGS_H'
     no_strings_h=1
 fi
 
-if ! checkend 'if __func__ works' "$func_pid"; then
+if ! checkend 'if __func__ works' "$func_pid" tmp/__func__.fail; then
     define '__func__=\"unknown\"'
 fi
 
@@ -457,72 +459,72 @@ if ! check 'for strcasecmp' strcasecmp; then
     define 'NO_STRCASECMP'
 fi
 
-if ! checkend 'for fmin' "$fmin_pid"; then
+if ! checkend 'for fmin' "$fmin_pid" tmp/fmin.fail; then
     define 'NO_FMIN'
 fi
 
-if ! checkend 'for fmax' "$fmax_pid"; then
+if ! checkend 'for fmax' "$fmax_pid" tmp/fmax.fail; then
     define 'NO_FMAX'
 fi
 
-if ! checkend 'for round' "$round_pid"; then
+if ! checkend 'for round' "$round_pid" tmp/round.fail; then
     define 'NO_ROUND'
 fi
 
-if ! checkend 'for log2' "$log2_pid"; then
+if ! checkend 'for log2' "$log2_pid" tmp/log2.fail; then
     define 'NO_LOG2'
 fi
 
-if ! checkend 'for lround' "$lround_pid"; then
+if ! checkend 'for lround' "$lround_pid" tmp/lround.fail; then
     define 'NO_LROUND'
 fi
 
-if ! checkend 'for sqrtf' "$sqrtf_pid"; then
+if ! checkend 'for sqrtf' "$sqrtf_pid" tmp/sqrtf.fail; then
     define 'NO_SQRTF'
 fi
 
-if ! checkend 'for fabsf' "$fabsf_pid"; then
+if ! checkend 'for fabsf' "$fabsf_pid" tmp/fabsf.fail; then
     define 'NO_FABSF'
 fi
 
-if ! checkend 'for fmodf' "$fmodf_pid"; then
+if ! checkend 'for fmodf' "$fmodf_pid" tmp/fmodf.fail; then
     define 'NO_FMODF'
 fi
 
-if ! checkend 'for sinf' "$sinf_pid"; then
+if ! checkend 'for sinf' "$sinf_pid" tmp/sinf.fail; then
     define 'NO_SINF'
 fi
 
-if ! checkend 'for cosf' "$cosf_pid"; then
+if ! checkend 'for cosf' "$cosf_pid" tmp/cosf.fail; then
     define 'NO_COSF'
 fi
 
-if ! checkend 'for floorf' "$floorf_pid"; then
+if ! checkend 'for floorf' "$floorf_pid" tmp/floorf.fail; then
     define 'NO_FLOORF'
 fi
 
-if ! checkend 'for roundf' "$roundf_pid"; then
+if ! checkend 'for roundf' "$roundf_pid" tmp/roundf.fail; then
     define 'NO_ROUNDF'
 fi
 
-if ! checkend 'for isinf' "$isinf_pid"; then
+if ! checkend 'for isinf' "$isinf_pid" tmp/isinf.fail; then
     define 'NO_ISINF'
 fi
 
-if ! checkend 'for isnan' "$isnan_pid"; then
+if ! checkend 'for isnan' "$isnan_pid" tmp/isnan.fail; then
     define 'NO_ISNAN'
 fi
 
-if ! checkend 'for strtok_r' "$strtok_r_pid"; then
+if ! checkend 'for strtok_r' "$strtok_r_pid" tmp/strtok_r.fail; then
     define 'NO_STRTOK_R'
 fi
 
-if ! checkend 'for getopt_long' "$getopt_long_pid"; then
+if ! checkend 'for getopt_long' "$getopt_long_pid" tmp/getopt_long.fail; then
     include 'compat/getopt'
     config 'HEADERS += compat/getopt/getopt.h'
 fi
 
-if ! checkend 'for snprintf' "$snprintf_pid"; then
+if ! checkend 'for snprintf' "$snprintf_pid" tmp/snprintf.fail; then
     include 'compat/stdio'
     define 'NO_SNPRINTF'
     config 'SRCS += compat/stdio/printf.c'
@@ -531,11 +533,11 @@ fi
 
 if [ "$syntax" != 'msvc' ]; then
     # sometimes needed for clock_gettime
-    if checkend 'for librt' "$librt_pid"; then
+    if checkend 'for librt' "$librt_pid" tmp/librt.fail; then
         config 'LIBS += -lrt'
     fi
     # sometimes needed for glad or miniaudio
-    if checkend 'for libdl' "$libdl_pid"; then
+    if checkend 'for libdl' "$libdl_pid" tmp/libdl.fail; then
         config 'LIBS += -ldl'
     fi
 fi
