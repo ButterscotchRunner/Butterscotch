@@ -24,7 +24,6 @@ jobs:
       - name: Install dependencies
         run: |
           yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
-          yes | pkgman refresh
           pkgman install -y cmake ninja ccache gcc libsdl2_devel gcc_syslibs_devel 
         
 
