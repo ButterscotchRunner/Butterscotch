@@ -19,5 +19,8 @@ jobs:
   FreeBSD:
     uses: ./.github/workflows/build-freebsd.yml
 
+  Haiku:
+    uses: ./.github/workflows/build-haiku.yml
+
   Other:
     uses: ./.github/workflows/build-other.yml
