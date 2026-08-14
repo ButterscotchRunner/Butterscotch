@@ -14134,6 +14134,16 @@ static RValue builtin_layer_sprite_get_index(VMContext* ctx, RValue* args, MAYBE
     return RValue_makeReal((GMLReal) el->spriteElement->frameIndex);
 }
 
+static RValue builtin_layer_sprite_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t index = RValue_toInt32(args[1]);
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (isValidLayerSpriteElement(el))
+        el->spriteElement->frameIndex = (float) index;
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_layer_sprite_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
@@ -17950,6 +17960,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_get_alpha", builtin_layer_sprite_get_alpha);
     VM_registerBuiltin(ctx, "layer_sprite_get_blend", builtin_layer_sprite_get_blend);
     VM_registerBuiltin(ctx, "layer_sprite_speed", builtin_layer_sprite_speed);
+    VM_registerBuiltin(ctx, "layer_sprite_index", builtin_layer_sprite_index);
     VM_registerBuiltin(ctx, "layer_sprite_blend", builtin_layer_sprite_blend);
     VM_registerBuiltin(ctx, "layer_sprite_destroy", builtin_layer_sprite_destroy);
     VM_registerBuiltin(ctx, "layer_tile_visible", builtin_layer_tile_visible);
