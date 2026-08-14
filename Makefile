@@ -91,6 +91,9 @@ ifeq ($(OS),Windows)
 SRCS += src/desktop/platform/windows.c
 endif
 
+# Add Linux-specific source files for show_error_message
+ifeq ($(OS),Linux)
+# We use GTK3 for this
 GTK3_FOUND := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --exists gtk+-3.0 2>/dev/null && echo 1 || echo 0)
 ifneq ($(GTK3_FOUND),0)
 GTK3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags gtk+-3.0)
@@ -99,6 +102,7 @@ SYSCFLAGS += $(GTK3_CFLAGS)
 LIBS += $(GTK3_LIBS)
 DEFINES += $(DEFINE)GTK3_FOUND
 SRCS += src/desktop/platform/gtk.c
+endif
 endif
 
 INCLUDES += $(INCLUDE)src/desktop
