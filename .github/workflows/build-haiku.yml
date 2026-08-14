@@ -31,14 +31,14 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v5
         with:
-          path: ${{ github.workspace }}/.ccache
+          path: /boot/home/.ccache
           key: ccache-haiku-${{ github.sha }}
           restore-keys: |
             ccache-haiku-
 
       - name: Configure and build Butterscotch
         run: |
-          export CCACHE_DIR=${{ github.workspace }}/.ccache
+          export CCACHE_DIR=/boot/home/.ccache
 
           cmake -B build -G Ninja \
             -DDESKTOP_BACKEND=sdl2 \
