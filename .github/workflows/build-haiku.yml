@@ -23,7 +23,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman update
+          pkgman update -y
+          pkgman add -y gcc make libsdl2_devel
 
       - name: Cache ccache
         uses: actions/cache@v5
@@ -37,14 +38,12 @@ jobs:
         run: |
           export CCACHE_DIR=${{ github.workspace }}/.ccache
           
-          cmake -B build \
-            -DDESKTOP_BACKEND=sdl2 \
-            -DAUDIO_BACKEND=miniaudio \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build build
-
+          make DESKTOP_BACKEND=sdl2 \
+            AUDIO_BACKEND=miniaudio \
+            CC="ccache gcc" \
+            CXX="ccache g++" \
+            -j $(nproc)
+            
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
