@@ -45,12 +45,7 @@ HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 DESKTOP_BACKEND := glfw3
-LINUX_GUI := none
 AUDIO_BACKEND := miniaudio
-
-ifneq ($(LINUX_GUI),none)
-DEFINES += $(DEFINE)LINUX_GUI=\"$(LINUX_GUI)\"
-endif
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
@@ -96,19 +91,14 @@ ifeq ($(OS),Windows)
 SRCS += src/desktop/platform/windows.c
 endif
 
-ifeq ($(LINUX_GUI),gtk3)
+GTK3_FOUND := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --exists gtk+-3.0 2>/dev/null && echo 1 || echo 0)
+ifneq ($(GTK3_FOUND),0)
 GTK3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags gtk+-3.0)
 GTK3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs gtk+-3.0)
 SYSCFLAGS += $(GTK3_CFLAGS)
 LIBS += $(GTK3_LIBS)
+DEFINES += $(DEFINE)GTK3_FOUND
 SRCS += src/desktop/platform/gtk.c
-endif
-ifeq ($(LINUX_GUI),qt6)
-QT6_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags Qt6Widgets)
-QT6_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs Qt6Widgets)
-SYSCFLAGS += $(QT6_CFLAGS)
-LIBS += $(QT6_LIBS)
-SRCS += src/desktop/platform/qt.cpp
 endif
 
 INCLUDES += $(INCLUDE)src/desktop
