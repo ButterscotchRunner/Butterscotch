@@ -23,9 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          ping -c 5 google.com
-          echo "ping test done"
-          pkgman install -y cmake ccache libsdl2_devel gcc make
+          pkgman update
 
       - name: Cache ccache
         uses: actions/cache@v5
