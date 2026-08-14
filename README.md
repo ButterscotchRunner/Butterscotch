@@ -66,7 +66,7 @@ Of course, there are exceptions that break game compatibility altogether:
 * ...and maybe more in the future!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1996
+* Linux with glibc as old as about ~1995
 * FreeBSD as old as 2.2.8
 * Haiku
 
