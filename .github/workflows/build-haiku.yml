@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          curl google.com || ping 1.1.1.1
+          pkgman refresh --help
 
       - name: Cache ccache
         uses: actions/cache@v5
