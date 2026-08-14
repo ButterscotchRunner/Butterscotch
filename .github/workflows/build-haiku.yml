@@ -23,7 +23,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman refresh
           pkgman install -y cmake ccache ninja libsdl2_devel gcc gcc_syslibs_devel
 
       - name: Cache ccache
