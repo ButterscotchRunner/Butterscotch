@@ -516,6 +516,7 @@ struct Runner {
     void (*setWindowTitle)(const char* title);
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
+    void (*showErrorDialogue)(const char* message);
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor

@@ -1,10 +1,6 @@
 #include "stdio_compat.h"
 #include <time.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 #ifdef ENABLE_SW_RENDERER
 #include <glad/glad.h>
 #endif
@@ -53,6 +49,22 @@ static bool tryOpenWindow(int reqW, int reqH) {
     return false;
 #else
     return glfwOpenWindow(reqW, reqH, 8, 8, 8, 8, 24, 8, GLFW_WINDOW) != 0;
+#endif
+}
+
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
+#define PLATFORM_HAS_ERROR_BOX
+#endif
+
+#ifdef PLATFORM_HAS_ERROR_BOX
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef PLATFORM_HAS_ERROR_BOX
+    show_error_box(message);
+#else
+    (void)message; // Suppress unused parameter warning
 #endif
 }
 

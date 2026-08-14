@@ -7,9 +7,9 @@
 #include <windows.h>
 #endif
 
-#ifdef ENABLE_SW_RENDERER
+// #ifdef ENABLE_SW_RENDERER
 #include <glad/glad.h>
-#endif
+// #endif
 #include <GLFW/glfw3.h>
 
 #include "common.h"
@@ -77,6 +77,22 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
     }
 
     return NULL;
+}
+
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
+#define PLATFORM_HAS_ERROR_BOX
+#endif
+
+#ifdef PLATFORM_HAS_ERROR_BOX
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef PLATFORM_HAS_ERROR_BOX
+    show_error_box(message);
+#else
+    (void)message; // Suppress unused parameter warning
+#endif
 }
 
 void platformSetWindowTitle(const char* title) {

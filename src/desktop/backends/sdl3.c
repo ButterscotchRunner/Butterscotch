@@ -108,6 +108,22 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
     return NULL;
 }
 
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
+#define PLATFORM_HAS_ERROR_BOX
+#endif
+
+#ifdef PLATFORM_HAS_ERROR_BOX
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef PLATFORM_HAS_ERROR_BOX
+    show_error_box(message);
+#else
+    (void)message; // Suppress unused parameter warning
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);

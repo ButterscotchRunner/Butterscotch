@@ -4,6 +4,10 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <SDL/SDL.h>
 
 #include "common.h"
@@ -201,6 +205,23 @@ static void loadGamepadMappings(void) {
     }
     fclose(f);
 }
+
+#if defined(_WIN32) || defined(TARGET_OS_MAC) || defined(GTK3_FOUND)
+#define PLATFORM_HAS_ERROR_BOX
+#endif
+
+#ifdef PLATFORM_HAS_ERROR_BOX
+void show_error_box(const char *message);
+#endif
+
+void platformShowErrorDialogue(const char* message) {
+#ifdef PLATFORM_HAS_ERROR_BOX
+    show_error_box(message);
+#else
+    (void)message; // Suppress unused parameter warning
+#endif
+}
+
 void platformSetWindowTitle(const char* title) {
     char windowTitle[256];
     snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", title);

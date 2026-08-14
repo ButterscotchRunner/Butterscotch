@@ -2,6 +2,7 @@
 # meant to be extremely portable to weird unix-like systems
 
 CC := cc
+CXX := c++
 PKG_CONFIG := pkg-config
 
 empty :=
@@ -75,6 +76,35 @@ SRCS += $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c src/desktop/backend
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
+
+# Add macOS-specific source files for show_error_message
+ifeq ($(OS),Darwin)
+# In SDL2/SDL3, error messages are handled by SDL, so we don't need to add any additional source files for that backend.
+ifeq ($(filter sdl2 sdl3,$(DESKTOP_BACKEND)),)
+SRCS += src/desktop/platform/macos.m
+LIBS += -framework Cocoa
+endif
+endif
+
+# Add Windows-specific source files for show_error_message
+ifeq ($(OS),Windows)
+SRCS += src/desktop/platform/windows.c
+endif
+
+# Add Linux-specific source files for show_error_message
+ifeq ($(OS),Linux)
+# We use GTK3 for this
+GTK3_FOUND := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --exists gtk+-3.0 2>/dev/null && echo 1 || echo 0)
+ifneq ($(GTK3_FOUND),0)
+GTK3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags gtk+-3.0)
+GTK3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs gtk+-3.0)
+SYSCFLAGS += $(GTK3_CFLAGS)
+LIBS += $(GTK3_LIBS)
+DEFINES += $(DEFINE)GTK3_FOUND
+SRCS += src/desktop/platform/gtk.c
+endif
+endif
+
 INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(DESKTOP_BACKEND),glfw3)
 GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
@@ -215,6 +245,8 @@ all: build/butterscotch
 
 -include $(OBJS:.$(OBJ_EXT)=.d)
 
+CXXFLAGS := $(CFLAGS)
+
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
 
 compat/config.mk: compat/configure.sh compat/tmp/cc
@@ -230,7 +262,7 @@ build/butterscotch: $(OBJS)
 build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(if $(filter %.cpp %.cxx %.cc,$<),$(CXX),$(_CC)) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(if $(filter %.cpp %.cxx %.cc,$<),$(CXXFLAGS),$(CFLAGS)) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
 
 clean:
 	rm -rf build

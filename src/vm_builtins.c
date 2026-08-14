@@ -1843,6 +1843,109 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeUndefined();
 }
 
+// show_error(str, abort) - Displays an error message and optionally aborts the game
+static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) {
+        fprintf(stderr, "[show_error] Expected at least 2 arguments\n");
+        return RValue_makeUndefined();
+    }
+
+    char* raw_error_msg = RValue_toString(args[0]);
+    bool abort = RValue_toBool(args[1]);
+
+    Runner* runner = ctx->runner;
+
+    const char* codeName = ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
+    const char* objectName = "<unknown>";
+    const char* roomName = "<undefined>";
+    const char* timelineName = "<unknown>";
+    const char* eventName = Runner_getEventName(ctx->currentEventType, ctx->currentEventSubtype);
+    char formattedHeader[1024];
+
+    if (runner != nullptr) {
+        if (runner->dataWin != nullptr && ctx->currentEventObjectIndex >= 0 &&
+            (uint32_t) ctx->currentEventObjectIndex < runner->dataWin->objt.count) {
+            objectName = runner->dataWin->objt.objects[ctx->currentEventObjectIndex].name;
+        }
+        if (runner->currentRoom != nullptr && runner->currentRoom->name != nullptr) {
+            roomName = runner->currentRoom->name;
+        }
+        if (runner->dataWin != nullptr && ctx->currentInstance != nullptr) {
+            int32_t timelineIndex = ctx->currentInstance->timelineIndex;
+            if (0 <= timelineIndex && (uint32_t) timelineIndex < runner->dataWin->tmln.count) {
+                if (runner->dataWin->tmln.timelines[timelineIndex].name != nullptr) {
+                    timelineName = runner->dataWin->tmln.timelines[timelineIndex].name;
+                }
+            }
+        }
+    }
+
+    if (ctx->currentEventType == -2) {
+        snprintf(formattedHeader, sizeof(formattedHeader),
+                 "FATAL ERROR in Room Creation Code for room %s\n\n\n%s\n",
+                 roomName, raw_error_msg);
+    } else if (ctx->currentEventType == 100000) {
+        int32_t actionNumber = 1;
+        int32_t timeStep = 0;
+        if (ctx->currentInstance != nullptr) {
+            timeStep = (int32_t) ctx->currentInstance->timelinePosition;
+        }
+        snprintf(formattedHeader, sizeof(formattedHeader),
+                 "ERROR in action number %d\nat time step%d of time line %s:\n%s",
+                 actionNumber, timeStep, timelineName, raw_error_msg);
+    } else if (ctx->currentEventType != -1) {
+        int32_t actionNumber = 1;
+        snprintf(formattedHeader, sizeof(formattedHeader),
+                 "ERROR in action number %d\nof %s for object %s:\n%s",
+                 actionNumber, eventName, objectName, raw_error_msg);
+    } else {
+        const char* shaderType = "Shader";
+        snprintf(formattedHeader, sizeof(formattedHeader),
+                 "FATAL ERROR in %s compilation\n\nShader Name: %s\n\n%s\n",
+                 shaderType, codeName, raw_error_msg);
+    }
+
+    size_t totalLen = strlen(formattedHeader) + 1;
+    const char* atStr = "\nat ";
+    size_t atLen = strlen(atStr);
+    
+    if (ctx->currentCodeName != nullptr) {
+        totalLen += atLen + strlen(ctx->currentCodeName);
+    }
+    for (CallFrame* frame = ctx->callStack; frame != nullptr; frame = frame->parent) {
+        if (frame->savedCodeName != nullptr) {
+            totalLen += atLen + strlen(frame->savedCodeName);
+        }
+    }
+
+    char* error_msg = (char*) safeMalloc(totalLen);
+    strcpy(error_msg, formattedHeader);
+    if (ctx->currentCodeName != nullptr) {
+        strcat(error_msg, atStr);
+        strcat(error_msg, ctx->currentCodeName);
+    }
+    for (CallFrame* frame = ctx->callStack; frame != nullptr; frame = frame->parent) {
+        if (frame->savedCodeName != nullptr) {
+            strcat(error_msg, atStr);
+            strcat(error_msg, frame->savedCodeName);
+        }
+    }
+
+    free(raw_error_msg);
+
+    fprintf(stderr, "[show_error] %s\n", error_msg);
+    if (runner != nullptr && runner->showErrorDialogue) {
+        runner->showErrorDialogue(error_msg);
+    }
+    free(error_msg);
+
+    if (abort) {
+        runner->shouldExit = true;
+    }
+
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_string_length(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeInt32(0);
     // GML converts non-string arguments to string before measuring length
@@ -17111,6 +17214,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Core output
     VM_registerBuiltin(ctx, "show_debug_message", builtin_show_debug_message);
+    VM_registerBuiltin(ctx, "show_error", builtin_show_error);
 
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtin_string_length);

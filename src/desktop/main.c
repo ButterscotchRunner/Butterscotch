@@ -1487,6 +1487,7 @@ int main(int argc, char* argv[]) {
         runner->setWindowSize = platformSetWindowSize;
         runner->getWindowSize = platformGetWindowSize;
         runner->setWindowTitle = platformSetWindowTitle;
+        runner->showErrorDialogue = platformShowErrorDialogue;
         Runner_setGameArgs(runner, currentGameArgs, (int32_t) arrlen(currentGameArgs));
         platformInitFunctions(runner);
 

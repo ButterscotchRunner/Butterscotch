@@ -300,6 +300,12 @@ static int nsKeyToGML(unsigned short keyCode)
 
 @end
 
+// Forward declaration for macOS error box function: src/desktop/platform/macos.m
+void show_error_box(const char *message);
+void platformShowErrorDialogue(const char* message) {
+    show_error_box(message);
+}
+
 void platformSetWindowTitle(const char* title) {
     [window setTitle:[NSString stringWithFormat:@"Butterscotch - %s", title]];
 }
