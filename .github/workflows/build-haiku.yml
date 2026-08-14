@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman install -y cmake ccache ninja libsdl2_devel gcc gcc_syslibs_devel
+          yes | pkgman install -y cmake ccache libsdl2_devel gcc make gcc_syslibs_devel
 
       - name: Cache ccache
         uses: actions/cache@v5
@@ -37,7 +37,7 @@ jobs:
         run: |
           export CCACHE_DIR=${{ github.workspace }}/.ccache
           
-          cmake -B build -G Ninja \
+          cmake -B build \
             -DDESKTOP_BACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DCMAKE_BUILD_TYPE=Release \
