@@ -23,7 +23,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman install -y cmake ccache libsdl2_devel gcc make
+          for i in 1 2 3 4 5; do
+            pkgman install -y cmake ccache libsdl2_devel gcc make && break
+            echo "pkgman install failed (attempt $i/5), retrying in 15s..."
+            sleep 15
+          done
 
       - name: Cache ccache
         uses: actions/cache@v5
