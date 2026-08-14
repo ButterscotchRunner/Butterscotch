@@ -23,7 +23,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pkgman full-sync -y
+          pkgman drop-repo HaikuPorts
+          pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
+          pkgman refresh
+          pkgman install -y gcc make libsdl2_devel
 
       - name: Cache ccache
         uses: actions/cache@v5
