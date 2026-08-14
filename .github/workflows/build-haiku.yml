@@ -25,7 +25,8 @@ jobs:
         run: |
           yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
           yes | pkgman refresh
-          pkgman install -y gcc make libsdl2_devel
+          pkgman install -y cmake ninja ccache gcc libsdl2_devel gcc_syslibs_devel 
+        
 
       - name: Cache ccache
         uses: actions/cache@v5
@@ -39,11 +40,13 @@ jobs:
         run: |
           export CCACHE_DIR=${{ github.workspace }}/.ccache
 
-          make DESKTOP_BACKEND=sdl2 \
-            AUDIO_BACKEND=miniaudio \
-            CC="ccache gcc" \
-            CXX="ccache g++" \
-            -j $(nproc)
+          cmake -B build -G Ninja \
+            -DDESKTOP_BACKEND=sdl2 \
+            -DAUDIO_BACKEND=miniaudio \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
