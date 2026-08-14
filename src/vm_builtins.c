@@ -4839,7 +4839,7 @@ static RValue builtin_ds_list_shuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED
     int32_t id = RValue_toInt32(args[0]);
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
-    for (int32_t i = 1; i < argCount; i++) {
+    for (int32_t i = 1; i < (int32_t) arrlen(list->items); i++) {
         int32_t j = rand() % (i + 1);
         RValue temp = list->items[i];
         list->items[i] = list->items[j];
