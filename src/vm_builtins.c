@@ -10918,6 +10918,31 @@ static RValue builtin_draw_surface_ext(VMContext* ctx, RValue* args, MAYBE_UNUSE
     return RValue_makeUndefined();
 }
 
+static RValue builtin_draw_surface_general(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float w = (float) RValue_toReal(args[3]);
+    float h = (float) RValue_toReal(args[4]);
+    float x = (float) RValue_toReal(args[5]);
+    float y = (float) RValue_toReal(args[6]);
+    float xscale = (float) RValue_toReal(args[7]);
+    float yscale = (float) RValue_toReal(args[8]);
+    float rot = (float) RValue_toReal(args[9]);
+    uint32_t c1 = RValue_toColour(args[10]);
+    uint32_t c2 = RValue_toColour(args[11]);
+    uint32_t c3 = RValue_toColour(args[12]);
+    uint32_t c4 = RValue_toColour(args[13]);
+    float alpha = (float) RValue_toReal(args[14]);
+
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->drawSurfaceColor(runner->renderer, surfaceId, left, top, w, h, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_surface_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
@@ -17741,6 +17766,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_surface_ext", builtin_draw_surface_ext);
     VM_registerBuiltin(ctx, "draw_surface_part", builtin_draw_surface_part);
     VM_registerBuiltin(ctx, "draw_surface_part_ext", builtin_draw_surface_part_ext);
+    VM_registerBuiltin(ctx, "draw_surface_general", builtin_draw_surface_general);
     VM_registerBuiltin(ctx, "draw_surface_stretched", builtin_draw_surface_stretched);
     VM_registerBuiltin(ctx, "draw_surface_stretched_ext", builtin_draw_surface_stretched_ext);
     VM_registerBuiltin(ctx, "draw_surface_tiled", builtin_draw_surface_tiled);

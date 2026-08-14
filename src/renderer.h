@@ -134,6 +134,7 @@ typedef struct {
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
     void (*drawSurface)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
+    void (*drawSurfaceColor)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha);
     // Tiles the whole surface across the room (always tileX=tileY=true). Only the modern GL renderer draws; legacy/console renderers stub it.
     void (*drawSurfaceTiled)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha);
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
