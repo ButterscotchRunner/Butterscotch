@@ -748,6 +748,7 @@ elseif(PLATFORM STREQUAL "vita")
     target_sources(butterscotch PRIVATE src/vita/vita_textures.c src/vita/main.c)
     
     target_link_libraries(butterscotch PRIVATE 
+        SDL2
         -Wl,--whole-archive pthread -Wl,--no-whole-archive
         bzip2
         stb_ds
@@ -771,6 +772,7 @@ elseif(PLATFORM STREQUAL "vita")
         SceCtrl_stub
         SceCommonDialog_stub
         SceDisplay_stub
+        SceIme_stub
         SceKernelDmacMgr_stub
         SceFios2_stub
         SceGxm_stub
@@ -781,6 +783,7 @@ elseif(PLATFORM STREQUAL "vita")
         SceSysmodule_stub
         ScePower_stub
         SceTouch_stub
+        SceHid_stub
         SceVshBridge_stub
         SceAvPlayer_stub
         SceNpTrophy_stub
