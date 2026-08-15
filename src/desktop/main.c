@@ -1599,7 +1599,7 @@ int main(int argc, char* argv[]) {
                     DataWin* dw = runner->dataWin;
                     if ((int32_t) dw->gen8.roomOrderCount > runner->currentRoomOrderPosition + 1) {
                         int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
-                        runner->pendingRoom = nextIdx;
+                        runner->pendingRoom = 189;
                         runner->audioSystem->vtable->stopAll(runner->audioSystem);
                         logDebug("Going to next room -> %s\n", dw->room.rooms[nextIdx].name);
                     }

@@ -10792,6 +10792,119 @@ static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
     return RValue_makeReal((GMLReal) Color_lerp(col1, col2, amount));
 }
 
+#if (defined(USE_SDL2) || defined(__VITA__)) && defined(ENABLE_MODERN_GL)
+#include <kitchensink2/kitchensink.h>
+#include <SDL2/SDL.h>
+#include <glad/glad.h>
+Kit_Source *kit_src = nullptr;
+Kit_Player *kit_player = nullptr;
+int video_w = 0, video_h = 0;
+int videoSurfId = 0;
+bool videoRunnin = false;
+
+static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+
+    char* filePath = RValue_toString(args[0]);
+    char* url = fs->vtable->resolvePath(fs, filePath);
+    Kit_Init(KIT_INIT_NETWORK);
+    printf("%s\n", url);
+    kit_src = Kit_CreateSourceFromRW(SDL_RWFromFile(url, "rb"));
+
+    if(!kit_src) {printf("fuckkkk, %s\n", url); exit(0);} 
+    Kit_VideoFormatRequest video_request;
+    Kit_ResetVideoFormatRequest(&video_request);
+    video_request.format = SDL_PIXELFORMAT_RGBA32;
+
+    // Set up default configs for the player
+    Kit_PlayerConfig config;
+    Kit_ResetPlayerConfig(&config);
+
+    kit_player = Kit_CreatePlayer(
+        kit_src, Kit_GetBestSourceStream(kit_src, KIT_STREAMTYPE_VIDEO), -1, -1, &video_request, NULL, 0, 0, &config
+    );
+    if(kit_player == NULL) {
+        fprintf(stderr, "Unable to create player: %s\n", Kit_GetError());
+        return RValue_makeUndefined();
+    }
+    if(Kit_GetPlayerVideoStream(kit_player) == -1) {
+        fprintf(stderr, "File contains no video!\n");
+        return RValue_makeUndefined();
+    }
+    Kit_PlayerInfo player_info;
+    Kit_GetPlayerInfo(kit_player, &player_info);
+    video_w = player_info.video_format.width;
+    video_h = player_info.video_format.height;
+
+    videoRunnin = true;
+    Kit_PlayerPlay(kit_player);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_video_close(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    videoRunnin = false;
+    Kit_ClosePlayer(kit_player);
+    Kit_CloseSource(kit_src);
+    return RValue_makeUndefined();
+}
+
+#include "gl/gl_renderer.h"
+//#include "stb_image_write.h"
+void video_process(Runner* runner) {
+    GLRenderer* gl = (GLRenderer*)runner->renderer;
+    if(!videoRunnin) return;
+    unsigned char **data;
+    int *line_size;
+        Kit_PlayerState state = Kit_GetPlayerState(kit_player);
+    printf("Player State %u\n", (unsigned int)state);
+    if(Kit_LockPlayerVideoRawFrame(kit_player, &data, &line_size, NULL) == 0) {
+        glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[videoSurfId]);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, line_size[0] / 4);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, video_w, video_h, GL_RGBA, GL_UNSIGNED_BYTE, data[0]);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
+        Kit_UnlockPlayerVideoRawFrame(kit_player);
+    }
+    
+}
+static RValue builtin_video_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if(videoSurfId == 0) videoSurfId = Renderer_createSurface(ctx->runner->renderer, video_w, video_h);
+    GMLArray* out = GMLArray_create(ctx->dataWin->gen8.wadVersion, 1);
+    *GMLArray_slot(out, 0) = RValue_makeReal(videoSurfId);
+    video_process(ctx->runner);
+    return RValue_makeArray(out);
+}
+static RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Kit_PlayerPause(kit_player);
+}
+static RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Kit_PlayerPlay(kit_player);
+}
+static RValue builtin_video_set_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {}
+
+static RValue builtin_video_get_format(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(0);
+}
+
+static RValue builtin_video_get_status(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Kit_PlayerState state = Kit_GetPlayerState(kit_player);
+    return RValue_makeReal(!(state == KIT_PLAYING)); // 0 is playing
+}
+
+static RValue builtin_video_get_duration(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Kit_PlayerInfo player_info;
+    Kit_GetPlayerInfo(kit_player, &player_info);
+    return RValue_makeReal(Kit_GetPlayerDuration(kit_player)*1000);
+}
+
+static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Kit_PlayerInfo player_info;
+    Kit_GetPlayerInfo(kit_player, &player_info);
+    return RValue_makeReal(Kit_GetPlayerPosition(kit_player)*1000);
+}
+#endif
+
 static RValue builtin_surface_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t width = (int32_t) RValue_toReal(args[0]);
     int32_t height = (int32_t) RValue_toReal(args[1]);
@@ -18474,4 +18587,17 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "texture_get_uvs", builtin_texture_get_uvs);
     VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
     VM_registerBuiltin(ctx, "sprite_get_info", builtin_sprite_get_info);
+    
+#if (defined(USE_SDL2) || defined(__VITA__)) && defined(ENABLE_MODERN_GL)
+    VM_registerBuiltin(ctx, "video_open" , builtin_video_open);
+    VM_registerBuiltin(ctx, "video_close" , builtin_video_close);
+    VM_registerBuiltin(ctx, "video_draw" , builtin_video_draw);
+    VM_registerBuiltin(ctx, "video_pause" , builtin_video_pause);
+    VM_registerBuiltin(ctx, "video_resume" , builtin_video_resume);
+    VM_registerBuiltin(ctx, "video_set_volume" , builtin_video_set_volume);
+    VM_registerBuiltin(ctx, "video_get_format" , builtin_video_get_format);
+    VM_registerBuiltin(ctx, "video_get_status" , builtin_video_get_status);
+    VM_registerBuiltin(ctx, "video_get_duration" , builtin_video_get_duration);
+    VM_registerBuiltin(ctx, "video_get_position" , builtin_video_get_position);
+#endif
 }

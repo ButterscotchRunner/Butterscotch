@@ -313,7 +313,7 @@ if(PLATFORM STREQUAL "desktop")
         pkg_check_modules(SDL2 REQUIRED sdl2)
         target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        set(BACKEND_LIBRARIES SDL_kitchensink2 ${SDL2_LIBRARIES})
     elseif(DESKTOP_BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
@@ -750,6 +750,7 @@ elseif(PLATFORM STREQUAL "vita")
     
     target_link_libraries(butterscotch PRIVATE 
         -Wl,--whole-archive pthread -Wl,--no-whole-archive
+        SDL_kitchensink2
         SDL2
         bzip2
         stb_ds

@@ -3752,7 +3752,9 @@ static void tickTimelines(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapBase);
 }
 
+void video_process(Runner* runner);
 void Runner_step(Runner* runner) {
+    video_process(runner);
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
     requireMessageFormatted(__FILE__, __LINE__, arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
 
