@@ -288,7 +288,7 @@ typedef struct {
 
 // ds_priority queue item
 typedef struct {
-    int32_t depth;
+    GMLReal depth;
     RValue item;
 } DsPriorityItem;
 
