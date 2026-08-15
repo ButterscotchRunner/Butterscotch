@@ -10793,6 +10793,40 @@ static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
 }
 
 #if (defined(USE_SDL2) || defined(__VITA__)) && defined(ENABLE_MODERN_GL)
+// From Cinnamon
+// https://github.com/Project-Sunshine-Native/cinnamon/blob/DELTARUNE-3DS/src/vm_builtins.c#L4428
+static void cleanupAsyncMap(Runner* runner, int32_t mapId) {
+    if (mapId < 0 || (int32_t) arrlen(runner->dsMapPool) <= mapId) return;
+    DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+    if (*mapPtr != nullptr) {
+        repeat(shlen(*mapPtr), i) {
+            free((*mapPtr)[i].key);
+            RValue_free(&(*mapPtr)[i].value);
+        }
+        shfree(*mapPtr);
+        *mapPtr = nullptr;
+    }
+}
+
+// From Cinnamon
+// https://github.com/Project-Sunshine-Native/cinnamon/blob/DELTARUNE-3DS/src/vm_builtins.c#L4441
+static void dispatchVideoAsync(Runner* runner, const char* type) {
+    int32_t mapId = dsMapCreate(runner);
+    DsMapEntry** mapPtr = dsMapGet(runner, mapId);
+    if (mapPtr == nullptr) return;
+
+    shput(*mapPtr, safeStrdup("type"), RValue_makeOwnedString(safeStrdup(type)));
+    shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup(type)));
+    shput(*mapPtr, safeStrdup("status"), RValue_makeReal(0.0));
+
+    int32_t previousAsyncLoad = runner->asyncLoadMapId;
+    runner->asyncLoadMapId = mapId;
+    Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ASYNC_SOCIAL);
+    runner->asyncLoadMapId = previousAsyncLoad;
+
+    cleanupAsyncMap(runner, mapId);
+}
+
 #include <kitchensink2/kitchensink.h>
 #include <SDL2/SDL.h>
 #include <glad/glad.h>
@@ -10808,9 +10842,9 @@ static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 
     char* filePath = RValue_toString(args[0]);
     char* url = fs->vtable->resolvePath(fs, filePath);
-    Kit_Init(KIT_INIT_NETWORK);
+    Kit_Init(KIT_INIT_HW_DECODE);
     printf("%s\n", url);
-    kit_src = Kit_CreateSourceFromRW(SDL_RWFromFile(url, "rb"));
+    kit_src = Kit_CreateSourceFromUrl(url);
 
     if(!kit_src) {printf("fuckkkk, %s\n", url); exit(0);} 
     Kit_VideoFormatRequest video_request;
@@ -10839,25 +10873,32 @@ static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 
     videoRunnin = true;
     Kit_PlayerPlay(kit_player);
+    dispatchVideoAsync(runner, "video_start");
     return RValue_makeUndefined();
 }
 
 static RValue builtin_video_close(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     videoRunnin = false;
+    Kit_PlayerStop(kit_player);
     Kit_ClosePlayer(kit_player);
     Kit_CloseSource(kit_src);
     return RValue_makeUndefined();
 }
 
 #include "gl/gl_renderer.h"
-//#include "stb_image_write.h"
-void video_process(Runner* runner) {
+#include "stb_image_write.h"
+static void video_process(Runner* runner) {
     GLRenderer* gl = (GLRenderer*)runner->renderer;
+    //Renderer* rend = runner->renderer;
     if(!videoRunnin) return;
     unsigned char **data;
     int *line_size;
-        Kit_PlayerState state = Kit_GetPlayerState(kit_player);
-    printf("Player State %u\n", (unsigned int)state);
+    Kit_PlayerState state = Kit_GetPlayerState(kit_player);
+    if(state == KIT_STOPPED && videoRunnin) {
+        videoRunnin = false;
+        dispatchVideoAsync(runner, "video_end");
+        return;
+    }
     if(Kit_LockPlayerVideoRawFrame(kit_player, &data, &line_size, NULL) == 0) {
         glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[videoSurfId]);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, line_size[0] / 4);
@@ -10866,20 +10907,21 @@ void video_process(Runner* runner) {
         //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
         Kit_UnlockPlayerVideoRawFrame(kit_player);
     }
-    
 }
 static RValue builtin_video_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    if(videoSurfId == 0) videoSurfId = Renderer_createSurface(ctx->runner->renderer, video_w, video_h);
-    GMLArray* out = GMLArray_create(ctx->dataWin->gen8.wadVersion, 1);
-    *GMLArray_slot(out, 0) = RValue_makeReal(videoSurfId);
-    video_process(ctx->runner);
+    if(videoSurfId == 0 && videoRunnin) videoSurfId = Renderer_createSurface(ctx->runner->renderer, video_w, video_h);
+    if(videoSurfId != 0 && videoRunnin) video_process(ctx->runner);
+    GMLArray* out = GMLArray_create(ctx->dataWin->gen8.wadVersion, 2);
+    *GMLArray_slot(out, 1) = RValue_makeReal(videoSurfId);
     return RValue_makeArray(out);
 }
 static RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Kit_PlayerPause(kit_player);
+    return RValue_makeUndefined();
 }
 static RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Kit_PlayerPlay(kit_player);
+    return RValue_makeUndefined();
 }
 static RValue builtin_video_set_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {}
 
