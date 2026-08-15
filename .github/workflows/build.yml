@@ -311,7 +311,7 @@ jobs:
           PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
         run: |
           cmake -S . -B build -G Ninja \
-            -DDESKTOP_BACKEND=sdl2 \
+            -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
