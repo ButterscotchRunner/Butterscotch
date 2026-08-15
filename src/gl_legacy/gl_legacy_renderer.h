@@ -25,6 +25,7 @@ typedef struct {
     uint32_t textureCount;
 
     GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
+    GLuint debugFontTexture; // texture for debug font atlas
 
     int32_t windowW; // stored from beginFrame for endFrame blit
     int32_t windowH;

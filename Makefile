@@ -38,10 +38,11 @@ INCLUDES += $(INCLUDE). \
 		    $(INCLUDE)vendor/md5 \
 		    $(INCLUDE)vendor/sha1 \
 		    $(INCLUDE)vendor/base64 \
-		    $(INCLUDE)vendor/bzip2
+		    $(INCLUDE)vendor/bzip2 \
+		    $(INCLUDE)src/debug_font
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 DESKTOP_BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
