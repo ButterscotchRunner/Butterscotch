@@ -237,7 +237,7 @@ jobs:
             ccache-macos-${{ matrix.label }}-
   
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" -DDESKTOP_BACKEND=appkit -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DWERROR=ON -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" -DBACKEND=appkit -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
   
       - name: Build
         run: cmake --build build
