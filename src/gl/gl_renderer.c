@@ -2383,6 +2383,72 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     );
 }
 
+static void glDrawSurfaceColor(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    if (0 > surfaceID || (uint32_t) surfaceID >= gl->surfaceCount) return;
+    if (gl->surfaceTexture[surfaceID] == 0) return;
+
+    GLuint texId = gl->surfaceTexture[surfaceID];
+    int32_t texW = gl->surfaceWidth[surfaceID];
+    int32_t texH = gl->surfaceHeight[surfaceID];
+
+    if (0 > srcWidth) { srcLeft = 0; srcTop = 0; srcWidth = texW; srcHeight = texH; }
+
+    float u0 = (float) srcLeft / (float) texW;
+    float v0 = (float) srcTop / (float) texH;
+    float u1 = (float) (srcLeft + srcWidth) / (float) texW;
+    float v1 = (float) (srcTop + srcHeight) / (float) texH;
+
+    float localX1 = (float) srcWidth;
+    float localY1 = (float) srcHeight;
+
+    uint8_t r1 = (uint8_t) BGR_R(color1);
+    uint8_t g1 = (uint8_t) BGR_G(color1);
+    uint8_t b1 = (uint8_t) BGR_B(color1);
+    uint8_t r2 = (uint8_t) BGR_R(color2);
+    uint8_t g2 = (uint8_t) BGR_G(color2);
+    uint8_t b2 = (uint8_t) BGR_B(color2);
+    uint8_t r3 = (uint8_t) BGR_R(color3);
+    uint8_t g3 = (uint8_t) BGR_G(color3);
+    uint8_t b3 = (uint8_t) BGR_B(color3);
+    uint8_t r4 = (uint8_t) BGR_R(color4);
+    uint8_t g4 = (uint8_t) BGR_G(color4);
+    uint8_t b4 = (uint8_t) BGR_B(color4);
+
+    float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+
+    Matrix4f transform;
+    Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
+
+    drawMultiColoredTextureWithTransform(
+        gl,
+        texId,
+        transform,
+        0.0f,
+        0.0f,
+        localX1,
+        localY1,
+        u0,
+        v0,
+        u1,
+        v1,
+        r1,
+        g1,
+        b1,
+        r2,
+        g2,
+        b2,
+        r3,
+        g3,
+        b3,
+        r4,
+        g4,
+        b4,
+        alpha
+    );
+}
+
 static void glDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
@@ -2950,6 +3016,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.getSurfaceWidth = glGetSurfaceWidth;
     glVtable.getSurfaceHeight = glGetSurfaceHeight;
     glVtable.drawSurface = glDrawSurface;
+    glVtable.drawSurfaceColor = glDrawSurfaceColor;
     glVtable.drawSurfaceTiled = glDrawSurfaceTiled;
     glVtable.surfaceResize = glSurfaceResize;
     glVtable.surfaceFree = glSurfaceFree;
