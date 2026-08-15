@@ -10829,7 +10829,11 @@ static void dispatchVideoAsync(Runner* runner, const char* type) {
 
 #include <kitchensink2/kitchensink.h>
 #include <SDL2/SDL.h>
+#ifndef __VITA__
 #include <glad/glad.h>
+#else
+#include <vitaGL.h>
+#endif
 Kit_Source *kit_src = nullptr;
 Kit_Player *kit_player = nullptr;
 int video_w = 0, video_h = 0;
@@ -10933,8 +10937,6 @@ static RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     Kit_PlayerPlay(kit_player);
     return RValue_makeUndefined();
 }
-static RValue builtin_video_set_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {}
-
 static RValue builtin_video_get_format(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     return RValue_makeReal(0);
 }
@@ -18646,7 +18648,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "video_draw" , builtin_video_draw);
     VM_registerBuiltin(ctx, "video_pause" , builtin_video_pause);
     VM_registerBuiltin(ctx, "video_resume" , builtin_video_resume);
-    VM_registerBuiltin(ctx, "video_set_volume" , builtin_video_set_volume);
     VM_registerBuiltin(ctx, "video_get_format" , builtin_video_get_format);
     VM_registerBuiltin(ctx, "video_get_status" , builtin_video_get_status);
     VM_registerBuiltin(ctx, "video_get_duration" , builtin_video_get_duration);
