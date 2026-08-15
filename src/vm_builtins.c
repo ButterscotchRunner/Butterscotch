@@ -10877,11 +10877,21 @@ static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
     return RValue_makeUndefined();
 }
 
+static void video_cleanup() {
+    if (kit_player) {
+        Kit_PlayerStop(kit_player);
+        Kit_ClosePlayer(kit_player);
+        kit_player = nullptr;
+    }
+
+    if (kit_src) {
+        Kit_CloseSource(kit_src);
+        kit_src = nullptr;
+    }
+}
+
 static RValue builtin_video_close(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    videoRunnin = false;
-    Kit_PlayerStop(kit_player);
-    Kit_ClosePlayer(kit_player);
-    Kit_CloseSource(kit_src);
+    video_cleanup();
     return RValue_makeUndefined();
 }
 
@@ -10899,7 +10909,7 @@ static void video_process(Runner* runner) {
         dispatchVideoAsync(runner, "video_end");
         return;
     }
-    if(Kit_LockPlayerVideoRawFrame(kit_player, &data, &line_size, NULL) == 0) {
+    if(videoSurfId != 0 && Kit_LockPlayerVideoRawFrame(kit_player, &data, &line_size, NULL) == 0) {
         glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[videoSurfId]);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, line_size[0] / 4);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, video_w, video_h, GL_RGBA, GL_UNSIGNED_BYTE, data[0]);
