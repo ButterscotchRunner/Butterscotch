@@ -10840,6 +10840,8 @@ int video_w = 0, video_h = 0;
 int videoSurfId = 0;
 bool videoRunnin = false;
 
+GMLReal duration = 0;
+GMLReal position = 0;
 static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     FileSystem* fs = runner->fileSystem;
@@ -10947,15 +10949,23 @@ static RValue builtin_video_get_status(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_video_get_duration(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Kit_PlayerInfo player_info;
-    Kit_GetPlayerInfo(kit_player, &player_info);
-    return RValue_makeReal(Kit_GetPlayerDuration(kit_player)*1000);
+    if(kit_player && videoRunnin) {
+        Kit_PlayerInfo player_info;
+        Kit_GetPlayerInfo(kit_player, &player_info);
+        return RValue_makeReal(Kit_GetPlayerDuration(kit_player)*1000);
+    } else {
+        return RValue_makeReal(0);
+    }
 }
 
 static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    Kit_PlayerInfo player_info;
-    Kit_GetPlayerInfo(kit_player, &player_info);
-    return RValue_makeReal(Kit_GetPlayerPosition(kit_player)*1000);
+    if(kit_player && videoRunnin) {
+        Kit_PlayerInfo player_info;
+        Kit_GetPlayerInfo(kit_player, &player_info);
+        return RValue_makeReal(Kit_GetPlayerPosition(kit_player)*1000);
+    } else {
+        return RValue_makeReal(0);
+    }
 }
 #endif
 
