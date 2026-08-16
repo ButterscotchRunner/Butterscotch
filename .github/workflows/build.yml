@@ -583,6 +583,16 @@ jobs:
             READBACKS_SPEEDHACK=1 \
             -j$(nproc)
 
+      - name: Checkout SDL2
+        run: |
+          git clone --depth 1 https://github.com/Northfear/SDL.git vendor/SDL2 -b vitagl
+
+      - name: Build SDL2
+        run: |
+          cmake -Svendor/SDL2 -Bvendor/SDL2/build -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build vendor/SDL2/build -- -j$(nproc)
+          cmake --install vendor/SDL2/build
+
       - name: Configure
         run: |
           cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
