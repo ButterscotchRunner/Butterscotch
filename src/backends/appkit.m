@@ -8,7 +8,7 @@
 
 #include "common.h"
 #include "input_recording.h"
-#include "desktop/platformdefs.h"
+#include "platformdefs.h"
 #include "gettime.h"
 #include "runner_mouse.h"
 

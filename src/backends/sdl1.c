@@ -8,7 +8,7 @@
 
 #include "common.h"
 #include "input_recording.h"
-#include "desktop/platformdefs.h"
+#include "platformdefs.h"
 #include "gettime.h"
 
 #ifndef SDL_BUTTON_WHEELUP
