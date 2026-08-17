@@ -595,7 +595,7 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: |
