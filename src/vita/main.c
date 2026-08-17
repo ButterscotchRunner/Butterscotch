@@ -69,33 +69,6 @@ uint32_t utf8_to_codepoint(const char *s) {
 double osTime() {
     return (double)sceKernelGetProcessTimeWide() / 1000000.0;
 }
-void platformLog(const logType type, const char *format, va_list va) {
-    FILE *out = stderr;
-    const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
-    const char* textPrefix = "";
-    switch (type) {
-        case LOG_TYPE_NORMAL:
-            out = stdout;
-            break;
-        case LOG_TYPE_WARNING:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
-            textPrefix = "Warning: ";
-            break;
-        case LOG_TYPE_ERROR:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_RED;
-            textPrefix = "Error: ";
-            break;
-        case LOG_TYPE_DEBUG:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_PURPLE;
-            textPrefix = "Debug: ";
-            break;
-    }
-
-    fputs(colourPrefix, out);
-    fputs(textPrefix, out);
-    fputs(ANSI_COLOUR_CODE_RESET, out);
-    vfprintf(out, format, va);
-}
 
 #pragma endregion
 
