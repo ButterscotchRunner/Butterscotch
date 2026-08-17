@@ -25,10 +25,19 @@ _dummy := $(shell \
 
 endif
 
-DEFINES += $(DEFINE)ENABLE_VM_GML_PROFILER \
-		   $(DEFINE)ENABLE_VM_OPCODE_PROFILER \
-		   $(DEFINE)ENABLE_VM_STUB_LOGS \
-		   $(DEFINE)ENABLE_VM_TRACING
+ifndef DISABLE_VM_GML_PROFILER
+DEFINES += $(DEFINE)ENABLE_VM_GML_PROFILER
+endif
+ifndef DISABLE_VM_OPCODE_PROFILER
+DEFINES += $(DEFINE)ENABLE_VM_OPCODE_PROFILER
+endif
+ifndef DISABLE_VM_STUB_LOGS
+DEFINES += $(DEFINE)ENABLE_VM_STUB_LOGS
+endif
+ifndef DISABLE_VM_TRACING
+DEFINES += $(DEFINE)ENABLE_VM_TRACING
+endif
+
 INCLUDES += $(INCLUDE). \
 		    $(INCLUDE)src \
 		    $(INCLUDE)vendor/stb/ds \
@@ -70,13 +79,12 @@ ifndef DISABLE_WAD17
 DEFINES += $(DEFINE)ENABLE_WAD17
 endif
 
-# TODO: add support for non-cli backends
-SRCS += $(wildcard src/cli/*.c)
+SRCS += $(wildcard src/$(PLATFORM)/*.c)
 SRCS += $(wildcard src/backends/$(BACKEND).*)
+INCLUDES += $(INCLUDE)src/$(PLATFORM)
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
-INCLUDES += $(INCLUDE)src/desktop
 ifeq ($(BACKEND),glfw3)
 GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
 GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)

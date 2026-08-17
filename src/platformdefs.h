@@ -63,6 +63,7 @@ typedef struct {
     FrameSetEntry* dumpFrames;
     FrameSetEntry* dumpJsonFrames;
     const char* dumpJsonFilePattern;
+#ifdef ENABLE_VM_TRACING
     StringBooleanEntry* varReadsToBeTraced;
     StringBooleanEntry* varWritesToBeTraced;
     StringBooleanEntry* functionCallsToBeTraced;
@@ -72,8 +73,9 @@ typedef struct {
     StringBooleanEntry* collisionsToBeTraced;
     StringBooleanEntry* opcodesToBeTraced;
     StringBooleanEntry* stackToBeTraced;
-    StringBooleanEntry* disassemble;
     StringBooleanEntry* tilesToBeTraced;
+#endif
+    StringBooleanEntry* disassemble;
     bool alwaysLogUnknownFunctions;
     bool alwaysLogStubbedFunctions;
     bool headless;
@@ -84,7 +86,9 @@ typedef struct {
     bool printDeclaredFunctions;
     bool printUnknownFunctions;
     int exitAtFrame;
+#ifdef ENABLE_VM_TRACING
     int traceBytecodeAfterFrame;
+#endif
     double speedMultiplier;
     double fastForwardSpeed;
     int seed;

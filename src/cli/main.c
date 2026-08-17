@@ -77,6 +77,7 @@ static void printUsage(const char *argv0) {
         "    --print-shaders                        - Print all shaders in the game and exit\n"
         "    --print-declared-functions             - Print all declared functions in the game and exit\n"
         "    --print-unknown-functions              - Print all unknown functions used by the game and exit\n"
+#ifdef ENABLE_VM_TRACING
         "    --trace-variable-reads                 - Trace variable reads\n"
         "    --trace-variable-writes                - Trace variable writes\n"
         "    --trace-function-calls                 - Trace function calls\n"
@@ -88,11 +89,14 @@ static void printUsage(const char *argv0) {
         "    --trace-tiles                          - Trace drawn tiles\n"
         "    --trace-opcodes                        - Trace opcodes\n"
         "    --trace-stack                          - Trace stack\n"
+#endif
         "    --trace-frames                         - Log frametimes\n"
         "    --always-log-unknown-functions         - Always log unknown function calls instead of once per script\n"
         "    --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script\n"
         "    --exit-at-frame <frame>                - Exit at the specified frame\n"
+#ifdef ENABLE_VM_TRACING
         "    --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame\n"
+#endif
         "    --dump-frame <frame>                   - Dump the runner state at the specified frame\n"
         "    --dump-frame-json <frame>              - Dump the runner state in json at the specified frame\n"
         "    --dump-frame-json-file <file>          - Specify an output file for runner state dumps\n"
@@ -139,6 +143,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"print-shaders", no_argument,               nullptr, 998},
         {"print-declared-functions", no_argument,  nullptr, 'p'},
         {"print-unknown-functions", no_argument, nullptr, 'u'},
+#ifdef ENABLE_VM_TRACING
         {"trace-variable-reads", required_argument,  nullptr, 'R'},
         {"trace-variable-writes", required_argument, nullptr, 'W'},
         {"trace-function-calls", required_argument,         nullptr, 'c'},
@@ -150,11 +155,14 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {"trace-tiles", required_argument, nullptr, 'T'},
         {"trace-opcodes", required_argument,       nullptr, 'o'},
         {"trace-stack", required_argument,         nullptr, 'S'},
+#endif
         {"trace-frames", no_argument, nullptr, 'k'},
         {"always-log-unknown-functions", no_argument, nullptr, 'y'},
         {"always-log-stubbed-functions", no_argument, nullptr, 'Y'},
         {"exit-at-frame", required_argument, nullptr, 'x'},
+#ifdef ENABLE_VM_TRACING
         {"trace-bytecode-after-frame", required_argument, nullptr, 'F'},
+#endif
         {"dump-frame", required_argument, nullptr, 'd'},
         {"dump-frame-json", required_argument, nullptr, 'j'},
         {"dump-frame-json-file", required_argument, nullptr, 'J'},
@@ -187,7 +195,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 
     args->screenshotFrames = nullptr;
     args->exitAtFrame = -1;
+#ifdef ENABLE_VM_TRACING
     args->traceBytecodeAfterFrame = 0;
+#endif
     args->speedMultiplier = 1.0;
     args->fastForwardSpeed = 0.0;
     args->osType = OS_WINDOWS;
@@ -256,6 +266,13 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'u':
                 args->printUnknownFunctions = true;
                 break;
+            case 'L':
+                args->lazyTextures = true;
+                break;
+            case 'K':
+                args->lazyAudio = true;
+                break;
+#ifdef ENABLE_VM_TRACING
             case 'R':
                 shput(args->varReadsToBeTraced, optarg, true);
                 break;
@@ -271,12 +288,6 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'l':
                 shput(args->instanceLifecyclesToBeTraced, optarg, true);
                 break;
-            case 'L':
-                args->lazyTextures = true;
-                break;
-            case 'K':
-                args->lazyAudio = true;
-                break;
             case 'e':
                 shput(args->eventsToBeTraced, optarg, true);
                 break;
@@ -289,6 +300,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'S':
                 shput(args->stackToBeTraced, optarg, true);
                 break;
+#endif
             case 'k':
                 args->traceFrames = true;
                 break;
@@ -308,6 +320,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 args->exitAtFrame = frame;
                 break;
             }
+#ifdef ENABLE_VM_TRACING
             case 'F': {
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
@@ -318,6 +331,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 args->traceBytecodeAfterFrame = frame;
                 break;
             }
+#endif
             case 'd': {
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);
@@ -385,9 +399,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'A':
                 shput(args->disassemble, optarg, true);
                 break;
+#ifdef ENABLE_VM_TRACING
             case 'T':
                 shput(args->tilesToBeTraced, optarg, true);
                 break;
+#endif
             case 'E':
                 args->traceEventInherited = true;
                 break;
