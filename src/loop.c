@@ -283,7 +283,7 @@ char** extractRunnerArguments(char* rawArguments) {
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#ifdef ENABLE_SCREENSHOTS
 // When flipY is true, the image will be flipped vertically.
 static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque, bool flipY) {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -747,10 +747,12 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 #endif
 
+#ifdef ENABLE_SCREENSHOTS
         if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
             logError("You can only use --screenshot-surfaces with the modern gl renderer!\n");
             return 0;
         }
+#endif
 
 
         int32_t windowW, windowH;
@@ -1193,7 +1195,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                 renderer->vtable->endFrameEnd(renderer);
                 Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
 
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#ifdef ENABLE_SCREENSHOTS
                 // Capture screenshot if this frame matches a requested frame
                 bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
@@ -1377,8 +1379,10 @@ int loop(CommandLineArgs args, const char *argv0) {
 }
 
 void freeCommandLineArgs(CommandLineArgs* args) {
+#ifdef ENABLE_SCREENSHOTS
     hmfree(args->screenshotFrames);
     hmfree(args->screenshotSurfacesFrames);
+#endif
     hmfree(args->dumpFrames);
     hmfree(args->dumpJsonFrames);
 #ifdef ENABLE_VM_TRACING

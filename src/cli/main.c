@@ -65,10 +65,12 @@ static void printUsage(const char *argv0) {
     logInfo(
         "Usage: %s <path to data.win or game.unx>\n"
         "    --help                                 - Show this message\n"
+#ifdef ENABLE_SCREENSHOTS
         "    --screenshot <filename>                - Specify the filename for screenshots\n"
         "    --screenshot-at-frame <frame>          - Take a screenshot at the specified frame\n"
         "    --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame\n"
         "    --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots\n"
+#endif
 #ifndef USE_GLFW2
         "    --headless                             - Launch without a window\n"
 #endif
@@ -135,10 +137,12 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 
     static struct option longOptions[] = {
         {"help",          no_argument, nullptr, 'H'},
+#ifdef ENABLE_SCREENSHOTS
         {"screenshot",          required_argument, nullptr, 's'},
         {"screenshot-at-frame", required_argument, nullptr, 'f'},
         {"screenshot-surfaces", required_argument, nullptr, 'U'},
         {"screenshot-surfaces-at-frame", required_argument, nullptr, 'V'},
+#endif
         {"headless",            no_argument,       nullptr, 'h'},
         {"print-rooms", no_argument,               nullptr, 'r'},
         {"print-objects", no_argument,             nullptr, 'b'},
@@ -197,7 +201,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         {nullptr,               0,                 nullptr,  0 }
     };
 
+#ifdef ENABLE_SCREENSHOTS
     args->screenshotFrames = nullptr;
+#endif
     args->exitAtFrame = -1;
 #ifdef ENABLE_VM_TRACING
     args->traceBytecodeAfterFrame = 0;
@@ -224,6 +230,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'H':
                 printUsage(argv[0]);
                 exit(0);
+#ifdef ENABLE_SCREENSHOTS
             case 's':
                 args->screenshotPattern = optarg;
                 break;
@@ -251,6 +258,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                 hmput(args->screenshotSurfacesFrames, frame, true);
                 break;
             }
+#endif
             case 'h':
                 args->headless = true;
                 break;
@@ -521,6 +529,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 
     args->dataWinPath = argv[optind];
 
+#ifdef ENABLE_SCREENSHOTS
     if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
         logError("--screenshot-at-frame requires --screenshot to be set\n");
         exit(1);
@@ -530,6 +539,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         logError("--screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
         exit(1);
     }
+#endif
 
     if (args->headless && args->speedMultiplier != 1.0) {
         logError("You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
