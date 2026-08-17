@@ -580,6 +580,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUseProgram(gl->defaultShaderProgram->shaderId);
     glUniform1f(uAlphaTestRef->location, -1.0f);
     glUniform4f(uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
+    free(uAlphaTestRef);
+    free(uFogColor);
 
     // Create VAO/VBO/EBO
     if (hasVAO()) {
@@ -808,6 +810,11 @@ static void glDestroy(Renderer* renderer) {
     free(gl->textureWidths);
     free(gl->textureHeights);
     free(gl->textureLoaded);
+    free(gl->uWorldViewProjection);
+    free(gl->uFogColor);
+    free(gl->uAlphaTestRef);
+    free(gl->uAlphaTestEnabled);
+    free(gl->uTexture);
 #ifndef PLATFORM_VITA
     free(gl->vertexData);
 #endif
