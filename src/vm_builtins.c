@@ -2334,7 +2334,14 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
     char* str = RValue_toString(args[0]);
 	char* substr = RValue_toString(args[1]);
 
-    bool ret = strcmp(str, substr) == 0;
+	size_t strLen = strlen(str);
+	size_t substrLen = strlen(substr);
+	if (substrLen > strLen) {
+		free(substr);
+		free(str);
+		return RValue_makeBool(false);
+	}
+    bool ret = (memcmp(str, substr, substrLen) == 0);
 
     free(substr);
     free(str);
