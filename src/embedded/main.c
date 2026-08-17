@@ -32,5 +32,6 @@ int main(int argc, char* argv[]) {
     args.dataWinPath = DATA_WIN_PATH;
 
     int ret = loop(args, argv[0]);
+    freeCommandLineArgs(&args);
     return ret;
 }
