@@ -864,6 +864,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             globalInputRecording->filterDebugKeys = args.debug;
             installCrashHandlers();
         }
+#ifdef ENABLE_VM_TRACING
         shcopyFromTo(args.varReadsToBeTraced, runner->vmContext->varReadsToBeTraced);
         shcopyFromTo(args.varWritesToBeTraced, runner->vmContext->varWritesToBeTraced);
         shcopyFromTo(args.functionCallsToBeTraced, runner->vmContext->functionCallsToBeTraced);
@@ -875,6 +876,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         shcopyFromTo(args.stackToBeTraced, runner->vmContext->stackToBeTraced);
         shcopyFromTo(args.tilesToBeTraced, runner->vmContext->tilesToBeTraced);
         runner->vmContext->traceBytecodeAfterFrame = args.traceBytecodeAfterFrame;
+#endif
         runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
         runner->vmContext->alwaysLogStubbedFunctions = args.alwaysLogStubbedFunctions;
         runner->vmContext->traceEventInherited = args.traceEventInherited;
@@ -1377,6 +1379,7 @@ void freeCommandLineArgs(CommandLineArgs* args) {
     hmfree(args->screenshotSurfacesFrames);
     hmfree(args->dumpFrames);
     hmfree(args->dumpJsonFrames);
+#ifdef ENABLE_VM_TRACING
     shfree(args->varReadsToBeTraced);
     shfree(args->varWritesToBeTraced);
     shfree(args->functionCallsToBeTraced);
@@ -1386,8 +1389,9 @@ void freeCommandLineArgs(CommandLineArgs* args) {
     shfree(args->collisionsToBeTraced);
     shfree(args->opcodesToBeTraced);
     shfree(args->stackToBeTraced);
-    shfree(args->disassemble);
     shfree(args->tilesToBeTraced);
+#endif
+    shfree(args->disassemble);
     repeat(arrlen(args->gameArgs), i) free(args->gameArgs[i]);
     arrfree(args->gameArgs);
 }
