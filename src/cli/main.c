@@ -92,7 +92,9 @@ static void printUsage(const char *argv0) {
 #endif
         "    --trace-frames                         - Log frametimes\n"
         "    --always-log-unknown-functions         - Always log unknown function calls instead of once per script\n"
+#ifdef ENABLE_VM_STUB_LOGS
         "    --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script\n"
+#endif
         "    --exit-at-frame <frame>                - Exit at the specified frame\n"
 #ifdef ENABLE_VM_TRACING
         "    --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame\n"
@@ -158,7 +160,9 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
 #endif
         {"trace-frames", no_argument, nullptr, 'k'},
         {"always-log-unknown-functions", no_argument, nullptr, 'y'},
+#ifdef ENABLE_VM_STUB_LOGS
         {"always-log-stubbed-functions", no_argument, nullptr, 'Y'},
+#endif
         {"exit-at-frame", required_argument, nullptr, 'x'},
 #ifdef ENABLE_VM_TRACING
         {"trace-bytecode-after-frame", required_argument, nullptr, 'F'},
@@ -307,9 +311,11 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
             case 'y':
                 args->alwaysLogUnknownFunctions = true;
                 break;
+#ifdef ENABLE_VM_STUB_LOGS
             case 'Y':
                 args->alwaysLogStubbedFunctions = true;
                 break;
+#endif
             case 'x': {
                 char* endPtr;
                 int frame = strtol(optarg, &endPtr, 10);

@@ -77,7 +77,9 @@ typedef struct {
 #endif
     StringBooleanEntry* disassemble;
     bool alwaysLogUnknownFunctions;
+#ifdef ENABLE_VM_STUB_LOGS
     bool alwaysLogStubbedFunctions;
+#endif
     bool headless;
     bool traceFrames;
     bool printRooms;

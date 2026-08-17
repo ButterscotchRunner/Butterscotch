@@ -877,8 +877,10 @@ int loop(CommandLineArgs args, const char *argv0) {
         shcopyFromTo(args.tilesToBeTraced, runner->vmContext->tilesToBeTraced);
         runner->vmContext->traceBytecodeAfterFrame = args.traceBytecodeAfterFrame;
 #endif
-        runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
+#ifdef ENABLE_VM_STUB_LOGS
         runner->vmContext->alwaysLogStubbedFunctions = args.alwaysLogStubbedFunctions;
+#endif
+        runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
         runner->vmContext->traceEventInherited = args.traceEventInherited;
 
 #ifndef _WIN32
