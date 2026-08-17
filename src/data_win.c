@@ -2990,11 +2990,9 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     dw->lazyLoadAudio = options.lazyLoadAudio;
     if (options.lazyLoadRooms || options.lazyLoadTextures || options.lazyLoadAudio) {
         dw->lazyLoadFile = file;
-        dw->lazyLoadFilePath = safeStrdup(filePath);
         dw->fileSize = (size_t) fileSize;
     } else {
         dw->lazyLoadFile = nullptr;
-        dw->lazyLoadFilePath = nullptr;
         dw->fileSize = 0;
         fclose(file);
     }
@@ -3220,7 +3218,6 @@ void DataWin_free(DataWin* dw) {
         fclose(dw->lazyLoadFile);
         dw->lazyLoadFile = nullptr;
     }
-    free(dw->lazyLoadFilePath);
 
     unmapFile(dw->mappedFile, dw->fileSize);
 
