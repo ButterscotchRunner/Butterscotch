@@ -515,26 +515,6 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 }
 
-static void freeCommandLineArgs(CommandLineArgs* args) {
-    hmfree(args->screenshotFrames);
-    hmfree(args->screenshotSurfacesFrames);
-    hmfree(args->dumpFrames);
-    hmfree(args->dumpJsonFrames);
-    shfree(args->varReadsToBeTraced);
-    shfree(args->varWritesToBeTraced);
-    shfree(args->functionCallsToBeTraced);
-    shfree(args->alarmsToBeTraced);
-    shfree(args->instanceLifecyclesToBeTraced);
-    shfree(args->eventsToBeTraced);
-    shfree(args->collisionsToBeTraced);
-    shfree(args->opcodesToBeTraced);
-    shfree(args->stackToBeTraced);
-    shfree(args->disassemble);
-    shfree(args->tilesToBeTraced);
-    repeat(arrlen(args->gameArgs), i) free(args->gameArgs[i]);
-    arrfree(args->gameArgs);
-}
-
 int main(int argc, char* argv[]) {
     setbuf(stderr, NULL);
 
