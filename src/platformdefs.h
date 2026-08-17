@@ -53,13 +53,19 @@ typedef struct {
     bool value;
 } FrameSetEntry;
 
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+#define ENABLE_SCREENSHOTS
+#endif
+
 typedef struct {
     const char* dataWinPath;
     const char* saveFolder; // null = default to the directory containing dataWinPath
+#ifdef ENABLE_SCREENSHOTS
     const char* screenshotPattern;
     FrameSetEntry* screenshotFrames;
     const char* screenshotSurfacesPattern;
     FrameSetEntry* screenshotSurfacesFrames;
+#endif
     FrameSetEntry* dumpFrames;
     FrameSetEntry* dumpJsonFrames;
     const char* dumpJsonFilePattern;
@@ -77,7 +83,9 @@ typedef struct {
 #endif
     StringBooleanEntry* disassemble;
     bool alwaysLogUnknownFunctions;
+#ifdef ENABLE_VM_STUB_LOGS
     bool alwaysLogStubbedFunctions;
+#endif
     bool headless;
     bool traceFrames;
     bool printRooms;
