@@ -124,9 +124,10 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          sudo apt-get install -y ccache
 
           if [ ! -d "artifacts/windows/build/toolchain-i486" ]; then
+            sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev
             ARCH=i486 ./artifacts/windows/build-toolchain.sh
           fi
 
