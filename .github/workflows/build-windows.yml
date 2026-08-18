@@ -111,7 +111,7 @@ jobs:
         with:
           path: |
               ~/.cache/ccache
-              ~/toolchain-i486.tar
+              artifacts/windows/build/toolchain-i486
           key: win32-artifact-${{ github.sha }}
           restore-keys: win32-artifact-
 
@@ -120,12 +120,6 @@ jobs:
         run: |
           echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
-
-      - name: Unpack toolchain cache
-        run: |
-          if [ -f ~/toolchain-i486.tar ]; then
-            tar xf ~/toolchain-i486.tar -C ${{ github.workspace }}
-          fi
 
       - name: Install MinGW and dependencies
         run: |
@@ -145,12 +139,6 @@ jobs:
               BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic'
-
-      - name: Pack toolchain cache
-        run: |
-          if [ -d "artifacts/windows/build/toolchain-i486" ]; then
-            tar cf ~/toolchain-i486.tar artifacts/windows/build/toolchain-i486
-          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
