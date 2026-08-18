@@ -64,11 +64,11 @@ jobs:
         with:
           repository: glfw/glfw
           ref: fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          path: /tmp/glfw
+          path: vendor/glfw
 
       - name: Build GLFW for MinGW
         run: |
-          cmake -B /tmp/glfw/build -S /tmp/glfw -G Ninja \
+          cmake -B vendor/glfw/build -S vendor/glfw -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -76,8 +76,8 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
             -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
 
-          cmake --build /tmp/glfw/build
-          sudo cmake --install /tmp/glfw/build
+          cmake --build vendor/glfw/build
+          sudo cmake --install vendor/glfw/build
 
       - name: Configure
         run: |
