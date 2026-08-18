@@ -14,6 +14,8 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   endif()
 endif()
 
+set(BACKEND "sdl2")
+
 endif()
 
 project(butterscotch C)
@@ -125,7 +127,7 @@ else()
     file(GLOB SOURCES src/*.c)
     # These platforms haven't been converted to the refactored system yet.
     # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
+    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
         list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
     endif()
 endif()
@@ -215,7 +217,28 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
+    if(PLATFORM STREQUAL "vita")
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            add_compile_options(-ffast-math)
+        endif()
+
+        # Normally, __VITA__ should already be defined, but for some reason,
+        # in my case, this didn't really work... so just in case, when we're
+        # building for the Vita, just force-feed these...
+        add_compile_definitions(__VITA__)
+        add_compile_definitions(PLATFORM_VITA)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    else()
+        set(VM_GML_PROFILER_DEFAULT ON)
+        set(VM_TRACING_DEFAULT ON)
+        set(VM_OPCODE_PROFILER_DEFAULT ON)
+        set(VM_STUB_LOGS_DEFAULT ON)
+    endif()
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
@@ -241,44 +264,46 @@ if(PLATFORM STREQUAL "cli")
     endif()
 
     # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ${VM_GML_PROFILER_DEFAULT})
     if(ENABLE_VM_GML_PROFILER)
         add_compile_definitions(ENABLE_VM_GML_PROFILER)
     endif()
 
     # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ${VM_TRACING_DEFAULT})
     if(ENABLE_VM_TRACING)
         add_compile_definitions(ENABLE_VM_TRACING)
     endif()
 
     # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ON)
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ${VM_OPCODE_PROFILER_DEFAULT})
     if(ENABLE_VM_OPCODE_PROFILER)
         add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
     endif()
 
     # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ${VM_STUB_LOGS_DEFAULT})
     if(ENABLE_VM_STUB_LOGS)
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
-    # GLAD
-    add_library(glad STATIC vendor/glad/src/glad.c)
-    target_include_directories(glad PUBLIC vendor/glad/include)
-    target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
-
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    set(PLATFORM_LIBRARIES glad bzip2 stb_ds sha1 stb_vorbis)
+    set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
+    if(NOT PLATFORM STREQUAL "vita")
+        # GLAD
+        add_library(glad STATIC vendor/glad/src/glad.c)
+        target_include_directories(glad PUBLIC vendor/glad/include)
+
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
+    endif()
     if(NOT MSVC)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
     endif()
     if(WIN32)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
-    else()
+    elseif(NOT PLATFORM STREQUAL "vita")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 
@@ -339,7 +364,26 @@ if(PLATFORM STREQUAL "cli")
         target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)
         set(BACKEND_LIBRARIES "-framework Cocoa" "-framework GameController")
     endif()
-    target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+    if (PLATFORM STREQUAL "vita")
+        target_link_libraries(butterscotch PRIVATE
+            ${BACKEND_LIBRARIES}
+            ${AUDIO_LIBRARIES}
+            ${PLATFORM_LIBRARIES}
+            vitaGL
+            stdc++
+            SceShaccCgExt
+            taihen_stub
+            SceShaccCg_stub
+        )
+
+        vita_create_self(eboot.bin butterscotch UNSAFE)
+        vita_create_vpk(Butterscotch.vpk ${VITA_TITLEID} eboot.bin
+            VERSION ${VITA_VERSION}
+            NAME ${VITA_APP_NAME}
+        )
+    else()
+        target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+    endif()
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
     else()
@@ -727,82 +771,6 @@ elseif(PLATFORM STREQUAL "ps3")
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
     target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
 elseif(PLATFORM STREQUAL "vita")
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-ffast-math)
-    endif()
-
-    # Normally, __VITA__ should already be defined, but for some reason,
-    # in my case, this didn't really work... so just in case, when we're
-    # building for the Vita, just force-feed these...
-    add_compile_definitions(__VITA__)
-    add_compile_definitions(PLATFORM_VITA)
-
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_legacy/*.c src/gl_common/*.c src/image/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-    
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
-    
-    target_sources(butterscotch PRIVATE src/vita/vita_textures.c src/vita/main.c)
-    
-    target_link_libraries(butterscotch PRIVATE
-        ${AUDIO_LIBRARIES}
-        SDL2
-        bzip2
-        stb_ds
-        sha1
-        #stb_image
-        #stb_vorbis
-        vitaGL
-        stdc++
-        vitashark
-        m
-        z
-        SceShaccCgExt
-        mathneon
-        taihen_stub
-        kubridge_stub
-        SceAppMgr_stub
-        SceAppUtil_stub
-        SceAudio_stub
-        SceAudioIn_stub
-        SceCtrl_stub
-        SceCommonDialog_stub
-        SceDisplay_stub
-        SceIme_stub
-        SceKernelDmacMgr_stub
-        SceFios2_stub
-        SceGxm_stub
-        SceMotion_stub
-        SceNet_stub
-        SceRegistryMgr_stub
-        SceShaccCg_stub
-        SceSysmodule_stub
-        ScePower_stub
-        SceTouch_stub
-        SceHid_stub
-        SceVshBridge_stub
-        SceAvPlayer_stub
-        SceNpTrophy_stub
-        SceRazorCapture_stub
-        SceRazorHud_stub
-    )
-
-    vita_create_self(eboot.bin butterscotch UNSAFE)
-    vita_create_vpk(Butterscotch.vpk ${VITA_TITLEID} eboot.bin
-        VERSION ${VITA_VERSION}
-        NAME ${VITA_APP_NAME}
-    )
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()
