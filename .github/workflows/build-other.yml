@@ -31,9 +31,9 @@ jobs:
       - name: Install build tools
         run: apk add --no-cache cmake ninja ccache gmp-dev mpfr-dev mpc1-dev git tar
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-ps2-${{ matrix.artifact }}-${{ github.sha }}
@@ -127,7 +127,7 @@ jobs:
           } >> $GITHUB_STEP_SUMMARY
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: build/butterscotch.elf
@@ -148,7 +148,7 @@ jobs:
             artifact: butterscotch-web-meta
             output_glob: build/butterscotch-meta.*
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get commit info
         id: commit-info
@@ -164,7 +164,7 @@ jobs:
       - name: Install ccache
         run: sudo apt-get update && sudo apt-get install -y ccache
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-web-${{ matrix.platform }}-${{ github.sha }}
@@ -178,7 +178,7 @@ jobs:
         run: cmake --build build
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.output_glob }}
@@ -188,12 +188,12 @@ jobs:
     runs-on: ubuntu-24.04
     container: scummvm/dockerized-toolchains:ps3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install ccache
         run: apt-get update && apt-get install -y ccache
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-ps3-${{ github.sha }}
@@ -209,7 +209,7 @@ jobs:
           sprxlinker build/butterscotch.elf
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-ps3
           path: build/butterscotch.elf
@@ -219,13 +219,13 @@ jobs:
     runs-on: ubuntu-24.04
     container: vitasdk/vitasdk:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install build dependencies
         run: |
           apt-get update && apt-get install -y ninja-build ccache
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-vita-${{ github.sha }}
@@ -233,7 +233,7 @@ jobs:
             ccache-vita-
 
       - name: Checkout vitaGL
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Rinnegatamante/vitaGL
           path: vendor/vitaGL
@@ -257,7 +257,7 @@ jobs:
             -j$(nproc)
 
       - name: Checkout SDL2
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Northfear/SDL
           path: vendor/SDL2
@@ -278,7 +278,7 @@ jobs:
           cmake --build build
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-vita
           path: build/Butterscotch.vpk
@@ -287,7 +287,7 @@ jobs:
     name: Build (Android)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -300,7 +300,7 @@ jobs:
       - name: Install ccache
         run: sudo apt-get update && sudo apt-get install -y ccache
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-android-${{ github.sha }}
@@ -315,7 +315,7 @@ jobs:
             -Porg.gradle.caching=true
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-android
           path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
@@ -340,7 +340,7 @@ jobs:
           sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
 
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: butterscotch
 
@@ -354,12 +354,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ccache libglfw3-dev
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-cxx-${{ github.sha }}

@@ -12,10 +12,10 @@ jobs:
         shell: cpa.sh {0}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             host_cache/ccache
@@ -73,7 +73,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-sdl2-haiku-x86-64
           path: build/butterscotch

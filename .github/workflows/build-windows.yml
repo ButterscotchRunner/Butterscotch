@@ -23,7 +23,7 @@ jobs:
             triplet: aarch64-w64-mingw32
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get commit info
         id: commit-info
@@ -39,7 +39,7 @@ jobs:
             ninja-build \
             ccache
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-glfw-windows-${{ matrix.arch }}-${{ github.sha }}
@@ -60,7 +60,7 @@ jobs:
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
       - name: Checkout GLFW
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: glfw/glfw
           ref: fdd14e65b1c29e4e6df875fb5669ec00d6793531
@@ -95,7 +95,7 @@ jobs:
         run: cmake --build build
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-glfw3-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
@@ -104,10 +104,10 @@ jobs:
     name: Build (GLFW2 i486)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
               ~/.cache/ccache
@@ -153,7 +153,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-glfw2-windows-x86
           path: build/butterscotch.exe
