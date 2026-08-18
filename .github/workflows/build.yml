@@ -8,19 +8,22 @@ on:
 
 jobs:
   Linux:
-    uses: ./.github/workflows/build-linux.yml
+    uses: ./.github/workflows/build/linux.yml
 
   Windows:
-    uses: ./.github/workflows/build-windows.yml
+    uses: ./.github/workflows/build/windows.yml
 
   macOS:
-    uses: ./.github/workflows/build-macos.yml
+    uses: ./.github/workflows/build/macos.yml
 
   FreeBSD:
-    uses: ./.github/workflows/build-freebsd.yml
+    uses: ./.github/workflows/build/freebsd.yml
 
   Haiku:
-    uses: ./.github/workflows/build-haiku.yml
+    uses: ./.github/workflows/build/haiku.yml
+
+  Consoles:
+    uses: ./.github/workflows/build/consoles.yml
 
   Other:
-    uses: ./.github/workflows/build-other.yml
+    uses: ./.github/workflows/build/other.yml
