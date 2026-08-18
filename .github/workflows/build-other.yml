@@ -337,17 +337,26 @@ jobs:
       - name: Create Debian Woody chroot
         run: |
           sudo apt-get install --no-install-recommends -y debootstrap
-          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev' woody ~/woody http://archive.debian.org/debian
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev,ccache' woody ~/woody http://archive.debian.org/debian
 
       - name: Checkout repo
         uses: actions/checkout@v7
         with:
           path: butterscotch
 
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: ccache-${{ matrix.compiler }}-${{ github.sha }}
+
       - name: Build
         run: |
           sudo mv butterscotch ~/woody
-          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+          sudo chroot ~/woody /bin/sh --login -c '
+            export CCACHE_DIR=/butterscotch/ccache
+            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1
+          '
 
   build-cxx:
     name: Build as C++
