@@ -46,12 +46,12 @@ jobs:
       - name: Install dependencies
         run: |
           yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
-          pkgman install -y cmake ninja ccache gcc libsdl2_devel gcc_syslibs_devel 
+          pkgman install -y cmake make ccache gcc libsdl2_devel gcc_syslibs_devel 
 
       - name: Configure and build Butterscotch
         run: |
           export CCACHE_DIR=/boot/home/.ccache
-          cmake -B build -G Ninja \
+          cmake -B build \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DCMAKE_BUILD_TYPE=Release \
