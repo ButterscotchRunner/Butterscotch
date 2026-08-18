@@ -61,7 +61,7 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "web")
     elseif(PLATFORM STREQUAL "web-meta")
         set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3")
+    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -74,6 +74,9 @@ if(AUDIO_BACKEND STREQUAL "openal")
     file(GLOB AUDIO_SOURCES src/audio/openal/*.c)
 elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+    if(PLATFORM STREQUAL "vita")
+        add_compile_definitions(MA_NO_RUNTIME_LINKING)
+    endif()
 elseif(AUDIO_BACKEND STREQUAL "web")
     file(GLOB AUDIO_SOURCES src/audio/web/*.c src/audio/miniaudio/*.c)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
@@ -143,7 +146,9 @@ if(AUDIO_BACKEND STREQUAL "openal")
     add_compile_definitions(USE_OPENAL)
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
-    elseif(NOT PLATFORM STREQUAL "ps3" AND NOT PLATFORM STREQUAL "vita")
+    elseif(PLATFORM STREQUAL "vita")
+        set(AUDIO_LIBRARIES openal)
+    elseif(NOT PLATFORM STREQUAL "ps3")
         find_package(OpenAL REQUIRED)
         target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
         set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
@@ -729,10 +734,10 @@ elseif(PLATFORM STREQUAL "vita")
     # in my case, this didn't really work... so just in case, when we're
     # building for the Vita, just force-feed these...
     add_compile_definitions(__VITA__)
-    add_compile_definitions(MA_NO_RUNTIME_LINKING)
     add_compile_definitions(PLATFORM_VITA)
 
     file(GLOB GL_SOURCES src/gl/*.c src/gl_legacy/*.c src/gl_common/*.c src/image/*.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
@@ -758,7 +763,6 @@ elseif(PLATFORM STREQUAL "vita")
         #stb_image
         #stb_vorbis
         vitaGL
-        openal
         stdc++
         vitashark
         m
