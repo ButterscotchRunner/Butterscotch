@@ -10,18 +10,23 @@
 #endif
 
 int main(int argc, char* argv[]) {
+    (void)argc;
     setbuf(stderr, NULL);
 
     CommandLineArgs args = {0};
 
     args.exitAtFrame = -1;
+#ifdef ENABLE_VM_TRACING
     args.traceBytecodeAfterFrame = 0;
+#endif
     args.speedMultiplier = 1.0;
     args.fastForwardSpeed = 0.0;
     args.osType = OS_WINDOWS;
     args.profilerFramesBetween = 0;
-    args.loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+    args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
     args.lazyRooms = true;
+    args.lazyTextures = true;
+    args.lazyAudio = true;
 #if defined(ENABLE_MODERN_GL)
     args.renderer = MODERN_GL;
 #elif defined(ENABLE_LEGACY_GL)
