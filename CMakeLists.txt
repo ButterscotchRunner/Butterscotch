@@ -147,7 +147,7 @@ if(AUDIO_BACKEND STREQUAL "openal")
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
     elseif(PLATFORM STREQUAL "vita")
-        set(AUDIO_LIBRARIES openal)
+        set(AUDIO_LIBRARIES openal pthread)
     elseif(NOT PLATFORM STREQUAL "ps3")
         find_package(OpenAL REQUIRED)
         target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
@@ -756,7 +756,6 @@ elseif(PLATFORM STREQUAL "vita")
     
     target_link_libraries(butterscotch PRIVATE
         ${AUDIO_LIBRARIES}
-        -Wl,--whole-archive pthread -Wl,--no-whole-archive
         SDL2
         bzip2
         stb_ds
