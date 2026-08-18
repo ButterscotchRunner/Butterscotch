@@ -584,13 +584,16 @@ jobs:
             -j$(nproc)
 
       - name: Checkout SDL2
-        run: |
-          git clone --depth 1 https://github.com/Northfear/SDL.git vendor/SDL2 -b vitagl
+        uses: actions/checkout@v4
+        with:
+          repository: Northfear/SDL
+          ref: vitagl
+          path: vendor/SDL2
 
       - name: Build SDL2
         run: |
-          cmake -Svendor/SDL2 -Bvendor/SDL2/build -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build vendor/SDL2/build -- -j$(nproc)
+          cmake -Svendor/SDL2 -Bvendor/SDL2/build -GNinja -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
       - name: Configure
