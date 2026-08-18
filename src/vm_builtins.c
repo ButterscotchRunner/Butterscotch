@@ -4839,7 +4839,7 @@ static RValue builtin_ds_list_shuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED
     int32_t id = RValue_toInt32(args[0]);
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
-    for (int32_t i = 1; i < argCount; i++) {
+    for (int32_t i = 1; i < (int32_t) arrlen(list->items); i++) {
         int32_t j = rand() % (i + 1);
         RValue temp = list->items[i];
         list->items[i] = list->items[j];
@@ -8996,6 +8996,13 @@ static RValue builtin_buffer_create(MAYBE_UNUSED VMContext* ctx, RValue* args, M
     return RValue_makeReal((GMLReal) id);
 }
 
+static RValue builtin_buffer_exists(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    GmlBuffer* buf = gmlBufferGet(runner, id);
+    return RValue_makeBool(buf != nullptr);
+}
+
 static RValue builtin_buffer_delete(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
@@ -10918,6 +10925,31 @@ static RValue builtin_draw_surface_ext(VMContext* ctx, RValue* args, MAYBE_UNUSE
     return RValue_makeUndefined();
 }
 
+static RValue builtin_draw_surface_general(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float w = (float) RValue_toReal(args[3]);
+    float h = (float) RValue_toReal(args[4]);
+    float x = (float) RValue_toReal(args[5]);
+    float y = (float) RValue_toReal(args[6]);
+    float xscale = (float) RValue_toReal(args[7]);
+    float yscale = (float) RValue_toReal(args[8]);
+    float rot = (float) RValue_toReal(args[9]);
+    uint32_t c1 = RValue_toColour(args[10]);
+    uint32_t c2 = RValue_toColour(args[11]);
+    uint32_t c3 = RValue_toColour(args[12]);
+    uint32_t c4 = RValue_toColour(args[13]);
+    float alpha = (float) RValue_toReal(args[14]);
+
+
+    Runner* runner = ctx->runner;
+    if (runner->renderer != nullptr) {
+        runner->renderer->vtable->drawSurfaceColor(runner->renderer, surfaceId, left, top, w, h, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_surface_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
 
     int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
@@ -11916,6 +11948,102 @@ static RValue builtin_collision_circle(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal((GMLReal) resultId);
 }
 
+// collision_ellipse(x1, y1, x2, y2, obj, prec, notme)
+static RValue builtin_collision_ellipse(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (7 > argCount) return RValue_makeReal((GMLReal) INSTANCE_NOONE);
+
+    Runner* runner = ctx->runner;
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+    int32_t targetObjIndex = VM_resolveInstanceTarget(ctx, RValue_toInt32(args[4]));
+    int32_t prec = RValue_toInt32(args[5]);
+    int32_t notme = RValue_toInt32(args[6]);
+
+    if (targetObjIndex == INSTANCE_NOONE) return RValue_makeReal((GMLReal) INSTANCE_NOONE);
+
+    if (runner->collisionCompatibilityMode) {
+        x1 = compatRoundCoord(x1); y1 = compatRoundCoord(y1);
+        x2 = compatRoundCoord(x2); y2 = compatRoundCoord(y2);
+    }
+
+    GMLReal qx1 = GMLReal_fmin(x1, x2);
+    GMLReal qy1 = GMLReal_fmin(y1, y2);
+    GMLReal qx2 = GMLReal_fmax(x1, x2);
+    GMLReal qy2 = GMLReal_fmax(y1, y2);
+
+    bool degenerate = (x1 == x2 || y1 == y2);
+
+    GMLReal cx = (x1 + x2) * 0.5;
+    GMLReal cy = (y1 + y2) * 0.5;
+    GMLReal rxInv = degenerate ? 0.0 : 1.0 / ((x2 - x1) * 0.5);
+    GMLReal ryInv = degenerate ? 0.0 : 1.0 / ((y2 - y1) * 0.5);
+
+    Instance* self = ctx->currentInstance;
+
+    SpatialGrid_syncGrid(runner, runner->spatialGrid);
+    SpatialGridQuery query = SpatialGrid_prepareQuery(runner, qx1, qy1, qx2, qy2, targetObjIndex);
+
+    int32_t resultId = INSTANCE_NOONE;
+    for (int32_t gx = query.range.minGridX; query.range.maxGridX >= gx && resultId == INSTANCE_NOONE; gx++) {
+        for (int32_t gy = query.range.minGridY; query.range.maxGridY >= gy && resultId == INSTANCE_NOONE; gy++) {
+            Instance** cell = runner->spatialGrid->grid[SpatialGrid_cellIndex(runner->spatialGrid, gx, gy)];
+            int32_t cellLen = (int32_t) arrlen(cell);
+            repeat(cellLen, ci) {
+                Instance* inst = cell[ci];
+                if (!inst->active) continue;
+                if (notme && inst == self) continue;
+                if (inst->lastCollisionQueryId == query.queryId) continue;
+                inst->lastCollisionQueryId = query.queryId;
+
+                if (!query.matchAll && query.filterByObject && !VM_isObjectOrDescendant(ctx->dataWin, inst->objectIndex, targetObjIndex)) continue;
+                if (!query.matchAll && query.filterByInstanceId && inst->instanceId != (uint32_t) targetObjIndex) continue;
+
+                if (!Collision_ellipseOverlapsInstance(ctx->runner, inst, x1, y1, x2, y2)) continue;
+
+                if (prec != 0) {
+                    Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
+                    if (Collision_hasFrameMasks(spr)) {
+                        InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
+                        GMLReal iLeft   = GMLReal_fmax(qx1, bbox.left);
+                        GMLReal iRight  = GMLReal_fmin(qx2, bbox.right);
+                        GMLReal iTop    = GMLReal_fmax(qy1, bbox.top);
+                        GMLReal iBottom = GMLReal_fmin(qy2, bbox.bottom);
+
+                        bool found = false;
+                        int32_t startX = (int32_t) GMLReal_floor(iLeft);
+                        int32_t endX   = (int32_t) GMLReal_ceil(iRight);
+                        int32_t startY = (int32_t) GMLReal_floor(iTop);
+                        int32_t endY   = (int32_t) GMLReal_ceil(iBottom);
+
+                        for (int32_t py = startY; endY > py && !found; py++) {
+                            for (int32_t px = startX; endX > px && !found; px++) {
+                                GMLReal wpx = (GMLReal) px + 0.5;
+                                GMLReal wpy = (GMLReal) py + 0.5;
+                                if (!degenerate) {
+                                    GMLReal ddx = (wpx - cx) * rxInv;
+                                    GMLReal ddy = (wpy - cy) * ryInv;
+                                    if (ddx * ddx + ddy * ddy > 1.0) continue;
+                                }
+                                if (Collision_pointInInstance(spr, inst, wpx, wpy)) {
+                                    found = true;
+                                }
+                            }
+                        }
+                        if (!found) continue;
+                    }
+                }
+
+                resultId = inst->instanceId;
+                break;
+            }
+        }
+    }
+
+    return RValue_makeReal((GMLReal) resultId);
+}
+
 static RValue builtin_collision_line_list(VMContext* ctx, RValue* args, int32_t argCount) {
     if (9 > argCount) return RValue_makeReal(0.0);
 
@@ -12167,6 +12295,106 @@ static RValue builtin_collision_circle_list(VMContext* ctx, RValue* args, int32_
                                 GMLReal ddx = wpx - cx;
                                 GMLReal ddy = wpy - cy;
                                 if (ddx * ddx + ddy * ddy > radiusSq) continue;
+                                if (Collision_pointInInstance(spr, inst, wpx, wpy)) {
+                                    found = true;
+                                }
+                            }
+                        }
+                        if (!found) continue;
+                    }
+                }
+
+                arrput(list->items, RValue_makeReal((GMLReal) inst->instanceId));
+                count++;
+            }
+        }
+    }
+
+    return RValue_makeReal((GMLReal) count);
+}
+
+// collision_ellipse_list(x1, y1, x2, y2, obj, prec, notme, list, ordered) -> count
+static RValue builtin_collision_ellipse_list(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (8 > argCount) return RValue_makeReal(0.0);
+
+    Runner* runner = ctx->runner;
+    GMLReal x1 = RValue_toReal(args[0]);
+    GMLReal y1 = RValue_toReal(args[1]);
+    GMLReal x2 = RValue_toReal(args[2]);
+    GMLReal y2 = RValue_toReal(args[3]);
+    int32_t targetObjIndex = VM_resolveInstanceTarget(ctx, RValue_toInt32(args[4]));
+    int32_t prec = RValue_toInt32(args[5]);
+    int32_t notme = RValue_toInt32(args[6]);
+    int32_t listId = RValue_toInt32(args[7]);
+    // arg 8 (ordered) ignored here too; appended in iteration order
+
+    if (targetObjIndex == INSTANCE_NOONE) return RValue_makeReal(0.0);
+    DsList* list = dsListGet(runner, listId);
+    if (list == nullptr) return RValue_makeReal(0.0);
+
+    if (runner->collisionCompatibilityMode) {
+        x1 = compatRoundCoord(x1); y1 = compatRoundCoord(y1);
+        x2 = compatRoundCoord(x2); y2 = compatRoundCoord(y2);
+    }
+
+    GMLReal qx1 = GMLReal_fmin(x1, x2);
+    GMLReal qy1 = GMLReal_fmin(y1, y2);
+    GMLReal qx2 = GMLReal_fmax(x1, x2);
+    GMLReal qy2 = GMLReal_fmax(y1, y2);
+
+    bool degenerate = (x1 == x2 || y1 == y2);
+
+    GMLReal cx = (x1 + x2) * 0.5;
+    GMLReal cy = (y1 + y2) * 0.5;
+    GMLReal rxInv = degenerate ? 0.0 : 1.0 / ((x2 - x1) * 0.5);
+    GMLReal ryInv = degenerate ? 0.0 : 1.0 / ((y2 - y1) * 0.5);
+
+    Instance* self = ctx->currentInstance;
+
+    SpatialGrid_syncGrid(runner, runner->spatialGrid);
+    SpatialGridQuery query = SpatialGrid_prepareQuery(runner, qx1, qy1, qx2, qy2, targetObjIndex);
+
+    int32_t count = 0;
+    for (int32_t gx = query.range.minGridX; query.range.maxGridX >= gx; gx++) {
+        for (int32_t gy = query.range.minGridY; query.range.maxGridY >= gy; gy++) {
+            Instance** cell = runner->spatialGrid->grid[SpatialGrid_cellIndex(runner->spatialGrid, gx, gy)];
+            int32_t cellLen = (int32_t) arrlen(cell);
+            repeat(cellLen, ci) {
+                Instance* inst = cell[ci];
+                if (!inst->active) continue;
+                if (notme && inst == self) continue;
+                if (inst->lastCollisionQueryId == query.queryId) continue;
+                inst->lastCollisionQueryId = query.queryId;
+
+                if (!query.matchAll && query.filterByObject && !VM_isObjectOrDescendant(ctx->dataWin, inst->objectIndex, targetObjIndex)) continue;
+                if (!query.matchAll && query.filterByInstanceId && inst->instanceId != (uint32_t) targetObjIndex) continue;
+
+                if (!Collision_ellipseOverlapsInstance(ctx->runner, inst, x1, y1, x2, y2)) continue;
+
+                if (prec != 0) {
+                    Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
+                    if (Collision_hasFrameMasks(spr)) {
+                        InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
+                        GMLReal iLeft   = GMLReal_fmax(qx1, bbox.left);
+                        GMLReal iRight  = GMLReal_fmin(qx2, bbox.right);
+                        GMLReal iTop    = GMLReal_fmax(qy1, bbox.top);
+                        GMLReal iBottom = GMLReal_fmin(qy2, bbox.bottom);
+
+                        bool found = false;
+                        int32_t startX = (int32_t) GMLReal_floor(iLeft);
+                        int32_t endX   = (int32_t) GMLReal_ceil(iRight);
+                        int32_t startY = (int32_t) GMLReal_floor(iTop);
+                        int32_t endY   = (int32_t) GMLReal_ceil(iBottom);
+
+                        for (int32_t py = startY; endY > py && !found; py++) {
+                            for (int32_t px = startX; endX > px && !found; px++) {
+                                GMLReal wpx = (GMLReal) px + 0.5;
+                                GMLReal wpy = (GMLReal) py + 0.5;
+                                if (!degenerate) {
+                                    GMLReal ddx = (wpx - cx) * rxInv;
+                                    GMLReal ddy = (wpy - cy) * ryInv;
+                                    if (ddx * ddx + ddy * ddy > 1.0) continue;
+                                }
                                 if (Collision_pointInInstance(spr, inst, wpx, wpy)) {
                                     found = true;
                                 }
@@ -14132,6 +14360,16 @@ static RValue builtin_layer_sprite_get_index(VMContext* ctx, RValue* args, MAYBE
     if (!isValidLayerSpriteElement(el))
         return RValue_makeReal(0.0);
     return RValue_makeReal((GMLReal) el->spriteElement->frameIndex);
+}
+
+static RValue builtin_layer_sprite_index(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t index = RValue_toInt32(args[1]);
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (isValidLayerSpriteElement(el))
+        el->spriteElement->frameIndex = (float) index;
+    return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_sprite_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -17669,6 +17907,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Buffer
     VM_registerBuiltin(ctx, "buffer_create", builtin_buffer_create);
+    VM_registerBuiltin(ctx, "buffer_exists", builtin_buffer_exists);
     VM_registerBuiltin(ctx, "buffer_delete", builtin_buffer_delete);
     VM_registerBuiltin(ctx, "buffer_write", builtin_buffer_write);
     VM_registerBuiltin(ctx, "buffer_read", builtin_buffer_read);
@@ -17741,6 +17980,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "draw_surface_ext", builtin_draw_surface_ext);
     VM_registerBuiltin(ctx, "draw_surface_part", builtin_draw_surface_part);
     VM_registerBuiltin(ctx, "draw_surface_part_ext", builtin_draw_surface_part_ext);
+    VM_registerBuiltin(ctx, "draw_surface_general", builtin_draw_surface_general);
     VM_registerBuiltin(ctx, "draw_surface_stretched", builtin_draw_surface_stretched);
     VM_registerBuiltin(ctx, "draw_surface_stretched_ext", builtin_draw_surface_stretched_ext);
     VM_registerBuiltin(ctx, "draw_surface_tiled", builtin_draw_surface_tiled);
@@ -17877,6 +18117,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "collision_line", builtin_collision_line);
     VM_registerBuiltin(ctx, "collision_point", builtin_collision_point);
     VM_registerBuiltin(ctx, "collision_circle", builtin_collision_circle);
+    VM_registerBuiltin(ctx, "collision_ellipse", builtin_collision_ellipse);
     VM_registerBuiltin(ctx, "instance_place", builtin_instance_place);
     VM_registerBuiltin(ctx, "instance_position", builtin_instance_position);
     VM_registerBuiltin(ctx, "position_meeting", builtin_position_meeting);
@@ -17886,6 +18127,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "collision_line_list", builtin_collision_line_list);
         VM_registerBuiltin(ctx, "collision_rectangle_list", builtin_collision_rectangle_list);
         VM_registerBuiltin(ctx, "collision_circle_list", builtin_collision_circle_list);
+        VM_registerBuiltin(ctx, "collision_ellipse_list", builtin_collision_ellipse_list);
         VM_registerBuiltin(ctx, "instance_place_list", builtin_instance_place_list);
     }
 
@@ -17950,6 +18192,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_get_alpha", builtin_layer_sprite_get_alpha);
     VM_registerBuiltin(ctx, "layer_sprite_get_blend", builtin_layer_sprite_get_blend);
     VM_registerBuiltin(ctx, "layer_sprite_speed", builtin_layer_sprite_speed);
+    VM_registerBuiltin(ctx, "layer_sprite_index", builtin_layer_sprite_index);
     VM_registerBuiltin(ctx, "layer_sprite_blend", builtin_layer_sprite_blend);
     VM_registerBuiltin(ctx, "layer_sprite_destroy", builtin_layer_sprite_destroy);
     VM_registerBuiltin(ctx, "layer_tile_visible", builtin_layer_tile_visible);

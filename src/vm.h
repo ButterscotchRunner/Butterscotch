@@ -267,7 +267,9 @@ struct VMContext {
     // Cross-reference map for disassembler: targetCodeIndex -> stb_ds array of callerCodeIndex
     CrossRefMapEntry* crossRefMap;
     bool alwaysLogUnknownFunctions;
+#ifdef ENABLE_VM_STUB_LOGS
     bool alwaysLogStubbedFunctions;
+#endif
 #ifdef ENABLE_VM_TRACING
     StringBooleanEntry* varReadsToBeTraced;
     StringBooleanEntry* varWritesToBeTraced;

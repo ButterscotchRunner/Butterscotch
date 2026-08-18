@@ -83,7 +83,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
-            -DDESKTOP_BACKEND=glfw3 \
+            -DBACKEND=glfw3 \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -137,7 +137,7 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
-              DESKTOP_BACKEND=glfw2 \
+              BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic'
 

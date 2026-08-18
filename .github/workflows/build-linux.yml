@@ -136,7 +136,7 @@ jobs:
         run: |
           CMAKE_ARGS=(
             -DWERROR=ON
-            -DDESKTOP_BACKEND=${{ matrix.desktop_backend }}
+            -DBACKEND=${{ matrix.desktop_backend }}
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -192,5 +192,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-${{ matrix.desktop_backend }}-linux-${{ matrix.arch }}
+          name: butterscotch-${{ matrix.BACKEND }}-linux-${{ matrix.arch }}
           path: build/butterscotch

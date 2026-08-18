@@ -2,10 +2,9 @@
 
 #include "data_win.h"
 #include "vm.h"
+#include "loop.h"
 
 #include "platformdefs.h"
-#include <getopt.h>
-#include <stdarg.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
 #include "string_compat.h"
@@ -60,22 +59,13 @@
 #include "profiler.h"
 #include "gettime.h"
 
-/* For SDL_main */
-#if defined(USE_SDL1)
-#include <SDL/SDL_main.h>
-#elif defined(USE_SDL2)
-#include <SDL2/SDL_main.h>
-#elif defined(USE_SDL3)
-#include <SDL3/SDL_main.h>
-#endif
-
 enum GraphicsAPI gfx;
 
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 const GLuint *hostFramebuffer;
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
 #endif
@@ -224,147 +214,6 @@ static void installGLDebugCallback(void) {
 }
 #endif
 
-// ===[ COMMAND LINE ARGUMENTS ]===
-typedef struct {
-    int key;
-    // We need this dummy value, think that the ds_map is like a Java HashMap NOT a HashSet
-    // (Which is funny, because in Java HashSets are backed by HashMaps lol)
-    bool value;
-} FrameSetEntry;
-
-typedef struct {
-    const char* dataWinPath;
-    const char* saveFolder; // null = default to the directory containing dataWinPath
-    const char* screenshotPattern;
-    FrameSetEntry* screenshotFrames;
-    const char* screenshotSurfacesPattern;
-    FrameSetEntry* screenshotSurfacesFrames;
-    FrameSetEntry* dumpFrames;
-    FrameSetEntry* dumpJsonFrames;
-    const char* dumpJsonFilePattern;
-    StringBooleanEntry* varReadsToBeTraced;
-    StringBooleanEntry* varWritesToBeTraced;
-    StringBooleanEntry* functionCallsToBeTraced;
-    StringBooleanEntry* alarmsToBeTraced;
-    StringBooleanEntry* instanceLifecyclesToBeTraced;
-    StringBooleanEntry* eventsToBeTraced;
-    StringBooleanEntry* collisionsToBeTraced;
-    StringBooleanEntry* opcodesToBeTraced;
-    StringBooleanEntry* stackToBeTraced;
-    StringBooleanEntry* disassemble;
-    StringBooleanEntry* tilesToBeTraced;
-    bool alwaysLogUnknownFunctions;
-    bool alwaysLogStubbedFunctions;
-    bool headless;
-    bool traceFrames;
-    bool printRooms;
-    bool printObjects;
-    bool printShaders;
-    bool printDeclaredFunctions;
-    bool printUnknownFunctions;
-    int exitAtFrame;
-    int traceBytecodeAfterFrame;
-    double speedMultiplier;
-    double fastForwardSpeed;
-    int seed;
-    bool hasSeed;
-    bool debug;
-    bool traceEventInherited;
-    const char* recordInputsPath;
-    const char* playbackInputsPath;
-    const char* renderer;
-    YoYoOperatingSystem osType;
-    int32_t windowWidth, windowHeight; // 0 = auto (gen8 default, or the console-native size for console os-types)
-    float widescreenAspect; // "widescreen hack" target aspect ratio (width/height), 0 = disabled
-    char** gameArgs; // stb_ds array of owned strings, gameArgs[0] = runner executable path
-    bool lazyRooms;
-    StringBooleanEntry* eagerRooms; // stb_ds string-keyed set of room names
-    bool lazyTextures;
-    bool lazyAudio;
-    DataWinLoadType loadType;
-    int profilerFramesBetween; // 0 = disabled
-#ifdef ENABLE_VM_OPCODE_PROFILER
-    bool opcodeProfiler;
-#endif
-    bool disableLogColours;
-} CommandLineArgs;
-
-typedef struct { const char* name; YoYoOperatingSystem value; } OsTypeNameEntry;
-
-static const OsTypeNameEntry OS_TYPE_NAMES[] = {
-    {"unknown",       OS_UNKNOWN},
-    {"windows",       OS_WINDOWS},
-    {"win32",         OS_WINDOWS},
-    {"macosx",        OS_MACOSX},
-    {"macos",         OS_MACOSX},
-    {"psp",           OS_PSP},
-    {"ios",           OS_IOS},
-    {"android",       OS_ANDROID},
-    {"symbian",       OS_SYMBIAN},
-    {"linux",         OS_LINUX},
-    {"winphone",      OS_WINPHONE},
-    {"tizen",         OS_TIZEN},
-    {"win8native",    OS_WIN8NATIVE},
-    {"wiiu",          OS_WIIU},
-    {"3ds",           OS_3DS},
-    {"psvita",        OS_PSVITA},
-    {"bb10",          OS_BB10},
-    {"ps4",           OS_PS4},
-    {"xboxone",       OS_XBOXONE},
-    {"ps3",           OS_PS3},
-    {"xbox360",       OS_XBOX360},
-    {"uwp",           OS_UWP},
-    {"amazon",        OS_AMAZON},
-    {"switch",        OS_SWITCH},
-};
-#define OS_TYPE_NAMES_COUNT (sizeof(OS_TYPE_NAMES)/sizeof(OS_TYPE_NAMES[0]))
-
-static bool parseOsTypeArg(const char* s, YoYoOperatingSystem* out) {
-    forEach(const OsTypeNameEntry, entry, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        if (strcmp(s, entry->name) == 0) {
-            *out = entry->value;
-            return true;
-        }
-    }
-    return false;
-}
-
-static void printOsTypeNames(FILE* out) {
-    forEachIndexed(const OsTypeNameEntry, entry, i, OS_TYPE_NAMES, OS_TYPE_NAMES_COUNT) {
-        fprintf(out, "%s%s", i > 0 ? ", " : "", entry->name);
-    }
-}
-
-static bool logColour;
-
-void platformLog(const logType type, const char *format, va_list va) {
-    FILE *out = stderr;
-    const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
-    const char* textPrefix = "";
-    switch (type) {
-        case LOG_TYPE_NORMAL:
-            out = stdout;
-            break;
-        case LOG_TYPE_WARNING:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_YELLOW;
-            textPrefix = "Warning: ";
-            break;
-        case LOG_TYPE_ERROR:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_RED;
-            textPrefix = "Error: ";
-            break;
-        case LOG_TYPE_DEBUG:
-            colourPrefix = ANSI_COLOUR_CODE_BOLD_PURPLE;
-            textPrefix = "Debug: ";
-            break;
-    }
-
-    if (logColour) fputs(colourPrefix, out);
-    fputs(textPrefix, out);
-    if (logColour) fputs(ANSI_COLOUR_CODE_RESET, out);
-    vfprintf(out, format, va);
-}
-
 // Resolves the window size for the specified operating system.
 // The "--window-size" argument takes precedence over the default resolution for each platform.
 static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, uint32_t gen8Height, int32_t* outW, int32_t* outH) {
@@ -412,7 +261,7 @@ static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, u
 // Extracts the Runner arguments from a string, returning the values on stb_ds array
 // The "Runner arguments" is used for the "--game-args" and for the game_change GML function
 // Returns the modified array
-static char** extractRunnerArguments(char* rawArguments) {
+char** extractRunnerArguments(char* rawArguments) {
     // The "saveptr" is used for strtok_r to store its state
     // So it is thread safe™
     char *saveptr;
@@ -431,475 +280,10 @@ static char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
-static void printUsage(const char *argv0) {
-    logInfo(
-        "Usage: %s <path to data.win or game.unx>\n"
-        "    --help                                 - Show this message\n"
-        "    --screenshot <filename>                - Specify the filename for screenshots\n"
-        "    --screenshot-at-frame <frame>          - Take a screenshot at the specified frame\n"
-        "    --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame\n"
-        "    --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots\n"
-#ifndef USE_GLFW2
-        "    --headless                             - Launch without a window\n"
-#endif
-        "    --print-rooms                          - Print all rooms in the game and exit\n"
-        "    --print-objects                        - Print all objects in the game and exit\n"
-        "    --print-shaders                        - Print all shaders in the game and exit\n"
-        "    --print-declared-functions             - Print all declared functions in the game and exit\n"
-        "    --print-unknown-functions              - Print all unknown functions used by the game and exit\n"
-        "    --trace-variable-reads                 - Trace variable reads\n"
-        "    --trace-variable-writes                - Trace variable writes\n"
-        "    --trace-function-calls                 - Trace function calls\n"
-        "    --trace-alarms                         - Trace alarms\n"
-        "    --trace-instance-lifecycles            - Trace instance creations and deletions\n"
-        "    --trace-events                         - Trace events\n"
-        "    --trace-collisions                     - Trace collisions between instances\n"
-        "    --trace-event-inherited                - Trace event inherited calls\n"
-        "    --trace-tiles                          - Trace drawn tiles\n"
-        "    --trace-opcodes                        - Trace opcodes\n"
-        "    --trace-stack                          - Trace stack\n"
-        "    --trace-frames                         - Log frametimes\n"
-        "    --always-log-unknown-functions         - Always log unknown function calls instead of once per script\n"
-        "    --always-log-stubbed-functions         - Always log stubbed function calls instead of once per script\n"
-        "    --exit-at-frame <frame>                - Exit at the specified frame\n"
-        "    --trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame\n"
-        "    --dump-frame <frame>                   - Dump the runner state at the specified frame\n"
-        "    --dump-frame-json <frame>              - Dump the runner state in json at the specified frame\n"
-        "    --dump-frame-json-file <file>          - Specify an output file for runner state dumps\n"
-        "    --speed <speed>                        - Set a normal speed multiplier\n"
-        "    --fast-forward-speed <speed>           - Set a fast-forward speed multiplier\n"
-        "    --seed <seed>                          - Seed for the random number generator\n"
-        "    --debug                                - Enable debug mode\n"
-        "    --disassemble <script>                 - Disassemble the specified script and print to console (* disassembles all)\n"
-        "    --record-inputs <file>                 - Record all keyboard inputs to a file\n"
-        "    --playback-inputs <file>               - Playback input from file\n"
-        "    --renderer <renderer>                  - Set the rendering API\n"
-        "    --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage\n"
-        "    --eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory\n"
-        "    --os-type <os>                         - Set the reported OS type\n"
-        "    --window-size <dimentions>             - Set a custom window size\n"
-        "    --widescreen-hack <aspect ratio>       - Set a custom aspect ratio\n"
-        "    --profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions\n"
-        "    --save-folder <directory>              - Set the directory will save files will be stored\n"
-        "    --game-args <args>                     - Arguments to pass to the game\n"
-        "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
-        "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
-        "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
-        "    --disable-log-colours                  - Disable colours for warning, error, and debug logs\n"
-        "    --disable-log-colors                   - Same as --disable-log-colours, but different spelling\n"
-#ifdef EABLE_VM_OPCODE_PROFILER
-        "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
-#endif
-        , argv0
-    );
-}
-
-static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
-    memset(args, 0, sizeof(CommandLineArgs));
-
-    static struct option longOptions[] = {
-        {"help",          no_argument, nullptr, 'H'},
-        {"screenshot",          required_argument, nullptr, 's'},
-        {"screenshot-at-frame", required_argument, nullptr, 'f'},
-        {"screenshot-surfaces", required_argument, nullptr, 'U'},
-        {"screenshot-surfaces-at-frame", required_argument, nullptr, 'V'},
-        {"headless",            no_argument,       nullptr, 'h'},
-        {"print-rooms", no_argument,               nullptr, 'r'},
-        {"print-objects", no_argument,             nullptr, 'b'},
-        {"print-shaders", no_argument,               nullptr, 998},
-        {"print-declared-functions", no_argument,  nullptr, 'p'},
-        {"print-unknown-functions", no_argument, nullptr, 'u'},
-        {"trace-variable-reads", required_argument,  nullptr, 'R'},
-        {"trace-variable-writes", required_argument, nullptr, 'W'},
-        {"trace-function-calls", required_argument,         nullptr, 'c'},
-        {"trace-alarms", required_argument,         nullptr, 'a'},
-        {"trace-instance-lifecycles", required_argument,         nullptr, 'l'},
-        {"trace-events", required_argument,         nullptr, 'e'},
-        {"trace-collisions", required_argument,     nullptr, 'C'},
-        {"trace-event-inherited", no_argument, nullptr, 'E'},
-        {"trace-tiles", required_argument, nullptr, 'T'},
-        {"trace-opcodes", required_argument,       nullptr, 'o'},
-        {"trace-stack", required_argument,         nullptr, 'S'},
-        {"trace-frames", no_argument, nullptr, 'k'},
-        {"always-log-unknown-functions", no_argument, nullptr, 'y'},
-        {"always-log-stubbed-functions", no_argument, nullptr, 'Y'},
-        {"exit-at-frame", required_argument, nullptr, 'x'},
-        {"trace-bytecode-after-frame", required_argument, nullptr, 'F'},
-        {"dump-frame", required_argument, nullptr, 'd'},
-        {"dump-frame-json", required_argument, nullptr, 'j'},
-        {"dump-frame-json-file", required_argument, nullptr, 'J'},
-        {"speed", required_argument, nullptr, 'M'},
-        {"fast-forward-speed", required_argument, nullptr, 'X'},
-        {"seed", required_argument, nullptr, 'Z'},
-        {"debug", no_argument, nullptr, 'D'},
-        {"disassemble", required_argument, nullptr, 'A'},
-        {"record-inputs", required_argument, nullptr, 'I'},
-        {"playback-inputs", required_argument, nullptr, 'P'},
-        {"renderer", required_argument, nullptr, 'g'},
-        {"lazy-rooms", no_argument, nullptr, 'z'},
-        {"eager-room", required_argument, nullptr, 'G'},
-        {"os-type", required_argument, nullptr, 'O'},
-        {"window-size", required_argument, nullptr, 'w'},
-        {"widescreen-hack", optional_argument, nullptr, 1000},
-        {"profile-gml-scripts", required_argument, nullptr, 'q'},
-        {"save-folder", required_argument, nullptr, 'B'},
-        {"game-args", required_argument, nullptr, 'N'},
-        {"lazy-textures", no_argument, nullptr, 'L'},
-        {"lazy-audio", no_argument, nullptr, 'K'},
-        {"load-type", required_argument, nullptr, 999},
-        {"disable-log-colours", no_argument, nullptr, 1003},
-        {"disable-log-colors", no_argument, nullptr, 1003},
-#ifdef ENABLE_VM_OPCODE_PROFILER
-        {"profile-opcodes", no_argument, nullptr, 'Q'},
-#endif
-        {nullptr,               0,                 nullptr,  0 }
-    };
-
-    args->screenshotFrames = nullptr;
-    args->exitAtFrame = -1;
-    args->traceBytecodeAfterFrame = 0;
-    args->speedMultiplier = 1.0;
-    args->fastForwardSpeed = 0.0;
-    args->osType = OS_WINDOWS;
-    args->profilerFramesBetween = 0;
-    args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
-    args->disableLogColours = !isatty(1); // 1 == stdout
-    // TODO: detect available driver features
-    // at runtime to improve defaults.
-#if defined(ENABLE_MODERN_GL)
-    args->renderer = "modern-gl";
-#elif defined(ENABLE_LEGACY_GL)
-    args->renderer = "legacy-gl";
-#else
-    args->renderer = "software";
-#endif
-
-    int opt;
-    while ((opt = getopt_long(argc, argv, "", longOptions, nullptr)) != -1) {
-        switch (opt) {
-            case 'H':
-                printUsage(argv[0]);
-                exit(0);
-            case 's':
-                args->screenshotPattern = optarg;
-                break;
-            case 'f': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s'\n", optarg);
-                    exit(1);
-                }
-
-                hmput(args->screenshotFrames, frame, true);
-                break;
-            }
-            case 'U':
-                args->screenshotSurfacesPattern = optarg;
-                break;
-            case 'V': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s' for --screenshot-surfaces-at-frame\n", optarg);
-                    exit(1);
-                }
-                hmput(args->screenshotSurfacesFrames, frame, true);
-                break;
-            }
-            case 'h':
-                args->headless = true;
-                break;
-            case 'r':
-                args->printRooms = true;
-                break;
-            case 'b':
-                args->printObjects = true;
-                break;
-            case 998: {
-                args->printShaders = true;
-                break;
-            }
-            case 'p':
-                args->printDeclaredFunctions = true;
-                break;
-            case 'u':
-                args->printUnknownFunctions = true;
-                break;
-            case 'R':
-                shput(args->varReadsToBeTraced, optarg, true);
-                break;
-            case 'W':
-                shput(args->varWritesToBeTraced, optarg, true);
-                break;
-            case 'c':
-                shput(args->functionCallsToBeTraced, optarg, true);
-                break;
-            case 'a':
-                shput(args->alarmsToBeTraced, optarg, true);
-                break;
-            case 'l':
-                shput(args->instanceLifecyclesToBeTraced, optarg, true);
-                break;
-            case 'L':
-                args->lazyTextures = true;
-                break;
-            case 'K':
-                args->lazyAudio = true;
-                break;
-            case 'e':
-                shput(args->eventsToBeTraced, optarg, true);
-                break;
-            case 'C':
-                shput(args->collisionsToBeTraced, optarg, true);
-                break;
-            case 'o':
-                shput(args->opcodesToBeTraced, optarg, true);
-                break;
-            case 'S':
-                shput(args->stackToBeTraced, optarg, true);
-                break;
-            case 'k':
-                args->traceFrames = true;
-                break;
-            case 'y':
-                args->alwaysLogUnknownFunctions = true;
-                break;
-            case 'Y':
-                args->alwaysLogStubbedFunctions = true;
-                break;
-            case 'x': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s' for --exit-at-frame\n", optarg);
-                    exit(1);
-                }
-                args->exitAtFrame = frame;
-                break;
-            }
-            case 'F': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s' for --trace-bytecode-after-frame\n", optarg);
-                    exit(1);
-                }
-                args->traceBytecodeAfterFrame = frame;
-                break;
-            }
-            case 'd': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s' for --dump-frame\n", optarg);
-                    exit(1);
-                }
-                hmput(args->dumpFrames, frame, true);
-                break;
-            }
-            case 'j': {
-                char* endPtr;
-                int frame = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || 0 > frame) {
-                    logError("Invalid frame number '%s' for --dump-frame-json\n", optarg);
-                    exit(1);
-                }
-                hmput(args->dumpJsonFrames, frame, true);
-                break;
-            }
-            case 'J':
-                args->dumpJsonFilePattern = optarg;
-                break;
-            case 'M': {
-                char* endPtr;
-                double speed = strtod(optarg, &endPtr);
-                if (*endPtr != '\0' || speed <= 0.0) {
-                    logError("Invalid speed multiplier '%s' for --speed (must be > 0)\n", optarg);
-                    exit(1);
-                }
-                args->speedMultiplier = speed;
-                break;
-            }
-            case 'X': {
-                char* endPtr;
-                double speed = strtod(optarg, &endPtr);
-                if (*endPtr != '\0' || speed <= 0.0) {
-                    logError("Invalid speed '%s' for --fast-forward-speed (must be > 0)\n", optarg);
-                    exit(1);
-                }
-                args->fastForwardSpeed = speed;
-                break;
-            }
-            case 'D':
-                args->debug = true;
-                break;
-            case 'g':
-                args->renderer = optarg;
-                break;
-            case 'z':
-                args->lazyRooms = true;
-                break;
-            case 'G':
-                shput(args->eagerRooms, optarg, true);
-                break;
-            case 'A':
-                shput(args->disassemble, optarg, true);
-                break;
-            case 'T':
-                shput(args->tilesToBeTraced, optarg, true);
-                break;
-            case 'E':
-                args->traceEventInherited = true;
-                break;
-            case 'Z': {
-                char* endPtr;
-                int seedVal = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0') {
-                    logError("Invalid seed value '%s' for --seed\n", optarg);
-                    exit(1);
-                }
-                args->seed = seedVal;
-                args->hasSeed = true;
-                break;
-            }
-            case 'I':
-                args->recordInputsPath = optarg;
-                break;
-            case 'P':
-                args->playbackInputsPath = optarg;
-                break;
-            case 'q': {
-                char* endPtr;
-                int framesBetween = strtol(optarg, &endPtr, 10);
-                if (*endPtr != '\0' || framesBetween <= 0) {
-                    logError("Invalid frame count '%s' for --profile-gml-scripts (must be > 0)\n", optarg);
-                    exit(1);
-                }
-                args->profilerFramesBetween = framesBetween;
-                break;
-            }
-            case 'B':
-                args->saveFolder = optarg;
-                break;
-            case 'N': {
-                repeat(arrlen(args->gameArgs), i) {
-                    free(args->gameArgs[i]);
-                }
-                arrfree(args->gameArgs);
-                args->gameArgs = extractRunnerArguments(optarg);
-                break;
-            }
-#ifdef ENABLE_VM_OPCODE_PROFILER
-            case 'Q':
-                args->opcodeProfiler = true;
-                break;
-#endif
-            case 'O':
-                if (!parseOsTypeArg(optarg, &args->osType)) {
-                    logError("Invalid --os-type value '%s' (expected: ", optarg);
-                    printOsTypeNames(stderr);
-                    logError(")\n");
-                    exit(1);
-                }
-                break;
-            case 'w': {
-                int32_t w = 0, h = 0;
-                if (sscanf(optarg, "%dx%d", &w, &h) != 2 || 0 >= w || 0 >= h) {
-                    logError("Invalid --window-size value '%s' (expected WxH, e.g. 960x544)\n", optarg);
-                    exit(1);
-                }
-                args->windowWidth = w;
-                args->windowHeight = h;
-                break;
-            }
-            case 999: {
-                if (strcmp(optarg, "load-in-memory-ahead-of-time") == 0) {
-                    args->loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
-                } else if (strcmp(optarg, "map-file") == 0) {
-                    args->loadType = DATAWINLOADTYPE_MAP_FILE;
-                } else if (strcmp(optarg, "load-per-chunk") == 0) {
-                    args->loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
-                } else {
-                    logError("Unknown load type '%s'\n", optarg);
-                    exit(1);
-                }
-                break;
-            }
-            case 1000: {
-                if (optarg == nullptr) {
-                    args->widescreenAspect = 16.0f / 9.0f;
-                    break;
-                }
-                int aw = 0, ah = 0;
-                double ratio = 0.0;
-                char* endPtr;
-                if (sscanf(optarg, "%d:%d", &aw, &ah) == 2 && aw > 0 && ah > 0) {
-                    args->widescreenAspect = (float) aw / (float) ah;
-                } else if ((ratio = strtod(optarg, &endPtr)), *endPtr == '\0' && ratio > 0.0) {
-                    args->widescreenAspect = (float) ratio;
-                } else {
-                    logError("Invalid --widescreen-hack value '%s' (expected W:H like 16:9, or a decimal like 1.7778)\n", optarg);
-                    exit(1);
-                }
-                break;
-            }
-            case 1003:
-                args->disableLogColours = true;
-                break;
-            default:
-                printUsage(argv[0]);
-                exit(1);
-        }
-    }
-
-    if (optind >= argc) {
-        printUsage(argv[0]);
-        exit(1);
-    }
-
-    args->dataWinPath = argv[optind];
-
-    if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
-        logError("--screenshot-at-frame requires --screenshot to be set\n");
-        exit(1);
-    }
-
-    if (hmlen(args->screenshotSurfacesFrames) > 0 && args->screenshotSurfacesPattern == nullptr) {
-        logError("--screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
-        exit(1);
-    }
-
-    if (args->headless && args->speedMultiplier != 1.0) {
-        logError("You can't set the speed multiplier while running in headless mode! Headless mode always run in real time\n");
-        exit(1);
-    }
-}
-
-static void freeCommandLineArgs(CommandLineArgs* args) {
-    hmfree(args->screenshotFrames);
-    hmfree(args->screenshotSurfacesFrames);
-    hmfree(args->dumpFrames);
-    hmfree(args->dumpJsonFrames);
-    shfree(args->varReadsToBeTraced);
-    shfree(args->varWritesToBeTraced);
-    shfree(args->functionCallsToBeTraced);
-    shfree(args->alarmsToBeTraced);
-    shfree(args->instanceLifecyclesToBeTraced);
-    shfree(args->eventsToBeTraced);
-    shfree(args->collisionsToBeTraced);
-    shfree(args->opcodesToBeTraced);
-    shfree(args->stackToBeTraced);
-    shfree(args->disassemble);
-    shfree(args->tilesToBeTraced);
-    repeat(arrlen(args->gameArgs), i) free(args->gameArgs[i]);
-    arrfree(args->gameArgs);
-}
-
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#ifdef ENABLE_SCREENSHOTS
 // When flipY is true, the image will be flipped vertically.
 static void writeFramebufferAsPng(GLuint fbo, int width, int height, const char* filename, const char* logPrefix, bool forceOpaque, bool flipY) {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -1058,24 +442,17 @@ char* collapseNewlines(const char *input) {
 }
 
 // ===[ MAIN ]===
-int main(int argc, char* argv[]) {
-    setbuf(stderr, NULL);
+int loop(CommandLineArgs args, const char *argv0) {
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
-
-    CommandLineArgs args;
-    parseCommandLineArgs(&args, argc, argv);
-
-    logColour = !args.disableLogColours;
-
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
     char** currentGameArgs = args.gameArgs;
     repeat(arrlen(args.gameArgs), i) {
         arrput(currentGameArgs, args.gameArgs[i]);
     }
     // The first argument will ALWAYS be the argv[0]
-    arrins(currentGameArgs, 0, safeStrdup(argv[0]));
+    arrins(currentGameArgs, 0, safeStrdup(argv0));
 
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
@@ -1326,7 +703,6 @@ int main(int argc, char* argv[]) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
-            freeCommandLineArgs(&args);
             return 0;
         }
 
@@ -1350,16 +726,7 @@ int main(int argc, char* argv[]) {
         OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
         free(dataWinDir);
 
-        if (strcmp(args.renderer, "modern-gl") == 0)
-            gfx = MODERN_GL;
-        else if (strcmp(args.renderer, "legacy-gl") == 0)
-            gfx = LEGACY_GL;
-        else if (strcmp(args.renderer, "software") == 0)
-            gfx = SOFTWARE;
-        else {
-            logError("Unknown renderer: %s!\n", args.renderer);
-            return 1;
-        }
+        gfx = args.renderer;
 
 #ifndef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
@@ -1380,10 +747,12 @@ int main(int argc, char* argv[]) {
         }
 #endif
 
+#ifdef ENABLE_SCREENSHOTS
         if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
             logError("You can only use --screenshot-surfaces with the modern gl renderer!\n");
             return 0;
         }
+#endif
 
 
         int32_t windowW, windowH;
@@ -1392,7 +761,6 @@ int main(int argc, char* argv[]) {
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
-                freeCommandLineArgs(&args);
                 return 1;
             }
 
@@ -1406,7 +774,6 @@ int main(int argc, char* argv[]) {
                     logError("Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
-                    freeCommandLineArgs(&args);
                     return 1;
                 }
             }
@@ -1448,7 +815,6 @@ int main(int argc, char* argv[]) {
             logError("Failed to initialize a renderer\n");
             platformExit();
             DataWin_free(dataWin);
-            freeCommandLineArgs(&args);
             return 1;
         }
 
@@ -1500,6 +866,7 @@ int main(int argc, char* argv[]) {
             globalInputRecording->filterDebugKeys = args.debug;
             installCrashHandlers();
         }
+#ifdef ENABLE_VM_TRACING
         shcopyFromTo(args.varReadsToBeTraced, runner->vmContext->varReadsToBeTraced);
         shcopyFromTo(args.varWritesToBeTraced, runner->vmContext->varWritesToBeTraced);
         shcopyFromTo(args.functionCallsToBeTraced, runner->vmContext->functionCallsToBeTraced);
@@ -1511,8 +878,11 @@ int main(int argc, char* argv[]) {
         shcopyFromTo(args.stackToBeTraced, runner->vmContext->stackToBeTraced);
         shcopyFromTo(args.tilesToBeTraced, runner->vmContext->tilesToBeTraced);
         runner->vmContext->traceBytecodeAfterFrame = args.traceBytecodeAfterFrame;
-        runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
+#endif
+#ifdef ENABLE_VM_STUB_LOGS
         runner->vmContext->alwaysLogStubbedFunctions = args.alwaysLogStubbedFunctions;
+#endif
+        runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
         runner->vmContext->traceEventInherited = args.traceEventInherited;
 
 #ifndef _WIN32
@@ -1825,7 +1195,7 @@ int main(int argc, char* argv[]) {
                 renderer->vtable->endFrameEnd(renderer);
                 Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
 
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#ifdef ENABLE_SCREENSHOTS
                 // Capture screenshot if this frame matches a requested frame
                 bool shouldScreenshot = hmget(args.screenshotFrames, runner->frameCount);
 
@@ -1912,7 +1282,6 @@ int main(int argc, char* argv[]) {
         DataWin_free(dataWin);
 
         if (actuallyShuttingDown) {
-            freeCommandLineArgs(&args);
             free(currentDataWinPath);
             repeat(arrlen(currentGameArgs), i) {
                 free(currentGameArgs[i]);
@@ -1951,7 +1320,6 @@ int main(int argc, char* argv[]) {
                 logError("Runner: Launch parameters '%s' did not contain a '-game <file>' entry! Shutting down...\n", nextLaunchParameters);
                 free(nextWorkingDirectory);
                 free(nextLaunchParameters);
-                freeCommandLineArgs(&args);
                 free(currentDataWinPath);
                 repeat(arrlen(newArguments), i) {
                     free(newArguments[i]);
@@ -2008,4 +1376,28 @@ int main(int argc, char* argv[]) {
             arrfree(newArguments);
         }
     }
+}
+
+void freeCommandLineArgs(CommandLineArgs* args) {
+#ifdef ENABLE_SCREENSHOTS
+    hmfree(args->screenshotFrames);
+    hmfree(args->screenshotSurfacesFrames);
+#endif
+    hmfree(args->dumpFrames);
+    hmfree(args->dumpJsonFrames);
+#ifdef ENABLE_VM_TRACING
+    shfree(args->varReadsToBeTraced);
+    shfree(args->varWritesToBeTraced);
+    shfree(args->functionCallsToBeTraced);
+    shfree(args->alarmsToBeTraced);
+    shfree(args->instanceLifecyclesToBeTraced);
+    shfree(args->eventsToBeTraced);
+    shfree(args->collisionsToBeTraced);
+    shfree(args->opcodesToBeTraced);
+    shfree(args->stackToBeTraced);
+    shfree(args->tilesToBeTraced);
+#endif
+    shfree(args->disassemble);
+    repeat(arrlen(args->gameArgs), i) free(args->gameArgs[i]);
+    arrfree(args->gameArgs);
 }

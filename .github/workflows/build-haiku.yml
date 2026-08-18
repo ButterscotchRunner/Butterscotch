@@ -52,7 +52,7 @@ jobs:
         run: |
           export CCACHE_DIR=/boot/home/.ccache
           cmake -B build -G Ninja \
-            -DDESKTOP_BACKEND=sdl2 \
+            -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \

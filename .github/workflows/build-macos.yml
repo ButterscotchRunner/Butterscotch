@@ -43,7 +43,7 @@ jobs:
           cmake -B build -G Ninja \
             -DWERROR=ON \
             -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
-            -DDESKTOP_BACKEND=appkit \
+            -DBACKEND=appkit \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release

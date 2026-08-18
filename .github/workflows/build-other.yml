@@ -233,12 +233,19 @@ jobs:
             ccache-vita-
 
       - name: Checkout vitaGL
-        run: |
-          git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git vendor/vitaGL
+        uses: actions/checkout@v4
+        with:
+          repository: Rinnegatamante/vitaGL
+          path: vendor/vitaGL
 
       - name: Build vitaGL with speedhacks
         run: |
-          CC="ccache arm-vita-eabi-gcc" CXX="ccache arm-vita-eabi-g++" make -C vendor/vitaGL \
+          mkdir -p /tmp/ccache-symlinks
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-gcc
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-g++
+
+          export PATH=/tmp/ccache-symlinks:$PATH
+          make -C vendor/vitaGL \
             install \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
@@ -249,9 +256,22 @@ jobs:
             READBACKS_SPEEDHACK=1 \
             -j$(nproc)
 
+      - name: Checkout SDL2
+        uses: actions/checkout@v4
+        with:
+          repository: Northfear/SDL
+          path: vendor/SDL2
+          ref: vitagl
+
+      - name: Build SDL2
+        run: |
+          cmake -Svendor/SDL2 -Bvendor/SDL2/build -GNinja -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build vendor/SDL2/build
+          cmake --install vendor/SDL2/build
+
       - name: Configure
         run: |
-          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DAUDIO_BACKEND=openal -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: |
@@ -327,7 +347,7 @@ jobs:
       - name: Build
         run: |
           sudo mv butterscotch ~/woody
-          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" DESKTOP_BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
+          sudo chroot ~/woody /bin/sh --login -c 'make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS='-lSDL' DISABLE_MMD=1'
 
   build-cxx:
     name: Build as C++

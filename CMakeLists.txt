@@ -39,12 +39,12 @@ else()
     endif()
 endif()
 
-set(PLATFORM "desktop" CACHE STRING "Platform backend")
-set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
+set(PLATFORM "cli" CACHE STRING "Platform backend")
+set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
-if(PLATFORM STREQUAL "desktop" AND DESKTOP_BACKEND STREQUAL "")
-    message(FATAL_ERROR "You need to set a DESKTOP_BACKEND!")
+if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
+    message(FATAL_ERROR "You need to set a BACKEND!")
 endif()
 
 # Build metadata
@@ -61,7 +61,7 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "web")
     elseif(PLATFORM STREQUAL "web-meta")
         set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3")
+    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -74,6 +74,9 @@ if(AUDIO_BACKEND STREQUAL "openal")
     file(GLOB AUDIO_SOURCES src/audio/openal/*.c)
 elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+    if(PLATFORM STREQUAL "vita")
+        add_compile_definitions(MA_NO_RUNTIME_LINKING)
+    endif()
 elseif(AUDIO_BACKEND STREQUAL "web")
     file(GLOB AUDIO_SOURCES src/audio/web/*.c src/audio/miniaudio/*.c)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
@@ -116,9 +119,15 @@ if(PLATFORM STREQUAL "web-meta")
         src/data_win.c
         src/binary_reader.c
 		src/log.c
+		src/stb_ds.c
     )
 else()
     file(GLOB SOURCES src/*.c)
+    # These platforms haven't been converted to the refactored system yet.
+    # This list should NEVER grow, all new platforms should use the new system.
+    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
+        list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
+    endif()
 endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
@@ -130,13 +139,16 @@ else()
 endif()
 
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(butterscotch PRIVATE src/${PLATFORM})
 
 if(AUDIO_BACKEND STREQUAL "openal")
     target_include_directories(butterscotch PUBLIC src/audio/openal)
     add_compile_definitions(USE_OPENAL)
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
-    elseif(NOT PLATFORM STREQUAL "ps3" AND NOT PLATFORM STREQUAL "vita")
+    elseif(PLATFORM STREQUAL "vita")
+        set(AUDIO_LIBRARIES openal pthread)
+    elseif(NOT PLATFORM STREQUAL "ps3")
         find_package(OpenAL REQUIRED)
         target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
         set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
@@ -203,7 +215,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "desktop")
+if(PLATFORM STREQUAL "cli")
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
@@ -270,7 +282,7 @@ if(PLATFORM STREQUAL "desktop")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 
-    if(DESKTOP_BACKEND STREQUAL "glfw3")
+    if(BACKEND STREQUAL "glfw3")
         add_compile_definitions(USE_GLFW3)
 
         if(MINGW)
@@ -292,7 +304,7 @@ if(PLATFORM STREQUAL "desktop")
             target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
             set(BACKEND_LIBRARIES ${GLFW3_LIBRARIES})
         endif()
-    elseif(DESKTOP_BACKEND STREQUAL "glfw2")
+    elseif(BACKEND STREQUAL "glfw2")
         add_compile_definitions(USE_GLFW2)
 
         find_package(PkgConfig REQUIRED)
@@ -300,13 +312,13 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${GLFW2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${GLFW2_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${GLFW2_LIBRARIES})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl1")
+    elseif(BACKEND STREQUAL "sdl1")
         add_compile_definitions(USE_SDL1)
 
         find_package(SDL REQUIRED)
         target_include_directories(butterscotch PUBLIC ${SDL_INCLUDE_DIR})
         set(BACKEND_LIBRARIES ${SDL_LIBRARY})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl2")
+    elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
         find_package(PkgConfig REQUIRED)
@@ -314,7 +326,7 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl3")
+    elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
         find_package(PkgConfig REQUIRED)
@@ -322,16 +334,16 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
-    elseif(DESKTOP_BACKEND STREQUAL "appkit")
+    elseif(BACKEND STREQUAL "appkit")
         add_compile_definitions(USE_APPKIT)
         target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)
         set(BACKEND_LIBRARIES "-framework Cocoa" "-framework GameController")
     endif()
     target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
-    if(DESKTOP_BACKEND STREQUAL "appkit")
-        target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.m)
+    if(BACKEND STREQUAL "appkit")
+        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
     else()
-        target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
+        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.c)
     endif()
 
     # Enable AddressSanitizer by default in Debug builds
@@ -656,7 +668,6 @@ elseif(PLATFORM STREQUAL "ps3")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/ps3)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
 
     # ps3gl
@@ -716,26 +727,22 @@ elseif(PLATFORM STREQUAL "ps3")
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
     target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
 elseif(PLATFORM STREQUAL "vita")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -g -Wl,-q,--allow-multiple-definition -Wall -O3 -mfloat-abi=hard -mtune=cortex-a9 -mfpu=neon -ffast-math")
-    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -Wno-write-strings -std=c++11")
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(-ffast-math)
+    endif()
 
     # Normally, __VITA__ should already be defined, but for some reason,
     # in my case, this didn't really work... so just in case, when we're
     # building for the Vita, just force-feed these...
     add_compile_definitions(__VITA__)
-    add_compile_definitions(MA_NO_RUNTIME_LINKING)
     add_compile_definitions(PLATFORM_VITA)
-    add_compile_definitions(NO_RVALUE_INT64)
 
     file(GLOB GL_SOURCES src/gl/*.c src/gl_legacy/*.c src/gl_common/*.c src/image/*.c)
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${DEBUG_FONT_SOURCES})
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/vita)
     
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
@@ -748,15 +755,15 @@ elseif(PLATFORM STREQUAL "vita")
     
     target_sources(butterscotch PRIVATE src/vita/vita_textures.c src/vita/main.c)
     
-    target_link_libraries(butterscotch PRIVATE 
-        -Wl,--whole-archive pthread -Wl,--no-whole-archive
+    target_link_libraries(butterscotch PRIVATE
+        ${AUDIO_LIBRARIES}
+        SDL2
         bzip2
         stb_ds
         sha1
         #stb_image
         #stb_vorbis
         vitaGL
-        openal
         stdc++
         vitashark
         m
@@ -772,6 +779,7 @@ elseif(PLATFORM STREQUAL "vita")
         SceCtrl_stub
         SceCommonDialog_stub
         SceDisplay_stub
+        SceIme_stub
         SceKernelDmacMgr_stub
         SceFios2_stub
         SceGxm_stub
@@ -782,6 +790,7 @@ elseif(PLATFORM STREQUAL "vita")
         SceSysmodule_stub
         ScePower_stub
         SceTouch_stub
+        SceHid_stub
         SceVshBridge_stub
         SceAvPlayer_stub
         SceNpTrophy_stub

@@ -1,39 +1,58 @@
 #include <ctype.h>
 #include "stdio_compat.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "common.h"
 #include "input_recording.h"
-#include "desktop/platformdefs.h"
+#include "platformdefs.h"
 #include "gettime.h"
+#include <ctype.h>
 #include "runner_mouse.h"
 
 static Runner *g_runner;
+static int32_t fbWidth, fbHeight;
 static SDL_Surface* scr;
 static SDL_Window *window;
-static SDL_GameController* openControllers[MAX_GAMEPADS];
+static SDL_Gamepad* openControllers[MAX_GAMEPADS];
+
+static const int SDL_TO_GML_BUTTON[SDL_GAMEPAD_BUTTON_COUNT] = {
+    [SDL_GAMEPAD_BUTTON_SOUTH]          = 0,
+    [SDL_GAMEPAD_BUTTON_EAST]           = 1,
+    [SDL_GAMEPAD_BUTTON_WEST]           = 2,
+    [SDL_GAMEPAD_BUTTON_NORTH]          = 3,
+    [SDL_GAMEPAD_BUTTON_BACK]           = 8,
+    [SDL_GAMEPAD_BUTTON_GUIDE]          = 16,
+    [SDL_GAMEPAD_BUTTON_START]          = 9,
+    [SDL_GAMEPAD_BUTTON_LEFT_STICK]     = 10,
+    [SDL_GAMEPAD_BUTTON_RIGHT_STICK]    = 11,
+    [SDL_GAMEPAD_BUTTON_LEFT_SHOULDER]  = 4,
+    [SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 5,
+    [SDL_GAMEPAD_BUTTON_DPAD_UP]        = 12,
+    [SDL_GAMEPAD_BUTTON_DPAD_DOWN]      = 13,
+    [SDL_GAMEPAD_BUTTON_DPAD_LEFT]      = 14,
+    [SDL_GAMEPAD_BUTTON_DPAD_RIGHT]     = 15,
+};
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
     if (gfx == SOFTWARE) {
         return SDL_CreateWindow(
             title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
+            reqW,
+            reqH,
             flags
         );
     }
     if (gfx == LEGACY_GL) {
+        SDL_GL_ResetAttributes();
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
 
         SDL_Window *newWindow = SDL_CreateWindow(
             title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
+            reqW,
+            reqH,
             flags
         );
 
@@ -49,14 +68,13 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         SDL_Window *newWindow;
         int contextFlags = 0;
 
+        SDL_GL_ResetAttributes();
 #ifndef NDEBUG
         contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
 #endif
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GLCommon_versions[i].major);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GLCommon_versions[i].minor);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
 
         if (GLCommon_versions[i].gles) {
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -74,9 +92,8 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
 
         newWindow = SDL_CreateWindow(
             title,
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            reqW, reqH,
+            reqW,
+            reqH,
             flags
         );
 
@@ -99,67 +116,30 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    if (gfx == SOFTWARE) {
-        if (scr->w <= 0 || scr->h <= 0) return false;
-        *outW = scr->w;
-        *outH = scr->h;
-    } else {
-        int w = 0;
-        int h = 0;
-#if SDL_VERSION_ATLEAST(2, 0, 1)
-        SDL_GL_GetDrawableSize(window, &w, &h);
-#else
-        SDL_GetWindowSize(window, &w, &h);
-#endif
-        if (w <= 0 || h <= 0) return false;
-        *outW = w;
-        *outH = h;
-    }
+    *outW = fbWidth;
+    *outH = fbHeight;
     return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
-    if (!outW || !outH) return false;
-    int w = 0;
-    int h = 0;
-    SDL_GetWindowSize(window, &w, &h);
-    if (w <= 0 || h <= 0) return false;
-    *outW = w;
-    *outH = h;
-    return true;
-}
-
-static float platformGetWindowScale(void) {
-    int32_t draw_w = 0;
-    int32_t draw_h = 0;
-    int logical_w = 0;
-    int logical_h = 0;
-
-    if (!platformGetWindowSize(&draw_w, &draw_h)) {
-        return 1.0f;
-    }
-
-    SDL_GetWindowSize(window, &logical_w, &logical_h);
-    return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
+    return platformGetWindowSize(outW, outH);
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
-
-    float scale = platformGetWindowScale();
-    SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
-
+    fbWidth = width;
+    fbHeight = height;
+    SDL_SetWindowSize(window, width, height);
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
-    int mx = 0, my = 0;
+    float mx = 0, my = 0;
     SDL_GetMouseState(&mx, &my);
-    float scale = platformGetWindowScale();
-    *xPos = (double)mx * scale;
-    *yPos = (double)my * scale;
+    *xPos = (double)mx;
+    *yPos = (double)my;
 }
 
 static bool platformGetWindowFocus(void) {
@@ -168,7 +148,7 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
+    if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
         logError("Failed to initialize SDL\n");
         return false;
     }
@@ -177,16 +157,11 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         openControllers[i] = NULL;
     }
 
-    Uint32 flags;
-    if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
-    else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
-#if SDL_VERSION_ATLEAST(2, 0, 1)
-    flags |= SDL_WINDOW_ALLOW_HIGHDPI;
-#endif
+    Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
+    fbWidth = reqW;
+    fbHeight = reqH;
 
-    window = tryOpenWindow(reqW, reqH, title, flags);
+    window = tryOpenWindow(fbWidth, fbHeight, title, flags);
 
     if (!window && gfx != SOFTWARE) {
         logError("Fatal: Could not open window: %s\n", SDL_GetError());
@@ -194,19 +169,16 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 
     if (!window && gfx == SOFTWARE) {
-        SDL_DisplayMode mode;
-        if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
-            logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
-                    reqW, reqH, mode.w, mode.h, SDL_GetError());
-            reqW = mode.w;
-            reqH = mode.h;
-            window = SDL_CreateWindow(
-                    title,
-                    SDL_WINDOWPOS_UNDEFINED,
-                    SDL_WINDOWPOS_UNDEFINED,
-                    mode.w, mode.h,
-                    flags
-            );
+        const SDL_DisplayMode *mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+        if (mode != NULL) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                        "%dx%d unavailable, falling back to %dx%d: %s",
+                        fbWidth, fbHeight, mode->w, mode->h, SDL_GetError());
+
+            fbWidth = mode->w;
+            fbHeight = mode->h;
+
+            window = SDL_CreateWindow(title, fbWidth, fbHeight, flags);
         }
     }
     if (!window) {
@@ -215,54 +187,37 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
     if (gfx != SOFTWARE) {
         SDL_GL_SetSwapInterval(0); // disable vsync
-    } else {
+    } else
         scr = SDL_GetWindowSurface(window);
-    }
-    // If we don't do this, the window will be larger than it should be on HiDPI displays.
-    platformSetWindowSize(reqW, reqH);
-
-    // init gamepad mappings
-    const char* dbPath = "gamecontrollerdb.txt";
-    if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
-        logInfo("Gamepad: Loaded SDL gamecontroller mappings successfully\n");
-    } else {
-        logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
-    }
 
     return true;
 }
 
 void platformExit(void) {
-    for (int i = 0; i < MAX_GAMEPADS; i++) {
-        if (openControllers[i]) {
-            SDL_GameControllerClose(openControllers[i]);
-            openControllers[i] = NULL;
-        }
-    }
     SDL_Quit();
 }
 
 static void platformSetCursor(int32_t cursorType) {
     if (cursorType == GML_CR_NONE) {
-        SDL_ShowCursor(SDL_DISABLE);
+        SDL_HideCursor();
         return;
     }
-    SDL_ShowCursor(SDL_ENABLE);
+    SDL_ShowCursor();
 
     SDL_SystemCursor sdlCursor;
     switch (cursorType) {
         case GML_CR_CROSS: sdlCursor = SDL_SYSTEM_CURSOR_CROSSHAIR; break;
-        case GML_CR_BEAM: sdlCursor = SDL_SYSTEM_CURSOR_IBEAM;     break;
-        case GML_CR_SIZE_NESW: sdlCursor = SDL_SYSTEM_CURSOR_SIZENESW;  break;
-        case GML_CR_SIZE_NS: sdlCursor = SDL_SYSTEM_CURSOR_SIZENS;    break;
-        case GML_CR_SIZE_NWSE: sdlCursor = SDL_SYSTEM_CURSOR_SIZENWSE;  break;
-        case GML_CR_SIZE_WE: sdlCursor = SDL_SYSTEM_CURSOR_SIZEWE;    break;
-        case GML_CR_HOURGLASS: sdlCursor = SDL_SYSTEM_CURSOR_WAIT;      break;
-        case GML_CR_DRAG: sdlCursor = SDL_SYSTEM_CURSOR_HAND;   break;
-        case GML_CR_APPSTART: sdlCursor = SDL_SYSTEM_CURSOR_WAITARROW; break;
-        case GML_CR_HANDPOINT: sdlCursor = SDL_SYSTEM_CURSOR_HAND;      break;
-        case GML_CR_SIZE_ALL: sdlCursor = SDL_SYSTEM_CURSOR_SIZEALL;   break;
-        default:  sdlCursor = SDL_SYSTEM_CURSOR_ARROW;     break;
+        case GML_CR_BEAM: sdlCursor = SDL_SYSTEM_CURSOR_TEXT; break;
+        case GML_CR_SIZE_NESW: sdlCursor = SDL_SYSTEM_CURSOR_NESW_RESIZE; break;
+        case GML_CR_SIZE_NS: sdlCursor = SDL_SYSTEM_CURSOR_NS_RESIZE; break;
+        case GML_CR_SIZE_NWSE: sdlCursor = SDL_SYSTEM_CURSOR_NWSE_RESIZE; break;
+        case GML_CR_SIZE_WE: sdlCursor = SDL_SYSTEM_CURSOR_EW_RESIZE; break;
+        case GML_CR_HOURGLASS: sdlCursor = SDL_SYSTEM_CURSOR_WAIT; break;
+        case GML_CR_DRAG: sdlCursor = SDL_SYSTEM_CURSOR_POINTER; break;
+        case GML_CR_APPSTART: sdlCursor = SDL_SYSTEM_CURSOR_PROGRESS; break;
+        case GML_CR_HANDPOINT: sdlCursor = SDL_SYSTEM_CURSOR_POINTER; break;
+        case GML_CR_SIZE_ALL: sdlCursor = SDL_SYSTEM_CURSOR_MOVE; break;
+        default: sdlCursor = SDL_SYSTEM_CURSOR_DEFAULT; break;
     }
 
     SDL_Cursor* cursor = SDL_CreateSystemCursor(sdlCursor);
@@ -284,20 +239,16 @@ static SDL_Surface* nextFb = NULL;
 
 void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
     if (nextFb) {
-        SDL_FreeSurface(nextFb);
+        SDL_DestroySurface(nextFb);
         nextFb = NULL;
     }
 
-    nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer,
+    nextFb = SDL_CreateSurfaceFrom(
         width,
         height,
-        32,
-        width * 4,
-        0x00ff0000, // Rmask
-        0x0000ff00, // Gmask
-        0x000000ff, // Bmask
-        0x00000000  // Amask
+        SDL_PIXELFORMAT_XRGB8888,
+        framebuffer,
+        width * 4
     );
 }
 
@@ -405,110 +356,96 @@ enum {
     IDX_RT = 7,
 };
 
-static void mapSdl2ToGml(SDL_GameController* gc, GamepadSlot* slot) {
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_A)) slot->buttonDown[0] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_B)) slot->buttonDown[1] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_X)) slot->buttonDown[2] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_Y)) slot->buttonDown[3] = true;
+static void mapSdl3ToGml(SDL_Gamepad* gp, GamepadSlot* slot) {
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        int gmlIdx = SDL_TO_GML_BUTTON[i];
 
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) slot->buttonDown[4] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) slot->buttonDown[5] = true;
+        if (gmlIdx == 0 && i != SDL_GAMEPAD_BUTTON_SOUTH) continue;
 
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_BACK)) slot->buttonDown[8] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_START)) slot->buttonDown[9] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_GUIDE)) slot->buttonDown[16] = true;
+        slot->buttonDown[gmlIdx] = SDL_GetGamepadButton(gp, (SDL_GamepadButton)i);
+        slot->buttonValue[gmlIdx] = slot->buttonDown[gmlIdx] ? 1.0f : 0.0f;
+    }
 
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_LEFTSTICK)) slot->buttonDown[10] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_RIGHTSTICK)) slot->buttonDown[11] = true;
+    const float invMaxAxis = 1.0f / 32767.0f;
 
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_UP)) slot->buttonDown[12] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_DOWN)) slot->buttonDown[13] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) slot->buttonDown[14] = true;
-    if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) slot->buttonDown[15] = true;
+    float lt = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) * invMaxAxis;
+    float rt = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) * invMaxAxis;
 
-    float lt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) / 32767.0f;
-    float rt = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) / 32767.0f;
-    if (lt < 0.0f) lt = 0.0f;
-    if (rt < 0.0f) rt = 0.0f;
+    lt = SDL_clamp(lt, 0.0f, 1.0f);
+    rt = SDL_clamp(rt, 0.0f, 1.0f);
+
     slot->buttonValue[IDX_LT] = lt;
     slot->buttonValue[IDX_RT] = rt;
-    if (lt >= slot->triggerThreshold) slot->buttonDown[IDX_LT] = true;
-    if (rt >= slot->triggerThreshold) slot->buttonDown[IDX_RT] = true;
 
-    float lh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX) / 32767.0f;
-    float lv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY) / 32767.0f;
-    float rh = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTX) / 32767.0f;
-    float rv = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTY) / 32767.0f;
+    slot->buttonDown[IDX_LT] = (lt >= slot->triggerThreshold);
+    slot->buttonDown[IDX_RT] = (rt >= slot->triggerThreshold);
 
-    slot->axisValue[0] = lh;
-    slot->axisValue[1] = lv;
-    slot->axisValue[2] = rh;
-    slot->axisValue[3] = rv;
-
-    for (int i = 0; GP_BUTTON_COUNT > i; i++) {
-        if (i == IDX_LT || i == IDX_RT) continue;
-        slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
-    }
+    slot->axisValue[0] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX) * invMaxAxis;
+    slot->axisValue[1] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY) * invMaxAxis;
+    slot->axisValue[2] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTX) * invMaxAxis;
+    slot->axisValue[3] = (float)SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_RIGHTY) * invMaxAxis;
 }
 
 bool platformHandleEvents(void) {
+    bool should_exit = false;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        switch (e.type) {
-            default:
-                if (InputRecording_isPlaybackActive(globalInputRecording)) continue;
-            case SDL_WINDOWEVENT:
-            case SDL_QUIT:
-                break;
-        }
         switch(e.type) {
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
                 // During playback, suppress real keyboard input
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.key.repeat != 0)
                     break;
-                RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                RunnerKeyboard_onKeyDown(g_runner->keyboard, SDLKeyToGml(e.key.key));
                 break;
-            case SDL_KEYUP:
+            case SDL_EVENT_KEY_UP:
                 // During playback, suppress real keyboard input
-                RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.keysym.sym));
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
+                RunnerKeyboard_onKeyUp(g_runner->keyboard, SDLKeyToGml(e.key.key));
                 break;
-            case SDL_TEXTINPUT:
+            case SDL_EVENT_TEXT_INPUT:
                 // During playback, suppress real keyboard input
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 RunnerKeyboard_onCharacter(g_runner->keyboard, utf8_to_codepoint(e.text.text));
                 break;
-            case SDL_MOUSEBUTTONDOWN: {
+            case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonDown(g_runner->mouse, gmlBtn);
             } break;
-            case SDL_MOUSEBUTTONUP: {
+            case SDL_EVENT_MOUSE_BUTTON_UP: {
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 int32_t gmlBtn = SDLMouseButtonToGml(e.button.button);
                 if (gmlBtn >= 0) RunnerMouse_onButtonUp(g_runner->mouse, gmlBtn);
             } break;
-            case SDL_MOUSEWHEEL:
+            case SDL_EVENT_MOUSE_WHEEL:
+                if (InputRecording_isPlaybackActive(globalInputRecording)) break;
                 if (e.wheel.y != 0)
                     RunnerMouse_onWheel(g_runner->mouse, (float)e.wheel.y);
                 break;
-            case SDL_WINDOWEVENT:
-                if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED && gfx == SOFTWARE)
+            case SDL_EVENT_WINDOW_RESIZED:
+                fbWidth = e.window.data1;
+                fbHeight = e.window.data2;
+                if (gfx == SOFTWARE)
                     scr = SDL_GetWindowSurface(window);
                 break;
-            case SDL_CONTROLLERDEVICEADDED: {
+            case SDL_EVENT_GAMEPAD_ADDED: {
                 int device_index = e.cdevice.which;
                 for (int i = 0; i < MAX_GAMEPADS; i++) {
                     if (openControllers[i] == NULL) {
-                        openControllers[i] = SDL_GameControllerOpen(device_index);
+                        openControllers[i] = SDL_OpenGamepad(device_index);
                         break;
                     }
                 }
                 break;
             }
-            case SDL_CONTROLLERDEVICEREMOVED: {
-                int instance_id = e.cdevice.which;
-                for (int i = 0; i < MAX_GAMEPADS; i++) {
+            case SDL_EVENT_GAMEPAD_REMOVED: {
+                int instanceId = e.cdevice.which;
+                repeat(MAX_GAMEPADS, i) {
                     if (openControllers[i]) {
-                        SDL_Joystick* joy = SDL_GameControllerGetJoystick(openControllers[i]);
-                        if (joy && SDL_JoystickInstanceID(joy) == instance_id) {
-                            SDL_GameControllerClose(openControllers[i]);
+                        SDL_Joystick* joy = SDL_GetGamepadJoystick(openControllers[i]);
+                        if (joy && SDL_GetJoystickID(joy) == (SDL_JoystickID) instanceId) {
+                            SDL_CloseGamepad(openControllers[i]);
                             openControllers[i] = NULL;
                             break;
                         }
@@ -516,8 +453,8 @@ bool platformHandleEvents(void) {
                 }
                 break;
             }
-            case SDL_QUIT:
-                return true;
+            case SDL_EVENT_QUIT:
+                should_exit = true;
                 break;
             default:
                 break;
@@ -527,7 +464,7 @@ bool platformHandleEvents(void) {
     g_runner->gamepads->connectedCount = 0;
     for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
         GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
-        SDL_GameController* gc = openControllers[slotIdx];
+        SDL_Gamepad* gp = openControllers[slotIdx];
 
         memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
         memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
@@ -536,11 +473,11 @@ bool platformHandleEvents(void) {
         memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
         memset(slot->axisValue, 0, sizeof(slot->axisValue));
 
-        if (gc && SDL_GameControllerGetAttached(gc)) {
+        if (gp && SDL_GamepadConnected(gp)) {
             slot->connected = true;
             slot->jid = slotIdx;
 
-            const char* name = SDL_GameControllerName(gc);
+            const char* name = SDL_GetGamepadName(gp);
             if (name != NULL) {
                 strncpy(slot->description, name, sizeof(slot->description) - 1);
                 slot->description[sizeof(slot->description) - 1] = '\0';
@@ -549,24 +486,24 @@ bool platformHandleEvents(void) {
             }
 
             char guidStr[64] = {0};
-            SDL_Joystick* joy = SDL_GameControllerGetJoystick(gc);
+            SDL_Joystick* joy = SDL_GetGamepadJoystick(gp);
             if (joy) {
-                SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guidStr, sizeof(guidStr));
+                SDL_GUIDToString(SDL_GetJoystickGUID(joy), guidStr, sizeof(guidStr));
             }
             strncpy(slot->guid, guidStr, sizeof(slot->guid) - 1);
             slot->guid[sizeof(slot->guid) - 1] = '\0';
 
-            mapSdl2ToGml(gc, slot);
+            mapSdl3ToGml(gp, slot);
 
             for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
                 bool wasDown = slot->buttonDownPrev[btn];
-                if (slot->buttonDown[btn] && !wasDown) slot->buttonPressed[btn] = true;
-                if (!slot->buttonDown[btn] && wasDown) slot->buttonReleased[btn] = true;
+                slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
+                slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
             }
             g_runner->gamepads->connectedCount++;
         } else {
-            if (gc) {
-                SDL_GameControllerClose(gc);
+            if (gp) {
+                SDL_CloseGamepad(gp);
                 openControllers[slotIdx] = NULL;
             }
             slot->connected = false;
@@ -574,16 +511,12 @@ bool platformHandleEvents(void) {
         }
     }
 
-    return false;
+    return should_exit;
 }
 
 void platformSleepUntil(uint64_t time) {
     int64_t remaining = time - nowNanos();
-    if (remaining > 2000000)
-        SDL_Delay((remaining - 1000000) / 1000000);
-
-    while (nowNanos() < time) {
-        // Spin-wait for the remaining sub-millisecond
-        YIELD();
+    if (remaining > 0) {
+        SDL_DelayPrecise((Uint64)remaining);
     }
 }

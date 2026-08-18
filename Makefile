@@ -25,10 +25,19 @@ _dummy := $(shell \
 
 endif
 
-DEFINES += $(DEFINE)ENABLE_VM_GML_PROFILER \
-		   $(DEFINE)ENABLE_VM_OPCODE_PROFILER \
-		   $(DEFINE)ENABLE_VM_STUB_LOGS \
-		   $(DEFINE)ENABLE_VM_TRACING
+ifndef DISABLE_VM_GML_PROFILER
+DEFINES += $(DEFINE)ENABLE_VM_GML_PROFILER
+endif
+ifndef DISABLE_VM_OPCODE_PROFILER
+DEFINES += $(DEFINE)ENABLE_VM_OPCODE_PROFILER
+endif
+ifndef DISABLE_VM_STUB_LOGS
+DEFINES += $(DEFINE)ENABLE_VM_STUB_LOGS
+endif
+ifndef DISABLE_VM_TRACING
+DEFINES += $(DEFINE)ENABLE_VM_TRACING
+endif
+
 INCLUDES += $(INCLUDE). \
 		    $(INCLUDE)src \
 		    $(INCLUDE)vendor/stb/ds \
@@ -43,7 +52,8 @@ INCLUDES += $(INCLUDE). \
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
-DESKTOP_BACKEND := glfw3
+PLATFORM := cli
+BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
@@ -69,14 +79,13 @@ ifndef DISABLE_WAD17
 DEFINES += $(DEFINE)ENABLE_WAD17
 endif
 
-# TODO: add support for non-desktop backends
-SRCS += $(wildcard src/desktop/*.c)
-SRCS += $(wildcard src/desktop/backends/$(DESKTOP_BACKEND).c src/desktop/backends/$(DESKTOP_BACKEND).m)
+SRCS += $(wildcard src/$(PLATFORM)/*.c)
+SRCS += $(wildcard src/backends/$(BACKEND).*)
+INCLUDES += $(INCLUDE)src/$(PLATFORM)
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
-INCLUDES += $(INCLUDE)src/desktop
-ifeq ($(DESKTOP_BACKEND),glfw3)
+ifeq ($(BACKEND),glfw3)
 GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
 GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
 SYSCFLAGS += $(GLFW3_CFLAGS)
@@ -84,7 +93,7 @@ LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
 endif
-ifeq ($(DESKTOP_BACKEND),glfw2)
+ifeq ($(BACKEND),glfw2)
 GLFW2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libglfw)
 GLFW2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libglfw)
 SYSCFLAGS += $(GLFW2_CFLAGS)
@@ -92,28 +101,28 @@ LIBS += $(GLFW2_LIBS)
 DEFINES += $(DEFINE)USE_GLFW2
 ENABLE_GLAD := 1
 endif
-ifeq ($(DESKTOP_BACKEND),sdl1)
+ifeq ($(BACKEND),sdl1)
 SDL1_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl)
 SDL1_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl)
 SYSCFLAGS += $(SDL1_CFLAGS)
 LIBS += $(SDL1_LIBS)
 DEFINES += $(DEFINE)USE_SDL1
 endif
-ifeq ($(DESKTOP_BACKEND),sdl2)
+ifeq ($(BACKEND),sdl2)
 SDL2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl2)
 SDL2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl2)
 SYSCFLAGS += $(SDL2_CFLAGS)
 LIBS += $(SDL2_LIBS)
 DEFINES += $(DEFINE)USE_SDL2
 endif
-ifeq ($(DESKTOP_BACKEND),sdl3)
+ifeq ($(BACKEND),sdl3)
 SDL3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl3)
 SDL3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl3)
 SYSCFLAGS += $(SDL3_CFLAGS)
 LIBS += $(SDL3_LIBS)
 DEFINES += $(DEFINE)USE_SDL3
 endif
-ifeq ($(DESKTOP_BACKEND),appkit)
+ifeq ($(BACKEND),appkit)
 LIBS += -framework Cocoa -framework GameController
 DEFINES += $(DEFINE)USE_APPKIT
 SYSCFLAGS += -Wno-deprecated-declarations
