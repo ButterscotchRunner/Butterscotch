@@ -86,7 +86,6 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             }
             SDL_DestroyWindow(newWindow);
         }
-
     }
     return NULL;
 }
@@ -130,7 +129,7 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 }
 
 static float platformGetWindowScale(void) {
-    int32_t draw_w, draw_h;
+    int32_t draw_w = 0, draw_h = 0;
     int logical_w, logical_h;
     platformGetWindowSize(&draw_w, &draw_h);
     SDL_GetWindowSize(window, &logical_w, &logical_h);
@@ -171,11 +170,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         openControllers[i] = NULL;
     }
 
-    Uint32 flags;
+    Uint32 flags = 0;
+    if (gfx != SOFTWARE)
+        flags |= SDL_WINDOW_OPENGL;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+        flags |= SDL_WINDOW_HIDDEN;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+        flags |= SDL_WINDOW_RESIZABLE;
 #if SDL_VERSION_ATLEAST(2, 0, 1)
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
