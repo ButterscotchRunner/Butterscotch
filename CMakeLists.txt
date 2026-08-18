@@ -754,7 +754,8 @@ elseif(PLATFORM STREQUAL "vita")
     
     target_sources(butterscotch PRIVATE src/vita/vita_textures.c src/vita/main.c)
     
-    target_link_libraries(butterscotch PRIVATE 
+    target_link_libraries(butterscotch PRIVATE
+        ${AUDIO_LIBRARIES}
         -Wl,--whole-archive pthread -Wl,--no-whole-archive
         SDL2
         bzip2
