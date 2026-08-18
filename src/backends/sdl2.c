@@ -209,13 +209,16 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
+#ifndef PLATFORM_VITA
         SDL_GL_SetSwapInterval(0); // disable vsync
+#endif
     } else {
         scr = SDL_GetWindowSurface(window);
     }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
+#ifndef PLATFORM_VITA
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
@@ -223,6 +226,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     } else {
         logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
     }
+#endif
 
     return true;
 }

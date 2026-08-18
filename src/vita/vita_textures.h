@@ -4,8 +4,9 @@
 #include <vitaGL.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
-bool VitaTextures_Init(const char* binPath);
+bool VitaTextures_Init(FILE *binFile);
 bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight);
 void VitaTextures_Free();
 uint32_t VitaTextures_GetPageCount();
