@@ -567,8 +567,11 @@ jobs:
             ccache-vita-
 
       - name: Checkout vitaGL
-        run: |
-          git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git vendor/vitaGL
+        uses: actions/checkout@v4
+        with:
+          repository: Rinnegatamante/vitaGL
+          ref: master
+          path: vendor/vitaGL
 
       - name: Build vitaGL with speedhacks
         run: |
