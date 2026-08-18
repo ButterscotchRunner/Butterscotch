@@ -728,7 +728,8 @@ elseif(PLATFORM STREQUAL "ps3")
 elseif(PLATFORM STREQUAL "vita")
     add_compile_options(-marm)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-ffast-math -fomit-frame-pointer -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard)
+        # vitasdk's GCC already tunes for Cortex-A9+NEON hard float
+        add_compile_options(-ffast-math -fomit-frame-pointer)
     endif()
 
     # Normally, __VITA__ should already be defined, but for some reason,
