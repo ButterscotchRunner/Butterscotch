@@ -575,7 +575,14 @@ jobs:
 
       - name: Build vitaGL with speedhacks
         run: |
-          CC="ccache arm-vita-eabi-gcc" CXX="ccache arm-vita-eabi-g++" make -C vendor/vitaGL \
+          mkdir -p /tmp/ccache-links
+          ln -s /usr/bin/ccache /tmp/ccache-links/arm-vita-eabi-gcc
+          ln -s /usr/bin/ccache /tmp/ccache-links/arm-vita-eabi-g++
+          
+          export PATH="/tmp/ccache-links:$PATH"
+          
+          # Run the build natively
+          make -C vendor/vitaGL \
             install \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
