@@ -4439,7 +4439,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         int32_t indent = 2 + envDepth * 4;
         char opcodeStr[32];
         char operandStr[256] = "";
-        char commentStr[128] = "";
+        char commentStr[256] = "";
 
         formatInstruction(ctx, bytecodeBase, instrAddr, instr, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
 
