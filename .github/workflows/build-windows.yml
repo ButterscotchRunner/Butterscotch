@@ -59,10 +59,15 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
+      - name: Checkout GLFW
+        uses: actions/checkout@v4
+        with:
+          repository: glfw/glfw
+          ref: fdd14e65b1c29e4e6df875fb5669ec00d6793531
+          path: /tmp/glfw
+
       - name: Build GLFW for MinGW
         run: |
-          git clone https://github.com/glfw/glfw.git /tmp/glfw
-          git -C /tmp/glfw checkout fdd14e65b1c29e4e6df875fb5669ec00d6793531
           cmake -B /tmp/glfw/build -S /tmp/glfw -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DTARGET_TRIPLE=${{ matrix.target }} \
