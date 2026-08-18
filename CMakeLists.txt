@@ -727,7 +727,7 @@ elseif(PLATFORM STREQUAL "ps3")
     target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
 elseif(PLATFORM STREQUAL "vita")
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-ffast-math)
+        add_compile_options(-ffast-math -fomit-frame-pointer -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard)
     endif()
 
     # Normally, __VITA__ should already be defined, but for some reason,
