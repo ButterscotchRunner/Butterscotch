@@ -408,9 +408,10 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             NAME ${VITA_APP_NAME}
         )
     else()
-        target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES} GLESv2)
+        target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
 
         if (PLATFORM STREQUAL "switch")
+            target_link_libraries(butterscotch PRIVATE GLESv2)
             nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
