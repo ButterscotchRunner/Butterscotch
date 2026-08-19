@@ -194,7 +194,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         
         swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         
-        for (int i = 0; x < xe; i++)
+        while (x < xe)
         {
             x++;
             if (px < 0)
@@ -244,7 +244,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         
         swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
         
-        for (int i = 0; y < ye; i++)
+        while (y < ye)
         {
             y++;
             if (py <= 0)
