@@ -61,7 +61,7 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "web")
     elseif(PLATFORM STREQUAL "web-meta")
         set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
+    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -125,7 +125,7 @@ else()
     file(GLOB SOURCES src/*.c)
     # These platforms haven't been converted to the refactored system yet.
     # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
+    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android" OR PLATFORM STREQUAL "switch")
         list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
     endif()
 endif()
@@ -802,6 +802,47 @@ elseif(PLATFORM STREQUAL "vita")
         VERSION ${VITA_VERSION}
         NAME ${VITA_APP_NAME}
     )
+elseif(PLATFORM STREQUAL "switch")
+    if (NOT ENABLE_MODERN_GL)
+        message(FATAL_ERROR "Switch requires modern gl!")
+    endif()
+    add_compile_definitions(__SWITCH__)
+    add_compile_definitions(PLATFORM_SWITCH)
+
+    # The Switch only has OpenGL ES (via EGL), so only the modern renderer is compiled
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2 REQUIRED sdl2)
+    pkg_check_modules(GLESV2 REQUIRED glesv2)
+    
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
+    
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
+    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
+    
+    target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS} ${GLESV2_INCLUDE_DIRS})
+
+    target_link_libraries(butterscotch PRIVATE
+        ${AUDIO_LIBRARIES}
+        openal
+        ${SDL2_LIBRARIES}
+        ${GLESV2_LIBRARIES}
+        bzip2
+        stb_ds
+        sha1
+    )
+
+    nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
+    nx_create_nro(butterscotch NACP Butterscotch.nacp)
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()
