@@ -7,7 +7,7 @@
 
 #include "sw_renderer_private.h"
 
-void Runner_setNextFrame(uintpixel_t* framebuffer, int width, int height);
+void platformSetNextFramebuffer(uintpixel_t* framebuffer, int width, int height);
 
 static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
 {
@@ -85,7 +85,7 @@ static void SWRenderer_endFrameEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     assert(!swr->drawingToSurface);
-    Runner_setNextFrame(swr->fb, swr->width, swr->height);
+    platformSetNextFramebuffer(swr->fb, swr->width, swr->height);
 }
 
 static void SWRenderer_beginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH,
