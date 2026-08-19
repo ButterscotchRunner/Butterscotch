@@ -32,7 +32,9 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
+#if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
+    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
+#define USE_GLAD
 #include <glad/glad.h>
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
@@ -58,6 +60,10 @@
 #include "utils.h"
 #include "profiler.h"
 #include "gettime.h"
+
+#ifdef PLATFORM_VITA
+#include "vita_textures.h"
+#endif
 
 enum GraphicsAPI gfx;
 
@@ -129,7 +135,7 @@ static size_t get_used_memory(void) {
     return 0;
 }
 
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))
+#ifdef USE_GLAD
 static bool platformInitGlad(void) {
     glGetString = (PFNGLGETSTRINGPROC)platformGetProcAddress("glGetString");
     if (!glGetString)
@@ -149,7 +155,8 @@ static bool platformInitGlad(void) {
 }
 #endif
 
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG)
+#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA)
+#define USE_OPENGL_DEBUG
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
     switch (source) {
@@ -397,7 +404,8 @@ void saveInputRecording() {
     }
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(PLATFORM_VITA)
+#define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
 
@@ -439,6 +447,12 @@ char* collapseNewlines(const char *input) {
     result[j] = '\0';
 
     return result;
+}
+
+static void PreProcessedStuff_free(void) {
+#ifdef PLATFORM_VITA
+    VitaTextures_Free();
+#endif
 }
 
 // ===[ MAIN ]===
@@ -485,6 +499,31 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.parseFunc = true;
         options.parseStrg = true;
         options.parseTxtr = true;
+#ifdef PLATFORM_VITA
+        do {
+            char *lastSlash = strrchr(args.dataWinPath, '/');
+            if (!lastSlash) {
+                lastSlash = strrchr(args.dataWinPath, ':');
+                if (!lastSlash) /* should be impossible if dataWinPath is valid */
+                    break;
+            }
+            size_t texBinPathSize = lastSlash - args.dataWinPath + 1;
+            const char *texBinName = "textures.bin";
+            size_t texBinNameSize = strlen(texBinName) + 1;
+            char *texBinPath = (char *)safeMalloc(texBinPathSize + texBinNameSize);
+            memcpy(texBinPath, args.dataWinPath, texBinPathSize);
+            memcpy(texBinPath + texBinPathSize, texBinName, texBinNameSize);
+            FILE *texBinFile = fopen(texBinPath, "rb");
+            free(texBinPath);
+            if (!texBinFile)
+                break;
+            if (!VitaTextures_Init(texBinFile)) {
+                logWarn("textures.bin found but failed to load!\n");
+                break;
+            }
+            options.parseTxtr = false;
+        } while(0);
+#endif
 #if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
         if (!args.headless)
             options.parseAudo = true;
@@ -571,6 +610,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -614,6 +654,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -642,6 +683,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -651,6 +693,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -681,6 +724,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -703,6 +747,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             VM_free(vm);
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 0;
         }
 
@@ -761,10 +806,11 @@ int loop(CommandLineArgs args, const char *argv0) {
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
                 DataWin_free(dataWin);
+                PreProcessedStuff_free();
                 return 1;
             }
 
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER) )
+#ifdef USE_GLAD
 #if defined(USE_GLFW3) || defined(USE_GLFW2)
             if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
 #else
@@ -774,13 +820,14 @@ int loop(CommandLineArgs args, const char *argv0) {
                     logError("Failed to initialize GLAD\n");
                     platformExit();
                     DataWin_free(dataWin);
+                    PreProcessedStuff_free();
                     return 1;
                 }
             }
 #endif
 
             // Install the OpenGL debug message callback
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG)
+#ifdef USE_OPENGL_DEBUG
             if (gfx == MODERN_GL)
                 installGLDebugCallback();
 #endif
@@ -815,6 +862,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             logError("Failed to initialize a renderer\n");
             platformExit();
             DataWin_free(dataWin);
+            PreProcessedStuff_free();
             return 1;
         }
 
@@ -885,7 +933,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->vmContext->alwaysLogUnknownFunctions = args.alwaysLogUnknownFunctions;
         runner->vmContext->traceEventInherited = args.traceEventInherited;
 
-#ifndef _WIN32
+#ifdef USE_CRASH_SIGNAL_HANDLER
         struct sigaction sa = {0};
         sa.sa_handler = onCrashSignal;
         sigemptyset(&sa.sa_mask);
@@ -1280,6 +1328,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 #endif
         VM_free(vm);
         DataWin_free(dataWin);
+        PreProcessedStuff_free();
 
         if (actuallyShuttingDown) {
             free(currentDataWinPath);
