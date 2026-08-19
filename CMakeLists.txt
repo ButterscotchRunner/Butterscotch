@@ -303,7 +303,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita")
-        if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL OR DESKTOP_BACKEND STREQUAL "glfw3" OR DESKTOP_BACKEND STREQUAL "glfw2")
+        if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL OR BACKEND STREQUAL "glfw3" OR BACKEND STREQUAL "glfw2")
             # GLAD
             add_library(glad STATIC vendor/glad/src/glad.c)
             target_include_directories(glad PUBLIC vendor/glad/include)
