@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _SW_DEFINES_H
+#define _SW_DEFINES_H
 
 #include "common.h"
 
@@ -34,3 +35,5 @@
 #else
 #define UNUSED
 #endif
+
+#endif//_SW_DEFINES_H

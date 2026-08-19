@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _PIXEL_CONVERT_H
+#define _PIXEL_CONVERT_H
 
 #include "defines.h"
 #include "binary_utils.h"
@@ -98,3 +99,5 @@ uintpixel_t swrConvertPixelBase(uint32_t gmPixel)
 #define swrConvertPixelTexture(x) swrConvertPixelBase(x)
 
 #endif
+
+#endif//_PIXEL_CONVERT_H
