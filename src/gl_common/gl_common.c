@@ -38,9 +38,16 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
     GLCommon_computeLetterbox(gameW, gameH, windowW, windowH, &sx, &sy, &ex, &ey);
 
     int32_t dstX0 = sx;
-    int32_t dstY0 = windowH - ey;
     int32_t dstX1 = ex;
+
+#ifdef PLATFORM_PS3
+    int32_t dstY0 = windowH - ey;
     int32_t dstY1 = windowH - sy;
+#else
+    int32_t dstY0 = sy;
+    int32_t dstY1 = ey;
+#endif
+
     glBlitFramebuffer(0, 0, fboWidth, fboHeight, dstX0, dstY0, dstX1, dstY1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, hostFbo);
 }
