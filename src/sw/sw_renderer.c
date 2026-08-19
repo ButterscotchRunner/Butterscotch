@@ -925,30 +925,35 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
-    swrTransformPosIntIfNeeded(swr, &x, &y);
-    swrTransformSizeIntIfNeeded(swr, &w, &h);
-    swrTransformSizeIntIfNeeded(swr, &xorig, &yorig);
-    
-    (void) removeback;
     (void) smooth;
     
-    SWTexture *srcTex, temp1;
+    int cropLeft = x;
+    int cropTop = y;
+    int cropRight = x + w;
+    int cropBottom = y + h;
     
-    if (surfaceID == APPLICATION_SURFACE_ID) {
+    SWTexture *srcTex, temp1;
+    if (surfaceID == APPLICATION_SURFACE_ID)
+    {
         srcTex = &temp1;
         temp1.width = swr->width;
         temp1.height = swr->height;
         temp1.buffer = swr->fb;
-    } else {
-        if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
+        
+        swrTransformPosIntIfNeeded(swr, &cropLeft, &cropTop);
+        swrTransformPosIntIfNeeded(swr, &cropRight, &cropBottom);
+    }
+    else
+    {
+        if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL){
             fprintf(stderr, "%s: Invalid surface ID %d\n", __func__, surfaceID);
-            return 0;
+            return -1;
         }
         SWSurface* surf = swr->surfaces[surfaceID];
         swrCommitShadowWritesToSurfaceIfNeeded(swr, surf);
         srcTex = surf->texture;
     }
-
+    
     int32_t texturePageId = swrFindSurfaceTextureSlot(swr);
     int32_t tpagIndex = swrFindSurfaceTPagSlot(swr);
     if (texturePageId == -1 || tpagIndex == -1) {
@@ -956,47 +961,10 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
         return 0;
     }
     
-    SWTexture* tex = swrCreateTexture(NULL, w, h);
+    SWTexture* tex = swrCropSectionFromTexture(srcTex, w, h, cropLeft, cropTop, cropRight, cropBottom);
+    if (removeback)
+        swrRemoveBackgroundFromTexture(tex);
     
-    // grab the pixels.
-    for (int iy = 0; iy < h; iy++)
-    {
-        uintpixel_t* dstline = &tex->buffer[iy * tex->width];
-        if ((iy + y) < 0 || (iy + y) >= srcTex->height)
-        {
-            for (int ix = 0; ix < w; ix++)
-                dstline[ix] = 0;
-            
-            continue;
-        }
-        
-        uintpixel_t* srcline = &srcTex->buffer[(iy + y) * srcTex->width + x];
-        
-        int ix = 0, sx = x;
-        // left edge
-        for (; sx < 0 && ix < w; sx++, ix++)
-            dstline[ix] = 0;
-        
-        // in-bounds
-        for (; sx < srcTex->width && ix < w; sx++, ix++)
-#if PIXEL_SIZE == 8
-            dstline[ix] = srcline[ix];
-#else
-            dstline[ix] = srcline[ix] | TRANSPARENT_MASK;
-#endif
-
-        // right edge
-        for (; ix < w; ix++)
-            dstline[ix] = 0;
-    }
-    
-    int32_t spriteW = w;
-    int32_t spriteH = h;
-    
-    int32_t targetW = spriteW;
-    int32_t targetH = spriteH;
-    swrReverseTransformSizeIntIfNeeded(swr, &targetW, &targetH);
-
     swr->textures[texturePageId] = tex;
 
     // TODO[MrPowerGamerBR]: This is supposed to be refactored, not to modify data.win structs directly.
@@ -1004,14 +972,14 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     tpag->sourceX = 0;
     tpag->sourceY = 0;
-    tpag->sourceWidth = (uint16_t) spriteW;
-    tpag->sourceHeight = (uint16_t) spriteH;
+    tpag->sourceWidth = (uint16_t) w;
+    tpag->sourceHeight = (uint16_t) h;
     tpag->targetX = 0;
     tpag->targetY = 0;
-    tpag->targetWidth = (uint16_t) (spriteW / swr->scaleX);
-    tpag->targetHeight = (uint16_t) (spriteH / swr->scaleY);
-    tpag->boundingWidth = (uint16_t) spriteW;
-    tpag->boundingHeight = (uint16_t) spriteH;
+    tpag->targetWidth = (uint16_t) w;
+    tpag->targetHeight = (uint16_t) h;
+    tpag->boundingWidth = (uint16_t) w;
+    tpag->boundingHeight = (uint16_t) h;
     tpag->texturePageId = texturePageId;
     
     uint32_t spriteIndex = DataWin_allocSpriteSlot(dw, swr->originalSpriteCount);
