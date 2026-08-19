@@ -549,7 +549,7 @@ struct Runner {
     Instance** structInstances;
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
-    double deltaTime;
+    GMLReal deltaTime;
     // Current frame rate (capped at room speed)
     GMLReal fps;                   // last measured frames-per-second value returned to GML
     uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
