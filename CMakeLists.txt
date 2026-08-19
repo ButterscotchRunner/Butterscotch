@@ -298,19 +298,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
-<<<<<<< HEAD
-    # GLAD
-    if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL OR DESKTOP_BACKEND STREQUAL "glfw3" OR DESKTOP_BACKEND STREQUAL "glfw2")
-        add_library(glad STATIC vendor/glad/src/glad.c)
-        target_include_directories(glad PUBLIC vendor/glad/include)
-        set(PLATFORM_LIBRARIES glad)
-    endif()
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} bzip2 stb_ds sha1 stb_vorbis)
-=======
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
@@ -323,7 +310,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
             set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
         endif()
     endif()
->>>>>>> 4c99e3f18277765511a68d6f52431f7951e3be5f
+
     if(NOT MSVC)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
     endif()
