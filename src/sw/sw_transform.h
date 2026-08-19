@@ -1,7 +1,7 @@
 #ifndef _SW_TRANSFORM_H
 #define _SW_TRANSFORM_H
 
-static void swrTransformPosIfNeeded(SWRenderer* swr, float* dx, float* dy)
+FORCE_INLINE void swrTransformPosIfNeeded(SWRenderer* swr, float* dx, float* dy)
 {
     if (dx) {
         *dx -= swr->viewX;
@@ -15,13 +15,13 @@ static void swrTransformPosIfNeeded(SWRenderer* swr, float* dx, float* dy)
     }
 }
 
-static void swrTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
+FORCE_INLINE void swrTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
 {
     if (dx) *dx *= swr->scaleX;
     if (dy) *dy *= swr->scaleY;
 }
 
-static void swrTransformPosIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
+FORCE_INLINE void swrTransformPosIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
     if (dx) {
         *dx -= swr->viewX;
@@ -35,19 +35,19 @@ static void swrTransformPosIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy
     }
 }
 
-static void swrTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
+FORCE_INLINE void swrTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
     if (dx) *dx = (int)(*dx * swr->scaleX);
     if (dy) *dy = (int)(*dy * swr->scaleY);
 }
 
-static void swrReverseTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
+FORCE_INLINE void swrReverseTransformSizeIfNeeded(SWRenderer* swr, float* dx, float* dy)
 {
     if (dx) *dx = *dx / swr->scaleX;
     if (dy) *dy = *dy / swr->scaleY;
 }
 
-static void swrReverseTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
+FORCE_INLINE void swrReverseTransformSizeIntIfNeeded(SWRenderer* swr, int32_t* dx, int32_t* dy)
 {
     if (dx) *dx = (int)(*dx / swr->scaleX);
     if (dy) *dy = (int)(*dy / swr->scaleY);
