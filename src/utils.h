@@ -173,9 +173,12 @@ static inline int32_t Color_lerp(int32_t color1, int32_t color2, float blending)
     int32_t r1 = BGR_R(color1), g1 = BGR_G(color1), b1 = BGR_B(color1);
     int32_t r2 = BGR_R(color2), g2 = BGR_G(color2), b2 = BGR_B(color2);
     float inv = 1.0f - blending;
-    int32_t r = (int32_t)((float) r2 * blending + (float) r1 * inv) & 0xFF;
-    int32_t g = (int32_t)((float) g2 * blending + (float) g1 * inv) & 0xFF;
-    int32_t b = (int32_t)((float) b2 * blending + (float) b1 * inv) & 0xFF;
+    // Rounded, not truncated: merge_color(c_black, c_white, 0.5) is 0x808080 in GameMaker, while
+    // truncation gave 0x7F7F7F -- every half-and-half blend came out one step dark per channel.
+    // (Not to be confused with vertex alpha in floatToUnormByte, where the runtime does truncate.)
+    int32_t r = (int32_t)((float) r2 * blending + (float) r1 * inv + 0.5f) & 0xFF;
+    int32_t g = (int32_t)((float) g2 * blending + (float) g1 * inv + 0.5f) & 0xFF;
+    int32_t b = (int32_t)((float) b2 * blending + (float) b1 * inv + 0.5f) & 0xFF;
     return r | (g << 8) | (b << 16);
 }
 

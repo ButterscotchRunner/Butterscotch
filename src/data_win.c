@@ -1030,6 +1030,7 @@ static void parsePATH(BinaryReader* reader, DataWin* dw) {
         path->isSmooth = BinaryReader_readBool32(reader);
         path->isClosed = BinaryReader_readBool32(reader);
         path->precision = BinaryReader_readUint32(reader);
+        path->exists = true;
 
         // Points SimpleList
         path->pointCount = BinaryReader_readUint32(reader);
@@ -1186,7 +1187,7 @@ static void parseSHDR(BinaryReader* reader, DataWin* dw) {
     Shdr* s = &dw->shdr;
 
     uint32_t* ptrs = readPointerTable(reader, &s->count);
-    s->shaders = (Shader *)safeMalloc(s->count * sizeof(Shader));
+    s->shaders = (Shader *)safeCalloc(s->count, sizeof(Shader));
 
     repeat(s->count, i) {
         // Some GameMaker games have a nullptr for the shader, so we'll just mark them as not-present...
@@ -2989,11 +2990,9 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     dw->lazyLoadAudio = options.lazyLoadAudio;
     if (options.lazyLoadRooms || options.lazyLoadTextures || options.lazyLoadAudio) {
         dw->lazyLoadFile = file;
-        dw->lazyLoadFilePath = safeStrdup(filePath);
         dw->fileSize = (size_t) fileSize;
     } else {
         dw->lazyLoadFile = nullptr;
-        dw->lazyLoadFilePath = nullptr;
         dw->fileSize = 0;
         fclose(file);
     }
@@ -3219,7 +3218,6 @@ void DataWin_free(DataWin* dw) {
         fclose(dw->lazyLoadFile);
         dw->lazyLoadFile = nullptr;
     }
-    free(dw->lazyLoadFilePath);
 
     unmapFile(dw->mappedFile, dw->fileSize);
 

@@ -58,6 +58,7 @@ Of course, there are exceptions that break game compatibility altogether:
 ## Supported Platforms
 
 * Windows
+* macOS
 * Web
 * PlayStation 2
 * PlayStation 3
@@ -65,7 +66,7 @@ Of course, there are exceptions that break game compatibility altogether:
 * ...and maybe more in the future!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1996
+* Linux with glibc as old as about ~1995
 * FreeBSD as old as 2.2.8
 * Haiku
 
@@ -75,6 +76,7 @@ The following backends are available for desktop platforms (Windows and POSIX sy
 * SDL 1.2
 * SDL 2
 * SDL 3
+* AppKit (macOS only)
 
 The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
 * GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
@@ -91,11 +93,11 @@ The following compilers have been tested to successfully build butterscotch, old
 
 ```bash
 mkdir build && cd build
-cmake -DPLATFORM=desktop -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DPLATFORM=desktop -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
 make
 ```
 
-If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DDESKTOP_BACKEND=glfw3`
+If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
 
 Then run Butterscotch with `./butterscotch /path/to/data.win`!
 

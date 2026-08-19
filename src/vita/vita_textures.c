@@ -26,14 +26,10 @@ bool isPNG(FILE *f) {
 bool VitaTextures_Active() { return vitaUsingTexBin; }
 uint32_t VitaTextures_GetPageCount() { return (uint32_t)pageCount; }
 
-bool VitaTextures_Init(const char* binPath) {
+bool VitaTextures_Init(FILE *binFile) {
     if (vitaUsingTexBin) return true;
     vitaUsingTexBin = true;
-
-    vitaTexBinF = fopen(binPath, "rb");
-    if (!vitaTexBinF) {
-        goto fail;
-    }
+    vitaTexBinF = binFile;
 
     if (!fread(&pageCount, sizeof(int), 1, vitaTexBinF)) goto fail;
     pageOffsets = (int*)safeMalloc(pageCount * sizeof(int));
@@ -50,6 +46,8 @@ bool VitaTextures_Init(const char* binPath) {
 fail:
     if (vitaTexBinF) fclose(vitaTexBinF);
     sceClibPrintf("textures.bin failed to load, bailin tf outta here\n");
+    vitaUsingTexBin = false;
+    vitaTexBinF = NULL;
     return false;
 }
 

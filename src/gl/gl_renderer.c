@@ -10,6 +10,7 @@
 #else
 #include <glad/glad.h>
 #endif
+#include <ctype.h>
 #include "stdio_compat.h"
 #include <stdlib.h>
 #include "string_compat.h"
@@ -55,7 +56,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__)
     return glGenFramebuffers;
 #else
     return true;
@@ -63,7 +64,7 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__)
     return glGenVertexArrays;
 #else
     return true;
@@ -78,9 +79,147 @@ static inline uint8_t floatToUnormByte(float v) {
 
 // ===[ Shader Compilation ]===
 
+#ifdef PLATFORM_VITA
+// replaces every instance of (thing *= blahblah) with (thing = thing * (blahblah).)
+// vitaGL doesn't support the operator *= so...
+// this assumes that every line ends with ; so its a bit finicky
+char *fixShaderForVita(const char *src) {
+    size_t src_len = strlen(src);
+    size_t cap = src_len * 2 + 64;
+    char *out = malloc(cap);
+    size_t out_len = 0;
+    if (!out) return NULL;
+
+    #define ENSURE(n) do { \
+    if (out_len + (size_t)(n) + 1 > cap) { \
+        cap = (out_len + (size_t)(n) + 1) * 2; \
+        char *tmp = realloc(out, cap); \
+        if (!tmp) { free(out); return NULL; } \
+            out = tmp; \
+    } \
+    } while (0)
+
+    #define APPEND(s, n) do { ENSURE(n); memcpy(out + out_len, (s), (n)); out_len += (n); } while (0)
+    #define APPEND_STR(s) APPEND((s), strlen(s))
+    #define APPEND_CH(c) do { ENSURE(1); out[out_len++] = (char)(c); } while (0)
+
+    size_t i = 0;
+    while (i < src_len) {
+        char c = src[i];
+        if (c == '/' && i + 1 < src_len && src[i + 1] == '/') {
+            size_t start = i;
+            while (i < src_len && src[i] != '\n') i++;
+            APPEND(src + start, i - start);
+            continue;
+        }
+
+        if (c == '/' && i + 1 < src_len && src[i + 1] == '*') {
+            size_t start = i;
+            i += 2;
+            while (i + 1 < src_len && !(src[i] == '*' && src[i + 1] == '/')) i++;
+            i = (i + 1 < src_len) ? i + 2 : src_len;
+            APPEND(src + start, i - start);
+            continue;
+        }
+
+        if (isalpha((unsigned char)c) || c == '_') {
+            size_t id_start = i;
+            size_t j = i;
+
+            while (j < src_len && (isalnum((unsigned char)src[j]) || src[j] == '_')) j++;
+
+            size_t k = j;
+            for (;;) {
+                size_t save = k;
+                while (k < src_len && isspace((unsigned char)src[k])) k++;
+
+                if (k < src_len && src[k] == '.') {
+                    size_t after_dot = k + 1;
+                    while (after_dot < src_len && isspace((unsigned char)src[after_dot])) after_dot++;
+                    if (after_dot < src_len && (isalpha((unsigned char)src[after_dot]) || src[after_dot] == '_')) {
+                        k = after_dot;
+                        while (k < src_len && (isalnum((unsigned char)src[k]) || src[k] == '_')) k++;
+                        continue;
+                    }
+                    k = save;
+                    break;
+                } else if (k < src_len && src[k] == '[') {
+                    int depth = 1;
+                    size_t m = k + 1;
+                    while (m < src_len && depth > 0) {
+                        if (src[m] == '[') depth++;
+                        else if (src[m] == ']') depth--;
+                        m++;
+                    }
+                    if (depth == 0) { k = m; continue; }
+                    k = save;
+                    break;
+                } else {
+                    k = save;
+                    break;
+                }
+            }
+
+            size_t m = k;
+            while (m < src_len && isspace((unsigned char)src[m])) m++;
+
+            if (m + 1 < src_len && src[m] == '*' && src[m + 1] == '=' &&
+                !(m + 2 < src_len && src[m + 2] == '=')) {
+
+                size_t rhs_start = m + 2;
+            size_t p = rhs_start;
+            int depth = 0;
+            while (p < src_len) {
+                char rc = src[p];
+                if (rc == '(' || rc == '[') depth++;
+                else if (rc == ')' || rc == ']') depth--;
+                else if (rc == ';' && depth == 0) break;
+                p++;
+            }
+
+            if (p < src_len && src[p] == ';') {
+                size_t rhs_end = p;
+                while (rhs_end > rhs_start && isspace((unsigned char)src[rhs_end - 1])) rhs_end--;
+                size_t rhs_s = rhs_start;
+                while (rhs_s < rhs_end && isspace((unsigned char)src[rhs_s])) rhs_s++;
+
+                APPEND(src + id_start, k - id_start);   /* lvalue */
+                APPEND_STR(" = ");
+                APPEND(src + id_start, k - id_start);   /* lvalue again */
+                APPEND_STR(" * (");
+                APPEND(src + rhs_s, rhs_end - rhs_s);   /* expr */
+                APPEND_CH(')');
+                APPEND_CH(';');
+
+                i = p + 1;
+                continue;
+            }
+                }
+        }
+
+        APPEND_CH(c);
+        i++;
+    }
+
+    ENSURE(0);
+    out[out_len] = '\0';
+    return out;
+
+    #undef ENSURE
+    #undef APPEND
+    #undef APPEND_STR
+    #undef APPEND_CH
+}
+#endif
+
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
+    #ifdef PLATFORM_VITA
+    const char* actualSource = fixShaderForVita(source);
+    #else
+    const char* actualSource = source;
+    #endif
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
+    glShaderSource(shader, 1, &actualSource, nullptr);
     glCompileShader(shader);
 
     GLint success;
@@ -93,6 +232,9 @@ static GLuint compileShader(GLenum type, const char* source, bool* ok) {
         return 0;
     }
     *ok = true;
+    #ifdef PLATFORM_VITA
+    free((char*)actualSource);
+    #endif
     return shader;
 }
 
@@ -121,14 +263,14 @@ static GLuint linkProgram(const char* name, uint32_t vertexAttributeCount, const
     return program;
 }
 
-GLShaderUniform* findShaderUniformByName(GMLShader* shader, const char* name) {
-    repeat(shader->uniformCount, b) {
-        if (strcmp(shader->uniforms[b].name, name) == 0) {
-            return &shader->uniforms[b];
-        }
-    }
+static GLShaderUniform* getShaderUniform(GMLShader* shader, const char* name, GLenum type) {
+    GLint location = glGetUniformLocation(shader->shaderId, name);
+    if (location < 0) return NULL;
 
-    return nullptr;
+    GLShaderUniform* uniform = (GLShaderUniform*) safeCalloc(1, sizeof(GLShaderUniform));
+    uniform->location = location;
+    uniform->type = type;
+    return uniform;
 }
 
 // ===[ Batch Flush ]===
@@ -139,7 +281,7 @@ static void flushBatch(GLRenderer* gl) {
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &gl->gmlShaders[gl->base.currentShader];
 
-        GLShaderUniform* uniform = findShaderUniformByName(shader, "gm_BaseTexture");
+        GLShaderUniform* uniform = shader->gmBaseTexture;
         if (uniform != nullptr)
             glActiveTexture(GL_TEXTURE0 + uniform->samplerSlot);
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
@@ -148,14 +290,21 @@ static void flushBatch(GLRenderer* gl) {
         glBindTexture(GL_TEXTURE_2D, gl->currentTextureId);
     }
 
-    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
-    int32_t vertexCount = gl->batchCount * singleVertexCount;
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+#ifdef PLATFORM_VITA
+    vglBufferData(GL_ARRAY_BUFFER, (void*)gl->vertexData);
+    gl->vertexData = (Vertex*)vglAllocFromScratch((size_t)totalVboSize);
+    //glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
+#else
+    int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
+    int32_t vertexCount = gl->batchCount * singleVertexCount;
     glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+#endif
+
 
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
@@ -251,6 +400,21 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
             gmlShader->uniforms[b].samplerSlot = samplerIndex;
             samplerIndex += 1;
         }
+
+        if (strcmp(uniformName, "gm_BaseTexture") == 0)
+            gmlShader->gmBaseTexture = &gmlShader->uniforms[b];
+#ifdef PLATFORM_VITA
+        if (strcmp(uniformName, "gm_Matrices") == 0)
+#else
+        if (strcmp(uniformName, "gm_Matrices[0]") == 0)
+#endif
+            gmlShader->gmMatrices = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_FogColour") == 0)
+            gmlShader->gmFogColour = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_AlphaTestEnabled") == 0)
+            gmlShader->gmAlphaTestEnabled = &gmlShader->uniforms[b];
+        if (strcmp(uniformName, "gm_AlphaRefValue") == 0)
+            gmlShader->gmAlphaRefValue = &gmlShader->uniforms[b];
     }
 
     gmlShader->shaderId = shaderId;
@@ -346,11 +510,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     gl->defaultShaderProgram = defaultShader;
 
-    gl->uWorldViewProjection = findShaderUniformByName(defaultShader, "uWorldViewProjection");
-    gl->uFogColor = findShaderUniformByName(defaultShader, "uFogColor");
-    gl->uAlphaTestRef = findShaderUniformByName(defaultShader, "uAlphaTestRef");
-    gl->uAlphaTestEnabled = findShaderUniformByName(defaultShader, "uAlphaTestEnabled");
-    gl->uTexture = findShaderUniformByName(defaultShader, "uTexture");
+    gl->uWorldViewProjection = getShaderUniform(defaultShader, "uWorldViewProjection", GL_FLOAT_MAT4);
+    gl->uFogColor            = getShaderUniform(defaultShader, "uFogColor",            GL_FLOAT_VEC4);
+    gl->uAlphaTestRef        = getShaderUniform(defaultShader, "uAlphaTestRef",        GL_FLOAT);
+    gl->uAlphaTestEnabled    = getShaderUniform(defaultShader, "uAlphaTestEnabled",    GL_BOOL);
+    gl->uTexture             = getShaderUniform(defaultShader, "uTexture",             GL_SAMPLER_2D);
 
     gl->gmlShaders = (GMLShader *)safeCalloc(dataWin->shdr.count, sizeof(GMLShader));
     logInfo("GL: %u Shaders Found\n", dataWin->shdr.count);
@@ -402,8 +566,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         gl->gmlShaderCount++;
     }
-    GLShaderUniform* uAlphaTestRef = findShaderUniformByName(gl->defaultShaderProgram, "uAlphaTestRef");
-    GLShaderUniform* uFogColor = findShaderUniformByName(gl->defaultShaderProgram, "uFogColor");
+    GLShaderUniform* uAlphaTestRef = getShaderUniform(gl->defaultShaderProgram, "uAlphaTestRef", GL_FLOAT);
+    GLShaderUniform* uFogColor     = getShaderUniform(gl->defaultShaderProgram, "uFogColor",     GL_FLOAT_VEC4);
 
     gl->alphaTestEnable = false;
     gl->alphaTestRef = 0.0f;
@@ -416,6 +580,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glUseProgram(gl->defaultShaderProgram->shaderId);
     glUniform1f(uAlphaTestRef->location, -1.0f);
     glUniform4f(uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
+    free(uAlphaTestRef);
+    free(uFogColor);
 
     // Create VAO/VBO/EBO
     if (hasVAO()) {
@@ -426,9 +592,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glGenBuffers(1, &gl->ebo);
 
     // VBO: sized for max quads
-    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
+#ifndef PLATFORM_VITA // We don't really need to warm up the buffer since we have scratch memory on VitaGL...
+    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
+#endif
 
     int32_t eboSize = MAX_QUADS * INDICES_PER_QUAD * sizeof(uint16_t);
     uint16_t* indices = (uint16_t*)safeMalloc(eboSize);
@@ -454,7 +622,11 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     // Allocate CPU-side vertex buffer
+#if PLATFORM_VITA
+    gl->vertexData = (Vertex *)vglAllocFromScratch(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+#else
     gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+#endif
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
 #if defined(PLATFORM_VITA)
@@ -508,13 +680,13 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
 
     glUseProgram(gmlShader->shaderId);
     //Gotta set those built-ins! they ain't gonna set themselves
-    GLShaderUniform* gmMatricesUniform = findShaderUniformByName(gmlShader, "gm_Matrices[0]");
-    GLShaderUniform* gmFogColourUniform = findShaderUniformByName(gmlShader, "gm_FogColour");
+    GLShaderUniform* gmMatricesUniform = gmlShader->gmMatrices;
+    GLShaderUniform* gmFogColourUniform = gmlShader->gmFogColour;
 
     //Lights are for another time
 
-    GLShaderUniform* gmAlphaTestEnabledUniform = findShaderUniformByName(gmlShader, "gm_AlphaTestEnabled");
-    GLShaderUniform* gmAlphaRefValue = findShaderUniformByName(gmlShader, "gm_AlphaRefValue");
+    GLShaderUniform* gmAlphaTestEnabledUniform = gmlShader->gmAlphaTestEnabled;
+    GLShaderUniform* gmAlphaRefValue = gmlShader->gmAlphaRefValue;
 
     Matrix4f flippedClip[MATRICES_MAX];
     memcpy(flippedClip, renderer->gmlMatrices, sizeof(flippedClip));
@@ -638,7 +810,14 @@ static void glDestroy(Renderer* renderer) {
     free(gl->textureWidths);
     free(gl->textureHeights);
     free(gl->textureLoaded);
+    free(gl->uWorldViewProjection);
+    free(gl->uFogColor);
+    free(gl->uAlphaTestRef);
+    free(gl->uAlphaTestEnabled);
+    free(gl->uTexture);
+#ifndef PLATFORM_VITA
     free(gl->vertexData);
+#endif
     free(gl);
 }
 
@@ -859,7 +1038,6 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     //No it doesn't?
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
-
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -2207,6 +2385,72 @@ static void glDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     );
 }
 
+static void glDrawSurfaceColor(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+
+    if (0 > surfaceID || (uint32_t) surfaceID >= gl->surfaceCount) return;
+    if (gl->surfaceTexture[surfaceID] == 0) return;
+
+    GLuint texId = gl->surfaceTexture[surfaceID];
+    int32_t texW = gl->surfaceWidth[surfaceID];
+    int32_t texH = gl->surfaceHeight[surfaceID];
+
+    if (0 > srcWidth) { srcLeft = 0; srcTop = 0; srcWidth = texW; srcHeight = texH; }
+
+    float u0 = (float) srcLeft / (float) texW;
+    float v0 = (float) srcTop / (float) texH;
+    float u1 = (float) (srcLeft + srcWidth) / (float) texW;
+    float v1 = (float) (srcTop + srcHeight) / (float) texH;
+
+    float localX1 = (float) srcWidth;
+    float localY1 = (float) srcHeight;
+
+    uint8_t r1 = (uint8_t) BGR_R(color1);
+    uint8_t g1 = (uint8_t) BGR_G(color1);
+    uint8_t b1 = (uint8_t) BGR_B(color1);
+    uint8_t r2 = (uint8_t) BGR_R(color2);
+    uint8_t g2 = (uint8_t) BGR_G(color2);
+    uint8_t b2 = (uint8_t) BGR_B(color2);
+    uint8_t r3 = (uint8_t) BGR_R(color3);
+    uint8_t g3 = (uint8_t) BGR_G(color3);
+    uint8_t b3 = (uint8_t) BGR_B(color3);
+    uint8_t r4 = (uint8_t) BGR_R(color4);
+    uint8_t g4 = (uint8_t) BGR_G(color4);
+    uint8_t b4 = (uint8_t) BGR_B(color4);
+
+    float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+
+    Matrix4f transform;
+    Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
+
+    drawMultiColoredTextureWithTransform(
+        gl,
+        texId,
+        transform,
+        0.0f,
+        0.0f,
+        localX1,
+        localY1,
+        u0,
+        v0,
+        u1,
+        v1,
+        r1,
+        g1,
+        b1,
+        r2,
+        g2,
+        b2,
+        r3,
+        g3,
+        b3,
+        r4,
+        g4,
+        b4,
+        alpha
+    );
+}
+
 static void glDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
@@ -2372,6 +2616,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (mode == gl->currentBlendMode) return;
     flushBatch(gl);
 
     gl->currentBlendMode = mode;
@@ -2386,6 +2631,8 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (sfactor == gl->currentSFactor && dfactor == gl->currentDFactor && \
+            sfactor_alpha == gl->currentSFactorAlpha && dfactor_alpha == gl->currentDFactorAlpha) return;
     flushBatch(gl);
     gl->currentBlendMode = bm_complex;
     gl->currentSFactor = sfactor;
@@ -2430,6 +2677,7 @@ static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->colorWriteR == red && gl->colorWriteG == green && gl->colorWriteB == blue && gl->colorWriteA == alpha) return;
     flushBatch(gl);
     gl->colorWriteR = red;
     gl->colorWriteG = green;
@@ -2457,12 +2705,96 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    if (shaderIndex < 0 || (uint32_t) shaderIndex >= gl->gmlShaderCount) return -1;
-    GMLShader* shader = &gl->gmlShaders[shaderIndex];
-    repeat(shader->uniformCount, b) {
-        if (strcmp(shader->uniforms[b].name, uniform) == 0) return b;
+    int32_t targetShader = (shaderIndex != -1) ? shaderIndex : renderer->currentShader;
+    if (targetShader == -1) return -1;
+
+    GMLShader* shader = &gl->gmlShaders[targetShader];
+    if (!shader->compiled || shader->shaderId == 0) return -1;
+
+    GLint loc = glGetUniformLocation(shader->shaderId, uniform);
+    if (loc != -1) return loc;
+
+    char arrayName[256];
+    snprintf(arrayName, sizeof(arrayName), "%s[0]", uniform);
+    return glGetUniformLocation(shader->shaderId, arrayName);
+}
+
+static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t location) {
+    if (!shader || location == -1) return GL_NONE;
+    for (uint32_t i = 0; i < shader->uniformCount; i++) {
+        if (shader->uniforms[i].location == location) {
+            return shader->uniforms[i].type;
+        }
     }
-    return -1;
+    return GL_NONE;
+}
+
+static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_FLOAT:      glUniform1f(handle, value1); break;
+        case GL_FLOAT_VEC2: glUniform2f(handle, value1, value2); break;
+        case GL_FLOAT_VEC3: glUniform3f(handle, value1, value2, value3); break;
+        case GL_FLOAT_VEC4: glUniform4f(handle, value1, value2, value3, value4); break;
+        case GL_INT:        glUniform1i(handle, (GLint)value1); break;
+        case GL_INT_VEC2:   glUniform2i(handle, (GLint)value1, (GLint)value2); break;
+        case GL_INT_VEC3:   glUniform3i(handle, (GLint)value1, (GLint)value2, (GLint)value3); break;
+        case GL_INT_VEC4:   glUniform4i(handle, (GLint)value1, (GLint)value2, (GLint)value3, (GLint)value4); break;
+        default:
+            if (count == 1)      glUniform1f(handle, value1);
+            else if (count == 2) glUniform2f(handle, value1, value2);
+            else if (count == 3) glUniform3f(handle, value1, value2, value3);
+            else if (count >= 4) glUniform4f(handle, value1, value2, value3, value4);
+            break;
+    }
+}
+
+static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_FLOAT:      glUniform1fv(handle, count, values); break;
+        case GL_FLOAT_VEC2: glUniform2fv(handle, count / 2, values); break;
+        case GL_FLOAT_VEC3: glUniform3fv(handle, count / 3, values); break;
+        case GL_FLOAT_VEC4: glUniform4fv(handle, count / 4, values); break;
+        case GL_FLOAT_MAT2: glUniformMatrix2fv(handle, count / 4, GL_FALSE, values); break;
+        case GL_FLOAT_MAT3: glUniformMatrix3fv(handle, count / 9, GL_FALSE, values); break;
+        case GL_FLOAT_MAT4: glUniformMatrix4fv(handle, count / 16, GL_FALSE, values); break;
+        default:            glUniform1fv(handle, count, values); break;
+    }
+}
+
+static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    flushBatch(gl);
+    if (handle == -1 || renderer->currentShader == -1) return;
+
+    GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
+    GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    switch (type) {
+        case GL_INT: glUniform1i(handle, value1); break;
+        case GL_INT_VEC2: glUniform2i(handle, value1, value2); break;
+        case GL_INT_VEC3: glUniform3i(handle, value1, value2, value3); break;
+        case GL_INT_VEC4: glUniform4i(handle, value1, value2, value3, value4); break;
+        default:
+            if (count == 1)      glUniform1i(handle, value1);
+            else if (count == 2) glUniform2i(handle, value1, value2);
+            else if (count == 3) glUniform3i(handle, value1, value2, value3);
+            else if (count >= 4) glUniform4i(handle, value1, value2, value3, value4);
+            break;
+    }
 }
 
 static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, char* uniform) {
@@ -2475,61 +2807,8 @@ static int32_t glShaderGetSamplerIndex(Renderer* renderer, int32_t shaderIndex, 
         }
     }
 
-    logWarn("GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
+    fprintf(stderr, "GL: Sampler Index %s not found for shader %d!\n", uniform, shaderIndex);
     return -1;
-}
-
-static void glShaderSetUniformF(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, float value1, float value2, float value3, float value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_FLOAT) {
-            glUniform1f(uniform.location, value1);
-        } else if (uniform.type == GL_FLOAT_VEC2) {
-            glUniform2f(uniform.location, value1, value2);
-        } else if (uniform.type == GL_FLOAT_VEC3) {
-            glUniform3f(uniform.location, value1, value2, value3);
-        } else if (uniform.type == GL_FLOAT_VEC4) {
-            glUniform4f(uniform.location, value1, value2, value3, value4);
-        }
-    }
-}
-
-static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_FLOAT) glUniform1fv(uniform.location, count, values);
-        else if (uniform.type == GL_FLOAT_VEC2) glUniform2fv(uniform.location, count / 2, values);
-        else if (uniform.type == GL_FLOAT_VEC3) glUniform3fv(uniform.location, count / 3, values);
-        else if (uniform.type == GL_FLOAT_VEC4) glUniform4fv(uniform.location, count / 4, values);
-        else if (uniform.type == GL_FLOAT_MAT4) glUniformMatrix4fv(uniform.location, count / 16, GL_FALSE, values);
-        else if (uniform.type == GL_FLOAT_MAT3) glUniformMatrix3fv(uniform.location, count / 9, GL_FALSE, values);
-        else if (uniform.type == GL_FLOAT_MAT2) glUniformMatrix2fv(uniform.location, count / 4, GL_FALSE, values);
-    }
-}
-
-static void glShaderSetUniformI(Renderer* renderer, int32_t handle, MAYBE_UNUSED int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
-
-    if (handle != -1 && renderer->currentShader != -1) {
-        GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
-        GLShaderUniform uniform = shader->uniforms[handle];
-
-        if (uniform.type == GL_INT) glUniform1i(uniform.location, value1);
-        else if (uniform.type == GL_INT_VEC2) glUniform2i(uniform.location, value1, value2);
-        else if (uniform.type == GL_INT_VEC3) glUniform3i(uniform.location, value1, value2, value3);
-        else if (uniform.type == GL_INT_VEC4) glUniform4i(uniform.location, value1, value2, value3, value4);
-    }
 }
 
 static uint32_t glSpriteGetTexture(Renderer* renderer, int32_t tpagIndex) {
@@ -2739,6 +3018,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.getSurfaceWidth = glGetSurfaceWidth;
     glVtable.getSurfaceHeight = glGetSurfaceHeight;
     glVtable.drawSurface = glDrawSurface;
+    glVtable.drawSurfaceColor = glDrawSurfaceColor;
     glVtable.drawSurfaceTiled = glDrawSurfaceTiled;
     glVtable.surfaceResize = glSurfaceResize;
     glVtable.surfaceFree = glSurfaceFree;
