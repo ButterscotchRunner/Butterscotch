@@ -710,7 +710,7 @@ void platformSleepUntil(uint64_t time) {
 
 #ifdef ENABLE_SW_RENDERER
 
-void Runner_setNextFrame(uint32_t* framebuffer, int width, int height)
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height)
 {
     // TODO: this is a placeholder
     (void) framebuffer;
