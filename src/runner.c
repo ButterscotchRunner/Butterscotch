@@ -2296,6 +2296,11 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->fileSystem = fileSystem;
     runner->audioSystem = audioSystem;
     runner->frameCount = 0;
+    GMLReal initialFps = dataWin->gen8.gms2FPS;
+    runner->fps = initialFps;
+    runner->fpsReal = initialFps;
+    runner->fpsWindowStartFrame = 0;
+    runner->fpsWindowStartNanos = nowNanos();
     runner->osType = OS_WINDOWS;
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
@@ -4093,6 +4098,18 @@ void Runner_step(Runner* runner) {
 
     Runner_cleanupDestroyedInstances(runner);
     Runner_sweepDeadStructs(runner);
+
+    // Measure fps builtin
+    if (nowNanos() - runner->fpsWindowStartNanos >= (uint64_t)1000000000) {
+        runner->fps = (GMLReal) (runner->frameCount - runner->fpsWindowStartFrame);
+        runner->fpsWindowStartFrame = runner->frameCount;
+        runner->fpsWindowStartNanos = nowNanos();
+    }
+
+    // Measure fps_real builtin
+    if (runner->deltaTime > 0.0) {
+        runner->fpsReal = (GMLReal) (1000000.0 / runner->deltaTime);
+    }
 
     runner->frameCount++;
 }
