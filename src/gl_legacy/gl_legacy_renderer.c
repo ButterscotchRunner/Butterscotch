@@ -125,7 +125,9 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, co
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
+#ifndef PLATFORM_PS3
     Matrix4f_flipClipY(&projection);
+#endif
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -1784,13 +1786,8 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-#ifndef PLATFORM_PS3
     float v0 = (float) srcTop / (float) texH;
     float v1 = (float) (srcTop + srcHeight) / (float) texH;
-#else
-    float v1 = (float) srcTop / (float) texH;
-    float v0 = (float) (srcTop + srcHeight) / (float) texH;
-#endif
 
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
@@ -1833,13 +1830,8 @@ static void glLegacyDrawSurfaceColor(Renderer* renderer, int32_t surfaceId, int3
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-#ifndef PLATFORM_PS3
     float v0 = (float) srcTop / (float) texH;
     float v1 = (float) (srcTop + srcHeight) / (float) texH;
-#else
-    float v1 = (float) srcTop / (float) texH;
-    float v0 = (float) (srcTop + srcHeight) / (float) texH;
-#endif
 
     float r1 = (float) BGR_R(color1) / 255.0f;
     float g1 = (float) BGR_G(color1) / 255.0f;
