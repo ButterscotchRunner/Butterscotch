@@ -41,8 +41,20 @@ else()
     endif()
 endif()
 
-if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT MSVC)
-    add_compile_options(-ffast-math -fno-finite-math-only)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(MSVC)
+        # equivalent to -fomit-frame-pointer
+        target_compile_options(mytarget PRIVATE /Oy)
+    else()
+        add_compile_options(-ffast-math -fno-finite-math-only)
+
+        # some targets don't support -fomit-frame-pointer IIRC
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
+        if(HAS_FOMIT_FRAME_POINTER)
+            target_compile_options(mytarget PRIVATE -fomit-frame-pointer)
+        endif()
+    endif()
 endif()
 
 set(PLATFORM "cli" CACHE STRING "Platform backend")
@@ -570,9 +582,8 @@ elseif(PLATFORM STREQUAL "ps2")
 
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
-    # -fomit-frame-pointer: frees a register on a target with tight register pressure
     # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -Wno-format)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
