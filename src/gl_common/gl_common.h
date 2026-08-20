@@ -4,7 +4,7 @@
 #include "common.h"
 #include <stdint.h>
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_PS3
 #include "ps3gl.h"
