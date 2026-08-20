@@ -631,7 +631,6 @@ jobs:
         - name: Configure and build
           run: |
             cmake -B build -G Ninja \
-              -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/Switch.cmake \
               -DWERROR=ON \
               -DPLATFORM=switch \
               -DCMAKE_BUILD_TYPE=Release \
