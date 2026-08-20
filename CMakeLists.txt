@@ -41,6 +41,10 @@ else()
     endif()
 endif()
 
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT MSVC)
+    add_compile_options(-ffast-math -fno-finite-math-only)
+endif()
+
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
@@ -219,10 +223,6 @@ endif()
 
 if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
     if(PLATFORM STREQUAL "vita")
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            add_compile_options(-ffast-math)
-        endif()
-
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
@@ -571,9 +571,8 @@ elseif(PLATFORM STREQUAL "ps2")
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
     # -fomit-frame-pointer: frees a register on a target with tight register pressure
-    # -ffast-math: enables aggressive floating point optimizations
     # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
