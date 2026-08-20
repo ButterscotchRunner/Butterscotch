@@ -1135,7 +1135,10 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
 
             if (glyph != nullptr) {
                 bool drewSuccessfully = false;
-                if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
+				// Don't draw spaces (0x20)
+				if (ch == 0x20) {
+					drewSuccessfully = true;
+                } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
                     GLuint glyphTexId;
@@ -1277,7 +1280,10 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
                 int32_t c4 = Color_lerp(_c4, _c3, leftFrac);
 
                 bool drewSuccessfully = false;
-                if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
+				// Don't draw spaces (0x20)
+				if (ch == 0x20) {
+					drewSuccessfully = true;
+                } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
                     GLuint glyphTexId;
