@@ -1,0 +1,157 @@
+name: Other platform builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-web:
+    name: Build (Web)${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ""
+            platform: web
+            artifact: butterscotch-web
+            output_glob: build/butterscotch.*
+          - label: " [Meta]"
+            platform: web-meta
+            artifact: butterscotch-web-meta
+            output_glob: build/butterscotch-meta.*
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Setup Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-web-${{ matrix.platform }}-${{ github.sha }}
+          restore-keys: |
+            ccache-web-${{ matrix.platform }}-
+
+      - name: Configure
+        run: emcmake cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.output_glob }}
+
+  build-android:
+    name: Build (Android)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+          cache-dependency-path: src/android/frontend/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-android-${{ github.sha }}
+          restore-keys: |
+            ccache-android-
+
+      - name: Build APK
+        run: |
+          cd src/android/frontend
+          ./gradlew assembleDebug  \
+            -Pandroid.cxx.ndk.ccache=true \
+            -Porg.gradle.caching=true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-android
+          path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
+
+  build-old-gcc:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC 3.0
+            compiler: gcc-3.0
+            flags: '-std=gnu99 -w'
+          - name: GCC 2.95
+            compiler: g++-2.95
+            flags: '-w'
+    name: Build (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create Debian Woody chroot
+        run: |
+          sudo apt-get install --no-install-recommends -y debootstrap
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev,ccache' woody ~/woody http://archive.debian.org/debian
+
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          path: butterscotch
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: butterscotch/.ccache
+          key: ccache-${{ matrix.compiler }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.compiler }}-
+
+      - name: Build
+        run: |
+          sudo mv butterscotch ~/woody
+          sudo chroot ~/woody /bin/sh --login -c '
+            export CCACHE_DIR=/butterscotch/.ccache
+            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1
+          '
+      - name: Persist ccache
+        if: always()
+        run: |
+          sudo mv ~/woody/butterscotch .
+          sudo chown -R $(whoami):$(id -gn) butterscotch/.ccache
+
+  build-cxx:
+    name: Build as C++
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ccache libglfw3-dev
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-cxx-${{ github.sha }}
+          restore-keys: |
+            ccache-cxx-
+
+      - name: Build
+        run: make CC='ccache g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1

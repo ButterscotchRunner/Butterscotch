@@ -1,0 +1,58 @@
+name: macOS builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-appkit-macos:
+    name: Build (AppKit ${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x86_64
+            runner: macos-26-intel
+          - label: arm64
+            runner: macos-26
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: brew install ccache
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ matrix.label }}-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-${{ matrix.label }}-
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
+            -DBACKEND=appkit \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-appkit-macos-${{ matrix.label }}
+          path: build/butterscotch

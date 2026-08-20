@@ -14,7 +14,7 @@ jobs:
       DOWNLOAD_COMMERCIAL_GAMES: ${{ secrets.COMMERCIAL_GAMES_URL != '' }}
       CCACHE_IGNOREOPTIONS: "-DBUTTERSCOTCH_COMMIT_HASH=* -DBUTTERSCOTCH_COMMIT_DATE=*"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get commit info
         id: commit-info
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
           key: ccache-tests-linux-x86_64
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload test screenshots
         if: always()          # the test step exits 1 on failure; run regardless
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-screenshots
           path: |
