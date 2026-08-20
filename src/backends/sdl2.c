@@ -218,7 +218,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
-#ifndef PLATFORM_VITA
+#if !defined(PLATFORM_VITA) && !defined(PLATFORM_SWITCH)
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {

@@ -14,8 +14,8 @@
 
 int main(int argc, char* argv[]) {
     (void)argc;
-    setbuf(stderr, NULL);
-    setbuf(stdout, NULL);
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
     fsdevMountSdmc();
 
@@ -45,5 +45,6 @@ int main(int argc, char* argv[]) {
 
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
+    romfsExit();
     return ret;
 }
