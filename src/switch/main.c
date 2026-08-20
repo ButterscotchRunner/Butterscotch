@@ -14,8 +14,8 @@
 
 int main(int argc, char* argv[]) {
     (void)argc;
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
+    setbuf(stdout, NULL);
+    setbuf(stderr, NULL);
 
     fsdevMountSdmc();
 
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 #endif
     args.speedMultiplier = 1.0;
     args.fastForwardSpeed = 0.0;
-    args.osType = OS_SWITCH;
+    args.osType = OS_WINDOWS;
     args.profilerFramesBetween = 0;
     args.loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     args.lazyRooms = false;
