@@ -2,7 +2,7 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
 #include <vitaGL.h>

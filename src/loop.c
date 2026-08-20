@@ -33,7 +33,7 @@
 #include "input_recording.h"
 #include "debug_overlay.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
-    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
+    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
 #define USE_GLAD
 #include <glad/glad.h>
 #endif
@@ -139,15 +139,11 @@ static size_t get_used_memory(void) {
 static bool platformInitGlad(void) {
     glGetString = (PFNGLGETSTRINGPROC)platformGetProcAddress("glGetString");
     if (!glGetString)
-        return false;
+        return 0;
 
     logInfo("OpenGL Version: %s\n", (const char*)glGetString(GL_VERSION));
-
-    #ifdef PLATFORM_SWITCH
-    if (!gladLoadGLLoader(platformGetProcAddress))
-        return false;
-    #else
     GLVer ver = GLCommon_getGLVersion();
+
     if (ver.isGLES) {
         if (!gladLoadGLES2Loader(platformGetProcAddress))
             return false;
@@ -155,8 +151,6 @@ static bool platformInitGlad(void) {
         if (!gladLoadGLLoader(platformGetProcAddress))
             return false;
     }
-    #endif
-
     return true;
 }
 #endif

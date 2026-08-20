@@ -27,13 +27,11 @@ int main(int argc, char* argv[]) {
 #endif
     args.speedMultiplier = 1.0;
     args.fastForwardSpeed = 0.0;
-    args.osType = OS_SWITCH;
+    args.osType = OS_WINDOWS;
     args.profilerFramesBetween = 0;
     args.loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
 #if defined(ENABLE_MODERN_GL)
     args.renderer = MODERN_GL;
-#elif defined(ENABLE_LEGACY_GL)
-    args.renderer = LEGACY_GL;
 #else
     args.renderer = SOFTWARE;
 #endif
