@@ -21,7 +21,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     if(NOT DEFINED ENV{DEVKITPRO})
         message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
     endif()
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/switch.cmake" CACHE PATH "toolchain file")
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
 endif()
 
 set(BACKEND "sdl2")
