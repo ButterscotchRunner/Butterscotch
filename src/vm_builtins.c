@@ -3234,12 +3234,12 @@ static RValue builtin_irandom_range(MAYBE_UNUSED VMContext* ctx, RValue* args, i
     if (lo > hi) { int32_t tmp = lo; lo = hi; hi = tmp; }
     int32_t range = hi - lo + 1;
     if (0 >= range) return RValue_makeReal((GMLReal) lo);
-    return RValue_makeReal((GMLReal) (lo + Random_nextUInt32(&ctx->runner->random) % range));
+    return RValue_makeReal((GMLReal) (lo + (int32_t)(Random_nextUInt32(&ctx->runner->random) % range)));
 }
 
 static RValue builtin_choose(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
-    int32_t idx = Random_nextUInt32(&ctx->runner->random) % argCount;
+    uint32_t idx = Random_nextUInt32(&ctx->runner->random) % argCount;
     // Steal ownership: the caller's RValue_free of args[idx] becomes a no-op, and the returned value owns the ref instead.
     RValue val = args[idx];
     if (val.type == RVALUE_STRING && val.string != nullptr && !val.ownsReference) {
@@ -4846,7 +4846,7 @@ static RValue builtin_ds_list_shuffle(VMContext* ctx, RValue* args, MAYBE_UNUSED
     DsList* list = dsListGet(runner, id);
     if (list == nullptr) return RValue_makeUndefined();
     for (int32_t i = 1; i < (int32_t) arrlen(list->items); i++) {
-        int32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
+        uint32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
         RValue temp = list->items[i];
         list->items[i] = list->items[j];
         list->items[j] = temp;

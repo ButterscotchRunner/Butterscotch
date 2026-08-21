@@ -16,7 +16,7 @@ Random Random_create(uint32_t seed) {
     return ret;
 }
 
-int32_t Random_nextUInt32(Random* m) {
+uint32_t Random_nextUInt32(Random* m) {
     uint32_t a, b, c, d;
 
     a = m->state[m->index];

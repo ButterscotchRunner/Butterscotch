@@ -10,8 +10,8 @@ typedef struct {
 
 void Random_setSeed(Random* m, uint32_t seed);
 Random Random_create(uint32_t seed);
-int32_t Random_nextUInt32(Random* m);
+uint32_t Random_nextUInt32(Random* m);
 
-#define BS_RAND_MAX 0x7FFFFFFF
+#define BS_RAND_MAX 0xFFFFFFFF
 
 #endif /* _BS_RANDOM_H_ */
