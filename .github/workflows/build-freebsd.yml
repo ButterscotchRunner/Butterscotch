@@ -20,7 +20,7 @@ jobs:
           - arch: aarch64
             sysroot_arch: arm64
             target_triple: aarch64-unknown-freebsd
-          - arch: riscv64
+          - arch: riscv
             sysroot_arch: riscv
             target_triple: riscv64-unknown-freebsd
             cflags: "-march=rv64gc_zihintpause"
