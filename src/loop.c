@@ -561,11 +561,8 @@ int loop(CommandLineArgs args, const char *argv0) {
             vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
-
         if (args.hasSeed) {
-            srand((unsigned int) args.seed);
             vm->hasFixedSeed = true;
-            logInfo("Using fixed RNG seed: %d\n", args.seed);
         }
 
         if (args.printRooms) {
@@ -881,7 +878,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the runner
-        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
 
         if (!args.lazyTextures) {
             repeat(runner->dataWin->txtr.count, i) {
