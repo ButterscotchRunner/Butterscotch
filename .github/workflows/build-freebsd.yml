@@ -75,7 +75,8 @@ jobs:
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
           cmake --build build
       
       - name: Upload artifact

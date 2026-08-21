@@ -51,7 +51,7 @@ jobs:
         run: |
           mkdir -p build
           export CFLAGS="-fopt-info-inline-optimized=$PWD/build/inline_report.txt"
-          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: |
@@ -150,7 +150,7 @@ jobs:
             ccache-ps3-
 
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
 
       - name: Build
         run: |
@@ -214,13 +214,13 @@ jobs:
 
       - name: Build SDL2
         run: |
-          cmake -Svendor/SDL2 -Bvendor/SDL2/build -GNinja -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -Svendor/SDL2 -Bvendor/SDL2/build -GNinja -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
       - name: Configure
         run: |
-          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: |

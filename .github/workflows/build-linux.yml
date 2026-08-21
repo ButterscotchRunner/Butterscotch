@@ -138,6 +138,7 @@ jobs:
             -DWERROR=ON
             -DBACKEND=${{ matrix.desktop_backend }}
             -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           )

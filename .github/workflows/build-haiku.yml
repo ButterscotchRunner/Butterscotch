@@ -55,6 +55,7 @@ jobs:
             -DBACKEND=glfw3 \
             -DAUDIO_BACKEND=openal \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build

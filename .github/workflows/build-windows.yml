@@ -73,6 +73,8 @@ jobs:
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
             -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
 
@@ -89,7 +91,8 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
             -DBACKEND=glfw3 \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
 
       - name: Build
         run: cmake --build build
@@ -137,7 +140,8 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
-              CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer' \
+              CFLAGS='-O3 -flto -DNDEBUG -fomit-frame-pointer' \
+              LDFLAGS='-flto' \
               BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic'
