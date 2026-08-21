@@ -24,11 +24,13 @@ jobs:
             sysroot_arch: riscv
             target_triple: riscv64-unknown-freebsd
             cflags: "-march=rv64gc_zihintpause"
+            cxxflags: "-march=rv64gc_zihintpause"
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
       FREEBSD_MAJOR: 14
       FREEBSD_MINOR: 3
       CFLAGS: ${{ matrix.cflags }}
+      CXXFLAGS: ${{ matrix.cxxflags }}
     
     steps:
       - name: Checkout Code
@@ -66,6 +68,10 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=ON \
             -DSDL_STATIC=OFF \
             -DSDL_TESTS=OFF \
