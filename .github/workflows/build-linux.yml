@@ -33,6 +33,13 @@ jobs:
             cflags: "-march=armv8-a"
             cxxflags: "-march=armv8-a"
 
+          - arch: riscv64
+            runner: ubuntu-24.04
+            desktop_backend: sdl2
+            desktop_backend_label: SDL2
+            cflags: "-march=rv64gc -mabi=lp64d"
+            cxxflags: "-march=rv64gc -mabi=lp64d"
+
           - arch: loongarch64
             runner: ubuntu-26.04
             desktop_backend: sdl2
@@ -117,6 +124,13 @@ jobs:
             sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-loongarch64-linux-gnu \
               g++-loongarch64-linux-gnu
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            sudo dpkg --add-architecture riscv64
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-riscv64-linux-gnu \
+              g++-riscv64-linux-gnu \
+              libsdl2-dev:riscv64
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
@@ -223,6 +237,17 @@ jobs:
               -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc
               -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install"
+            )
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+            export CC="riscv64-linux-gnu-gcc"
+            export CXX="riscv64-linux-gnu-g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=riscv64
+              -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc
+              -DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++
             )
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
