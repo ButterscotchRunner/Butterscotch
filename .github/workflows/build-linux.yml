@@ -126,6 +126,7 @@ jobs:
               gcc-loongarch64-linux-gnu \
               g++-loongarch64-linux-gnu
           elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
             sudo dpkg --add-architecture riscv64
             printf '%s\n' \
               'Types: deb' \
