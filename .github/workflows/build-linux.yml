@@ -149,7 +149,7 @@ jobs:
       - name: Build SDL2 from source (LoongArch)
         if: matrix.arch == 'loongarch64'
         run: |
-          cmake -B vendor/SDL2/build -G Ninja \
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=loongarch64 \
             -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc \
