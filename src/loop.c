@@ -31,10 +31,11 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
+#if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2) || defined(USE_IOS)) && defined(ENABLE_SW_RENDERER))) && \
     !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
 #define USE_GLAD
 #include <glad/glad.h>
+#include "gl_common.h"
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
 #include "gl_renderer.h"
@@ -161,8 +162,13 @@ static bool platformInitGlad(void) {
     GLVer ver = GLCommon_getGLVersion();
 
     if (ver.isGLES) {
-        if (!gladLoadGLES2Loader(platformGetProcAddress))
-            return false;
+        if (ver.major >= 2) {
+            if (!gladLoadGLES2Loader(platformGetProcAddress))
+                return false;
+        } else {
+            if (!gladLoadGLES1Loader(platformGetProcAddress))
+                return false;
+        }
     } else {
         if (!gladLoadGLLoader(platformGetProcAddress))
             return false;
@@ -830,7 +836,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
 #ifdef USE_GLAD
-#if defined(USE_GLFW3) || defined(USE_GLFW2)
+#if defined(USE_GLFW3) || defined(USE_GLFW2) || defined(USE_IOS)
             if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
 #else
             if (gfx == LEGACY_GL || gfx == MODERN_GL) {

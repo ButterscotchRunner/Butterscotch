@@ -1,0 +1,13 @@
+#!/bin/sh
+
+[ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
+
+exec "${CLANG:-clang}" \
+    -mlinker-version=762 \
+    "$@" \
+    -isysroot "$scriptroot/../../sdks/ios8-sdk" \
+    -target unknown-apple-ios \
+    -arch arm64 -Xarch_arm64 -mios-version-min=7.0 \
+    -arch armv7 -Xarch_armv7 -mios-version-min=3.0 \
+    -fuse-ld=ld64 \
+    -Wno-unused-command-line-argument
