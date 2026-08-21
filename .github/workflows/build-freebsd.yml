@@ -66,6 +66,7 @@ jobs:
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
+            -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
