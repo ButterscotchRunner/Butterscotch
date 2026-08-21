@@ -196,7 +196,6 @@ jobs:
           export PATH=/tmp/ccache-symlinks:$PATH
           make -C vendor/vitaGL \
             install \
-            CFLAGS="-g -Wl,-q -O3 -ffast-math -mtune=cortex-a9 -mfpu=neon -Wno-incompatible-pointer-types -Wno-stringop-overflow -mfp16-format=ieee -Isource -DVGL_GIT_HASH='\"$(git rev-parse --short HEAD)\"' -flto" \
             NO_DEBUG=1 \
             NO_SPLASHSCREEN=1 \
             LOG_ERRORS=1 \
