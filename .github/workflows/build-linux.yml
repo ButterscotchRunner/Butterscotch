@@ -33,6 +33,11 @@ jobs:
             cflags: "-march=armv8-a"
             cxxflags: "-march=armv8-a"
 
+          - arch: loongarch64
+            runner: ubuntu-26.04
+            desktop_backend: sdl2
+            desktop_backend_label: SDL2
+
     steps:
       - uses: actions/checkout@v7
 
@@ -107,6 +112,11 @@ jobs:
               gcc-multilib \
               g++-multilib \
               $pkg_name
+          elif [ "${{ matrix.arch }}" = "loongarch64" ]; then
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-loongarch64-linux-gnu \
+              g++-loongarch64-linux-gnu
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
@@ -120,6 +130,14 @@ jobs:
 
           sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
 
+      - name: Checkout SDL 2.24.x (LoongArch)
+        uses: actions/checkout@v7
+        if: matrix.arch == 'loongarch64'
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.24.x
+          path: vendor/SDL2
+
       - name: Cache ccache
         uses: actions/cache@v6
         with:
@@ -127,6 +145,21 @@ jobs:
           key: ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
+
+      - name: Build SDL2 from source (LoongArch)
+        if: matrix.arch == 'loongarch64'
+        run: |
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=loongarch64 \
+            -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++ \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DSDL_SHARED=ON \
+            -DSDL_STATIC=OFF \
+            -DSDL_TESTS=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake --build vendor/SDL2/build --parallel --target install
 
       - name: Configure
         env:
@@ -179,6 +212,18 @@ jobs:
               -DCMAKE_C_COMPILER=gcc
               -DCMAKE_CXX_COMPILER=g++
             )
+          elif [ "${{ matrix.arch }}" = "loongarch64" ]; then
+            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+            export CC="loongarch64-linux-gnu-gcc"
+            export CXX="loongarch64-linux-gnu-g++"
+  
+            CMAKE_ARGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=loongarch64
+              -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc
+              -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++
+              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install"
+            )
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
@@ -192,5 +237,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-${{ matrix.BACKEND }}-linux-${{ matrix.arch }}
+          name: butterscotch-${{ matrix.desktop_backend }}-linux-${{ matrix.arch }}
           path: build/butterscotch
