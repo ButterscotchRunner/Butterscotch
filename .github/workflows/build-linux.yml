@@ -38,8 +38,8 @@ jobs:
             desktop_backend: glfw3
             desktop_backend_label: GLFW3
             target_triple: riscv64-linux-gnu
-            cflags: "-march=rv64gc -mabi=lp64d"
-            cxxflags: "-march=rv64gc -mabi=lp64d"
+            cflags: "-march=rv64gc_zihintpause -mabi=lp64d"
+            cxxflags: "-march=rv64gc_zihintpause -mabi=lp64d"
 
           - arch: loongarch64
             runner: ubuntu-26.04
