@@ -69,6 +69,7 @@ jobs:
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release \
