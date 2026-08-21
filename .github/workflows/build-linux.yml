@@ -180,8 +180,8 @@ jobs:
             -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc \
             -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++ \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DSDL_SHARED=ON \
-            -DSDL_STATIC=OFF \
+            -DSDL_SHARED=OFF \
+            -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           cmake --build vendor/SDL2/build --parallel --target install
