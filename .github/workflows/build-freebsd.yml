@@ -64,12 +64,12 @@ jobs:
       - name: Build SDL2 from source (RISC-V)
         if: matrix.arch == 'riscv'
         run: |
-          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+          sudo cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_INSTALL_PREFIX="/usr/local" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release \
@@ -78,7 +78,7 @@ jobs:
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          cmake --build vendor/SDL2/build --parallel --target install
+          sudo cmake --build vendor/SDL2/build --parallel --target install DESTDIR=${{ env.FREEBSD_SYSROOT }}
 
       - name: Download SDL2 for FreeBSD
         if: matrix.arch != 'riscv'
@@ -98,7 +98,7 @@ jobs:
       - name: Configure and build Butterscotch
         env:
           PKG_CONFIG_DIR: ""
-          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
+          PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
           PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
         run: |
           cmake -S . -B build -G Ninja \
@@ -109,7 +109,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-llvm.cmake \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_PREFIX_PATH="${{ env.FREEBSD_SYSROOT }}/usr/local" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build
