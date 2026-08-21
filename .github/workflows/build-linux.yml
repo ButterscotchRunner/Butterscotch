@@ -35,8 +35,9 @@ jobs:
 
           - arch: riscv64
             runner: ubuntu-24.04
-            desktop_backend: sdl2
-            desktop_backend_label: SDL2
+            desktop_backend: glfw3
+            desktop_backend_label: GLFW3
+            target_triple: riscv64-linux-gnu
             cflags: "-march=rv64gc -mabi=lp64d"
             cxxflags: "-march=rv64gc -mabi=lp64d"
 
@@ -130,7 +131,8 @@ jobs:
             sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-riscv64-linux-gnu \
               g++-riscv64-linux-gnu \
-              libsdl2-dev:riscv64
+              libc6-dev-riscv64-cross \
+              $pkg_name:riscv64
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
             exit 1
@@ -239,15 +241,21 @@ jobs:
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install"
             )
           elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
-            export CC="riscv64-linux-gnu-gcc"
-            export CXX="riscv64-linux-gnu-g++"
+            export PKG_CONFIG_PATH="/usr/lib/${{ matrix.target_triple }}/pkgconfig:/usr/lib/${{ matrix.target_triple }}:/usr/share/pkgconfig"
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            export PKG_CONFIG_SYSROOT_DIR="/"
+            export CC="${{ matrix.target_triple }}-gcc"
+            export CXX="${{ matrix.target_triple }}-g++"
 
             CMAKE_ARGS+=(
               -DCMAKE_SYSTEM_NAME=Linux
               -DCMAKE_SYSTEM_PROCESSOR=riscv64
-              -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc
-              -DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++
+              -DCMAKE_C_COMPILER="${{ matrix.target_triple }}-gcc"
+              -DCMAKE_CXX_COMPILER="${{ matrix.target_triple }}-g++"
+              -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.target_triple }}
+              -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
             )
           else
             echo "Unknown architecture: ${{ matrix.arch }}"
