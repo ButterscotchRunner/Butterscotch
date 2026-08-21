@@ -73,12 +73,14 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          sudo cmake --build vendor/SDL2/build --parallel --target install DESTDIR=${{ env.FREEBSD_SYSROOT }}
+          cmake --build vendor/SDL2/build
+          sudo cmake --install vendor/SDL2/build --prefix "${{ env.FREEBSD_SYSROOT }}/usr/local"
 
       - name: Download SDL2 for FreeBSD
         if: matrix.arch != 'riscv'
