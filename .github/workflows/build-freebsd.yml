@@ -64,7 +64,7 @@ jobs:
       - name: Build SDL2 from source (RISC-V)
         if: matrix.arch == 'riscv'
         run: |
-          sudo cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
             -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
