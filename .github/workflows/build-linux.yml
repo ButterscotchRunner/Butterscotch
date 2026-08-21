@@ -127,6 +127,14 @@ jobs:
               g++-loongarch64-linux-gnu
           elif [ "${{ matrix.arch }}" = "riscv64" ]; then
             sudo dpkg --add-architecture riscv64
+            printf '%s\n' \
+              'Types: deb' \
+              'URIs: http://ports.ubuntu.com/ubuntu-ports' \
+              'Suites: noble noble-updates noble-security noble-backports' \
+              'Components: main universe restricted multiverse' \
+              'Architectures: riscv64' \
+              'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+              | sudo tee /etc/apt/sources.list.d/ubuntu-ports-riscv64.sources >/dev/null
             sudo apt-get "${APT_ARGS[@]}" update
             sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
               gcc-riscv64-linux-gnu \
