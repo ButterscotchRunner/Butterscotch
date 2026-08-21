@@ -137,6 +137,7 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache i486-w64-mingw32-gcc' \
+              CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer' \
               BACKEND=glfw2 \
               GLFW2_LIBS='-lglfw -lopengl32' \
               EXTRALIBS='-latomic'
