@@ -34,7 +34,7 @@ jobs:
             cxxflags: "-march=armv8-a"
 
           - arch: loongarch64
-            runner: ubuntu-24.04
+            runner: ubuntu-26.04
             desktop_backend: sdl2
             desktop_backend_label: SDL2
 
