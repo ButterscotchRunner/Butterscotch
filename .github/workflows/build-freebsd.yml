@@ -98,9 +98,8 @@ jobs:
       - name: Configure and build Butterscotch
         env:
           PKG_CONFIG_DIR: ""
-          PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
+          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
           PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
-          PKG_CONFIG_PATH: ${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig
         run: |
           cmake -S . -B build -G Ninja \
             -DBACKEND=sdl2 \
