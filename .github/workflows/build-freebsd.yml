@@ -20,10 +20,15 @@ jobs:
           - arch: aarch64
             sysroot_arch: arm64
             target_triple: aarch64-unknown-freebsd
+          - arch: riscv64
+            sysroot_arch: riscv
+            target_triple: riscv64-unknown-freebsd
+            cflags: "-march=rv64gc_zihintpause"
     env:
       FREEBSD_SYSROOT: /opt/freebsd-sysroot
       FREEBSD_MAJOR: 14
       FREEBSD_MINOR: 3
+      CFLAGS: ${{ matrix.cflags }}
     
     steps:
       - name: Checkout Code
