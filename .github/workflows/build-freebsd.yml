@@ -51,8 +51,12 @@ jobs:
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
             -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
@@ -71,8 +75,12 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
             -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
