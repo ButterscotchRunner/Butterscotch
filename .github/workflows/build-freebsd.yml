@@ -12,7 +12,6 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            sysroot_arch: amd64
             target_triple: x86_64-freebsd.14.0
           - arch: i386
             target_triple: x86-freebsd.14.0
@@ -20,8 +19,8 @@ jobs:
             target_triple: aarch64-freebsd.14.0
           - arch: riscv
             target_triple: riscv64-freebsd.14.0
-            cflags: "-Xclang -target-feature -Xclang +zihintpause"
-            cxxflags: "-Xclang -target-feature -Xclang +zihintpause"
+            cflags: "-mcpu=baseline_rv64+d+zihintpause"
+            cxxflags: "-mcpu=baseline_rv64+d+zihintpause"
     env:
       CC: "zig cc"
       CXX: "zig c++"
@@ -36,6 +35,7 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
+          cache-key: zigcc-freebsd-${{ matrix.target_triple }}
 
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
@@ -81,9 +81,7 @@ jobs:
             -DCMAKE_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
-            -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
