@@ -180,6 +180,9 @@ jobs:
             -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc \
             -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++ \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
