@@ -63,7 +63,7 @@ jobs:
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
-      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
+      TARGET_TRIPLE: "${{ (matrix.os_config.name == 'Windows' && matrix.arch_config.name == 'i386') && 'i686' || matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
     
     steps:
       - name: Checkout Code
