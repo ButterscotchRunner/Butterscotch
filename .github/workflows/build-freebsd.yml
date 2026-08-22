@@ -25,6 +25,8 @@ jobs:
     env:
       CC: "zig cc"
       CXX: "zig c++"
+      AR: "zig ar"
+      RANLIB: "zig ranlib"
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
     
@@ -36,16 +38,6 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
-
-      - name: Create Zig ar and ranlib wrappers
-        run: |
-          echo '#!/bin/sh' > ${{ github.workspace }}/vendor/zig-ar
-          echo 'exec zig ar "$@"' >> ${{ github.workspace }}/vendor/zig-ar
-          chmod +x ${{ github.workspace }}/vendor/zig-ar
-
-          echo '#!/bin/sh' > ${{ github.workspace }}/vendor/zig-ranlib
-          echo 'exec zig ranlib "$@"' >> ${{ github.workspace }}/vendor/zig-ranlib
-          chmod +x ${{ github.workspace }}/vendor/zig-ranlib
 
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
@@ -59,8 +51,8 @@ jobs:
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
-            -DCMAKE_AR="${{ github.workspace }}/vendor/zig-ar" \
-            -DCMAKE_RANLIB="${{ github.workspace }}/vendor/zig-ranlib" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
@@ -79,8 +71,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
-            -DCMAKE_AR="${{ github.workspace }}/vendor/zig-ar" \
-            -DCMAKE_RANLIB="${{ github.workspace }}/vendor/zig-ranlib" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
