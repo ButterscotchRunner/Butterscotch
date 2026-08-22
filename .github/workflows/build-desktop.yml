@@ -51,8 +51,9 @@ jobs:
             arch_config: { name: loongarch64 }
             
     env:
-      CC: "zig cc -target ${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}"
-      CXX: "zig c++ -target ${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}"
+      CC: "zig cc"
+      CXX: "zig c++"
+      RC: "zig rc"
       CFLAGS: ${{ matrix.arch_config.cflags }}
       CXXFLAGS: ${{ matrix.arch_config.cflags }}
     
@@ -78,8 +79,6 @@ jobs:
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.sys_name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
@@ -101,8 +100,6 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.sys_name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
