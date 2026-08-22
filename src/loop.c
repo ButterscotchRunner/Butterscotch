@@ -561,9 +561,9 @@ int loop(CommandLineArgs args, const char *argv0) {
             vm->opcodeRValueTypeCounts = (uint64_t *)safeCalloc(256 * 256, sizeof(uint64_t));
         }
 #endif
-        if (args.hasSeed) {
+
+        if (args.hasSeed)
             vm->hasFixedSeed = true;
-        }
 
         if (args.printRooms) {
             // Under --lazy-rooms we load each room for display and then free it again so the dump
