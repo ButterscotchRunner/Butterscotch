@@ -19,7 +19,7 @@ jobs:
           - name: Linux
             sys_name: Linux
             sys_version: ""
-            triple_suffix_base: linux-gnu-
+            triple_suffix_base: linux-gnu
             lib_dir_name: lib
           - name: Windows
             sys_name: Windows
@@ -61,7 +61,7 @@ jobs:
       RC: "zig rc"
       CFLAGS: ${{ matrix.arch_config.cflags }}
       CXXFLAGS: ${{ matrix.arch_config.cflags }}
-      TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
+      TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
     
     steps:
       - name: Checkout Code
