@@ -27,3 +27,6 @@ jobs:
 
   Other:
     uses: ./.github/workflows/build-other.yml
+
+  Old compilers:
+    uses: ./.github/workflows/build-old-compilers.yml
