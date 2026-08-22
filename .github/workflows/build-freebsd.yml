@@ -36,6 +36,7 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
+          cache-key: zig-${{ runner.os }}-${{ matrix.target_triple }}-${{ matrix.cflags }}-${{ matrix.cxxflags }}-0.16.0
 
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
