@@ -14,17 +14,17 @@ jobs:
           - name: FreeBSD
             sys_name: FreeBSD
             sys_version: "14.0"
-            triple_suffix: freebsd.14.0
+            triple_suffix_base: freebsd.14.0
             lib_dir_name: libdata
           - name: Linux
             sys_name: Linux
             sys_version: ""
-            triple_suffix: linux-gnu-${{ matrix.arch_config.linux_glibc_floor }}
+            triple_suffix_base: linux-gnu-
             lib_dir_name: lib
           - name: Windows
             sys_name: Windows
             sys_version: ""
-            triple_suffix: windows-gnu
+            triple_suffix_base: windows-gnu
             lib_dir_name: lib
         arch_config:
           - name: amd64
@@ -61,6 +61,7 @@ jobs:
       RC: "zig rc"
       CFLAGS: ${{ matrix.arch_config.cflags }}
       CXXFLAGS: ${{ matrix.arch_config.cflags }}
+      TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
     
     steps:
       - name: Checkout Code
@@ -70,7 +71,7 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
-          cache-key: zigcc-${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}
+          cache-key: zigcc-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}
 
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
@@ -89,8 +90,8 @@ jobs:
             -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
@@ -115,8 +116,8 @@ jobs:
             -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
@@ -127,5 +128,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch }}
+          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}
           path: build/butterscotch
