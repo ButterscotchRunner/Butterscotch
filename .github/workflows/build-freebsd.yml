@@ -51,12 +51,12 @@ jobs:
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
-            -DCMAKE_AR="$ZIG_EXE;ar" \
-            -DCMAKE_RANLIB="$ZIG_EXE;ranlib" \
-            -DCMAKE_C_COMPILER_AR="$ZIG_EXE;ar" \
-            -DCMAKE_CXX_COMPILER_AR="$ZIG_EXE;ar" \
-            -DCMAKE_C_COMPILER_RANLIB="$ZIG_EXE;ranlib" \
-            -DCMAKE_CXX_COMPILER_RANLIB="$ZIG_EXE;ranlib" \
+            -DCMAKE_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
+            -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
@@ -77,12 +77,12 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
-            -DCMAKE_AR="$ZIG_EXE;ar" \
-            -DCMAKE_RANLIB="$ZIG_EXE;ranlib" \
-            -DCMAKE_C_COMPILER_AR="$ZIG_EXE;ar" \
-            -DCMAKE_CXX_COMPILER_AR="$ZIG_EXE;ar" \
-            -DCMAKE_C_COMPILER_RANLIB="$ZIG_EXE;ranlib" \
-            -DCMAKE_CXX_COMPILER_RANLIB="$ZIG_EXE;ranlib" \
+            -DCMAKE_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
+            -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
