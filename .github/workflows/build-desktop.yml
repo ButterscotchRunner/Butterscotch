@@ -19,29 +19,34 @@ jobs:
           - name: Linux
             sys_name: Linux
             sys_version: ""
-            triple_suffix: linux-gnu.2.17
+            triple_suffix: linux-gnu-${{ matrix.arch_config.linux_glibc_floor }}
             lib_dir_name: lib
           - name: Windows
             sys_name: Windows
             sys_version: ""
-            triple_suffix: windows-msvc
+            triple_suffix: windows-gnu
             lib_dir_name: lib
         arch_config:
           - name: amd64
             triple_prefix: x86_64
             cflags: ""
+            linux_glibc_floor: "2.17"
           - name: i386
             triple_prefix: x86
             cflags: ""
+            linux_glibc_floor: "2.17"
           - name: aarch64
             triple_prefix: aarch64
             cflags: ""
+            linux_glibc_floor: "2.17"
           - name: riscv
             triple_prefix: riscv64
             cflags: "-mcpu=generic_rv64+m+a+f+d+c+zihintpause"
+            linux_glibc_floor: "2.27"
           - name: loongarch64
             triple_prefix: loongarch64
             cflags: ""
+            linux_glibc_floor: "2.36"
         exclude:
           - os_config: { name: Windows }
             arch_config: { name: riscv }
