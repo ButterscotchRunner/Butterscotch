@@ -23,6 +23,10 @@ jobs:
             cflags: "-mcpu=baseline_rv64 -Xclang -target-feature -Xclang +zihintpause"
             cxxflags: "-mcpu=baseline_rv64 -Xclang -target-feature -Xclang +zihintpause"
     env:
+      CC: "zig cc"
+      CXX: "zig c++"
+      AR: "zig ar"
+      RANLIB: "zig ranlib"
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
     
@@ -44,7 +48,7 @@ jobs:
 
       - name: Build SDL2 from source
         run: |
-          CC="zig cc" CXX="zig c++" cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
@@ -61,7 +65,7 @@ jobs:
 
       - name: Configure and build Butterscotch
         run: |
-          CC="zig cc" CXX="zig c++" cmake -S . -B build -G Ninja \
+          cmake -S . -B build -G Ninja \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
