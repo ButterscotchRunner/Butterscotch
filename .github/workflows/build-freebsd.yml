@@ -37,6 +37,18 @@ jobs:
           version: 0.16.0
           cache-key: zigcc-freebsd-${{ matrix.target_triple }}
 
+      - name: Install ccache
+        run: |
+          sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Setup ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: zigcc-freebsd-${{ matrix.target_triple }}-${{ github.sha }}
+          restore-keys: |
+            zigcc-freebsd-${{ matrix.target_triple }}-
+
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
         with:
