@@ -30,8 +30,5 @@ uint32_t Random_nextUInt32(Random* m) {
     a = m->state[m->index];
     m->state[m->index] = a ^ b ^ d ^ (a << 2) ^ (b << 18) ^ (c << 28);
 
-    int32_t ret = m->state[m->index];
-    if (ret < 0)
-        ret = -ret;
-    return ret;
+    return m->state[m->index];
 }
