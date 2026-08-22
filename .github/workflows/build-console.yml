@@ -150,7 +150,7 @@ jobs:
             ccache-ps3-
 
       - name: Configure
-        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
