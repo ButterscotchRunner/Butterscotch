@@ -25,8 +25,8 @@ jobs:
     env:
       CC: "zig cc"
       CXX: "zig c++"
-      AR: "zig ar"
-      RANLIB: "zig ranlib"
+      AR: "llvm-ar"
+      RANLIB: "llvm-ranlib"
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
     
