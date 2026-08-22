@@ -30,7 +30,7 @@ jobs:
             cflags: ""
             linux_glibc_floor: "2.17"
           - name: i386
-            triple_prefix: i686
+            triple_prefix: x86
             cflags: ""
             linux_glibc_floor: "2.17"
           - name: aarch64
