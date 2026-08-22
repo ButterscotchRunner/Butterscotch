@@ -80,7 +80,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}-${{ env.ZIG_VERSION }}-release-2.24.x
+          key: sdl2-install-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}-${{ env.ZIG_VERSION }}-release-2.24.x
 
       - name: Checkout SDL 2.24.x
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
@@ -117,7 +117,7 @@ jobs:
         env:
           PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
           PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
-          PKG_CONFIG_SYSROOT_DIR: "/"
+          PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           cmake -S . -B build -G Ninja \
