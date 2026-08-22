@@ -10,11 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install TinyCC
-        run: sudo apt-get install -y tcc
+      - name: Install dependencies
+        run: sudo apt-get install -y tcc libsdl2-dev
 
       - name: Configure and build Butterscotch
-        run: make CC='tcc' NO_COLOR=1 VERBOSE=1 -j$(nproc)
+        run: make CC='tcc' BACKEND=sdl2 NO_COLOR=1 VERBOSE=1 -j$(nproc)
 
   build-old-gcc:
     strategy:
