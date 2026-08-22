@@ -15,13 +15,13 @@ jobs:
             sysroot_arch: amd64
             target_triple: x86_64-freebsd.14.0
           - arch: i386
-            target_triple: i386-freebsd.14.0
+            target_triple: x86-freebsd.14.0
           - arch: aarch64
             target_triple: aarch64-freebsd.14.0
           - arch: riscv
             target_triple: riscv64-freebsd.14.0
-            cflags: "-march=rv64gc_zihintpause"
-            cxxflags: "-march=rv64gc_zihintpause"
+            cflags: "-mcpu=baseline_rv64 -Xclang -target-feature -Xclang +zihintpause hello.c"
+            cxxflags: "-mcpu=baseline_rv64 -Xclang -target-feature -Xclang +zihintpause hello.c"
     env:
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
@@ -45,6 +45,7 @@ jobs:
       - name: Build SDL2 from source
         run: |
           CC="zig cc" CXX="zig c++" cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
