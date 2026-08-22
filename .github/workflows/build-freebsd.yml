@@ -72,7 +72,8 @@ jobs:
         env:
           PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
           PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
-          PKG_CONFIG_SYSROOT_DIR: ""
+          PKG_CONFIG_SYSROOT_DIR: "/"
+          PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
