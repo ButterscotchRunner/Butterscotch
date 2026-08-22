@@ -133,7 +133,8 @@ jobs:
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
           cmake --build build
 
       - name: Upload artifact
