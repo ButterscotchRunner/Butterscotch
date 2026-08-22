@@ -46,8 +46,6 @@ jobs:
 
       - name: Build SDL2 from source
         run: |
-          ZIG_EXE=$(which zig)
-          
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
@@ -72,8 +70,6 @@ jobs:
 
       - name: Configure and build Butterscotch
         run: |
-          ZIG_EXE=$(which zig)
-          
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
             -DCMAKE_SYSTEM_VERSION="14.0" \
