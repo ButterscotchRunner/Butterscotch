@@ -26,6 +26,7 @@ jobs:
             sys_version: ""
             triple_suffix_base: windows-gnu
             lib_dir_name: lib
+            executable_suffix: .exe
         arch_config:
           - name: amd64
             triple_prefix: x86_64
@@ -128,5 +129,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}
+          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}${{ matrix.os_config.executable_suffix }}
           path: build/butterscotch
