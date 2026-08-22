@@ -45,7 +45,6 @@ jobs:
       - name: Build SDL2 from source
         run: |
           CC="zig cc" CXX="zig c++" cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
