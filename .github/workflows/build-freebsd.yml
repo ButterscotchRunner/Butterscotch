@@ -69,6 +69,8 @@ jobs:
           cmake --install vendor/SDL2/build
 
       - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
