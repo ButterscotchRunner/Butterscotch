@@ -69,6 +69,8 @@ jobs:
             -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
@@ -94,6 +96,8 @@ jobs:
             -DCMAKE_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
             -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
