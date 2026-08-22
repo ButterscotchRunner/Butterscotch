@@ -70,8 +70,8 @@ jobs:
 
       - name: Configure and build Butterscotch
         env:
-          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
-          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
+          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/libdata/kgconfig"
+          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/libdata/pkgconfig"
           PKG_CONFIG_SYSROOT_DIR: "/"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
