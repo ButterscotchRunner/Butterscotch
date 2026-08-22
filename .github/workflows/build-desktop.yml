@@ -57,7 +57,7 @@ jobs:
             arch_config: { name: loongarch64 }
             
     env:
-      ZIG_VERSION: 0.16.0
+      ZIG_VERSION: ${{ (matrix.arch_config.name == 'aarch64' && matrix.os_config.name == 'Windows') && '0.15.2' || '0.16.0' }}
       CC: "zig cc"
       CXX: "zig c++"
       RC: "zig rc"
