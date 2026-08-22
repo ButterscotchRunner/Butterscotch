@@ -21,7 +21,7 @@ jobs:
             lib_dir_name: lib
           - name: Windows
             sys_version: ""
-            triple_suffix_base: windows-gnu
+            triple_suffix_base: w64-mingw32
             lib_dir_name: lib
             executable_suffix: .exe
         arch_config:
@@ -30,7 +30,7 @@ jobs:
             cflags: ""
             linux_glibc_floor: "2.17"
           - name: i386
-            triple_prefix: x86
+            triple_prefix: i686
             cflags: ""
             linux_glibc_floor: "2.17"
           - name: aarch64
@@ -55,18 +55,36 @@ jobs:
             
     env:
       ZIG_VERSION: ${{ (matrix.arch_config.name == 'aarch64' && matrix.os_config.name == 'Windows') && '0.15.2' || '0.16.0' }}
-      CC: "zig cc"
-      CXX: "zig c++"
-      RC: "zig rc"
+      CC: ${{ matrix.os_config.name == 'Windows' && 'clang' || 'zig cc' }}
+      CXX: ${{ matrix.os_config.name == 'Windows' && 'clang++' || 'zig c++' }}
+      RC: ${{ matrix.os_config.name == 'Windows' && 'llvm-rc' || 'zig rc' }}
+      AR: ${{ matrix.os_config.name == 'Windows' && 'llvm-ar' || format('{0}/artifacts/zig-ar', github.workspace) }}
+      RANLIB: ${{ matrix.os_config.name == 'Windows' && 'llvm-ranlib' || format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
+      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
 
+      - name: Install LLVM-MinGW
+        if: matrix.os_config.name == 'Windows'
+        run: |
+          curl -L \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            -o /tmp/llvm-mingw.tar.xz
+
+          sudo mkdir -p /opt/llvm-mingw
+          sudo tar -xf /tmp/llvm-mingw.tar.xz \
+            --strip-components=1 \
+            -C /opt/llvm-mingw
+
+          echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
+
       - name: Setup Zig
+        if: matrix.os_config.name != 'Windows'
         uses: mlugg/setup-zig@v2
         with:
           version: ${{ env.ZIG_VERSION }}
@@ -77,7 +95,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}-${{ env.ZIG_VERSION }}-release-2.24.x
+          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.24.x
 
       - name: Checkout SDL 2.24.x
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
@@ -94,12 +112,12 @@ jobs:
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
-            -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
-            -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
@@ -118,12 +136,12 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
-            -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
-            -DCMAKE_C_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_CXX_COMPILER_RANLIB="${{ github.workspace }}/artifacts/zig-ranlib" \
-            -DCMAKE_C_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
@@ -135,5 +153,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}
+          name: Butterscotch-${{ matrix.os_config.name }}-${{ matrix.arch_config.name }}
           path: build/butterscotch${{ matrix.os_config.executable_suffix }}
