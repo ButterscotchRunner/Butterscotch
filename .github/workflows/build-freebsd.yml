@@ -25,8 +25,6 @@ jobs:
     env:
       CC: "zig cc"
       CXX: "zig c++"
-      AR: "llvm-ar"
-      RANLIB: "llvm-ranlib"
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
     
@@ -39,6 +37,16 @@ jobs:
         with:
           version: 0.16.0
 
+      - name: Create Zig ar and ranlib wrappers
+        run: |
+          echo '#!/bin/sh' > ${{ github.workspace }}/vendor/zig-ar
+          echo 'exec zig ar "$@"' >> ${{ github.workspace }}/vendor/zig-ar
+          chmod +x ${{ github.workspace }}/vendor/zig-ar
+
+          echo '#!/bin/sh' > ${{ github.workspace }}/vendor/zig-ranlib
+          echo 'exec zig ranlib "$@"' >> ${{ github.workspace }}/vendor/zig-ranlib
+          chmod +x ${{ github.workspace }}/vendor/zig-ranlib
+
       - name: Checkout SDL 2.24.x
         uses: actions/checkout@v7
         with:
@@ -50,11 +58,12 @@ jobs:
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=FreeBSD \
+            -DCMAKE_SYSTEM_VERSION="14.0" \
+            -DCMAKE_AR="${{ github.workspace }}/vendor/zig-ar" \
+            -DCMAKE_RANLIB="${{ github.workspace }}/vendor/zig-ranlib" \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_AR="${{ env.AR }}" \
-            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
@@ -68,14 +77,16 @@ jobs:
       - name: Configure and build Butterscotch
         run: |
           cmake -S . -B build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=FreeBSD \
+            -DCMAKE_SYSTEM_VERSION="14.0" \
+            -DCMAKE_AR="${{ github.workspace }}/vendor/zig-ar" \
+            -DCMAKE_RANLIB="${{ github.workspace }}/vendor/zig-ranlib" \
             -DBACKEND=sdl2 \
             -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_AR="${{ env.AR }}" \
-            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build
       
