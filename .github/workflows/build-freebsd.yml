@@ -19,8 +19,8 @@ jobs:
             target_triple: aarch64-freebsd.14.0
           - arch: riscv
             target_triple: riscv64-freebsd.14.0
-            cflags: "-mcpu=baseline_rv64+d+zihintpause"
-            cxxflags: "-mcpu=baseline_rv64+d+zihintpause"
+            cflags: "-mcpu=generic_rv64+m+a+f+d+c+zihintpause"
+            cxxflags: "-mcpu=generic_rv64+m+a+f+d+c+zihintpause"
     env:
       CC: "zig cc"
       CXX: "zig c++"
