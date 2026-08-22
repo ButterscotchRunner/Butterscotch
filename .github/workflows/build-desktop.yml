@@ -57,6 +57,7 @@ jobs:
             arch_config: { name: loongarch64 }
             
     env:
+      ZIG_VERSION: 0.16.0
       CC: "zig cc"
       CXX: "zig c++"
       RC: "zig rc"
@@ -71,10 +72,18 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0
+          version: ${{ env.ZIG_VERSION }}
           cache-key: zigcc-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}
 
+      - name: Cache SDL2 build
+        id: cache-sdl2
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vendor/SDL2/install
+          key: sdl2-install-${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix }}-${{ env.ZIG_VERSION }}-release-2.24.x
+
       - name: Checkout SDL 2.24.x
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -82,6 +91,7 @@ jobs:
           path: vendor/SDL2
 
       - name: Build SDL2 from source
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.sys_name }} \
@@ -129,5 +139,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}${{ matrix.os_config.executable_suffix }}
-          path: build/butterscotch
+          name: Butterscotch-${{ matrix.os_config.sys_name }}-${{ matrix.arch_config.name }}
+          path: build/butterscotch${{ matrix.os_config.executable_suffix }}
