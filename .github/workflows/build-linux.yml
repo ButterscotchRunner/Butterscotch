@@ -1,0 +1,286 @@
+name: Linux builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-desktop-linux:
+    name: Build (${{ matrix.desktop_backend_label }} ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            desktop_backend: glfw3
+            desktop_backend_label: GLFW3
+
+          - arch: i686
+            runner: ubuntu-22.04
+            desktop_backend: sdl2
+            desktop_backend_label: SDL2
+            cflags: "-m32"
+            cxxflags: "-m32"
+            ldflags: "-m32"
+
+          - arch: arm64
+            runner: ubuntu-24.04
+            desktop_backend: glfw3
+            desktop_backend_label: GLFW3
+            target_triple: aarch64-linux-gnu
+            cflags: "-march=armv8-a"
+            cxxflags: "-march=armv8-a"
+
+          - arch: riscv64
+            runner: ubuntu-24.04
+            desktop_backend: glfw3
+            desktop_backend_label: GLFW3
+            target_triple: riscv64-linux-gnu
+            cflags: "-march=rv64gc_zihintpause -mabi=lp64d"
+            cxxflags: "-march=rv64gc_zihintpause -mabi=lp64d"
+
+          - arch: loongarch64
+            runner: ubuntu-26.04
+            desktop_backend: sdl2
+            desktop_backend_label: SDL2
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare APT cache
+        run: |
+          mkdir -p "$HOME/.apt-cache"
+          sudo chmod -R a+rwX "$HOME/.apt-cache"
+
+      - name: Cache APT packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.apt-cache
+          key: apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            apt-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
+
+      - name: Install dependencies
+        env:
+          APT_CACHE_DIR: ${{ github.workspace }}/.apt-cache
+        run: |
+          mkdir -p "$APT_CACHE_DIR/archives"
+
+          if [ "${{ matrix.desktop_backend }}" = "glfw3" ]; then
+            pkg_name="libglfw3-dev"
+          elif [ "${{ matrix.desktop_backend }}" = "sdl2" ]; then
+            pkg_name="libsdl2-dev"
+          else
+            echo "Unknown desktop backend: ${{ matrix.desktop_backend }}"
+            exit 1
+          fi
+
+          APT_ARGS=(
+            -o "Dir::Cache::archives=$APT_CACHE_DIR/archives"
+            -o "APT::Keep-Downloaded-Packages=true"
+          )
+
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+
+            sudo dpkg --add-architecture arm64
+            printf '%s\n' \
+              'Types: deb' \
+              'URIs: http://ports.ubuntu.com/ubuntu-ports' \
+              'Suites: noble noble-updates noble-security noble-backports' \
+              'Components: main universe restricted multiverse' \
+              'Architectures: arm64' \
+              'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+              | sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
+
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libc6-dev-arm64-cross \
+              libglfw3-dev:arm64
+          elif [ "${{ matrix.arch }}" = "i686" ]; then
+            sudo dpkg --add-architecture i386
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-multilib \
+              g++-multilib \
+              $pkg_name:i386
+          elif [ "${{ matrix.arch }}" = "x86_64" ]; then
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-multilib \
+              g++-multilib \
+              $pkg_name
+          elif [ "${{ matrix.arch }}" = "loongarch64" ]; then
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-loongarch64-linux-gnu \
+              g++-loongarch64-linux-gnu
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+            sudo dpkg --add-architecture riscv64
+            printf '%s\n' \
+              'Types: deb' \
+              'URIs: http://ports.ubuntu.com/ubuntu-ports' \
+              'Suites: noble noble-updates noble-security noble-backports' \
+              'Components: main universe restricted multiverse' \
+              'Architectures: riscv64' \
+              'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+              | sudo tee /etc/apt/sources.list.d/ubuntu-ports-riscv64.sources >/dev/null
+            sudo apt-get "${APT_ARGS[@]}" update
+            sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+              gcc-riscv64-linux-gnu \
+              g++-riscv64-linux-gnu \
+              libc6-dev-riscv64-cross \
+              $pkg_name:riscv64
+          else
+            echo "Unknown architecture: ${{ matrix.arch }}"
+            exit 1
+          fi
+          sudo apt-get "${APT_ARGS[@]}" install -y --no-install-recommends \
+            pkg-config \
+            cmake \
+            ninja-build \
+            ccache \
+            libbz2-dev
+
+          sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
+
+      - name: Checkout SDL 2.24.x (LoongArch)
+        uses: actions/checkout@v7
+        if: matrix.arch == 'loongarch64'
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.24.x
+          path: vendor/SDL2
+
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-${{ matrix.desktop_backend }}-${{ matrix.arch }}-
+
+      - name: Build SDL2 from source (LoongArch)
+        if: matrix.arch == 'loongarch64'
+        run: |
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=loongarch64 \
+            -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++ \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DSDL_SHARED=OFF \
+            -DSDL_STATIC=ON \
+            -DSDL_TESTS=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake --build vendor/SDL2/build --parallel --target install
+
+      - name: Configure
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cxxflags }}
+          LDFLAGS: ${{ matrix.ldflags }}
+        run: |
+          CMAKE_ARGS=(
+            -DWERROR=ON
+            -DBACKEND=${{ matrix.desktop_backend }}
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          )
+
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu:/usr/share/pkgconfig"
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            export PKG_CONFIG_SYSROOT_DIR="/"
+            export CC="${{ matrix.target_triple }}-gcc"
+            export CXX="${{ matrix.target_triple }}-g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=aarch64
+              -DCMAKE_C_COMPILER="${{ matrix.target_triple }}-gcc"
+              -DCMAKE_CXX_COMPILER="${{ matrix.target_triple }}-g++"
+              -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.target_triple }}
+              -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
+            )
+          elif [ "${{ matrix.arch }}" = "i686" ]; then
+            export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            unset PKG_CONFIG_SYSROOT_DIR
+            export CC="gcc"
+            export CXX="g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_C_COMPILER=gcc
+              -DCMAKE_CXX_COMPILER=g++
+            )
+          elif [ "${{ matrix.arch }}" = "x86_64" ]; then
+            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+            export CC="gcc"
+            export CXX="g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_C_COMPILER=gcc
+              -DCMAKE_CXX_COMPILER=g++
+            )
+          elif [ "${{ matrix.arch }}" = "loongarch64" ]; then
+            unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+            export CC="loongarch64-linux-gnu-gcc"
+            export CXX="loongarch64-linux-gnu-g++"
+  
+            CMAKE_ARGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=loongarch64
+              -DCMAKE_C_COMPILER=loongarch64-linux-gnu-gcc
+              -DCMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++
+              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install"
+            )
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            export PKG_CONFIG_PATH="/usr/lib/${{ matrix.target_triple }}/pkgconfig:/usr/lib/${{ matrix.target_triple }}:/usr/share/pkgconfig"
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            export PKG_CONFIG_SYSROOT_DIR="/"
+            export CC="${{ matrix.target_triple }}-gcc"
+            export CXX="${{ matrix.target_triple }}-g++"
+
+            CMAKE_ARGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=riscv64
+              -DCMAKE_C_COMPILER="${{ matrix.target_triple }}-gcc"
+              -DCMAKE_CXX_COMPILER="${{ matrix.target_triple }}-g++"
+              -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.target_triple }}
+              -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+              -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
+            )
+          else
+            echo "Unknown architecture: ${{ matrix.arch }}"
+            exit 1
+          fi
+
+          cmake -B build -G Ninja "${CMAKE_ARGS[@]}"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-${{ matrix.desktop_backend }}-linux-${{ matrix.arch }}
+          path: build/butterscotch

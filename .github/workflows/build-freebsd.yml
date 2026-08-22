@@ -1,0 +1,123 @@
+name: FreeBSD builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-sdl2-freebsd:
+    name: Build (SDL2/FreeBSD ${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            sysroot_arch: amd64
+            target_triple: x86_64-unknown-freebsd
+          - arch: i386
+            sysroot_arch: i386
+            target_triple: i386-unknown-freebsd
+          - arch: aarch64
+            sysroot_arch: arm64
+            target_triple: aarch64-unknown-freebsd
+          - arch: riscv
+            sysroot_arch: riscv
+            target_triple: riscv64-unknown-freebsd
+            cflags: "-march=rv64gc_zihintpause"
+            cxxflags: "-march=rv64gc_zihintpause"
+    env:
+      FREEBSD_SYSROOT: /opt/freebsd-sysroot
+      FREEBSD_MAJOR: 14
+      FREEBSD_MINOR: 3
+      CFLAGS: ${{ matrix.cflags }}
+      CXXFLAGS: ${{ matrix.cxxflags }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+  
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-freebsd-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-freebsd-${{ matrix.arch }}-
+
+      - name: Download FreeBSD sysroot
+        run: |
+          curl -L -o sysroot.tar.xz https://download.freebsd.org/releases/${{ matrix.sysroot_arch }}/${{ env.FREEBSD_MAJOR }}.${{ env.FREEBSD_MINOR }}-RELEASE/base.txz
+          sudo mkdir -p ${{ env.FREEBSD_SYSROOT }}
+          sudo tar -xJf sysroot.tar.xz -C ${{ env.FREEBSD_SYSROOT }}
+          rm sysroot.tar.xz
+
+      - name: Checkout SDL 2.24.x (RISC-V)
+        uses: actions/checkout@v7
+        if: matrix.arch == 'riscv'
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.24.x
+          path: vendor/SDL2
+
+      - name: Build SDL2 from source (RISC-V)
+        if: matrix.arch == 'riscv'
+        run: |
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
+            -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_INSTALL_PREFIX="/usr/local" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_DEFAULT_CMP0069=NEW \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DSDL_SHARED=OFF \
+            -DSDL_STATIC=ON \
+            -DSDL_TESTS=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake --build vendor/SDL2/build
+          sudo cmake --install vendor/SDL2/build --prefix "${{ env.FREEBSD_SYSROOT }}/usr/local"
+
+      - name: Download SDL2 for FreeBSD
+        if: matrix.arch != 'riscv'
+        run: |
+          # first we get the packagesite
+          curl -L -o packagesite.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/packagesite.pkg"
+          mkdir -p /tmp/packagesite
+          tar -xf packagesite.pkg -C /tmp/packagesite
+          rm packagesite.pkg
+          SDL2_REPOPATH="$(grep -m 1 '"name":"sdl2"' /tmp/packagesite/packagesite.yaml | sed -n 's/.*"path":"\([^"]*\)".*/\1/p')"
+          
+          # then we get SDL2
+          curl -L -o sdl2.pkg "https://pkg.freebsd.org/FreeBSD:${{ env.FREEBSD_MAJOR }}:${{ matrix.arch }}/latest/${SDL2_REPOPATH}"
+          sudo tar -xf sdl2.pkg -C ${{ env.FREEBSD_SYSROOT }}
+          rm sdl2.pkg
+
+      - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_DIR: ""
+          PKG_CONFIG_LIBDIR: ${{ env.FREEBSD_SYSROOT }}/usr/local/libdata/pkgconfig:${{ env.FREEBSD_SYSROOT }}/usr/libdata/pkgconfig
+          PKG_CONFIG_SYSROOT_DIR: ${{ env.FREEBSD_SYSROOT }}
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DBACKEND=sdl2 \
+            -DAUDIO_BACKEND=miniaudio \
+            -DWERROR=ON \
+            -DCMAKE_SYSROOT=${{ env.FREEBSD_SYSROOT }} \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/freebsd-llvm.cmake \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target_triple }} \
+            -DCMAKE_PREFIX_PATH="${{ env.FREEBSD_SYSROOT }}/usr/local" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-sdl2-freebsd-${{ matrix.arch }}
+          path: build/butterscotch

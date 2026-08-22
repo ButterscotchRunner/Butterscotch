@@ -562,11 +562,8 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 #endif
 
-        if (args.hasSeed) {
-            srand((unsigned int) args.seed);
+        if (args.hasSeed)
             vm->hasFixedSeed = true;
-            logInfo("Using fixed RNG seed: %d\n", args.seed);
-        }
 
         if (args.printRooms) {
             // Under --lazy-rooms we load each room for display and then free it again so the dump
@@ -881,7 +878,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the runner
-        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
 
         if (!args.lazyTextures) {
             repeat(runner->dataWin->txtr.count, i) {

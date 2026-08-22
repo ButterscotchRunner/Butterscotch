@@ -1,0 +1,79 @@
+name: Haiku build
+
+on:
+  workflow_call:
+
+jobs:
+  build-glfw3-haiku:
+    name: Build (GLFW3 x86_64)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            host_cache/ccache
+            host_cache/pkgman
+          key: ccache-haiku-${{ github.sha }}
+          restore-keys: |
+            ccache-haiku-
+
+      - name: Start VM
+        uses: cross-platform-actions/action@v1.4.0
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: 'r1beta5'
+
+      - name: Seed ccache and package cache
+        run: |
+          if [ -d "host_cache/ccache" ]; then
+            mkdir -p /boot/home/.ccache
+            cp -R host_cache/ccache/* /boot/home/.ccache/ || true
+          fi
+
+          if [ -d "host_cache/pkgman" ]; then
+            mkdir -p /boot/system/cache/package-repositories
+            cp -R host_cache/pkgman/* /boot/system/cache/package-repositories/ || true
+          fi
+
+      - name: Install dependencies
+        run: |
+          yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
+          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel 
+
+      - name: Configure and build Butterscotch
+        run: |
+          export CCACHE_DIR=/boot/home/.ccache
+          cmake -B build \
+            -DBACKEND=glfw3 \
+            -DAUDIO_BACKEND=openal \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build
+
+      - name: Persist cache to host
+        if: always()
+        run: |
+          mkdir -p host_cache/ccache
+          if [ -d "/boot/home/.ccache" ]; then
+            cp -R /boot/home/.ccache/* host_cache/ccache/ || true
+          fi
+
+          mkdir -p host_cache/pkgman
+          if [ -d "/boot/system/cache/package-repositories" ]; then
+            cp -R /boot/system/cache/package-repositories/* host_cache/pkgman/ || true
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-glfw3-haiku-x86-64
+          path: build/butterscotch

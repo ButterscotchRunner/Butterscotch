@@ -307,7 +307,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Initialize the runner
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, 0);
     runner->debugMode = false;
     //runner->osType = OS_PS3;
 

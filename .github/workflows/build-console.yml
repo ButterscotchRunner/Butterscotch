@@ -1,0 +1,272 @@
+name: Console builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-ps2:
+    name: Build (PS2)${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    container:
+      image: ps2dev/ps2dev:latest
+    env:
+      CCACHE_IGNOREOPTIONS: "-DBUTTERSCOTCH_COMMIT_HASH=* -DBUTTERSCOTCH_COMMIT_DATE=*"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ""
+            artifact: butterscotch-ps2
+            extra_flags: ""
+          - label: " [WAD Version 14]"
+            artifact: butterscotch-ps2-wad14
+            extra_flags: "-DENABLE_WAD14=ON -DENABLE_WAD16=OFF -DENABLE_WAD17=OFF"
+          - label: " [WAD Version 16]"
+            artifact: butterscotch-ps2-wad16
+            extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=ON -DENABLE_WAD17=OFF"
+          - label: " [WAD Version 17]"
+            artifact: butterscotch-ps2-wad17
+            extra_flags: "-DENABLE_WAD14=OFF -DENABLE_WAD16=OFF -DENABLE_WAD17=ON"
+    steps:
+      - name: Install build tools
+        run: apk add --no-cache cmake ninja ccache gmp-dev mpfr-dev mpc1-dev git tar
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ps2-${{ matrix.artifact }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ps2-${{ matrix.artifact }}-
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+
+      - name: Configure
+        run: |
+          mkdir -p build
+          export CFLAGS="-fopt-info-inline-optimized=$PWD/build/inline_report.txt"
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PS2SDK/ps2dev.cmake -DWERROR=ON -DPLATFORM=ps2 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${{ matrix.extra_flags }} -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+      - name: Build
+        run: |
+          cmake --build build
+          cp build/butterscotch build/butterscotch.elf
+
+      - name: Check executeLoop I-Cache fit
+        run: |
+          SYMBOL_LINES=$(mips64r5900el-ps2-elf-nm -S build/butterscotch.elf | grep -E ' executeLoop(\..*)?$' || true)
+          if [ -z "$SYMBOL_LINES" ]; then
+            echo "::error::Could not find executeLoop symbol in ELF (is it stripped?)"
+            exit 1
+          fi
+          echo "$SYMBOL_LINES"
+          SIZE_DEC=0
+          VARIANT_COUNT=0
+          for SIZE_HEX in $(echo "$SYMBOL_LINES" | awk '{print $2}'); do
+            SIZE_DEC=$((SIZE_DEC + 0x$SIZE_HEX))
+            VARIANT_COUNT=$((VARIANT_COUNT + 1))
+          done
+          LIMIT=16384
+          if [ "$SIZE_DEC" -gt "$LIMIT" ]; then
+            echo "::error::executeLoop is $SIZE_DEC bytes across $VARIANT_COUNT variant(s), exceeding the PS2 16 KB I-Cache ($LIMIT bytes) by $((SIZE_DEC - LIMIT)) bytes"
+            echo "| Function | Size | Limit | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| \`executeLoop\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | **EXCEEDED** by $((SIZE_DEC - LIMIT)) bytes |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Function | Size | Limit | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`executeLoop\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | $((LIMIT - SIZE_DEC)) bytes remaining |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report executeLoop inlining
+        run: |
+          REPORT=build/inline_report.txt
+          if [ ! -s "$REPORT" ]; then
+            echo "::warning::No inline report produced at $REPORT"
+            exit 0
+          fi
+          INLINED=$(grep -E "Inlin(ed|ing) .* into executeLoop" "$REPORT" \
+            | awk '{for(i=1;i<=NF;i++) if($i=="into" && $(i+1) ~ /^executeLoop/) {name=$(i-1); sub(/\/[0-9]+$/,"",name); print name}}' \
+            | sort -u)
+          VARIANT_NAMES=$(mips64r5900el-ps2-elf-nm build/butterscotch.elf | awk '/ executeLoop(\..*)?$/ {print $3}')
+          DISASM_ARGS=""
+          for NAME in $VARIANT_NAMES; do
+            DISASM_ARGS="$DISASM_ARGS --disassemble=$NAME"
+          done
+          NOT_INLINED=$(mips64r5900el-ps2-elf-objdump -d $DISASM_ARGS build/butterscotch.elf 2>/dev/null \
+            | grep -oE "jal[[:space:]]+[0-9a-f]+ <[^>]+>" \
+            | sed -E 's/.*<([^>]+)>/\1/' \
+            | sort -u)
+          INLINED_COUNT=$(printf "%s\n" "$INLINED" | grep -c . || true)
+          NOT_INLINED_COUNT=$(printf "%s\n" "$NOT_INLINED" | grep -c . || true)
+          {
+            echo ""
+            echo "### \`executeLoop\` inlining report"
+            echo ""
+            echo "<details><summary>Inlined into <code>executeLoop</code> ($INLINED_COUNT callees, per GCC <code>-fopt-info-inline-optimized</code>)</summary>"
+            echo ""
+            echo '```'
+            printf "%s\n" "$INLINED"
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "<details><summary>Still called via <code>jal</code> from <code>executeLoop</code> ($NOT_INLINED_COUNT symbols, per <code>objdump</code>)</summary>"
+            echo ""
+            echo '```'
+            printf "%s\n" "$NOT_INLINED"
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/butterscotch.elf
+
+  build-ps3:
+    name: Build (PS3)
+    runs-on: ubuntu-24.04
+    container: scummvm/dockerized-toolchains:ps3
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install ccache
+        run: apt-get update && apt-get install -y ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ps3-${{ github.sha }}
+          restore-keys: |
+            ccache-ps3-
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=ps3 -DCMAKE_TOOLCHAIN_FILE=cmake/ppu.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build
+          sprxlinker build/butterscotch.elf
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-ps3
+          path: build/butterscotch.elf
+
+  build-vita:
+    name: Build (PS Vita)
+    runs-on: ubuntu-24.04
+    container: vitasdk/vitasdk:latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        run: |
+          apt-get update && apt-get install -y ninja-build ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-vita-${{ github.sha }}
+          restore-keys: |
+            ccache-vita-
+
+      - name: Checkout vitaGL
+        uses: actions/checkout@v7
+        with:
+          repository: Rinnegatamante/vitaGL
+          path: vendor/vitaGL
+
+      - name: Build vitaGL with speedhacks
+        run: |
+          mkdir -p /tmp/ccache-symlinks
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-gcc
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-g++
+
+          export PATH=/tmp/ccache-symlinks:$PATH
+          make -C vendor/vitaGL \
+            install \
+            NO_DEBUG=1 \
+            NO_SPLASHSCREEN=1 \
+            LOG_ERRORS=1 \
+            HAVE_SHADER_CACHE=1 \
+            USE_SCRATCH_MEMORY=1 \
+            DEPTH_STENCIL_HACK=1 \
+            READBACKS_SPEEDHACK=1 \
+            -j$(nproc)
+
+      - name: Checkout SDL2
+        uses: actions/checkout@v7
+        with:
+          repository: Northfear/SDL
+          path: vendor/SDL2
+          ref: vitagl
+
+      - name: Build SDL2
+        run: |
+          cmake -Svendor/SDL2 -Bvendor/SDL2/build -GNinja -DCMAKE_TOOLCHAIN_FILE=${VITASDK}/share/vita.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DVIDEO_VITA_VGL=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build vendor/SDL2/build
+          cmake --install vendor/SDL2/build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=vita -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: |
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-vita
+          path: build/Butterscotch.vpk
+
+  build-switch:
+    name: Build (Nintendo Switch)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkita64:latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: switch-ccache-${{ github.sha }}
+          restore-keys: |
+            switch-ccache-
+
+      - name: Install ccache
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends ccache
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DPLATFORM=switch \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-switch
+          path: build/butterscotch.nro

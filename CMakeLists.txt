@@ -51,6 +51,22 @@ else()
     endif()
 endif()
 
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(MSVC)
+        # equivalent to -fomit-frame-pointer
+        add_compile_options(/Oy)
+    else()
+        add_compile_options(-ffast-math -fno-finite-math-only)
+
+        # some targets don't support -fomit-frame-pointer IIRC
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
+        if(HAS_FOMIT_FRAME_POINTER)
+            add_compile_options(-fomit-frame-pointer)
+        endif()
+    endif()
+endif()
+
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
@@ -232,10 +248,6 @@ endif()
 
 if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
     if(PLATFORM STREQUAL "vita")
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            add_compile_options(-ffast-math)
-        endif()
-
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
@@ -320,7 +332,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
-
+        target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
     endif()
     if(NOT MSVC)
@@ -336,13 +348,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         add_compile_definitions(USE_GLFW3)
 
         if(MINGW)
-            find_package(glfw3 REQUIRED)
+            find_package(glfw3 CONFIG REQUIRED)
 
             # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
             # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
             target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
             target_link_options(butterscotch PRIVATE -static)
-            set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+            set(BACKEND_LIBRARIES glfw opengl32 gdi32 winmm)
         elseif(MSVC)
             target_compile_definitions(butterscotch PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
             find_package(glfw3 CONFIG REQUIRED)
@@ -601,10 +613,8 @@ elseif(PLATFORM STREQUAL "ps2")
 
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
-    # -fomit-frame-pointer: frees a register on a target with tight register pressure
-    # -ffast-math: enables aggressive floating point optimizations
     # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
