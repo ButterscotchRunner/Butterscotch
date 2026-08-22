@@ -75,5 +75,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-sdl2-haiku-x86-64
+          name: butterscotch-glfw3-haiku-x86-64
           path: build/butterscotch
