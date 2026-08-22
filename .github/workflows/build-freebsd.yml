@@ -44,7 +44,7 @@ jobs:
 
       - name: Build SDL2 from source
         run: |
-          make -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/freebsd-llvm.cmake \
             -DCMAKE_C_COMPILER=zig \
             -DCMAKE_CXX_COMPILER=zig \
