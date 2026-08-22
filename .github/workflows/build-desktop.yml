@@ -12,17 +12,14 @@ jobs:
       matrix:
         os_config:
           - name: FreeBSD
-            sys_name: FreeBSD
             sys_version: "14.0"
             triple_suffix_base: freebsd.14.0
             lib_dir_name: libdata
           - name: Linux
-            sys_name: Linux
             sys_version: ""
             triple_suffix_base: linux-gnu
             lib_dir_name: lib
           - name: Windows
-            sys_name: Windows
             sys_version: ""
             triple_suffix_base: windows-gnu
             lib_dir_name: lib
@@ -94,7 +91,7 @@ jobs:
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
-            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.sys_name }} \
+            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
@@ -121,7 +118,7 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           cmake -S . -B build -G Ninja \
-            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.sys_name }} \
+            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_C_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
             -DCMAKE_CXX_COMPILER_AR="${{ github.workspace }}/artifacts/zig-ar" \
