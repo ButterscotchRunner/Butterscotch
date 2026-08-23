@@ -136,12 +136,12 @@ jobs:
         - name: Configure and build Butterscotch
           env:
             CC: o32-clang
-            CFLAGS: "-O2 -arch ${{ matrix.clang_arch }} ${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"
+            CFLAGS: "${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
             
-            cmake -B build \
+            cmake -B build -G Ninja \
               -DWERROR=ON \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
@@ -150,6 +150,7 @@ jobs:
               -DCMAKE_AR="${{ matrix.arch }}-apple-darwin8-ar" \
               -DCMAKE_RANLIB="${{ matrix.arch }}-apple-darwin8-ranlib" \
               -DCMAKE_C_FLAGS="${{ env.CFLAGS }}" \
+              -DCMAKE_EXE_LINKER_FLAGS="-framework Cocoa -framework Carbon -framework IOKit -framework AppKit"
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
@@ -157,7 +158,7 @@ jobs:
               -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            cmake --build build --verbose -- -j$(nproc)
+            cmake --build build
 
         - name: Upload artifact
           uses: actions/upload-artifact@v7
