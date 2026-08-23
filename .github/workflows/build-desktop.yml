@@ -54,37 +54,22 @@ jobs:
             arch_config: { name: loongarch64 }
             
     env:
-      ZIG_VERSION: ${{ (matrix.arch_config.name == 'aarch64' && matrix.os_config.name == 'Windows') && '0.15.2' || '0.16.0' }}
-      CC: ${{ matrix.os_config.name == 'Windows' && 'clang' || 'zig cc' }}
-      CXX: ${{ matrix.os_config.name == 'Windows' && 'clang++' || 'zig c++' }}
-      RC: ${{ matrix.os_config.name == 'Windows' && 'llvm-rc' || 'zig rc' }}
-      AR: ${{ matrix.os_config.name == 'Windows' && 'llvm-ar' || format('{0}/artifacts/zig-ar', github.workspace) }}
-      RANLIB: ${{ matrix.os_config.name == 'Windows' && 'llvm-ranlib' || format('{0}/artifacts/zig-ranlib', github.workspace) }}
+      ZIG_VERSION: 0.16.0
+      CC: zig cc
+      CXX: zig c++
+      RC: zig rc
+      AR: format('{0}/artifacts/zig-ar', github.workspace)
+      RANLIB: format('{0}/artifacts/zig-ranlib', github.workspace)
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
-      TARGET_TRIPLE: "${{ (matrix.os_config.name == 'Windows' && matrix.arch_config.name == 'i386') && 'i686' || matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
+      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      - name: Install LLVM-MinGW
-        if: matrix.os_config.name == 'Windows'
-        run: |
-          curl -L \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-x86_64.tar.xz \
-            -o /tmp/llvm-mingw.tar.xz
-
-          sudo mkdir -p /opt/llvm-mingw
-          sudo tar -xf /tmp/llvm-mingw.tar.xz \
-            --strip-components=1 \
-            -C /opt/llvm-mingw
-
-          echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
-
       - name: Setup Zig
-        if: matrix.os_config.name != 'Windows'
         uses: mlugg/setup-zig@v2
         with:
           version: ${{ env.ZIG_VERSION }}
