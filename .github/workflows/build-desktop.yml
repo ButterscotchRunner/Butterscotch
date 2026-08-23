@@ -18,8 +18,8 @@ jobs:
           - name: Linux
             triple_suffix_base: linux-gnu
             lib_dir_name: lib
-          - name: NetBSD
-            triple_suffix_base: netbsd.10.1
+          - name: OpenBSD
+            triple_suffix_base: openbsd.7.8
             lib_dir_name: lib
         arch_config:
           - name: amd64
