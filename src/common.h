@@ -53,7 +53,7 @@
     #elif defined(__aarch64__) || (defined(__arm__) && defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
         #define YIELD() __asm__ volatile("yield" : : : "memory")
     #elif defined(__riscv)
-        #define YIELD() __asm__ volatile("pause" : : : "memory")
+        #define YIELD() __asm__ volatile(".insn i 0x0F, 0, x0, x0, 1" : : : "memory")
     #else
         #define YIELD() ((void)0)
     #endif
