@@ -166,7 +166,7 @@ jobs:
   build-vita:
     name: Build (PS Vita)
     runs-on: ubuntu-24.04
-    container: vitasdk/vitasdk:latest
+    container: vitasdk/vitasdk@sha256:69c7f73b94e6671429762dabf27caa012326836fd835b8996f9a512a351c8de2
     steps:
       - uses: actions/checkout@v7
 
@@ -186,6 +186,7 @@ jobs:
         with:
           repository: Rinnegatamante/vitaGL
           path: vendor/vitaGL
+          ref: f4b23b61c84e8ba59de542832f8e507b3660f994
 
       - name: Build vitaGL with speedhacks
         run: |
@@ -210,7 +211,7 @@ jobs:
         with:
           repository: Northfear/SDL
           path: vendor/SDL2
-          ref: vitagl
+          ref: f99bb638f7eb256fa812e9da15d4e295a170640c
 
       - name: Build SDL2
         run: |
