@@ -97,7 +97,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev3
+          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev4
 
       - name: Checkout SDL2
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
@@ -124,7 +124,8 @@ jobs:
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DSDL_TEST=OFF \
-            -DSDL_OSS=OFF
+            -DSDL_OSS=OFF \
+            -DCMAKE_SHARED_LINKER_FLAGS=-v
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
