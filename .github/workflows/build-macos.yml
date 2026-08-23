@@ -178,14 +178,6 @@ jobs:
         run: |
           apt-get update && apt-get install -y cmake ninja-build ccache || true
 
-      - name: Relocate Cached SDL Configuration
-        if: steps.cache-ppc.outputs.cache-hit == 'true'
-        run: |
-          SDL_CONFIG_PATH="${{ github.workspace }}/vendor/sdl_ppc/bin/sdl-config"
-          if [ -f "$SDL_CONFIG_PATH" ]; then
-            sed -i "s|prefix=.*|prefix=${{ github.workspace }}/vendor/sdl_ppc|g" "$SDL_CONFIG_PATH"
-          fi
-
       - name: Cache PowerPC SDL and ccache
         id: cache-ppc
         uses: actions/cache@v6
@@ -229,6 +221,7 @@ jobs:
           SDK_FRAMEWORKS="/usr/local/MacOSX10.4u.sdk/System/Library/Frameworks"
           SDK_USR_LIB="/usr/local/MacOSX10.4u.sdk/usr/lib"
           ACC_REMAP="/System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate:${SDK_FRAMEWORKS}/vecLib.framework/Versions/A/vecLib"
+          PPC_SDL_DIR="${{ github.workspace }}/vendor/sdl_ppc"
 
           cmake -B build -G Ninja \
             -DWERROR=ON \
@@ -240,11 +233,13 @@ jobs:
             -DCMAKE_C_COMPILER="powerpc-apple-darwin8-gcc" \
             -DCMAKE_AR="powerpc-apple-darwin8-ar" \
             -DCMAKE_RANLIB="powerpc-apple-darwin8-ranlib" \
-            -DCMAKE_C_FLAGS="-mcpu=G3 -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/sdl_ppc/include" \
+            -DCMAKE_C_FLAGS="-mcpu=G3 -Wno-deprecated-declarations -I${PPC_SDL_DIR}/include/SDL" \
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-framework,AudioToolbox -Wl,-framework,CoreAudio -Wl,-framework,CoreServices -Wl,-framework,OpenGL -Xlinker -dylib_file -Xlinker ${ACC_REMAP} ${SDK_USR_LIB}/libobjc.A.dylib ${SDK_USR_LIB}/libgcc_s.1.dylib -Wl,-undefined,dynamic_lookup" \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/sdl_ppc;/usr/local" \
-            -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/sdl_ppc;/usr/local" \
-            -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/sdl_ppc/include" \
+            -DCMAKE_PREFIX_PATH="${PPC_SDL_DIR};/usr/local" \
+            -DCMAKE_FIND_ROOT_PATH="${PPC_SDL_DIR};/usr/local" \
+            -DCMAKE_INCLUDE_PATH="${PPC_SDL_DIR}/include/SDL" \
+            -DSDL_INCLUDE_DIR="${PPC_SDL_DIR}/include/SDL" \
+            -DSDL_LIBRARY="${PPC_SDL_DIR}/lib/libSDL.a" \
             -DOPENAL_LIBRARY="${SDK_FRAMEWORKS}/OpenAL.framework/OpenAL" \
             -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
