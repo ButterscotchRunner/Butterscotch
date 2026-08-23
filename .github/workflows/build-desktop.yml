@@ -46,9 +46,11 @@ jobs:
           - name: powerpc64
             triple_prefix: powerpc64
             linux_glibc_floor: "2.17"
+            cflags: "-fPIC"
           - name: powerpc64le
             triple_prefix: powerpc64le
             linux_glibc_floor: "2.19"
+            cflags: "-fPIC"
           - name: riscv
             triple_prefix: riscv64
             cflags: "-mcpu=generic_rv64+m+a+f+d+c"
