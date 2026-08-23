@@ -28,7 +28,7 @@ jobs:
           - name: amd64
             triple_prefix: x86_64
             linux_glibc_floor: "2.17"
-          - name: i386
+          - name: i486
             triple_prefix: x86
             linux_glibc_floor: "2.17"
             cflags: "-march=i486"
