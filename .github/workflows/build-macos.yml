@@ -67,6 +67,9 @@ jobs:
               cflags: "-march=yonah"
             - arch: powerpc
               cflags: ""
+      env:
+        CC: ${{ matrix.arch }}-apple-darwin8-clang
+        CFLAGS: ${{ matrix.cflags }}
   
       runs-on: ubuntu-24.04
       steps:
@@ -131,9 +134,6 @@ jobs:
             make install
 
         - name: Configure and build Butterscotch
-          env:
-            CC: ${{ matrix.arch }}-apple-darwin8-clang
-            CFLAGS: ${{ matrix.cflags }}
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cmake -B build -G Ninja \
