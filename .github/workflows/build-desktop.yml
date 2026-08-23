@@ -62,8 +62,16 @@ jobs:
             triple_prefix: mips
             abi: eabihf
             linux_glibc_floor: "2.17"
+          - name: mipsel
+            triple_prefix: mipsel
+            abi: eabihf
+            linux_glibc_floor: "2.17"
           - name: mips64
             triple_prefix: mips64
+            abi: abi64
+            linux_glibc_floor: "2.17"
+          - name: mips64el
+            triple_prefix: mips64el
             abi: abi64
             linux_glibc_floor: "2.17"
         exclude:
@@ -91,6 +99,14 @@ jobs:
             arch_config: { name: mips64 }
           - os_config: { name: FreeBSD }
             arch_config: { name: mips64 }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mipsel }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: mipsel }
+          - os_config: { name: NetBSD }
+            arch_config: { name: mips64el }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mips64el }
             
     env:
       ZIG_VERSION: 0.16.0
