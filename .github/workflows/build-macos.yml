@@ -94,7 +94,7 @@ jobs:
           uses: actions/checkout@v7
           with:
             repository: tpoechtrager/osxcross
-            ref: 27d21e4977c9751d01199c7a226a6faf494c3dd9
+            ref: osxcross-1.1
             path: vendor/osxcross
   
         - name: Download Mac OS X SDK
