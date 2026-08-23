@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  build-appkit-macos:
+  build-appkit-macos-modern:
     name: Build (AppKit ${{ matrix.label }})
     strategy:
       fail-fast: false
@@ -56,3 +56,77 @@ jobs:
         with:
           name: butterscotch-appkit-macos-${{ matrix.label }}
           path: build/butterscotch
+
+  build-appkit-macos-cross:
+      name: Build (AppKit ${{ matrix.arch }})
+      strategy:
+        fail-fast: false
+        matrix:
+          include:
+            - arch: i386
+              cflags: "-march=yonah"
+            - arch: powerpc
+              cflags: ""
+  
+      runs-on: ubuntu-24.04
+      steps:
+        - uses: actions/checkout@v4
+  
+        - name: Get commit info
+          id: commit-info
+          run: |
+            echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+  
+        - name: Install dependencies
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y clang cmake ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
+  
+        - name: Cache OSXCross toolchain
+          id: cache-osxcross
+          uses: actions/cache@v4
+          with:
+            path: osxcross
+            key: osxcross-${{ matrix.arch }}-v1
+  
+        - name: Checkout OSXCross
+          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          uses: actions/checkout@v7
+          with:
+            repository: tpoechtrager/osxcross
+            ref: 27d21e4977c9751d01199c7a226a6faf494c3dd9
+            path: vendor/osxcross
+  
+        - name: Download Mac OS X SDK
+          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          run: |
+            curl -L -o vendor/osxcross/tarballs/MacOSX10.4u.sdk.tar.xz https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.4u.sdk.tar.xz
+  
+        - name: Build OSXCross toolchain
+          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          env:
+            UNATTENDED: "1"
+          run: |
+            cd vendor/osxcross
+            ./build.sh
+  
+        - name: Configure and build Butterscotch
+          env:
+            PATH: ${{ github.workspace }}/vendor/osxcross/target/bin:${{ env.PATH }}
+            CC: ${{ matrix.arch }}-apple-darwin8-clang
+            CFLAGS: ${{ matrix.cflags }}
+          run: |
+            cmake -B build -G Ninja \
+              -DWERROR=ON \
+              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
+              -DBACKEND=appkit \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_BUILD_TYPE=Release
+            cmake --build build
+
+        - name: Upload artifact
+          uses: actions/upload-artifact@v7
+          with:
+            name: butterscotch-appkit-macos-${{ matrix.label }}
+            path: build/butterscotch
