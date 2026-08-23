@@ -94,8 +94,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_C_COMPILER_AR=zig-ar \
-            -DCMAKE_C_COMPILER_RANLIB=zig-ranlib \
+            -DCMAKE_C_COMPILER_AR="$(command -v zig-ar)" \
+            -DCMAKE_C_COMPILER_RANLIB="$(command -v zig-ranlib)" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
@@ -115,8 +115,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_AR=zig-ar \
-            -DCMAKE_C_COMPILER_RANLIB=zig-ranlib \
+            -DCMAKE_C_COMPILER_AR="$(command -v zig-ar)" \
+            -DCMAKE_C_COMPILER_RANLIB="$(command -v zig-ranlib)" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
