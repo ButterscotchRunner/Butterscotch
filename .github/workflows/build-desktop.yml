@@ -66,11 +66,11 @@ jobs:
 
       - name: Setup ar and ranlib scripts
         run: |
-          mkdir tmpbin
-          printf '#!/bin/sh\nexec zig ar\n' > tmpbin/zig-ar
-          printf '#!/bin/sh\nexec zig ranlib\n' > tmpbin/zig-ranlib
-          chmod +x tmpbin/*
-          export PATH="$PWD/tmpbin:$PATH"
+          mkdir ~/tmpbin
+          printf '#!/bin/sh\nexec zig ar\n' > ~/tmpbin/zig-ar
+          printf '#!/bin/sh\nexec zig ranlib\n' > ~/tmpbin/zig-ranlib
+          chmod +x ~/tmpbin/*
+          export PATH="$HOME/tmpbin:$PATH"
 
       - name: Cache SDL2 build
         id: cache-sdl2
