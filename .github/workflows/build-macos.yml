@@ -121,7 +121,7 @@ jobs:
         - name: Build SDL 1.2
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           env:
-            CC: ${{ matrix.arch }}-apple-darwin8-clang
+            CC: o32-clang
             CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
@@ -135,10 +135,12 @@ jobs:
 
         - name: Configure and build Butterscotch
           env:
-            CC: ${{ matrix.arch }}-apple-darwin8-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
+            CC: o32-clang
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
+            export SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
+            
             cmake -B build -G Ninja \
               -DWERROR=ON \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
@@ -147,6 +149,8 @@ jobs:
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
+              -DOPENAL_LIBRARY="${SDK_FRAMEWORKS}/OpenAL.framework" \
+              -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
               -DCMAKE_BUILD_TYPE=Release
