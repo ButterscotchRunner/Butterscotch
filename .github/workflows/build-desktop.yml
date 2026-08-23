@@ -80,7 +80,6 @@ jobs:
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
-      LDFLAGS: -v
       TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'Linux') && matrix.arch_config.abi || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
     
     steps:
@@ -124,8 +123,8 @@ jobs:
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
-            -DSDL_OSS=OFF \
-            -DCMAKE_EXE_LINKER_FLAGS="${{ env.LDFLAGS }}"
+            -DSDL_TEST=OFF \
+            -DSDL_OSS=OFF
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
