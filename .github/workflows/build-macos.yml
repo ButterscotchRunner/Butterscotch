@@ -60,7 +60,8 @@ jobs:
   build-appkit-macos-cross:
     name: Build (SDL 1.2 ${{ matrix.arch }})
     runs-on: ubuntu-24.04
-    container: ${{ matrix.docker && fromJSON(format('{{\"image\":\"{0}\"}}', matrix.docker)) || null }}
+    container:
+      image: ${{ matrix.docker || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
       matrix:
