@@ -169,7 +169,7 @@ case $arch in
         rm -rf SDL-*
         wget -O- "https://github.com/libsdl-org/SDL/archive/refs/tags/release-$sdl2_version.tar.gz" | tar -xz
 
-        cd "SDL-$sdl2_version"
+        cd "SDL-release-$sdl2_version"
         ./configure \
             --host="$target" \
             --prefix="$workdir/toolchain-$arch/$target" \
@@ -177,7 +177,7 @@ case $arch in
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
-        rm -rf "SDL-$sdl2_version" &
+        rm -rf "SDL-release-$sdl2_version" &
     ;;
 esac
 
