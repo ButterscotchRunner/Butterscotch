@@ -7,17 +7,14 @@ on:
     branches: [main]
 
 jobs:
-  Linux:
-    uses: ./.github/workflows/build-linux.yml
+  Unix:
+    uses: ./.github/workflows/build-desktop.yml
 
   Windows:
     uses: ./.github/workflows/build-windows.yml
 
   macOS:
     uses: ./.github/workflows/build-macos.yml
-
-  FreeBSD:
-    uses: ./.github/workflows/build-freebsd.yml
 
   Haiku:
     uses: ./.github/workflows/build-haiku.yml

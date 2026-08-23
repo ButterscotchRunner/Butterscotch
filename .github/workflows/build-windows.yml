@@ -15,6 +15,9 @@ jobs:
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
+          - arch: armv7
+            target: armv7-w64-windows-gnu
+            triplet: armv7-w64-mingw32
 
     steps:
       - uses: actions/checkout@v7
@@ -31,7 +34,8 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
-            ccache
+            ccache \
+            llvm
 
       - uses: actions/cache@v6
         with:
@@ -86,7 +90,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build
+        run: |
+          cmake --build build
+          llvm-strip --strip-all build/butterscotch.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -122,7 +128,7 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev llvm
           ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
 
       - name: Build
@@ -135,9 +141,10 @@ jobs:
               BACKEND=${{ matrix.backend }} \
               EXTRALIBS='-latomic' \
               ${{ matrix.libs }}
+          llvm-strip --strip-all build/butterscotch.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-windows
+          name: butterscotch-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
