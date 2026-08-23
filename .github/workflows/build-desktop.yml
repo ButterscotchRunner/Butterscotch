@@ -97,7 +97,7 @@ jobs:
       CC: zig cc
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
-      CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
+      CFLAGS: "${{ matrix.arch_config.cflags }}"
       TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'NetBSD') && format('-{0}', matrix.arch_config.abi) || '' }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'Linux') && matrix.arch_config.abi || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
     
     steps:
@@ -115,7 +115,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev13
+          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev14
 
       - name: Checkout SDL2
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
@@ -168,7 +168,8 @@ jobs:
             -DBACKEND=sdl2 \
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="${{ matrix.arch_config.cflags }} -flto"
           cmake --build build
           llvm-strip build/butterscotch
 
