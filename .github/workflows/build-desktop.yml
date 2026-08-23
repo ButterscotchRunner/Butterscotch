@@ -53,7 +53,6 @@ jobs:
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
-      TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
       TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}"
     
     steps:
@@ -64,7 +63,7 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: ${{ env.ZIG_VERSION }}
-          cache-key: zigcc-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}
+          cache-key: zigcc-${{ env.TARGET_TRIPLE }}
 
       - name: Cache SDL2 build
         id: cache-sdl2
