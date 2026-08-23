@@ -121,6 +121,7 @@ jobs:
         - name: Build SDL 1.2
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           run: |
+            export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cd vendor/SDL
             ./configure \
               --host=${{ matrix.arch }}-apple-darwin8 \
