@@ -147,8 +147,8 @@ jobs:
               -DAUDIO_BACKEND=openal \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_SKIP_RPATH=ON \
-              -DCMAKE_AR="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ar" \
-              -DCMAKE_RANLIB="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ranlib" \
+              -DCMAKE_AR="${{ matrix.arch }}-apple-darwin8-ar" \
+              -DCMAKE_RANLIB="${{ matrix.arch }}-apple-darwin8-ranlib" \
               -DCMAKE_C_FLAGS="${{ env.CFLAGS }}" \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
@@ -157,7 +157,7 @@ jobs:
               -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            cmake --build build --verbose
+            cmake --build build --verbose -- -j$(nproc)
 
         - name: Upload artifact
           uses: actions/upload-artifact@v7
