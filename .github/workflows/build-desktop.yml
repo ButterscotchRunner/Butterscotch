@@ -71,6 +71,8 @@ jobs:
           printf '#!/bin/sh\nexec zig ranlib "$@"\n' > ~/tmpbin/zig-ranlib
           chmod +x ~/tmpbin/*
           ls -l ~/tmpbin
+          cat ~/tmpbin/zig-ar
+          cat ~/tmpbin/zig-ranlib
           export PATH="$HOME/tmpbin:$PATH"
 
       - name: Cache SDL2 build
