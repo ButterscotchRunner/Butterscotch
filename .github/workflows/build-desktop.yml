@@ -58,8 +58,8 @@ jobs:
       CC: zig cc
       CXX: zig c++
       RC: zig rc
-      AR: format('{0}/artifacts/zig-ar', github.workspace)
-      RANLIB: format('{0}/artifacts/zig-ranlib', github.workspace)
+      AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
+      RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
