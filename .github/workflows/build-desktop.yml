@@ -1,4 +1,4 @@
-name: Desktop builds
+name: Unix builds
 
 on:
   workflow_call:
