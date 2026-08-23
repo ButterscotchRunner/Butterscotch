@@ -142,5 +142,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-windows
+          name: butterscotch-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
