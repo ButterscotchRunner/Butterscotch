@@ -51,7 +51,7 @@ jobs:
             arch_config: { name: loongarch64 }
           - os_config: { name: FreeBSD }
             arch_config: { name: powerpc }
-          - os_config: { name: NetBSD }
+          - os_config: { name: OpenBSD }
             arch_config: { name: loongarch64 }
             
     env:
