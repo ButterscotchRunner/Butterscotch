@@ -65,7 +65,7 @@ jobs:
           include:
             - arch: i386
               cflags: "-march=yonah"
-            - arch: ppc
+            - arch: powerpc
               cflags: ""
   
       runs-on: ubuntu-24.04
@@ -143,7 +143,7 @@ jobs:
             
             cmake -B build -G Ninja \
               -DWERROR=ON \
-              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
+              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
