@@ -178,6 +178,14 @@ jobs:
         run: |
           apt-get update && apt-get install -y cmake ninja-build ccache || true
 
+      - name: Relocate Cached SDL Configuration
+        if: steps.cache-ppc.outputs.cache-hit == 'true'
+        run: |
+          SDL_CONFIG_PATH="${{ github.workspace }}/vendor/sdl_ppc/bin/sdl-config"
+          if [ -f "$SDL_CONFIG_PATH" ]; then
+            sed -i "s|prefix=.*|prefix=${{ github.workspace }}/vendor/sdl_ppc|g" "$SDL_CONFIG_PATH"
+          fi
+
       - name: Cache PowerPC SDL and ccache
         id: cache-ppc
         uses: actions/cache@v6
