@@ -82,11 +82,13 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y clang cmake ninja-build ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
   
-        - name: Cache OSXCross toolchain
+        - name: Cache OSXCross toolchain and ccache
           id: cache-osxcross
           uses: actions/cache@v6
           with:
-            path: vendor/osxcross
+            path: |
+                vendor/osxcross
+                ~/.cache/ccache
             key: osxcross-${{ matrix.arch }}-v1
   
         - name: Checkout OSXCross
