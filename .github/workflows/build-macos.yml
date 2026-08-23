@@ -143,9 +143,10 @@ jobs:
             
             cmake -B build -G Ninja \
               -DWERROR=ON \
-              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
+              -DCMAKE_SKIP_RPATH=ON \
+              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
