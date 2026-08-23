@@ -146,6 +146,8 @@ jobs:
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
               -DCMAKE_SKIP_RPATH=ON \
+              -DCMAKE_AR="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ar" \
+              -DCMAKE_RANLIB="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ranlib" \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
