@@ -52,7 +52,7 @@ jobs:
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
-      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'Linux') && format('-{0}', matrix.arch_config.abi) || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
+      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name != 'Linux') && format('-{0}', matrix.arch_config.abi) || matrix.arch_config.abi }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
     
     steps:
       - name: Checkout Code
