@@ -205,10 +205,10 @@ jobs:
           export PATH="/usr/local/bin:$PATH"
           cd vendor/SDL
           sed -i 's/-fpascal-strings//g' configure
-          sed -i 's/-faltivec//g' configure
           ./configure \
             --host=powerpc-apple-darwin8 \
             --prefix=/usr/local/powerpc-apple-darwin8 \
+            --disable-altivec \
             --disable-shared || cat config.log
           make -j$(nproc)
           make install
