@@ -15,6 +15,9 @@ jobs:
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
+          - arch: armv7
+            target: armv7-w64-windows-gnu
+            triplet: armv7-w64-mingw32
 
     steps:
       - uses: actions/checkout@v7
