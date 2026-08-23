@@ -227,6 +227,7 @@ jobs:
             -DBACKEND=sdl1 \
             -DAUDIO_BACKEND=openal \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_SKIP_RPATH=ON \
             -DCMAKE_C_COMPILER="powerpc-apple-darwin8-gcc" \
             -DCMAKE_AR="powerpc-apple-darwin8-ar" \
