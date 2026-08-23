@@ -7,8 +7,11 @@ on:
     branches: [main]
 
 jobs:
-  Desktop:
+  Unix-like:
     uses: ./.github/workflows/build-desktop.yml
+
+  Windows:
+    uses: ./.github/workflows/build-windows.yml
 
   macOS:
     uses: ./.github/workflows/build-macos.yml
