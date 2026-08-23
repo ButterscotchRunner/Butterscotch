@@ -115,12 +115,6 @@ jobs:
           path: ${{ github.workspace }}/vendor/SDL2/install
           key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev12
 
-      - name: Install X11 headers for SDL2
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxss-dev libxxf86vm-dev
-
       - name: Checkout SDL2
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
@@ -147,8 +141,6 @@ jobs:
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DSDL_TEST=OFF \
-            -DSDL_X11=ON \
-            -DSDL_X11_SHARED=ON \
             -DSDL_OSS=OFF
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
