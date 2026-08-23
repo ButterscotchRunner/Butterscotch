@@ -84,7 +84,7 @@ jobs:
   
         - name: Cache OSXCross toolchain
           id: cache-osxcross
-          uses: actions/cache@v4
+          uses: actions/cache@v6
           with:
             path: osxcross
             key: osxcross-${{ matrix.arch }}-v1
@@ -112,10 +112,10 @@ jobs:
   
         - name: Configure and build Butterscotch
           env:
-            PATH: ${{ github.workspace }}/vendor/osxcross/target/bin:$PATH
             CC: ${{ matrix.arch }}-apple-darwin8-clang
             CFLAGS: ${{ matrix.cflags }}
           run: |
+            export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cmake -B build -G Ninja \
               -DWERROR=ON \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
