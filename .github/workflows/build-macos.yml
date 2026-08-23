@@ -136,7 +136,6 @@ jobs:
         - name: Configure and build Butterscotch
           env:
             CC: o32-clang
-            CFLAGS: "${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
@@ -149,7 +148,7 @@ jobs:
               -DCMAKE_SKIP_RPATH=ON \
               -DCMAKE_AR="${{ matrix.arch }}-apple-darwin8-ar" \
               -DCMAKE_RANLIB="${{ matrix.arch }}-apple-darwin8-ranlib" \
-              -DCMAKE_C_FLAGS="${{ env.CFLAGS }}" \
+              -DCMAKE_C_FLAGS=""${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"" \
               -DCMAKE_EXE_LINKER_FLAGS="-framework Cocoa -framework Carbon -framework IOKit -framework AppKit"
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
