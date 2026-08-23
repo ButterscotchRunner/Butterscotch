@@ -143,6 +143,7 @@ jobs:
               -DWERROR=ON \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
               -DBACKEND=sdl1 \
+              -DAUDIO_BACKEND=openal \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
