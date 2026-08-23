@@ -58,6 +58,7 @@ jobs:
             linux_glibc_floor: "2.36"
           - name: mips
             triple_prefix: mips
+            abi: eabihf
             linux_glibc_floor: "2.17"
         exclude:
           - os_config: { name: FreeBSD }
