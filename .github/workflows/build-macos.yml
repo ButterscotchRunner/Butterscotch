@@ -64,11 +64,26 @@ jobs:
         matrix:
           include:
             - arch: i386
-              clang_arch: i386
+              cc: o32-clang
+              ar: i386-apple-darwin8-ar
+              ranlib: i386-apple-darwin8-ranlib
               cflags: "-march=yonah"
-          # osxcross </3 powerpc
+              target_prefix: "${{ github.workspace }}/vendor/osxcross/target"
+              sdk_path: "${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk"
+              sdl_prefix: "${{ github.workspace }}/vendor/osxcross/target"
+            
+            - arch: powerpc
+              docker: ghcr.io/variantxyz/gcc-powerpc-apple-darwin8:build-gcc-14.2-macosxsdk10.4u
+              cc: powerpc-apple-darwin8-gcc
+              ar: powerpc-apple-darwin8-ar
+              ranlib: powerpc-apple-darwin8-ranlib
+              cflags: "-march=G3"
+              target_prefix: "/usr/local"
+              sdk_path: "/usr/local/MacOSX10.4u.sdk"
+              sdl_prefix: "${{ github.workspace }}/vendor/sdl_ppc"
   
       runs-on: ubuntu-24.04
+      container: ${{ matrix.docker }}
       steps:
         - uses: actions/checkout@v4
   
@@ -77,22 +92,39 @@ jobs:
           run: |
             echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
   
-        - name: Install dependencies
+        - name: Install dependencies (Host)
+          if: matrix.arch == 'i386'
           run: |
             sudo apt-get update
             sudo apt-get install -y clang cmake ninja-build ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
   
-        - name: Cache OSXCross toolchain and ccache
-          id: cache-osxcross
+        - name: Install build tools (Container)
+          if: matrix.arch == 'powerpc'
+          run: |
+            apt-get update && apt-get install -y cmake ninja-build ccache || true
+  
+        - name: Cache Intel OSXCross and ccache
+          if: matrix.arch == 'i386'
+          id: cache-intel
           uses: actions/cache@v6
           with:
             path: |
                 vendor/osxcross
                 ~/.cache/ccache
             key: osxcross-${{ matrix.arch }}-v1
+
+        - name: Cache PowerPC SDL and ccache
+          if: matrix.arch == 'powerpc'
+          id: cache-ppc
+          uses: actions/cache@v6
+          with:
+            path: |
+                ${{ github.workspace }}/vendor/sdl_ppc
+                ~/.cache/ccache
+            key: sdl-ppc-${{ matrix.arch }}-v1
   
         - name: Checkout OSXCross
-          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          if: matrix.arch == 'i386' && steps.cache-intel.outputs.cache-hit != 'true'
           uses: actions/checkout@v7
           with:
             repository: tpoechtrager/osxcross
@@ -100,12 +132,12 @@ jobs:
             path: vendor/osxcross
 
         - name: Download Mac OS X SDK
-          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          if: matrix.arch == 'i386' && steps.cache-intel.outputs.cache-hit != 'true'
           run: |
-            curl -L -o vendor/osxcross/tarballs/MacOSX10.4u.sdk.tar.xz https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.4u.sdk.tar.xz
+            curl -L -o vendor/osxcross/tarballs/MacOSX10.4u.sdk.tar.xz https://github.com
   
         - name: Build OSXCross toolchain
-          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          if: matrix.arch == 'i386' && steps.cache-intel.outputs.cache-hit != 'true'
           env:
             UNATTENDED: "1"
           run: |
@@ -113,7 +145,9 @@ jobs:
             ./build.sh
 
         - name: Checkout SDL 1.2
-          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          if: |
+            (matrix.arch == 'i386' && steps.cache-intel.outputs.cache-hit != 'true') ||
+            (matrix.arch == 'powerpc' && steps.cache-ppc.outputs.cache-hit != 'true')
           uses: actions/checkout@v7
           with:
             repository: libsdl-org/SDL-1.2
@@ -121,27 +155,29 @@ jobs:
             path: vendor/SDL
 
         - name: Build SDL 1.2
-          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          if: |
+            (matrix.arch == 'i386' && steps.cache-intel.outputs.cache-hit != 'true') ||
+            (matrix.arch == 'powerpc' && steps.cache-ppc.outputs.cache-hit != 'true')
           env:
-            CC: o32-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
+            CC: ${{ matrix.cc }}
+            CFLAGS: "${{ matrix.cflags }}"
           run: |
-            export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
+            export PATH="${{ matrix.target_prefix }}/bin:$PATH"
             cd vendor/SDL
             ./configure \
               --host=${{ matrix.arch }}-apple-darwin8 \
-              --prefix=${{ github.workspace }}/vendor/osxcross/target \
+              --prefix=${{ matrix.sdl_prefix }} \
               --disable-shared || cat config.log
             make -j$(nproc)
             make install
 
         - name: Configure and build Butterscotch
           env:
-            CC: o32-clang
+            CC: ${{ matrix.cc }}
           run: |
-            export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
-            SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
-            SDK_USR_LIB="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/usr/lib"
+            export PATH="${{ matrix.target_prefix }}/bin:$PATH"
+            SDK_FRAMEWORKS="${{ matrix.sdk_path }}/System/Library/Frameworks"
+            SDK_USR_LIB="${{ matrix.sdk_path }}/usr/lib"
             ACC_REMAP="/System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate:${SDK_FRAMEWORKS}/vecLib.framework/Versions/A/vecLib"
 
             cmake -B build -G Ninja \
@@ -150,13 +186,14 @@ jobs:
               -DAUDIO_BACKEND=openal \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_SKIP_RPATH=ON \
-              -DCMAKE_AR="${{ matrix.arch }}-apple-darwin8-ar" \
-              -DCMAKE_RANLIB="${{ matrix.arch }}-apple-darwin8-ranlib" \
-              -DCMAKE_C_FLAGS="${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
+              -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
+              -DCMAKE_AR="${{ matrix.ar }}" \
+              -DCMAKE_RANLIB="${{ matrix.ranlib }}" \
+              -DCMAKE_C_FLAGS="${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ matrix.sdl_prefix }}/include" \
               -DCMAKE_EXE_LINKER_FLAGS="-Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-framework,AudioToolbox -Wl,-framework,CoreAudio -Wl,-framework,CoreServices -Wl,-framework,OpenGL -Xlinker -dylib_file -Xlinker ${ACC_REMAP} ${SDK_USR_LIB}/libobjc.A.dylib ${SDK_USR_LIB}/libgcc_s.1.dylib -Wl,-undefined,dynamic_lookup" \
-              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
-              -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
-              -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
+              -DCMAKE_PREFIX_PATH="${{ matrix.sdl_prefix }};${{ matrix.target_prefix }}" \
+              -DCMAKE_FIND_ROOT_PATH="${{ matrix.sdl_prefix }};${{ matrix.target_prefix }}" \
+              -DCMAKE_INCLUDE_PATH="${{ matrix.sdl_prefix }}/include" \
               -DOPENAL_LIBRARY="${SDK_FRAMEWORKS}/OpenAL.framework/OpenAL" \
               -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
