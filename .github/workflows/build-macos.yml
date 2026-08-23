@@ -149,7 +149,6 @@ jobs:
               -DCMAKE_AR="${{ matrix.arch }}-apple-darwin8-ar" \
               -DCMAKE_RANLIB="${{ matrix.arch }}-apple-darwin8-ranlib" \
               -DCMAKE_C_FLAGS=""${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"" \
-              -DCMAKE_EXE_LINKER_FLAGS="-framework Cocoa -framework Carbon -framework IOKit -framework AppKit"
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
