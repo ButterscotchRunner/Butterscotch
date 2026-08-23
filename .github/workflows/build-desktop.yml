@@ -77,6 +77,10 @@ jobs:
             arch_config: { name: powerpc64le }
           - os_config: { name: OpenBSD }
             arch_config: { name: powerpc64le }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mips }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: mips }
             
     env:
       ZIG_VERSION: 0.16.0
