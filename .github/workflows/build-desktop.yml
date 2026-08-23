@@ -114,6 +114,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
             -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
@@ -138,6 +140,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
             -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
