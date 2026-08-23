@@ -122,12 +122,8 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ccache
-
-          if [ ! -d "artifacts/windows/build/toolchain-${{ matrix.arch }}" ]; then
-            sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev
-            ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
-          fi
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
 
       - name: Build
         run: |
