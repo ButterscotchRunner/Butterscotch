@@ -80,14 +80,14 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.24.x
+          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10
 
-      - name: Checkout SDL 2.24.x
+      - name: Checkout SDL2
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
-          ref: release-2.24.x
+          ref: release-2.32.10
           path: vendor/SDL2
 
       - name: Build SDL2 from source
@@ -104,10 +104,10 @@ jobs:
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
-            -DSDL_TESTS=OFF \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            -DSDL_TESTS=OFF
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
@@ -128,7 +128,6 @@ jobs:
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DBACKEND=sdl2 \
-            -DAUDIO_BACKEND=miniaudio \
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_BUILD_TYPE=Release \
