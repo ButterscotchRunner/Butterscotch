@@ -61,7 +61,7 @@ jobs:
     name: Build (SDL 1.2 ${{ matrix.arch }})
     runs-on: ubuntu-24.04
     container:
-      image: ${{ matrix.docker || 'ubuntu-24.04' }}
+      image: ${{ matrix.docker || 'ubuntu:24.04' }}
     strategy:
       fail-fast: false
       matrix:
