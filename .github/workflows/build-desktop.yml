@@ -18,6 +18,9 @@ jobs:
           - name: Linux
             triple_suffix_base: linux-gnu
             lib_dir_name: lib
+          - name: NetBSD
+            triple_suffix_base: netbsd.10.1
+            lib_dir_name: lib
         arch_config:
           - name: amd64
             triple_prefix: x86_64
