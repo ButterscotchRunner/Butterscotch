@@ -152,6 +152,7 @@ jobs:
           PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
+          sudo apt-get install -y llvm
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
