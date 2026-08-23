@@ -28,6 +28,10 @@ jobs:
           - name: aarch64
             triple_prefix: aarch64
             linux_glibc_floor: "2.17"
+          - name: arm
+            triple_prefix: arm
+            abi: eabihf
+            linux_glibc_floor: "2.17"
           - name: powerpc
             triple_prefix: powerpc
             abi: eabihf
