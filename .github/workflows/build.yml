@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  Unix-like:
+  Unix:
     uses: ./.github/workflows/build-desktop.yml
 
   Windows:
