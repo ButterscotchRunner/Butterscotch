@@ -124,8 +124,7 @@ jobs:
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
             -DSDL_TEST=OFF \
-            -DSDL_OSS=OFF \
-            -DCMAKE_SHARED_LINKER_FLAGS=-v
+            -DSDL_OSS=OFF
           cmake --build vendor/SDL2/build
           cmake --install vendor/SDL2/build
 
