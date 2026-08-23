@@ -103,7 +103,7 @@ jobs:
         include:
           - arch: x86_64
             backend: sdl2
-            libs: SDL2_LIBS='-lmingw32 -lSDLmain -lSDL -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid'
+            libs: SDL2_LIBS='-lmingw32 -lSDL2main -lSDL2 -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid'
           - arch: i486
             backend: sdl1
             libs: SDL1_LIBS='-lmingw32 -lSDLmain -lSDL -lm -luser32 -lgdi32 -lwinmm -ldxguid'
