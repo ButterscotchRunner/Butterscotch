@@ -141,7 +141,7 @@ jobs:
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
             
-            cmake -B build -G Ninja \
+            cmake -B build \
               -DWERROR=ON \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
