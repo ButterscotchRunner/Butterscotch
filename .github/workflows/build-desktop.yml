@@ -154,7 +154,7 @@ jobs:
             -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_LINKER="${{ env.CC }}" \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
             -DSDL_SHARED=ON \
             -DSDL_STATIC=OFF \
