@@ -47,7 +47,7 @@ jobs:
             linux_glibc_floor: "2.17"
           - name: powerpc64le
             triple_prefix: powerpc64le
-            linux_glibc_floor: "2.17"
+            linux_glibc_floor: "2.19"
           - name: riscv
             triple_prefix: riscv64
             cflags: "-mcpu=generic_rv64+m+a+f+d+c+zihintpause"
@@ -66,6 +66,12 @@ jobs:
             arch_config: { name: loongarch64 }
           - os_config: { name: NetBSD }
             arch_config: { name: riscv }
+          - os_config: { name: NetBSD }
+            arch_config: { name: powerpc64 }
+          - os_config: { name: NetBSD }
+            arch_config: { name: powerpc64le }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: powerpc64le }
             
     env:
       ZIG_VERSION: 0.16.0
