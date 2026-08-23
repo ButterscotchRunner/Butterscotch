@@ -51,6 +51,8 @@ jobs:
             arch_config: { name: loongarch64 }
           - os_config: { name: FreeBSD }
             arch_config: { name: powerpc }
+          - os_config: { name: NetBSD }
+            arch_config: { name: loongarch64 }
             
     env:
       ZIG_VERSION: 0.16.0
