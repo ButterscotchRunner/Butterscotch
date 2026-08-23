@@ -200,9 +200,12 @@ jobs:
         env:
           CC: powerpc-apple-darwin8-gcc
           CFLAGS: "-mcpu=G3"
+          EXTRA_CFLAGS: "-fno-altivec"
         run: |
           export PATH="/usr/local/bin:$PATH"
           cd vendor/SDL
+          sed -i 's/-fpascal-strings//g' configure
+          sed -i 's/-faltivec//g' configure
           ./configure \
             --host=powerpc-apple-darwin8 \
             --prefix=${{ github.workspace }}/vendor/sdl_ppc \
