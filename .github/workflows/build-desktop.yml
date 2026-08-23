@@ -49,6 +49,8 @@ jobs:
       CC: zig cc
       CXX: zig c++
       RC: zig rc
+      AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
+      RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
       CFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       CXXFLAGS: "${{ matrix.arch_config.cflags }} -flto"
       TRIPLE_SUFFIX: ${{ matrix.os_config.name == 'Linux' && format('{0}.{1}', matrix.os_config.triple_suffix_base, matrix.arch_config.linux_glibc_floor) || matrix.os_config.triple_suffix_base }}
@@ -63,17 +65,6 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
           cache-key: zigcc-${{ matrix.arch_config.triple_prefix }}-${{ env.TRIPLE_SUFFIX }}
-
-      - name: Setup ar and ranlib scripts
-        run: |
-          mkdir ~/tmpbin
-          printf '#!/bin/sh\nexec zig ar "$@"\n' > ~/tmpbin/zig-ar
-          printf '#!/bin/sh\nexec zig ranlib "$@"\n' > ~/tmpbin/zig-ranlib
-          chmod +x ~/tmpbin/*
-          ls -l ~/tmpbin
-          cat ~/tmpbin/zig-ar
-          cat ~/tmpbin/zig-ranlib
-          export PATH="$HOME/tmpbin:$PATH"
 
       - name: Cache SDL2 build
         id: cache-sdl2
@@ -97,8 +88,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_C_COMPILER_AR="$(command -v zig-ar)" \
-            -DCMAKE_C_COMPILER_RANLIB="$(command -v zig-ranlib)" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
@@ -118,8 +109,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_AR="$(command -v zig-ar)" \
-            -DCMAKE_C_COMPILER_RANLIB="$(command -v zig-ranlib)" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
