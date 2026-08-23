@@ -69,7 +69,7 @@ jobs:
           mkdir ~/tmpbin
           printf '#!/bin/sh\nexec zig ar "$@"\n' > ~/tmpbin/zig-ar
           printf '#!/bin/sh\nexec zig ranlib "$@"\n' > ~/tmpbin/zig-ranlib
-          chmod +x ~/tmpbin/zig-ar
+          chmod +x ~/tmpbin/*
           ls -l ~/tmpbin
           export PATH="$HOME/tmpbin:$PATH"
 
