@@ -80,7 +80,7 @@ jobs:
         - name: Install dependencies
           run: |
             sudo apt-get update
-            sudo apt-get install -y clang cmake ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
+            sudo apt-get install -y clang cmake ninja-build ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
   
         - name: Cache OSXCross toolchain
           id: cache-osxcross
@@ -112,7 +112,7 @@ jobs:
   
         - name: Configure and build Butterscotch
           env:
-            PATH: ${{ github.workspace }}/vendor/osxcross/target/bin:${{ env.PATH }}
+            PATH: ${{ github.workspace }}/vendor/osxcross/target/bin:$PATH
             CC: ${{ matrix.arch }}-apple-darwin8-clang
             CFLAGS: ${{ matrix.cflags }}
           run: |
