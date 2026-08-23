@@ -64,10 +64,8 @@ jobs:
         matrix:
           include:
             - arch: i386
-              clang_arch: i386
               cflags: "-march=yonah"
-            - arch: powerpc
-              clang_arch: ppc
+            - arch: ppc
               cflags: ""
   
       runs-on: ubuntu-24.04
@@ -124,7 +122,7 @@ jobs:
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           env:
             CC: ${{ matrix.arch }}-apple-darwin8-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cd vendor/SDL
@@ -146,6 +144,8 @@ jobs:
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
               -DBACKEND=sdl1 \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
+              -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
+              -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
               -DCMAKE_BUILD_TYPE=Release
