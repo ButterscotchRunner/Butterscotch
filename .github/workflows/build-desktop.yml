@@ -56,6 +56,9 @@ jobs:
           - name: loongarch64
             triple_prefix: loongarch64
             linux_glibc_floor: "2.36"
+          - name: mips
+            triple_prefix: mips
+            linux_glibc_floor: "2.17"
         exclude:
           - os_config: { name: FreeBSD }
             arch_config: { name: loongarch64 }
