@@ -158,7 +158,8 @@ case $arch in
             --host="$target" \
             --prefix="$workdir/toolchain-$arch/$target" \
             --disable-shared \
-            --disable-stdio-redirect
+            --disable-stdio-redirect \
+            --disable-threads
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
