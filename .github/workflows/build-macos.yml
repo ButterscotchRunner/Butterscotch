@@ -58,7 +58,7 @@ jobs:
           path: build/butterscotch
 
   build-appkit-macos-cross:
-      name: Build (AppKit ${{ matrix.arch }})
+      name: Build (SDL 1.2 ${{ matrix.arch }})
       strategy:
         fail-fast: false
         matrix:
@@ -82,11 +82,13 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y clang cmake ninja-build ccache libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip cpio zlib1g-dev
   
-        - name: Cache OSXCross toolchain
+        - name: Cache OSXCross toolchain and SDL 1.2
           id: cache-osxcross
           uses: actions/cache@v6
           with:
-            path: osxcross
+            path: |
+              vendor/osxcross
+              vendor/SDL
             key: osxcross-${{ matrix.arch }}-v1
   
         - name: Checkout OSXCross
@@ -96,7 +98,7 @@ jobs:
             repository: tpoechtrager/osxcross
             ref: osxcross-1.1
             path: vendor/osxcross
-  
+
         - name: Download Mac OS X SDK
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           run: |
@@ -109,7 +111,26 @@ jobs:
           run: |
             cd vendor/osxcross
             ./build.sh
-  
+
+        - name: Checkout SDL 1.2
+          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          uses: actions/checkout@v7
+          with:
+            repository: libsdl-org/SDL-1.2
+            ref: a1f09d7b03a0e1c49f7c91b521fce3cccd6fff6e
+            path: vendor/SDL
+
+        - name: Build SDL 1.2
+          if: steps.cache-osxcross.outputs.cache-hit != 'true'
+          run: |
+            cd vendor/SDL
+            ./configure \
+              --host=${{ matrix.arch }}-apple-darwin8 \
+              --prefix=${{ github.workspace }}/vendor/osxcross/target \
+              --disable-shared
+            make -j$(nproc)
+            make install
+
         - name: Configure and build Butterscotch
           env:
             CC: ${{ matrix.arch }}-apple-darwin8-clang
@@ -119,7 +140,8 @@ jobs:
             cmake -B build -G Ninja \
               -DWERROR=ON \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
-              -DBACKEND=appkit \
+              -DBACKEND=sdl1 \
+              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
               -DCMAKE_BUILD_TYPE=Release
@@ -128,5 +150,5 @@ jobs:
         - name: Upload artifact
           uses: actions/upload-artifact@v7
           with:
-            name: butterscotch-appkit-macos-${{ matrix.arch }}
+            name: butterscotch-sdl-macos-${{ matrix.arch }}
             path: build/butterscotch
