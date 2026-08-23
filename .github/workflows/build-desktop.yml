@@ -67,8 +67,8 @@ jobs:
       - name: Setup ar and ranlib scripts
         run: |
           mkdir ~/tmpbin
-          printf '#!/bin/sh\nexec zig ar\n' > ~/tmpbin/zig-ar
-          printf '#!/bin/sh\nexec zig ranlib\n' > ~/tmpbin/zig-ranlib
+          printf '#!/bin/sh\nexec zig ar "$@"\n' > ~/tmpbin/zig-ar
+          printf '#!/bin/sh\nexec zig ranlib "$@"\n' > ~/tmpbin/zig-ranlib
           chmod +x ~/tmpbin/zig-ar ~/tmpbin/zig-ranlib
           export PATH="$HOME/tmpbin:$PATH"
 
