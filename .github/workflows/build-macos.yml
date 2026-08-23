@@ -64,8 +64,10 @@ jobs:
         matrix:
           include:
             - arch: i386
+              clang_arch: i386
               cflags: "-march=yonah"
             - arch: powerpc
+              clang_arch: ppc
               cflags: ""
   
       runs-on: ubuntu-24.04
@@ -122,21 +124,21 @@ jobs:
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           env:
             CC: ${{ matrix.arch }}-apple-darwin8-clang
-            CFLAGS: ${{ matrix.cflags }}
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cd vendor/SDL
             ./configure \
               --host=${{ matrix.arch }}-apple-darwin8 \
               --prefix=${{ github.workspace }}/vendor/osxcross/target \
-              --disable-shared
+              --disable-shared || cat config.log
             make -j$(nproc)
             make install
 
         - name: Configure and build Butterscotch
           env:
             CC: ${{ matrix.arch }}-apple-darwin8-clang
-            CFLAGS: ${{ matrix.cflags }}
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cmake -B build -G Ninja \
