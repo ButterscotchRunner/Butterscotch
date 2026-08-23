@@ -19,11 +19,6 @@ jobs:
             sys_version: ""
             triple_suffix_base: linux-gnu
             lib_dir_name: lib
-          - name: Windows
-            sys_version: ""
-            triple_suffix_base: w64-mingw32
-            lib_dir_name: lib
-            executable_suffix: .exe
         arch_config:
           - name: amd64
             triple_prefix: x86_64
@@ -46,10 +41,6 @@ jobs:
             cflags: ""
             linux_glibc_floor: "2.36"
         exclude:
-          - os_config: { name: Windows }
-            arch_config: { name: riscv }
-          - os_config: { name: Windows }
-            arch_config: { name: loongarch64 }
           - os_config: { name: FreeBSD }
             arch_config: { name: loongarch64 }
             
@@ -97,12 +88,9 @@ jobs:
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
-            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
-            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
-            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
-            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=OFF \
@@ -121,12 +109,9 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
-            -DCMAKE_CXX_COMPILER_AR="${{ env.AR }}" \
-            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
-            -DCMAKE_CXX_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
-            -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
