@@ -64,8 +64,10 @@ jobs:
         matrix:
           include:
             - arch: i386
+              clang_arch: i386
               cflags: "-march=yonah"
             - arch: powerpc
+              clang_arch: ppc
               cflags: ""
   
       runs-on: ubuntu-24.04
@@ -122,7 +124,7 @@ jobs:
           if: steps.cache-osxcross.outputs.cache-hit != 'true'
           env:
             CC: o32-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.clang_arch }}"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             cd vendor/SDL
@@ -136,25 +138,28 @@ jobs:
         - name: Configure and build Butterscotch
           env:
             CC: o32-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
+            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }} -mmacosx-version-min=10.4"
+            LDFLAGS: "-arch ${{ matrix.arch }} -mmacosx-version-min=10.4"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
-            export SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
+            
+            SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
             
             cmake -B build -G Ninja \
               -DWERROR=ON \
               -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
+              -DCMAKE_EXE_LINKER_FLAGS="-framework OpenAL -framework Cocoa -framework Carbon" \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
-              -DOPENAL_LIBRARY="${SDK_FRAMEWORKS}/OpenAL.framework" \
+              -DOPENAL_LIBRARY="-framework OpenAL" \
               -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
               -DCMAKE_BUILD_TYPE=Release
-            cmake --build build
+            cmake --build build --verbose
 
         - name: Upload artifact
           uses: actions/upload-artifact@v7
