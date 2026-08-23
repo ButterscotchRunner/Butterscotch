@@ -93,7 +93,7 @@ jobs:
       - name: Download Mac OS X SDK
         if: steps.cache-intel.outputs.cache-hit != 'true'
         run: |
-          curl -L -o vendor/osxcross/tarballs/MacOSX10.4u.sdk.tar.xz https://github.com
+          curl -L -o vendor/osxcross/tarballs/MacOSX10.4u.sdk.tar.xz https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.4u.sdk.tar.xz
 
       - name: Build OSXCross toolchain
         if: steps.cache-intel.outputs.cache-hit != 'true'
