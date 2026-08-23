@@ -115,7 +115,7 @@ jobs:
         if: steps.cache-intel.outputs.cache-hit != 'true'
         env:
           CC: o32-clang
-          CFLAGS: "-march=pentium-m -msse -D__m128i=__m128 -D__m128d=__m128"
+          CFLAGS: "-march=pentium-m -msse2"
         run: |
           export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
           cd vendor/SDL
@@ -144,7 +144,7 @@ jobs:
             -DCMAKE_C_COMPILER="o32-clang" \
             -DCMAKE_AR="i386-apple-darwin8-ar" \
             -DCMAKE_RANLIB="i386-apple-darwin8-ranlib" \
-            -DCMAKE_C_FLAGS="-march=pentium-m -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
+            -DCMAKE_C_FLAGS="-march=pentium-m -msse2 -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-framework,AudioToolbox -Wl,-framework,CoreAudio -Wl,-framework,CoreServices -Wl,-framework,OpenGL -Xlinker -dylib_file -Xlinker ${ACC_REMAP} ${SDK_USR_LIB}/libobjc.A.dylib ${SDK_USR_LIB}/libgcc_s.1.dylib -Wl,-undefined,dynamic_lookup" \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
             -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
