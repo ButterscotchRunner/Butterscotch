@@ -128,5 +128,5 @@ jobs:
         - name: Upload artifact
           uses: actions/upload-artifact@v7
           with:
-            name: butterscotch-appkit-macos-${{ matrix.label }}
+            name: butterscotch-appkit-macos-${{ matrix.arch }}
             path: build/butterscotch
