@@ -125,7 +125,6 @@ jobs:
             -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DSDL_SHARED=OFF \
             -DSDL_STATIC=ON \
             -DSDL_TESTS=OFF \
