@@ -115,7 +115,7 @@ jobs:
         if: steps.cache-intel.outputs.cache-hit != 'true'
         env:
           CC: o32-clang
-          CFLAGS: "-march=pentium-m"
+          CFLAGS: "-march=pentium-m -msse -D__m128i=__m128 -D__m128d=__m128"
         run: |
           export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
           cd vendor/SDL
