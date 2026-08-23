@@ -136,7 +136,7 @@ jobs:
         - name: Configure and build Butterscotch
           env:
             CC: o32-clang
-            CFLAGS: "${{ matrix.cflags }} -arch ${{ matrix.arch }}"
+            CFLAGS: "-O2 -arch ${{ matrix.clang_arch }} ${{ matrix.cflags }} -Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include"
           run: |
             export PATH="${{ github.workspace }}/vendor/osxcross/target/bin:$PATH"
             SDK_FRAMEWORKS="${{ github.workspace }}/vendor/osxcross/target/SDK/MacOSX10.4u.sdk/System/Library/Frameworks"
@@ -145,18 +145,18 @@ jobs:
               -DWERROR=ON \
               -DBACKEND=sdl1 \
               -DAUDIO_BACKEND=openal \
+              -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_SKIP_RPATH=ON \
               -DCMAKE_AR="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ar" \
               -DCMAKE_RANLIB="${{ github.workspace }}/vendor/osxcross/target/bin/o32-ranlib" \
-              -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -I${{ github.workspace }}/vendor/osxcross/target/include" \
+              -DCMAKE_C_FLAGS="${{ env.CFLAGS }}" \
               -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_FIND_ROOT_PATH="${{ github.workspace }}/vendor/osxcross/target" \
               -DCMAKE_INCLUDE_PATH="${{ github.workspace }}/vendor/osxcross/target/include" \
               -DOPENAL_LIBRARY="${SDK_FRAMEWORKS}/OpenAL.framework/OpenAL" \
               -DOPENAL_INCLUDE_DIR="${SDK_FRAMEWORKS}/OpenAL.framework/Headers" \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
             cmake --build build --verbose
 
         - name: Upload artifact
