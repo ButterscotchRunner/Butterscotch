@@ -21,6 +21,9 @@ jobs:
           - name: OpenBSD
             triple_suffix_base: openbsd.7.8
             lib_dir_name: lib
+          - name: NetBSD
+            triple_suffix_base: netbsd.10.1
+            lib_dir_name: lib
         arch_config:
           - name: amd64
             triple_prefix: x86_64
@@ -52,6 +55,8 @@ jobs:
           - os_config: { name: FreeBSD }
             arch_config: { name: powerpc }
           - os_config: { name: OpenBSD }
+            arch_config: { name: loongarch64 }
+          - os_config: { name: NetBSD }
             arch_config: { name: loongarch64 }
             
     env:
