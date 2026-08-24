@@ -4108,7 +4108,7 @@ void Runner_step(Runner* runner) {
 
     // Measure fps_real builtin
     if (runner->deltaTime > 0.0) {
-        runner->fpsReal = 1000000.0 / (double)runner->deltaTime;
+        runner->fpsReal = (double)(1000000.0 / runner->deltaTime);
     }
 
     runner->frameCount++;
