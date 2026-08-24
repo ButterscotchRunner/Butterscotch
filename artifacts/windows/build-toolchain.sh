@@ -36,16 +36,6 @@ else
     exit 1
 fi
 
-case $arch in
-    (i?86) ;;
-    (*)
-        if ! command -v cmake > /dev/null; then
-            printf 'Missing dependency: cmake\n'
-            exit 1
-        fi
-    ;;
-esac
-
 make() {
     command "$_MAKE" "$@"
 }
@@ -54,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=2
+toolchainver=3
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -65,14 +55,17 @@ fi
 case $arch in
     (i?86)
         winnt=0x0400 # Windows NT 4.0 (We actually support lower, but this is the lowest this value is supposed to be)
+        crt=crtdll
     ;;
     (x86_64)
         winnt=0x0502 # Windows XP x64 edition / Server 2003
+        crt=msvcrt
     ;;
     (arm64|aarch64)
         printf 'aarch64 builds are currently unsupported.\n'
         exit 1
-        # winnt=0x0A00 # Windows 10
+        winnt=0x0A00 # Windows 10
+        crt=ucrt
     ;;
     (*)
         printf 'Unknown architecture!\n'
@@ -106,7 +99,7 @@ cd "mingw-w64-v$mingw_version/mingw-w64-headers"
     --host="$target" \
     --prefix="$workdir/toolchain-$arch/$target" \
     --with-default-win32-winnt="$winnt" \
-    --with-default-msvcrt=crtdll
+    --with-default-msvcrt="$crt"
 make -j"$ncpus" install
 cd ../..
 
@@ -142,7 +135,7 @@ cd "mingw-w64-v$mingw_version/mingw-w64-crt"
     --host="$target" \
     --prefix="$workdir/toolchain-$arch/$target" \
     --with-default-win32-winnt="$winnt" \
-    --with-default-msvcrt=crtdll
+    --with-default-msvcrt="$crt"
 make -j1
 make -j1 install
 cd ../..
@@ -154,16 +147,40 @@ make -j"$ncpus" install-strip
 cd ../..
 rm -rf "gcc-$gcc_version" &
 
-glfw2_version='2.7.9'
-rm -rf glfw-*
-wget -O- "https://github.com/glfw/glfw-legacy/archive/refs/tags/$glfw2_version.tar.gz" | tar -xz
+case $arch in
+    (i?86)
+        sdl1_version='39e1580a7d2f8c09521338108c2a94019e37798e'
+        rm -rf SDL-1.2-*
+        wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/$sdl1_version.tar.gz" | tar -xz
 
-cd "glfw-legacy-$glfw2_version"
-make -j"$ncpus" cross-mgw-install \
-    TARGET="$target-" \
-    PREFIX="$workdir/toolchain-$arch/$target"
-cd ..
-rm -rf "glfw-legacy-$glfw2_version" &
+        cd "SDL-1.2-$sdl1_version"
+        ./configure \
+            --host="$target" \
+            --prefix="$workdir/toolchain-$arch/$target" \
+            --disable-shared \
+            --disable-stdio-redirect \
+            --disable-threads
+        make -j"$ncpus"
+        make -j"$ncpus" install
+        cd ..
+        rm -rf "SDL-1.2-$sdl1_version" &
+    ;;
+    (x86_64|arm64|aarch64)
+        sdl2_version='2.32.10'
+        rm -rf SDL-*
+        wget -O- "https://github.com/libsdl-org/SDL/archive/refs/tags/release-$sdl2_version.tar.gz" | tar -xz
+
+        cd "SDL-release-$sdl2_version"
+        ./configure \
+            --host="$target" \
+            --prefix="$workdir/toolchain-$arch/$target" \
+            --disable-shared
+        make -j"$ncpus"
+        make -j"$ncpus" install
+        cd ..
+        rm -rf "SDL-release-$sdl2_version" &
+    ;;
+esac
 
 printf '%s' "$toolchainver" > "toolchain-$arch/toolchainver"
 wait
