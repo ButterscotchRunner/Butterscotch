@@ -2296,7 +2296,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->fileSystem = fileSystem;
     runner->audioSystem = audioSystem;
     runner->frameCount = 0;
-    GMLReal initialFps = dataWin->gen8.gms2FPS;
+    double initialFps = (double)dataWin->gen8.gms2FPS;
     runner->fps = initialFps;
     runner->fpsReal = initialFps;
     runner->fpsWindowStartFrame = 0;
@@ -4101,14 +4101,14 @@ void Runner_step(Runner* runner) {
 
     // Measure fps builtin
     if (nowNanos() - runner->fpsWindowStartNanos >= (uint64_t)1000000000) {
-        runner->fps = (GMLReal) (runner->frameCount - runner->fpsWindowStartFrame);
+        runner->fps = (double)(runner->frameCount - runner->fpsWindowStartFrame);
         runner->fpsWindowStartFrame = runner->frameCount;
         runner->fpsWindowStartNanos = nowNanos();
     }
 
     // Measure fps_real builtin
-    if (runner->deltaTime > (GMLReal) 0.0) {
-        runner->fpsReal = (GMLReal) ((GMLReal) 1000000.0 / runner->deltaTime);
+    if (runner->deltaTime > 0.0) {
+        runner->fpsReal = 1000000.0 / (double)runner->deltaTime;
     }
 
     runner->frameCount++;
