@@ -263,7 +263,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             add_compile_options(-ffast-math)
         endif()
 
-        add_compile_definitions(__SWITCH__)
         add_compile_definitions(PLATFORM_SWITCH)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
