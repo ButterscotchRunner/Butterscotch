@@ -1,3 +1,66 @@
+# note: this webOS port was developed with significant assistance from ChatGPT as a proof of concept. ChatGPT was used throughout development to understand the existing platform ports, write and adapt code, troubleshoot webOS SDK/CMake/toolchain issues, and debug the build.
+
+# CONTROLLER REQUIRED. The B button triggers the webOS Back action. Use the in-game controller configuration to remap the controls. Tested with Undertale 1.08.
+
+## current status:
+
+The port successfully builds using the webOS SDK and produces a 32-bit ARM EABI5 executable.
+
+The port has been tested on webOS 23. Further testing is welcome.
+
+(likely more issues)
+
+## how to use:
+
+1. Install the Butterscotch `.ipk`.
+2. Copy the required game files to the installed application's directory using `scp`.
+3. `data.win` is the minimum required file, but other game files may also be required depending on the game.
+4. Launch Butterscotch from the webOS launcher.
+
+## how to build:
+
+1. Install and source the webOS SDK / Homebrew SDK.
+2. Clone this repository.
+3. Configure with:
+
+   `/usr/bin/cmake -S . -B build-webos -DPLATFORM=webos -DENABLE_MODERN_GL=ON`
+
+4. Build with:
+
+   `/usr/bin/cmake --build build-webos`
+
+This produces:
+
+`build-webos/butterscotch`
+
+## how to package and install:
+
+1. Prepare a package directory containing:
+   - `butterscotch`
+   - `appinfo.json`
+   - `icon.png`
+
+2. Package it:
+
+   `ares-package <package-directory>`
+
+3. Install it:
+
+   `ares-install <package>.ipk`
+
+4. Launch it:
+
+   `ares-launch <app-id>`
+
+5. Copy the required game files into the installed application directory:
+
+   `scp -r <game-files> root@<device-ip>:<installed-app-path>/`
+
+The webOS SDK environment must be sourced so that the Ares tools are available.
+
+## original readme:
+
+
 <div align="center">
 <img width="256" height="256" alt="Butterscotch Logo" src="https://github.com/user-attachments/assets/ef8bdd5c-d407-4b3c-a4d5-07b25e8bbc70" />
 </div>
@@ -66,7 +129,7 @@ Of course, there are exceptions that break game compatibility altogether:
 * ...and maybe more in the future!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1995
+* Linux with glibc as old as about ~1996
 * FreeBSD as old as 2.2.8
 * OpenBSD
 * NetBSD
@@ -95,11 +158,11 @@ The following compilers have been tested to successfully build butterscotch, old
 
 ```bash
 mkdir build && cd build
-cmake -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DPLATFORM=desktop -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
 make
 ```
 
-If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
+If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DDESKTOP_BACKEND=glfw3`
 
 Then run Butterscotch with `./butterscotch /path/to/data.win`!
 

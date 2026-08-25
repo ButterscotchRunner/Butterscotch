@@ -83,6 +83,8 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
+    elseif(PLATFORM STREQUAL "webos")
+        set(AUDIO_BACKEND "miniaudio")
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -143,12 +145,25 @@ else()
     file(GLOB SOURCES src/*.c)
     # These platforms haven't been converted to the refactored system yet.
     # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
+    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android" OR PLATFORM STREQUAL "webos")
         list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
+    endif()
+
+    if(PLATFORM STREQUAL "webos")
+        list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/stb_ds.c")
     endif()
 endif()
 # Platform specific files builds
-file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
+if(PLATFORM STREQUAL "webos")
+    # stat_compat.c and glibc_compat.c both provide stat/fstat
+    # compatibility; use only the glibc shim for WebOS.
+    file(GLOB PLATFORM_SOURCES
+        src/webos/main.c
+        src/webos/glibc_compat.c
+    )
+else()
+    file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
+endif()
 
 if(PLATFORM STREQUAL "android")
     add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
@@ -531,6 +546,66 @@ elseif(PLATFORM STREQUAL "android")
     # - GLESv3: OpenGL ES 3.0 functions
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
     target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
+elseif(PLATFORM STREQUAL "webos")
+    if(NOT ENABLE_MODERN_GL)
+        message(FATAL_ERROR "WebOS requires modern gl!")
+    endif()
+
+    if(NOT TARGET glad)
+        add_library(glad STATIC vendor/glad/src/glad.c)
+        target_include_directories(glad PUBLIC
+            ${CMAKE_SOURCE_DIR}/vendor/glad/include
+        )
+    endif()
+
+    file(GLOB GL_SOURCES
+        src/gl/*.c
+        src/gl_common/*.c
+        src/image/*.c
+    )
+
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
+    target_sources(butterscotch PRIVATE src/webos/stb_impl.c)
+
+    target_include_directories(butterscotch PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/gl
+        ${CMAKE_SOURCE_DIR}/src/gl_common
+        ${CMAKE_SOURCE_DIR}/src/image
+        ${CMAKE_SOURCE_DIR}/vendor/glad/include
+    )
+
+    target_include_directories(butterscotch PUBLIC
+        ${CMAKE_SOURCE_DIR}/vendor/stb/image
+        ${CMAKE_SOURCE_DIR}/vendor/stb/vorbis
+    )
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2 REQUIRED sdl2)
+
+    target_include_directories(butterscotch PRIVATE
+        ${SDL2_INCLUDE_DIRS}
+    )
+
+    target_link_directories(butterscotch PRIVATE
+        ${SDL2_LIBRARY_DIRS}
+    )
+
+    target_link_libraries(butterscotch PRIVATE
+        glad
+        ${SDL2_LIBRARIES}
+        GLESv2
+        EGL
+        bzip2
+        stb_ds
+        sha1
+        stb_vorbis
+        ${CMAKE_DL_LIBS}
+        pthread
+        m
+    )
+
+    add_compile_definitions(PLATFORM_WEBOS)
+
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
