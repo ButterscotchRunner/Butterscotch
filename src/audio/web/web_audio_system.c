@@ -42,15 +42,15 @@ static WebSoundInstance* findFreeSlot(WebAudioSystem* ma) {
 }
 
 static bool isValidSoundInstanceId(int32_t instanceId) {
-    return AUDIO_STREAM_INDEX_BASE > instanceId && instanceId >= SOUND_INSTANCE_ID_BASE;
+    return WEB_AUDIO_STREAM_INDEX_BASE > instanceId && instanceId >= WEB_SOUND_INSTANCE_ID_BASE;
 }
 
-static SoundInstance* findInstanceById(MaAudioSystem* ma, int32_t instanceId) {
-    int32_t slotIndex = instanceId - SOUND_INSTANCE_ID_BASE;
-    if (0 > slotIndex || slotIndex >= MAX_SOUND_INSTANCES)
+static WebSoundInstance* findInstanceById(WebAudioSystem* ma, int32_t instanceId) {
+    int32_t slotIndex = instanceId - WEB_SOUND_INSTANCE_ID_BASE;
+    if (0 > slotIndex || slotIndex >= WEB_MAX_SOUND_INSTANCES)
         return nullptr;
 
-    SoundInstance* inst = &ma->instances[slotIndex];
+    WebSoundInstance* inst = &ma->instances[slotIndex];
     if (!inst->active || inst->instanceId != instanceId)
         return nullptr;
 
