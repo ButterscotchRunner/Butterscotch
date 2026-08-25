@@ -5,22 +5,19 @@ on:
 
 jobs:
   build-glfw-windows:
-    name: Build (GLFW3 ${{ matrix.arch }})
+    name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            target: x86_64-w64-windows-gnu
-            triplet: x86_64-w64-mingw32
-          - arch: i686
-            target: i686-w64-windows-gnu
-            triplet: i686-w64-mingw32
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
+          - arch: armv7
+            target: armv7-w64-windows-gnu
+            triplet: armv7-w64-mingw32
 
     steps:
       - uses: actions/checkout@v7
@@ -37,7 +34,8 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
-            ccache
+            ccache \
+            llvm
 
       - uses: actions/cache@v6
         with:
@@ -92,7 +90,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build
+        run: |
+          cmake --build build
+          llvm-strip --strip-all build/butterscotch.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -100,9 +100,19 @@ jobs:
           name: butterscotch-glfw3-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
 
-  build-glfw-windows-x86:
-    name: Build (GLFW2 i486)
+  build-windows:
+    name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            backend: sdl2
+            libs: SDL2_LIBS='-lmingw32 -lSDL2main -lSDL2 -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid'
+          - arch: i486
+            backend: sdl1
+            libs: SDL1_LIBS='-lmingw32 -lSDLmain -lSDL -lm -luser32 -lgdi32 -lwinmm -ldxguid'
     steps:
       - uses: actions/checkout@v7
 
@@ -111,39 +121,30 @@ jobs:
         with:
           path: |
               ~/.cache/ccache
-              artifacts/windows/build/toolchain-i486
+              artifacts/windows/build/toolchain-${{ matrix.arch }}
           key: win32-artifact-${{ github.sha }}
           restore-keys: win32-artifact-
-
-      - name: Get commit info
-        id: commit-info
-        run: |
-          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ccache
-
-          if [ ! -d "artifacts/windows/build/toolchain-i486" ]; then
-            sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev
-            ARCH=i486 ./artifacts/windows/build-toolchain.sh
-          fi
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev llvm
+          ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
 
       - name: Build
         run: |
-          PATH="$PWD/artifacts/windows/build/toolchain-i486/bin:$PATH" make \
+          PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH" make \
               NO_COLOR=1 \
               VERBOSE=1 \
-              CC='ccache i486-w64-mingw32-gcc' \
-              CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer' \
-              BACKEND=glfw2 \
-              GLFW2_LIBS='-lglfw -lopengl32' \
-              EXTRALIBS='-latomic'
+              CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
+              CFLAGS='-O3 -DNDEBUG -flto -fomit-frame-pointer' \
+              BACKEND=${{ matrix.backend }} \
+              EXTRALIBS='-latomic' \
+              ${{ matrix.libs }}
+          llvm-strip --strip-all build/butterscotch.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-glfw2-windows-x86
+          name: butterscotch-windows-${{ matrix.arch }}
           path: build/butterscotch.exe

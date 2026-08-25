@@ -1,0 +1,193 @@
+name: Unix builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-sdl2-desktop:
+    name: Build (SDL2 ${{ matrix.os_config.name }} ${{ matrix.arch_config.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os_config:
+          - name: FreeBSD
+            sys_version: "14.0"
+            triple_suffix_base: freebsd.14.0
+            lib_dir_name: libdata
+          - name: Linux
+            triple_suffix_base: linux-gnu
+            lib_dir_name: lib
+          - name: OpenBSD
+            triple_suffix_base: openbsd.7.8
+            lib_dir_name: lib
+          - name: NetBSD
+            triple_suffix_base: netbsd.10.1
+            lib_dir_name: lib
+        arch_config:
+          - name: amd64
+            triple_prefix: x86_64
+            linux_glibc_floor: "2.17"
+          - name: i486
+            triple_prefix: x86
+            linux_glibc_floor: "2.17"
+            cflags: "-march=i486"
+          - name: aarch64
+            triple_prefix: aarch64
+            linux_glibc_floor: "2.17"
+          - name: arm
+            triple_prefix: arm
+            abi: eabihf
+            linux_glibc_floor: "2.17"
+          - name: powerpc
+            triple_prefix: powerpc
+            abi: eabihf
+            linux_glibc_floor: "2.17"
+          - name: powerpc64
+            triple_prefix: powerpc64
+            linux_glibc_floor: "2.17"
+          - name: powerpc64le
+            triple_prefix: powerpc64le
+            linux_glibc_floor: "2.19"
+          - name: riscv
+            triple_prefix: riscv64
+            cflags: "-mcpu=generic_rv64+m+a+f+d+c"
+            linux_glibc_floor: "2.27"
+          - name: loongarch64
+            triple_prefix: loongarch64
+            linux_glibc_floor: "2.36"
+          - name: mips
+            triple_prefix: mips
+            abi: eabihf
+            linux_glibc_floor: "2.17"
+          - name: mipsel
+            triple_prefix: mipsel
+            abi: eabihf
+            linux_glibc_floor: "2.17"
+          - name: mips64
+            triple_prefix: mips64
+            abi: abi64
+            linux_glibc_floor: "2.17"
+          - name: mips64el
+            triple_prefix: mips64el
+            abi: abi64
+            linux_glibc_floor: "2.17"
+        exclude:
+          - os_config: { name: FreeBSD }
+            arch_config: { name: loongarch64 }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: powerpc }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: loongarch64 }
+          - os_config: { name: NetBSD }
+            arch_config: { name: loongarch64 }
+          - os_config: { name: NetBSD }
+            arch_config: { name: riscv }
+          - os_config: { name: NetBSD }
+            arch_config: { name: powerpc64 }
+          - os_config: { name: NetBSD }
+            arch_config: { name: powerpc64le }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: powerpc64le }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mips }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: mips }
+          - os_config: { name: NetBSD }
+            arch_config: { name: mips64 }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mips64 }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mipsel }
+          - os_config: { name: OpenBSD }
+            arch_config: { name: mipsel }
+          - os_config: { name: NetBSD }
+            arch_config: { name: mips64el }
+          - os_config: { name: FreeBSD }
+            arch_config: { name: mips64el }
+            
+    env:
+      ZIG_VERSION: 0.16.0
+      CC: zig cc
+      AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
+      RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
+      CFLAGS: "${{ matrix.arch_config.cflags }}"
+      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'NetBSD') && format('-{0}', matrix.arch_config.abi) || '' }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'Linux') && matrix.arch_config.abi || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+          cache-key: zigcc-${{ env.TARGET_TRIPLE }}
+
+      - name: Cache SDL2 build
+        id: cache-sdl2
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vendor/SDL2/install
+          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev14
+
+      - name: Checkout SDL2
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/SDL2
+
+      - name: Build SDL2 from source
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        run: |
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
+            -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
+            -DCMAKE_LINKER="${{ env.CC }}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_SHARED=ON \
+            -DSDL_STATIC=OFF \
+            -DSDL_TESTS=OFF \
+            -DSDL_TEST=OFF \
+            -DSDL_OSS=OFF
+          cmake --build vendor/SDL2/build
+          cmake --install vendor/SDL2/build
+
+      - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
+          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
+          PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
+          PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
+        run: |
+          sudo apt-get install -y llvm
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
+            -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
+            -DCMAKE_AR="${{ env.AR }}" \
+            -DCMAKE_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
+            -DCMAKE_C_COMPILER_RANLIB="${{ env.RANLIB }}" \
+            -DCMAKE_C_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
+            -DCMAKE_LINKER="${{ env.CC }}" \
+            -DBACKEND=sdl2 \
+            -DWERROR=ON \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="${{ matrix.arch_config.cflags }} -flto"
+          cmake --build build
+          llvm-strip build/butterscotch
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Butterscotch-${{ matrix.os_config.name }}-${{ matrix.arch_config.name }}
+          path: build/butterscotch${{ matrix.os_config.executable_suffix }}
