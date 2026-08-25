@@ -438,7 +438,7 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
         // Thanks YoYo!!!
         if (WEB_AUDIO_STREAM_INDEX_BASE > soundOrInstance || DataWin_isVersionAtLeast(audio->dw, 2024, 11, 0, 0)) {
             repeat(WEB_MAX_SOUND_INSTANCES, i) {
-                SoundInstance* inst = &ma->instances[i];
+                WebSoundInstance* inst = &ma->instances[i];
                 if (inst->active && inst->soundIndex == soundOrInstance) {
                     if (timeMs == 0) {
                         inst->currentGain = gain;
