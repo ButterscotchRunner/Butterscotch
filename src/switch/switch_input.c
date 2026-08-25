@@ -11,10 +11,10 @@ static PadState pads[SWITCH_NPAD_COUNT];
 static bool initialized = false;
 
 static void mapLibnxToGml(GamepadSlot* slot, PadState* pad, u64 cur) {
-    if (cur & HidNpadButton_B) slot->buttonDown[0] = true;
-    if (cur & HidNpadButton_A) slot->buttonDown[1] = true;
-    if (cur & HidNpadButton_X) slot->buttonDown[2] = true;
-    if (cur & HidNpadButton_Y) slot->buttonDown[3] = true;
+    if (cur & HidNpadButton_A) slot->buttonDown[0] = true;
+    if (cur & HidNpadButton_B) slot->buttonDown[1] = true;
+    if (cur & HidNpadButton_Y) slot->buttonDown[2] = true;
+    if (cur & HidNpadButton_X) slot->buttonDown[3] = true;
     if (cur & HidNpadButton_L) slot->buttonDown[4] = true;
     if (cur & HidNpadButton_R) slot->buttonDown[5] = true;
     slot->buttonValue[6] = (cur & HidNpadButton_ZL) ? 1.0f : 0.0f;
@@ -49,9 +49,7 @@ static void fillGamepadSlot(GamepadSlot* slot, PadState* pad, u64 cur, bool conn
     strncpy(slot->description, "Nintendo Switch Controller", sizeof(slot->description) - 1);
     strncpy(slot->guid, guid, sizeof(slot->guid) - 1);
 
-    if (connected) {
-        mapLibnxToGml(slot, pad, cur);
-    }
+    if (connected) mapLibnxToGml(slot, pad, cur);
 
     for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
         bool wasDown = slot->buttonDownPrev[btn];
