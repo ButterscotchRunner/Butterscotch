@@ -466,7 +466,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         arrput(currentGameArgs, args.gameArgs[i]);
     }
     // The first argument will ALWAYS be the argv[0]
-    arrins(currentGameArgs, 0, safeStrdup(argv0));
+    arrins(currentGameArgs, 0, safeStrdup(argv0 != nullptr ? argv0 : ""));
 
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
