@@ -40,6 +40,5 @@ int main(int argc, char* argv[]) {
 
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
-    romfsExit();
     return ret;
 }
