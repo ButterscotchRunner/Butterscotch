@@ -722,7 +722,7 @@ static void alResume(AudioSystem* audio) {
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (isValidSoundInstanceId(soundOrInstance)) {
+    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE) {
         int32_t streamSlot = soundOrInstance - AUDIO_STREAM_INDEX_BASE;
         AudioStreamEntry* stream = &ma->streams[streamSlot];
 
@@ -789,7 +789,7 @@ static float maGetSoundGain(AudioSystem* audio, int32_t soundOrInstance) {
 static void maSetSoundPitch(AudioSystem* audio, int32_t soundOrInstance, float pitch) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (isValidSoundInstanceId(soundOrInstance)) {
+    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE) {
         int32_t streamSlot = soundOrInstance - AUDIO_STREAM_INDEX_BASE;
         AudioStreamEntry* stream = &ma->streams[streamSlot];
 
