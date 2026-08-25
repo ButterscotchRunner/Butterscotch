@@ -402,10 +402,10 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
 
-    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE) {
-        int32_t streamSlot = soundOrInstance - AUDIO_STREAM_INDEX_BASE;
+    if (soundOrInstance >= WEB_AUDIO_STREAM_INDEX_BASE) {
+        int32_t streamSlot = soundOrInstance - WEB_AUDIO_STREAM_INDEX_BASE;
 
-        AudioStreamEntry* stream = &ma->streams[streamSlot];
+        WebAudioStreamEntry* stream = &ma->streams[streamSlot];
 
         if (stream != nullptr) {
             stream->initialGain = gain;
@@ -415,7 +415,7 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
     }
 
     if (isValidSoundInstanceId(soundOrInstance)) {
-        SoundInstance* inst = findInstanceById(ma, soundOrInstance);
+        WebSoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             if (timeMs == 0) {
                 inst->currentGain = gain;
@@ -436,8 +436,8 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
         // Here's a fun fact for you: https://x.com/MrPowerGamerBR/status/2066291262970356037
         //
         // Thanks YoYo!!!
-        if (AUDIO_STREAM_INDEX_BASE > soundOrInstance || DataWin_isVersionAtLeast(audio->dw, 2024, 11, 0, 0)) {
-            repeat(MAX_SOUND_INSTANCES, i) {
+        if (WEB_AUDIO_STREAM_INDEX_BASE > soundOrInstance || DataWin_isVersionAtLeast(audio->dw, 2024, 11, 0, 0)) {
+            repeat(WEB_MAX_SOUND_INSTANCES, i) {
                 SoundInstance* inst = &ma->instances[i];
                 if (inst->active && inst->soundIndex == soundOrInstance) {
                     if (timeMs == 0) {
@@ -477,8 +477,8 @@ static void webSetSoundPitch(AudioSystem* audio, int32_t soundOrInstance, float 
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
 
-    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE) {
-        int32_t streamSlot = soundOrInstance - AUDIO_STREAM_INDEX_BASE;
+    if (soundOrInstance >= WEB_AUDIO_STREAM_INDEX_BASE) {
+        int32_t streamSlot = soundOrInstance - WEB_AUDIO_STREAM_INDEX_BASE;
 
         WebAudioStreamEntry* stream = &ma->streams[streamSlot];
 
