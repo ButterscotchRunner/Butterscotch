@@ -41,11 +41,19 @@ static WebSoundInstance* findFreeSlot(WebAudioSystem* ma) {
     return best;
 }
 
+static bool isValidSoundInstanceId(int32_t instanceId) {
+    return WEB_AUDIO_STREAM_INDEX_BASE > instanceId && instanceId >= WEB_SOUND_INSTANCE_ID_BASE;
+}
+
 static WebSoundInstance* findInstanceById(WebAudioSystem* ma, int32_t instanceId) {
     int32_t slotIndex = instanceId - WEB_SOUND_INSTANCE_ID_BASE;
-    if (0 > slotIndex || slotIndex >= WEB_MAX_SOUND_INSTANCES) return nullptr;
+    if (0 > slotIndex || slotIndex >= WEB_MAX_SOUND_INSTANCES)
+        return nullptr;
+
     WebSoundInstance* inst = &ma->instances[slotIndex];
-    if (!inst->active || inst->instanceId != instanceId) return nullptr;
+    if (!inst->active || inst->instanceId != instanceId)
+        return nullptr;
+
     return inst;
 }
 
@@ -162,6 +170,8 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     bool isStream = (soundIndex >= WEB_AUDIO_STREAM_INDEX_BASE);
     Sound* sound = nullptr;
     char* streamPath = nullptr;
+    float streamPitch = 1.0f;
+    float streamGain = 1.0f;
 
     if (isStream) {
         int32_t streamSlot = soundIndex - WEB_AUDIO_STREAM_INDEX_BASE;
@@ -169,7 +179,10 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
             logWarn("Audio: Invalid stream index %d\n", soundIndex);
             return -1;
         }
-        streamPath = ma->streams[streamSlot].filePath;
+        WebAudioStreamEntry* stream = &ma->streams[streamSlot];
+        streamPath = stream->filePath;
+        streamPitch = stream->initialPitch;
+        streamGain = stream->initialGain;
     } else {
         DataWin* dw = ma->base.audioGroups[0];
         if (0 > soundIndex || (uint32_t) soundIndex >= dw->sond.count) {
@@ -243,8 +256,8 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         }
     }
 
-    float volume = isStream ? 1.0f : sound->volume;
-    float pitch = isStream ? 1.0f : sound->pitch;
+    float volume = isStream ? streamGain : sound->volume;
+    float pitch = isStream ? streamPitch : sound->pitch;
     ma_sound_set_volume(&slot->maSound, volume);
     if (pitch != 1.0f) {
         ma_sound_set_pitch(&slot->maSound, pitch);
@@ -389,7 +402,19 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
 
-    if (soundOrInstance >= WEB_SOUND_INSTANCE_ID_BASE) {
+    if (soundOrInstance >= WEB_AUDIO_STREAM_INDEX_BASE) {
+        int32_t streamSlot = soundOrInstance - WEB_AUDIO_STREAM_INDEX_BASE;
+
+        WebAudioStreamEntry* stream = &ma->streams[streamSlot];
+
+        if (stream != nullptr) {
+            stream->initialGain = gain;
+        }
+
+        // We want it to "fallthrough" to the check below so that any playing instances are updated
+    }
+
+    if (isValidSoundInstanceId(soundOrInstance)) {
         WebSoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             if (timeMs == 0) {
@@ -405,19 +430,27 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
             }
         }
     } else {
-        repeat(WEB_MAX_SOUND_INSTANCES, i) {
-            WebSoundInstance* inst = &ma->instances[i];
-            if (inst->active && inst->soundIndex == soundOrInstance) {
-                if (timeMs == 0) {
-                    inst->currentGain = gain;
-                    inst->targetGain = gain;
-                    inst->fadeTimeRemaining = 0.0f;
-                    ma_sound_set_volume(&inst->maSound, gain);
-                } else {
-                    inst->startGain = inst->currentGain;
-                    inst->targetGain = gain;
-                    inst->fadeTotalTime = (float) timeMs / 1000.0f;
-                    inst->fadeTimeRemaining = inst->fadeTotalTime;
+        // Before GameMaker 2024.11+, you could NOT change the audio of a streamed OGG file because it went through a path that did NOT support
+        // setting the gain of the audio
+        //
+        // Here's a fun fact for you: https://x.com/MrPowerGamerBR/status/2066291262970356037
+        //
+        // Thanks YoYo!!!
+        if (WEB_AUDIO_STREAM_INDEX_BASE > soundOrInstance || DataWin_isVersionAtLeast(audio->dw, 2024, 11, 0, 0)) {
+            repeat(WEB_MAX_SOUND_INSTANCES, i) {
+                WebSoundInstance* inst = &ma->instances[i];
+                if (inst->active && inst->soundIndex == soundOrInstance) {
+                    if (timeMs == 0) {
+                        inst->currentGain = gain;
+                        inst->targetGain = gain;
+                        inst->fadeTimeRemaining = 0.0f;
+                        ma_sound_set_volume(&inst->maSound, gain);
+                    } else {
+                        inst->startGain = inst->currentGain;
+                        inst->targetGain = gain;
+                        inst->fadeTotalTime = (float) timeMs / 1000.0f;
+                        inst->fadeTimeRemaining = inst->fadeTotalTime;
+                    }
                 }
             }
         }
@@ -428,7 +461,7 @@ static float webGetSoundGain(AudioSystem* audio, int32_t soundOrInstance) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return 0.0f;
 
-    if (soundOrInstance >= WEB_SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         WebSoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) return inst->currentGain;
     } else {
@@ -444,7 +477,19 @@ static void webSetSoundPitch(AudioSystem* audio, int32_t soundOrInstance, float 
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
 
-    if (soundOrInstance >= WEB_SOUND_INSTANCE_ID_BASE) {
+    if (soundOrInstance >= WEB_AUDIO_STREAM_INDEX_BASE) {
+        int32_t streamSlot = soundOrInstance - WEB_AUDIO_STREAM_INDEX_BASE;
+
+        WebAudioStreamEntry* stream = &ma->streams[streamSlot];
+
+        if (stream != nullptr) {
+            stream->initialPitch = pitch;
+        }
+
+        // We want it to "fallthrough" to the check below so that any playing instances are updated
+    }
+
+    if (isValidSoundInstanceId(soundOrInstance)) {
         WebSoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) ma_sound_set_pitch(&inst->maSound, pitch);
     } else {
@@ -459,7 +504,7 @@ static float webGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return 1.0f;
 
-    if (soundOrInstance >= WEB_SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         WebSoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) return ma_sound_get_pitch(&inst->maSound);
     } else {
