@@ -35,8 +35,8 @@ int main(int argc, char* argv[]) {
 #else
     args.renderer = SOFTWARE;
 #endif
-    args.dataWinPath = "sdmc:/data/butterscotch/data.win";
-    args.saveFolder = "sdmc:/data/butterscotch";
+    args.dataWinPath = "sdmc:/switch/butterscotch/data.win";
+    args.saveFolder = "sdmc:/switch/butterscotch";
 
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
