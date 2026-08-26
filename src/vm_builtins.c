@@ -16966,6 +16966,10 @@ static RValue builtin_gpu_set_alphatestenable(VMContext* ctx, RValue* args, int3
     return RValue_makeUndefined();
 }
 
+static RValue builtin_gpu_get_alphatestenable(VMContext* ctx, RValue* args, int32_t argCount) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->gpuGetAlphaTestEnable(ctx->runner->renderer));
+}
+
 static RValue builtin_gpu_set_alphatestref(VMContext* ctx, RValue* args, int32_t argCount) {
     ctx->runner->renderer->vtable->gpuSetAlphaTestRef(ctx->runner->renderer, RValue_toInt32(args[0]));
     return RValue_makeUndefined();
@@ -18440,6 +18444,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
+    VM_registerBuiltin(ctx,"gpu_get_alphatestenable", builtin_gpu_get_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_colourwriteenable", builtin_gpu_set_colorwriteenable);

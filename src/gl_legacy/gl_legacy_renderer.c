@@ -1545,6 +1545,10 @@ static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable
     enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
 }
 
+static bool glGpuGetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer) {
+    return glIsEnabled(GL_ALPHA_TEST);
+}
+
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
     glAlphaFunc(GL_GREATER, ref/255.0f);
 }
@@ -2008,6 +2012,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
     glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
     glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuGetAlphaTestEnable = glGpuGetAlphaTestEnable;
     glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;

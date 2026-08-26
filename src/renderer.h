@@ -110,6 +110,7 @@ typedef struct {
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha);
     void (*gpuSetBlendEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
+    bool (*gpuGetAlphaTestEnable)(Renderer* renderer);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
     void (*gpuGetColorWriteEnable)(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha);

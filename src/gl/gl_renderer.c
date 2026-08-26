@@ -2666,6 +2666,11 @@ static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     glShaderSettingsRefresh(renderer);
 }
 
+static bool glGpuGetAlphaTestEnable(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->alphaTestEnable;
+}
+
 static void glGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     GLRenderer* gl = (GLRenderer*) renderer;
     float refF = ref / 255.0f;
@@ -3002,6 +3007,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
     glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
     glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuGetAlphaTestEnable = glGpuGetAlphaTestEnable;
     glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;

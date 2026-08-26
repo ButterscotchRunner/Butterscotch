@@ -2469,6 +2469,11 @@ static void gsGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     gsKit_set_test(g, enable ? GS_ATEST_ON : GS_ATEST_OFF);
 }
 
+static bool gsGpuGetAlphaTestEnable(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    return gs->Test->ATST == 6 && gs->Test->AFAIL == 0;
+}
+
 static void gsGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     GsRenderer* gs = (GsRenderer*) renderer;
     GSGLOBAL* g = gs->gsGlobal;
@@ -3133,6 +3138,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
     gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
     gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuGetAlphaTestEnable = gsGpuGetAlphaTestEnable;
     gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
     gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
     gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;
