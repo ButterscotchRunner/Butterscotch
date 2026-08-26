@@ -14487,6 +14487,10 @@ static RValue builtin_draw_tile(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
 
     bool mirror = (tileCell & TILEMIRROR_MASK) != 0;
     bool flip = (tileCell & TILEFLIP_MASK) != 0;
+    bool rotate = (tileCell & TILEROTATE_MASK) != 0;
+    float angleDeg = rotate ? 90.0f : 0.0f;
+    float pivotX = x + (float)tileW / 2.0f;
+    float pivotY = y + (float)tileH / 2.0f;
 
     float xscale = mirror ? -1.0f : 1.0f;
     float yscale = flip ? -1.0f : 1.0f;
@@ -14494,7 +14498,7 @@ static RValue builtin_draw_tile(VMContext* ctx, RValue* args, MAYBE_UNUSED int32
     float dstX = x + (mirror ? (float)tileW : 0.0f);
     float dstY = y + (flip ? (float)tileH : 0.0f);
 
-    runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t)tileW, (int32_t)tileH, dstX, dstY, xscale, yscale, 0.0f, 0.0f, 0.0f, 0xFFFFFF, runner->renderer->drawAlpha);
+    runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t)tileW, (int32_t)tileH, dstX, dstY, xscale, yscale, angleDeg, pivotX, pivotY, 0xFFFFFF, runner->renderer->drawAlpha);
     return RValue_makeUndefined();
 }
 
