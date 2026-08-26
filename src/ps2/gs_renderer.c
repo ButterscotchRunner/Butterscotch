@@ -2471,7 +2471,7 @@ static void gsGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
 
 static bool gsGpuGetAlphaTestEnable(Renderer* renderer) {
     GsRenderer* gs = (GsRenderer*) renderer;
-    return gs->Test->ATST == 6 && gs->Test->AFAIL == 0;
+    return gs->gsGlobal->Test->ATST == 6 && gs->gsGlobal->Test->AFAIL == 0;
 }
 
 static void gsGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
