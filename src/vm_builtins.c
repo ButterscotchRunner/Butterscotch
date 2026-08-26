@@ -5,6 +5,7 @@
 #include "json_reader.h"
 #include "json_writer.h"
 #include "real_type.h"
+#include "renderer.h"
 #include "runner.h"
 #include "runner_gamepad.h"
 #include "matrix_math.h"
@@ -9915,7 +9916,6 @@ static RValue builtin_draw_sprite_part_ext(VMContext* ctx, RValue* args, MAYBE_U
 }
 
 static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    logSemiStubbedFunction(ctx, "draw_sprite_general");
     Runner* runner = ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
@@ -9931,13 +9931,16 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
     float yscale = (float) RValue_toReal(args[9]);
     float rot = (float) RValue_toReal(args[10]);
     uint32_t c1 = RValue_toColour(args[11]);
+    uint32_t c2 = RValue_toColour(args[12]);
+    uint32_t c3 = RValue_toColour(args[13]);
+    uint32_t c4 = RValue_toColour(args[14]);
     float alpha = (float) RValue_toReal(args[15]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
         subimg = (int32_t) ctx->currentInstance->imageIndex;
     }
 
-    Renderer_drawSpritePartExt(runner->renderer, spriteIndex, subimg, left, top, width, height, x, y, xscale, yscale, rot, x, y, c1, alpha);
+    Renderer_drawSpriteGeneral(runner->renderer, spriteIndex, subimg, left, top, width, height, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha);
     return RValue_makeUndefined();
 }
 
