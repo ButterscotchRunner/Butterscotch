@@ -99,7 +99,7 @@ Below are direct links to download the latest auto-build of Butterscotch for you
 | NetBSD 10.1 | [amd64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-arm.zip) | | | | | | [mips](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mips.zip) | [mipsel](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mipsel.zip) | | |
 | Haiku | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-glfw3-haiku-x86-64.zip) | | | | | | | | | | | | |
 
-All Linux, FreeBSD, OpenBSD and NetBSD builds use SDL2. Windows (x86_64, arm64 and armv7hf) and Haiku use GLFW3. i486 Windows uses SDL 1.2 for Windows 9x and early NT support. Mac OS builds use AppKit.
+x86_64 Windows as well as all Linux, FreeBSD, OpenBSD and NetBSD builds use SDL2. ARM Windows and Haiku use GLFW3. i486 Windows uses SDL 1.2 for Windows 9x and early NT support. Mac OS builds use AppKit.
 
 ARM and MIPS builds require hardware floating-point support.
 
