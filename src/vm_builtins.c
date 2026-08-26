@@ -5,6 +5,7 @@
 #include "json_reader.h"
 #include "json_writer.h"
 #include "real_type.h"
+#include "renderer.h"
 #include "runner.h"
 #include "runner_gamepad.h"
 #include "matrix_math.h"
@@ -9915,7 +9916,6 @@ static RValue builtin_draw_sprite_part_ext(VMContext* ctx, RValue* args, MAYBE_U
 }
 
 static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    logSemiStubbedFunction(ctx, "draw_sprite_general");
     Runner* runner = ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
@@ -9931,13 +9931,16 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
     float yscale = (float) RValue_toReal(args[9]);
     float rot = (float) RValue_toReal(args[10]);
     uint32_t c1 = RValue_toColour(args[11]);
+    uint32_t c2 = RValue_toColour(args[12]);
+    uint32_t c3 = RValue_toColour(args[13]);
+    uint32_t c4 = RValue_toColour(args[14]);
     float alpha = (float) RValue_toReal(args[15]);
 
     if (0 > subimg && ctx->currentInstance != nullptr) {
         subimg = (int32_t) ctx->currentInstance->imageIndex;
     }
 
-    Renderer_drawSpritePartExt(runner->renderer, spriteIndex, subimg, left, top, width, height, x, y, xscale, yscale, rot, x, y, c1, alpha);
+    Renderer_drawSpriteGeneral(runner->renderer, spriteIndex, subimg, left, top, width, height, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha);
     return RValue_makeUndefined();
 }
 
@@ -16966,6 +16969,10 @@ static RValue builtin_gpu_set_alphatestenable(VMContext* ctx, RValue* args, int3
     return RValue_makeUndefined();
 }
 
+static RValue builtin_gpu_get_alphatestenable(VMContext* ctx, RValue* args, int32_t argCount) {
+    return RValue_makeBool(ctx->runner->renderer->vtable->gpuGetAlphaTestEnable(ctx->runner->renderer));
+}
+
 static RValue builtin_gpu_set_alphatestref(VMContext* ctx, RValue* args, int32_t argCount) {
     ctx->runner->renderer->vtable->gpuSetAlphaTestRef(ctx->runner->renderer, RValue_toInt32(args[0]));
     return RValue_makeUndefined();
@@ -18440,6 +18447,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
+    VM_registerBuiltin(ctx,"gpu_get_alphatestenable", builtin_gpu_get_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
     VM_registerBuiltin(ctx,"gpu_set_colorwriteenable", builtin_gpu_set_colorwriteenable);
     VM_registerBuiltin(ctx,"gpu_set_colourwriteenable", builtin_gpu_set_colorwriteenable);
