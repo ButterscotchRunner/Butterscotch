@@ -232,3 +232,42 @@ jobs:
         with:
           name: butterscotch-vita
           path: build/Butterscotch.vpk
+
+  build-switch:
+    name: Build (Nintendo Switch)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkita64:latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: switch-ccache-${{ github.sha }}
+          restore-keys: |
+            switch-ccache-
+
+      - name: Install ccache
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends ccache
+
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DPLATFORM=switch \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-switch
+          path: build/butterscotch.nro
