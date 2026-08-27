@@ -17,6 +17,7 @@
 #include "random.h"
 
 // ===[ Event Type Constants ]===
+#define EVENT_ROOM_CREATION  -2
 #define EVENT_CREATE     0
 #define EVENT_DESTROY    1
 #define EVENT_ALARM      2
