@@ -15089,7 +15089,10 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     pc->paths = paths;
     GamePath* p = &paths[newIdx];
     memset(p, 0, sizeof(GamePath));
-    p->name = "";
+
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "__newpath%u", newIdx);
+    p->name = safeStrdup(buffer);
     p->isSmooth = false;
     p->isClosed = true;
     p->precision = 4;
@@ -15100,7 +15103,8 @@ static RValue builtin_path_add(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_
     p->length = 0.0;
     p->exists = true;
     pc->count = newIdx + 1;
-    return RValue_makeInt32((int32_t) newIdx);
+    
+    return RValue_makeAssetRef((int32_t)newIdx, ASSET_TYPE_PATH);
 }
 
 // path_add_point(path, x, y, speed)
