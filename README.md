@@ -89,7 +89,7 @@ Below are direct links to download the latest auto-build of Butterscotch for you
 
 ### Desktop
 
-| OS | x86_64 | i486 | arm64 | armhf | PowerPC | PowerPC64 | PowerPC64 little-endian | RISC-V | LoongArch64 | MIPS | MIPS little-endian | MIPS64 | MIPS64 little-endian |
+| OS | x86_64 | i386 | arm64 | armhf | PowerPC | PowerPC64 | PowerPC64 little-endian | RISC-V | LoongArch64 | MIPS | MIPS little-endian | MIPS64 | MIPS64 little-endian |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Windows | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-x86_64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-i486.zip) | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-glfw3-windows-arm64.zip) | [armv7](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-glfw3-windows-armv7.zip) | | | | | | | | | |
 | macOS | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-x86_64.zip) | | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-arm64.zip) | | | | | | | | | | |
