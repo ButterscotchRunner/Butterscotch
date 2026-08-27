@@ -4278,13 +4278,13 @@ void Runner_dumpState(Runner* runner) {
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
                     logInfo("    %s[%d] = %s\n", varName, (int) ai, innerStr);
                     free(innerStr);
                 }
             } else {
                 if (!hasSelfVars) { logInfo("  Self Variables:\n"); hasSelfVars = true; }
-                char* valStr = RValue_toStringFancy(val);
+                char* valStr = RValue_toStringFancy(val, runner->dataWin);
                 logInfo("    %s = %s\n", varName, valStr);
                 free(valStr);
             }
@@ -4306,7 +4306,7 @@ void Runner_dumpState(Runner* runner) {
                 repeat(GMLArray_length1D(target.array), ai) {
                     RValue* cell = GMLArray_slot(target.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
                     logInfo("  %s[%d] = %s\n", name, (int) ai, innerStr);
                     free(innerStr);
                 }

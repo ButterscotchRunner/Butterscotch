@@ -956,7 +956,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         if (!found) {
             if (ctx->dataWin->objt.count > (uint32_t) instanceType) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
-                char* valAsString = RValue_toString(val);
+                char* valAsString = RValue_toString(val, ctx->runner->dataWin);
                 logWarn("VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, valAsString);
                 free(valAsString);
             }
@@ -971,7 +971,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         targetInstance = VM_findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
-            char* valAsString = RValue_toString(val);
+            char* valAsString = RValue_toString(val, ctx->runner->dataWin);
             logWarn("VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
             free(valAsString);
             return;
@@ -1033,7 +1033,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
             if (inst == nullptr) {
                 const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
-                char* valAsString = RValue_toString(val);
+                char* valAsString = RValue_toString(val, ctx->runner->dataWin);
                 logWarn("VM: [%s] Write on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
                 free(valAsString);
                 RValue_free(&val);
@@ -1089,7 +1089,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
 // ===[ Type Conversion ]===
 
-static RValue convertValue(RValue val, uint8_t targetType) {
+static RValue convertValue(RValue val, uint8_t targetType, DataWin* dataWin) {
     switch (targetType) {
         case GML_TYPE_DOUBLE:
             return RValue_makeReal(RValue_toReal(val));
@@ -1102,7 +1102,7 @@ static RValue convertValue(RValue val, uint8_t targetType) {
         case GML_TYPE_BOOL:
             return RValue_makeBool(RValue_toBool(val));
         case GML_TYPE_STRING: {
-            char* str = RValue_toString(val);
+            char* str = RValue_toString(val, dataWin);
             return RValue_makeOwnedString(str);
         }
         case GML_TYPE_VARIABLE:
@@ -1397,7 +1397,7 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
     // Skip conversion to preserve the actual computed value (e.g. g.image_angle -= 4.5 must not truncate to int).
     bool isCompoundAssignment = ((varType == VARTYPE_ARRAY || varType == VARTYPE_STACKTOP) && type1 != GML_TYPE_VARIABLE);
     if (type2 != type1 && type1 != GML_TYPE_VARIABLE && !isCompoundAssignment) {
-        RValue converted = convertValue(val, type1);
+        RValue converted = convertValue(val, type1, ctx->runner->dataWin);
         RValue_free(&val);
         val = converted;
     }
@@ -1462,7 +1462,7 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                         inst = VM_findInstanceByTarget(ctx, instanceType);
                         if (inst == nullptr) {
                             const char* varTypeName = varTypeToString(varType);
-                            char* valAsString = RValue_toString(val);
+                            char* valAsString = RValue_toString(val, ctx->runner->dataWin);
                             if (instanceType < INSTANCE_ID_BASE && (uint32_t) instanceType < ctx->dataWin->objt.count) {
                                 logWarn("VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
                             } else {
@@ -1669,7 +1669,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x30: result = RValue_makeInt64((int64_t) val.real); break;
         case 0x40: result = RValue_makeBool(val.real > 0.5); break;
         case 0x50: result = val; break; // Double -> Variable (passthrough)
-        case 0x60: { char* s = RValue_toString(val); result = RValue_makeOwnedString(s); break; }
+        case 0x60: { char* s = RValue_toString(val, ctx->runner->dataWin); result = RValue_makeOwnedString(s); break; }
         case 0xF0: result = RValue_makeInt32((int32_t) val.real); break;
 
         // Float (1) -> other (float stored as double in our RValue)
@@ -1685,7 +1685,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x32: result = RValue_makeInt64((int64_t) val.int32); break;
         case 0x42: result = RValue_makeBool(val.int32 > 0); break;
         case 0x52: result = val; break; // Int32 -> Variable (passthrough)
-        case 0x62: { char* s = RValue_toString(val); result = RValue_makeOwnedString(s); break; }
+        case 0x62: { char* s = RValue_toString(val, ctx->runner->dataWin); result = RValue_makeOwnedString(s); break; }
         case 0xF2: result = val; break;
 
 #ifndef NO_RVALUE_INT64
@@ -1708,7 +1708,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x24: result = RValue_makeInt32(val.int32); break;
         case 0x34: result = RValue_makeInt64((int64_t) val.int32); break;
         case 0x54: result = val; break; // Bool -> Variable (passthrough)
-        case 0x64: { char* s = RValue_toString(val); result = RValue_makeOwnedString(s); break; }
+        case 0x64: { char* s = RValue_toString(val, ctx->runner->dataWin); result = RValue_makeOwnedString(s); break; }
 
         // Variable (5) -> other
         case 0x05: result = RValue_makeReal(RValue_toReal(val)); break;
@@ -1717,7 +1717,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x35: result = RValue_makeInt64(RValue_toInt64(val)); break;
         case 0x45: result = RValue_makeBool(RValue_toBool(val)); break;
         case 0x55: result = val; break; // Variable -> Variable (identity)
-        case 0x65: { char* s = RValue_toString(val); result = RValue_makeOwnedString(s); break; }
+        case 0x65: { char* s = RValue_toString(val, ctx->runner->dataWin); result = RValue_makeOwnedString(s); break; }
         case 0xF5: result = RValue_makeInt32(RValue_toInt32(val)); break;
 
         // String (6) -> other
@@ -1993,7 +1993,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
     if (functionIsBeingTraced) {
         functionArgumentList = safeStrdup("");
         for (int32_t i = 0; i < argCount; i++) {
-            char* display = RValue_toStringFancy(args[i]);
+            char* display = RValue_toStringFancy(args[i], ctx->runner->dataWin);
 
             if (i > 0) {
                 size_t bufsz = strlen(functionArgumentList) + 2 + strlen(display) + 1;
@@ -2029,7 +2029,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
-            char* returnValueAsString = RValue_toStringFancy(result);
+            char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
             logInfo("VM: [%s] Built-in function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
@@ -2046,7 +2046,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
-            char* returnValueAsString = RValue_toStringFancy(result);
+            char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
             logInfo("VM: [%s] Script function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
