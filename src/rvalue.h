@@ -331,10 +331,54 @@ static inline char* RValue_toString(RValue val) {
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
             switch (val.assetRefType) {
-            case ASSET_TYPE_PATH:
-                snprintf(buf, sizeof(buf), "ref path __newpath%d", val.int32);
+            case ASSET_TYPE_OBJECT:
+                snprintf(buf, sizeof(buf), "ref object %d", val.int32);
                 break;
-
+            case ASSET_TYPE_SPRITE:
+                snprintf(buf, sizeof(buf), "ref sprite %d", val.int32);
+                break;
+            case ASSET_TYPE_SOUND:
+                snprintf(buf, sizeof(buf), "ref sound %d", val.int32);
+                break;
+            case ASSET_TYPE_ROOM:
+                snprintf(buf, sizeof(buf), "ref room %d", val.int32);
+                break;
+            case ASSET_TYPE_PATH:
+                snprintf(buf, sizeof(buf), "ref path %d", val.int32);
+                break;
+            case ASSET_TYPE_SCRIPT:
+                snprintf(buf, sizeof(buf), "ref script %d", val.int32);
+                break;
+            case ASSET_TYPE_FONT:
+                snprintf(buf, sizeof(buf), "ref font %d", val.int32);
+                break;
+            case ASSET_TYPE_TIMELINE:
+                snprintf(buf, sizeof(buf), "ref timeline %d", val.int32);
+                break;
+            case ASSET_TYPE_SHADER:
+                snprintf(buf, sizeof(buf), "ref shader %d", val.int32);
+                break;
+            case ASSET_TYPE_SEQUENCE:
+                snprintf(buf, sizeof(buf), "ref sequence %d", val.int32);
+                break;
+            case ASSET_TYPE_ANIMCURVE:
+                snprintf(buf, sizeof(buf), "ref animcurve %d", val.int32);
+                break;
+            case ASSET_TYPE_PARTICLESYSTEM:
+                snprintf(buf, sizeof(buf), "ref particlesystem %d", val.int32);
+                break;
+            case ASSET_TYPE_TILEMAP:
+                snprintf(buf, sizeof(buf), "ref tilemap %d", val.int32);
+                break;
+            case ASSET_TYPE_TILESET:
+                snprintf(buf, sizeof(buf), "ref tileset %d", val.int32);
+                break;
+            case ASSET_TYPE_INSTANCE:
+                snprintf(buf, sizeof(buf), "ref instance %d", val.int32);
+                break;
+            case ASSET_TYPE_PARTICLESYSTEMINSTANCE:
+                snprintf(buf, sizeof(buf), "ref particlesysteminstance %d", val.int32);
+                break;
             default:
                 snprintf(buf, sizeof(buf), "%d", val.int32);
                 break;
