@@ -1826,9 +1826,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
         Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
         runner->vmContext->currentInstance = dummy;
+        int32_t savedEventType = runner->vmContext->currentEventType;
+        runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
         RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
         RValue_free(&result);
         runner->vmContext->currentInstance = nullptr;
+        runner->vmContext->currentEventType = savedEventType;
         Instance_free(dummy);
     }
 
