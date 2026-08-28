@@ -2334,15 +2334,15 @@ static RValue builtin_string_count(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeBool(false);
     char* str = RValue_toString(args[0], ctx->runner->dataWin);
-	char* substr = RValue_toString(args[1], ctx->runner->dataWin);
+    char* substr = RValue_toString(args[1], ctx->runner->dataWin);
 
-	size_t strLen = strlen(str);
-	size_t substrLen = strlen(substr);
-	if (substrLen > strLen) {
-		free(substr);
-		free(str);
-		return RValue_makeBool(false);
-	}
+    size_t strLen = strlen(str);
+    size_t substrLen = strlen(substr);
+    if (substrLen > strLen) {
+        free(substr);
+        free(str);
+        return RValue_makeBool(false);
+    }
     bool ret = (memcmp(str, substr, substrLen) == 0);
 
     free(substr);
@@ -2354,15 +2354,15 @@ static RValue builtin_string_starts_with(MAYBE_UNUSED VMContext* ctx, RValue* ar
 static RValue builtin_string_ends_with(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount) return RValue_makeBool(false);
     char* str = RValue_toString(args[0], ctx->runner->dataWin);
-	char* substr = RValue_toString(args[1], ctx->runner->dataWin);
+    char* substr = RValue_toString(args[1], ctx->runner->dataWin);
 
-	size_t strLen = strlen(str);
-	size_t substrLen = strlen(substr);
-	if (substrLen > strLen) {
-		free(substr);
-		free(str);
-		return RValue_makeBool(false);
-	}
+    size_t strLen = strlen(str);
+    size_t substrLen = strlen(substr);
+    if (substrLen > strLen) {
+        free(substr);
+        free(str);
+        return RValue_makeBool(false);
+    }
     bool ret = (memcmp(str + strLen - substrLen, substr, substrLen) == 0);
 
     free(substr);
@@ -13352,7 +13352,7 @@ static RValue builtin_tile_layer_depth(VMContext* ctx, RValue* args, MAYBE_UNUSE
     for (int32_t i = 0; i < (int32_t) room->tileCount; i++) {
         RoomTile* tile = &room->tiles[i];
         if (tile->tileDepth != depth) continue;
-		tile->tileDepth = newdepth;
+        tile->tileDepth = newdepth;
         runner->drawableListSortDirty = true;
     }
     return RValue_makeUndefined();
@@ -13382,20 +13382,20 @@ static RValue builtin_tile_layer_delete_at(VMContext* ctx, RValue* args, MAYBE_U
     Room* room = runner->currentRoom;
     if (room == nullptr) return RValue_makeUndefined();
     int32_t depth = RValue_toInt32(args[0]);
-	GMLReal qx = RValue_toReal(args[1]);
-	GMLReal qy = RValue_toReal(args[2]);
+    GMLReal qx = RValue_toReal(args[1]);
+    GMLReal qy = RValue_toReal(args[2]);
     uint32_t write = 0;
     bool removedAny = false;
     repeat(room->tileCount, i) {
-		RoomTile* tile = &room->tiles[i];
+        RoomTile* tile = &room->tiles[i];
         if (tile->tileDepth == depth) {
-			GMLReal w = (GMLReal) tile->width * (GMLReal) tile->scaleX;
-			GMLReal h = (GMLReal) tile->height * (GMLReal) tile->scaleY;
-			if (qx >= (GMLReal) tile->x && qx < (GMLReal) tile->x + w && qy >= (GMLReal) tile->y && qy < (GMLReal) tile->y + h) {
-				removedAny = true;
-				continue;
-			}
-		}
+            GMLReal w = (GMLReal) tile->width * (GMLReal) tile->scaleX;
+            GMLReal h = (GMLReal) tile->height * (GMLReal) tile->scaleY;
+            if (qx >= (GMLReal) tile->x && qx < (GMLReal) tile->x + w && qy >= (GMLReal) tile->y && qy < (GMLReal) tile->y + h) {
+                removedAny = true;
+                continue;
+            }
+        }
         if (write != i) room->tiles[write] = room->tiles[i];
         write++;
     }
@@ -14566,7 +14566,7 @@ static RValue builtin_tilemap_get_width(VMContext* ctx, RValue* args, MAYBE_UNUS
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer;
+    RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeReal(-1.0);
 
@@ -14577,7 +14577,7 @@ static RValue builtin_tilemap_get_height(VMContext* ctx, RValue* args, MAYBE_UNU
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer;
+    RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
     if (!data) return RValue_makeReal(-1.0);
 
@@ -14588,24 +14588,24 @@ static RValue builtin_tilemap_get_tile_width(VMContext* ctx, RValue* args, MAYBE
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer;
+    RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-	if (!data) return RValue_makeReal(-1.0);
+    if (!data) return RValue_makeReal(-1.0);
 
-	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
-	return RValue_makeReal(tileset->gms2TileWidth);
+    Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
+    return RValue_makeReal(tileset->gms2TileWidth);
 }
 
 static RValue builtin_tilemap_get_tile_height(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
 
-	RuntimeLayer* runtimeLayer;
+    RuntimeLayer* runtimeLayer;
     RoomLayerTilesData* data = findTilemapData(runner, RValue_toInt32(args[0]), &runtimeLayer);
-	if (!data) return RValue_makeReal(-1.0);
+    if (!data) return RValue_makeReal(-1.0);
 
-	Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
-	return RValue_makeReal(tileset->gms2TileHeight);
+    Background* tileset = &runner->dataWin->bgnd.backgrounds[data->backgroundIndex];
+    return RValue_makeReal(tileset->gms2TileHeight);
 }
 
 static void coerceTileCellsToTilemapBounds(RoomLayerTilesData* data, int32_t* cellX, int32_t* cellY) {
@@ -17396,7 +17396,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_format", builtin_string_format);
     VM_registerBuiltin(ctx, "string_count", builtin_string_count);
     VM_registerBuiltin(ctx, "string_starts_with", builtin_string_starts_with);
-	VM_registerBuiltin(ctx, "string_ends_with", builtin_string_ends_with);
+    VM_registerBuiltin(ctx, "string_ends_with", builtin_string_ends_with);
     VM_registerBuiltin(ctx, "ord", builtin_ord);
     VM_registerBuiltin(ctx, "chr", builtin_chr);
 
@@ -18170,9 +18170,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "tile_add", builtin_tile_add);
         VM_registerBuiltin(ctx, "tile_exists", builtin_tile_exists);
         VM_registerBuiltin(ctx, "tile_layer_find", builtin_tile_layer_find);
-		VM_registerBuiltin(ctx, "tile_layer_depth", builtin_tile_layer_depth);
+        VM_registerBuiltin(ctx, "tile_layer_depth", builtin_tile_layer_depth);
         VM_registerBuiltin(ctx, "tile_layer_delete", builtin_tile_layer_delete);
-		VM_registerBuiltin(ctx, "tile_layer_delete_at", builtin_tile_layer_delete_at);
+        VM_registerBuiltin(ctx, "tile_layer_delete_at", builtin_tile_layer_delete_at);
         VM_registerBuiltin(ctx, "tile_delete", builtin_tile_delete);
         VM_registerBuiltin(ctx, "tile_get_ids_at_depth", builtin_tile_get_ids_at_depth);
         VM_registerBuiltin(ctx, "tile_set_alpha", builtin_tile_set_alpha);
@@ -18229,9 +18229,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tilemap_y", builtin_tilemap_y);
     VM_registerBuiltin(ctx, "tilemap_get_x", builtin_tilemap_get_x);
     VM_registerBuiltin(ctx, "tilemap_get_y", builtin_tilemap_get_y);
-	VM_registerBuiltin(ctx, "tilemap_get_width", builtin_tilemap_get_width);
+    VM_registerBuiltin(ctx, "tilemap_get_width", builtin_tilemap_get_width);
     VM_registerBuiltin(ctx, "tilemap_get_height", builtin_tilemap_get_height);
-	VM_registerBuiltin(ctx, "tilemap_get_tile_width", builtin_tilemap_get_tile_width);
+    VM_registerBuiltin(ctx, "tilemap_get_tile_width", builtin_tilemap_get_tile_width);
     VM_registerBuiltin(ctx, "tilemap_get_tile_height", builtin_tilemap_get_tile_height);
     VM_registerBuiltin(ctx, "tilemap_get_cell_x_at_pixel", builtin_tilemap_get_cell_x_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get_cell_y_at_pixel", builtin_tilemap_get_cell_y_at_pixel);
@@ -18269,14 +18269,14 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_get_id", builtin_layer_background_get_id);
     VM_registerBuiltin(ctx, "layer_background_get_alpha", builtin_layer_background_get_alpha);
     VM_registerBuiltin(ctx, "layer_background_get_blend", builtin_layer_background_get_blend);
-	VM_registerBuiltin(ctx, "layer_background_get_htiled", builtin_layer_background_get_htiled);
-	VM_registerBuiltin(ctx, "layer_background_get_vtiled", builtin_layer_background_get_vtiled);
-	VM_registerBuiltin(ctx, "layer_background_get_stretch", builtin_layer_background_get_stretch);
-	VM_registerBuiltin(ctx, "layer_background_get_index", builtin_layer_background_get_index);
-	VM_registerBuiltin(ctx, "layer_background_get_sprite", builtin_layer_background_get_sprite);
-	VM_registerBuiltin(ctx, "layer_background_get_xscale", builtin_layer_background_get_xscale);
-	VM_registerBuiltin(ctx, "layer_background_get_yscale", builtin_layer_background_get_yscale);
-	VM_registerBuiltin(ctx, "layer_background_get_visible", builtin_layer_background_get_visible);
+    VM_registerBuiltin(ctx, "layer_background_get_htiled", builtin_layer_background_get_htiled);
+    VM_registerBuiltin(ctx, "layer_background_get_vtiled", builtin_layer_background_get_vtiled);
+    VM_registerBuiltin(ctx, "layer_background_get_stretch", builtin_layer_background_get_stretch);
+    VM_registerBuiltin(ctx, "layer_background_get_index", builtin_layer_background_get_index);
+    VM_registerBuiltin(ctx, "layer_background_get_sprite", builtin_layer_background_get_sprite);
+    VM_registerBuiltin(ctx, "layer_background_get_xscale", builtin_layer_background_get_xscale);
+    VM_registerBuiltin(ctx, "layer_background_get_yscale", builtin_layer_background_get_yscale);
+    VM_registerBuiltin(ctx, "layer_background_get_visible", builtin_layer_background_get_visible);
     VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
     VM_registerBuiltin(ctx, "layer_tile_x", builtin_layer_tile_x);
