@@ -101,7 +101,7 @@ Below are direct links to download the latest auto-build of Butterscotch for you
 
 x86_64 Windows as well as all Linux, FreeBSD, OpenBSD and NetBSD builds use SDL2. ARM Windows and Haiku use GLFW3. i486 Windows uses SDL 1.2 for Windows 9x and early NT support. Mac OS builds use AppKit.
 
-ARM and MIPS builds require hardware floating-point support.
+All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware floating-point support.
 
 ### Consoles
 
