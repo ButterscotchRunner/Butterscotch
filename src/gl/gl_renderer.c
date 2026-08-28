@@ -843,7 +843,6 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     GLRenderer* gl = (GLRenderer*) renderer;
-
     gl->batchCount = 0;
     gl->currentTextureId = 0;
 
@@ -869,8 +868,6 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
-    glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
     if (hasVAO()) glBindVertexArray(gl->vao);
