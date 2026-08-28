@@ -38,16 +38,11 @@ jobs:
         run: |
           mkdir -p host_cache/packages
           
-          if ls host_cache/packages/*.hpkg >/dev/null 2>&1; then
-            echo "Cache hit: Pre-installing cached packages..."
-            pkgman install -y host_cache/packages/*.hpkg || true
-          fi
-          
           ls /boot/system/packages/ > baseline_packages.txt
           
-          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel
-          ls /boot/system/packages/ > current_packages.txt
+          pkgman install -y host_cache/packages/*.hpkg cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel || true
           
+          ls /boot/system/packages/ > current_packages.txt
           comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
             if [ -n "$pkg" ]; then
               echo "Caching newly installed package: $pkg"
@@ -55,22 +50,11 @@ jobs:
             fi
           done
 
-      - name: Debug restored caches
-        run: |
-          export CCACHE_DIR="$PWD/host_cache/ccache"
-          export CCACHE_BASEDIR="$PWD"
-          export CCACHE_COMPILERCHECK=content
-          export CCACHE_NOHASHDIR=true
-      
-          echo "pwd=$(pwd)"
-          ls -lah "$PWD/host_cache" || true
-          ls -lah "$CCACHE_DIR" || true
-          ccache -p | egrep 'cache_dir|base_dir|compiler_check|hash_dir' || true
-
       - name: Configure and build Butterscotch
         run: |
-          mkdir -pv "$(pwd)/${{ env.CCACHE_DIR }}" || true
-          export CCACHE_DIR="$PWD/host_cache/ccache"
+          mkdir -p "$PWD/${{ env.CCACHE_DIR }}"
+          
+          export CCACHE_DIR="$PWD/${{ env.CCACHE_DIR }}"
           export CCACHE_BASEDIR="$PWD"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
