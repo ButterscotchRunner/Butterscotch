@@ -2953,6 +2953,9 @@ static bool glShadersSupported(void) {
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    
+    if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
+    
     flushBatch(gl);
     renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
