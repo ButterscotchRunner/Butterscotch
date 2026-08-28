@@ -10,6 +10,8 @@ jobs:
     defaults:
       run:
         shell: cpa.sh {0}
+    env:
+      HAIKU_VERSION: 'r1beta6'
 
     steps:
       - uses: actions/checkout@v7
@@ -20,8 +22,9 @@ jobs:
           path: |
             host_cache/ccache
             host_cache/pkgman
-          key: ccache-haiku-${{ github.sha }}
+          key: ccache-haiku-${{ env.HAIKU_VERSION }}-${{ github.sha }}
           restore-keys: |
+            ccache-haiku-${{ env.HAIKU_VERSION }}-
             ccache-haiku-
 
       - name: Start VM
@@ -29,7 +32,7 @@ jobs:
         with:
           operating_system: haiku
           architecture: x86-64
-          version: 'r1beta5'
+          version: ${{ env.HAIKU_VERSION }}
 
       - name: Seed ccache and package cache
         run: |
@@ -44,9 +47,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: |
-          yes | pkgman add-repo https://mirror.truenetwork.ru/haiku/haikuports/x86_64/current/
-          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel 
+        run: pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel 
 
       - name: Configure and build Butterscotch
         run: |
