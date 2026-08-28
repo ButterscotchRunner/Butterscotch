@@ -27,7 +27,7 @@ jobs:
             haiku-${{ env.HAIKU_VERSION }}-
 
       - name: Start VM
-        uses: cross-platform-actions/action@v0.26.0
+        uses: cross-platform-actions/action@b77f08480307e762b98be92ba7ef04ea7c2272f8
         with:
           operating_system: haiku
           architecture: x86-64
