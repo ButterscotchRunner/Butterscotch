@@ -1509,6 +1509,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == mode) return;
 
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
@@ -1521,6 +1522,11 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == bm_complex &&
+        gl->currentSFactor == sfactor &&
+        gl->currentDFactor == dfactor &&
+        gl->currentSFactorAlpha == sfactor_alpha &&
+        gl->currentDFactorAlpha == dfactor_alpha) return;
 
     gl->currentBlendMode = bm_complex;
     gl->currentSFactor = sfactor;
@@ -1537,29 +1543,39 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    (void)renderer;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->blendEnable == enable) return;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    gl->blendEnable = enable;
 }
 
 static bool glGpuGetBlendEnable(MAYBE_UNUSED Renderer* renderer) {
-
-    return glIsEnabled(GL_BLEND);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->blendEnable;
 }
 
 static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestEnable == enable) return;
     enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
+    gl->alphaTestEnable = enable;
 }
 
 static bool glGpuGetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer) {
-    return glIsEnabled(GL_ALPHA_TEST);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->alphaTestEnable;
 }
 
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestRef == ref) return;
+    gl->alphaTestRef = ref;
     glAlphaFunc(GL_GREATER, ref/255.0f);
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->colorWriteR == red && gl->colorWriteG == green && gl->colorWriteB == blue && gl->colorWriteA == alpha) return;
     gl->colorWriteR = red;
     gl->colorWriteG = green;
     gl->colorWriteB = blue;
