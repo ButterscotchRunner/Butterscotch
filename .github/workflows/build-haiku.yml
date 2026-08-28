@@ -57,10 +57,15 @@ jobs:
 
       - name: Debug restored caches
         run: |
+          export CCACHE_DIR="$PWD/host_cache/ccache"
+          export CCACHE_BASEDIR="$PWD"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_NOHASHDIR=true
+      
           echo "pwd=$(pwd)"
           ls -lah "$PWD/host_cache" || true
-          ls -lah "$PWD/host_cache/ccache" || true
-          ccache -p || true
+          ls -lah "$CCACHE_DIR" || true
+          ccache -p | egrep 'cache_dir|base_dir|compiler_check|hash_dir' || true
 
       - name: Configure and build Butterscotch
         run: |
@@ -68,6 +73,7 @@ jobs:
           export CCACHE_DIR="$PWD/host_cache/ccache"
           export CCACHE_BASEDIR="$PWD"
           export CCACHE_COMPILERCHECK=content
+          export CCACHE_NOHASHDIR=true
 
           ccache -z
           cmake -B build \
