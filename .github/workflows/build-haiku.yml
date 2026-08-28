@@ -25,10 +25,9 @@ jobs:
           key: ccache-haiku-${{ env.HAIKU_VERSION }}-${{ github.sha }}
           restore-keys: |
             ccache-haiku-${{ env.HAIKU_VERSION }}-
-            ccache-haiku-
 
       - name: Start VM
-        uses: cross-platform-actions/action@v1.4.0
+        uses: cross-platform-actions/action@b77f08480307e762b98be92ba7ef04ea7c2272f8
         with:
           operating_system: haiku
           architecture: x86-64
@@ -42,8 +41,8 @@ jobs:
           fi
 
           if [ -d "host_cache/pkgman" ]; then
-            mkdir -p /boot/system/cache/package-repositories
-            cp -R host_cache/pkgman/* /boot/system/cache/package-repositories/ || true
+            mkdir -p /boot/system/cache/packages
+            cp -R host_cache/pkgman/* /boot/system/cache/packages/ || true
           fi
 
       - name: Install dependencies
@@ -70,8 +69,8 @@ jobs:
           fi
 
           mkdir -p host_cache/pkgman
-          if [ -d "/boot/system/cache/package-repositories" ]; then
-            cp -R /boot/system/cache/package-repositories/* host_cache/pkgman/ || true
+          if [ -d "/boot/system/cache/packages" ]; then
+            cp -R /boot/system/cache/packages/* host_cache/pkgman/ || true
           fi
 
       - name: Upload artifact
