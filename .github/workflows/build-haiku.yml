@@ -59,7 +59,6 @@ jobs:
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
 
-          ccache -z
           cmake -B build \
             -DBACKEND=glfw3 \
             -DAUDIO_BACKEND=openal \
@@ -68,7 +67,6 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
-          ccache -sv
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
