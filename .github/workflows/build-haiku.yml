@@ -38,11 +38,16 @@ jobs:
         run: |
           mkdir -p host_cache/packages
           
+          if ls host_cache/packages/*.hpkg >/dev/null 2>&1; then
+            echo "Cache hit: Pre-installing cached packages..."
+            pkgman install -y host_cache/packages/*.hpkg || true
+          fi
+          
           ls /boot/system/packages/ > baseline_packages.txt
           
-          pkgman install -y host_cache/packages/*.hpkg cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel || true
-          
+          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel
           ls /boot/system/packages/ > current_packages.txt
+          
           comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
             if [ -n "$pkg" ]; then
               echo "Caching newly installed package: $pkg"
