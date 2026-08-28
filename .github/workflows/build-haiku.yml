@@ -36,16 +36,23 @@ jobs:
       - name: Install dependencies
         run: |
           mkdir -p host_cache/packages
-          if [ -z "$(ls -A host_cache/packages/*.hpkg 2>/dev/null)" ]; then
-            echo "Cache miss: Downloading packages..."
-            cd host_cache/packages
-            pkgman install -y --download-only cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel
-            cd ../..
-          else
-            echo "Cache hit: Using packages from host_cache/packages"
+          
+          if [ -n "$(ls -A .workspace_cache/packages/*.hpkg 2>/dev/null)" ]; then
+            echo "Cache hit: Pre-installing cached packages..."
+            pkgman install -y host_cache/packages/*.hpkg
           fi
           
-          pkgman install -y host_cache/packages/*.hpkg
+          ls /boot/system/packages/ > baseline_packages.txt
+          
+          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel
+          ls /boot/system/packages/ > current_packages.txt
+          
+          comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
+            if [ -n "$pkg" ]; then
+              echo "Caching newly installed package: $pkg"
+              cp "/boot/system/packages/$pkg" host_cache/packages/
+            fi
+          done
 
       - name: Configure and build Butterscotch
         env:
