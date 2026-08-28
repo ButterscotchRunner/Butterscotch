@@ -585,11 +585,11 @@ static inline int32_t Renderer_resolveObjectTPAGIndex(DataWin* dataWin, RoomTile
 }
 
 // Draws a tiled background
-static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpagIndex, float bgX, float bgY, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, float alpha) {
+static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpagIndex, float bgX, float bgY, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t blend, float alpha) {
     DataWin* dw = renderer->dataWin;
     if (0 > tpagIndex || (uint32_t) tpagIndex >= dw->tpag.count) return;
 
-    renderer->vtable->drawSpriteTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, 0xFFFFFFu, alpha);
+    renderer->vtable->drawSpriteTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, blend, alpha);
 }
 
 // Draws a tiled sprite across the room
