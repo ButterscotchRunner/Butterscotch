@@ -37,12 +37,12 @@ jobs:
         run: |
           if [ -d "host_cache/ccache" ]; then
             mkdir -p /boot/home/.ccache
-            cp -R host_cache/ccache/* /boot/home/.ccache/ || true
+            cp -R host_cache/ccache/. /boot/home/.ccache/ || true
           fi
 
           if [ -d "host_cache/pkgman" ]; then
-            mkdir -p /boot/system/cache/packages
-            cp -R host_cache/pkgman/* /boot/system/cache/packages/ || true
+            mkdir -p /boot/system/packages
+            cp -R host_cache/pkgman/. /boot/system/packages/ || true
           fi
 
       - name: Install dependencies
@@ -65,12 +65,12 @@ jobs:
         run: |
           mkdir -p host_cache/ccache
           if [ -d "/boot/home/.ccache" ]; then
-            cp -R /boot/home/.ccache/* host_cache/ccache/ || true
+            cp -R /boot/home/.ccache/. host_cache/ccache/ || true
           fi
 
           mkdir -p host_cache/pkgman
-          if [ -d "/boot/system/cache/packages" ]; then
-            cp -R /boot/system/cache/packages/* host_cache/pkgman/ || true
+          if [ -d "/boot/system/packages" ]; then
+            cp -R /boot/system/packages/. host_cache/pkgman/ || true
           fi
 
       - name: Upload artifact
