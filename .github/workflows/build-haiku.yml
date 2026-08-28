@@ -12,6 +12,7 @@ jobs:
         shell: cpa.sh {0}
     env:
       HAIKU_VERSION: 'r1beta6'
+      CCACHE_DIR: "${{ github.workspace }}/host_cache/ccache"
 
     steps:
       - uses: actions/checkout@v7
@@ -20,7 +21,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            host_cache/ccache
+            ${{ env.CCACHE_DIR }}
             host_cache/packages
           key: haiku-${{ env.HAIKU_VERSION }}-${{ github.sha }}
           restore-keys: |
@@ -55,10 +56,8 @@ jobs:
           done
 
       - name: Configure and build Butterscotch
-        env:
-          CCACHE_DIR: ${{ github.workspace }}/host_cache/ccache
         run: |
-          mkdir -p $CCACHE_DIR
+          mkdir -p ${{ env.CCACHE_DIR }}
           
           cmake -B build \
             -DBACKEND=glfw3 \
