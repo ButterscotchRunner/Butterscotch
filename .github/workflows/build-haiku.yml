@@ -55,10 +55,19 @@ jobs:
             fi
           done
 
+      - name: Debug restored caches
+        run: |
+          echo "pwd=$(pwd)"
+          ls -lah "$PWD/host_cache" || true
+          ls -lah "$PWD/host_cache/ccache" || true
+          ccache -p || true
+
       - name: Configure and build Butterscotch
         run: |
-          mkdir -p "$(pwd)/${{ env.CCACHE_DIR }}"
-          export CCACHE_DIR="$(pwd)/${{ env.CCACHE_DIR }}"
+          mkdir -pv "$(pwd)/${{ env.CCACHE_DIR }}" || true
+          export CCACHE_DIR="$PWD/host_cache/ccache"
+          export CCACHE_BASEDIR="$PWD"
+          export CCACHE_COMPILERCHECK=content
 
           ccache -z
           cmake -B build \
