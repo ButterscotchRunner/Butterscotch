@@ -57,9 +57,10 @@ jobs:
 
       - name: Configure and build Butterscotch
         run: |
-          mkdir -p "${{ env.CCACHE_DIR }}"
-          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
-          
+          mkdir -p "$(pwd)/${{ env.CCACHE_DIR }}"
+          export CCACHE_DIR="$(pwd)/${{ env.CCACHE_DIR }}"
+
+          ccache -z
           cmake -B build \
             -DBACKEND=glfw3 \
             -DAUDIO_BACKEND=openal \
@@ -68,7 +69,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
-          ccache -s
+          ccache -sv
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
