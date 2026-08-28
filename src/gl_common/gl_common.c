@@ -36,6 +36,12 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
     int32_t sx, sy, ex, ey;
     glClearColor(0.0, 0.0, 0.0, 1.0); //please remove if it breaks something like borders, it was just my quick-fix for the color to not be randomly changed
     GLCommon_computeLetterbox(gameW, gameH, windowW, windowH, &sx, &sy, &ex, &ey);
+
+#ifdef PLATFORM_PS3
+    ey = windowH - ey;
+    sy = windowH - sy;
+#endif
+
     glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, hostFbo);
 }

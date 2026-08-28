@@ -14,8 +14,10 @@
 #include "runner_gamepad.h"
 #include "runner_mouse.h"
 #include "vm.h"
+#include "random.h"
 
 // ===[ Event Type Constants ]===
+#define EVENT_ROOM_CREATION  -2
 #define EVENT_CREATE     0
 #define EVENT_DESTROY    1
 #define EVENT_ALARM      2
@@ -193,6 +195,17 @@ typedef struct {
     float yOffset;
     int32_t imageIndex;
 } RuntimeBackgroundElement;
+
+typedef struct {
+    int32_t id;
+    bool active;
+    bool repeat;
+    bool executing;
+    int32_t units;
+    double period;
+    double elapsed;
+    RValue callback;
+} CallLaterEntry;
 
 // Mutable sprite element on an Assets layer. Populated from RoomLayerAssetsData.sprites at room init, can be removed at runtime via layer_sprite_destroy (used by language variant selection).
 typedef struct {
@@ -578,6 +591,10 @@ struct Runner {
     char** fileFindResults; // stb_ds array of heap-dup'd matched file names (name only, no path)
     int32_t fileFindPosition; // index of the entry returned by the next file_find_next call
 
+    // Pending call_later callbacks.
+    CallLaterEntry* callLaterEntries; // stb_ds array
+    int32_t nextCallLaterId;
+
     // Async map ID
     int32_t asyncLoadMapId;
 
@@ -628,11 +645,13 @@ struct Runner {
 
     // Offset between game start time and nowNanos()
     uint64_t gameStartTime;
+
+    Random random;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem);
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed);
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
 void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);

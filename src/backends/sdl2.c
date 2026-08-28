@@ -5,9 +5,13 @@
 
 #include "common.h"
 #include "input_recording.h"
-#include "desktop/platformdefs.h"
+#include "platformdefs.h"
 #include "gettime.h"
 #include "runner_mouse.h"
+#ifdef PLATFORM_SWITCH
+#include <switch.h>
+#include "switch_input.h"
+#endif
 
 static Runner *g_runner;
 static SDL_Surface* scr;
@@ -86,7 +90,6 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
             }
             SDL_DestroyWindow(newWindow);
         }
-
     }
     return NULL;
 }
@@ -130,7 +133,7 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 }
 
 static float platformGetWindowScale(void) {
-    int32_t draw_w, draw_h;
+    int32_t draw_w = 0, draw_h = 0;
     int logical_w, logical_h;
     platformGetWindowSize(&draw_w, &draw_h);
     SDL_GetWindowSize(window, &logical_w, &logical_h);
@@ -139,6 +142,12 @@ static float platformGetWindowScale(void) {
 
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
+
+#ifdef PLATFORM_SWITCH
+    u32 operationMode = appletGetOperationMode();
+    width = (operationMode == AppletOperationMode_Console) ? 1920 : 1280;
+    height = (operationMode == AppletOperationMode_Console) ? 1080 : 720;
+#endif
 
     float scale = platformGetWindowScale();
     SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
@@ -171,11 +180,13 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         openControllers[i] = NULL;
     }
 
-    Uint32 flags;
+    Uint32 flags = 0;
+    if (gfx != SOFTWARE)
+        flags |= SDL_WINDOW_OPENGL;
     if (headless)
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_HIDDEN;
+        flags |= SDL_WINDOW_HIDDEN;
     else
-        flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | SDL_WINDOW_RESIZABLE;
+        flags |= SDL_WINDOW_RESIZABLE;
 #if SDL_VERSION_ATLEAST(2, 0, 1)
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
@@ -208,13 +219,16 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         return false;
     }
     if (gfx != SOFTWARE) {
+#ifndef PLATFORM_VITA
         SDL_GL_SetSwapInterval(0); // disable vsync
+#endif
     } else {
         scr = SDL_GetWindowSurface(window);
     }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
+#if !defined(PLATFORM_VITA) && !defined(PLATFORM_SWITCH)
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
@@ -222,6 +236,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     } else {
         logWarn("Gamepad: SDL gamecontrollerdb.txt not found at %s or failed to load, using defaults\n", dbPath);
     }
+#endif
 
     return true;
 }
@@ -318,6 +333,7 @@ void *platformGetProcAddress(const char *name) {
 
 #endif
 
+#ifndef PLATFORM_SWITCH
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
     if (sdlkey >= 'a' && sdlkey <= 'z') return toupper(sdlkey);
@@ -444,8 +460,12 @@ static void mapSdl2ToGml(SDL_GameController* gc, GamepadSlot* slot) {
         slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
     }
 }
+#endif
 
 bool platformHandleEvents(void) {
+#ifdef PLATFORM_SWITCH
+    return SwitchInput_handleEvents(g_runner);
+#else
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
@@ -569,6 +589,7 @@ bool platformHandleEvents(void) {
     }
 
     return false;
+#endif
 }
 
 void platformSleepUntil(uint64_t time) {

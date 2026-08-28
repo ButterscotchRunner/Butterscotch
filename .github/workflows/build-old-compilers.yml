@@ -1,0 +1,81 @@
+name: Builds with old compilers
+
+on:
+  workflow_call:
+
+jobs:
+  build-tinycc:
+    name: Build (TinyCC)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: sudo apt-get install -y tcc libsdl1.2-dev
+
+      - name: Configure and build Butterscotch
+        run: make CC='tcc' BACKEND=sdl1 NO_COLOR=1 VERBOSE=1 -j$(nproc)
+
+  build-old-gcc:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC 3.0
+            compiler: gcc-3.0
+            flags: '-std=gnu99 -w'
+          - name: GCC 2.95
+            compiler: g++-2.95
+            flags: '-w'
+    name: Build (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create Debian Woody chroot
+        run: |
+          sudo apt-get install --no-install-recommends -y debootstrap
+          sudo debootstrap --arch=i386 --include='${{ matrix.compiler }},make,libsdl1.2-dev,ccache' woody ~/woody http://archive.debian.org/debian
+
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          path: butterscotch
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: butterscotch/.ccache
+          key: ccache-${{ matrix.compiler }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.compiler }}-
+
+      - name: Build
+        run: |
+          sudo mv butterscotch ~/woody
+          sudo chroot ~/woody /bin/sh --login -c '
+            export CCACHE_DIR=/butterscotch/.ccache
+            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1 -j$(nproc)
+          '
+      - name: Persist ccache
+        if: always()
+        run: |
+          sudo mv ~/woody/butterscotch .
+          sudo chown -R $(whoami):$(id -gn) butterscotch/.ccache
+
+  build-cxx:
+    name: Build as C++
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ccache libglfw3-dev
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-cxx-${{ github.sha }}
+          restore-keys: |
+            ccache-cxx-
+
+      - name: Build
+        run: make CC='ccache g++ -std=gnu++98 -Wall -Wvla -Werror' NO_COLOR=1 VERBOSE=1

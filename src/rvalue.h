@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "string_compat.h"
 
+#include "data_win.h"
 #include "real_type.h"
 #include "stb_ds.h"
 #include "utils.h"
@@ -84,6 +85,7 @@ struct RValue {
         GMLMethod* method;
 #endif
         Instance* structInst;
+        int32_t assetIndex;
     };
     // We use uint8_t for the type instead of RValueType because a enum value occupies 4 bytes, while uint8_t occupies 1 byte
     uint8_t type;
@@ -280,10 +282,38 @@ static inline RValue RValue_stealOwnershipOrCopy(RValue val) {
     return RValue_makeIndependent(val);
 }
 
+static inline const char* RValue_getAssetName(RValue val, DataWin* dataWin) {
+    int32_t idx = val.int32;
+
+    switch (val.assetRefType) {
+        case ASSET_TYPE_OBJECT:
+            return (idx >= 0 && idx < (int32_t)dataWin->objt.count) ? dataWin->objt.objects[idx].name : "<invalid>";
+        case ASSET_TYPE_SPRITE:
+            return (idx >= 0 && idx < (int32_t)dataWin->sprt.count) ? dataWin->sprt.sprites[idx].name : "<invalid>";
+        case ASSET_TYPE_SOUND:
+            return (idx >= 0 && idx < (int32_t)dataWin->sond.count) ? dataWin->sond.sounds[idx].name : "<invalid>";
+        case ASSET_TYPE_ROOM:
+            return (idx >= 0 && idx < (int32_t)dataWin->room.count) ? dataWin->room.rooms[idx].name : "<invalid>";
+        case ASSET_TYPE_PATH:
+            return (idx >= 0 && idx < (int32_t)dataWin->path.count) ? dataWin->path.paths[idx].name : "<invalid>";
+        case ASSET_TYPE_SCRIPT:
+            return (idx >= 0 && idx < (int32_t)dataWin->code.count) ? dataWin->scpt.scripts[idx].name : "<invalid>";
+        case ASSET_TYPE_FONT:
+            return (idx >= 0 && idx < (int32_t)dataWin->font.count) ? dataWin->font.fonts[idx].name : "<invalid>";
+        case ASSET_TYPE_TIMELINE:
+            return (idx >= 0 && idx < (int32_t)dataWin->tmln.count) ? dataWin->tmln.timelines[idx].name : "<invalid>";
+        case ASSET_TYPE_SHADER:
+            return (idx >= 0 && idx < (int32_t)dataWin->shdr.count) ? dataWin->shdr.shaders[idx].name : "<invalid>";
+        default:
+            return "<unknown>";
+    }
+}
+
 // Converts an RValue to a heap-allocated string representation.
 // The caller must free the returned string
-static inline char* RValue_toString(RValue val) {
+static inline char* RValue_toString(RValue val, DataWin* dataWin) {
     char buf[64];
+    const char *assetNameFromDataWin;
     switch (val.type) {
         case RVALUE_REAL: {
             GMLReal r = val.real;
@@ -329,7 +359,60 @@ static inline char* RValue_toString(RValue val) {
             snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
             return safeStrdup(buf);
         case RVALUE_ASSETREF:
-            snprintf(buf, sizeof(buf), "%d", val.int32);
+            assetNameFromDataWin = RValue_getAssetName(val, dataWin);
+            switch (val.assetRefType) {
+            case ASSET_TYPE_OBJECT:
+                snprintf(buf, sizeof(buf), "ref object %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_SPRITE:
+                snprintf(buf, sizeof(buf), "ref sprite %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_SOUND:
+                snprintf(buf, sizeof(buf), "ref sound %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_ROOM:
+                snprintf(buf, sizeof(buf), "ref room %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_PATH:
+                snprintf(buf, sizeof(buf), "ref path %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_SCRIPT:
+                snprintf(buf, sizeof(buf), "ref script %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_FONT:
+                snprintf(buf, sizeof(buf), "ref font %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_TIMELINE:
+                snprintf(buf, sizeof(buf), "ref timeline %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_SHADER:
+                snprintf(buf, sizeof(buf), "ref shader %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_SEQUENCE:
+                snprintf(buf, sizeof(buf), "ref sequence %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_ANIMCURVE:
+                snprintf(buf, sizeof(buf), "ref animcurve %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_PARTICLESYSTEM:
+                snprintf(buf, sizeof(buf), "ref particlesystem %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_TILEMAP:
+                snprintf(buf, sizeof(buf), "ref tilemap %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_TILESET:
+                snprintf(buf, sizeof(buf), "ref tileset %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_INSTANCE:
+                snprintf(buf, sizeof(buf), "ref instance %s", assetNameFromDataWin);
+                break;
+            case ASSET_TYPE_PARTICLESYSTEMINSTANCE:
+                snprintf(buf, sizeof(buf), "ref particlesysteminstance %s", assetNameFromDataWin);
+                break;
+            default:
+                snprintf(buf, sizeof(buf), "%s", assetNameFromDataWin);
+                break;
+            }
             return safeStrdup(buf);
     }
     return safeStrdup("");
@@ -337,10 +420,10 @@ static inline char* RValue_toString(RValue val) {
 
 // Converts an RValue to a heap-allocated string representation, used for debug logs.
 // The caller must free the returned string
-static inline char* RValue_toStringFancy(RValue val) {
+static inline char* RValue_toStringFancy(RValue val, DataWin* dataWin) {
     switch (val.type) {
         case RVALUE_STRING: {
-            char* valueAsString = RValue_toString(val);
+            char* valueAsString = RValue_toString(val, dataWin);
 
             // length + quotes (2) + null terminator
             int newLength = strlen(valueAsString) + 3;
@@ -352,7 +435,7 @@ static inline char* RValue_toStringFancy(RValue val) {
             return valueWithQuotes;
         }
         default: {
-            return RValue_toString(val);
+            return RValue_toString(val, dataWin);
         }
     }
 }
@@ -461,6 +544,29 @@ static inline int32_t RValue_toInt32(RValue val) {
         case RVALUE_ASSETREF: return val.int32;
         default:            return 0;
     }
+}
+
+// A GML colour lives in an RValue as a double, and it is quite happily 32-bit wide: DELTARUNE
+// Chapter 5 stores 4294967295 (0xFFFFFFFF) in the platforming floor's tint. Casting that through
+// a signed int32 saturates to INT32_MIN (0x80000000), whose three colour bytes are all zero -- the
+// white wall behind the floor came out black, and merge_color(c_white, 4294967295, 1) returned 0.
+// Take the bits, not the sign: values inside the int32 range behave exactly as before, and negative
+// ones keep their bit pattern.
+static inline uint32_t RValue_toColour(RValue val) {
+    if (val.type == RVALUE_REAL) {
+        if (val.real < (GMLReal) 0) {
+            return (uint32_t) (int32_t) RValue_toInt32(val);
+        }
+        // Clamped at 2^32 rather than 0xFFFFFFFF: where GMLReal is a float, 0xFFFFFFFF is not
+        // representable and rounds up to exactly 2^32, and casting that to uint32_t is undefined.
+        // Everything stays in GMLReal on purpose -- the PS2 has no hardware double, and it builds
+        // with -fsingle-precision-constant -Werror=double-promotion.
+        if (val.real >= (GMLReal) 4294967296.0) {
+            return 0xFFFFFFFFu;
+        }
+        return (uint32_t) val.real;
+    }
+    return (uint32_t) RValue_toInt32(val);
 }
 
 static inline int64_t RValue_toInt64(RValue val) {

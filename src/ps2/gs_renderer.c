@@ -1687,6 +1687,11 @@ static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     }
 }
 
+// GS textured prims are single-coloured, so per-corner colours fall back to corner 1 (same as gsDrawSurfaceColor).
+static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+    gsDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
+}
+
 static void gsDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
@@ -2469,6 +2474,11 @@ static void gsGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     gsKit_set_test(g, enable ? GS_ATEST_ON : GS_ATEST_OFF);
 }
 
+static bool gsGpuGetAlphaTestEnable(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    return gs->gsGlobal->Test->ATST == 6 && gs->gsGlobal->Test->AFAIL == 0;
+}
+
 static void gsGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     GsRenderer* gs = (GsRenderer*) renderer;
     GSGLOBAL* g = gs->gsGlobal;
@@ -2825,6 +2835,7 @@ static void gsDrawSurfaceTiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int
     // No-op
 }
 
+
 static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
@@ -2906,6 +2917,11 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     // Restore default REPEAT so subsequent atlas draws aren't stuck on this region.
     gsKit_set_clamp(gs->gsGlobal, GS_CMODE_REPEAT);
 }
+
+static void gsDrawSurfaceColor(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+    return gsDrawSurface(renderer, surfaceID, srcLeft, srcTop, srcWidth, srcHeight, x, y, xscale, yscale, angleDeg, color1, alpha);
+}
+
 static void gsSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
     (void)renderer;
     (void)surfaceID;
@@ -3109,6 +3125,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.drawSprite = gsDrawSprite;
     gsVtable.drawSpritePos = gsDrawSpritePos;
     gsVtable.drawSpritePart = gsDrawSpritePart;
+    gsVtable.drawSpritePartColor = gsDrawSpritePartColor;
     gsVtable.drawRectangle = gsDrawRectangle;
     gsVtable.drawRectangleColor = gsDrawRectangleColor;
     gsVtable.drawLine = gsDrawLine;
@@ -3127,6 +3144,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
     gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
     gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuGetAlphaTestEnable = gsGpuGetAlphaTestEnable;
     gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
     gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
     gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;
@@ -3141,6 +3159,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.getSurfaceHeight = gsGetSurfaceHeight;
     gsVtable.drawSurface = gsDrawSurface;
     gsVtable.drawSurfaceTiled = gsDrawSurfaceTiled;
+    gsVtable.drawSurfaceColor = gsDrawSurfaceColor;
     gsVtable.surfaceResize = gsSurfaceResize;
     gsVtable.surfaceFree = gsSurfaceFree;
     gsVtable.surfaceCopy = gsSurfaceCopy;

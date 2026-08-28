@@ -296,7 +296,7 @@ void startRunner(const char* gamePath, const char* savesPath) {
     AudioSystem* audioSystem = (AudioSystem*) gWebAudio;
 
     // Initialize the runner
-    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem);
+    Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, 0);
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
 

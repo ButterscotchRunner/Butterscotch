@@ -12,8 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOWNLOAD_COMMERCIAL_GAMES: ${{ secrets.COMMERCIAL_GAMES_URL != '' }}
+      CCACHE_IGNOREOPTIONS: "-DBUTTERSCOTCH_COMMIT_HASH=* -DBUTTERSCOTCH_COMMIT_DATE=*"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get commit info
         id: commit-info
@@ -22,13 +23,18 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libglfw3-dev libbz2-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake ccache libglfw3-dev libbz2-dev
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-tests-linux-x86_64
 
       - name: Configure
-        run: cmake -B build -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -B build -G Ninja -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build Butterscotch
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -65,7 +71,7 @@ jobs:
 
       - name: Upload test screenshots
         if: always()          # the test step exits 1 on failure; run regardless
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-screenshots
           path: |

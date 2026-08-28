@@ -150,6 +150,8 @@ typedef struct {
     void (*endGUI)(Renderer* renderer);
     void (*drawSprite)(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
     void (*drawSpritePart)(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha);
+    // Per-corner-coloured variant of drawSpritePart. Colors map to TL, TR, BR, BL (GM convention).
+    void (*drawSpritePartColor)(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha);
     void (*drawSpritePos)(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha);
     void (*drawRectangle)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline);
     void (*drawRectangleColor)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline);
@@ -173,6 +175,7 @@ typedef struct {
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha);
     void (*gpuSetBlendEnable)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
+    bool (*gpuGetAlphaTestEnable)(Renderer* renderer);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
     void (*gpuSetColorWriteEnable)(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
     void (*gpuGetColorWriteEnable)(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha);
@@ -197,6 +200,7 @@ typedef struct {
     float (*getSurfaceWidth)(Renderer* renderer, int32_t surfaceID);
     float (*getSurfaceHeight)(Renderer* renderer, int32_t surfaceID);
     void (*drawSurface)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
+    void (*drawSurfaceColor)(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha);
     // Tiles the whole surface across the room (always tileX=tileY=true). Only the modern GL renderer draws; legacy/console renderers stub it.
     void (*drawSurfaceTiled)(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha);
     void (*surfaceResize)(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height);
@@ -399,6 +403,45 @@ static inline void Renderer_primitiveEnd(Renderer* renderer) {
     if (renderer != nullptr && renderer->vtable != nullptr && renderer->vtable->primitiveEnd != nullptr) {
         renderer->vtable->primitiveEnd(renderer);
     }
+}
+
+// Full draw: draw_sprite_general(sprite, subimg, left, top, width, height, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha).
+static inline void Renderer_drawSpriteGeneral(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    DataWin* dw = renderer->dataWin;
+    int32_t tpagIndex = Renderer_resolveTPAGIndex(dw, spriteIndex, subimg);
+    if (0 > tpagIndex) return;
+
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
+
+    // Clip region to TPAG bounds (same as Renderer_drawSpritePart(Ext))
+    if (tpag->targetX > left) {
+        int32_t off = tpag->targetX - left;
+        x += (float) off * xscale;
+        width -= off;
+        left = 0;
+    } else {
+        left -= tpag->targetX;
+    }
+
+    if (tpag->targetY > top) {
+        int32_t off = tpag->targetY - top;
+        y += (float) off * yscale;
+        height -= off;
+        top = 0;
+    } else {
+        top -= tpag->targetY;
+    }
+
+    if (width > tpag->sourceWidth - left) width = tpag->sourceWidth - left;
+    if (height > tpag->sourceHeight - top) height = tpag->sourceHeight - top;
+    if (0 >= width || 0 >= height) return;
+
+    if (color1 == color2 && color2 == color3 && color3 == color4) {
+        renderer->vtable->drawSpritePart(renderer, tpagIndex, left, top, width, height, x, y, xscale, yscale, angleDeg, x, y, color1, alpha);
+        return;
+    }
+
+    renderer->vtable->drawSpritePartColor(renderer, tpagIndex, left, top, width, height, x, y, xscale, yscale, angleDeg, x, y, color1, color2, color3, color4, alpha);
 }
 
 static inline void Renderer_drawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {

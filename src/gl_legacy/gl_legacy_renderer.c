@@ -125,7 +125,9 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, co
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
+#ifndef PLATFORM_PS3
     Matrix4f_flipClipY(&projection);
+#endif
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -679,7 +681,7 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     PS3_PALETTED_END();
 }
 
-static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -702,10 +704,11 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     float u1 = (float) (tpag->sourceX + srcOffX + srcW) / (float) texW;
     float v1 = (float) (tpag->sourceY + srcOffY + srcH) / (float) texH;
 
-    // Convert BGR color to RGB floats
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    // Convert BGR colors to RGB floats
+    float r1 = (float) BGR_R(color1) / 255.0f, g1 = (float) BGR_G(color1) / 255.0f, b1 = (float) BGR_B(color1) / 255.0f;
+    float r2 = (float) BGR_R(color2) / 255.0f, g2 = (float) BGR_G(color2) / 255.0f, b2 = (float) BGR_B(color2) / 255.0f;
+    float r3 = (float) BGR_R(color3) / 255.0f, g3 = (float) BGR_G(color3) / 255.0f, b3 = (float) BGR_B(color3) / 255.0f;
+    float r4 = (float) BGR_R(color4) / 255.0f, g4 = (float) BGR_G(color4) / 255.0f, b4 = (float) BGR_B(color4) / 255.0f;
 
     // Quad corners (no origin offset - draw_sprite_part ignores sprite origin)
     float cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3;
@@ -731,19 +734,23 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
 
     PS3_PALETTED_BEGIN(tpagIndex);
     glBegin(GL_QUADS);
-        glColor4f(r, g, b, alpha);
+        glColor4f(r1, g1, b1, alpha);
         glTexCoord2f(u0, v0); glVertex2f(cx0, cy0);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r2, g2, b2, alpha);
         glTexCoord2f(u1, v0); glVertex2f(cx1, cy1);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r3, g3, b3, alpha);
         glTexCoord2f(u1, v1); glVertex2f(cx2, cy2);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r4, g4, b4, alpha);
         glTexCoord2f(u0, v1); glVertex2f(cx3, cy3);
     glEnd();
     PS3_PALETTED_END();
+}
+
+static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    glDrawSpritePartColor(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color, color, color, color, alpha);
 }
 
 // Emits a single colored quad into the batch using the white pixel texture
@@ -1543,6 +1550,10 @@ static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable
     enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
 }
 
+static bool glGpuGetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer) {
+    return glIsEnabled(GL_ALPHA_TEST);
+}
+
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
     glAlphaFunc(GL_GREATER, ref/255.0f);
 }
@@ -1784,13 +1795,8 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-#ifndef PLATFORM_PS3
     float v0 = (float) srcTop / (float) texH;
     float v1 = (float) (srcTop + srcHeight) / (float) texH;
-#else
-    float v1 = (float) srcTop / (float) texH;
-    float v0 = (float) (srcTop + srcHeight) / (float) texH;
-#endif
 
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
@@ -1814,6 +1820,60 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
         glColor4f(r, g, b, alpha); glTexCoord2f(u0, v1); glVertex2f(x3, y3);
     glEnd();
 }
+
+static void glLegacyDrawSurfaceColor(Renderer* renderer, int32_t surfaceId, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLuint texId;
+    int32_t texW, texH;
+    if (!resolveSurfaceTexture(gl, surfaceId, &texId, &texW, &texH)) return;
+
+    // Use the logical surface size for the default "draw everything" case,
+    // not the POT texture dimensions (texW/texH may be rounded up).
+    if (0 > srcWidth) {
+        srcLeft = 0;
+        srcTop = 0;
+        srcWidth = gl->surfaceWidth[surfaceId];
+        srcHeight = gl->surfaceHeight[surfaceId];
+    }
+
+    // top-down GML coords -> flipped V for our bottom-up texture
+    float u0 = (float) srcLeft / (float) texW;
+    float u1 = (float) (srcLeft + srcWidth) / (float) texW;
+    float v0 = (float) srcTop / (float) texH;
+    float v1 = (float) (srcTop + srcHeight) / (float) texH;
+
+    float r1 = (float) BGR_R(color1) / 255.0f;
+    float g1 = (float) BGR_G(color1) / 255.0f;
+    float b1 = (float) BGR_B(color1) / 255.0f;
+    float r2 = (float) BGR_R(color2) / 255.0f;
+    float g2 = (float) BGR_G(color2) / 255.0f;
+    float b2 = (float) BGR_B(color2) / 255.0f;
+    float r3 = (float) BGR_R(color3) / 255.0f;
+    float g3 = (float) BGR_G(color3) / 255.0f;
+    float b3 = (float) BGR_B(color3) / 255.0f;
+    float r4 = (float) BGR_R(color4) / 255.0f;
+    float g4 = (float) BGR_G(color4) / 255.0f;
+    float b4 = (float) BGR_B(color4) / 255.0f;
+
+    float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+    Matrix4f transform;
+    Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
+
+    float x0, y0, x1, y1, x2, y2, x3, y3;
+    Matrix4f_transformPoint(&transform, 0.0f,             0.0f,             &x0, &y0);
+    Matrix4f_transformPoint(&transform, (float) srcWidth, 0.0f,             &x1, &y1);
+    Matrix4f_transformPoint(&transform, (float) srcWidth, (float) srcHeight, &x2, &y2);
+    Matrix4f_transformPoint(&transform, 0.0f,             (float) srcHeight, &x3, &y3);
+
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glBegin(GL_QUADS);
+        glColor4f(r1, g1, b1, alpha); glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+        glColor4f(r2, g2, b2, alpha); glTexCoord2f(u1, v0); glVertex2f(x1, y1);
+        glColor4f(r3, g3, b3, alpha); glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+        glColor4f(r4, g4, b4, alpha); glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+    glEnd();
+}
+
 
 static void glLegacySurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
@@ -1940,6 +2000,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.drawSprite = glDrawSprite;
     glVtable.drawSpritePos = glDrawSpritePos;
     glVtable.drawSpritePart = glDrawSpritePart;
+    glVtable.drawSpritePartColor = glDrawSpritePartColor;
     glVtable.drawRectangle = glDrawRectangle;
     glVtable.drawRectangleColor = glDrawRectangleColor;
     glVtable.drawLine = glDrawLine;
@@ -1957,6 +2018,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
     glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
     glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuGetAlphaTestEnable = glGpuGetAlphaTestEnable;
     glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
@@ -1970,6 +2032,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.getSurfaceWidth = glLegacyGetSurfaceWidth;
     glVtable.getSurfaceHeight = glLegacyGetSurfaceHeight;
     glVtable.drawSurface = glLegacyDrawSurface;
+    glVtable.drawSurfaceColor = glLegacyDrawSurfaceColor;
     glVtable.drawSurfaceTiled = glLegacyDrawSurfaceTiled;
     glVtable.surfaceResize = glLegacySurfaceResize;
     glVtable.surfaceFree = glLegacySurfaceFree;
