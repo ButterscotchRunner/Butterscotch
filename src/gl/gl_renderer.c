@@ -2656,13 +2656,16 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    flushBatch((GLRenderer*)renderer);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->blendEnable == enable) return;
+    flushBatch(gl);
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    gl->blendEnable = enable;
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-    (void)renderer;
-    return glIsEnabled(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->blendEnable;
 }
 
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
