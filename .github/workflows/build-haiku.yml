@@ -27,6 +27,13 @@ jobs:
           restore-keys: |
             haiku-${{ env.HAIKU_VERSION }}-
 
+      - name: Start VM
+        uses: cross-platform-actions/action@b77f08480307e762b98be92ba7ef04ea7c2272f8
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: ${{ env.HAIKU_VERSION }}
+
       - name: Debug restored caches
         run: |
           echo "CCACHE_DIR=$CCACHE_DIR"
@@ -34,13 +41,6 @@ jobs:
           ls -lah host_cache/packages || true
           ls -lah "${CCACHE_DIR:-host_cache/ccache}" || true
           ccache -s || true
-
-      - name: Start VM
-        uses: cross-platform-actions/action@b77f08480307e762b98be92ba7ef04ea7c2272f8
-        with:
-          operating_system: haiku
-          architecture: x86-64
-          version: ${{ env.HAIKU_VERSION }}
 
       - name: Install dependencies
         run: |
