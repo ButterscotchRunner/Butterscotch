@@ -38,9 +38,9 @@ jobs:
         run: |
           mkdir -p host_cache/packages
           
-          if [ -n "$(ls -A host_cache/packages/*.hpkg 2>/dev/null)" ]; then
+          if ls host_cache/packages/*.hpkg >/dev/null 2>&1; then
             echo "Cache hit: Pre-installing cached packages..."
-            pkgman install -y host_cache/packages/*.hpkg
+            pkgman install -y host_cache/packages/*.hpkg || true
           fi
           
           ls /boot/system/packages/ > baseline_packages.txt
@@ -68,6 +68,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
+          ccache -s
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
