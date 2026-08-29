@@ -969,6 +969,14 @@ void Runner_draw(Runner* runner) {
             Instance* inst = d->instance;
             // Filter inactive/invisible instances at draw time so the cache doesn't need invalidation when those flags toggle.
             if (!inst->active || !inst->visible) continue;
+#ifdef DDRAW_ORDER_TRACE
+            if (getenv("DDRAW_ORDER")) {
+                const char* dName = (inst->objectIndex >= 0 && runner->dataWin->objt.count > (uint32_t) inst->objectIndex) ? runner->dataWin->objt.objects[inst->objectIndex].name : "?";
+                const char* dSpr = (inst->spriteIndex >= 0 && runner->dataWin->sprt.count > (uint32_t) inst->spriteIndex) ? runner->dataWin->sprt.sprites[inst->spriteIndex].name : "?";
+                logInfo("DDRAW f=%d depth=%d %s id=%d spr=%s idx=%.2f a=%.2f blend=%d vis=%d act=%d\n",
+                    runner->frameCount, inst->depth, dName, inst->instanceId, dSpr, inst->imageIndex, inst->imageAlpha, inst->imageBlend, inst->visible, inst->active);
+            }
+#endif
             int32_t ownerObjectIndex = -1;
             int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
             if (codeId >= 0) {
@@ -2465,7 +2473,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     if (isObjectDisabled(runner, source->objectIndex)) return nullptr;
 
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, source->objectIndex, source->x, source->y);
-    Instance_copyFields(inst, source);
+    Instance_copyFields(source, inst);
     inst->createEventFired = true;
     if (performEvent) {
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);

@@ -94,7 +94,7 @@ void Instance_structDecRef(Instance* inst);
 
 // Deep-copy all mutable fields from source to dst: built-in properties, alarms, selfVars.
 // Does NOT copy instanceId, objectIndex, destroyed, or createEventFired. Strings are duplicated so ownership stays independent. Arrays bump refCount (shared - CoW handles forking on first write).
-void Instance_copyFields(Instance* dst, Instance* source);
+void Instance_copyFields(Instance* source, Instance* dst);
 
 // Get a self variable by varID. Returns RVALUE_UNDEFINED if absent. The returned RValue is non-owning (weak view - do not RValue_free unless you incRef/strdup first to strengthen).
 static inline RValue Instance_getSelfVar(Instance* inst, int32_t varID) {
