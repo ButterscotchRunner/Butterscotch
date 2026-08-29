@@ -22,6 +22,7 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
+#include "gl_state.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096

@@ -2,6 +2,7 @@
 #include "matrix_math.h"
 #include "text_utils.h"
 #include "gl_wrappers.h"
+#include "gl_state.h"
 
 
 #ifdef PLATFORM_PS3
