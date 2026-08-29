@@ -1,16 +1,18 @@
 #ifndef _BS_GL_STATE_H
 #define _BS_GL_STATE_H
 
+#define GL_MAX_TEXTURE_2D 32
+
 static GLenum activeTextureSlot = GL_TEXTURE0;
 static GLint viewport[4] = {-1, -1, -1, -1};
 static GLint scissor[4] = {-1, -1, -1, -1};
 static GLuint currentReadFb = 0;
 static GLuint currentDrawFb = 0;
-static GLuint boundTextures2D[32] = {0};
+static GLuint boundTextures2D[GL_MAX_TEXTURE_2D] = {0};
 static GLboolean blend = GL_FALSE;
 static GLboolean depthTest = GL_FALSE;
 static GLboolean scissorTest = GL_FALSE;
-static GLboolean texture2D = GL_FALSE;
+static GLboolean texture2D[GL_MAX_TEXTURE_2D] = {GL_FALSE};
 
 static void cached_glViewport(int x, int y, int width, int height) {
     if (viewport[0] == x && viewport[1] == y && viewport[2] == width && viewport[3] == height) return;
@@ -118,8 +120,11 @@ static void cached_glEnable(GLenum cap) {
             scissorTest = GL_TRUE;
             break;
         case GL_TEXTURE_2D:
-            if (texture2D) return;
-            texture2D = GL_TRUE;
+            int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
+            if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
+                if (texture2D[slotIndex]) return;
+                texture2D[slotIndex] = GL_TRUE;
+            }
             break;
     }
     glEnable(cap);
@@ -143,8 +148,11 @@ static void cached_glDisable(GLenum cap) {
             scissorTest = GL_FALSE;
             break;
         case GL_TEXTURE_2D:
-            if (!texture2D) return;
-            texture2D = GL_FALSE;
+            int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
+            if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
+                if (!texture2D[slotIndex]) return;
+                texture2D[slotIndex] = GL_FALSE;
+            }
             break;
     }
     glDisable(cap);
@@ -161,8 +169,13 @@ static inline GLboolean cached_glIsEnabled(GLenum cap) {
             return depthTest;
         case GL_SCISSOR_TEST:
             return scissorTest;
-        case GL_TEXTURE_2D:
-            return texture2D;
+        case GL_TEXTURE_2D: {
+            int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
+            if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_UNITS) {
+                return texture2D[slotIndex];
+            }
+            return glIsEnabled(cap);
+        }
         default: 
             return glIsEnabled(cap);
     }
