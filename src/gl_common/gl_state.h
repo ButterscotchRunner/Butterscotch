@@ -95,9 +95,11 @@ static void cached_glActiveTexture(GLenum texture) {
 
 static void cached_glBindTexture(GLenum target, GLuint texture) {
     if (target == GL_TEXTURE_2D) {
-        int slot_idx = activeTextureSlot - GL_TEXTURE0;
-        if (boundTextures2D[slot_idx] == texture) return;
-        boundTextures2D[slot_idx] = texture;
+        int slotIndex = activeTextureSlot - GL_TEXTURE0;
+        if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
+            if (boundTextures2D[slotIndex] == texture) return;
+            boundTextures2D[slotIndex] = texture;
+        }
     }
     glBindTexture(target, texture);
 }
