@@ -113,21 +113,24 @@ static void cached_glEnable(GLenum cap) {
             if (blend) return;
             blend = GL_TRUE;
             break;
-        case GL_DEPTH_TEST:
+        case GL_DEPTH_TEST: {
             if (depthTest) return;
             depthTest = GL_TRUE;
             break;
-        case GL_SCISSOR_TEST:
+        }
+        case GL_SCISSOR_TEST: {
             if (scissorTest) return;
             scissorTest = GL_TRUE;
             break;
-        case GL_TEXTURE_2D:
+        }
+        case GL_TEXTURE_2D: {
             int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
             if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
                 if (texture2D[slotIndex]) return;
                 texture2D[slotIndex] = GL_TRUE;
             }
             break;
+        }
     }
     glEnable(cap);
 }
@@ -149,13 +152,14 @@ static void cached_glDisable(GLenum cap) {
             if (!scissorTest) return;
             scissorTest = GL_FALSE;
             break;
-        case GL_TEXTURE_2D:
+        case GL_TEXTURE_2D: {
             int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
             if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
                 if (!texture2D[slotIndex]) return;
                 texture2D[slotIndex] = GL_FALSE;
             }
             break;
+        }
     }
     glDisable(cap);
 }
@@ -178,7 +182,7 @@ static inline GLboolean cached_glIsEnabled(GLenum cap) {
             }
             return glIsEnabled(cap);
         }
-        default: 
+        default:
             return glIsEnabled(cap);
     }
 }
