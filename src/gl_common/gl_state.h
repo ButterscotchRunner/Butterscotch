@@ -2,11 +2,11 @@
 #define _BS_GL_STATE_H
 
 static GLenum activeTextureSlot = GL_TEXTURE0;
-static GLint viewport[4];
-static GLint scissor[4];
+static GLint viewport[4] = {-1, -1, -1, -1};
+static GLint scissor[4] = {-1, -1, -1, -1};
 static GLuint currentReadFb = 0;
 static GLuint currentDrawFb = 0;
-static GLuint boundTextures2D[32];
+static GLuint boundTextures2D[32] = {0};
 static GLboolean blend = GL_FALSE;
 static GLboolean depthTest = GL_FALSE;
 static GLboolean scissorTest = GL_FALSE;
