@@ -16,6 +16,16 @@ endif()
 
 set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "switch")
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    if(NOT DEFINED ENV{DEVKITPRO})
+        message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+    endif()
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
+endif()
+
+set(BACKEND "sdl2")
+
 endif()
 
 project(butterscotch C)
@@ -41,6 +51,22 @@ else()
     endif()
 endif()
 
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(MSVC)
+        # equivalent to -fomit-frame-pointer
+        add_compile_options(/Oy)
+    else()
+        add_compile_options(-ffast-math -fno-finite-math-only)
+
+        # some targets don't support -fomit-frame-pointer IIRC
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
+        if(HAS_FOMIT_FRAME_POINTER)
+            add_compile_options(-fomit-frame-pointer)
+        endif()
+    endif()
+endif()
+
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
@@ -63,7 +89,7 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "web")
     elseif(PLATFORM STREQUAL "web-meta")
         set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
+    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -95,6 +121,9 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
+if(PLATFORM STREQUAL "switch")
+    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
+endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
 option(ENABLE_SW_RENDERER "Enable the software renderer" ON)
 if(NOT ENABLE_WAD14 AND NOT ENABLE_WAD16 AND NOT ENABLE_WAD17)
@@ -152,7 +181,7 @@ if(AUDIO_BACKEND STREQUAL "openal")
     add_compile_definitions(USE_OPENAL)
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
-    elseif(PLATFORM STREQUAL "vita")
+    elseif(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_LIBRARIES openal pthread)
     elseif(NOT PLATFORM STREQUAL "ps3")
         find_package(OpenAL REQUIRED)
@@ -221,17 +250,24 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
     if(PLATFORM STREQUAL "vita")
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            add_compile_options(-ffast-math)
-        endif()
-
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
         add_compile_definitions(__VITA__)
         add_compile_definitions(PLATFORM_VITA)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "switch")
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            add_compile_options(-ffast-math)
+        endif()
+
+        add_compile_definitions(PLATFORM_SWITCH)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -302,7 +338,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
-    if(NOT PLATFORM STREQUAL "vita")
+    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL OR BACKEND STREQUAL "glfw3" OR BACKEND STREQUAL "glfw2")
             # GLAD
             add_library(glad STATIC vendor/glad/src/glad.c)
@@ -316,7 +352,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
     endif()
     if(WIN32)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
-    elseif(NOT PLATFORM STREQUAL "vita")
+    elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 
@@ -324,13 +360,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
         add_compile_definitions(USE_GLFW3)
 
         if(MINGW)
-            find_package(glfw3 REQUIRED)
+            find_package(glfw3 CONFIG REQUIRED)
 
             # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
             # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
             target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
             target_link_options(butterscotch PRIVATE -static)
-            set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+            set(BACKEND_LIBRARIES glfw opengl32 gdi32 winmm)
         elseif(MSVC)
             target_compile_definitions(butterscotch PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
             find_package(glfw3 CONFIG REQUIRED)
@@ -396,6 +432,12 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita")
         )
     else()
         target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+
+        if (PLATFORM STREQUAL "switch")
+            target_link_libraries(butterscotch PRIVATE GLESv2 stdc++)
+            nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
+            nx_create_nro(butterscotch NACP Butterscotch.nacp)
+        endif()
     endif()
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
@@ -583,10 +625,8 @@ elseif(PLATFORM STREQUAL "ps2")
 
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
-    # -fomit-frame-pointer: frees a register on a target with tight register pressure
-    # -ffast-math: enables aggressive floating point optimizations
     # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
@@ -782,7 +822,7 @@ elseif(PLATFORM STREQUAL "ps3")
     target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
     # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
-    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE bzip2 sha1 ps3gl mojoal ${SDL2_LIBRARIES} gcm_sys rsx sysutil io audio rt lv2 m stb_ds stb_vorbis)
 elseif(PLATFORM STREQUAL "vita")
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")

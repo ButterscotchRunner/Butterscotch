@@ -14,8 +14,10 @@
 #include "runner_gamepad.h"
 #include "runner_mouse.h"
 #include "vm.h"
+#include "random.h"
 
 // ===[ Event Type Constants ]===
+#define EVENT_ROOM_CREATION  -2
 #define EVENT_CREATE     0
 #define EVENT_DESTROY    1
 #define EVENT_ALARM      2
@@ -643,11 +645,13 @@ struct Runner {
 
     // Offset between game start time and nowNanos()
     uint64_t gameStartTime;
+
+    Random random;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem);
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed);
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
 void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);

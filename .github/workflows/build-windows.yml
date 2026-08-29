@@ -1,0 +1,150 @@
+name: Windows builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-glfw-windows:
+    name: Build (${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-w64-windows-gnu
+            triplet: aarch64-w64-mingw32
+          - arch: armv7
+            target: armv7-w64-windows-gnu
+            triplet: armv7-w64-mingw32
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get commit info
+        id: commit-info
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(git log -1 --format=%cd --date=short)" >> $GITHUB_OUTPUT
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            ccache \
+            llvm
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-glfw-windows-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-glfw-windows-${{ matrix.arch }}-
+
+      - name: Install LLVM-MinGW
+        run: |
+          curl -L \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            -o /tmp/llvm-mingw.tar.xz
+
+          sudo mkdir -p /opt/llvm-mingw
+          sudo tar -xf /tmp/llvm-mingw.tar.xz \
+            --strip-components=1 \
+            -C /opt/llvm-mingw
+
+          echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
+
+      - name: Checkout GLFW
+        uses: actions/checkout@v7
+        with:
+          repository: glfw/glfw
+          ref: fdd14e65b1c29e4e6df875fb5669ec00d6793531
+          path: vendor/glfw
+
+      - name: Build GLFW for MinGW
+        run: |
+          cmake -B vendor/glfw/build -S vendor/glfw -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
+            -DTARGET_TRIPLE=${{ matrix.target }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
+            -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
+
+          cmake --build vendor/glfw/build
+          sudo cmake --install vendor/glfw/build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
+            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
+            -DTARGET_TRIPLE=${{ matrix.target }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DWERROR=ON \
+            -DBACKEND=glfw3 \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build
+          llvm-strip --strip-all build/butterscotch.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-glfw3-windows-${{ matrix.arch }}
+          path: build/butterscotch.exe
+
+  build-windows:
+    name: Build (${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            backend: sdl2
+            libs: SDL2_LIBS='-lmingw32 -lSDL2main -lSDL2 -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid'
+          - arch: i486
+            backend: sdl1
+            libs: SDL1_LIBS='-lmingw32 -lSDLmain -lSDL -lm -luser32 -lgdi32 -lwinmm -ldxguid'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: |
+              ~/.cache/ccache
+              artifacts/windows/build/toolchain-${{ matrix.arch }}
+          key: win32-artifact-${{ github.sha }}
+          restore-keys: win32-artifact-
+
+      - name: Install MinGW and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev llvm
+          ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
+
+      - name: Build
+        run: |
+          PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH" make \
+              NO_COLOR=1 \
+              VERBOSE=1 \
+              CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
+              CFLAGS='-O3 -DNDEBUG -flto -fomit-frame-pointer' \
+              BACKEND=${{ matrix.backend }} \
+              EXTRALIBS='-latomic' \
+              ${{ matrix.libs }}
+          llvm-strip --strip-all build/butterscotch.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-windows-${{ matrix.arch }}
+          path: build/butterscotch.exe

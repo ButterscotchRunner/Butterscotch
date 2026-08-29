@@ -1687,6 +1687,11 @@ static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     }
 }
 
+// GS textured prims are single-coloured, so per-corner colours fall back to corner 1 (same as gsDrawSurfaceColor).
+static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+    gsDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
+}
+
 static void gsDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
@@ -2469,6 +2474,11 @@ static void gsGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
     gsKit_set_test(g, enable ? GS_ATEST_ON : GS_ATEST_OFF);
 }
 
+static bool gsGpuGetAlphaTestEnable(Renderer* renderer) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    return gs->gsGlobal->Test->ATST == 6 && gs->gsGlobal->Test->AFAIL == 0;
+}
+
 static void gsGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) {
     GsRenderer* gs = (GsRenderer*) renderer;
     GSGLOBAL* g = gs->gsGlobal;
@@ -3115,6 +3125,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.drawSprite = gsDrawSprite;
     gsVtable.drawSpritePos = gsDrawSpritePos;
     gsVtable.drawSpritePart = gsDrawSpritePart;
+    gsVtable.drawSpritePartColor = gsDrawSpritePartColor;
     gsVtable.drawRectangle = gsDrawRectangle;
     gsVtable.drawRectangleColor = gsDrawRectangleColor;
     gsVtable.drawLine = gsDrawLine;
@@ -3133,6 +3144,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
     gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
     gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
+    gsVtable.gpuGetAlphaTestEnable = gsGpuGetAlphaTestEnable;
     gsVtable.gpuSetAlphaTestRef = gsGpuSetAlphaTestRef;
     gsVtable.gpuSetColorWriteEnable = gsGpuSetColorWriteEnable;
     gsVtable.gpuGetColorWriteEnable = gsGpuGetColorWriteEnable;

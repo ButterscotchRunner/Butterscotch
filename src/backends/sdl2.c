@@ -8,6 +8,10 @@
 #include "platformdefs.h"
 #include "gettime.h"
 #include "runner_mouse.h"
+#ifdef PLATFORM_SWITCH
+#include <switch.h>
+#include "switch_input.h"
+#endif
 
 static Runner *g_runner;
 static SDL_Surface* scr;
@@ -139,6 +143,12 @@ static float platformGetWindowScale(void) {
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
 
+#ifdef PLATFORM_SWITCH
+    u32 operationMode = appletGetOperationMode();
+    width = (operationMode == AppletOperationMode_Console) ? 1920 : 1280;
+    height = (operationMode == AppletOperationMode_Console) ? 1080 : 720;
+#endif
+
     float scale = platformGetWindowScale();
     SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
 
@@ -218,7 +228,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
-#ifndef PLATFORM_VITA
+#if !defined(PLATFORM_VITA) && !defined(PLATFORM_SWITCH)
     // init gamepad mappings
     const char* dbPath = "gamecontrollerdb.txt";
     if (SDL_GameControllerAddMappingsFromFile(dbPath) >= 0) {
@@ -323,6 +333,7 @@ void *platformGetProcAddress(const char *name) {
 
 #endif
 
+#ifndef PLATFORM_SWITCH
 static int32_t SDLKeyToGml(int sdlkey) {
     // Letters and numbers are the same as GML
     if (sdlkey >= 'a' && sdlkey <= 'z') return toupper(sdlkey);
@@ -449,8 +460,12 @@ static void mapSdl2ToGml(SDL_GameController* gc, GamepadSlot* slot) {
         slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
     }
 }
+#endif
 
 bool platformHandleEvents(void) {
+#ifdef PLATFORM_SWITCH
+    return SwitchInput_handleEvents(g_runner);
+#else
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
@@ -574,6 +589,7 @@ bool platformHandleEvents(void) {
     }
 
     return false;
+#endif
 }
 
 void platformSleepUntil(uint64_t time) {

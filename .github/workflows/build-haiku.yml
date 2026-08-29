@@ -1,0 +1,80 @@
+name: Haiku build
+
+on:
+  workflow_call:
+
+jobs:
+  build-glfw3-haiku:
+    name: Build (GLFW3 x86_64)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    env:
+      HAIKU_VERSION: 'r1beta6'
+      CCACHE_DIR: "host_cache/ccache"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            host_cache/packages
+          key: haiku-${{ env.HAIKU_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            haiku-${{ env.HAIKU_VERSION }}-
+
+      - name: Start VM
+        uses: cross-platform-actions/action@b77f08480307e762b98be92ba7ef04ea7c2272f8
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: ${{ env.HAIKU_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          mkdir -p host_cache/packages
+          
+          if ls host_cache/packages/*.hpkg >/dev/null 2>&1; then
+            echo "Cache hit: Pre-installing cached packages..."
+            pkgman install -y host_cache/packages/*.hpkg || true
+          fi
+          
+          ls /boot/system/packages/ > baseline_packages.txt
+          
+          pkgman install -y cmake make ccache gcc glfw_devel openal_devel gcc_syslibs_devel
+          ls /boot/system/packages/ > current_packages.txt
+          
+          comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
+            if [ -n "$pkg" ]; then
+              echo "Caching newly installed package: $pkg"
+              cp "/boot/system/packages/$pkg" host_cache/packages/
+            fi
+          done
+
+      - name: Configure and build Butterscotch
+        run: |
+          mkdir -p "$PWD/${{ env.CCACHE_DIR }}"
+          
+          export CCACHE_DIR="$PWD/${{ env.CCACHE_DIR }}"
+          export CCACHE_BASEDIR="$PWD"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_NOHASHDIR=true
+
+          cmake -B build \
+            -DBACKEND=glfw3 \
+            -DAUDIO_BACKEND=openal \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-glfw3-haiku-x86-64
+          path: build/butterscotch

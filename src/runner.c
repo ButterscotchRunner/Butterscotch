@@ -599,7 +599,7 @@ static void drawBackground(
         float yscale = roomH / (float) tpag->boundingHeight;
         runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, blend, alpha);
     } else if (tileX || tileY) {
-        Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, xScale, yScale, tileX, tileY, roomW, roomH, alpha);
+        Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, xScale, yScale, tileX, tileY, roomW, roomH, blend, alpha);
     } else {
         // Single placement
         runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, 0.0f, 0.0f, xScale, yScale, 0.0f, blend, alpha);
@@ -1826,9 +1826,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
         Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
         runner->vmContext->currentInstance = dummy;
+        int32_t savedEventType = runner->vmContext->currentEventType;
+        runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
         RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
         RValue_free(&result);
         runner->vmContext->currentInstance = nullptr;
+        runner->vmContext->currentEventType = savedEventType;
         Instance_free(dummy);
     }
 
@@ -2281,7 +2284,7 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem) {
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
     requireNotNull(renderer);
@@ -2317,6 +2320,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
+    runner->random = Random_create(randomSeed);
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
@@ -4277,13 +4281,13 @@ void Runner_dumpState(Runner* runner) {
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
                     logInfo("    %s[%d] = %s\n", varName, (int) ai, innerStr);
                     free(innerStr);
                 }
             } else {
                 if (!hasSelfVars) { logInfo("  Self Variables:\n"); hasSelfVars = true; }
-                char* valStr = RValue_toStringFancy(val);
+                char* valStr = RValue_toStringFancy(val, runner->dataWin);
                 logInfo("    %s = %s\n", varName, valStr);
                 free(valStr);
             }
@@ -4305,7 +4309,7 @@ void Runner_dumpState(Runner* runner) {
                 repeat(GMLArray_length1D(target.array), ai) {
                     RValue* cell = GMLArray_slot(target.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
                     logInfo("  %s[%d] = %s\n", name, (int) ai, innerStr);
                     free(innerStr);
                 }

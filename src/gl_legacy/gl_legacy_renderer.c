@@ -125,7 +125,9 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, co
     renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
     renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
 
+#ifndef PLATFORM_PS3
     Matrix4f_flipClipY(&projection);
+#endif
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
@@ -679,7 +681,7 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     PS3_PALETTED_END();
 }
 
-static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -702,10 +704,11 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
     float u1 = (float) (tpag->sourceX + srcOffX + srcW) / (float) texW;
     float v1 = (float) (tpag->sourceY + srcOffY + srcH) / (float) texH;
 
-    // Convert BGR color to RGB floats
-    float r = (float) BGR_R(color) / 255.0f;
-    float g = (float) BGR_G(color) / 255.0f;
-    float b = (float) BGR_B(color) / 255.0f;
+    // Convert BGR colors to RGB floats
+    float r1 = (float) BGR_R(color1) / 255.0f, g1 = (float) BGR_G(color1) / 255.0f, b1 = (float) BGR_B(color1) / 255.0f;
+    float r2 = (float) BGR_R(color2) / 255.0f, g2 = (float) BGR_G(color2) / 255.0f, b2 = (float) BGR_B(color2) / 255.0f;
+    float r3 = (float) BGR_R(color3) / 255.0f, g3 = (float) BGR_G(color3) / 255.0f, b3 = (float) BGR_B(color3) / 255.0f;
+    float r4 = (float) BGR_R(color4) / 255.0f, g4 = (float) BGR_G(color4) / 255.0f, b4 = (float) BGR_B(color4) / 255.0f;
 
     // Quad corners (no origin offset - draw_sprite_part ignores sprite origin)
     float cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3;
@@ -731,19 +734,23 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
 
     PS3_PALETTED_BEGIN(tpagIndex);
     glBegin(GL_QUADS);
-        glColor4f(r, g, b, alpha);
+        glColor4f(r1, g1, b1, alpha);
         glTexCoord2f(u0, v0); glVertex2f(cx0, cy0);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r2, g2, b2, alpha);
         glTexCoord2f(u1, v0); glVertex2f(cx1, cy1);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r3, g3, b3, alpha);
         glTexCoord2f(u1, v1); glVertex2f(cx2, cy2);
 
-        glColor4f(r, g, b, alpha);
+        glColor4f(r4, g4, b4, alpha);
         glTexCoord2f(u0, v1); glVertex2f(cx3, cy3);
     glEnd();
     PS3_PALETTED_END();
+}
+
+static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    glDrawSpritePartColor(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color, color, color, color, alpha);
 }
 
 // Emits a single colored quad into the batch using the white pixel texture
@@ -1502,6 +1509,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == mode) return;
 
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
@@ -1514,6 +1522,11 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == bm_complex &&
+        gl->currentSFactor == sfactor &&
+        gl->currentDFactor == dfactor &&
+        gl->currentSFactorAlpha == sfactor_alpha &&
+        gl->currentDFactorAlpha == dfactor_alpha) return;
 
     gl->currentBlendMode = bm_complex;
     gl->currentSFactor = sfactor;
@@ -1530,25 +1543,39 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    (void)renderer;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->blendEnable == enable) return;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    gl->blendEnable = enable;
 }
 
 static bool glGpuGetBlendEnable(MAYBE_UNUSED Renderer* renderer) {
-
-    return glIsEnabled(GL_BLEND);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->blendEnable;
 }
 
 static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestEnable == enable) return;
     enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
+    gl->alphaTestEnable = enable;
+}
+
+static bool glGpuGetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->alphaTestEnable;
 }
 
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestRef == ref) return;
+    gl->alphaTestRef = ref;
     glAlphaFunc(GL_GREATER, ref/255.0f);
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->colorWriteR == red && gl->colorWriteG == green && gl->colorWriteB == blue && gl->colorWriteA == alpha) return;
     gl->colorWriteR = red;
     gl->colorWriteG = green;
     gl->colorWriteB = blue;
@@ -1784,13 +1811,8 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-#ifndef PLATFORM_PS3
     float v0 = (float) srcTop / (float) texH;
     float v1 = (float) (srcTop + srcHeight) / (float) texH;
-#else
-    float v1 = (float) srcTop / (float) texH;
-    float v0 = (float) (srcTop + srcHeight) / (float) texH;
-#endif
 
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
@@ -1833,13 +1855,8 @@ static void glLegacyDrawSurfaceColor(Renderer* renderer, int32_t surfaceId, int3
     // top-down GML coords -> flipped V for our bottom-up texture
     float u0 = (float) srcLeft / (float) texW;
     float u1 = (float) (srcLeft + srcWidth) / (float) texW;
-#ifndef PLATFORM_PS3
     float v0 = (float) srcTop / (float) texH;
     float v1 = (float) (srcTop + srcHeight) / (float) texH;
-#else
-    float v1 = (float) srcTop / (float) texH;
-    float v0 = (float) (srcTop + srcHeight) / (float) texH;
-#endif
 
     float r1 = (float) BGR_R(color1) / 255.0f;
     float g1 = (float) BGR_G(color1) / 255.0f;
@@ -1999,6 +2016,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.drawSprite = glDrawSprite;
     glVtable.drawSpritePos = glDrawSpritePos;
     glVtable.drawSpritePart = glDrawSpritePart;
+    glVtable.drawSpritePartColor = glDrawSpritePartColor;
     glVtable.drawRectangle = glDrawRectangle;
     glVtable.drawRectangleColor = glDrawRectangleColor;
     glVtable.drawLine = glDrawLine;
@@ -2016,6 +2034,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.gpuSetBlendModeExt = glGpuSetBlendModeExt;
     glVtable.gpuSetBlendEnable = glGpuSetBlendEnable;
     glVtable.gpuSetAlphaTestEnable = glGpuSetAlphaTestEnable;
+    glVtable.gpuGetAlphaTestEnable = glGpuGetAlphaTestEnable;
     glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;

@@ -4,7 +4,7 @@
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
 #include <vitaGL.h>
@@ -93,6 +93,7 @@ typedef struct {
     uint32_t surfaceCount;
 
     // Blending mode + factors
+    bool blendEnable;
     int32_t currentBlendMode;
     int32_t currentSFactor;
     int32_t currentDFactor;
