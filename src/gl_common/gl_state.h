@@ -171,7 +171,7 @@ static inline GLboolean cached_glIsEnabled(GLenum cap) {
             return scissorTest;
         case GL_TEXTURE_2D: {
             int slotIndex = (int)activeTextureSlot - GL_TEXTURE0;
-            if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_UNITS) {
+            if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
                 return texture2D[slotIndex];
             }
             return glIsEnabled(cap);
