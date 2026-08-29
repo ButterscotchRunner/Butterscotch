@@ -14,7 +14,7 @@ static GLboolean depthTest = GL_FALSE;
 static GLboolean scissorTest = GL_FALSE;
 static GLboolean texture2D[GL_MAX_TEXTURE_2D] = {GL_FALSE};
 
-static void cached_glViewport(int x, int y, int width, int height) {
+static inline void cached_glViewport(int x, int y, int width, int height) {
     if (viewport[0] == x && viewport[1] == y && viewport[2] == width && viewport[3] == height) return;
     glViewport(x, y, width, height);
     viewport[0] = x;
@@ -25,7 +25,7 @@ static void cached_glViewport(int x, int y, int width, int height) {
 #undef glViewport
 #define glViewport cached_glViewport
 
-static void cached_glScissor(int x, int y, int width, int height) {
+static inline void cached_glScissor(int x, int y, int width, int height) {
     if (scissor[0] == x && scissor[1] == y && scissor[2] == width && scissor[3] == height) return;
     glScissor(x, y, width, height);
     scissor[0] = x;
@@ -36,7 +36,7 @@ static void cached_glScissor(int x, int y, int width, int height) {
 #undef glScissor
 #define glScissor cached_glScissor
 
-static void cached_glBindFramebuffer(GLenum type, GLuint framebuffer) {
+static inline void cached_glBindFramebuffer(GLenum type, GLuint framebuffer) {
     switch (type) {
         case GL_READ_FRAMEBUFFER:
             if (currentReadFb == framebuffer) return;
@@ -60,7 +60,7 @@ static void cached_glBindFramebuffer(GLenum type, GLuint framebuffer) {
 #undef glBindFramebuffer
 #define glBindFramebuffer cached_glBindFramebuffer
 
-static void cached_glGetIntegerv(GLenum pname, GLint* params) {
+static inline void cached_glGetIntegerv(GLenum pname, GLint* params) {
     if (!params) return;
 
     switch (pname) {
@@ -84,7 +84,7 @@ static void cached_glGetIntegerv(GLenum pname, GLint* params) {
 #undef glGetIntegerv
 #define glGetIntegerv cached_glGetIntegerv
 
-static void cached_glActiveTexture(GLenum texture) {
+static inline void cached_glActiveTexture(GLenum texture) {
     if (activeTextureSlot == texture) return;
     glActiveTexture(texture);
     activeTextureSlot = texture;
@@ -93,7 +93,7 @@ static void cached_glActiveTexture(GLenum texture) {
 #undef glActiveTexture
 #define glActiveTexture cached_glActiveTexture
 
-static void cached_glBindTexture(GLenum target, GLuint texture) {
+static inline void cached_glBindTexture(GLenum target, GLuint texture) {
     if (target == GL_TEXTURE_2D) {
         int slotIndex = activeTextureSlot - GL_TEXTURE0;
         if (slotIndex >= 0 && slotIndex < GL_MAX_TEXTURE_2D) {
@@ -107,7 +107,7 @@ static void cached_glBindTexture(GLenum target, GLuint texture) {
 #undef glBindTexture
 #define glBindTexture cached_glBindTexture
 
-static void cached_glEnable(GLenum cap) {
+static inline void cached_glEnable(GLenum cap) {
     switch (cap) {
         case GL_BLEND:
             if (blend) return;
@@ -138,7 +138,7 @@ static void cached_glEnable(GLenum cap) {
 #undef glEnable
 #define glEnable cached_glEnable
 
-static void cached_glDisable(GLenum cap) {
+static inline void cached_glDisable(GLenum cap) {
     switch (cap) {
         case GL_BLEND:
             if (!blend) return;
