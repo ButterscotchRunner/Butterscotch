@@ -43,8 +43,6 @@ class MainActivity : ComponentActivity() {
         val layoutLibrary = Libraries.loadLayoutLibrary(this.applicationContext)
         val settingsStore = Libraries.loadSettingsStore(this.applicationContext)
 
-        ButterscotchUtils.fireAppLaunchEvent(true)
-
         if (intent?.action == ACTION_LAUNCH_GAME) {
             val gameIdAsString = intent.getStringExtra(GameActivity.EXTRA_GAME_ID)
             // Clear so a config change / recreate doesn't re-trigger the forward.

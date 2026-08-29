@@ -26,12 +26,8 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import net.perfectdreams.butterscotch.mizzle.config.MizzleConfig
-import net.perfectdreams.butterscotch.mizzle.routes.v1.PostAndroidAnalyticsLaunchAppRoute
-import net.perfectdreams.butterscotch.mizzle.routes.v1.PostAndroidAnalyticsLaunchGameRoute
 import net.perfectdreams.butterscotch.mizzle.routes.v1.SampleGamesRoute
 import net.perfectdreams.butterscotch.mizzle.tables.ActiveSalts
-import net.perfectdreams.butterscotch.mizzle.tables.AndroidAnalyticsLaunchApp
-import net.perfectdreams.butterscotch.mizzle.tables.AndroidAnalyticsLaunchGame
 import net.perfectdreams.butterscotch.mizzle.tables.AndroidTrackedAppVersions
 import net.perfectdreams.butterscotch.mizzle.tables.SampleGames
 import net.perfectdreams.butterscotch.mizzle.utils.RunnableCoroutine
@@ -73,8 +69,6 @@ class Mizzle(val config: MizzleConfig, val database: Database) {
 
     val routes = listOf(
         SampleGamesRoute(this),
-        PostAndroidAnalyticsLaunchAppRoute(this),
-        PostAndroidAnalyticsLaunchGameRoute(this)
     )
 
     val secureRandom = SecureRandom()
@@ -86,8 +80,6 @@ class Mizzle(val config: MizzleConfig, val database: Database) {
                 SchemaUtils.createMissingTablesAndColumns(
                     ActiveSalts,
                     SampleGames,
-                    AndroidAnalyticsLaunchApp,
-                    AndroidAnalyticsLaunchGame,
                     AndroidTrackedAppVersions
                 )
             }
