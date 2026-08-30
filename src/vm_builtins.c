@@ -8329,20 +8329,68 @@ static RValue builtin_instance_create_layer(VMContext* ctx, RValue* args, int32_
     return RValue_makeReal((GMLReal) inst->instanceId);
 }
 
+static void copyBasisStructVars(
+    VMContext* ctx,
+    Instance* target,
+    RValue basis
+) {
+    if (basis.type != RVALUE_STRUCT) {
+        return;
+    }
+
+    Instance* basisInst = basis.structInst;
+
+    if (basisInst == nullptr) {
+        return;
+    }
+
+    if (basisInst->objectIndex != STRUCT_OBJECT_INDEX) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < basisInst->selfVars.capacity; i++) {
+        IntRValueEntry* entry = &basisInst->selfVars.entries[i];
+
+        if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) {
+            continue;
+        }
+
+        int32_t varID = entry->key;
+        RValue* value = &entry->value;
+
+        RValue copiedValue = RValue_makeIndependent(*value);
+
+        RValue* targetSlot =
+            IntRValueHashMap_getOrInsertUndefined(
+                &target->selfVars,
+                varID
+            );
+
+        RValue_free(targetSlot);
+
+        *targetSlot = copiedValue;
+    }
+}
+
 static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (3 > argCount) return RValue_makeReal(0.0);
+    if (4 > argCount) return RValue_makeReal(0.0);
     Runner* runner = ctx->runner;
     GMLReal x = RValue_toReal(args[0]);
     GMLReal y = RValue_toReal(args[1]);
     int32_t depth = RValue_toInt32(args[2]);
     int32_t objectIndex = RValue_toInt32(args[3]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        logWarn("VM: instance_create: objectIndex %d out of range\n", objectIndex);
-        return RValue_makeReal(0.0);
+        logWarn("VM: instance_create_depth: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeReal(INSTANCE_NOONE);
     }
     Instance* callerInst = ctx->currentInstance;
     Instance* inst = Runner_createInstanceWithDepth(runner, x, y, objectIndex, depth);
     if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
+
+    if (argCount >= 5) {
+        copyBasisStructVars(ctx, inst, args[4]);
+    }
+
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
         Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
     }
