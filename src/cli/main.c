@@ -523,7 +523,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
-        const char* defaultDataWinPaths[3] = {"data.win", "assets/game.unx", "../Resources/game.ios"};
+        const char* defaultDataWinPaths[4] = {"data.win", "assets/game.unx", "assets/game.droid", "../Resources/game.ios"}; // default WAD paths for Windows/Linux/Android/macOS
         static char resolvedPath[2048];
 
         char baseDir[2048] = {0};
@@ -537,7 +537,7 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         } else {
             baseDir[0] = '\0';
         }
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             snprintf(resolvedPath, sizeof(resolvedPath), "%s%s", baseDir, defaultDataWinPaths[i]);
             if (access(resolvedPath, F_OK) == 0) {
                 args->dataWinPath = resolvedPath;
