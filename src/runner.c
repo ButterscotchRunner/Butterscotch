@@ -215,6 +215,7 @@ static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
     const char* savedCodeName = vm->currentCodeName;
     RValue* savedLocalVars = vm->localVars;
     uint32_t savedLocalVarCount = vm->localVarCount;
+    bool savedLocalVarsOnHeap = vm->localVarsOnHeap;
     IntIntHashMap* savedCodeLocalsSlotMap = vm->currentCodeLocalsSlotMap;
     int32_t savedCodeIndex = vm->currentCodeIndex;
     int32_t savedStackTop = vm->stack.top;
@@ -244,6 +245,7 @@ static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
     vm->currentCodeName = savedCodeName;
     vm->localVars = savedLocalVars;
     vm->localVarCount = savedLocalVarCount;
+    vm->localVarsOnHeap = savedLocalVarsOnHeap;
     vm->currentCodeLocalsSlotMap = savedCodeLocalsSlotMap;
     vm->currentCodeIndex = savedCodeIndex;
     vm->stack.top = savedStackTop;

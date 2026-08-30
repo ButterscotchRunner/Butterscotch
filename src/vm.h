@@ -111,8 +111,11 @@
 #define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
 #define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
-// Max amount of args a function call can have until the args are heap-alloced.
+// Max amount of args a function or script call can have until the args are heap-alloced.
 #define VM_MAX_STACK_ARGS 16
+
+// Max amount of local variables a code entry can have until the vars are heap-alloced.
+#define VM_MAX_STACK_LOCALS 64
 
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
@@ -133,11 +136,13 @@ typedef struct CallFrame {
     uint8_t* savedBytecodeBase;
     RValue* savedLocals;
     uint32_t savedLocalsCount;
+    bool savedLocalVarsOnHeap;
     const char* savedCodeName;
     int32_t savedSavearefBalance;
     IntIntHashMap* savedCodeLocalsSlotMap;
     RValue* savedScriptArgs;
     int32_t savedScriptArgCount;
+    bool savedScriptArgsOnHeap;
     int32_t savedCurrentCodeIndex;
     struct CallFrame* parent;
 } CallFrame;
@@ -203,6 +208,7 @@ struct VMContext {
     uint32_t codeEnd;
     RValue* localVars;
     uint32_t localVarCount;
+    bool localVarsOnHeap;
     struct Instance* globalScopeInstance; // used when GLOB scripts are being executed, and used for the "global" reference
     struct Instance* currentInstance;
     struct Instance* otherInstance; // "other" instance for collision events
@@ -220,6 +226,7 @@ struct VMContext {
     EnvFrame* envStack; // Environment stack for with-statements (PushEnv/PopEnv)
     RValue* scriptArgs;       // Arguments passed to current script (nullptr for non-script code)
     int32_t scriptArgCount;   // Number of arguments passed
+    bool scriptArgsOnHeap;
     int32_t selfId;
     int32_t otherId;
     // Current event context (set by Runner_executeEvent, -1 when not in an event)
