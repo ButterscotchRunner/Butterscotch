@@ -4,10 +4,16 @@
 #define GL_MAX_TEXTURE_2D 32
 
 static GLenum activeTextureSlot = GL_TEXTURE0;
+static GLenum blendSrcRGB = GL_ONE, blendDstRGB = GL_ZERO;
+static GLenum blendSrcAlpha = GL_ONE, blendDstAlpha = GL_ZERO;
+static GLenum blendEqRGB = GL_FUNC_ADD, blendEqAlpha = GL_FUNC_ADD;
+static GLclampf clearColor[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
 static GLint viewport[4] = {-1, -1, -1, -1};
 static GLint scissor[4] = {-1, -1, -1, -1};
 static GLuint currentReadFb = 0;
 static GLuint currentDrawFb = 0;
+static GLuint currentProgram = 0;
+static GLuint currentVAO = 0xFFFFFFFF;
 static GLuint boundTextures2D[GL_MAX_TEXTURE_2D] = {0};
 static GLboolean blend = GL_FALSE;
 static GLboolean depthTest = GL_FALSE;
@@ -106,6 +112,79 @@ static inline void cached_glBindTexture(GLenum target, GLuint texture) {
 
 #undef glBindTexture
 #define glBindTexture cached_glBindTexture
+
+static inline void cached_glUseProgram(GLuint program) {
+    if (currentProgram == program) return;
+    glUseProgram(program);
+    currentProgram = program;
+}
+
+#undef glUseProgram
+#define glUseProgram cached_glUseProgram
+
+static inline void cached_glBindVertexArray(GLuint vao) {
+    if (currentVAO == vao) return;
+    glBindVertexArray(vao);
+    currentVAO = vao;
+}
+
+#undef glBindVertexArray
+#define glBindVertexArray cached_glBindVertexArray
+
+static inline void cached_glDeleteVertexArrays(GLsizei n, const GLuint* arrays) {
+    for (GLsizei i = 0; i < n; i++) {
+        if (currentVAO == arrays[i]) currentVAO = 0;
+    }
+    glDeleteVertexArrays(n, arrays);
+}
+#undef glDeleteVertexArrays
+#define glDeleteVertexArrays cached_glDeleteVertexArrays
+
+static inline void cached_glBlendFuncSeparate(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha) {
+    if (blendSrcRGB == srcRGB && blendDstRGB == dstRGB && blendSrcAlpha == srcAlpha && blendDstAlpha == dstAlpha) return;
+    
+    glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+    
+    blendSrcRGB   = srcRGB;
+    blendDstRGB   = dstRGB;
+    blendSrcAlpha = srcAlpha;
+    blendDstAlpha = dstAlpha;
+}
+#undef glBlendFuncSeparate
+#define glBlendFuncSeparate cached_glBlendFuncSeparate
+
+static inline void cached_glBlendFunc(GLenum sfactor, GLenum dfactor) {
+    cached_glBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor);
+}
+#undef glBlendFunc
+#define glBlendFunc cached_glBlendFunc
+
+static inline void cached_glBlendEquationSeparate(GLenum eqRGB, GLenum eqAlpha) {
+    if (blendEqRGB == eqRGB && blendEqAlpha == eqAlpha) return;
+    glBlendEquationSeparate(eqRGB, eqAlpha);
+    blendEqRGB = eqRGB;
+    blendEqAlpha = eqAlpha;
+}
+#undef glBlendEquationSeparate
+#define glBlendEquationSeparate cached_glBlendEquationSeparate
+
+static inline void cached_glBlendEquation(GLenum mode) {
+    cached_glBlendEquationSeparate(mode, mode);
+}
+#undef glBlendEquation
+#define glBlendEquation cached_glBlendEquation
+
+static inline void cached_glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a) {
+    if (clearColor[0] == r && clearColor[1] == g && clearColor[2] == b && clearColor[3] == a) return;
+    glClearColor(r, g, b, a);
+    clearColor[0] = r;
+    clearColor[1] = g;
+    clearColor[2] = b;
+    clearColor[3] = a;
+}
+
+#undef glClearColor
+#define glClearColor cached_glClearColor
 
 static inline void cached_glEnable(GLenum cap) {
     switch (cap) {
