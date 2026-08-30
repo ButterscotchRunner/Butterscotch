@@ -523,11 +523,20 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     }
 
     if (optind >= argc) {
-        printUsage(argv[0]);
-        exit(1);
+        const char* defaultDataWinPaths[3] = {"data.win", "assets/game.unx", "../Resources/game.ios"}; // default WAD paths for Windows/Linux/macOS
+        for (int i = 0; i < 3; i++) {
+            if (access(defaultDataWinPaths[i], F_OK) == 0) {
+                args->dataWinPath = defaultDataWinPaths[i];
+                break;
+            }
+        }
+        if (args->dataWinPath == nullptr) {
+            printUsage(argv[0]);
+            exit(1);
+        }
+    } else {
+        args->dataWinPath = argv[optind];
     }
-
-    args->dataWinPath = argv[optind];
 
 #ifdef ENABLE_SCREENSHOTS
     if (hmlen(args->screenshotFrames) > 0 && args->screenshotPattern == nullptr) {
