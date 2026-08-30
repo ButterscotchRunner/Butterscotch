@@ -26,6 +26,8 @@ endif()
 
 set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "webos")
+    set(BACKEND "sdl2")
 endif()
 
 project(butterscotch C)
@@ -123,7 +125,7 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos")
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -158,20 +160,16 @@ else()
     file(GLOB SOURCES src/*.c)
     # These platforms haven't been converted to the refactored system yet.
     # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android" OR PLATFORM STREQUAL "webos")
+    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
         list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
     endif()
 
-    if(PLATFORM STREQUAL "webos")
-        list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/stb_ds.c")
-    endif()
 endif()
 # Platform specific files builds
 if(PLATFORM STREQUAL "webos")
-    # stat_compat.c and glibc_compat.c both provide stat/fstat
-    # compatibility; use only the glibc shim for WebOS.
     file(GLOB PLATFORM_SOURCES
         src/webos/main.c
+        src/webos/log.c
         src/webos/glibc_compat.c
     )
 else()
@@ -261,8 +259,13 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
-    if(PLATFORM STREQUAL "vita")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos")
+    if(PLATFORM STREQUAL "webos")
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
@@ -441,6 +444,11 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
     endif()
+    if(PLATFORM STREQUAL "webos")
+        target_sources(butterscotch PRIVATE src/webos/stb_impl.c)
+        target_link_libraries(butterscotch PRIVATE GLESv2 EGL)
+    endif()
+
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
     else()
@@ -576,66 +584,6 @@ elseif(PLATFORM STREQUAL "android")
     # - GLESv3: OpenGL ES 3.0 functions
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
     target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
-elseif(PLATFORM STREQUAL "webos")
-    if(NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "WebOS requires modern gl!")
-    endif()
-
-    if(NOT TARGET glad)
-        add_library(glad STATIC vendor/glad/src/glad.c)
-        target_include_directories(glad PUBLIC
-            ${CMAKE_SOURCE_DIR}/vendor/glad/include
-        )
-    endif()
-
-    file(GLOB GL_SOURCES
-        src/gl/*.c
-        src/gl_common/*.c
-        src/image/*.c
-    )
-
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_sources(butterscotch PRIVATE src/webos/stb_impl.c)
-
-    target_include_directories(butterscotch PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/gl
-        ${CMAKE_SOURCE_DIR}/src/gl_common
-        ${CMAKE_SOURCE_DIR}/src/image
-        ${CMAKE_SOURCE_DIR}/vendor/glad/include
-    )
-
-    target_include_directories(butterscotch PUBLIC
-        ${CMAKE_SOURCE_DIR}/vendor/stb/image
-        ${CMAKE_SOURCE_DIR}/vendor/stb/vorbis
-    )
-
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(SDL2 REQUIRED sdl2)
-
-    target_include_directories(butterscotch PRIVATE
-        ${SDL2_INCLUDE_DIRS}
-    )
-
-    target_link_directories(butterscotch PRIVATE
-        ${SDL2_LIBRARY_DIRS}
-    )
-
-    target_link_libraries(butterscotch PRIVATE
-        glad
-        ${SDL2_LIBRARIES}
-        GLESv2
-        EGL
-        bzip2
-        stb_ds
-        sha1
-        stb_vorbis
-        ${CMAKE_DL_LIBS}
-        pthread
-        m
-    )
-
-    add_compile_definitions(PLATFORM_WEBOS)
-
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
