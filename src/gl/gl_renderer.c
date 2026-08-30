@@ -449,6 +449,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         abort();
     }
 
+    GLState_init();
+
     char vertSrc[1024];
     char fragSrc[1024];
     const char* vertHeader = "";
