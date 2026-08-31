@@ -4140,10 +4140,12 @@ static RValue builtin_variable_global_set(VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_variable_instance_get(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
+    printf("variable_instance_get: args[0] type=%d, args[1] type=%d\n", args[0].type, args[1].type);
 
     Instance* inst = resolveInstanceValue(ctx->runner, args[0]);
     if (inst == nullptr)
-        return RValue_makeUndefined();
+        // idk if this is sketch or not - but some variables have inst as null and so I just added the old function back - emiyl
+        return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
 
     return variableInstanceGetOn(ctx, inst, args[1].string, "variable_instance_get");
 }
