@@ -171,7 +171,7 @@ char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin) {
 
             for (int c = 0; c < row->length; c++) {
                 if (!first)
-                    APPEND_STRING(", ");
+                    APPEND_STRING(",");
 
                 first = false;
 
@@ -183,7 +183,7 @@ char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin) {
     } else {
         for (int i = 0; i < arr->modern.length; i++) {
             if (!first)
-                APPEND_STRING(", ");
+                APPEND_STRING(",");
 
             first = false;
 
