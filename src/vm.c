@@ -657,6 +657,22 @@ void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
     ctx->scriptArgs[writeIndex] = independent;
 }
 
+void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val) {
+    if (writeIndex < 0) return;
+    if (writeIndex >= ctx->scriptArgCount) {
+        RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
+        if (ctx->scriptArgCount > 0) {
+            memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
+            free(ctx->scriptArgs);
+        }
+        ctx->scriptArgs = newScriptArgs;
+        ctx->scriptArgCount = writeIndex + 1;
+    }
+
+    RValue* slot = &ctx->scriptArgs[writeIndex];
+    VM_arraySetWithCoW(ctx, slot, arrayIndex, val);
+}
+
 static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t varRef) {
     Variable* varDef = resolveVarDef(ctx, varRef);
     ArrayAccess access = popArrayAccess(ctx, varRef);
@@ -992,7 +1008,11 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, bid);
         }
         if (writeIndex >= 0) {
-            VM_writeToScriptArgs(ctx, writeIndex, val);
+            if (access.isArray) {
+                VM_writeToScriptArgsArrayElement(ctx, writeIndex, access.arrayIndex, val);
+            } else {
+                VM_writeToScriptArgs(ctx, writeIndex, val);
+            }
         }
         RValue_free(&val);
         return;
