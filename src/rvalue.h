@@ -22,6 +22,7 @@ struct Instance;
 typedef struct Instance Instance;
 void Instance_structIncRef(struct Instance* inst);
 void Instance_structDecRef(struct Instance* inst);
+char* Instance_toString(Instance* inst, DataWin* dataWin);
 uint32_t Instance_getInstanceId(struct Instance* inst);
 
 #include "gml_method.h"
@@ -356,8 +357,14 @@ static inline char* RValue_toString(RValue val, DataWin* dataWin) {
             return safeStrdup(buf);
 #endif
         case RVALUE_STRUCT:
-            snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
-            return safeStrdup(buf);
+            {
+                char* structStr = Instance_toString(val.structInst, dataWin);
+                size_t needed = strlen(structStr) + 1;
+                char* result = (char*) safeCalloc(needed, sizeof(char));
+                snprintf(result, needed, "%s", structStr);
+                free(structStr);
+                return result;
+            }
         case RVALUE_ASSETREF:
             assetNameFromDataWin = RValue_getAssetName(val, dataWin);
             switch (val.assetRefType) {
