@@ -126,7 +126,6 @@ Of course, there are exceptions that break game compatibility altogether:
 * PlayStation 2
 * PlayStation 3
 * PlayStation Vita
-* Nintendo Switch
 * ...and maybe more in the future!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.

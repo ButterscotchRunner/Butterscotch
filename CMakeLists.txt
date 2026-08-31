@@ -95,8 +95,6 @@ if(AUDIO_BACKEND STREQUAL "")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
-    elseif(PLATFORM STREQUAL "webos")
-        set(AUDIO_BACKEND "miniaudio")
     else()
         set(AUDIO_BACKEND "miniaudio")
     endif()
@@ -166,15 +164,7 @@ else()
 
 endif()
 # Platform specific files builds
-if(PLATFORM STREQUAL "webos")
-    file(GLOB PLATFORM_SOURCES
-        src/webos/main.c
-        src/webos/log.c
-        src/webos/glibc_compat.c
-    )
-else()
-    file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
-endif()
+file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
 if(PLATFORM STREQUAL "android")
     add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
