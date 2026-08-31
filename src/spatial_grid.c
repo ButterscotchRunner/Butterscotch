@@ -33,7 +33,7 @@ void SpatialGrid_free(SpatialGrid* grid) {
     free(grid);
 }
 
-static void removeInstanceFromGridCells(SpatialGrid* grid, Instance* instance) {
+void SpatialGrid_removeInstance(SpatialGrid* grid, Instance* instance) {
     int32_t totalCells = (int32_t)grid->gridWidth * (int32_t)grid->gridHeight;
     bool removedAny = false;
 
@@ -103,7 +103,7 @@ void SpatialGrid_syncGrid(Runner* runner, SpatialGrid* grid) {
         instance->spatialGridDirty = false;
 
         // Remove from old cells
-        removeInstanceFromGridCells(grid, instance);
+        SpatialGrid_removeInstance(grid, instance);
 
         InstanceBBox bbox = Collision_computeBBox(runner, instance);
 
@@ -135,7 +135,7 @@ void SpatialGrid_markInstanceAsDirty(SpatialGrid* grid, Instance* dirtyInstance)
     if (!dirtyInstance->active || dirtyInstance->destroyed) {
         // Destroyed instances are updated instantly because, if we didn't, we would need to track the ID + all grids that the instance is in
         // Guard against stale entries left behind by room transitions or earlier clears of collisionCells.
-        removeInstanceFromGridCells(grid, dirtyInstance);
+        SpatialGrid_removeInstance(grid, dirtyInstance);
         return;
     }
 

@@ -1400,6 +1400,7 @@ static Instance** takePersistentInstances(Runner* runner) {
             hmdel(runner->instancesById, inst->instanceId);
             Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Runner_removeInstanceFromObjectLists(runner, inst);
+            SpatialGrid_removeInstance(runner->spatialGrid, inst);
             Instance_free(inst);
         }
     }
