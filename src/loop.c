@@ -1046,10 +1046,14 @@ int loop(CommandLineArgs args, const char *argv0) {
                         snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
                         FILE* f = fopen(filename, "wb");
                         if (f != nullptr) {
-                            fwrite(json, 1, strlen(json), f);
-                            fputc('\n', f);
-                            fclose(f);
-                            logInfo("JSON dump saved: %s\n", filename);
+                            size_t len = strlen(json);
+                            if (fwrite(json, 1, len, f) != len) {
+                                logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                            } else {
+                                fputc('\n', f);
+                                fclose(f);
+                                logInfo("JSON dump saved: %s\n", filename);
+                            }
                         } else {
                             logWarn("Could not write JSON dump to '%s'\n", filename);
                         }
@@ -1154,10 +1158,14 @@ int loop(CommandLineArgs args, const char *argv0) {
                         snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
                         FILE* f = fopen(filename, "wb");
                         if (f != nullptr) {
-                            fwrite(json, 1, strlen(json), f);
-                            fputc('\n', f);
-                            fclose(f);
-                            logInfo("JSON dump saved: %s\n", filename);
+                            size_t len = strlen(json);
+                            if (fwrite(json, 1, len, f) != len) {
+                                logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                            } else {
+                                fputc('\n', f);
+                                fclose(f);
+                                logInfo("JSON dump saved: %s\n", filename);
+                            }
                         } else {
                             logWarn("Could not write JSON dump to '%s'\n", filename);
                         }
