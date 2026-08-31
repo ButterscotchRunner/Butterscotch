@@ -119,6 +119,6 @@ void Instance_computeSpeedFromComponents(Instance* inst);
 // Recompute hspeed/vspeed from speed/direction (called when speed or direction is set)
 void Instance_computeComponentsFromSpeed(Instance* inst);
 
-char* Instance_toString(Instance* inst, DataWin* dataWin);
+char* Instance_toStringFancy(Instance* inst, DataWin* dataWin);
 
 #endif /* _BS_INSTANCE_H_ */

@@ -205,7 +205,7 @@ void Instance_computeComponentsFromSpeed(Instance* inst) {
     }
 }
 
-char* Instance_toString(Instance* inst, DataWin* dataWin) {
+char* Instance_toStringFancy(Instance* inst, DataWin* dataWin) {
     const IntRValueHashMap* map = &inst->selfVars;
     if (map->capacity == 0) return safeStrdup("{}");
     const IntRValueEntry* entries = map->entries;
@@ -230,7 +230,7 @@ char* Instance_toString(Instance* inst, DataWin* dataWin) {
 
         if (name == nullptr) name = "?";
         RValue val = entries[idx].value;
-        char* valStr = RValue_toString(val, dataWin);
+        char* valStr = RValue_toStringFancy(val, dataWin);
         requiredSize += strlen(name) + strlen(valStr) + (first ? 0 : 2) + 5; // "name : value" + separators
         free(valStr);
         first = false;
@@ -257,7 +257,7 @@ char* Instance_toString(Instance* inst, DataWin* dataWin) {
             if (name == nullptr) name = "?";
 
             RValue val = entries[idx].value;
-            char* valStr = RValue_toString(val, dataWin);
+            char* valStr = RValue_toStringFancy(val, dataWin);
             if (!first) {
                 pos += snprintf(buf + pos, bufSize - pos, ", ");
             }

@@ -130,7 +130,7 @@ void GMLArray_growTo(GMLArray* arr, int32_t minLength) {
 }
 
 
-char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin) {
+char* GMLArray_toStringFancy(const GMLArray* arr, DataWin* dataWin) {
     if (arr == nullptr)
         return safeStrdup("[]");
 
@@ -175,7 +175,7 @@ char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin) {
 
                 first = false;
 
-                char* valStr = RValue_toString(row->data[c], dataWin);
+                char* valStr = RValue_toStringFancy(row->data[c], dataWin);
                 APPEND_STRING(valStr);
                 free(valStr);
             }
@@ -187,7 +187,7 @@ char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin) {
 
             first = false;
 
-            char* valStr = RValue_toString(arr->modern.data[i], dataWin);
+            char* valStr = RValue_toStringFancy(arr->modern.data[i], dataWin);
             APPEND_STRING(valStr);
             free(valStr);
         }

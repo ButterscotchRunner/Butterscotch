@@ -1838,7 +1838,7 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
         return RValue_makeUndefined();
     }
 
-    char* val = RValue_toString(args[0], ctx->runner->dataWin);
+    char* val = RValue_toStringFancy(args[0], ctx->runner->dataWin);
     logInfo("Game: %s\n", val);
     free(val);
 

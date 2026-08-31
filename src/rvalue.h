@@ -17,13 +17,13 @@ struct GMLArray;
 typedef struct GMLArray GMLArray;
 void GMLArray_decRef(struct GMLArray* arr);
 void GMLArray_incRef(struct GMLArray* arr);
-char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin);
+char* GMLArray_toStringFancy(const GMLArray* arr, DataWin* dataWin);
 
 struct Instance;
 typedef struct Instance Instance;
 void Instance_structIncRef(struct Instance* inst);
 void Instance_structDecRef(struct Instance* inst);
-char* Instance_toString(Instance* inst, DataWin* dataWin);
+char* Instance_toStringFancy(Instance* inst, DataWin* dataWin);
 uint32_t Instance_getInstanceId(struct Instance* inst);
 
 #include "gml_method.h"
@@ -350,28 +350,16 @@ static inline char* RValue_toString(RValue val, DataWin* dataWin) {
         case RVALUE_UNDEFINED:
             return safeStrdup("undefined");
         case RVALUE_ARRAY:
-            {
-                char* arrStr = GMLArray_toString(val.array, dataWin);
-                size_t needed = strlen(arrStr) + 1;
-                char* result = (char*) safeCalloc(needed, sizeof(char));
-                snprintf(result, needed, "%s", arrStr);
-                free(arrStr);
-                return result;
-            }
+            snprintf(buf, sizeof(buf), "<array:%p>", (void*) val.array);
+            return safeStrdup(buf);
 #if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
             snprintf(buf, sizeof(buf), "<method:%d>", val.method->codeIndex);
             return safeStrdup(buf);
 #endif
         case RVALUE_STRUCT:
-            {
-                char* structStr = Instance_toString(val.structInst, dataWin);
-                size_t needed = strlen(structStr) + 1;
-                char* result = (char*) safeCalloc(needed, sizeof(char));
-                snprintf(result, needed, "%s", structStr);
-                free(structStr);
-                return result;
-            }
+            snprintf(buf, sizeof(buf), "<struct:%u>", val.structInst != nullptr ? Instance_getInstanceId(val.structInst) : 0);
+            return safeStrdup(buf);
         case RVALUE_ASSETREF:
             assetNameFromDataWin = RValue_getAssetName(val, dataWin);
             switch (val.assetRefType) {
@@ -448,6 +436,24 @@ static inline char* RValue_toStringFancy(RValue val, DataWin* dataWin) {
 
             return valueWithQuotes;
         }
+        case RVALUE_ARRAY:
+            {
+                char* arrStr = GMLArray_toStringFancy(val.array, dataWin);
+                size_t needed = strlen(arrStr) + 1;
+                char* result = (char*) safeCalloc(needed, sizeof(char));
+                snprintf(result, needed, "%s", arrStr);
+                free(arrStr);
+                return result;
+            }
+        case RVALUE_STRUCT:
+            {
+                char* structStr = Instance_toStringFancy(val.structInst, dataWin);
+                size_t needed = strlen(structStr) + 1;
+                char* result = (char*) safeCalloc(needed, sizeof(char));
+                snprintf(result, needed, "%s", structStr);
+                free(structStr);
+                return result;
+            }
         default: {
             return RValue_toString(val, dataWin);
         }
