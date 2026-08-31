@@ -4101,6 +4101,19 @@ static bool variableScopedExists(VMContext* ctx, int32_t id, const char* name, b
     return result;
 }
 
+static Instance* resolveInstanceValue(Runner* runner, RValue value) {
+    if (value.type == RVALUE_STRUCT && value.structInst != nullptr) {
+        return value.structInst;
+    }
+
+    int32_t id = RValue_toInt32(value);
+    if (id >= INSTANCE_ID_BASE) {
+        return hmget(runner->instancesById, id);
+    }
+
+    return nullptr;
+}
+
 static RValue builtin_variable_global_exists(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount || args[0].type != RVALUE_STRING) return RValue_makeBool(false);
     return RValue_makeBool(variableScopedExists(ctx, INSTANCE_GLOBAL, args[0].string, false));
@@ -4121,7 +4134,12 @@ static RValue builtin_variable_global_set(VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_variable_instance_get(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
+
+    Instance* inst = resolveInstanceValue(ctx->runner, args[0]);
+    if (inst == nullptr)
+        return RValue_makeUndefined();
+
+    return variableInstanceGetOn(ctx, inst, args[1].string, "variable_instance_get");
 }
 
 static RValue builtin_variable_instance_set(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -8332,19 +8350,10 @@ static RValue builtin_instance_create_layer(VMContext* ctx, RValue* args, int32_
 static void copyBasisStructVars(
     VMContext* ctx,
     Instance* target,
-    RValue basis
+    Instance* basisInst
 ) {
-    if (basis.type != RVALUE_STRUCT) {
-        return;
-    }
-
-    Instance* basisInst = basis.structInst;
-
-    if (basisInst == nullptr) {
-        return;
-    }
-
     if (basisInst->objectIndex != STRUCT_OBJECT_INDEX) {
+        logWarn("VM: copyBasisStructVars: basis instance is not a struct\n");
         return;
     }
 
@@ -8355,20 +8364,7 @@ static void copyBasisStructVars(
             continue;
         }
 
-        int32_t varID = entry->key;
-        RValue* value = &entry->value;
-
-        RValue copiedValue = RValue_makeIndependent(*value);
-
-        RValue* targetSlot =
-            IntRValueHashMap_getOrInsertUndefined(
-                &target->selfVars,
-                varID
-            );
-
-        RValue_free(targetSlot);
-
-        *targetSlot = copiedValue;
+        Instance_setSelfVar(target, entry->key, entry->value);
     }
 }
 
@@ -8388,7 +8384,16 @@ static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_
     if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
 
     if (argCount >= 5) {
-        copyBasisStructVars(ctx, inst, args[4]);
+        RValue varStruct = args[4];
+        if (varStruct.type != RVALUE_STRUCT) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+
+        Instance* basisInst = varStruct.structInst;
+        if (basisInst == nullptr) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+        copyBasisStructVars(ctx, inst, basisInst);
     }
 
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
