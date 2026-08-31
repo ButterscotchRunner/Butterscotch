@@ -108,6 +108,9 @@ jobs:
           curl -fsSL "https://github.com/webosbrew/ares-cli-rs/releases/download/$TAG/ares-cli-rs-$TAG-$PLATFORM.tar.gz" | tar xz
           sudo install -m 755 "ares-cli-rs-$TAG-$PLATFORM"/ares-* /usr/local/bin/
 
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ccache
+
       - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
