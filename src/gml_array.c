@@ -137,7 +137,7 @@ char* GMLArray_toStringFancy(const GMLArray* arr, DataWin* dataWin) {
     size_t capacity = 128;
     size_t length = 0;
 
-    char* buf = safeMalloc(capacity);
+    char* buf = (char*)safeMalloc(capacity);
 
     buf[0] = '\0';
 
@@ -147,7 +147,7 @@ char* GMLArray_toStringFancy(const GMLArray* arr, DataWin* dataWin) {
             if (needed > capacity) { \
                 while (capacity < needed) \
                     capacity *= 2; \
-                buf = safeRealloc(buf, capacity); \
+                buf = (char*)safeRealloc(buf, capacity); \
             } \
         } while (0)
 
