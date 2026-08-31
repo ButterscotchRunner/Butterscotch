@@ -119,7 +119,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DWERROR=ON -DPLATFORM=webos \
-            -DCMAKE_TOOLCHAIN_FILE=/opt/arm-webos-linux-gnueabi_sdk-buildroot-x86_64/share/buildroot/toolchainfile.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=/opt/arm-webos-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
