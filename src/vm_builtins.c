@@ -1835,7 +1835,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 static inline char* RValue_toDebugMessageString(RValue val, DataWin *datawin) {
     switch (val.type) {
         case RVALUE_STRING:
-            return RValue_toString(val, dataWin)
+            return RValue_toString(val, dataWin);
         default:
             return RValue_toStringFancy(val, dataWin);
     }
