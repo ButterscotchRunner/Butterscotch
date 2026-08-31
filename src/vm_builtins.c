@@ -1832,13 +1832,22 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
 // ===[ BUILTIN FUNCTION IMPLEMENTATIONS ]===
 
+static inline char* RValue_toDebugMessageString(RValue val, DataWin *dataWin) {
+    switch (val.type) {
+        case RVALUE_STRING:
+            return RValue_toString(val, dataWin);
+        default:
+            return RValue_toStringFancy(val, dataWin);
+    }
+}
+
 static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         logWarn("[show_debug_message] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
-
-    char* val = RValue_toString(args[0], ctx->runner->dataWin);
+    
+    char* val = RValue_toDebugMessageString(args[0], ctx->runner->dataWin);
     logInfo("Game: %s\n", val);
     free(val);
 
