@@ -1049,6 +1049,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                             size_t len = strlen(json);
                             if (fwrite(json, 1, len, f) != len) {
                                 logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                                fclose(f);
                             } else {
                                 fputc('\n', f);
                                 fclose(f);
@@ -1161,6 +1162,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                             size_t len = strlen(json);
                             if (fwrite(json, 1, len, f) != len) {
                                 logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                                fclose(f);
                             } else {
                                 fputc('\n', f);
                                 fclose(f);
