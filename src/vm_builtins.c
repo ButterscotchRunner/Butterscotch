@@ -1832,7 +1832,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
 // ===[ BUILTIN FUNCTION IMPLEMENTATIONS ]===
 
-static inline char* RValue_toDebugMessageString(RValue val, DataWin *datawin) {
+static inline char* RValue_toDebugMessageString(RValue val, DataWin *dataWin) {
     switch (val.type) {
         case RVALUE_STRING:
             return RValue_toString(val, dataWin);
