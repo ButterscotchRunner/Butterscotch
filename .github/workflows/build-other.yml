@@ -134,10 +134,10 @@ jobs:
           cp build/butterscotch dist/
           cp src/webos/dist/appinfo.json dist/
           cp src/webos/dist/icon.png dist/
-          ares-package dist/
+          ares-package dist/ -o dist/
 
       - name: Upload IPK
         uses: actions/upload-artifact@v7
         with:
           name: butterscotch-webos
-          path: dist/com.mrpowergamerbr.butterscotch_1.0.0_all.ipk
+          path: dist/*.ipk
