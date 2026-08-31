@@ -4101,6 +4101,19 @@ static bool variableScopedExists(VMContext* ctx, int32_t id, const char* name, b
     return result;
 }
 
+static Instance* resolveInstanceValue(Runner* runner, RValue value) {
+    if (value.type == RVALUE_STRUCT && value.structInst != nullptr) {
+        return value.structInst;
+    }
+
+    int32_t id = RValue_toInt32(value);
+    if (id >= INSTANCE_ID_BASE) {
+        return hmget(runner->instancesById, id);
+    }
+
+    return nullptr;
+}
+
 static RValue builtin_variable_global_exists(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount || args[0].type != RVALUE_STRING) return RValue_makeBool(false);
     return RValue_makeBool(variableScopedExists(ctx, INSTANCE_GLOBAL, args[0].string, false));
@@ -4121,7 +4134,12 @@ static RValue builtin_variable_global_set(VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_variable_instance_get(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
+
+    Instance* inst = resolveInstanceValue(ctx->runner, args[0]);
+    if (inst == nullptr)
+        return RValue_makeUndefined();
+
+    return variableInstanceGetOn(ctx, inst, args[1].string, "variable_instance_get");
 }
 
 static RValue builtin_variable_instance_set(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -8329,20 +8347,55 @@ static RValue builtin_instance_create_layer(VMContext* ctx, RValue* args, int32_
     return RValue_makeReal((GMLReal) inst->instanceId);
 }
 
+static void copyBasisStructVars(
+    VMContext* ctx,
+    Instance* target,
+    Instance* basisInst
+) {
+    if (basisInst->objectIndex != STRUCT_OBJECT_INDEX) {
+        logWarn("VM: copyBasisStructVars: basis instance is not a struct\n");
+        return;
+    }
+
+    for (uint32_t i = 0; i < basisInst->selfVars.capacity; i++) {
+        IntRValueEntry* entry = &basisInst->selfVars.entries[i];
+
+        if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) {
+            continue;
+        }
+
+        Instance_setSelfVar(target, entry->key, entry->value);
+    }
+}
+
 static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (3 > argCount) return RValue_makeReal(0.0);
+    if (4 > argCount) return RValue_makeReal(0.0);
     Runner* runner = ctx->runner;
     GMLReal x = RValue_toReal(args[0]);
     GMLReal y = RValue_toReal(args[1]);
     int32_t depth = RValue_toInt32(args[2]);
     int32_t objectIndex = RValue_toInt32(args[3]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        logWarn("VM: instance_create: objectIndex %d out of range\n", objectIndex);
-        return RValue_makeReal(0.0);
+        logWarn("VM: instance_create_depth: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeReal(INSTANCE_NOONE);
     }
     Instance* callerInst = ctx->currentInstance;
     Instance* inst = Runner_createInstanceWithDepth(runner, x, y, objectIndex, depth);
     if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
+
+    if (argCount >= 5) {
+        RValue varStruct = args[4];
+        if (varStruct.type != RVALUE_STRUCT) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+
+        Instance* basisInst = varStruct.structInst;
+        if (basisInst == nullptr) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+        copyBasisStructVars(ctx, inst, basisInst);
+    }
+
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
         Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
     }
