@@ -17,6 +17,7 @@ struct GMLArray;
 typedef struct GMLArray GMLArray;
 void GMLArray_decRef(struct GMLArray* arr);
 void GMLArray_incRef(struct GMLArray* arr);
+char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin);
 
 struct Instance;
 typedef struct Instance Instance;
@@ -349,8 +350,14 @@ static inline char* RValue_toString(RValue val, DataWin* dataWin) {
         case RVALUE_UNDEFINED:
             return safeStrdup("undefined");
         case RVALUE_ARRAY:
-            snprintf(buf, sizeof(buf), "<array:%p>", (void*) val.array);
-            return safeStrdup(buf);
+            {
+                char* arrStr = GMLArray_toString(val.array, dataWin);
+                size_t needed = strlen(arrStr) + 1;
+                char* result = (char*) safeCalloc(needed, sizeof(char));
+                snprintf(result, needed, "%s", arrStr);
+                free(arrStr);
+                return result;
+            }
 #if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD:
             snprintf(buf, sizeof(buf), "<method:%d>", val.method->codeIndex);
