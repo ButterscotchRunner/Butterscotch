@@ -2442,7 +2442,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
     inst->depth = depth;
-    dispatchInstanceCreationEvents(runner, inst);
+    Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
     return inst;
 }
 
