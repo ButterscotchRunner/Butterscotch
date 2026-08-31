@@ -640,37 +640,33 @@ static bool tryReadInstanceVarOrStatic(VMContext* ctx, Instance* instance, int32
     return false;
 }
 
-void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
-    RValue independent = RValue_makeIndependent(val);
-    // You CAN write to the builtin argumentX variables even though the function does not "have" it as a function argument
-    // So we'll need to check if we need to resize the scriptArgs manually...
-    if (writeIndex >= ctx->scriptArgCount) {
-        RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
-        if (ctx->scriptArgCount > 0) {
-            memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-            free(ctx->scriptArgs);
-        }
-        ctx->scriptArgs = newScriptArgs;
-        ctx->scriptArgCount = writeIndex + 1;
+static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
+    if (writeIndex < 0) return false;
+    if (writeIndex < ctx->scriptArgCount) return true;
+
+    RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
+
+    if (ctx->scriptArgCount > 0) {
+        memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
+        free(ctx->scriptArgs);
     }
-    RValue_free(&ctx->scriptArgs[writeIndex]); // no-op if we are writing to a resized array that was (originally) out of bounds
+
+    ctx->scriptArgs = newScriptArgs;
+    ctx->scriptArgCount = writeIndex + 1;
+    return true;
+}
+
+void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
+    if (!VM_ensureScriptArg(ctx, writeIndex)) return;
+
+    RValue independent = RValue_makeIndependent(val);
+    RValue_free(&ctx->scriptArgs[writeIndex]);
     ctx->scriptArgs[writeIndex] = independent;
 }
 
 void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val) {
-    if (writeIndex < 0) return;
-    if (writeIndex >= ctx->scriptArgCount) {
-        RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
-        if (ctx->scriptArgCount > 0) {
-            memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-            free(ctx->scriptArgs);
-        }
-        ctx->scriptArgs = newScriptArgs;
-        ctx->scriptArgCount = writeIndex + 1;
-    }
-
-    RValue* slot = &ctx->scriptArgs[writeIndex];
-    VM_arraySetWithCoW(ctx, slot, arrayIndex, val);
+    if (!VM_ensureScriptArg(ctx, writeIndex)) return;
+    VM_arraySetWithCoW(ctx, &ctx->scriptArgs[writeIndex], arrayIndex, val);
 }
 
 static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t varRef) {
