@@ -8420,6 +8420,9 @@ static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_
         copyBasisStructVars(ctx, inst, basisInst);
     }
 
+    Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
+    inst->createEventFired = true;
+
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
         Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
     }
