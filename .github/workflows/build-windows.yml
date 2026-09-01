@@ -37,11 +37,10 @@ jobs:
             ccache \
             llvm
 
-      - uses: actions/cache@v6
+      - name: Setup ccache
+        uses: actions/cache@v6
         with:
-          path: |
-            ~/.cache/ccache
-            /usr/${{ matrix.triplet }}/sdl2
+          path: ~/.cache/ccache
           key: ccache-arm-windows-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             ccache-arm-windows-${{ matrix.arch }}-
@@ -59,7 +58,15 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
+      - name: Cache SDL2
+        id: cache-sdl2
+        uses: actions/cache@v6
+        with:
+          path: /usr/${{ matrix.triplet }}/sdl2
+          key: sdl2-windows-${{ matrix.triplet }}-${{ github.sha }}-2.32.10-rev1
+
       - name: Checkout SDL2
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -67,6 +74,7 @@ jobs:
           path: vendor/sdl2
 
       - name: Build SDL2 for MinGW
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         run: |
           cmake -B vendor/sdl2/build -S vendor/sdl2 -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
