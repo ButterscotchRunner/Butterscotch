@@ -556,8 +556,9 @@ struct Runner {
     double fps;                   // last measured frames-per-second value returned to GML
     uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
     int fpsWindowStartFrame;   // runner->frameCount at the start of the measurement window
-    // Real-time measured frame rate for the "fps_real" builtin, computed from deltaTime.
+    // Real-time measured frame rate for the "fps_real" builtin, measured as 1 / frame work time (uncapped).
     double fpsReal;
+    uint64_t fpsRealFrameStartNanos; // nowNanos() at start of frame work for fps_real (set in Runner_step, consumed in Runner_drawGUI)
     char* windowTitle;
 
     // ===[ Builtin function state ]===

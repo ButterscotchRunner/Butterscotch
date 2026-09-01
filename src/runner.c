@@ -1147,6 +1147,11 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
     endGuiPass(runner);
+
+    if (runner->fpsRealFrameStartNanos != 0) {
+        uint64_t elapsed = nowNanos() - runner->fpsRealFrameStartNanos;
+        if (elapsed > 0) runner->fpsReal = 1e9 / (double)elapsed;
+    }
 }
 
 void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH) {
@@ -3764,6 +3769,8 @@ static void tickTimelines(Runner* runner) {
 }
 
 void Runner_step(Runner* runner) {
+    runner->fpsRealFrameStartNanos = nowNanos();
+
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
     requireMessageFormatted(__FILE__, __LINE__, arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
 
@@ -4110,11 +4117,6 @@ void Runner_step(Runner* runner) {
         runner->fps = (double)(runner->frameCount - runner->fpsWindowStartFrame);
         runner->fpsWindowStartFrame = runner->frameCount;
         runner->fpsWindowStartNanos = nowNanos();
-    }
-
-    // Measure fps_real builtin
-    if (runner->deltaTime > 0.0) {
-        runner->fpsReal = (double)(1000000.0 / runner->deltaTime);
     }
 
     runner->frameCount++;
