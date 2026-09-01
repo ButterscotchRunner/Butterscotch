@@ -433,7 +433,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
     endif()
-
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
     else()
