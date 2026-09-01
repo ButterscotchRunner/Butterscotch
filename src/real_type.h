@@ -70,20 +70,14 @@ public:
 #endif
 
     GMLReal(double d) {
-        if (isnan(d)) {
-            logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
-            raw_ = 0;
-        }
+        if      (d != d)         raw_ =  INT64_MIN;
         else if (d >=  INFINITY) raw_ =  INT64_MAX;
         else if (d <= -INFINITY) raw_ = -INT64_MAX;
         else raw_ = (int64_t)(d * (double)(INT64_C(1) << FRAC_BITS));
     }
 
     GMLReal(float f) {
-        if (isnanf(f)) {
-            logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
-            raw_ = 0;
-        }
+        if      (f != f)         raw_ =  INT64_MIN;
         else if (f >=  INFINITY) raw_ =  INT64_MAX;
         else if (f <= -INFINITY) raw_ = -INT64_MAX;
         else raw_ = (int64_t)(f * (float)(INT64_C(1) << FRAC_BITS));
@@ -95,12 +89,14 @@ public:
         return f;
     }
 
-    static GMLReal infinity()     { return from_raw(INT64_MAX); }
+    static GMLReal infinity()     { return from_raw(INT64_MAX);  }
     static GMLReal neg_infinity() { return from_raw(-INT64_MAX); }
+    static GMLReal nan()          { return from_raw(INT64_MIN);  }
 
     bool is_pos_infinite() const { return raw_ == INT64_MAX; }
     bool is_neg_infinite() const { return raw_ == -INT64_MAX; }
     bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
+    bool is_nan()          const { return raw_ == INT64_MIN; }
 
     operator signed char()        const { return raw_ >> FRAC_BITS; }
     operator unsigned char()      const { return raw_ >> FRAC_BITS; }
@@ -118,24 +114,36 @@ public:
     operator unsigned long long() const { return raw_ >> FRAC_BITS; }
 #endif
 
+    // NOTE: these integer conversions do NOT guard against is_nan() or
+    // is_infinite() the way the double/float conversions do below --
+    // shifting the INT64_MIN/+-INT64_MAX sentinels and narrowing the
+    // result is implementation-defined-to-UB territory depending on
+    // target type, same open issue as flagged earlier for plain (int)x.
+
     operator double() const {
+        if (is_nan())          return NAN;
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
         return (double)raw_ / (double)(INT64_C(1) << FRAC_BITS);
     }
 
     operator float() const {
+        if (is_nan())          return NAN;
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
         return (float)raw_ / (float)(INT64_C(1) << FRAC_BITS);
     }
 
-    GMLReal operator-() const { return from_raw(-raw_); } // safe: never holds INT64_MIN
+    GMLReal operator-() const {
+        if (is_nan()) return *this; // -NaN is NaN
+        return from_raw(-raw_);     // safe: only ever +/-INT64_MAX here
+    }
 
     GMLReal operator+(const GMLReal& o) const {
+        if (is_nan() || o.is_nan()) return nan();
         if (is_infinite() || o.is_infinite()) {
             if (is_infinite() && o.is_infinite() && raw_ != o.raw_)
-                return from_raw(0); // inf + -inf: indeterminate, no NaN available
+                return nan(); // inf + -inf
             return is_infinite() ? *this : o;
         }
         return from_raw(raw_ + o.raw_);
@@ -151,7 +159,13 @@ public:
     // silently wrapping. Fine for typical game-world coordinates; flag
     // if you need a proper wide-multiply instead.
     GMLReal operator*(const GMLReal& o) const {
+        if (is_nan() || o.is_nan()) return nan();
         if (is_infinite() || o.is_infinite()) {
+            // 0 * inf is indeterminate -- now that a real NaN sentinel
+            // exists, route it there instead of arbitrarily picking a
+            // sign, unlike the placeholder version from earlier.
+            if ((raw_ == 0 && o.is_infinite()) || (o.raw_ == 0 && is_infinite()))
+                return nan();
             bool neg = (raw_ < 0) != (o.raw_ < 0);
             return neg ? neg_infinity() : infinity();
         }
@@ -159,16 +173,19 @@ public:
     }
 
     GMLReal operator/(const GMLReal& o) const {
+        if (is_nan() || o.is_nan()) return nan();
         if (is_infinite() && o.is_infinite())
-            return from_raw(0); // inf / inf: indeterminate
+            return nan(); // inf / inf
         if (o.is_infinite())
             return from_raw(0); // finite / inf = 0
         if (is_infinite()) {
             bool neg = (raw_ < 0) != (o.raw_ < 0);
             return neg ? neg_infinity() : infinity();
         }
-        if (o.raw_ == 0)
-            return raw_ < 0 ? neg_infinity() : infinity(); // div by zero -> inf
+        if (o.raw_ == 0) {
+            if (raw_ == 0) return nan(); // 0 / 0
+            return raw_ < 0 ? neg_infinity() : infinity();
+        }
         return from_raw((raw_ << FRAC_BITS) / o.raw_);
     }
 
@@ -182,12 +199,17 @@ public:
     GMLReal& operator--()    { *this -= GMLReal(1); return *this; }
     GMLReal  operator--(int) { GMLReal tmp = *this; *this -= GMLReal(1); return tmp; }
 
-    bool operator==(const GMLReal& o) const { return raw_ == o.raw_; }
-    bool operator!=(const GMLReal& o) const { return raw_ != o.raw_; }
-    bool operator< (const GMLReal& o) const { return raw_ <  o.raw_; }
-    bool operator<=(const GMLReal& o) const { return raw_ <= o.raw_; }
-    bool operator> (const GMLReal& o) const { return raw_ >  o.raw_; }
-    bool operator>=(const GMLReal& o) const { return raw_ >= o.raw_; }
+    // Comparisons follow IEEE-754 NaN semantics: any ordered comparison
+    // involving a NaN is false, and != is true even for NaN vs itself.
+    // Plain raw_ equality (the pre-NaN version of this code) would have
+    // instead treated the NaN sentinel as just a very negative number
+    // and sorted it below everything, which is wrong.
+    bool operator==(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ == o.raw_; }
+    bool operator!=(const GMLReal& o) const { return  is_nan() ||  o.is_nan() || raw_ != o.raw_; }
+    bool operator< (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ <  o.raw_; }
+    bool operator<=(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ <= o.raw_; }
+    bool operator> (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >  o.raw_; }
+    bool operator>=(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >= o.raw_; }
 
     GMLReal operator+(double d) const { return *this + GMLReal(d); }
     GMLReal operator-(double d) const { return *this - GMLReal(d); }
@@ -205,12 +227,15 @@ public:
     // operator double()) or the literal to GMLReal (via the double
     // constructor), and both conversions rank the same. Giving it a
     // candidate that needs no conversion at all removes the tie.
-    bool operator==(double d) const { return raw_ == GMLReal(d).raw_; }
-    bool operator!=(double d) const { return raw_ != GMLReal(d).raw_; }
-    bool operator< (double d) const { return raw_ <  GMLReal(d).raw_; }
-    bool operator<=(double d) const { return raw_ <= GMLReal(d).raw_; }
-    bool operator> (double d) const { return raw_ >  GMLReal(d).raw_; }
-    bool operator>=(double d) const { return raw_ >= GMLReal(d).raw_; }
+    // These delegate to the GMLReal-vs-GMLReal comparisons above rather
+    // than comparing raw_ directly, so NaN semantics stay correct here
+    // too instead of only in the GMLReal-vs-GMLReal path.
+    bool operator==(double d) const { return *this == GMLReal(d); }
+    bool operator!=(double d) const { return *this != GMLReal(d); }
+    bool operator< (double d) const { return *this <  GMLReal(d); }
+    bool operator<=(double d) const { return *this <= GMLReal(d); }
+    bool operator> (double d) const { return *this >  GMLReal(d); }
+    bool operator>=(double d) const { return *this >= GMLReal(d); }
 
     friend bool operator==(double d, const GMLReal& r) { return r == d; }
     friend bool operator!=(double d, const GMLReal& r) { return r != d; }
