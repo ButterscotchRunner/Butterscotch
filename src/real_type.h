@@ -56,8 +56,8 @@ class GMLReal
 {
 public:
     GMLReal() = default;
-    GMLReal(int i) : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(int64_t i) : raw_(i << FRAC_BITS) {}
+    GMLReal(int32_t i) :  raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(int64_t i) :  raw_((int64_t)i << FRAC_BITS) {}
     GMLReal(uint32_t i) : raw_((int64_t)i << FRAC_BITS) {}
     GMLReal(uint64_t i) : raw_((int64_t)i << FRAC_BITS) {}
 
