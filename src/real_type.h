@@ -48,8 +48,7 @@ typedef float GMLReal;
 #error USE_FIXED_REALS requires compiling as C++
 #endif
 
-class GMLReal
-{
+class GMLReal {
 public:
     GMLReal() = default;
     GMLReal(signed char i)        : raw_((int64_t)i << FRAC_BITS) {}
@@ -100,8 +99,6 @@ public:
     bool is_pos_infinite() const { return raw_ == INT64_MAX; }
     bool is_neg_infinite() const { return raw_ == INT64_MIN; }
     bool is_infinite() const     { return is_pos_infinite() || is_neg_infinite(); }
-
-    int64_t raw() const { return raw_; }
 
     operator signed char()        const { return raw_ >> FRAC_BITS; }
     operator unsigned char()      const { return raw_ >> FRAC_BITS; }
