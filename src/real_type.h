@@ -244,7 +244,7 @@ public:
     friend bool operator> (double d, const GMLReal& r) { return r <  d; }
     friend bool operator>=(double d, const GMLReal& r) { return r <= d; }
 
-    static const int FRAC_BITS = 16;
+    static const int FRAC_BITS = 12;
 
 private:
     int64_t raw_;
