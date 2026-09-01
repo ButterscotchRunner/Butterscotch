@@ -1476,9 +1476,7 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
                 }
             }
             if (!isOldFormat) {
-                if (!DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0)) {
-                    DataWin_bumpVersionTo(dw, 2022, 5, 0, 0);
-                }
+                DataWin_bumpVersionTo(dw, 2022, 5, 0, 0);
             }
             else if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
                 DataWin_bumpVersionTo(dw, 2026, 1, 0, 0);
