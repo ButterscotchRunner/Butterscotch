@@ -107,13 +107,17 @@ public:
 
     int64_t raw() const { return raw_; }
 
-    double to_double() const {
+    operator double() const {
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
         return (double)raw_ / (double)(INT64_C(1) << FRAC_BITS);
     }
 
-    operator double() const { return to_double(); }
+    operator float() const {
+        if (is_pos_infinite()) return INFINITY;
+        if (is_neg_infinite()) return -INFINITY;
+        return (float)raw_ / (float)(INT64_C(1) << FRAC_BITS);
+    }
 
     int to_int() const { return (int)(raw_ >> FRAC_BITS); }
 
