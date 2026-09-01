@@ -39,7 +39,9 @@ jobs:
 
       - uses: actions/cache@v6
         with:
-          path: ~/.cache/ccache
+          path: |
+            ~/.cache/ccache
+            /usr/${{ matrix.triplet }}/sdl2
           key: ccache-arm-windows-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
             ccache-arm-windows-${{ matrix.arch }}-
@@ -71,7 +73,7 @@ jobs:
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }}/sdl2 \
             -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF
 
           cmake --build vendor/sdl2/build
@@ -79,18 +81,19 @@ jobs:
 
       - name: Configure
         env:
-          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/lib/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/lib/pkgconfig
+          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
+            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }}/sdl2
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
             -DBACKEND=sdl2 \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
 
       - name: Build
         run: |
