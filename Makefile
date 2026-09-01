@@ -128,6 +128,8 @@ DEFINES += $(DEFINE)USE_APPKIT
 SYSCFLAGS += -Wno-deprecated-declarations
 endif
 ifeq ($(BACKEND),noop)
+DISABLE_LEGACY_GL := 1
+DISABLE_MODERN_GL := 1
 DEFINES += $(DEFINE)USE_NOOP
 endif
 
