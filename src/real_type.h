@@ -96,10 +96,10 @@ public:
     }
 
     static GMLReal infinity()     { return from_raw(INT64_MAX); }
-    static GMLReal neg_infinity() { return from_raw(INT64_MIN); }
+    static GMLReal neg_infinity() { return from_raw(-INT64_MAX); }
 
     bool is_pos_infinite() const { return raw_ == INT64_MAX; }
-    bool is_neg_infinite() const { return raw_ == INT64_MIN; }
+    bool is_neg_infinite() const { return raw_ == -INT64_MAX; }
     bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
 
     operator signed char()        const { return raw_ >> FRAC_BITS; }
@@ -184,9 +184,9 @@ public:
 
     bool operator==(const GMLReal& o) const { return raw_ == o.raw_; }
     bool operator!=(const GMLReal& o) const { return raw_ != o.raw_; }
-    bool operator<(const GMLReal& o)  const { return raw_ <  o.raw_; }
+    bool operator< (const GMLReal& o) const { return raw_ <  o.raw_; }
     bool operator<=(const GMLReal& o) const { return raw_ <= o.raw_; }
-    bool operator>(const GMLReal& o)  const { return raw_ >  o.raw_; }
+    bool operator> (const GMLReal& o) const { return raw_ >  o.raw_; }
     bool operator>=(const GMLReal& o) const { return raw_ >= o.raw_; }
 
     GMLReal operator+(double d) const { return *this + GMLReal(d); }
@@ -207,16 +207,16 @@ public:
     // candidate that needs no conversion at all removes the tie.
     bool operator==(double d) const { return raw_ == GMLReal(d).raw_; }
     bool operator!=(double d) const { return raw_ != GMLReal(d).raw_; }
-    bool operator<(double d)  const { return raw_ <  GMLReal(d).raw_; }
+    bool operator< (double d) const { return raw_ <  GMLReal(d).raw_; }
     bool operator<=(double d) const { return raw_ <= GMLReal(d).raw_; }
-    bool operator>(double d)  const { return raw_ >  GMLReal(d).raw_; }
+    bool operator> (double d) const { return raw_ >  GMLReal(d).raw_; }
     bool operator>=(double d) const { return raw_ >= GMLReal(d).raw_; }
 
     friend bool operator==(double d, const GMLReal& r) { return r == d; }
     friend bool operator!=(double d, const GMLReal& r) { return r != d; }
-    friend bool operator<(double d,  const GMLReal& r) { return r >  d; }
+    friend bool operator< (double d, const GMLReal& r) { return r >  d; }
     friend bool operator<=(double d, const GMLReal& r) { return r >= d; }
-    friend bool operator>(double d,  const GMLReal& r) { return r <  d; }
+    friend bool operator> (double d, const GMLReal& r) { return r <  d; }
     friend bool operator>=(double d, const GMLReal& r) { return r <= d; }
 
     static const int FRAC_BITS = 16;
