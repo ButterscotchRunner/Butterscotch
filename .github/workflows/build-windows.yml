@@ -78,6 +78,9 @@ jobs:
           sudo cmake --install vendor/sdl2/build
 
       - name: Configure
+        env:
+          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/lib/pkgconfig
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
