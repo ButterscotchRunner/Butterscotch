@@ -29,7 +29,6 @@ void platformExit(void) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
-    runner->windowHasFocus = NULL;
     runner->setCursor = NULL;
     runner->currentCursor = GML_CR_DEFAULT;
 }
