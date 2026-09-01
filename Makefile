@@ -92,6 +92,9 @@ SYSCFLAGS += $(GLFW3_CFLAGS)
 LIBS += $(GLFW3_LIBS)
 DEFINES += $(DEFINE)USE_GLFW3
 ENABLE_GLAD := 1
+ifdef ENABLE_GLES
+DISABLE_SW_RENDERER := 1
+endif
 endif
 ifeq ($(BACKEND),glfw2)
 GLFW2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libglfw)
@@ -100,6 +103,9 @@ SYSCFLAGS += $(GLFW2_CFLAGS)
 LIBS += $(GLFW2_LIBS)
 DEFINES += $(DEFINE)USE_GLFW2
 ENABLE_GLAD := 1
+ifdef ENABLE_GLES
+DISABLE_SW_RENDERER := 1
+endif
 endif
 ifeq ($(BACKEND),sdl1)
 SDL1_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl)
@@ -156,6 +162,13 @@ SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
 endif
 
+ifndef DISABLE_SW_RENDERER
+DEFINES += -DENABLE_SW_RENDERER
+SRCS += $(wildcard src/sw/*.c)
+HEADERS += $(wildcard src/sw/*.h)
+INCLUDES += -Isrc/sw
+endif
+
 ifdef DISABLE_WAD14
 ifdef DISABLE_WAD16
 ifdef DISABLE_WAD17
@@ -166,7 +179,9 @@ endif
 
 ifdef DISABLE_LEGACY_GL
 ifdef DISABLE_MODERN_GL
+ifdef DISABLE_SW_RENDERER
 $(error must enable at least 1 renderer)
+endif
 endif
 endif
 
