@@ -13,10 +13,6 @@ static int32_t g_width = 0;
 static int32_t g_height = 0;
 static bool g_initialized = false;
 
-static bool noopWindowHasFocus(void) {
-    return true;
-}
-
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     (void)title;
     (void)headless;
@@ -33,7 +29,7 @@ void platformExit(void) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
-    runner->windowHasFocus = noopWindowHasFocus;
+    runner->windowHasFocus = NULL;
     runner->setCursor = NULL;
     runner->currentCursor = GML_CR_DEFAULT;
 }
@@ -65,7 +61,15 @@ void platformGetMousePos(double *xPos, double *yPos) {
 }
 
 void platformSwapBuffers(void) {
-    // No-op
+    static uint32_t frames = 0;
+    static time_t t = 0;
+    time_t now = time(NULL);
+    ++frames;
+    if (t != now) {
+        logInfo("fps: %u\n", frames);
+        t = now;
+        frames = 0;
+    }
 }
 
 void *platformGetProcAddress(const char *name) {
@@ -78,21 +82,6 @@ double platformGetTime(void) {
 }
 
 bool platformHandleEvents(void) {
-    // No window, never requests close unless runner signals. Gamepad polling: mark none connected.
-    if (g_runner && g_runner->gamepads) {
-        g_runner->gamepads->connectedCount = 0;
-        for (int i = 0; i < MAX_GAMEPADS; i++) {
-            GamepadSlot *slot = &g_runner->gamepads->slots[i];
-            memcpy(slot->buttonDownPrev, slot->buttonDown, sizeof(slot->buttonDown));
-            memset(slot->buttonDown, 0, sizeof(slot->buttonDown));
-            memset(slot->buttonPressed, 0, sizeof(slot->buttonPressed));
-            memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
-            memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
-            memset(slot->axisValue, 0, sizeof(slot->axisValue));
-            slot->connected = false;
-            slot->guid[0] = '\0';
-        }
-    }
     return false;
 }
 
@@ -113,11 +102,3 @@ void platformSleepUntil(uint64_t time) {
         YIELD();
     }
 }
-
-#ifdef ENABLE_SW_RENDERER
-void Runner_setNextFrame(uint32_t *framebuffer, int width, int height) {
-    (void)framebuffer;
-    (void)width;
-    (void)height;
-}
-#endif

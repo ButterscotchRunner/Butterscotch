@@ -47,7 +47,7 @@
 #ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"
 #endif
-#ifdef ENABLE_NOOP
+#ifdef ENABLE_NOOP_RENDERER
 #include "noop_renderer.h"
 #endif
 #include "overlay_file_system.h"
@@ -791,7 +791,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             return 0;
         }
 #endif
-#ifndef ENABLE_NOOP
+#ifndef ENABLE_NOOP_RENDERER
         if (gfx == NOOP) {
             logError("The noop renderer is not available in this build!\n");
             return 0;
@@ -853,7 +853,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         if (gfx == SOFTWARE)
             renderer = SWRenderer_create();
 #endif
-#ifdef ENABLE_NOOP
+#ifdef ENABLE_NOOP_RENDERER
         if (gfx == NOOP) {
             renderer = NoopRenderer_create();
         }
