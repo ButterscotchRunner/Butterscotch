@@ -14,7 +14,7 @@
 #undef isnan
 #undef isinf
 #define isnan(x) (x != x)
-#define isinf(x) ((x) == (GMLReal)INFINITY || (x) == (GMLReal)-INFINITY)
+#define isinf(x) ((x) == INFINITY || (x) == -INFINITY)
 
 #ifdef USE_FLOAT_REALS
 
@@ -74,7 +74,7 @@ public:
             logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
             raw_ = 0;
         }
-        else if (d >= INFINITY)  raw_ = INT64_MAX;
+        else if (d >=  INFINITY) raw_ =  INT64_MAX;
         else if (d <= -INFINITY) raw_ = -INT64_MAX;
         else raw_ = (int64_t)(d * (double)(INT64_C(1) << FRAC_BITS));
     }
@@ -84,7 +84,7 @@ public:
             logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
             raw_ = 0;
         }
-        else if (f >= INFINITY)  raw_ = INT64_MAX;
+        else if (f >=  INFINITY) raw_ =  INT64_MAX;
         else if (f <= -INFINITY) raw_ = -INT64_MAX;
         else raw_ = (int64_t)(f * (float)(INT64_C(1) << FRAC_BITS));
     }
@@ -100,7 +100,7 @@ public:
 
     bool is_pos_infinite() const { return raw_ == INT64_MAX; }
     bool is_neg_infinite() const { return raw_ == INT64_MIN; }
-    bool is_infinite() const     { return is_pos_infinite() || is_neg_infinite(); }
+    bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
 
     operator signed char()        const { return raw_ >> FRAC_BITS; }
     operator unsigned char()      const { return raw_ >> FRAC_BITS; }
