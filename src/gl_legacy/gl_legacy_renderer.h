@@ -50,11 +50,15 @@ typedef struct {
     bool needsPOT;
 
     // Blending mode + factors
+    bool blendEnable;
     int32_t currentBlendMode;
     int32_t currentSFactor;
     int32_t currentDFactor;
     int32_t currentSFactorAlpha;
     int32_t currentDFactorAlpha;
+
+    bool alphaTestEnable;
+    uint8_t alphaTestRef;
 } GLLegacyRenderer;
 
 bool GLLegacyRenderer_ensureTextureLoaded(GLLegacyRenderer* gl, uint32_t pageId);

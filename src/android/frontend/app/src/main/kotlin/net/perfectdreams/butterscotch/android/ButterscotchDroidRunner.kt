@@ -135,8 +135,6 @@ class ButterscotchDroidRunner(
                     val gpuRenderer = GLES20.glGetString(GLES20.GL_RENDERER) ?: "Unknown"
                     val gpuVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "Unknown"
 
-                    ButterscotchUtils.fireGameLaunchEvent(wadHash, dataWinName, dataWinDisplayName, dataWinWadVersion, gmsVersion, detectedGmsVersion, gpuVendor, gpuRenderer, gpuVersion, isPlus)
-
                     runnerStarted = true
                 }
 
