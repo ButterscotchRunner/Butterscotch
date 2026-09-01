@@ -56,10 +56,21 @@ class GMLReal
 {
 public:
     GMLReal() = default;
-    GMLReal(int32_t i) :  raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(int64_t i) :  raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(uint32_t i) : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(uint64_t i) : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(signed char i)        : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(unsigned char i)      : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(signed short i)       : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(unsigned short i)     : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(signed int i)         : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(unsigned int i)       : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(signed long i)        : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(unsigned long i)      : raw_((int64_t)i << FRAC_BITS) {}
+#ifdef _MSC_VER
+    GMLReal(__int64 i)            : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(__uint64 i)           : raw_((int64_t)i << FRAC_BITS) {}
+#else
+    GMLReal(long long i)          : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(unsigned long long i) : raw_((int64_t)i << FRAC_BITS) {}
+#endif
 
     GMLReal(double d) {
         if (isnan(d)) {
