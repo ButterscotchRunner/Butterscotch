@@ -94,7 +94,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }}/sdl2
+            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
