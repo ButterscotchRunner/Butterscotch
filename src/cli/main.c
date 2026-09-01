@@ -399,6 +399,8 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                     args->renderer = LEGACY_GL;
                 else if (strcmp(optarg, "software") == 0)
                     args->renderer = SOFTWARE;
+                else if (strcmp(optarg, "noop") == 0)
+                    args->renderer = NOOP;
                 else {
                     logError("Unknown renderer: %s!\n", optarg);
                     exit(1);

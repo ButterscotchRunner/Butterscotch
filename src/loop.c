@@ -47,6 +47,9 @@
 #ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"
 #endif
+#ifdef ENABLE_NOOP
+#include "noop_renderer.h"
+#endif
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
 #include "al_audio_system.h"
@@ -788,6 +791,12 @@ int loop(CommandLineArgs args, const char *argv0) {
             return 0;
         }
 #endif
+#ifndef ENABLE_NOOP
+        if (gfx == NOOP) {
+            logError("The noop renderer is not available in this build!\n");
+            return 0;
+        }
+#endif
 
 #ifdef ENABLE_SCREENSHOTS
         if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
@@ -837,10 +846,17 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the renderer
+        // NOTE: headless mode keeps rendering active (hidden window + normal renderer).
+        // NOOP is a separate renderer that stubs all draw calls.
         Renderer* renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
         if (gfx == SOFTWARE)
             renderer = SWRenderer_create();
+#endif
+#ifdef ENABLE_NOOP
+        if (gfx == NOOP) {
+            renderer = NoopRenderer_create();
+        }
 #endif
 #ifdef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
