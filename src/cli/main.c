@@ -220,8 +220,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
     args->renderer = MODERN_GL;
 #elif defined(ENABLE_LEGACY_GL)
     args->renderer = LEGACY_GL;
-#else
+#elif defined(ENABLE_SW_RENDERER)
     args->renderer = SOFTWARE;
+#else
+    args->renderer = NOOP;
 #endif
 
     int opt;
