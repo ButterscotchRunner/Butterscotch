@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  build-glfw-windows:
+  build-arm-windows:
     name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
@@ -40,9 +40,9 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
-          key: ccache-glfw-windows-${{ matrix.arch }}-${{ github.sha }}
+          key: ccache-arm-windows-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: |
-            ccache-glfw-windows-${{ matrix.arch }}-
+            ccache-arm-windows-${{ matrix.arch }}-
 
       - name: Install LLVM-MinGW
         run: |
@@ -57,25 +57,25 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
-      - name: Checkout GLFW
+      - name: Checkout SDL2
         uses: actions/checkout@v7
         with:
-          repository: glfw/glfw
-          ref: fdd14e65b1c29e4e6df875fb5669ec00d6793531
-          path: vendor/glfw
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/sdl2
 
-      - name: Build GLFW for MinGW
+      - name: Build SDL2 for MinGW
         run: |
-          cmake -B vendor/glfw/build -S vendor/glfw -G Ninja \
+          cmake -B vendor/sdl2/build -S vendor/sdl2 -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }} \
-            -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF
 
-          cmake --build vendor/glfw/build
-          sudo cmake --install vendor/glfw/build
+          cmake --build vendor/sdl2/build
+          sudo cmake --install vendor/sdl2/build
 
       - name: Configure
         run: |
@@ -86,7 +86,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
-            -DBACKEND=glfw3 \
+            -DBACKEND=sdl2 \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -97,7 +97,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-glfw3-windows-${{ matrix.arch }}
+          name: butterscotch-sdl2-windows-${{ matrix.arch }}
           path: build/butterscotch.exe
 
   build-windows:
