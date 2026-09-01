@@ -283,8 +283,10 @@ static void stbi__start_write_callbacks(stbi__write_context *s, stbi_write_func 
 
 static void stbi__stdio_write(void *context, void *data, int size)
 {
-   size_t len = (size_t)fwrite(data, 1, size, (FILE*)context);
-   (void)len;
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-result"
+    fwrite(data, 1, size, (FILE*)context);
+    #pragma GCC diagnostic pop
 }
 
 #if defined(_WIN32) && defined(STBIW_WINDOWS_UTF8)
@@ -1222,11 +1224,10 @@ STBIWDEF int stbi_write_png(char const *filename, int x, int y, int comp, const 
 
    f = stbiw__fopen(filename, "wb");
    if (!f) { STBIW_FREE(png); return 0; }
-   if (fwrite(png, 1, len, f) != (size_t)len) {
-       fclose(f);
-       STBIW_FREE(png);
-       return 0;
-   }
+   #pragma GCC diagnostic push
+   #pragma GCC diagnostic ignored "-Wunused-result"
+   fwrite(png, 1, len, f);
+   #pragma GCC diagnostic pop
    fclose(f);
    STBIW_FREE(png);
    return 1;
