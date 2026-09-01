@@ -10,7 +10,7 @@
  * This fmin and fmax don't handle some semantics with negative zero correctly.
  * Handling them correctly would add complexity and hurt performance and it probably doesn't matter anyway.
  */
-#ifdef NO_FMIN
+#if defined(NO_FMIN) || defined(USE_FIXED_REALS)
 
 #undef GMLReal_fmin
 static GMLReal GMLReal_fmin(GMLReal a, GMLReal b) {
@@ -21,7 +21,7 @@ static GMLReal GMLReal_fmin(GMLReal a, GMLReal b) {
 
 #endif
 
-#ifdef NO_FMAX
+#if defined(NO_FMAX) || defined(USE_FIXED_REALS)
 
 #undef GMLReal_fmax
 static GMLReal GMLReal_fmax(GMLReal a, GMLReal b) {
@@ -32,6 +32,18 @@ static GMLReal GMLReal_fmax(GMLReal a, GMLReal b) {
 
 #endif
 
+#ifdef USE_FIXED_REALS
+
+#undef GMLReal_fabs
+static GMLReal GMLReal_fabs(GMLReal x) {
+    if (x < 0)
+        return -x;
+    return x;
+}
+
+#endif
+
+// TODO: make this compatible with fixed reals
 #ifdef NO_ROUND
 
 #undef GMLReal_round
@@ -50,6 +62,7 @@ static GMLReal GMLReal_log2(GMLReal x) { return log(x) * 1.4426950408889634; }
 
 #endif
 
+// TODO: make this compatible with fixed reals
 #ifdef NO_LROUND
 
 static long lround(double x) {
