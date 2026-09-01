@@ -323,6 +323,12 @@ static inline char* RValue_toString(RValue val, DataWin* dataWin) {
             if (isinf(r)) return safeStrdup(r < (GMLReal) 0 ? "-inf" : "inf");
 #ifdef USE_FLOAT_REALS
             const GMLReal INT_SAFE_BOUND = 9.2233715e18f; // largest float strictly < 2^63
+#elif defined(USE_FIXED_REALS)
+            // With fixed-point reals each integer unit occupies FRAC_BITS raw bits, so the
+            // largest integer a GMLReal can represent is 2^63 >> FRAC_BITS, not 2^63. Using the
+            // 2^63 bound here would convert to a GMLReal (scaled by 2^16) and overflow int64,
+            // making the range check always fail and hiding integers.
+            const GMLReal INT_SAFE_BOUND = (GMLReal) ((int64_t) INT64_MAX >> GMLReal::FRAC_BITS);
 #else
             const GMLReal INT_SAFE_BOUND = 9.2233720368547758e18;
 #endif
