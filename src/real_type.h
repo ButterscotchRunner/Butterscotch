@@ -11,12 +11,8 @@
 #define INFINITY ((float)1e39)
 #endif
 
-#ifdef NO_ISNAN
 #define isnan(x) (x != x)
-#endif
-#ifdef NO_ISINF
 #define isinf(x) ((x) == INFINITY || (x) == -INFINITY)
-#endif
 
 #ifdef USE_FLOAT_REALS
 
@@ -107,6 +103,22 @@ public:
 
     int64_t raw() const { return raw_; }
 
+    operator signed char()        const { return raw_ >> FRAC_BITS; }
+    operator unsigned char()      const { return raw_ >> FRAC_BITS; }
+    operator signed short()       const { return raw_ >> FRAC_BITS; }
+    operator unsigned short()     const { return raw_ >> FRAC_BITS; }
+    operator signed int()         const { return raw_ >> FRAC_BITS; }
+    operator unsigned int()       const { return raw_ >> FRAC_BITS; }
+    operator signed long()        const { return raw_ >> FRAC_BITS; }
+    operator unsigned long()      const { return raw_ >> FRAC_BITS; }
+#ifdef _MSC_VER
+    operator __int64()            const { return raw_ >> FRAC_BITS; }
+    operator __uint64()           const { return raw_ >> FRAC_BITS; }
+#else
+    operator signed long long()   const { return raw_ >> FRAC_BITS; }
+    operator unsigned long long() const { return raw_ >> FRAC_BITS; }
+#endif
+
     operator double() const {
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
@@ -118,8 +130,6 @@ public:
         if (is_neg_infinite()) return -INFINITY;
         return (float)raw_ / (float)(INT64_C(1) << FRAC_BITS);
     }
-
-    int to_int() const { return (int)(raw_ >> FRAC_BITS); }
 
     GMLReal operator-() const { return from_raw(-raw_); } // safe: never holds INT64_MIN
 
@@ -222,25 +232,25 @@ typedef double GMLReal;
 
 #endif
 
-#define GMLReal_sin sin
-#define GMLReal_cos cos
-#define GMLReal_tan tan
-#define GMLReal_acos acos
-#define GMLReal_asin asin
-#define GMLReal_atan atan
-#define GMLReal_atan2 atan2
-#define GMLReal_sqrt sqrt
-#define GMLReal_fabs fabs
-#define GMLReal_fmod fmod
-#define GMLReal_floor floor
-#define GMLReal_ceil ceil
-#define GMLReal_round round
-#define GMLReal_pow pow
-#define GMLReal_log log
-#define GMLReal_log2 log2
-#define GMLReal_log10 log10
-#define GMLReal_fmax fmax
-#define GMLReal_fmin fmin
+#define GMLReal_sin(x) sin((double)(x))
+#define GMLReal_cos(x) cos((double)(x))
+#define GMLReal_tan(x) tan((double)(x))
+#define GMLReal_acos(x) acos((double)(x))
+#define GMLReal_asin(x) asin((double)(x))
+#define GMLReal_atan(x) atan((double)(x))
+#define GMLReal_atan2(x,y) atan2((double)(x),(double)(y))
+#define GMLReal_sqrt(x) sqrt((double)(x))
+#define GMLReal_fabs(x) fabs((double)(x))
+#define GMLReal_fmod(x,y) fmod((double)(x),(double)(y))
+#define GMLReal_floor(x) floor((double)(x))
+#define GMLReal_ceil(x) ceil((double)(x))
+#define GMLReal_round(x) round((double)(x))
+#define GMLReal_pow(x,y) pow((double)(x),(double)(y))
+#define GMLReal_log(x) log((double)(x))
+#define GMLReal_log2(x) log2((double)(x))
+#define GMLReal_log10(x) log10((double)(x))
+#define GMLReal_fmax(x,y) fmax((double)(x),(double)(y))
+#define GMLReal_fmin(x,y) fmin((double)(x),(double)(y))
 #define GMLReal_nextafter nextafter
 #define GMLReal_strtod(str, endptr) strtod(str, endptr)
 
