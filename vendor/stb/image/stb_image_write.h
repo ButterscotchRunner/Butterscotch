@@ -283,7 +283,7 @@ static void stbi__start_write_callbacks(stbi__write_context *s, stbi_write_func 
 
 static void stbi__stdio_write(void *context, void *data, int size)
 {
-    fwrite(data, 1, size, (FILE*)context);
+    fwrite(data,1,size,(FILE*) context);
 }
 
 #if defined(_WIN32) && defined(STBIW_WINDOWS_UTF8)
