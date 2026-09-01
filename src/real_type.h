@@ -82,6 +82,16 @@ public:
         else raw_ = (int64_t)(d * (double)(INT64_C(1) << FRAC_BITS));
     }
 
+    GMLReal(float f) {
+        if (isnanf(f)) {
+            logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
+            raw_ = 0;
+        }
+        else if (f >= INFINITY)  raw_ = INT64_MAX;
+        else if (f <= -INFINITY) raw_ = -INT64_MAX;
+        else raw_ = (int64_t)(f * (float)(INT64_C(1) << FRAC_BITS));
+    }
+
     static GMLReal from_raw(int64_t r) {
         GMLReal f;
         f.raw_ = r;
