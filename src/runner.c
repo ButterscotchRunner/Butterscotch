@@ -1150,7 +1150,7 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
 
     if (runner->fpsRealFrameStartNanos != 0) {
         uint64_t elapsed = nowNanos() - runner->fpsRealFrameStartNanos;
-        if (elapsed > 0) runner->fpsReal = 1e9 / (double)elapsed;
+        if (elapsed > 0) runner->fpsReal = 1e9f / (double)elapsed;
     }
 }
 
