@@ -77,10 +77,6 @@ void *platformGetProcAddress(const char *name) {
     return NULL;
 }
 
-double platformGetTime(void) {
-    return (double)nowNanos() / 1e9;
-}
-
 bool platformHandleEvents(void) {
     return false;
 }
