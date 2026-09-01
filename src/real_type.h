@@ -11,6 +11,8 @@
 #define INFINITY ((float)1e39)
 #endif
 
+#undef isnan
+#undef isinf
 #define isnan(x) (x != x)
 #define isinf(x) ((x) == INFINITY || (x) == -INFINITY)
 
