@@ -146,7 +146,10 @@ public:
                 return nan(); // inf + -inf
             return is_infinite() ? *this : o;
         }
-        return from_raw(raw_ + o.raw_);
+        int64_t sum = raw_ + o.raw_;
+        if ((raw_ > 0 && o.raw_ > 0 && sum <= 0) || (raw_ < 0 && o.raw_ < 0 && sum >= 0))
+            return raw_ > 0 ? infinity() : neg_infinity();
+        return from_raw(sum);
     }
 
     GMLReal operator-(const GMLReal& o) const { return *this + (-o); }
