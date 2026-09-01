@@ -541,7 +541,7 @@ static inline GMLReal RValue_toReal(RValue val) {
 #if IS_WAD17_OR_HIGHER_ENABLED
         case RVALUE_METHOD: return 0.0;
 #endif
-        case RVALUE_STRUCT: return val.structInst != nullptr ? (GMLReal) Instance_getInstanceId(val.structInst) : 0.0;
+        case RVALUE_STRUCT: return val.structInst != nullptr ? (GMLReal) Instance_getInstanceId(val.structInst) : (GMLReal)0.0;
         case RVALUE_ASSETREF: return (GMLReal) val.int32;
         default:            return 0.0;
     }

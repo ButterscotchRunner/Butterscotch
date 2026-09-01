@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "log.h"
 
 #ifndef INFINITY
 #define INFINITY ((float)1e39)
@@ -45,7 +46,167 @@ typedef float GMLReal;
 
 #else
 
+#ifdef USE_FIXED_REALS
+
+#ifndef __cplusplus
+#error USE_FIXED_REALS requires compiling as C++
+#endif
+
+class GMLReal
+{
+public:
+    GMLReal() = default; // trivial: raw_ left uninitialized, matching
+                         // `double x;` — needs C++11's defaulted-ctor
+                         // rules to stay trivial despite being declared
+    GMLReal(int i) : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(int64_t i) : raw_(i << FRAC_BITS) {}
+    GMLReal(uint32_t i) : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(uint64_t i) : raw_((int64_t)i << FRAC_BITS) {}
+
+    GMLReal(double d)
+    {
+        if (isnan(d)) {
+            logWarn("GMLReal: NaN cast to fixed-point value, treating as 0\n");
+            raw_ = 0;
+        }
+        else if (d >= INFINITY)  raw_ = INT64_MAX;
+        else if (d <= -INFINITY) raw_ = -INT64_MAX;
+        else raw_ = (int64_t)(d * (double)(INT64_C(1) << FRAC_BITS));
+    }
+
+    static GMLReal from_raw(int64_t r)
+    {
+        GMLReal f;
+        f.raw_ = r;
+        return f;
+    }
+
+    static GMLReal infinity()     { return from_raw(INT64_MAX); }
+    static GMLReal neg_infinity() { return from_raw(-INT64_MAX); }
+
+    bool is_pos_infinite() const { return raw_ == INT64_MAX; }
+    bool is_neg_infinite() const { return raw_ == -INT64_MAX; }
+    bool is_infinite() const     { return is_pos_infinite() || is_neg_infinite(); }
+
+    int64_t raw() const { return raw_; }
+
+    double to_double() const
+    {
+        if (is_pos_infinite()) return INFINITY;
+        if (is_neg_infinite()) return -INFINITY;
+        return (double)raw_ / (double)(INT64_C(1) << FRAC_BITS);
+    }
+
+    operator double() const { return to_double(); }
+
+    int to_int() const { return (int)(raw_ >> FRAC_BITS); }
+
+    GMLReal operator-() const { return from_raw(-raw_); } // safe: never holds INT64_MIN
+
+    GMLReal operator+(const GMLReal& o) const
+    {
+        if (is_infinite() || o.is_infinite())
+        {
+            if (is_infinite() && o.is_infinite() && raw_ != o.raw_)
+                return from_raw(0); // inf + -inf: indeterminate, no NaN available
+            return is_infinite() ? *this : o;
+        }
+        return from_raw(raw_ + o.raw_);
+    }
+
+    GMLReal operator-(const GMLReal& o) const { return *this + (-o); }
+
+    // NOTE: naive 64-bit multiply/divide for the finite case. The
+    // intermediate product can overflow 64 bits once both operands'
+    // magnitudes get large (roughly when integer parts exceed ~2^24
+    // each); with the sentinels in place that overflow will now often
+    // land on or near +/-INT64_MAX and read as infinity rather than
+    // silently wrapping. Fine for typical game-world coordinates; flag
+    // if you need a proper wide-multiply instead.
+    GMLReal operator*(const GMLReal& o) const
+    {
+        if (is_infinite() || o.is_infinite())
+        {
+            bool neg = (raw_ < 0) != (o.raw_ < 0);
+            return neg ? neg_infinity() : infinity();
+        }
+        return from_raw((raw_ * o.raw_) >> FRAC_BITS);
+    }
+
+    GMLReal operator/(const GMLReal& o) const
+    {
+        if (is_infinite() && o.is_infinite())
+            return from_raw(0); // inf / inf: indeterminate
+        if (o.is_infinite())
+            return from_raw(0); // finite / inf = 0
+        if (is_infinite())
+        {
+            bool neg = (raw_ < 0) != (o.raw_ < 0);
+            return neg ? neg_infinity() : infinity();
+        }
+        if (o.raw_ == 0)
+            return raw_ < 0 ? neg_infinity() : infinity(); // div by zero -> inf
+        return from_raw((raw_ << FRAC_BITS) / o.raw_);
+    }
+
+    GMLReal& operator+=(const GMLReal& o) { *this = *this + o; return *this; }
+    GMLReal& operator-=(const GMLReal& o) { *this = *this - o; return *this; }
+    GMLReal& operator*=(const GMLReal& o) { *this = *this * o; return *this; }
+    GMLReal& operator/=(const GMLReal& o) { *this = *this / o; return *this; }
+
+    GMLReal& operator++()    { *this += GMLReal(1); return *this; }
+    GMLReal  operator++(int) { GMLReal tmp = *this; *this += GMLReal(1); return tmp; }
+    GMLReal& operator--()    { *this -= GMLReal(1); return *this; }
+    GMLReal  operator--(int) { GMLReal tmp = *this; *this -= GMLReal(1); return tmp; }
+
+    bool operator==(const GMLReal& o) const { return raw_ == o.raw_; }
+    bool operator!=(const GMLReal& o) const { return raw_ != o.raw_; }
+    bool operator<(const GMLReal& o)  const { return raw_ <  o.raw_; }
+    bool operator<=(const GMLReal& o) const { return raw_ <= o.raw_; }
+    bool operator>(const GMLReal& o)  const { return raw_ >  o.raw_; }
+    bool operator>=(const GMLReal& o) const { return raw_ >= o.raw_; }
+
+    GMLReal operator+(double d) const { return *this + GMLReal(d); }
+    GMLReal operator-(double d) const { return *this - GMLReal(d); }
+    GMLReal operator*(double d) const { return *this * GMLReal(d); }
+    GMLReal operator/(double d) const { return *this / GMLReal(d); }
+
+    friend GMLReal operator+(double d, const GMLReal& r) { return GMLReal(d) + r; }
+    friend GMLReal operator-(double d, const GMLReal& r) { return GMLReal(d) - r; }
+    friend GMLReal operator*(double d, const GMLReal& r) { return GMLReal(d) * r; }
+    friend GMLReal operator/(double d, const GMLReal& r) { return GMLReal(d) / r; }
+
+    // Exact-match overloads against double, for both arithmetic and
+    // comparisons. Without these, something like `f > 0.5` or `f + 1.0`
+    // is ambiguous: the compiler can equally convert f to double (via
+    // operator double()) or the literal to GMLReal (via the double
+    // constructor), and both conversions rank the same. Giving it a
+    // candidate that needs no conversion at all removes the tie.
+    bool operator==(double d) const { return raw_ == GMLReal(d).raw_; }
+    bool operator!=(double d) const { return raw_ != GMLReal(d).raw_; }
+    bool operator<(double d)  const { return raw_ <  GMLReal(d).raw_; }
+    bool operator<=(double d) const { return raw_ <= GMLReal(d).raw_; }
+    bool operator>(double d)  const { return raw_ >  GMLReal(d).raw_; }
+    bool operator>=(double d) const { return raw_ >= GMLReal(d).raw_; }
+
+    friend bool operator==(double d, const GMLReal& r) { return r == d; }
+    friend bool operator!=(double d, const GMLReal& r) { return r != d; }
+    friend bool operator<(double d,  const GMLReal& r) { return r >  d; }
+    friend bool operator<=(double d, const GMLReal& r) { return r >= d; }
+    friend bool operator>(double d,  const GMLReal& r) { return r <  d; }
+    friend bool operator>=(double d, const GMLReal& r) { return r <= d; }
+
+    static const int FRAC_BITS = 16;
+
+private:
+    int64_t raw_;
+};
+
+#else
+
 typedef double GMLReal;
+
+#endif
 
 #define GMLReal_sin sin
 #define GMLReal_cos cos
