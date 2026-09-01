@@ -122,7 +122,7 @@ All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware float
 | -------- | -------- | ----- |
 | WebAssembly | [butterscotch-web.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-web.zip) | [Play online](https://butterscotch.mrpowergamerbr.com/web/) |
 | Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) | 
-| webOS | [butterscotch-webos.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-webos.zip) | place notes here |
+| webOS | [butterscotch-webos.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-webos.zip) | After installing the IPK, place the game's `data.win` and other required files in `/media/developer/apps/usr/palm/applications/com.mrpowergamerbr.butterscotch/` |
 
 ## Community Ports
 
