@@ -32,9 +32,10 @@ void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
             free(el->spriteElement);
             el->spriteElement = nullptr;
         }
-        if (el->tileElement != nullptr) {
+        if (el->tileElement != nullptr && el->tileElementOwned) {
             free(el->tileElement);
             el->tileElement = nullptr;
+            el->tileElementOwned = false;
         }
     }
     arrfree(runtimeLayer->elements);
@@ -1012,7 +1013,7 @@ void Runner_draw(Runner* runner) {
                     RuntimeLayerElement* layerElement = &runtimeLayer->elements[j];
                     if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
                         renderBackgroundElement(runner, layerElement->backgroundElement, roomW, roomH, layerOffsetX, layerOffsetY);
-                    } else if (layerElement->type == RuntimeLayerElementType_Tile && layerElement->tileElement != nullptr) {
+                    } else if (layerElement->type == RuntimeLayerElementType_Tile && layerElement->tileElement != nullptr && layerElement->tileElementOwned) {
                         if (!layerElement->visible) continue;
                         RoomTile rt = *layerElement->tileElement;
                         rt.alpha = layerElement->alpha;

@@ -240,6 +240,7 @@ typedef struct {
     RuntimeBackgroundElement* backgroundElement; // owned; set for every background element
     RuntimeSpriteElement* spriteElement; // owned; nullptr if type != Sprite
     RoomTile* tileElement; // borrowed (legacyTiles) or owned (layer_tile_create); nullptr if type != Tile
+    bool tileElementOwned; // true if tileElement was heap-allocated and must be freed
     RoomLayerTilesData* tilemapData; // borrowed, points into the parsed RoomLayer; nullptr if type != Tilemap
     int32_t instanceId; // only valid if type == Instance; the instance may have died since, so callers must check liveness
 } RuntimeLayerElement;

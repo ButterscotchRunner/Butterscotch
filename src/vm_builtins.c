@@ -14213,6 +14213,7 @@ static RValue builtin_layer_tile_create(VMContext* ctx, RValue* args, MAYBE_UNUS
     el.alpha = 1.0f;
     el.blend = 0xFFFFFFu;
     el.tileElement = tile;
+    el.tileElementOwned = true;
     arrput(runtimeLayer->elements, el);
     return RValue_makeReal((GMLReal) el.id);
 }
@@ -14224,9 +14225,10 @@ static RValue builtin_layer_tile_destroy(VMContext* ctx, RValue* args, MAYBE_UNU
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, &owningLayer);
     if (el == nullptr || owningLayer == nullptr || el->type != RuntimeLayerElementType_Tile)
         return RValue_makeUndefined();
-    if (el->tileElement != nullptr) {
+    if (el->tileElement != nullptr && el->tileElementOwned) {
         free(el->tileElement);
         el->tileElement = nullptr;
+        el->tileElementOwned = false;
     }
     size_t count = arrlenu(owningLayer->elements);
     repeat(count, i) {
