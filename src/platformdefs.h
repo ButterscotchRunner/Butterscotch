@@ -41,7 +41,8 @@ static const OsTypeNameEntry OS_TYPE_NAMES[] = {
 enum GraphicsAPI {
     SOFTWARE,
     MODERN_GL,
-    LEGACY_GL
+    LEGACY_GL,
+    NOOP
 };
 
 extern enum GraphicsAPI gfx;
