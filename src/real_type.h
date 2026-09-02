@@ -56,35 +56,41 @@ struct is_gml_integral : std::integral_constant<bool, std::is_integral<T>::value
 template <typename T>
 struct is_gml_numeric : std::integral_constant<bool, std::is_arithmetic<T>::value || std::is_enum<T>::value> {};
 
+typedef int64_t realint_t;
+
 class GMLReal {
 public:
+    static const int FRAC_BITS = 12;
+    static const realint_t REALINT_MIN INT64_MIN;
+    static const realint_t REALINT_MAX INT64_MAX;
+
     GMLReal() = default;
 
     template <typename T, typename std::enable_if<is_gml_integral<T>::value, int>::type = 0>
-    GMLReal(T i) : raw_((int64_t)i << FRAC_BITS) {}
+    GMLReal(T i) : raw_((realint_t)i << FRAC_BITS) {}
 
     // Covers float and double. `v != v` detects NaN for either type.
     template <typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
     GMLReal(T v) {
-        if      (v != v)         raw_ =  INT64_MIN;
-        else if (v >=  INFINITY) raw_ =  INT64_MAX;
-        else if (v <= -INFINITY) raw_ = -INT64_MAX;
-        else raw_ = (int64_t)(v * (T)(INT64_C(1) << FRAC_BITS));
+        if      (v != v)         raw_ =  REALINT_MIN;
+        else if (v >=  INFINITY) raw_ =  REALINT_MAX;
+        else if (v <= -INFINITY) raw_ = -REALINT_MAX;
+        else raw_ = (realint_t)(v * (T)(((realint_t)1) << FRAC_BITS));
     }
 
-    static GMLReal from_raw(int64_t r) {
+    static GMLReal from_raw(realint_t r) {
         GMLReal f;
         f.raw_ = r;
         return f;
     }
 
-    static GMLReal infinity()     { return from_raw(INT64_MAX);  }
-    static GMLReal neg_infinity() { return from_raw(-INT64_MAX); }
-    static GMLReal nan()          { return from_raw(INT64_MIN);  }
+    static GMLReal infinity()     { return from_raw(REALINT_MAX);  }
+    static GMLReal neg_infinity() { return from_raw(-REALINT_MAX); }
+    static GMLReal nan()          { return from_raw(REALINT_MIN);  }
 
-    bool is_nan()          const { return raw_ ==  INT64_MIN; }
-    bool is_pos_infinite() const { return raw_ ==  INT64_MAX; }
-    bool is_neg_infinite() const { return raw_ == -INT64_MAX; }
+    bool is_nan()          const { return raw_ ==  REALINT_MIN; }
+    bool is_pos_infinite() const { return raw_ ==  REALINT_MAX; }
+    bool is_neg_infinite() const { return raw_ == -REALINT_MAX; }
     bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
 
     // NOTE: does not saturate/guard on inf or NaN like the float path does --
@@ -99,7 +105,7 @@ public:
         if (is_nan())          return NAN;
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
-        return (T)raw_ / (T)(INT64_C(1) << FRAC_BITS);
+        return (T)raw_ / (T)(((realint_t)1) << FRAC_BITS);
     }
 
     // Exact-match overloads vs. any arithmetic type, needed because the
@@ -142,7 +148,7 @@ public:
                 return nan(); // inf + -inf
             return is_infinite() ? *this : o;
         }
-        int64_t sum = raw_ + o.raw_;
+        realint_t sum = raw_ + o.raw_;
         if ((raw_ > 0 && o.raw_ > 0 && sum <= 0) || (raw_ < 0 && o.raw_ < 0 && sum >= 0))
             return raw_ > 0 ? infinity() : neg_infinity();
         return from_raw(sum);
@@ -222,10 +228,8 @@ public:
     template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
     friend bool operator>=(T lhs, const GMLReal& rhs) { return rhs <= GMLReal(lhs); }
 
-    static const int FRAC_BITS = 12;
-
 private:
-    int64_t raw_;
+    realint_t raw_;
 };
 
 #else
