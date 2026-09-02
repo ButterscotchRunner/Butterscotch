@@ -164,8 +164,11 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DBACKEND=${{ matrix.backend }} \
             -DWERROR=ON \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DTARGET_TRIPLE=${{ matrix.target }} \
+            -DCMAKE_C_COMPILER="clang" \
+            -DCMAKE_CXX_COMPILER="clang++" \
+            -DCMAKE_RC_COMPILER="llvm-rc" \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
             -DCMAKE_SYSROOT=${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.triplet }} \
             -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.triplet }} \
             -DCMAKE_BUILD_TYPE=Release \
