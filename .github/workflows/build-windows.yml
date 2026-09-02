@@ -151,7 +151,7 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
-              CFLAGS='-O3 -DNDEBUG -flto -fomit-frame-pointer' \
+              CFLAGS='-O3 -DNDEBUG -flto -ffast-math -fno-finite-math-only -fomit-frame-pointer' \
               BACKEND=${{ matrix.backend }} \
               EXTRALIBS='-latomic' \
               ${{ matrix.libs }}
