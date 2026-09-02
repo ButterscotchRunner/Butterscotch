@@ -50,37 +50,26 @@ typedef float GMLReal;
 #error USE_FIXED_REALS requires compiling as C++
 #endif
 
+template <typename T>
+struct is_gml_integral : std::integral_constant<bool, std::is_integral<T>::value || std::is_enum<T>::value> {};
+
+template <typename T>
+struct is_gml_numeric : std::integral_constant<bool, std::is_arithmetic<T>::value || std::is_enum<T>::value> {};
+
 class GMLReal {
 public:
     GMLReal() = default;
-    GMLReal(signed char i)        : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(unsigned char i)      : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(signed short i)       : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(unsigned short i)     : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(signed int i)         : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(unsigned int i)       : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(signed long i)        : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(unsigned long i)      : raw_((int64_t)i << FRAC_BITS) {}
-#ifdef _MSC_VER
-    GMLReal(__int64 i)            : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(__uint64 i)           : raw_((int64_t)i << FRAC_BITS) {}
-#else
-    GMLReal(long long i)          : raw_((int64_t)i << FRAC_BITS) {}
-    GMLReal(unsigned long long i) : raw_((int64_t)i << FRAC_BITS) {}
-#endif
 
-    GMLReal(double d) {
-        if      (d != d)         raw_ =  INT64_MIN;
-        else if (d >=  INFINITY) raw_ =  INT64_MAX;
-        else if (d <= -INFINITY) raw_ = -INT64_MAX;
-        else raw_ = (int64_t)(d * (double)(INT64_C(1) << FRAC_BITS));
-    }
+    template <typename T, typename std::enable_if<is_gml_integral<T>::value, int>::type = 0>
+    GMLReal(T i) : raw_((int64_t)i << FRAC_BITS) {}
 
-    GMLReal(float f) {
-        if      (f != f)         raw_ =  INT64_MIN;
-        else if (f >=  INFINITY) raw_ =  INT64_MAX;
-        else if (f <= -INFINITY) raw_ = -INT64_MAX;
-        else raw_ = (int64_t)(f * (float)(INT64_C(1) << FRAC_BITS));
+    // Covers float and double. `v != v` detects NaN for either type.
+    template <typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+    GMLReal(T v) {
+        if      (v != v)         raw_ =  INT64_MIN;
+        else if (v >=  INFINITY) raw_ =  INT64_MAX;
+        else if (v <= -INFINITY) raw_ = -INT64_MAX;
+        else raw_ = (int64_t)(v * (T)(INT64_C(1) << FRAC_BITS));
     }
 
     static GMLReal from_raw(int64_t r) {
@@ -93,50 +82,57 @@ public:
     static GMLReal neg_infinity() { return from_raw(-INT64_MAX); }
     static GMLReal nan()          { return from_raw(INT64_MIN);  }
 
-    bool is_pos_infinite() const { return raw_ == INT64_MAX; }
+    bool is_nan()          const { return raw_ ==  INT64_MIN; }
+    bool is_pos_infinite() const { return raw_ ==  INT64_MAX; }
     bool is_neg_infinite() const { return raw_ == -INT64_MAX; }
     bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
-    bool is_nan()          const { return raw_ == INT64_MIN; }
 
-    operator signed char()        const { return raw_ >> FRAC_BITS; }
-    operator unsigned char()      const { return raw_ >> FRAC_BITS; }
-    operator signed short()       const { return raw_ >> FRAC_BITS; }
-    operator unsigned short()     const { return raw_ >> FRAC_BITS; }
-    operator signed int()         const { return raw_ >> FRAC_BITS; }
-    operator unsigned int()       const { return raw_ >> FRAC_BITS; }
-    operator signed long()        const { return raw_ >> FRAC_BITS; }
-    operator unsigned long()      const { return raw_ >> FRAC_BITS; }
-#ifdef _MSC_VER
-    operator __int64()            const { return raw_ >> FRAC_BITS; }
-    operator __uint64()           const { return raw_ >> FRAC_BITS; }
-#else
-    operator signed long long()   const { return raw_ >> FRAC_BITS; }
-    operator unsigned long long() const { return raw_ >> FRAC_BITS; }
-#endif
+    // NOTE: does not saturate/guard on inf or NaN like the float path does --
+    // an infinite or NaN GMLReal implicitly assigned to a plain int now
+    // silently hits that UB/implementation-defined narrowing with no cast
+    // in the source to flag it. Worth keeping an eye out for in review.
+    template <typename T, typename std::enable_if<is_gml_integral<T>::value, int>::type = 0>
+    operator T() const { return (T)(raw_ >> FRAC_BITS); }
 
-    // NOTE: these integer conversions do NOT guard against is_nan() or
-    // is_infinite() the way the double/float conversions do below --
-    // shifting the INT64_MIN/+-INT64_MAX sentinels and narrowing the
-    // result is implementation-defined-to-UB territory depending on
-    // target type, same open issue as flagged earlier for plain (int)x.
-
-    operator double() const {
+    template <typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+    operator T() const {
         if (is_nan())          return NAN;
         if (is_pos_infinite()) return INFINITY;
         if (is_neg_infinite()) return -INFINITY;
-        return (double)raw_ / (double)(INT64_C(1) << FRAC_BITS);
+        return (T)raw_ / (T)(INT64_C(1) << FRAC_BITS);
     }
 
-    operator float() const {
-        if (is_nan())          return NAN;
-        if (is_pos_infinite()) return INFINITY;
-        if (is_neg_infinite()) return -INFINITY;
-        return (float)raw_ / (float)(INT64_C(1) << FRAC_BITS);
-    }
+    // Exact-match overloads vs. any arithmetic type, needed because the
+    // conversion operators above are implicit: without these, `x + 1.0`
+    // or `x < 0` is ambiguous between this class's operator (converting
+    // the literal to GMLReal) and a built-in operator (converting x to
+    // float/double/int/etc). Zero conversions needed here beats either,
+    // so no tie -- covers every numeric literal type, not just double.
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    GMLReal operator+(T d) const { return *this + GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    GMLReal operator-(T d) const { return *this - GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    GMLReal operator*(T d) const { return *this * GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    GMLReal operator/(T d) const { return *this / GMLReal(d); }
+
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator==(T d) const { return *this == GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator!=(T d) const { return *this != GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator< (T d) const { return *this <  GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator<=(T d) const { return *this <= GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator> (T d) const { return *this >  GMLReal(d); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    bool operator>=(T d) const { return *this >= GMLReal(d); }
 
     GMLReal operator-() const {
-        if (is_nan()) return *this; // -NaN is NaN
-        return from_raw(-raw_);     // safe: only ever +/-INT64_MAX here
+        if (is_nan()) return *this;
+        return from_raw(-raw_);
     }
 
     GMLReal operator+(const GMLReal& o) const {
@@ -154,21 +150,13 @@ public:
 
     GMLReal operator-(const GMLReal& o) const { return *this + (-o); }
 
-    // NOTE: naive 64-bit multiply/divide for the finite case. The
-    // intermediate product can overflow 64 bits once both operands'
-    // magnitudes get large (roughly when integer parts exceed ~2^24
-    // each); with the sentinels in place that overflow will now often
-    // land on or near +/-INT64_MAX and read as infinity rather than
-    // silently wrapping. Fine for typical game-world coordinates; flag
-    // if you need a proper wide-multiply instead.
+    // NOTE: naive multiply/divide; large operands can overflow the
+    // 64-bit intermediate and saturate to infinity instead of wrapping.
     GMLReal operator*(const GMLReal& o) const {
         if (is_nan() || o.is_nan()) return nan();
         if (is_infinite() || o.is_infinite()) {
-            // 0 * inf is indeterminate -- now that a real NaN sentinel
-            // exists, route it there instead of arbitrarily picking a
-            // sign, unlike the placeholder version from earlier.
             if ((raw_ == 0 && o.is_infinite()) || (o.raw_ == 0 && is_infinite()))
-                return nan();
+                return nan(); // 0 * inf
             bool neg = (raw_ < 0) != (o.raw_ < 0);
             return neg ? neg_infinity() : infinity();
         }
@@ -180,7 +168,7 @@ public:
         if (is_infinite() && o.is_infinite())
             return nan(); // inf / inf
         if (o.is_infinite())
-            return from_raw(0); // finite / inf = 0
+            return from_raw(0);
         if (is_infinite()) {
             bool neg = (raw_ < 0) != (o.raw_ < 0);
             return neg ? neg_infinity() : infinity();
@@ -198,15 +186,11 @@ public:
     GMLReal& operator/=(const GMLReal& o) { *this = *this / o; return *this; }
 
     GMLReal& operator++()    { *this += GMLReal(1); return *this; }
-    GMLReal  operator++(int) { GMLReal tmp = *this; *this += GMLReal(1); return tmp; }
     GMLReal& operator--()    { *this -= GMLReal(1); return *this; }
+    GMLReal  operator++(int) { GMLReal tmp = *this; *this += GMLReal(1); return tmp; }
     GMLReal  operator--(int) { GMLReal tmp = *this; *this -= GMLReal(1); return tmp; }
 
-    // Comparisons follow IEEE-754 NaN semantics: any ordered comparison
-    // involving a NaN is false, and != is true even for NaN vs itself.
-    // Plain raw_ equality (the pre-NaN version of this code) would have
-    // instead treated the NaN sentinel as just a very negative number
-    // and sorted it below everything, which is wrong.
+    // NaN compares unequal to everything, including itself (IEEE-754).
     bool operator==(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ == o.raw_; }
     bool operator!=(const GMLReal& o) const { return  is_nan() ||  o.is_nan() || raw_ != o.raw_; }
     bool operator< (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ <  o.raw_; }
@@ -214,38 +198,29 @@ public:
     bool operator> (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >  o.raw_; }
     bool operator>=(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >= o.raw_; }
 
-    GMLReal operator+(double d) const { return *this + GMLReal(d); }
-    GMLReal operator-(double d) const { return *this - GMLReal(d); }
-    GMLReal operator*(double d) const { return *this * GMLReal(d); }
-    GMLReal operator/(double d) const { return *this / GMLReal(d); }
+    // Reversed-operand ops (`1.0 + r`, `0 == r`); needed since a member
+    // operator can't be invoked with GMLReal on the right.
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend GMLReal operator+(T lhs, const GMLReal& rhs) { return GMLReal(lhs) + rhs; }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend GMLReal operator-(T lhs, const GMLReal& rhs) { return GMLReal(lhs) - rhs; }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend GMLReal operator*(T lhs, const GMLReal& rhs) { return GMLReal(lhs) * rhs; }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend GMLReal operator/(T lhs, const GMLReal& rhs) { return GMLReal(lhs) / rhs; }
 
-    friend GMLReal operator+(double d, const GMLReal& r) { return GMLReal(d) + r; }
-    friend GMLReal operator-(double d, const GMLReal& r) { return GMLReal(d) - r; }
-    friend GMLReal operator*(double d, const GMLReal& r) { return GMLReal(d) * r; }
-    friend GMLReal operator/(double d, const GMLReal& r) { return GMLReal(d) / r; }
-
-    // Exact-match overloads against double, for both arithmetic and
-    // comparisons. Without these, something like `f > 0.5` or `f + 1.0`
-    // is ambiguous: the compiler can equally convert f to double (via
-    // operator double()) or the literal to GMLReal (via the double
-    // constructor), and both conversions rank the same. Giving it a
-    // candidate that needs no conversion at all removes the tie.
-    // These delegate to the GMLReal-vs-GMLReal comparisons above rather
-    // than comparing raw_ directly, so NaN semantics stay correct here
-    // too instead of only in the GMLReal-vs-GMLReal path.
-    bool operator==(double d) const { return *this == GMLReal(d); }
-    bool operator!=(double d) const { return *this != GMLReal(d); }
-    bool operator< (double d) const { return *this <  GMLReal(d); }
-    bool operator<=(double d) const { return *this <= GMLReal(d); }
-    bool operator> (double d) const { return *this >  GMLReal(d); }
-    bool operator>=(double d) const { return *this >= GMLReal(d); }
-
-    friend bool operator==(double d, const GMLReal& r) { return r == d; }
-    friend bool operator!=(double d, const GMLReal& r) { return r != d; }
-    friend bool operator< (double d, const GMLReal& r) { return r >  d; }
-    friend bool operator<=(double d, const GMLReal& r) { return r >= d; }
-    friend bool operator> (double d, const GMLReal& r) { return r <  d; }
-    friend bool operator>=(double d, const GMLReal& r) { return r <= d; }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator==(T lhs, const GMLReal& rhs) { return rhs == GMLReal(lhs); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator!=(T lhs, const GMLReal& rhs) { return rhs != GMLReal(lhs); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator< (T lhs, const GMLReal& rhs) { return rhs >  GMLReal(lhs); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator<=(T lhs, const GMLReal& rhs) { return rhs >= GMLReal(lhs); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator> (T lhs, const GMLReal& rhs) { return rhs <  GMLReal(lhs); }
+    template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
+    friend bool operator>=(T lhs, const GMLReal& rhs) { return rhs <= GMLReal(lhs); }
 
     static const int FRAC_BITS = 12;
 
