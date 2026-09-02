@@ -61,8 +61,8 @@ typedef int64_t realint_t;
 class GMLReal {
 public:
     static const int FRAC_BITS = 12;
-    static const realint_t REALINT_MIN INT64_MIN;
-    static const realint_t REALINT_MAX INT64_MAX;
+    static const realint_t REALINT_MIN = INT64_MIN;
+    static const realint_t REALINT_MAX = INT64_MAX;
 
     GMLReal() = default;
 
