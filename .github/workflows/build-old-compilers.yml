@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install dependencies
-        run: sudo apt-get install -y tcc libsdl1.2-dev
+        run: sudo apt-get update && sudo apt-get install -y tcc libsdl1.2-dev
 
       - name: Configure and build Butterscotch
         run: make CC='tcc' BACKEND=sdl1 NO_COLOR=1 VERBOSE=1 -j$(nproc)
