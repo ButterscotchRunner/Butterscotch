@@ -1402,6 +1402,10 @@ static Instance** takePersistentInstances(Runner* runner) {
             }
 #endif
 
+            // Clear the slot before freeing the instance so any nested destroy/cleanup code cannot
+            // accidentally dereference a stale pointer that remains in runner->instances during room transitions.
+            runner->instances[i] = nullptr;
+
             hmdel(runner->instancesById, inst->instanceId);
             Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Runner_removeInstanceFromObjectLists(runner, inst);
@@ -2493,6 +2497,33 @@ void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
 }
 
+static void Runner_clearStaleInstanceReferencesToInstance(Runner* runner, Instance* destroyedInst) {
+    if (runner == nullptr || destroyedInst == nullptr) return;
+
+    // A destroyed instance can still be referenced by another instance's per-instance state
+    // as an integer id (e.g. linked-list pointers, owner ids, chain heads, etc.). Rewrite any
+    // stale id equal to the dying instance back to -4.
+    int32_t destroyedInstanceId = destroyedInst->instanceId;
+    int32_t count = (int32_t) arrlen(runner->instances);
+    for (int32_t i = 0; i < count; i++) {
+        Instance* inst = runner->instances[i];
+        if (inst == nullptr || !inst->active || inst->destroyed || inst->objectIndex < 0) continue;
+
+        repeat(inst->selfVars.capacity, slotIndex) {
+            IntRValueEntry* entry = &inst->selfVars.entries[slotIndex];
+            if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) continue;
+
+            if (
+                (entry->value.type == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
+                (entry->value.type == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
+                (entry->value.type == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
+            ) {
+                entry->value = RValue_makeInt32(INSTANCE_NOONE);
+            }
+        }
+    }
+}
+
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool runDestroyEvent) {
     // We check this to avoid a infinite loop if "inst" is destroyed within a event destroy event
     if (inst->destroyed)
@@ -2504,6 +2535,10 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     // A destroyed instance must ALWAYS be not active
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
+
+    // Any selfVars that still hold the destroyed instance's id must be invalidated back to
+    // noone (-4) before the instance is fully reclaimed.
+    Runner_clearStaleInstanceReferencesToInstance(runner, inst);
 
 #ifdef ENABLE_VM_TRACING
     GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
