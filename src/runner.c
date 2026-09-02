@@ -2521,7 +2521,9 @@ static void Runner_clearStaleInstanceReferencesToInstance(Runner* runner, Instan
             uint8_t vtype = entry->value.type;
             if (
                 (vtype == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
+#ifndef NO_RVALUE_INT64
                 (vtype == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
+#endif
                 (vtype == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
             ) {
                 entry->value = RValue_makeInt32(INSTANCE_NOONE);
