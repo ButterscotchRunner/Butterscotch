@@ -48,7 +48,7 @@ jobs:
       - name: Install LLVM-MinGW
         run: |
           curl -L \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20260728/llvm-mingw-20260728-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20260826/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz \
             -o /tmp/llvm-mingw.tar.xz
 
           sudo mkdir -p /opt/llvm-mingw
@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /usr/${{ matrix.triplet }}/sdl2
-          key: sdl2-windows-${{ matrix.triplet }}-${{ github.sha }}-2.32.10-rev1
+          key: sdl2-windows-${{ matrix.triplet }}-${{ github.sha }}-2.32.10-rev2
 
       - name: Checkout SDL2
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
