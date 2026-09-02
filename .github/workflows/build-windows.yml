@@ -126,11 +126,13 @@ jobs:
       matrix:
         include:
           - arch: x86_64
+            target: x86_64-w64-windows-gnu
+            triplet: x86_64-w64-mingw32
             backend: sdl2
-            libs: SDL2_LIBS='-lmingw32 -lSDL2main -lSDL2 -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid'
           - arch: i486
+            target: i486-w64-windows-gnu
+            triplet: i486-w64-mingw32
             backend: sdl1
-            libs: SDL1_LIBS='-lmingw32 -lSDLmain -lSDL -lm -luser32 -lgdi32 -lwinmm -ldxguid'
     steps:
       - uses: actions/checkout@v7
 
@@ -140,8 +142,8 @@ jobs:
           path: |
               ~/.cache/ccache
               artifacts/windows/build/toolchain-${{ matrix.arch }}
-          key: win32-artifact-${{ github.sha }}
-          restore-keys: win32-artifact-
+          key: win32-artifact-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: win32-artifact-${{ matrix.arch }}-
 
       - name: Install MinGW and dependencies
         run: |
@@ -150,15 +152,23 @@ jobs:
           ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
 
       - name: Build
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }}/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }}/lib/pkgconfig
         run: |
-          PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH" make \
-              NO_COLOR=1 \
-              VERBOSE=1 \
-              CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
-              CFLAGS='-O3 -DNDEBUG -flto -fomit-frame-pointer' \
-              BACKEND=${{ matrix.backend }} \
-              EXTRALIBS='-latomic' \
-              ${{ matrix.libs }}
+          cmake -S . -B build -G Ninja \
+            -DBACKEND=${{ matrix.backend }} \
+            -DWERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_TARGET="${{ matrix.target }}" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ matrix.target }}" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_SYSROOT=${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }} \
+            -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/artifacts/windows/build/toolchain-${{ matrix.arch }} \
+            -DCMAKE_C_COMPILER="clang" \
+            -DCMAKE_CXX_COMPILER="clang++"
+          cmake --build build
           llvm-strip --strip-all build/butterscotch.exe
 
       - name: Upload artifact
