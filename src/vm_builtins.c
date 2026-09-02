@@ -16650,6 +16650,17 @@ static RValue builtin_object_get_depth(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(ctx->dataWin->objt.objects[id].depth);
 }
 
+static RValue builtin_object_get_mask(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeReal(0.0);
+    }
+
+    return RValue_makeReal(ctx->dataWin->objt.objects[id].textureMaskId);
+}
+
 static RValue builtin_object_get_name(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeString("");
 
@@ -16680,6 +16691,19 @@ static RValue builtin_object_set_depth(VMContext* ctx, RValue* args, int32_t arg
     if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
         ctx->dataWin->objt.objects[id].depth = depth;
     }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_mask(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t maskId = RValue_toInt32(args[1]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeUndefined();
+    }
+
+    ctx->dataWin->objt.objects[id].textureMaskId = maskId;
     return RValue_makeUndefined();
 }
 
@@ -18530,11 +18554,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "object_get_persistent", builtin_object_get_persistent);
     VM_registerBuiltin(ctx, "object_get_solid", builtin_object_get_solid);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_get_mask", builtin_object_get_mask);
     VM_registerBuiltin(ctx, "object_get_visible", builtin_object_get_visible);
     VM_registerBuiltin(ctx, "object_set_parent", builtin_object_set_parent);
     VM_registerBuiltin(ctx, "object_set_persistent", builtin_object_set_persistent);
     VM_registerBuiltin(ctx, "object_set_solid", builtin_object_set_solid);
     VM_registerBuiltin(ctx, "object_set_sprite", builtin_object_set_sprite);
+    VM_registerBuiltin(ctx, "object_set_mask", builtin_object_set_mask);
     VM_registerBuiltin(ctx, "object_set_visible", builtin_object_set_visible);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "object_get_depth", builtin_object_get_depth);
