@@ -2,7 +2,7 @@
 #define _BS_COMMON_H_
 
 #include <stdbool.h>
-#ifndef nullptr
+#ifndef __cplusplus
 #define nullptr NULL
 #endif
 
