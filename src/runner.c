@@ -2503,20 +2503,26 @@ static void Runner_clearStaleInstanceReferencesToInstance(Runner* runner, Instan
     // A destroyed instance can still be referenced by another instance's per-instance state
     // as an integer id (e.g. linked-list pointers, owner ids, chain heads, etc.). Rewrite any
     // stale id equal to the dying instance back to -4.
+
+    // This is probably not very optimal as it loops through every single instance and every single
+    // selfVar slot, but it doesn't happen too often so maybe it should be okay?
+    // Another option would be to keep a reverse lookup table of instance ids to instances that reference them,
+    // but that would be more memory and complexity overhead.
+
     int32_t destroyedInstanceId = destroyedInst->instanceId;
     int32_t count = (int32_t) arrlen(runner->instances);
     for (int32_t i = 0; i < count; i++) {
         Instance* inst = runner->instances[i];
         if (inst == nullptr || !inst->active || inst->destroyed || inst->objectIndex < 0) continue;
-
         repeat(inst->selfVars.capacity, slotIndex) {
             IntRValueEntry* entry = &inst->selfVars.entries[slotIndex];
             if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) continue;
 
+            uint8_t vtype = entry->value.type;
             if (
-                (entry->value.type == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
-                (entry->value.type == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
-                (entry->value.type == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
+                (vtype == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
+                (vtype == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
+                (vtype == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
             ) {
                 entry->value = RValue_makeInt32(INSTANCE_NOONE);
             }
