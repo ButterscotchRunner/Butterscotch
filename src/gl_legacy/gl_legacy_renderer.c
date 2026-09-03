@@ -532,7 +532,6 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     GLuint texId = gl->whiteTexture;
     bool hasTexcoord = false;
-    bool hasColor = false;
 
     for (int32_t e = 0; e < buffer->format->numElements; ++e) {
         if (buffer->format->elements[e].usage == VERTEX_USAGE_TEXCOORD) {
