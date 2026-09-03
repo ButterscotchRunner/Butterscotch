@@ -50,6 +50,8 @@ typedef float GMLReal;
 #error USE_FIXED_REALS requires compiling as C++
 #endif
 
+#include <type_traits>
+
 template <typename T>
 struct is_gml_integral : std::integral_constant<bool, std::is_integral<T>::value || std::is_enum<T>::value> {};
 
