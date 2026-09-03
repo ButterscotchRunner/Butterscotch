@@ -13,8 +13,8 @@
 
 #undef isnan
 #undef isinf
-#define isnan(x) (x != x)
-#define isinf(x) ((x) == (GMLReal)INFINITY || (x) == (GMLReal)-INFINITY)
+#define isnan(x) ((x) != (x))
+#define isinf(x) (((double)x) == INFINITY || ((double)x) == -INFINITY)
 
 #ifdef USE_FLOAT_REALS
 
