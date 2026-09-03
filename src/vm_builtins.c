@@ -18053,9 +18053,6 @@ void Particles_freeAll(Runner* runner) {
     runner->particleSystemPool = nullptr;
     arrfree(runner->particleTypePool);
     runner->particleTypePool = nullptr;
-    // Reached on game_restart as well as shutdown, so put the stream back to where it started:
-    // a restarted game should produce the same particles as the first run.
-    Random_setSeed(&runner->particleRngState, 0);
 }
 
 // ===[ Systems ]===
