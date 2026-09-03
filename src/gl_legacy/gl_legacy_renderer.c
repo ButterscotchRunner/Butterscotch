@@ -399,6 +399,203 @@ static void glEndFrameEnd(Renderer* renderer) {
 
 static void glRendererFlush(MAYBE_UNUSED Renderer* renderer) {}
 
+static inline uint8_t floatToUnormByte(float v) {
+    if (v <= 0.0f) return 0;
+    if (v >= 1.0f) return 255;
+    return (uint8_t) (v * 255.0f + 0.5f);
+}
+
+static bool glLegacyResolveTextureHandle(GLLegacyRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, int32_t* outW, int32_t* outH);
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} LegacyPrimitiveVertex;
+
+static LegacyPrimitiveVertex* g_legacyPrimitiveVertices = nullptr;
+static int32_t g_legacyPrimitiveVertexCount = 0;
+static int32_t g_legacyPrimitiveCapacity = 0;
+static int32_t g_legacyPrimitiveType = PRIMITIVE_TRIANGLES;
+static uint32_t g_legacyPrimitiveTexture = 0;
+static bool g_legacyPrimitiveHasTexture = false;
+
+static void legacyPrimitiveEnsureCapacity(int32_t needed) {
+    if (needed <= g_legacyPrimitiveCapacity) return;
+    int32_t newCapacity = g_legacyPrimitiveCapacity > 0 ? g_legacyPrimitiveCapacity : 16;
+    while (newCapacity < needed) newCapacity *= 2;
+    g_legacyPrimitiveVertices = (LegacyPrimitiveVertex *)safeRealloc(g_legacyPrimitiveVertices, (size_t) newCapacity * sizeof(LegacyPrimitiveVertex));
+    g_legacyPrimitiveCapacity = newCapacity;
+}
+
+static void glPrimitiveBegin(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType) {
+    g_legacyPrimitiveType = primitiveType;
+    g_legacyPrimitiveVertexCount = 0;
+    g_legacyPrimitiveTexture = 0;
+    g_legacyPrimitiveHasTexture = false;
+}
+
+static void glPrimitiveBeginTexture(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType, int32_t texture) {
+    glPrimitiveBegin(renderer, primitiveType);
+    g_legacyPrimitiveTexture = (uint32_t) texture;
+    g_legacyPrimitiveHasTexture = (texture > 0);
+}
+
+static void glPrimitiveEnd(Renderer* renderer) {
+    if (g_legacyPrimitiveVertexCount <= 0) return;
+
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLenum mode = GL_TRIANGLES;
+    switch (g_legacyPrimitiveType) {
+        case PRIMITIVE_POINTS: mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: mode = GL_TRIANGLE_FAN; break;
+        default: return;
+    }
+
+    GLuint texId = gl->whiteTexture;
+    if (g_legacyPrimitiveHasTexture) {
+        TexturePageItem* tpag = nullptr;
+        int32_t texW = 0, texH = 0;
+        if (glLegacyResolveTextureHandle(gl, g_legacyPrimitiveTexture, &tpag, &texW, &texH)) {
+            if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
+                texId = gl->glTextures[tpag->texturePageId];
+            } else if ((g_legacyPrimitiveTexture & GL_SURFACE_TEXTURE_FLAG) != 0) {
+                uint32_t sid = g_legacyPrimitiveTexture & ~GL_SURFACE_TEXTURE_FLAG;
+                if (sid < gl->surfaceCount) texId = gl->surfaceTexture[sid];
+            }
+        } else if (g_legacyPrimitiveTexture > 0) {
+            texId = (GLuint) g_legacyPrimitiveTexture;
+        }
+    }
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glBegin(mode);
+    for (int32_t i = 0; i < g_legacyPrimitiveVertexCount; ++i) {
+        LegacyPrimitiveVertex* v = &g_legacyPrimitiveVertices[i];
+        glColor4ub(v->r, v->g, v->b, v->a);
+        glTexCoord2f(v->u, v->v);
+        if (v->z == 0.0f) {
+            glVertex2f(v->x, v->y);
+        } else {
+            glVertex3f(v->x, v->y, v->z);
+        }
+    }
+    glEnd();
+    g_legacyPrimitiveVertexCount = 0;
+}
+
+static void glDrawVertex(MAYBE_UNUSED Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
+    legacyPrimitiveEnsureCapacity(g_legacyPrimitiveVertexCount + 1);
+    LegacyPrimitiveVertex* vert = &g_legacyPrimitiveVertices[g_legacyPrimitiveVertexCount++];
+    vert->x = x;
+    vert->y = y;
+    vert->z = z;
+    vert->u = u;
+    vert->v = v;
+    vert->r = BGR_R(color);
+    vert->g = BGR_G(color);
+    vert->b = BGR_B(color);
+    vert->a = floatToUnormByte(alpha);
+}
+
+static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t number) {
+    if (buffer == nullptr || buffer->format == nullptr || buffer->data == nullptr) return;
+
+    int32_t vertexCount = (int32_t) (buffer->size / buffer->format->stride);
+    if (vertexCount <= 0) return;
+    if (offset < 0) offset = 0;
+    if (offset > vertexCount) offset = vertexCount;
+    if (number < 0 || number > vertexCount - offset) number = vertexCount - offset;
+    if (number <= 0) return;
+
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    GLenum mode = GL_TRIANGLES;
+    switch (primitive) {
+        case PRIMITIVE_POINTS: mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: mode = GL_TRIANGLE_FAN; break;
+        default: return;
+    }
+
+    GLuint texId = gl->whiteTexture;
+    if (texture > 0) {
+        TexturePageItem* tpag = nullptr;
+        int32_t texW = 0, texH = 0;
+        if (glLegacyResolveTextureHandle(gl, (uint32_t) texture, &tpag, &texW, &texH)) {
+            if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
+                texId = gl->glTextures[tpag->texturePageId];
+            }
+        } else {
+            texId = (GLuint) texture;
+        }
+    }
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glBegin(mode);
+    for (int32_t i = offset; i < offset + number; ++i) {
+        uint8_t* base = buffer->data + (size_t) i * buffer->format->stride;
+        float x = 0.0f, y = 0.0f, z = 0.0f;
+        float u = 0.0f, v = 0.0f;
+        uint8_t r = 255, g = 255, b = 255, a = 255;
+        bool hasColor = false, hasTexcoord = false;
+
+        for (int32_t e = 0; e < buffer->format->numElements; ++e) {
+            VertexElement* element = &buffer->format->elements[e];
+            uint8_t* ptr = base + element->offset;
+
+            switch (element->usage) {
+                case VERTEX_USAGE_POSITION:
+                    if (element->type == VERTEX_TYPE_FLOAT2) {
+                        float* p = (float*) ptr;
+                        x = p[0]; y = p[1];
+                    } else if (element->type == VERTEX_TYPE_FLOAT3) {
+                        float* p = (float*) ptr;
+                        x = p[0]; y = p[1]; z = p[2];
+                    }
+                    break;
+                case VERTEX_USAGE_COLOR:
+                    if (element->type == VERTEX_TYPE_UBYTE4 || element->type == VERTEX_TYPE_COLOR) {
+                        uint8_t* p = ptr;
+                        b = p[0];
+                        g = p[1];
+                        r = p[2];
+                        a = p[3];
+                        hasColor = true;
+                    }
+                    break;
+                case VERTEX_USAGE_TEXCOORD:
+                    if (element->type == VERTEX_TYPE_FLOAT2) {
+                        float* p = (float*) ptr;
+                        u = p[0];
+                        v = p[1];
+                        hasTexcoord = true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (!hasColor) { r = 255; g = 255; b = 255; a = 255; }
+        if (!hasTexcoord) { u = 0.5f; v = 0.5f; }
+
+        glColor4ub(r, g, b, a);
+        glTexCoord2f(u, v);
+        if (z != 0.0f) glVertex3f(x, y, z);
+        else glVertex2f(x, y);
+    }
+    glEnd();
+}
+
 static void glClearScreen(MAYBE_UNUSED Renderer* renderer, uint32_t color, float alpha) {
     float r = (float) BGR_R(color) / 255.0f;
     float g = (float) BGR_G(color) / 255.0f;
@@ -1509,6 +1706,7 @@ static int32_t glGpuGetBlendMode(Renderer* renderer) {
 
 static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == mode) return;
 
     gl->currentBlendMode = mode;
     gl->currentSFactor = GLCommon_blendModeToSFactor(mode);
@@ -1521,6 +1719,11 @@ static void glGpuSetBlendMode(Renderer* renderer, int32_t mode) {
 
 static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->currentBlendMode == bm_complex &&
+        gl->currentSFactor == sfactor &&
+        gl->currentDFactor == dfactor &&
+        gl->currentSFactorAlpha == sfactor_alpha &&
+        gl->currentDFactorAlpha == dfactor_alpha) return;
 
     gl->currentBlendMode = bm_complex;
     gl->currentSFactor = sfactor;
@@ -1537,29 +1740,39 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    (void)renderer;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->blendEnable == enable) return;
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    gl->blendEnable = enable;
 }
 
 static bool glGpuGetBlendEnable(MAYBE_UNUSED Renderer* renderer) {
-
-    return glIsEnabled(GL_BLEND);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->blendEnable;
 }
 
 static void glGpuSetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer, bool enable) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestEnable == enable) return;
     enable ? glEnable(GL_ALPHA_TEST) : glDisable(GL_ALPHA_TEST);
+    gl->alphaTestEnable = enable;
 }
 
 static bool glGpuGetAlphaTestEnable(MAYBE_UNUSED Renderer* renderer) {
-    return glIsEnabled(GL_ALPHA_TEST);
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    return gl->alphaTestEnable;
 }
 
 static void glGpuSetAlphaTestRef(MAYBE_UNUSED Renderer* renderer, uint8_t ref) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->alphaTestRef == ref) return;
+    gl->alphaTestRef = ref;
     glAlphaFunc(GL_GREATER, ref/255.0f);
 }
 
 static void glGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+    if (gl->colorWriteR == red && gl->colorWriteG == green && gl->colorWriteB == blue && gl->colorWriteA == alpha) return;
     gl->colorWriteR = red;
     gl->colorWriteG = green;
     gl->colorWriteB = blue;
@@ -1700,9 +1913,14 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
 static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
+    // Capture the pre-surface view matrix for the implicit app-surface restore path.
+    if (surfaceId != renderer->runner->applicationSurfaceId || !implicitApplicationSurface) {
+        renderer->previousViewMatrix = renderer->gmlMatrices[MATRIX_VIEW];
+    }
+
     int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
+        viewCurrent = renderer->runner->viewCurrent;
     }
     RuntimeView* view = &renderer->runner->views[viewCurrent];
     gl->base.cameraCurrent = view->cameraId;
@@ -1714,46 +1932,44 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
+        gl->base.CPortX = 0;
+        gl->base.CPortY = 0;
+        gl->base.CPortW = gl->gameW;
+        gl->base.CPortH = gl->gameH;
+
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
-        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
+        glApplyProjection(renderer, &renderer->previousViewMatrix, &camera->projectionMatrix);
         return true;
     }
 
     if (surfaceId == view->surfaceId) {
-    //the surface belongs to the view we are rending, we use the view's camera.
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-    return true;
-    } else {
-    //camera will use full surface.
-    gl->base.cameraCurrent = SURFACE_CAMERA;
-    GMLCamera* camera =  &renderer->runner->surfaceCamera;
-
-    camera->allocated = true;
-    camera->viewX = 0.0;
-    camera->viewY = 0.0;
-    camera->viewWidth = gl->surfaceWidth[surfaceId];
-    camera->viewHeight = gl->surfaceHeight[surfaceId];
-    camera->borderX = 0;
-    camera->borderY = 0;
-    camera->speedX = 0;
-    camera->speedY = 0;
-    camera->objectId = -1;
-    camera->viewAngle = 0;
-    Runner_updateCameraViewSimple(camera);
-
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
-    return true;
+        glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glDisable(GL_SCISSOR_TEST);
+        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        return true;
     }
 
+    gl->base.cameraCurrent = SURFACE_CAMERA;
+    GMLCamera* surfaceCamera = &renderer->runner->surfaceCamera;
+
+    surfaceCamera->allocated = true;
+    surfaceCamera->viewX = 0.0;
+    surfaceCamera->viewY = 0.0;
+    surfaceCamera->viewWidth = gl->surfaceWidth[surfaceId];
+    surfaceCamera->viewHeight = gl->surfaceHeight[surfaceId];
+    surfaceCamera->borderX = 0;
+    surfaceCamera->borderY = 0;
+    surfaceCamera->speedX = 0;
+    surfaceCamera->speedY = 0;
+    surfaceCamera->objectId = -1;
+    surfaceCamera->viewAngle = 0;
+    Runner_updateCameraViewSimple(surfaceCamera);
 
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-
+    glApplyProjection(renderer, &surfaceCamera->viewMatrix, &surfaceCamera->projectionMatrix);
     return true;
 }
 
@@ -2006,6 +2222,11 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.drawLine = glDrawLine;
     glVtable.drawLineColor = glDrawLineColor;
     glVtable.drawTriangle = glDrawTriangle;
+    glVtable.primitiveBegin = glPrimitiveBegin;
+    glVtable.primitiveBeginTexture = glPrimitiveBeginTexture;
+    glVtable.primitiveEnd = glPrimitiveEnd;
+    glVtable.drawVertex = glDrawVertex;
+    glVtable.drawVertexBuffer = glDrawVertexBuffer;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
     glVtable.flush = glRendererFlush;
