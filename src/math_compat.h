@@ -13,7 +13,7 @@
 #if defined(NO_FMIN) || defined(USE_FIXED_REALS)
 
 #undef GMLReal_fmin
-static GMLReal GMLReal_fmin(GMLReal a, GMLReal b) {
+static inline GMLReal GMLReal_fmin(GMLReal a, GMLReal b) {
     if (a != a) return b;
     if (b != b) return a;
     return a < b ? a : b;
@@ -24,7 +24,7 @@ static GMLReal GMLReal_fmin(GMLReal a, GMLReal b) {
 #if defined(NO_FMAX) || defined(USE_FIXED_REALS)
 
 #undef GMLReal_fmax
-static GMLReal GMLReal_fmax(GMLReal a, GMLReal b) {
+static inline GMLReal GMLReal_fmax(GMLReal a, GMLReal b) {
     if (a != a) return b;
     if (b != b) return a;
     return a > b ? a : b;
@@ -35,7 +35,7 @@ static GMLReal GMLReal_fmax(GMLReal a, GMLReal b) {
 #ifdef USE_FIXED_REALS
 
 #undef GMLReal_fabs
-static GMLReal GMLReal_fabs(GMLReal x) {
+static inline GMLReal GMLReal_fabs(GMLReal x) {
     if (x < 0)
         return -x;
     return x;
@@ -47,7 +47,7 @@ static GMLReal GMLReal_fabs(GMLReal x) {
 #ifdef NO_ROUND
 
 #undef GMLReal_round
-static GMLReal GMLReal_round(GMLReal x) {
+static inline GMLReal GMLReal_round(GMLReal x) {
     if (x >= 9007199254740992.0 || x <= -9007199254740992.0) return x;
     if (x >= 0.0) return (GMLReal)((int64_t)(x + 0.5));
     else          return (GMLReal)((int64_t)(x - 0.5));
@@ -58,14 +58,14 @@ static GMLReal GMLReal_round(GMLReal x) {
 #ifdef NO_LOG2
 
 #undef GMLReal_log2
-static GMLReal GMLReal_log2(GMLReal x) { return log(x) * 1.4426950408889634; }
+static inline GMLReal GMLReal_log2(GMLReal x) { return log(x) * 1.4426950408889634; }
 
 #endif
 
 // TODO: make this compatible with fixed reals
 #ifdef NO_LROUND
 
-static long lround(double x) {
+static inline long lround(double x) {
     if (x >= 9007199254740992.0 || x <= -9007199254740992.0) return (long)x;
     if (x >= 0.0) return (long)((int64_t)(x + 0.5));
     else          return (long)((int64_t)(x - 0.5));
@@ -75,7 +75,7 @@ static long lround(double x) {
 
 #ifdef NO_SQRTF
 
-static float sqrtf(float x) {
+static inline float sqrtf(float x) {
     return sqrt(x);
 }
 
@@ -83,7 +83,7 @@ static float sqrtf(float x) {
 
 #ifdef NO_FABSF
 
-static float fabsf(float x) {
+static inline float fabsf(float x) {
     return fabs(x);
 }
 
@@ -91,7 +91,7 @@ static float fabsf(float x) {
 
 #ifdef NO_FMODF
 
-static float fmodf(float x, float y) {
+static inline float fmodf(float x, float y) {
     return fmod(x, y);
 }
 
@@ -99,25 +99,25 @@ static float fmodf(float x, float y) {
 
 #ifdef NO_SINF
 
-static float sinf(float x) { return sin(x); }
+static inline float sinf(float x) { return sin(x); }
 
 #endif
 
 #ifdef NO_COSF
 
-static float cosf(float x) { return cos(x); }
+static inline float cosf(float x) { return cos(x); }
 
 #endif
 
 #ifdef NO_FLOORF
 
-static float floorf(float x) { return floor(x); }
+static inline float floorf(float x) { return floor(x); }
 
 #endif
 
 #ifdef NO_ROUNDF
 
-static float roundf(float x) {
+static inline float roundf(float x) {
     if (x >= 2147483648.0f || x <= -2147483648.0f) return x;
     if (x >= 0.0f) return (float)((int32_t)(x + 0.5f));
     else           return (float)((int32_t)(x - 0.5f));
