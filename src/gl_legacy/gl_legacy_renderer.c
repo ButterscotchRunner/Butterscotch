@@ -431,15 +431,36 @@ static void glPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     gl->primitiveType = primitiveType;
     gl->primitiveVertexCount = 0;
-    gl->primitiveTextureId = 0;
+    gl->primitiveTextureId = gl->whiteTexture;
     gl->primitiveHasTexture = false;
 }
 
 static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     glPrimitiveBegin(renderer, primitiveType);
-    gl->primitiveTextureId = (uint32_t) texture;
-    gl->primitiveHasTexture = (texture > 0);
+
+    if (texture > 0) {
+        TexturePageItem* tpag = nullptr;
+        int32_t texW = 0, texH = 0;
+        if (glLegacyResolveTextureHandle(gl, (uint32_t) texture, &tpag, &texW, &texH)) {
+            if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
+                gl->primitiveTextureId = gl->glTextures[tpag->texturePageId];
+                gl->primitiveHasTexture = true;
+            } else if ((texture & GL_SURFACE_TEXTURE_FLAG) != 0) {
+                uint32_t sid = (uint32_t) texture & ~GL_SURFACE_TEXTURE_FLAG;
+                if (sid < gl->surfaceCount && gl->surfaceTexture[sid] != 0) {
+                    gl->primitiveTextureId = gl->surfaceTexture[sid];
+                    gl->primitiveHasTexture = true;
+                }
+            }
+        } else if (glIsTexture((GLuint) texture)) {
+            gl->primitiveTextureId = (GLuint) texture;
+            gl->primitiveHasTexture = true;
+        }
+    } else {
+        gl->primitiveTextureId = gl->whiteTexture;
+        gl->primitiveHasTexture = false;
+    }
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {
@@ -457,21 +478,7 @@ static void glPrimitiveEnd(Renderer* renderer) {
         default: return;
     }
 
-    GLuint texId = gl->whiteTexture;
-    if (gl->primitiveHasTexture) {
-        TexturePageItem* tpag = nullptr;
-        int32_t texW = 0, texH = 0;
-        if (glLegacyResolveTextureHandle(gl, gl->primitiveTextureId, &tpag, &texW, &texH)) {
-            if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
-                texId = gl->glTextures[tpag->texturePageId];
-            } else if ((gl->primitiveTextureId & GL_SURFACE_TEXTURE_FLAG) != 0) {
-                uint32_t sid = gl->primitiveTextureId & ~GL_SURFACE_TEXTURE_FLAG;
-                if (sid < gl->surfaceCount) texId = gl->surfaceTexture[sid];
-            }
-        } else if (gl->primitiveTextureId > 0) {
-            texId = (GLuint) gl->primitiveTextureId;
-        }
-    }
+    GLuint texId = gl->primitiveHasTexture ? gl->primitiveTextureId : gl->whiteTexture;
 
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, texId);
@@ -480,11 +487,7 @@ static void glPrimitiveEnd(Renderer* renderer) {
         LegacyPrimitiveVertex* v = &gl->primitiveVertices[i];
         glColor4ub(v->r, v->g, v->b, v->a);
         glTexCoord2f(v->u, v->v);
-        if (v->z == 0.0f) {
-            glVertex2f(v->x, v->y);
-        } else {
-            glVertex3f(v->x, v->y, v->z);
-        }
+        glVertex3f(v->x, v->y, v->z);
     }
     glEnd();
     gl->primitiveVertexCount = 0;
@@ -528,16 +531,35 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     }
 
     GLuint texId = gl->whiteTexture;
-    if (texture > 0) {
+    bool hasTexcoord = false;
+    bool hasColor = false;
+
+    for (int32_t e = 0; e < buffer->format->numElements; ++e) {
+        if (buffer->format->elements[e].usage == VERTEX_USAGE_TEXCOORD) {
+            hasTexcoord = true;
+            break;
+        }
+    }
+
+    if (texture != -1 && hasTexcoord) {
         TexturePageItem* tpag = nullptr;
         int32_t texW = 0, texH = 0;
         if (glLegacyResolveTextureHandle(gl, (uint32_t) texture, &tpag, &texW, &texH)) {
             if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
                 texId = gl->glTextures[tpag->texturePageId];
+            } else if ((texture & GL_SURFACE_TEXTURE_FLAG) != 0) {
+                uint32_t sid = (uint32_t) texture & ~GL_SURFACE_TEXTURE_FLAG;
+                if (sid < gl->surfaceCount && gl->surfaceTexture[sid] != 0) {
+                    texId = gl->surfaceTexture[sid];
+                }
             }
-        } else {
+        } else if (glIsTexture((GLuint) texture)) {
             texId = (GLuint) texture;
         }
+    }
+
+    if (!hasTexcoord) {
+        texId = gl->whiteTexture;
     }
 
     glEnable(GL_TEXTURE_2D);
@@ -546,9 +568,9 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     for (int32_t i = offset; i < offset + number; ++i) {
         uint8_t* base = buffer->data + (size_t) i * buffer->format->stride;
         float x = 0.0f, y = 0.0f, z = 0.0f;
-        float u = 0.0f, v = 0.0f;
+        float u = 0.5f, v = 0.5f;
         uint8_t r = 255, g = 255, b = 255, a = 255;
-        bool hasColor = false, hasTexcoord = false;
+        bool vertexHasColor = false, vertexHasTexcoord = false;
 
         for (int32_t e = 0; e < buffer->format->numElements; ++e) {
             VertexElement* element = &buffer->format->elements[e];
@@ -558,7 +580,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                 case VERTEX_USAGE_POSITION:
                     if (element->type == VERTEX_TYPE_FLOAT2) {
                         float* p = (float*) ptr;
-                        x = p[0]; y = p[1];
+                        x = p[0]; y = p[1]; z = 0.0f;
                     } else if (element->type == VERTEX_TYPE_FLOAT3) {
                         float* p = (float*) ptr;
                         x = p[0]; y = p[1]; z = p[2];
@@ -571,7 +593,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                         g = p[1];
                         r = p[2];
                         a = p[3];
-                        hasColor = true;
+                        vertexHasColor = true;
                     }
                     break;
                 case VERTEX_USAGE_TEXCOORD:
@@ -579,7 +601,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                         float* p = (float*) ptr;
                         u = p[0];
                         v = p[1];
-                        hasTexcoord = true;
+                        vertexHasTexcoord = true;
                     }
                     break;
                 default:
@@ -587,13 +609,13 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
             }
         }
 
-        if (!hasColor) { r = 255; g = 255; b = 255; a = 255; }
-        if (!hasTexcoord) { u = 0.5f; v = 0.5f; }
+        if (!vertexHasColor) { r = 255; g = 255; b = 255; a = 255; }
+        if (!vertexHasTexcoord) { u = 0.5f; v = 0.5f; }
+        if (!hasTexcoord) { texId = gl->whiteTexture; }
 
         glColor4ub(r, g, b, a);
         glTexCoord2f(u, v);
-        if (z != 0.0f) glVertex3f(x, y, z);
-        else glVertex2f(x, y);
+        glVertex3f(x, y, z);
     }
     glEnd();
 }
