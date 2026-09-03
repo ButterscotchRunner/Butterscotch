@@ -1775,15 +1775,14 @@ static void gsPrimitiveEnsureCapacity(int32_t needed) {
     g_gsPrimitiveCapacity = newCapacity;
 }
 
-static void gsPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
-    MAYBE_UNUSED(renderer);
+static void gsPrimitiveBegin(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType) {
     g_gsPrimitiveType = primitiveType;
     g_gsPrimitiveVertexCount = 0;
     g_gsPrimitiveTexture = 0;
     g_gsPrimitiveHasTexture = false;
 }
 
-static void gsPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
+static void gsPrimitiveBeginTexture(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType, int32_t texture) {
     gsPrimitiveBegin(renderer, primitiveType);
     g_gsPrimitiveTexture = (uint32_t) texture;
     g_gsPrimitiveHasTexture = (texture > 0);
@@ -1889,7 +1888,6 @@ static void gsDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t
     if (count < 0 || count > vertexCount - offset) count = vertexCount - offset;
     if (count <= 0) return;
 
-    GsRenderer* gs = (GsRenderer*) renderer;
     g_gsPrimitiveType = primitive;
     g_gsPrimitiveVertexCount = 0;
     g_gsPrimitiveTexture = (uint32_t) texture;

@@ -36,6 +36,9 @@ typedef struct {
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
 
+    bool blendEnable;
+    bool alphaTestEnable;
+    uint8_t alphaTestRef;
     bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
 
     // GML surfaces (each is an FBO with a backing color texture)
