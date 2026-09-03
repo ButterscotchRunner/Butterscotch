@@ -453,9 +453,11 @@ static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, i
                     gl->primitiveHasTexture = true;
                 }
             }
+#if !defined(PLATFORM_PS3)
         } else if (glIsTexture((GLuint) texture)) {
             gl->primitiveTextureId = (GLuint) texture;
             gl->primitiveHasTexture = true;
+#endif
         }
     } else {
         gl->primitiveTextureId = gl->whiteTexture;
@@ -552,8 +554,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
                     texId = gl->surfaceTexture[sid];
                 }
             }
+#if !defined(PLATFORM_PS3)
         } else if (glIsTexture((GLuint) texture)) {
             texId = (GLuint) texture;
+#endif
         }
     }
 
