@@ -325,6 +325,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "direction", BUILTIN_VAR_DIRECTION },
     { "false", BUILTIN_VAR_FALSE },
     { "fps", BUILTIN_VAR_FPS },
+    { "fps_real", BUILTIN_VAR_FPS_REAL },
     { "friction", BUILTIN_VAR_FRICTION },
     { "gp_axislh", BUILTIN_VAR_GP_AXIS_LH },
     { "gp_axislv", BUILTIN_VAR_GP_AXIS_LV },
@@ -1285,7 +1286,9 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeReal((GMLReal) INSTANCE_NOONE);
         }
         case BUILTIN_VAR_FPS:
-            return RValue_makeReal(ctx->dataWin->gen8.gms2FPS);
+            return RValue_makeReal(runner->fps);
+        case BUILTIN_VAR_FPS_REAL:
+            return RValue_makeReal(runner->fpsReal);
         case BUILTIN_VAR_DEBUG_MODE:
             return RValue_makeBool(false);
         case BUILTIN_VAR_DELTA_TIME:
@@ -1765,6 +1768,8 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         // argument[N] - array-style write to script arguments
         case BUILTIN_VAR_ARGUMENT:
             if (arrayIndex >= 0) {
+                VM_writeToScriptArgsArrayElement(ctx, arrayIndex, arrayIndex, val);
+            } else {
                 VM_writeToScriptArgs(ctx, arrayIndex, val);
             }
             return;
@@ -1787,7 +1792,11 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_ARGUMENT14:
         case BUILTIN_VAR_ARGUMENT15: {
             int argNumber = builtinVarId - BUILTIN_VAR_ARGUMENT0;
-            VM_writeToScriptArgs(ctx, argNumber, val);
+            if (arrayIndex >= 0) {
+                VM_writeToScriptArgsArrayElement(ctx, argNumber, arrayIndex, val);
+            } else {
+                VM_writeToScriptArgs(ctx, argNumber, val);
+            }
             return;
         }
 
@@ -1832,13 +1841,22 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
 // ===[ BUILTIN FUNCTION IMPLEMENTATIONS ]===
 
+static inline char* RValue_toDebugMessageString(RValue val, DataWin *dataWin) {
+    switch (val.type) {
+        case RVALUE_STRING:
+            return RValue_toString(val, dataWin);
+        default:
+            return RValue_toStringFancy(val, dataWin);
+    }
+}
+
 static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         logWarn("[show_debug_message] Expected at least 1 argument\n");
         return RValue_makeUndefined();
     }
-
-    char* val = RValue_toString(args[0], ctx->runner->dataWin);
+    
+    char* val = RValue_toDebugMessageString(args[0], ctx->runner->dataWin);
     logInfo("Game: %s\n", val);
     free(val);
 
@@ -4092,6 +4110,19 @@ static bool variableScopedExists(VMContext* ctx, int32_t id, const char* name, b
     return result;
 }
 
+static Instance* resolveInstanceValue(Runner* runner, RValue value) {
+    if (value.type == RVALUE_STRUCT && value.structInst != nullptr) {
+        return value.structInst;
+    }
+
+    int32_t id = RValue_toInt32(value);
+    if (id >= INSTANCE_ID_BASE) {
+        return hmget(runner->instancesById, id);
+    }
+
+    return nullptr;
+}
+
 static RValue builtin_variable_global_exists(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount || args[0].type != RVALUE_STRING) return RValue_makeBool(false);
     return RValue_makeBool(variableScopedExists(ctx, INSTANCE_GLOBAL, args[0].string, false));
@@ -4112,7 +4143,13 @@ static RValue builtin_variable_global_set(VMContext* ctx, RValue* args, int32_t 
 
 static RValue builtin_variable_instance_get(VMContext* ctx, RValue* args, int32_t argCount) {
     if (2 > argCount || args[1].type != RVALUE_STRING) return RValue_makeUndefined();
-    return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
+    
+    Instance* inst = resolveInstanceValue(ctx->runner, args[0]);
+    if (inst == nullptr)
+        // idk if this is sketch or not - but some variables have inst as null and so I just added the old function back - emiyl
+        return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, false, "variable_instance_get");
+
+    return variableInstanceGetOn(ctx, inst, args[1].string, "variable_instance_get");
 }
 
 static RValue builtin_variable_instance_set(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -5688,7 +5725,7 @@ static RValue builtin_ds_queue_read(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     if (s.error || 0 > last) { free(bytes); return RValue_makeBool(false); }
 
     // Replace queue contents.
-    {    
+    {
     repeat(arrlen(q->items), i) {
         RValue_free(&q->items[i]);
     }
@@ -5735,6 +5772,34 @@ static DsPriority* dsPriorityGet(Runner* runner, int32_t id) {
     return &runner->dsPriorityPool[id];
 }
 
+// Value equality used by ds_priority, mirroring the HTML5 runner's ds_priority.js:
+// - When both values are numbers (any GML numeric type; they are all plain JS numbers there),
+//   they match when |a - b| < GML_MATH_EPSILON.
+// - Otherwise values must be equal by content (strings) or identity (the rest).
+static bool dsPriorityValuesEqual(RValue a, RValue b) {
+    bool aNumeric = a.type == RVALUE_REAL || a.type == RVALUE_INT32 || a.type == RVALUE_INT64 || a.type == RVALUE_BOOL || a.type == RVALUE_ASSETREF;
+    bool bNumeric = b.type == RVALUE_REAL || b.type == RVALUE_INT32 || b.type == RVALUE_INT64 || b.type == RVALUE_BOOL || b.type == RVALUE_ASSETREF;
+    if (aNumeric && bNumeric) {
+        return GML_MATH_EPSILON > GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
+    }
+    switch (a.type) {
+        case RVALUE_STRING:
+            return b.type == RVALUE_STRING && a.string != nullptr && b.string != nullptr && strcmp(a.string, b.string) == 0;
+        case RVALUE_ARRAY:
+            return b.type == RVALUE_ARRAY && a.array == b.array;
+#if IS_WAD17_OR_HIGHER_ENABLED
+        case RVALUE_METHOD:
+            return b.type == RVALUE_METHOD && a.method == b.method;
+#endif
+        case RVALUE_STRUCT:
+            return b.type == RVALUE_STRUCT && a.structInst == b.structInst;
+        case RVALUE_UNDEFINED:
+            return b.type == RVALUE_UNDEFINED;
+        default:
+            return false;
+    }
+}
+
 static RValue builtin_ds_priority_create(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     return RValue_makeReal((GMLReal) dsPriorityCreate(ctx->runner));
 }
@@ -5772,7 +5837,7 @@ static RValue builtin_ds_priority_copy(VMContext* ctx, RValue* args, MAYBE_UNUSE
     int32_t srcId = RValue_toInt32(args[1]);
     DsPriority* dest = dsPriorityGet(runner, destId);
     DsPriority* src = dsPriorityGet(runner, srcId);
-    if (dest == nullptr || src == nullptr) return RValue_makeUndefined();
+    if (dest == nullptr || src == nullptr || dest == src) return RValue_makeUndefined();
     repeat(arrlen(dest->items), i) {
         RValue_free(&dest->items[i].item);
         dest->items[i].depth = 0;
@@ -5780,12 +5845,12 @@ static RValue builtin_ds_priority_copy(VMContext* ctx, RValue* args, MAYBE_UNUSE
     arrfree(dest->items);
     dest->items = nullptr;
     {
-    repeat(arrlen(src->items), i) {
-        DsPriorityItem item;
-        item.item = RValue_makeIndependent(src->items[i].item);
-        item.depth = src->items[i].depth;
-        arrput(dest->items, item);
-    }
+        repeat(arrlen(src->items), i) {
+            DsPriorityItem item;
+            item.item = RValue_makeIndependent(src->items[i].item);
+            item.depth = src->items[i].depth;
+            arrput(dest->items, item);
+        }
     }
     return RValue_makeUndefined();
 }
@@ -5806,14 +5871,12 @@ static RValue builtin_ds_priority_empty(MAYBE_UNUSED VMContext* ctx, RValue* arg
 
 static RValue builtin_ds_priority_add(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t id = RValue_toInt32(args[0]);
-    int32_t prio = RValue_toInt32(args[2]);
-
-    DsPriorityItem item;
-    item.depth = prio;
-    item.item = RValue_makeIndependent(args[1]);
-
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
+
+    DsPriorityItem item;
+    item.depth = RValue_toReal(args[2]);
+    item.item = RValue_makeIndependent(args[1]);
     arrput(pQueue->items, item);
     return RValue_makeUndefined();
 }
@@ -5821,15 +5884,16 @@ static RValue builtin_ds_priority_add(MAYBE_UNUSED VMContext* ctx, RValue* args,
 static RValue builtin_ds_priority_change_priority(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t id = RValue_toInt32(args[0]);
     RValue val = args[1];
-    int32_t prio = RValue_toInt32(args[2]);
+    GMLReal prio = RValue_toReal(args[2]);
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (&item->item == &val) {
+        if (dsPriorityValuesEqual(item->item, val)) {
+            DsPriorityItem moved = *item;
             arrdel(pQueue->items, i);
-            item->depth = prio;
-            arrput(pQueue->items, *item);
+            moved.depth = prio;
+            arrput(pQueue->items, moved);
             break;
         }
     }
@@ -5840,15 +5904,11 @@ static RValue builtin_ds_priority_find_priority(VMContext* ctx, RValue* args, MA
     int32_t id = RValue_toInt32(args[0]);
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
-    RValue value = RValue_makeIndependent(args[1]);
+    RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (item->item.type == RVALUE_REAL && value.type == RVALUE_REAL) {
-            if (GML_MATH_EPSILON > GMLReal_fabs(item->item.real - value.real)) {
-                return RValue_makeReal((GMLReal) item->depth);
-            }
-        } else if (memcmp(&item->item, &value, sizeof(RValue)) == 0) {
-            return RValue_makeReal((GMLReal) item->depth);
+        if (dsPriorityValuesEqual(item->item, value)) {
+            return RValue_makeReal(item->depth);
         }
     }
     return RValue_makeUndefined();
@@ -5858,15 +5918,10 @@ static RValue builtin_ds_priority_delete_value(VMContext* ctx, RValue* args, MAY
     int32_t id = RValue_toInt32(args[0]);
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
-    RValue value = RValue_makeIndependent(args[1]);
+    RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (item->item.type == RVALUE_REAL && value.type == RVALUE_REAL) {
-            if (GML_MATH_EPSILON > GMLReal_fabs(item->item.real - value.real)) {
-                arrdel(pQueue->items, i);
-                return RValue_makeUndefined();
-            }
-        } else if (memcmp(&item->item, &value, sizeof(RValue)) == 0) {
+        if (dsPriorityValuesEqual(item->item, value)) {
             arrdel(pQueue->items, i);
             return RValue_makeUndefined();
         }
@@ -5878,14 +5933,14 @@ static RValue builtin_ds_priority_delete_min(MAYBE_UNUSED VMContext* ctx, RValue
     int32_t id = (int32_t) RValue_toReal(args[0]);
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
-    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
-    GMLReal minDepth = (GMLReal) INT32_MAX;
-    DsPriorityItem* minNode = nullptr;
-    int32_t minIndex = -1;
-    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+    if (arrlen(pQueue->items) <= 0) return RValue_makeReal(0.0);
+    GMLReal minDepth = pQueue->items[0].depth;
+    DsPriorityItem* minNode = &pQueue->items[0];
+    int32_t minIndex = 0;
+    for (int32_t i = 1; i < arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (item->depth < minDepth) {
-            minDepth = (GMLReal) item->depth;
+        if (item->depth < minDepth) { // strictly less: oldest item wins ties, like the sorted list's head
+            minDepth = item->depth;
             minNode = item;
             minIndex = i;
         }
@@ -5900,12 +5955,12 @@ static RValue builtin_ds_priority_find_min(MAYBE_UNUSED VMContext* ctx, RValue* 
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
     if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
-    GMLReal minDepth = (GMLReal) INT32_MAX;
-    DsPriorityItem* minNode = nullptr;
-    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+    GMLReal minDepth = pQueue->items[0].depth;
+    DsPriorityItem* minNode = &pQueue->items[0];
+    for (int32_t i = 1; i < arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
         if (item->depth < minDepth) {
-            minDepth = (GMLReal) item->depth;
+            minDepth = item->depth;
             minNode = item;
         }
     }
@@ -5916,14 +5971,14 @@ static RValue builtin_ds_priority_delete_max(MAYBE_UNUSED VMContext* ctx, RValue
     int32_t id = (int32_t) RValue_toReal(args[0]);
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
-    if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
-    GMLReal maxDepth = (GMLReal) INT32_MIN;
-    DsPriorityItem* maxNode = nullptr;
-    int32_t maxIndex = -1;
-    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+    if (arrlen(pQueue->items) <= 0) return RValue_makeReal(0.0);
+    GMLReal maxDepth = pQueue->items[0].depth;
+    DsPriorityItem* maxNode = &pQueue->items[0];
+    int32_t maxIndex = 0;
+    for (int32_t i = 1; i < arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (item->depth > maxDepth) {
-            maxDepth = (GMLReal) item->depth;
+        if (item->depth >= maxDepth) { // greater-or-equal: newest item wins ties, like the sorted list's tail
+            maxDepth = item->depth;
             maxNode = item;
             maxIndex = i;
         }
@@ -5938,12 +5993,12 @@ static RValue builtin_ds_priority_find_max(MAYBE_UNUSED VMContext* ctx, RValue* 
     DsPriority* pQueue = dsPriorityGet(ctx->runner, id);
     if (pQueue == nullptr) return RValue_makeUndefined();
     if (arrlen(pQueue->items) <= 0) return RValue_makeUndefined();
-    GMLReal maxDepth = (GMLReal) INT32_MIN;
-    DsPriorityItem* maxNode = nullptr;
-    for (int32_t i = 0; i < arrlen(pQueue->items); i++) {
+    GMLReal maxDepth = pQueue->items[0].depth;
+    DsPriorityItem* maxNode = &pQueue->items[0];
+    for (int32_t i = 1; i < arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (item->depth > maxDepth) {
-            maxDepth = (GMLReal) item->depth;
+        if (item->depth >= maxDepth) { // greater-or-equal: newest item wins ties
+            maxDepth = item->depth;
             maxNode = item;
         }
     }
@@ -5966,7 +6021,7 @@ static RValue builtin_ds_priority_write(VMContext* ctx, RValue* args, MAYBE_UNUS
         RValue* valArr = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
 
         repeat(len, i) {
-            priArr[i] = RValue_makeReal((double) q->items[i].depth);
+            priArr[i] = RValue_makeReal(q->items[i].depth);
             valArr[i] = q->items[i].item;
         }
 
@@ -6028,7 +6083,7 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
         return RValue_makeBool(false);
     }
 
-    int32_t* tempPri = (int32_t*) safeMalloc((size_t) len * sizeof(int32_t));
+    GMLReal* tempPri = (GMLReal*) safeMalloc((size_t) len * sizeof(GMLReal));
     RValue* tempVal = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
 
     repeat(len, i) {
@@ -6040,7 +6095,7 @@ static RValue builtin_ds_priority_read(VMContext* ctx, RValue* args, MAYBE_UNUSE
             free(bytes);
             return RValue_makeBool(false);
         }
-        tempPri[i] = RValue_toInt32(p);
+        tempPri[i] = RValue_toReal(p);
         RValue_free(&p);
     }
 
@@ -8320,20 +8375,58 @@ static RValue builtin_instance_create_layer(VMContext* ctx, RValue* args, int32_
     return RValue_makeReal((GMLReal) inst->instanceId);
 }
 
+static void copyBasisStructVars(
+    VMContext* ctx,
+    Instance* target,
+    Instance* basisInst
+) {
+    if (basisInst->objectIndex != STRUCT_OBJECT_INDEX) {
+        logWarn("VM: copyBasisStructVars: basis instance is not a struct\n");
+        return;
+    }
+
+    for (uint32_t i = 0; i < basisInst->selfVars.capacity; i++) {
+        IntRValueEntry* entry = &basisInst->selfVars.entries[i];
+
+        if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) {
+            continue;
+        }
+
+        Instance_setSelfVar(target, entry->key, entry->value);
+    }
+}
+
 static RValue builtin_instance_create_depth(VMContext* ctx, RValue* args, int32_t argCount) {
-    if (3 > argCount) return RValue_makeReal(0.0);
+    if (4 > argCount) return RValue_makeReal(0.0);
     Runner* runner = ctx->runner;
     GMLReal x = RValue_toReal(args[0]);
     GMLReal y = RValue_toReal(args[1]);
     int32_t depth = RValue_toInt32(args[2]);
     int32_t objectIndex = RValue_toInt32(args[3]);
     if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
-        logWarn("VM: instance_create: objectIndex %d out of range\n", objectIndex);
-        return RValue_makeReal(0.0);
+        logWarn("VM: instance_create_depth: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeReal(INSTANCE_NOONE);
     }
     Instance* callerInst = ctx->currentInstance;
     Instance* inst = Runner_createInstanceWithDepth(runner, x, y, objectIndex, depth);
     if (inst == nullptr) return RValue_makeReal(INSTANCE_NOONE);
+
+    if (argCount >= 5) {
+        RValue varStruct = args[4];
+        if (varStruct.type != RVALUE_STRUCT) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+
+        Instance* basisInst = varStruct.structInst;
+        if (basisInst == nullptr) {
+            return RValue_makeReal(INSTANCE_NOONE);
+        }
+        copyBasisStructVars(ctx, inst, basisInst);
+    }
+
+    Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
+    inst->createEventFired = true;
+
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
         Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
     }
@@ -10113,10 +10206,10 @@ static RValue builtin_draw_rectangle(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     bool outline = RValue_toBool(args[4]);
-    if (runner->applyOffsetForPrimitives) {
+    if (runner->applyOffsetForPrimitives && outline) {
         x2 += 1.0f; y2 += 1.0f;
         if (x2 == floorf(x2)) x2 += 0.01f;
-        if (y2 == floorf(x2)) y2 += 0.01f;
+        if (y2 == floorf(y2)) y2 += 0.01f;
     }
     runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, x2, y2, runner->renderer->drawColor, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
@@ -10135,10 +10228,10 @@ static RValue builtin_draw_rectangle_color(VMContext* ctx, RValue* args, MAYBE_U
     uint32_t color3 = RValue_toColour(args[6]);
     uint32_t color4 = RValue_toColour(args[7]);
     bool outline = RValue_toBool(args[8]);
-    if (runner->applyOffsetForPrimitives) {
+    if (runner->applyOffsetForPrimitives && outline) {
         x2 += 1.0f; y2 += 1.0f;
         if (x2 == floorf(x2)) x2 += 0.01f;
-        if (y2 == floorf(x2)) y2 += 0.01f;
+        if (y2 == floorf(y2)) y2 += 0.01f;
     }
     runner->renderer->vtable->drawRectangleColor(runner->renderer, x1, y1, x2, y2, color1, color2, color3, color4, runner->renderer->drawAlpha, outline);
     return RValue_makeUndefined();
@@ -14208,6 +14301,72 @@ static RValue builtin_layer_background_get_visible(VMContext* ctx, RValue* args,
     return RValue_makeBool(true);
 }
 
+static RValue builtin_layer_tile_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (argCount < 8)
+        return RValue_makeReal(-1.0);
+    Runner* runner = ctx->runner;
+    int32_t layerId = resolveLayerIdArg(runner, args[0]);
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, layerId);
+    if (runtimeLayer == nullptr)
+        return RValue_makeReal(-1.0);
+
+    int32_t x = RValue_toInt32(args[1]);
+    int32_t y = RValue_toInt32(args[2]);
+    int32_t tileset = RValue_toInt32(args[3]);
+    int32_t left = RValue_toInt32(args[4]);
+    int32_t top = RValue_toInt32(args[5]);
+    int32_t width = RValue_toInt32(args[6]);
+    int32_t height = RValue_toInt32(args[7]);
+
+    RoomTile* tile = (RoomTile *)safeMalloc(sizeof(RoomTile));
+    *tile = (RoomTile){0};
+    tile->x = x;
+    tile->y = y;
+    tile->backgroundDefinition = tileset;
+    tile->sourceX = left;
+    tile->sourceY = top;
+    tile->width = (uint32_t)width;
+    tile->height = (uint32_t)height;
+    tile->tileDepth = runtimeLayer->depth;
+    tile->scaleX = 1.0f;
+    tile->scaleY = 1.0f;
+    tile->color = 0xFFFFFF;
+    tile->alpha = 1.0f;
+
+    RuntimeLayerElement el = {0};
+    el.id = Runner_getNextLayerId(runner);
+    el.type = RuntimeLayerElementType_Tile;
+    el.visible = true;
+    el.alpha = 1.0f;
+    el.blend = 0xFFFFFFu;
+    el.tileElement = tile;
+    el.tileElementOwned = true;
+    arrput(runtimeLayer->elements, el);
+    return RValue_makeReal((GMLReal) el.id);
+}
+
+static RValue builtin_layer_tile_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    RuntimeLayer* owningLayer = nullptr;
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, &owningLayer);
+    if (el == nullptr || owningLayer == nullptr || el->type != RuntimeLayerElementType_Tile)
+        return RValue_makeUndefined();
+    if (el->tileElement != nullptr && el->tileElementOwned) {
+        free(el->tileElement);
+        el->tileElement = nullptr;
+        el->tileElementOwned = false;
+    }
+    size_t count = arrlenu(owningLayer->elements);
+    repeat(count, i) {
+        if (&owningLayer->elements[i] == el) {
+            arrdel(owningLayer->elements, i);
+            break;
+        }
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_layer_tile_alpha(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, RValue_toInt32(args[0]), nullptr);
@@ -16684,6 +16843,17 @@ static RValue builtin_object_get_depth(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(ctx->dataWin->objt.objects[id].depth);
 }
 
+static RValue builtin_object_get_mask(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) return RValue_makeReal(0.0);
+
+    int32_t id = RValue_toInt32(args[0]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeReal(0.0);
+    }
+
+    return RValue_makeReal(ctx->dataWin->objt.objects[id].textureMaskId);
+}
+
 static RValue builtin_object_get_name(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) return RValue_makeString("");
 
@@ -16714,6 +16884,19 @@ static RValue builtin_object_set_depth(VMContext* ctx, RValue* args, int32_t arg
     if (0 <= id && (uint32_t) id < ctx->dataWin->objt.count) {
         ctx->dataWin->objt.objects[id].depth = depth;
     }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_object_set_mask(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (2 > argCount) return RValue_makeUndefined();
+
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t maskId = RValue_toInt32(args[1]);
+    if (0 > id || (uint32_t) id >= ctx->dataWin->objt.count) {
+        return RValue_makeUndefined();
+    }
+
+    ctx->dataWin->objt.objects[id].textureMaskId = maskId;
     return RValue_makeUndefined();
 }
 
@@ -20213,7 +20396,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tile_set_empty", builtin_tile_set_empty);
     VM_registerBuiltin(ctx, "tile_set_mirror", builtin_tile_set_mirror);
     VM_registerBuiltin(ctx, "tile_set_flip", builtin_tile_set_flip);
-    VM_registerBuiltin(ctx, "tile_set_rotate", builtin_tile_set_rotate);    
+    VM_registerBuiltin(ctx, "tile_set_rotate", builtin_tile_set_rotate);
     VM_registerBuiltin(ctx, "tilemap_set", builtin_tilemap_set);
     VM_registerBuiltin(ctx, "tilemap_set_at_pixel", builtin_tilemap_set_at_pixel);
 #endif
@@ -20246,6 +20429,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_background_get_yscale", builtin_layer_background_get_yscale);
     VM_registerBuiltin(ctx, "layer_background_get_visible", builtin_layer_background_get_visible);
     VM_registerBuiltin(ctx, "layer_background_index", builtin_layer_background_index);
+    VM_registerBuiltin(ctx, "layer_tile_create", builtin_layer_tile_create);
+    VM_registerBuiltin(ctx, "layer_tile_destroy", builtin_layer_tile_destroy);
     VM_registerBuiltin(ctx, "layer_tile_alpha", builtin_layer_tile_alpha);
     VM_registerBuiltin(ctx, "layer_tile_x", builtin_layer_tile_x);
     VM_registerBuiltin(ctx, "layer_tile_y", builtin_layer_tile_y);
@@ -20447,11 +20632,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "object_get_persistent", builtin_object_get_persistent);
     VM_registerBuiltin(ctx, "object_get_solid", builtin_object_get_solid);
     VM_registerBuiltin(ctx, "object_get_sprite", builtin_object_get_sprite);
+    VM_registerBuiltin(ctx, "object_get_mask", builtin_object_get_mask);
     VM_registerBuiltin(ctx, "object_get_visible", builtin_object_get_visible);
     VM_registerBuiltin(ctx, "object_set_parent", builtin_object_set_parent);
     VM_registerBuiltin(ctx, "object_set_persistent", builtin_object_set_persistent);
     VM_registerBuiltin(ctx, "object_set_solid", builtin_object_set_solid);
     VM_registerBuiltin(ctx, "object_set_sprite", builtin_object_set_sprite);
+    VM_registerBuiltin(ctx, "object_set_mask", builtin_object_set_mask);
     VM_registerBuiltin(ctx, "object_set_visible", builtin_object_set_visible);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "object_get_depth", builtin_object_get_depth);

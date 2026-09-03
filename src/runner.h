@@ -239,7 +239,8 @@ typedef struct {
     uint32_t blend; // GameMaker-HTML5's m_imageBlend
     RuntimeBackgroundElement* backgroundElement; // owned; set for every background element
     RuntimeSpriteElement* spriteElement; // owned; nullptr if type != Sprite
-    RoomTile* tileElement; // borrowed, points into RoomLayerAssetsData->legacyTiles; nullptr if type != Tile
+    RoomTile* tileElement; // borrowed (legacyTiles) or owned (layer_tile_create); nullptr if type != Tile
+    bool tileElementOwned; // true if tileElement was heap-allocated and must be freed
     RoomLayerTilesData* tilemapData; // borrowed, points into the parsed RoomLayer; nullptr if type != Tilemap
     int32_t instanceId; // only valid if type == Instance; the instance may have died since, so callers must check liveness
 } RuntimeLayerElement;
@@ -290,7 +291,7 @@ typedef struct {
 
 // ds_priority queue item
 typedef struct {
-    int32_t depth;
+    GMLReal depth;
     RValue item;
 } DsPriorityItem;
 
@@ -551,7 +552,14 @@ struct Runner {
     Instance** structInstances;
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
-    double deltaTime;
+    GMLReal deltaTime;
+    // Current frame rate (capped at room speed)
+    double fps;                   // last measured frames-per-second value returned to GML
+    uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
+    int fpsWindowStartFrame;   // runner->frameCount at the start of the measurement window
+    // Real-time measured frame rate for the "fps_real" builtin, measured as 1 / frame work time (uncapped).
+    double fpsReal;
+    uint64_t fpsRealFrameStartNanos; // nowNanos() at start of frame work for fps_real (set in Runner_step, consumed in Runner_drawGUI)
     char* windowTitle;
 
     // ===[ Builtin function state ]===

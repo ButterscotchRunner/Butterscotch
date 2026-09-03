@@ -97,6 +97,7 @@ typedef struct {
     uint32_t surfaceCount;
 
     // Blending mode + factors
+    bool blendEnable;
     int32_t currentBlendMode;
     int32_t currentSFactor;
     int32_t currentDFactor;

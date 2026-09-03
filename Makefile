@@ -127,7 +127,14 @@ LIBS += -framework Cocoa -framework GameController
 DEFINES += $(DEFINE)USE_APPKIT
 SYSCFLAGS += -Wno-deprecated-declarations
 endif
+ifeq ($(BACKEND),noop)
+DISABLE_LEGACY_GL := 1
+DISABLE_MODERN_GL := 1
+DEFINES += $(DEFINE)USE_NOOP
+endif
 
+# Noop renderer is exclusive to noop backend; GL renderers exclusive to non-noop backends
+ifneq ($(BACKEND),noop)
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
 ifndef DISABLE_LEGACY_GL
 ENABLE_GL := 1
@@ -155,6 +162,13 @@ DEFINES += $(DEFINE)ENABLE_MODERN_GL
 SRCS += $(wildcard src/gl/*.c)
 HEADERS += $(wildcard src/gl/*.h)
 endif
+endif
+
+ifeq ($(BACKEND),noop)
+ifndef DISABLE_NOOP_RENDERER
+DEFINES += $(DEFINE)ENABLE_NOOP_RENDERER
+endif
+endif
 
 ifdef DISABLE_WAD14
 ifdef DISABLE_WAD16
@@ -164,9 +178,15 @@ endif
 endif
 endif
 
+ifeq ($(BACKEND),noop)
+ifdef DISABLE_NOOP_RENDERER
+$(error must enable at least 1 renderer)
+endif
+else
 ifdef DISABLE_LEGACY_GL
 ifdef DISABLE_MODERN_GL
 $(error must enable at least 1 renderer)
+endif
 endif
 endif
 

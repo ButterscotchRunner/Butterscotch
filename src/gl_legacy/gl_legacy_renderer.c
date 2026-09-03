@@ -1940,7 +1940,7 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glApplyProjection(renderer, &renderer->previousViewMatrix, &camera->projectionMatrix);
+        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
         return true;
     }
 

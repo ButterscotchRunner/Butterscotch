@@ -951,7 +951,6 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     GLRenderer* gl = (GLRenderer*) renderer;
-
     gl->batchCount = 0;
     gl->currentTextureId = 0;
 
@@ -977,8 +976,6 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
     glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
-    glShaderSettingsRefresh(renderer);
     glActiveTexture(GL_TEXTURE1);
 
     if (hasVAO()) glBindVertexArray(gl->vao);
@@ -2571,8 +2568,14 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
+        gl->base.CPortX = 0;
+        gl->base.CPortY = 0;
+        gl->base.CPortW = gl->gameW;
+        gl->base.CPortH = gl->gameH;
+
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
+        glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
 
         glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
@@ -2975,13 +2978,16 @@ static void glGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t df
 }
 
 static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
-    flushBatch((GLRenderer*)renderer);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (gl->blendEnable == enable) return;
+    flushBatch(gl);
     enable ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+    gl->blendEnable = enable;
 }
 
 static bool glGpuGetBlendEnable(Renderer* renderer) {
-    (void)renderer;
-    return glIsEnabled(GL_BLEND);
+    GLRenderer* gl = (GLRenderer*) renderer;
+    return gl->blendEnable;
 }
 
 static void glGpuSetAlphaTestEnable(Renderer* renderer, bool enable) {
@@ -3062,8 +3068,8 @@ static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t locati
 
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
     if (handle == -1 || renderer->currentShader == -1) return;
+    flushBatch(gl);
 
     GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
@@ -3088,8 +3094,8 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
 
 static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
     if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
+    flushBatch(gl);
 
     GMLShader* shader = &gl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
@@ -3272,6 +3278,9 @@ static bool glShadersSupported(void) {
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    
+    if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
+    
     flushBatch(gl);
     renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
