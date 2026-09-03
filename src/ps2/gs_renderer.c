@@ -1939,8 +1939,8 @@ static void gsDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t
             u = 0.5f; v = 0.5f;
         }
 
-        gsPrimitiveEnsureCapacity(g_gsPrimitiveVertexCount + 1);
-        GsPrimitiveVertex* vert = &g_gsPrimitiveVertices[g_gsPrimitiveVertexCount++];
+        gsPrimitiveEnsureCapacity(gs, gs->primitiveVertexCount + 1);
+        GsPrimitiveVertex* vert = &gs->primitiveVertices[gs->primitiveVertexCount++];
         vert->x = x;
         vert->y = y;
         vert->z = z;
