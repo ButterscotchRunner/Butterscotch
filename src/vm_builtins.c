@@ -17796,6 +17796,8 @@ static void particleEmitterSpawn(Runner* runner, ParticleSystem* system, Particl
 }
 
 // ===[ Update ]===
+// 
+typedef struct { int32_t typeId; GMLReal x, y; int32_t count; } PendingSpawn;
 
 // Steps one system: particles age and run their death spawn, then everything alive moves, and only
 // then do the emitters stream. That order is GameMaker's, and it is why a streamed particle stands
@@ -17810,7 +17812,6 @@ static void particleUpdateSystem(Runner* runner, int32_t systemId) {
 
     // Collected rather than spawned in place, because arrput() can move the array out from under the
     // loop walking it. Only allocated when a type actually asks for step or death particles.
-    typedef struct { int32_t typeId; GMLReal x, y; int32_t count; } PendingSpawn;
     PendingSpawn* pending = nullptr;
 
     // Pass 1: age everything, note the spawns each particle's type asks for, bury what ran out.
