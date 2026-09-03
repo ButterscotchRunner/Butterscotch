@@ -14,7 +14,7 @@
 #undef isnan
 #undef isinf
 #define isnan(x) ((x) != (x))
-#define isinf(x) (((double)x) == INFINITY || ((double)x) == -INFINITY)
+#define isinf(x) (((double)x) == (double)INFINITY || ((double)x) == (double)-INFINITY)
 
 #ifdef USE_FLOAT_REALS
 
