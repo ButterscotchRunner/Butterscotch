@@ -3230,7 +3230,6 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
     bool fixRangeBug = RValue_toBool(args[1]); 
     Random_setSeed(&ctx->runner->random, (uint32_t) seed);
     Random_setSeed(&ctx->runner->particleRngState, (uint32_t) seed);
-    ctx->runner->initSeed = (uint32_t) seed;
     (void) fixRangeBug; // do we even need to do anything with this?
     return RValue_makeUndefined();
 }
