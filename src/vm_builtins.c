@@ -3229,7 +3229,6 @@ static RValue builtin_random_set_seed(MAYBE_UNUSED VMContext* ctx, RValue* args,
     GMLReal seed = RValue_toReal(args[0]);
     bool fixRangeBug = RValue_toBool(args[1]); 
     Random_setSeed(&ctx->runner->random, (uint32_t) seed);
-    Random_setSeed(&ctx->runner->particleRngState, (uint32_t) seed);
     (void) fixRangeBug; // do we even need to do anything with this?
     return RValue_makeUndefined();
 }
@@ -17558,7 +17557,7 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
 
 // Uniform in [0, 1).
 static GMLReal particleRandom01(Runner* runner) {
-    return (GMLReal) (Random_nextUInt32(&runner->particleRngState) >> 8) / (GMLReal) 0x01000000u;
+    return (GMLReal) (Random_nextUInt32(&runner->random) >> 8) / (GMLReal) 0x01000000u;
 }
 
 // Uniform between the two bounds, and NOT normalised to (min <= max): GameMaker gives up on a range
@@ -17733,11 +17732,11 @@ static bool particleSpawnAt(Runner* runner, ParticleSystem* system, int32_t type
     particle.lifeTotal = particleRandomIntRange(runner, type->lifeMin, type->lifeMax);
     if (1 > particle.lifeTotal) particle.lifeTotal = 1;
     particle.life = particle.lifeTotal;
-    particle.seed = (int32_t) (Random_nextUInt32(&runner->particleRngState) % 100000u);
+    particle.seed = (int32_t) (Random_nextUInt32(&runner->random) % 100000u);
 
     if (type->spriteRandom && type->sprite >= 0 && runner->dataWin != nullptr && (uint32_t) type->sprite < runner->dataWin->sprt.count) {
         uint32_t frames = runner->dataWin->sprt.sprites[type->sprite].textureCount;
-        if (frames > 0) particle.subimgBase = (int32_t) (Random_nextUInt32(&runner->particleRngState) % frames);
+        if (frames > 0) particle.subimgBase = (int32_t) (Random_nextUInt32(&runner->random) % frames);
     }
 
     arrput(system->particles, particle);
@@ -17772,7 +17771,7 @@ static void particleEmitterPoint(Runner* runner, ParticleEmitter* emitter, GMLRe
         GMLReal u = particleRandom01(runner);
         GMLReal v = particleRandom01(runner);
         if (u + v > 1.0) { u = 1.0 - u; v = 1.0 - v; }
-        uint32_t quadrant = Random_nextUInt32(&runner->particleRngState);
+        uint32_t quadrant = Random_nextUInt32(&runner->random);
         if (quadrant & 1u) u = -u;
         if (quadrant & 2u) v = -v;
         *outX = centerX + halfW * u;

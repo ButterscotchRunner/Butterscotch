@@ -782,11 +782,6 @@ struct Runner {
     uint64_t gameStartTime;
 
     Random random;
-
-    // Particles draw from their own random stream instead of rand(). Sharing rand() would make every
-    // particle spawn shift the sequence the game itself sees, so merely adding a particle effect to a
-    // scene would change unrelated randomised behaviour (and every seeded screenshot test with it).
-    Random particleRngState;
 };
 
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
