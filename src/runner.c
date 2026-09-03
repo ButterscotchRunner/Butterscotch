@@ -2371,7 +2371,6 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
-    runner->initSeed = randomSeed;
     runner->random = Random_create(randomSeed);
     runner->particleRngState = Random_create(randomSeed);
 

@@ -781,9 +781,6 @@ struct Runner {
     // Offset between game start time and nowNanos()
     uint64_t gameStartTime;
 
-    // Initial random seed for global and particle RNGs.
-    uint32_t initSeed;
-
     Random random;
 
     // Particles draw from their own random stream instead of rand(). Sharing rand() would make every
