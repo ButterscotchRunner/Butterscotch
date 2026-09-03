@@ -18219,7 +18219,7 @@ static RValue builtin_part_particles_create_colour(VMContext* ctx, RValue* args,
 
 static RValue builtin_part_particles_count(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
-    return RValue_makeReal((system == nullptr) ? 0.0 : (GMLReal) arrlen(system->particles));
+    return RValue_makeReal((system == nullptr) ? (GMLReal)0.0 : (GMLReal) arrlen(system->particles));
 }
 
 // Removes every live particle but leaves the emitters and settings in place.
