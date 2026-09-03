@@ -17677,6 +17677,22 @@ static ParticleEmitter* particleEmitterGet(Runner* runner, int32_t systemId, int
     return emitter->used ? emitter : nullptr;
 }
 
+// Same three stops as the alpha curve. Interpolated per byte, which is correct whatever order the
+// channels sit in: GML colours are passed straight through to the renderer without repacking.
+static uint32_t particleColourLerp(uint32_t from, uint32_t to, GMLReal t) {
+    uint32_t out = 0;
+    repeat(3, shift) {
+        int32_t bits = (int32_t) shift * 8;
+        GMLReal a = (GMLReal) ((from >> bits) & 0xFFu);
+        GMLReal b = (GMLReal) ((to >> bits) & 0xFFu);
+        int32_t v = (int32_t) (a + (b - a) * t + 0.5);
+        if (0 > v) v = 0;
+        if (v > 255) v = 255;
+        out |= ((uint32_t) v) << bits;
+    }
+    return out;
+}
+
 // GameMaker's defaults for a fresh type: one white unit-sized particle, no motion, 100 steps.
 static void particleTypeSetDefaults(ParticleType* type) {
     ZERO_STRUCT(*type);
@@ -17723,6 +17739,10 @@ static bool particleSpawnAt(Runner* runner, ParticleSystem* system, int32_t type
     particle.direction = particleRandomRange(type->dirMin, type->dirMax);
     particle.size = particleRandomRange(type->sizeMin, type->sizeMax);
     particle.angle = particleRandomRange(type->angMin, type->angMax);
+    if (!fixedColour && type->colourMix) {
+        colour = particleColourLerp(type->colourStart, type->colourMixEnd, particleRandom01());
+        fixedColour = true;
+    }
     particle.colour = colour;
     particle.colourFixed = fixedColour;
     particle.lifeTotal = particleRandomIntRange(type->lifeMin, type->lifeMax);
@@ -17938,22 +17958,6 @@ static GMLReal particleAlphaAt(const ParticleType* type, GMLReal ageFraction) {
     }
     GMLReal t = (ageFraction - 0.5) * 2.0;
     return type->alphaMiddle + (type->alphaEnd - type->alphaMiddle) * t;
-}
-
-// Same three stops as the alpha curve. Interpolated per byte, which is correct whatever order the
-// channels sit in: GML colours are passed straight through to the renderer without repacking.
-static uint32_t particleColourLerp(uint32_t from, uint32_t to, GMLReal t) {
-    uint32_t out = 0;
-    repeat(3, shift) {
-        int32_t bits = (int32_t) shift * 8;
-        GMLReal a = (GMLReal) ((from >> bits) & 0xFFu);
-        GMLReal b = (GMLReal) ((to >> bits) & 0xFFu);
-        int32_t v = (int32_t) (a + (b - a) * t + 0.5);
-        if (0 > v) v = 0;
-        if (v > 255) v = 255;
-        out |= ((uint32_t) v) << bits;
-    }
-    return out;
 }
 
 static uint32_t particleColourAt(const ParticleType* type, GMLReal ageFraction) {
@@ -18386,6 +18390,7 @@ static RValue builtin_part_type_colour1(VMContext* ctx, RValue* args, MAYBE_UNUS
     ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
     if (type == nullptr) return RValue_makeUndefined();
     type->colourStart = type->colourMiddle = type->colourEnd = (uint32_t) RValue_toInt32(args[1]);
+    type->colourMix = false;
     return RValue_makeUndefined();
 }
 
@@ -18398,6 +18403,7 @@ static RValue builtin_part_type_colour2(VMContext* ctx, RValue* args, MAYBE_UNUS
     type->colourEnd = end;
     // Halfway stop sits on the straight line between the two, so a two-stop curve stays linear.
     type->colourMiddle = particleColourLerp(start, end, 0.5);
+    type->colourMix = false;
     return RValue_makeUndefined();
 }
 
@@ -18407,6 +18413,18 @@ static RValue builtin_part_type_colour3(VMContext* ctx, RValue* args, MAYBE_UNUS
     type->colourStart = (uint32_t) RValue_toInt32(args[1]);
     type->colourMiddle = (uint32_t) RValue_toInt32(args[2]);
     type->colourEnd = (uint32_t) RValue_toInt32(args[3]);
+    type->colourMix = false;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_colour_mix(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    uint32_t start = (uint32_t) RValue_toInt32(args[1]);
+    uint32_t end = (uint32_t) RValue_toInt32(args[2]);
+    type->colourStart = type->colourMiddle = type->colourEnd = start;
+    type->colourMixEnd = end;
+    type->colourMix = true;
     return RValue_makeUndefined();
 }
 
@@ -19554,6 +19572,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "part_type_color2", builtin_part_type_colour2);
     VM_registerBuiltin(ctx, "part_type_colour3", builtin_part_type_colour3);
     VM_registerBuiltin(ctx, "part_type_color3", builtin_part_type_colour3);
+    VM_registerBuiltin(ctx, "part_type_colour_mix", builtin_part_type_colour_mix);
+    VM_registerBuiltin(ctx, "part_type_color_mix", builtin_part_type_colour_mix);
     VM_registerBuiltin(ctx, "part_type_blend", builtin_part_type_blend);
     VM_registerBuiltin(ctx, "part_type_step", builtin_part_type_step);
     VM_registerBuiltin(ctx, "part_type_death", builtin_part_type_death);

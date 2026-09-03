@@ -448,8 +448,13 @@ typedef struct {
 
     // Alpha and colour both run through three stops across the particle's life: start, middle at the
     // halfway mark, end. part_type_alpha1/alpha2 and part_type_colour1/colour2 collapse the stops.
+    // part_type_colour_mix instead picks a fixed random blend of two colours per particle at spawn;
+    // when colourMix is set, colourStart/colourMixEnd are the blend endpoints and the per-particle
+    // result is stored in Particle.colour (colourFixed), so the lifetime curve is bypassed.
     GMLReal alphaStart, alphaMiddle, alphaEnd;
     uint32_t colourStart, colourMiddle, colourEnd; // GML packed BGR, as the drawing functions take it
+    bool colourMix;
+    uint32_t colourMixEnd; // second blend endpoint for part_type_colour_mix
     bool additive;
 
     int32_t deathType;   // type id spawned when a particle of this type dies, -1 when none
