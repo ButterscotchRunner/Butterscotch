@@ -1104,6 +1104,7 @@ static void gsDestroy(Renderer* renderer) {
     free(gs->eeCache);
     free(gs->eeCacheEntries);
     free(gs->atlasDataSizes);
+    free(gs->primitiveVertices);
     arrfree(gs->snapshotChunks);
     arrfree(gs->tpagToSnapshot);
     arrfree(gs->surfaces);
@@ -1754,63 +1755,53 @@ static void gsDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     );
 }
 
-typedef struct {
-    float x, y, z;
-    float u, v;
-    uint8_t r, g, b, a;
-} GsPrimitiveVertex;
-
-static GsPrimitiveVertex* g_gsPrimitiveVertices = nullptr;
-static int32_t g_gsPrimitiveVertexCount = 0;
-static int32_t g_gsPrimitiveCapacity = 0;
-static int32_t g_gsPrimitiveType = PRIMITIVE_TRIANGLES;
-static uint32_t g_gsPrimitiveTexture = 0;
-static bool g_gsPrimitiveHasTexture = false;
-
-static void gsPrimitiveEnsureCapacity(int32_t needed) {
-    if (needed <= g_gsPrimitiveCapacity) return;
-    int32_t newCapacity = g_gsPrimitiveCapacity > 0 ? g_gsPrimitiveCapacity : 16;
+static void gsPrimitiveEnsureCapacity(Renderer* renderer, int32_t needed) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    if (needed <= gs->primitiveCapacity) return;
+    int32_t newCapacity = gs->primitiveCapacity > 0 ? gs->primitiveCapacity : 16;
     while (newCapacity < needed) newCapacity *= 2;
-    g_gsPrimitiveVertices = (GsPrimitiveVertex *)safeRealloc(g_gsPrimitiveVertices, (size_t) newCapacity * sizeof(GsPrimitiveVertex));
-    g_gsPrimitiveCapacity = newCapacity;
+    gs->primitiveVertices = (GsPrimitiveVertex *)safeRealloc(gs->primitiveVertices, (size_t) newCapacity * sizeof(GsPrimitiveVertex));
+    gs->primitiveCapacity = newCapacity;
 }
 
-static void gsPrimitiveBegin(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType) {
-    g_gsPrimitiveType = primitiveType;
-    g_gsPrimitiveVertexCount = 0;
-    g_gsPrimitiveTexture = 0;
-    g_gsPrimitiveHasTexture = false;
+static void gsPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    gs->primitiveType = primitiveType;
+    gs->primitiveVertexCount = 0;
+    gs->primitiveTextureId = 0;
+    gs->primitiveHasTexture = false;
 }
 
-static void gsPrimitiveBeginTexture(MAYBE_UNUSED Renderer* renderer, int32_t primitiveType, int32_t texture) {
+static void gsPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
+    GsRenderer* gs = (GsRenderer*) renderer;
     gsPrimitiveBegin(renderer, primitiveType);
-    g_gsPrimitiveTexture = (uint32_t) texture;
-    g_gsPrimitiveHasTexture = (texture > 0);
+    gs->primitiveTextureId = (uint32_t) texture;
+    gs->primitiveHasTexture = (texture > 0);
 }
 
 static void gsPrimitiveEnd(Renderer* renderer) {
-    if (g_gsPrimitiveVertexCount <= 0) return;
-
     GsRenderer* gs = (GsRenderer*) renderer;
-    if (g_gsPrimitiveType == PRIMITIVE_TRIANGLES || g_gsPrimitiveType == PRIMITIVE_TRIANGLE_STRIP || g_gsPrimitiveType == PRIMITIVE_TRIANGLE_FAN) {
-        for (int32_t i = 0; i + 2 < g_gsPrimitiveVertexCount; ++i) {
+    if (gs->primitiveVertexCount <= 0) return;
+
+    if (gs->primitiveType == PRIMITIVE_TRIANGLES || gs->primitiveType == PRIMITIVE_TRIANGLE_STRIP || gs->primitiveType == PRIMITIVE_TRIANGLE_FAN) {
+        for (int32_t i = 0; i + 2 < gs->primitiveVertexCount; ++i) {
             int32_t a = i;
-            int32_t b = (g_gsPrimitiveType == PRIMITIVE_TRIANGLES) ? i + 1 : i + 1;
-            int32_t c = (g_gsPrimitiveType == PRIMITIVE_TRIANGLES) ? i + 2 : i + 2;
-            if (g_gsPrimitiveType == PRIMITIVE_TRIANGLE_FAN && i > 0) {
+            int32_t b = (gs->primitiveType == PRIMITIVE_TRIANGLES) ? i + 1 : i + 1;
+            int32_t c = (gs->primitiveType == PRIMITIVE_TRIANGLES) ? i + 2 : i + 2;
+            if (gs->primitiveType == PRIMITIVE_TRIANGLE_FAN && i > 0) {
                 b = 0;
                 c = i + 1;
             }
-            if (g_gsPrimitiveType == PRIMITIVE_TRIANGLE_STRIP && i > 0) {
+            if (gs->primitiveType == PRIMITIVE_TRIANGLE_STRIP && i > 0) {
                 if ((i % 2) == 1) {
                     b = i + 1;
                     c = i;
                 }
             }
-            if (b >= g_gsPrimitiveVertexCount || c >= g_gsPrimitiveVertexCount) continue;
-            GsPrimitiveVertex* va = &g_gsPrimitiveVertices[a];
-            GsPrimitiveVertex* vb = &g_gsPrimitiveVertices[b];
-            GsPrimitiveVertex* vc = &g_gsPrimitiveVertices[c];
+            if (b >= gs->primitiveVertexCount || c >= gs->primitiveVertexCount) continue;
+            GsPrimitiveVertex* va = &gs->primitiveVertices[a];
+            GsPrimitiveVertex* vb = &gs->primitiveVertices[b];
+            GsPrimitiveVertex* vc = &gs->primitiveVertices[c];
             uint8_t aR = va->r, aG = va->g, aB = va->b, aA = va->a;
             uint8_t bR = vb->r, bG = vb->g, bB = vb->b, bA = vb->a;
             uint8_t cR = vc->r, cG = vc->g, cB = vc->b, cA = vc->a;
@@ -1829,11 +1820,11 @@ static void gsPrimitiveEnd(Renderer* renderer) {
                 vc->z,
                 c1, c2, c3);
         }
-    } else if (g_gsPrimitiveType == PRIMITIVE_LINES || g_gsPrimitiveType == PRIMITIVE_LINE_STRIP) {
-        int32_t step = (g_gsPrimitiveType == PRIMITIVE_LINES) ? 2 : 1;
-        for (int32_t i = 0; i + 1 < g_gsPrimitiveVertexCount; i += step) {
-            GsPrimitiveVertex* a = &g_gsPrimitiveVertices[i];
-            GsPrimitiveVertex* b = &g_gsPrimitiveVertices[i + 1];
+    } else if (gs->primitiveType == PRIMITIVE_LINES || gs->primitiveType == PRIMITIVE_LINE_STRIP) {
+        int32_t step = (gs->primitiveType == PRIMITIVE_LINES) ? 2 : 1;
+        for (int32_t i = 0; i + 1 < gs->primitiveVertexCount; i += step) {
+            GsPrimitiveVertex* a = &gs->primitiveVertices[i];
+            GsPrimitiveVertex* b = &gs->primitiveVertices[i + 1];
             uint8_t r = (a->r + b->r) / 2;
             uint8_t g = (a->g + b->g) / 2;
             uint8_t bch = (a->b + b->b) / 2;
@@ -1847,9 +1838,9 @@ static void gsPrimitiveEnd(Renderer* renderer) {
                 0,
                 color);
         }
-    } else if (g_gsPrimitiveType == PRIMITIVE_POINTS) {
-        for (int32_t i = 0; i < g_gsPrimitiveVertexCount; ++i) {
-            GsPrimitiveVertex* v = &g_gsPrimitiveVertices[i];
+    } else if (gs->primitiveType == PRIMITIVE_POINTS) {
+        for (int32_t i = 0; i < gs->primitiveVertexCount; ++i) {
+            GsPrimitiveVertex* v = &gs->primitiveVertices[i];
             u64 color = GS_SETREG_RGBAQ(v->r, v->g, v->b, v->a, 0x00);
             gsKit_prim_sprite(gs->gsGlobal,
                 (v->x - (float) gs->viewX) * gs->scaleX + gs->offsetX,
@@ -1861,12 +1852,13 @@ static void gsPrimitiveEnd(Renderer* renderer) {
         }
     }
 
-    g_gsPrimitiveVertexCount = 0;
+    gs->primitiveVertexCount = 0;
 }
 
-static void gsDrawVertex(MAYBE_UNUSED Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
-    gsPrimitiveEnsureCapacity(g_gsPrimitiveVertexCount + 1);
-    GsPrimitiveVertex* vert = &g_gsPrimitiveVertices[g_gsPrimitiveVertexCount++];
+static void gsDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
+    GsRenderer* gs = (GsRenderer*) renderer;
+    gsPrimitiveEnsureCapacity(renderer, gs->primitiveVertexCount + 1);
+    GsPrimitiveVertex* vert = &gs->primitiveVertices[gs->primitiveVertexCount++];
     vert->x = x;
     vert->y = y;
     vert->z = z;
@@ -1879,6 +1871,7 @@ static void gsDrawVertex(MAYBE_UNUSED Renderer* renderer, float x, float y, floa
 }
 
 static void gsDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t count) {
+    GsRenderer* gs = (GsRenderer*) renderer;
     if (buffer == nullptr || buffer->format == nullptr || buffer->data == nullptr) return;
 
     int32_t vertexCount = (int32_t) (buffer->size / buffer->format->stride);
@@ -1888,10 +1881,10 @@ static void gsDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t
     if (count < 0 || count > vertexCount - offset) count = vertexCount - offset;
     if (count <= 0) return;
 
-    g_gsPrimitiveType = primitive;
-    g_gsPrimitiveVertexCount = 0;
-    g_gsPrimitiveTexture = (uint32_t) texture;
-    g_gsPrimitiveHasTexture = (texture > 0);
+    gs->primitiveType = primitive;
+    gs->primitiveVertexCount = 0;
+    gs->primitiveTextureId = (uint32_t) texture;
+    gs->primitiveHasTexture = (texture > 0);
 
     for (int32_t i = 0; i < count; ++i) {
         int32_t idx = offset + i;
