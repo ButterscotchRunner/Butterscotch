@@ -81,14 +81,14 @@ const GLuint *hostFramebuffer;
 typedef struct {
     DWORD cb;
     DWORD PageFaultCount;
-    SIZE_T PeakWorkingSetSize;
-    SIZE_T WorkingSetSize;
-    SIZE_T QuotaPeakPagedPoolUsage;
-    SIZE_T QuotaPagedPoolUsage;
-    SIZE_T QuotaPeakNonPagedPoolUsage;
-    SIZE_T QuotaNonPagedPoolUsage;
-    SIZE_T PagefileUsage;
-    SIZE_T PeakPagefileUsage;
+    size_t PeakWorkingSetSize;
+    size_t WorkingSetSize;
+    size_t QuotaPeakPagedPoolUsage;
+    size_t QuotaPagedPoolUsage;
+    size_t QuotaPeakNonPagedPoolUsage;
+    size_t QuotaNonPagedPoolUsage;
+    size_t PagefileUsage;
+    size_t PeakPagefileUsage;
 } BS_PROCESS_MEMORY_COUNTERS;
 #endif
 
