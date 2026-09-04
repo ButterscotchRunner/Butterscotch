@@ -95,10 +95,6 @@ public:
     bool is_neg_infinite() const { return raw_ == -REALINT_MAX; }
     bool is_infinite()     const { return is_pos_infinite() || is_neg_infinite(); }
 
-    // NOTE: does not saturate/guard on inf or NaN like the float path does --
-    // an infinite or NaN GMLReal implicitly assigned to a plain int now
-    // silently hits that UB/implementation-defined narrowing with no cast
-    // in the source to flag it. Worth keeping an eye out for in review.
     template <typename T, typename std::enable_if<is_gml_integral<T>::value, int>::type = 0>
     operator T() const { return (T)(raw_ >> FRAC_BITS); }
 
@@ -110,12 +106,6 @@ public:
         return (T)raw_ / (T)(((realint_t)1) << FRAC_BITS);
     }
 
-    // Exact-match overloads vs. any arithmetic type, needed because the
-    // conversion operators above are implicit: without these, `x + 1.0`
-    // or `x < 0` is ambiguous between this class's operator (converting
-    // the literal to GMLReal) and a built-in operator (converting x to
-    // float/double/int/etc). Zero conversions needed here beats either,
-    // so no tie -- covers every numeric literal type, not just double.
     template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
     GMLReal operator+(T d) const { return *this + GMLReal(d); }
     template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
@@ -158,8 +148,6 @@ public:
 
     GMLReal operator-(const GMLReal& o) const { return *this + (-o); }
 
-    // NOTE: naive multiply/divide; large operands can overflow the
-    // 64-bit intermediate and saturate to infinity instead of wrapping.
     GMLReal operator*(const GMLReal& o) const {
         if (is_nan() || o.is_nan()) return nan();
         if (is_infinite() || o.is_infinite()) {
@@ -198,7 +186,6 @@ public:
     GMLReal  operator++(int) { GMLReal tmp = *this; *this += GMLReal(1); return tmp; }
     GMLReal  operator--(int) { GMLReal tmp = *this; *this -= GMLReal(1); return tmp; }
 
-    // NaN compares unequal to everything, including itself (IEEE-754).
     bool operator==(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ == o.raw_; }
     bool operator!=(const GMLReal& o) const { return  is_nan() ||  o.is_nan() || raw_ != o.raw_; }
     bool operator< (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ <  o.raw_; }
@@ -206,8 +193,6 @@ public:
     bool operator> (const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >  o.raw_; }
     bool operator>=(const GMLReal& o) const { return !is_nan() && !o.is_nan() && raw_ >= o.raw_; }
 
-    // Reversed-operand ops (`1.0 + r`, `0 == r`); needed since a member
-    // operator can't be invoked with GMLReal on the right.
     template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
     friend GMLReal operator+(T lhs, const GMLReal& rhs) { return GMLReal(lhs) + rhs; }
     template <typename T, typename std::enable_if<is_gml_numeric<T>::value, int>::type = 0>
