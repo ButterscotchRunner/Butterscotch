@@ -14192,7 +14192,7 @@ static RValue builtin_layer_tile_create(VMContext* ctx, RValue* args, MAYBE_UNUS
     int32_t height = RValue_toInt32(args[7]);
 
     RoomTile* tile = (RoomTile *)safeMalloc(sizeof(RoomTile));
-    *tile = (RoomTile){0};
+    ZERO_STRUCT(*tile);
     tile->x = x;
     tile->y = y;
     tile->backgroundDefinition = tileset;
