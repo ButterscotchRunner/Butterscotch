@@ -86,11 +86,15 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MSYS
-          install: make
+          install: >-
+            make
+            diffutils
 
       - name: Build
         shell: msys2 {0}
-        run: make CC='cl' BACKEND=noop AUDIO_BACKEND=noop NO_COLOR=1 VERBOSE=1
+        run: |
+          cl hellotest.c
+          make CC='cl' BACKEND=noop AUDIO_BACKEND=noop NO_COLOR=1 VERBOSE=1
 
   build-cxx:
     name: Build as C++
