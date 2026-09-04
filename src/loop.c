@@ -14,7 +14,6 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <io.h>
-#include <psapi.h>
 #endif
 #ifdef __APPLE__
 #include <mach/mach.h>
