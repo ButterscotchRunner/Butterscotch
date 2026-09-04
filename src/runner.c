@@ -672,6 +672,7 @@ static DrawKey drawableKey(const Drawable* d) {
         case DRAWABLE_TILE: k.order = d->tileIndex; break;
         case DRAWABLE_INSTANCE: k.order = (int32_t) d->instance->instanceId;  break;
         case DRAWABLE_LAYER: k.order = d->runtimeLayerId; break;
+        case DRAWABLE_PARTICLE_SYSTEM: k.order = d->particleSystemId; break;
     }
     return k;
 }
@@ -798,6 +799,9 @@ static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t c
         } else if (d->type == DRAWABLE_LAYER) {
             RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (rl != nullptr) d->depth = rl->depth;
+        } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
+            ParticleSystem* ps = Particles_systemGet(runner, d->particleSystemId);
+            if (ps != nullptr) d->depth = ps->depth;
         }
     }
 }
@@ -847,6 +851,19 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
+        }
+
+        // Particle systems are not room-scoped: a system created in one room keeps running until the
+        // game destroys it, so they are re-added on every rebuild rather than tracked per room.
+        repeat((int32_t) arrlen(runner->particleSystemPool), i) {
+            ParticleSystem* particleSystem = &runner->particleSystemPool[i];
+            if (!particleSystem->used || !particleSystem->automaticDraw) continue;
+            Drawable d;
+            ZERO_STRUCT(d);
+            d.type = DRAWABLE_PARTICLE_SYSTEM;
+            d.depth = particleSystem->depth;
+            d.particleSystemId = (int32_t) i;
+            arrput(runner->cachedDrawables, d);
         }
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
@@ -982,6 +999,12 @@ void Runner_draw(Runner* runner) {
             } else if (runner->renderer != nullptr) {
                 Renderer_drawSelf(runner->renderer, inst);
             }
+        } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
+            // Filtered at draw time, like instance visibility: part_system_automatic_draw can be
+            // toggled from a Draw event that already ran this frame.
+            ParticleSystem* particleSystem = Particles_systemGet(runner, d->particleSystemId);
+            if (particleSystem == nullptr || !particleSystem->automaticDraw) continue;
+            Particles_drawSystem(runner, d->particleSystemId);
         } else if (d->type == DRAWABLE_LAYER) {
             // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
             RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
@@ -1896,6 +1919,8 @@ static void cleanupState(Runner* runner) {
         free(runner->savedRoomStates);
     }
     runner->savedRoomStates = nullptr;
+
+    Particles_freeAll(runner);
 
     // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
     {
@@ -4158,6 +4183,10 @@ void Runner_step(Runner* runner) {
 
     // Execute End Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_END);
+
+    // Step particle systems left on automatic update. After End Step, so a system whose emitters were
+    // just reconfigured streams with this frame's settings, and before the draw pass that shows them.
+    Particles_updateAutomatic(runner);
 
     // Update view following
     updateViews(runner);

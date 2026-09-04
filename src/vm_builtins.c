@@ -17673,7 +17673,989 @@ static RValue builtin_sprite_get_info(VMContext* ctx, RValue* args, int32_t argC
     return RValue_makeStructAndIncRef(ret);
 }
 
-// Vertex Formats
+// ===[ PARTICLE FUNCTIONS ]===
+// GameMaker's particle system. The resources and the two pools they live in are declared in runner.h,
+// next to the ds_* ones; everything that drives them is here, with the part_* builtins at the bottom.
+//
+// Everything that can be asked of a dead id returns undefined rather than faulting, matching
+// GameMaker, where calling a part_* setter on a destroyed id is a silent no-op.
+
+#define PARTICLE_DEG2RAD (M_PI / 180.0)
+
+// Particles draw from their own random stream instead of rand(). Sharing rand() would make every
+// particle spawn shift the sequence the game itself sees, so merely adding a particle effect to a
+// scene would change unrelated randomised behaviour (and every seeded screenshot test with it).
+// The trade-off is that --seed and randomize() do not reach particles.
+#define PARTICLE_RNG_SEED 0x9E3779B9u
+static uint32_t g_particleRngState = PARTICLE_RNG_SEED;
+
+static uint32_t particleRandomBits(void) {
+    uint32_t x = g_particleRngState;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    g_particleRngState = x;
+    return x;
+}
+
+// Uniform in [0, 1).
+static GMLReal particleRandom01(void) {
+    return (GMLReal) (particleRandomBits() >> 8) / (GMLReal) 0x01000000u;
+}
+
+// Uniform between the two bounds, and NOT normalised to (min <= max): GameMaker gives up on a range
+// that is not positive rather than swapping the ends, so part_type_direction(-45, -90) sprays along
+// a constant -45 instead of fanning down to -90. That is what MyRandom() does in the HTML5 runtime,
+// and the particle editor's preview agrees when gravity, direction increment and wiggle are zeroed.
+//
+// Two effects in DELTARUNE Chapter 5 lean on it -- obj_festival_particles at (-45, -90) and
+// obj_part_leaves at (-40, -90). Both are steady diagonal drifts, confetti and wind-blown leaves,
+// and neither applies gravity, so sweeping the range would spread them into a visible fan.
+static GMLReal particleRandomRange(GMLReal min, GMLReal max) {
+    GMLReal range = max - min;
+    if (0.0 >= range) return min;
+    return min + particleRandom01() * range;
+}
+
+// Uniform integer in [min, max] with both ends included, which is how GameMaker reads part_type_life.
+// Truncating a real drawn from [min, max) would never return max. A reversed pair collapses to min,
+// the same way particleRandomRange() treats one.
+static int32_t particleRandomIntRange(int32_t min, int32_t max) {
+    if (min >= max) return min;
+    GMLReal span = (GMLReal) max - (GMLReal) min + 1.0;
+    return min + (int32_t) (particleRandom01() * span);
+}
+
+// Triangle wave in [-1, 1] driven by the particle's age. Each wiggling property runs on its own
+// period and its own multiple of the particle's seed, so the four oscillations never line up and a
+// spray of particles does not pulse in unison. The periods below are GameMaker's.
+static GMLReal particleWiggle(int32_t age, int32_t seed, int32_t seedMultiplier, int32_t period) {
+    GMLReal t = (GMLReal) (4 * ((age + seedMultiplier * seed) % period)) / (GMLReal) period; // 0..4
+    if (t > 2.0) t = 4.0 - t;                                                                // fold to 0..2
+    return t - 1.0;
+}
+
+static GMLReal particleWiggleDirection(int32_t age, int32_t seed) { return particleWiggle(age, seed, 3, 24); }
+static GMLReal particleWiggleSpeed(int32_t age, int32_t seed)     { return particleWiggle(age, seed, 4, 20); }
+static GMLReal particleWiggleAngle(int32_t age, int32_t seed)     { return particleWiggle(age, seed, 2, 16); }
+static GMLReal particleWiggleSize(int32_t age, int32_t seed)      { return particleWiggle(age, seed, 1, 16); }
+
+// "number" follows the GML convention shared by part_emitter_stream and part_type_death: a positive
+// value is a literal count, a negative value is a 1-in-|number| chance of spawning a single particle.
+// Emitters take a real count, and GameMaker spends the fraction as a chance of one extra particle,
+// so part_emitter_stream(..., 0.5) emits on roughly every other step.
+static int32_t particleResolveCount(GMLReal number) {
+    if (0.0 > number) return (particleRandom01() * -number < 1.0) ? 1 : 0;
+
+    int32_t whole = (int32_t) number;
+    GMLReal fraction = number - (GMLReal) whole;
+    if (fraction > 0.0 && particleRandom01() <= fraction) whole++;
+    return whole;
+}
+
+// ===[ Pools ]===
+
+// Not static: the runner resolves systems by id when it builds the depth-sorted draw list.
+ParticleSystem* Particles_systemGet(Runner* runner, int32_t systemId) {
+    if (0 > systemId || systemId >= (int32_t) arrlen(runner->particleSystemPool)) return nullptr;
+    ParticleSystem* system = &runner->particleSystemPool[systemId];
+    return system->used ? system : nullptr;
+}
+
+static ParticleType* particleTypeGet(Runner* runner, int32_t typeId) {
+    if (0 > typeId || typeId >= (int32_t) arrlen(runner->particleTypePool)) return nullptr;
+    ParticleType* type = &runner->particleTypePool[typeId];
+    return type->used ? type : nullptr;
+}
+
+// Same, but also answers for a type that part_type_destroy already removed and whose particles are
+// still alive. Stepping and drawing go through this one: GameMaker copies a type's settings into
+// the particle at birth, so destroying the type leaves the particles looking and moving exactly as
+// before, and they simply age out. Resolving a destroyed type instead of dropping its particles is
+// what makes that true here.
+static ParticleType* particleTypeGetLive(Runner* runner, int32_t typeId) {
+    if (0 > typeId || typeId >= (int32_t) arrlen(runner->particleTypePool)) return nullptr;
+    ParticleType* type = &runner->particleTypePool[typeId];
+    return (type->used || type->refCount > 0) ? type : nullptr;
+}
+
+// Drops one particle's claim on its type, freeing the slot when a destroyed type loses its last.
+static void particleTypeRelease(Runner* runner, int32_t typeId) {
+    if (0 > typeId || typeId >= (int32_t) arrlen(runner->particleTypePool)) return;
+    ParticleType* type = &runner->particleTypePool[typeId];
+    if (0 >= type->refCount) return;
+    type->refCount--;
+    if (!type->used && 0 >= type->refCount) ZERO_STRUCT(*type);
+}
+
+// Removes every particle of a system, releasing the types they held.
+static void particleClearParticles(Runner* runner, ParticleSystem* system) {
+    repeat((int32_t) arrlen(system->particles), i) {
+        particleTypeRelease(runner, system->particles[i].typeId);
+    }
+    arrsetlen(system->particles, 0);
+}
+
+static ParticleEmitter* particleEmitterGet(Runner* runner, int32_t systemId, int32_t emitterId) {
+    ParticleSystem* system = Particles_systemGet(runner, systemId);
+    if (system == nullptr) return nullptr;
+    if (0 > emitterId || emitterId >= (int32_t) arrlen(system->emitters)) return nullptr;
+    ParticleEmitter* emitter = &system->emitters[emitterId];
+    return emitter->used ? emitter : nullptr;
+}
+
+// Same three stops as the alpha curve. Interpolated per byte, which is correct whatever order the
+// channels sit in: GML colours are passed straight through to the renderer without repacking.
+static uint32_t particleColourLerp(uint32_t from, uint32_t to, GMLReal t) {
+    uint32_t out = 0;
+    repeat(3, shift) {
+        int32_t bits = (int32_t) shift * 8;
+        GMLReal a = (GMLReal) ((from >> bits) & 0xFFu);
+        GMLReal b = (GMLReal) ((to >> bits) & 0xFFu);
+        int32_t v = (int32_t) (a + (b - a) * t + 0.5);
+        if (0 > v) v = 0;
+        if (v > 255) v = 255;
+        out |= ((uint32_t) v) << bits;
+    }
+    return out;
+}
+
+// GameMaker's defaults for a fresh type: one white unit-sized particle, no motion, 100 steps.
+static void particleTypeSetDefaults(ParticleType* type) {
+    ZERO_STRUCT(*type);
+    type->used = true;
+    type->sprite = -1;
+    type->sizeMin = 1.0;
+    type->sizeMax = 1.0;
+    type->scaleX = 1.0;
+    type->scaleY = 1.0;
+    type->lifeMin = 100;
+    type->lifeMax = 100;
+    type->alphaStart = 1.0;
+    type->alphaMiddle = 1.0;
+    type->alphaEnd = 1.0;
+    type->colourStart = 0xFFFFFFu;
+    type->colourMiddle = 0xFFFFFFu;
+    type->colourEnd = 0xFFFFFFu;
+    type->deathType = -1;
+    type->stepType = -1;
+}
+
+// ===[ Spawning ]===
+
+// Returns false once the system is full, so the callers' loops can stop instead of spinning through a
+// spawn count that came straight from GML and may be enormous.
+static bool particleSpawnAt(Runner* runner, ParticleSystem* system, int32_t typeId, GMLReal x, GMLReal y, uint32_t colour, bool fixedColour) {
+    ParticleType* type = particleTypeGet(runner, typeId);
+    if (type == nullptr) return false;
+
+    if ((int32_t) arrlen(system->particles) >= PARTICLE_SYSTEM_MAX_PARTICLES) {
+        if (!system->warnedFull) {
+            system->warnedFull = true;
+            logWarn("Particles: system hit the %d particle cap, further spawns are dropped\n", PARTICLE_SYSTEM_MAX_PARTICLES);
+        }
+        return false;
+    }
+
+    Particle particle;
+    ZERO_STRUCT(particle);
+    particle.typeId = typeId;
+    particle.x = x;
+    particle.y = y;
+    particle.speed = particleRandomRange(type->speedMin, type->speedMax);
+    particle.direction = particleRandomRange(type->dirMin, type->dirMax);
+    particle.size = particleRandomRange(type->sizeMin, type->sizeMax);
+    particle.angle = particleRandomRange(type->angMin, type->angMax);
+    if (!fixedColour && type->colourMix) {
+        colour = particleColourLerp(type->colourStart, type->colourMixEnd, particleRandom01());
+        fixedColour = true;
+    }
+    particle.colour = colour;
+    particle.colourFixed = fixedColour;
+    particle.lifeTotal = particleRandomIntRange(type->lifeMin, type->lifeMax);
+    if (1 > particle.lifeTotal) particle.lifeTotal = 1;
+    particle.life = particle.lifeTotal;
+    particle.seed = (int32_t) (particleRandomBits() % 100000u);
+
+    if (type->spriteRandom && type->sprite >= 0 && runner->dataWin != nullptr && (uint32_t) type->sprite < runner->dataWin->sprt.count) {
+        uint32_t frames = runner->dataWin->sprt.sprites[type->sprite].textureCount;
+        if (frames > 0) particle.subimgBase = (int32_t) (particleRandomBits() % frames);
+    }
+
+    arrput(system->particles, particle);
+    type->refCount++;
+    return true;
+}
+
+// Picks a point inside the emitter's region. Only the linear distribution is modelled; the gaussian
+// ones fall back to it (no game we test against uses them, and guessing at the curve would be worse
+// than an honest uniform spread).
+static void particleEmitterPoint(ParticleEmitter* emitter, GMLReal* outX, GMLReal* outY) {
+    GMLReal centerX = (emitter->xmin + emitter->xmax) * 0.5;
+    GMLReal centerY = (emitter->ymin + emitter->ymax) * 0.5;
+    GMLReal halfW = (emitter->xmax - emitter->xmin) * 0.5;
+    GMLReal halfH = (emitter->ymax - emitter->ymin) * 0.5;
+
+    // Every shape is sampled directly rather than by rejection. Beyond being cheaper and branch-free,
+    // it cannot emit outside the region: a bounded rejection loop has to accept whatever it holds when
+    // the attempts run out, which for a diamond (half the bounding box) leaks a particle into a corner
+    // often enough to see.
+    if (emitter->shape == PS_SHAPE_ELLIPSE) {
+        // sqrt on the radius keeps the spread uniform by area instead of clustering at the centre.
+        GMLReal radius = GMLReal_sqrt(particleRandom01());
+        GMLReal angle = particleRandom01() * 2.0 * M_PI;
+        *outX = centerX + halfW * radius * GMLReal_cos(angle);
+        *outY = centerY + halfH * radius * GMLReal_sin(angle);
+        return;
+    }
+
+    if (emitter->shape == PS_SHAPE_DIAMOND) {
+        // Fold the unit square onto the triangle u + v <= 1, then mirror into a random quadrant.
+        GMLReal u = particleRandom01();
+        GMLReal v = particleRandom01();
+        if (u + v > 1.0) { u = 1.0 - u; v = 1.0 - v; }
+        uint32_t quadrant = particleRandomBits();
+        if (quadrant & 1u) u = -u;
+        if (quadrant & 2u) v = -v;
+        *outX = centerX + halfW * u;
+        *outY = centerY + halfH * v;
+        return;
+    }
+
+    if (emitter->shape == PS_SHAPE_LINE) {
+        // A line from (xmin, ymin) to (xmax, ymax), not the rectangle they bound.
+        GMLReal t = particleRandom01();
+        *outX = emitter->xmin + (emitter->xmax - emitter->xmin) * t;
+        *outY = emitter->ymin + (emitter->ymax - emitter->ymin) * t;
+        return;
+    }
+
+    *outX = particleRandomRange(emitter->xmin, emitter->xmax);
+    *outY = particleRandomRange(emitter->ymin, emitter->ymax);
+}
+
+static void particleEmitterSpawn(Runner* runner, ParticleSystem* system, ParticleEmitter* emitter, int32_t typeId, int32_t count) {
+    repeat(count, i) {
+        GMLReal x, y;
+        particleEmitterPoint(emitter, &x, &y);
+        if (!particleSpawnAt(runner, system, typeId, x, y, 0xFFFFFFu, false)) return;
+    }
+}
+
+// ===[ Update ]===
+// 
+typedef struct { int32_t typeId; GMLReal x, y; int32_t count; } PendingSpawn;
+
+// Steps one system: particles age and run their death spawn, then everything alive moves, and only
+// then do the emitters stream. That order is GameMaker's, and it is why a streamed particle stands
+// still on the step it is born.
+static void particleUpdateSystem(Runner* runner, int32_t systemId) {
+    ParticleSystem* system = Particles_systemGet(runner, systemId);
+    if (system == nullptr) return;
+
+    // GameMaker ages a system, then moves it, and only then lets the emitters spawn into it. The
+    // order is worth preserving: it is what makes a streamed particle sit still for the step it is
+    // born on, while a death particle -- which joins between the two passes -- travels immediately.
+
+    // Collected rather than spawned in place, because arrput() can move the array out from under the
+    // loop walking it. Only allocated when a type actually asks for step or death particles.
+    PendingSpawn* pending = nullptr;
+
+    // Pass 1: age everything, note the spawns each particle's type asks for, bury what ran out.
+    int32_t index = 0;
+    while (index < (int32_t) arrlen(system->particles)) {
+        Particle* particle = &system->particles[index];
+        ParticleType* type = particleTypeGetLive(runner, particle->typeId);
+
+        if (type == nullptr) {
+            // Only reachable if the particle carries an id that was never a type at all; a type
+            // destroyed under a live particle still answers here. Drop it rather than step a
+            // particle with nothing to step it by.
+            particleTypeRelease(runner, particle->typeId);
+            system->particles[index] = arrlast(system->particles);
+            arrpop(system->particles);
+            continue;
+        }
+
+        particle->life--;
+        bool died = (0 >= particle->life);
+
+        // A particle spawns its type's step particles every step it survives, and its death particles
+        // instead of them on the step it does not. The two never fire on the same step.
+        int32_t spawnType = died ? type->deathType : type->stepType;
+        int32_t spawnNumber = died ? type->deathNumber : type->stepNumber;
+        if (spawnType >= 0 && spawnNumber != 0) {
+            int32_t count = particleResolveCount((GMLReal) spawnNumber);
+            if (count > 0) {
+                PendingSpawn spawn;
+                spawn.typeId = spawnType;
+                spawn.x = particle->x;
+                spawn.y = particle->y;
+                spawn.count = count;
+                arrput(pending, spawn);
+            }
+        }
+
+        if (!died) {
+            index++;
+            continue;
+        }
+
+        // Swap-remove: order within a system does not affect the drawn result, every particle of a
+        // system is drawn in the same pass at the same depth.
+        particleTypeRelease(runner, particle->typeId);
+        system->particles[index] = arrlast(system->particles);
+        arrpop(system->particles);
+    }
+
+    // The collected spawns land before the movement pass, so they move on the step they are born.
+    repeat((int32_t) arrlen(pending), i) {
+        repeat(pending[i].count, n) {
+            if (!particleSpawnAt(runner, system, pending[i].typeId, pending[i].x, pending[i].y, 0xFFFFFFu, false)) break;
+        }
+    }
+    arrfree(pending);
+
+    // Pass 2: increments, then gravity, then the move. The increment lands before the particle
+    // travels, so its very first step already runs at (speed + speed increment).
+    int32_t particleCount = (int32_t) arrlen(system->particles);
+    repeat(particleCount, i) {
+        Particle* particle = &system->particles[i];
+        ParticleType* type = particleTypeGetLive(runner, particle->typeId);
+        if (type == nullptr) continue;
+
+        particle->speed += type->speedIncr;
+        if (0.0 > particle->speed) particle->speed = 0.0; // GameMaker never lets a particle reverse
+        particle->direction += type->dirIncr;
+        particle->angle += type->angIncr;
+
+        if (type->gravityAmount != 0.0) {
+            // Gravity folds into the velocity vector permanently, so later speed/direction increments
+            // apply on top of it. Matches GameMaker, where gravity bends a particle's course for good.
+            GMLReal baseRadians = particle->direction * PARTICLE_DEG2RAD;
+            GMLReal gravityRadians = type->gravityDirection * PARTICLE_DEG2RAD;
+            GMLReal hspeed = particle->speed * GMLReal_cos(baseRadians) + type->gravityAmount * GMLReal_cos(gravityRadians);
+            GMLReal vspeed = -particle->speed * GMLReal_sin(baseRadians) - type->gravityAmount * GMLReal_sin(gravityRadians);
+            particle->speed = GMLReal_sqrt(hspeed * hspeed + vspeed * vspeed);
+            if (hspeed != 0.0 || vspeed != 0.0)
+                particle->direction = GMLReal_atan2(-vspeed, hspeed) / PARTICLE_DEG2RAD;
+        }
+
+        int32_t age = particle->lifeTotal - particle->life;
+        GMLReal effectiveSpeed = particle->speed + type->speedWiggle * particleWiggleSpeed(age, particle->seed);
+        GMLReal effectiveDirection = particle->direction + type->dirWiggle * particleWiggleDirection(age, particle->seed);
+
+        GMLReal radians = effectiveDirection * PARTICLE_DEG2RAD;
+        particle->x += effectiveSpeed * GMLReal_cos(radians);
+        particle->y -= effectiveSpeed * GMLReal_sin(radians); // GML's y axis grows downward
+
+        // GameMaker's third pass, less the colour and alpha curves: those are functions of the
+        // particle's age alone, so they are evaluated at draw time rather than stored per particle.
+        particle->size += type->sizeIncr;
+        if (0.0 > particle->size) particle->size = 0.0;
+    }
+
+    // Emitters stream last, into a system where everything already alive has finished moving.
+    int32_t emitterCount = (int32_t) arrlen(system->emitters);
+    repeat(emitterCount, i) {
+        ParticleEmitter* emitter = &system->emitters[i];
+        if (!emitter->used || 0 > emitter->streamType || emitter->streamNumber == 0.0) continue;
+        particleEmitterSpawn(runner, system, emitter, emitter->streamType, particleResolveCount(emitter->streamNumber));
+    }
+}
+
+// Not static: called once at the end of Runner_step.
+void Particles_updateAutomatic(Runner* runner) {
+    int32_t count = (int32_t) arrlen(runner->particleSystemPool);
+    repeat(count, i) {
+        ParticleSystem* system = &runner->particleSystemPool[i];
+        if (!system->used || !system->automaticUpdate) continue;
+        particleUpdateSystem(runner, (int32_t) i);
+    }
+}
+
+// ===[ Draw ]===
+
+// Alpha follows the three stop points across the particle's life: start -> middle at the halfway
+// mark -> end. part_type_alpha1/alpha2 are expressed by collapsing the stops onto each other.
+static GMLReal particleAlphaAt(const ParticleType* type, GMLReal ageFraction) {
+    if (0.5 > ageFraction) {
+        GMLReal t = ageFraction * 2.0;
+        return type->alphaStart + (type->alphaMiddle - type->alphaStart) * t;
+    }
+    GMLReal t = (ageFraction - 0.5) * 2.0;
+    return type->alphaMiddle + (type->alphaEnd - type->alphaMiddle) * t;
+}
+
+static uint32_t particleColourAt(const ParticleType* type, GMLReal ageFraction) {
+    if (0.5 > ageFraction)
+        return particleColourLerp(type->colourStart, type->colourMiddle, ageFraction * 2.0);
+    return particleColourLerp(type->colourMiddle, type->colourEnd, (ageFraction - 0.5) * 2.0);
+}
+
+// Not static: backs both part_system_drawit and the system's entry in the depth-sorted draw list.
+void Particles_drawSystem(Runner* runner, int32_t systemId) {
+    ParticleSystem* system = Particles_systemGet(runner, systemId);
+    if (system == nullptr || runner->renderer == nullptr) return;
+
+    int32_t count = (int32_t) arrlen(system->particles);
+    if (count == 0) return;
+
+    Renderer* renderer = runner->renderer;
+    bool additiveActive = false;
+    // Blend state is global and sticky in GML, so an additive type has to hand back exactly what the
+    // caller had rather than assuming bm_normal: a game that darkens the scene with
+    // gpu_set_blendmode_ext around its draw would otherwise lose the effect from the particle system
+    // onwards. Captured lazily, so a system of ordinary particles never touches blending at all.
+    bool blendTouched = false;
+    bool blendSaved = false;
+    int32_t savedBlendMode = bm_normal;
+    BlendFactors savedBlendFactors;
+    ZERO_STRUCT(savedBlendFactors);
+
+    repeat(count, i) {
+        Particle* particle = &system->particles[i];
+        ParticleType* type = particleTypeGetLive(runner, particle->typeId);
+        if (type == nullptr || 0 > type->sprite) continue;
+
+        int32_t age = particle->lifeTotal - particle->life;
+        GMLReal ageFraction = (GMLReal) age / (GMLReal) particle->lifeTotal;
+        GMLReal alpha = particleAlphaAt(type, ageFraction);
+        if (0.0 >= alpha) continue;
+        if (alpha > 1.0) alpha = 1.0;
+
+        GMLReal size = particle->size + type->sizeWiggle * particleWiggleSize(age, particle->seed);
+        if (0.0 >= size) continue;
+
+        int32_t subimg = particle->subimgBase;
+        if (type->spriteAnimate) {
+            if (type->spriteStretch) {
+                // One full animation cycle stretched over the particle's whole life.
+                uint32_t frames = ((uint32_t) type->sprite < runner->dataWin->sprt.count)
+                                ? runner->dataWin->sprt.sprites[type->sprite].textureCount : 0;
+                if (frames > 0) subimg += (int32_t) (ageFraction * (GMLReal) frames);
+            } else {
+                subimg += age;
+            }
+        }
+
+        if (type->additive != additiveActive) {
+            if (!blendTouched) {
+                // The getters are optional in the vtable; without them the best we can do is put
+                // blending back to bm_normal at the end.
+                if (renderer->vtable->gpuGetBlendMode != nullptr) {
+                    savedBlendMode = renderer->vtable->gpuGetBlendMode(renderer);
+                    if (renderer->vtable->gpuGetBlendFactors != nullptr)
+                        savedBlendFactors = renderer->vtable->gpuGetBlendFactors(renderer);
+                    blendSaved = true;
+                }
+                blendTouched = true;
+            }
+            renderer->vtable->gpuSetBlendMode(renderer, type->additive ? bm_add : bm_normal);
+            additiveActive = type->additive;
+        }
+
+        uint32_t colour = particle->colourFixed ? particle->colour : particleColourAt(type, ageFraction);
+
+        // A relative orientation is measured from the direction the particle is travelling, so a
+        // sprite drawn nose-first keeps pointing along its arc as gravity bends it.
+        GMLReal angle = particle->angle + type->angWiggle * particleWiggleAngle(age, particle->seed);
+        if (type->angRelative) angle += particle->direction;
+
+        Renderer_drawSpriteExt(renderer, type->sprite, subimg,
+                               (float) (system->originX + particle->x), (float) (system->originY + particle->y),
+                               (float) (type->scaleX * size), (float) (type->scaleY * size),
+                               (float) angle, colour, (float) alpha);
+    }
+
+    if (!blendTouched) return;
+
+    if (!blendSaved) {
+        renderer->vtable->gpuSetBlendMode(renderer, bm_normal);
+    } else if (savedBlendMode == bm_complex && renderer->vtable->gpuSetBlendModeExt != nullptr) {
+        // gpu_set_blendmode_ext leaves the mode reading back as bm_complex, so the individual
+        // factors are the only faithful way to put that state back.
+        renderer->vtable->gpuSetBlendModeExt(renderer, savedBlendFactors.src, savedBlendFactors.dst,
+                                             savedBlendFactors.srcAlpha, savedBlendFactors.dstAlpha);
+    } else {
+        renderer->vtable->gpuSetBlendMode(renderer, savedBlendMode);
+    }
+}
+
+// ===[ Teardown ]===
+
+// Not static: frees both pools from the Runner's cleanup path.
+void Particles_freeAll(Runner* runner) {
+    int32_t count = (int32_t) arrlen(runner->particleSystemPool);
+    repeat(count, i) {
+        arrfree(runner->particleSystemPool[i].particles);
+        arrfree(runner->particleSystemPool[i].emitters);
+    }
+    arrfree(runner->particleSystemPool);
+    runner->particleSystemPool = nullptr;
+    arrfree(runner->particleTypePool);
+    runner->particleTypePool = nullptr;
+    // Reached on game_restart as well as shutdown, so put the stream back to where it started:
+    // a restarted game should produce the same particles as the first run.
+    g_particleRngState = PARTICLE_RNG_SEED;
+}
+
+// ===[ Systems ]===
+
+static RValue builtin_part_system_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t poolSize = (int32_t) arrlen(runner->particleSystemPool);
+    int32_t id = poolSize;
+    repeat(poolSize, i) {
+        if (!runner->particleSystemPool[i].used) { id = (int32_t) i; break; }
+    }
+
+    ParticleSystem system;
+    ZERO_STRUCT(system);
+    system.used = true;
+    system.automaticUpdate = true;
+    system.automaticDraw = true;
+    system.depth = 0;
+
+    if (id == poolSize) {
+        arrput(runner->particleSystemPool, system);
+    } else {
+        runner->particleSystemPool[id] = system;
+    }
+
+    // The system joins the depth-sorted draw list while automaticDraw is set.
+    runner->drawableListStructureDirty = true;
+    return RValue_makeReal((GMLReal) id);
+}
+
+static RValue builtin_part_system_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    particleClearParticles(ctx->runner, system);
+    arrfree(system->particles);
+    arrfree(system->emitters);
+    ZERO_STRUCT(*system);
+    ctx->runner->drawableListStructureDirty = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_depth(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    int32_t depth = RValue_toInt32(args[1]);
+    if (system->depth == depth) return RValue_makeUndefined();
+    system->depth = depth;
+    ctx->runner->drawableListSortDirty = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_automatic_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    bool automatic = RValue_toBool(args[1]);
+    if (system->automaticDraw == automatic) return RValue_makeUndefined();
+    system->automaticDraw = automatic;
+    // Only switching drawing ON has to rebuild, since that is what adds an entry the cache does not
+    // hold. Switching it off is filtered at draw time, like instance visibility, so the common
+    // "automatic_draw(false) then drawit()" idiom re-issued every frame does not drag a full rebuild
+    // and re-sort of every drawable in the room behind it.
+    if (automatic) ctx->runner->drawableListStructureDirty = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_automatic_update(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+    system->automaticUpdate = RValue_toBool(args[1]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_update(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    particleUpdateSystem(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_drawit(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Particles_drawSystem(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+    system->originX = RValue_toReal(args[1]);
+    system->originY = RValue_toReal(args[2]);
+    return RValue_makeUndefined();
+}
+
+// Resets the system to how part_system_create left it: no particles, no emitters, depth 0, both
+// automatic flags back on.
+static RValue builtin_part_system_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    particleClearParticles(ctx->runner, system);
+    arrsetlen(system->emitters, 0);
+    system->automaticUpdate = true;
+    system->automaticDraw = true;
+    system->depth = 0;
+    system->originX = 0.0;
+    system->originY = 0.0;
+    system->warnedFull = false;
+    // Depth and automatic drawing both just moved, so the cached list has to be rebuilt either way.
+    ctx->runner->drawableListStructureDirty = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_system_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(Particles_systemGet(ctx->runner, RValue_toInt32(args[0])) != nullptr ? 1.0 : 0.0);
+}
+
+// Spawns particles directly, bypassing emitters.
+static RValue builtin_part_particles_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    int32_t typeId = RValue_toInt32(args[3]);
+    repeat(RValue_toInt32(args[4]), i) {
+        if (!particleSpawnAt(ctx->runner, system, typeId, x, y, 0xFFFFFFu, false)) break;
+    }
+    return RValue_makeUndefined();
+}
+
+// Same, with a colour that overrides the type's colour curve for these particles only. Note the
+// argument order: the colour sits before the count.
+static RValue builtin_part_particles_create_colour(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeUndefined();
+
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    int32_t typeId = RValue_toInt32(args[3]);
+    uint32_t colour = (uint32_t) RValue_toInt32(args[4]);
+    repeat(RValue_toInt32(args[5]), i) {
+        if (!particleSpawnAt(ctx->runner, system, typeId, x, y, colour, true)) break;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_particles_count(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeReal((system == nullptr) ? 0.0 : (GMLReal) arrlen(system->particles));
+}
+
+// Removes every live particle but leaves the emitters and settings in place.
+static RValue builtin_part_particles_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system != nullptr) particleClearParticles(ctx->runner, system);
+    return RValue_makeUndefined();
+}
+
+// ===[ Types ]===
+
+static RValue builtin_part_type_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t poolSize = (int32_t) arrlen(runner->particleTypePool);
+    int32_t id = poolSize;
+    repeat(poolSize, i) {
+        // A destroyed type whose particles are still alive keeps its slot: handing the id out again
+        // would silently re-point those particles at whatever the new type looks like.
+        if (!runner->particleTypePool[i].used && 0 >= runner->particleTypePool[i].refCount) { id = (int32_t) i; break; }
+    }
+
+    ParticleType type;
+    particleTypeSetDefaults(&type);
+
+    if (id == poolSize) {
+        arrput(runner->particleTypePool, type);
+    } else {
+        runner->particleTypePool[id] = type;
+    }
+    return RValue_makeReal((GMLReal) id);
+}
+
+// Puts a live type back to the defaults a freshly created one has.
+static RValue builtin_part_type_clear(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    // Particles already born from this type keep pointing at the slot, so their claims survive the
+    // reset -- otherwise the count would drop to zero and the slot could be handed out from under them.
+    int32_t claims = type->refCount;
+    particleTypeSetDefaults(type);
+    type->refCount = claims;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(particleTypeGet(ctx->runner, RValue_toInt32(args[0])) != nullptr ? 1.0 : 0.0);
+}
+
+static RValue builtin_part_type_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    // part_type_exists answers false from here on and nothing new can be spawned from it, but the
+    // particles already alive go on looking and moving as before and simply age out -- that is what
+    // GameMaker does, and the settings they need are still in this slot. It is freed for reuse once
+    // the last of them dies.
+    type->used = false;
+    if (0 >= type->refCount) ZERO_STRUCT(*type);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_sprite(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->sprite = RValue_toInt32(args[1]);
+    type->spriteAnimate = RValue_toBool(args[2]);
+    type->spriteStretch = RValue_toBool(args[3]);
+    type->spriteRandom = RValue_toBool(args[4]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_size(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->sizeMin = RValue_toReal(args[1]);
+    type->sizeMax = RValue_toReal(args[2]);
+    type->sizeIncr = RValue_toReal(args[3]);
+    type->sizeWiggle = RValue_toReal(args[4]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_scale(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->scaleX = RValue_toReal(args[1]);
+    type->scaleY = RValue_toReal(args[2]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_speed(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->speedMin = RValue_toReal(args[1]);
+    type->speedMax = RValue_toReal(args[2]);
+    type->speedIncr = RValue_toReal(args[3]);
+    type->speedWiggle = RValue_toReal(args[4]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_direction(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    // Stored unnormalised on purpose: games pass reversed ranges (DELTARUNE Chapter 4 uses -45 to -90)
+    // and expect GameMaker's "min + random * (max - min)", which sweeps downward.
+    type->dirMin = RValue_toReal(args[1]);
+    type->dirMax = RValue_toReal(args[2]);
+    type->dirIncr = RValue_toReal(args[3]);
+    type->dirWiggle = RValue_toReal(args[4]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_gravity(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->gravityAmount = RValue_toReal(args[1]);
+    type->gravityDirection = RValue_toReal(args[2]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_life(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->lifeMin = RValue_toInt32(args[1]);
+    type->lifeMax = RValue_toInt32(args[2]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_orientation(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->angMin = RValue_toReal(args[1]);
+    type->angMax = RValue_toReal(args[2]);
+    type->angIncr = RValue_toReal(args[3]);
+    type->angWiggle = RValue_toReal(args[4]);
+    type->angRelative = (argCount > 5) && RValue_toBool(args[5]);
+    return RValue_makeUndefined();
+}
+
+// alpha1 and alpha2 are the same curve as alpha3 with the stops collapsed.
+static RValue builtin_part_type_alpha1(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->alphaStart = type->alphaMiddle = type->alphaEnd = RValue_toReal(args[1]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_alpha2(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    GMLReal start = RValue_toReal(args[1]);
+    GMLReal end = RValue_toReal(args[2]);
+    type->alphaStart = start;
+    type->alphaMiddle = (start + end) * 0.5;
+    type->alphaEnd = end;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_alpha3(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->alphaStart = RValue_toReal(args[1]);
+    type->alphaMiddle = RValue_toReal(args[2]);
+    type->alphaEnd = RValue_toReal(args[3]);
+    return RValue_makeUndefined();
+}
+
+// Ditto for the colour curve.
+static RValue builtin_part_type_colour1(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->colourStart = type->colourMiddle = type->colourEnd = (uint32_t) RValue_toInt32(args[1]);
+    type->colourMix = false;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_colour2(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    uint32_t start = (uint32_t) RValue_toInt32(args[1]);
+    uint32_t end = (uint32_t) RValue_toInt32(args[2]);
+    type->colourStart = start;
+    type->colourEnd = end;
+    // Halfway stop sits on the straight line between the two, so a two-stop curve stays linear.
+    type->colourMiddle = particleColourLerp(start, end, 0.5);
+    type->colourMix = false;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_colour3(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->colourStart = (uint32_t) RValue_toInt32(args[1]);
+    type->colourMiddle = (uint32_t) RValue_toInt32(args[2]);
+    type->colourEnd = (uint32_t) RValue_toInt32(args[3]);
+    type->colourMix = false;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_colour_mix(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    uint32_t start = (uint32_t) RValue_toInt32(args[1]);
+    uint32_t end = (uint32_t) RValue_toInt32(args[2]);
+    type->colourStart = type->colourMiddle = type->colourEnd = start;
+    type->colourMixEnd = end;
+    type->colourMix = true;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_step(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->stepNumber = RValue_toInt32(args[1]);
+    type->stepType = RValue_toInt32(args[2]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_blend(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->additive = RValue_toBool(args[1]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_type_death(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleType* type = particleTypeGet(ctx->runner, RValue_toInt32(args[0]));
+    if (type == nullptr) return RValue_makeUndefined();
+    type->deathNumber = RValue_toInt32(args[1]);
+    type->deathType = RValue_toInt32(args[2]);
+    return RValue_makeUndefined();
+}
+
+// ===[ Emitters ]===
+
+static RValue builtin_part_emitter_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system == nullptr) return RValue_makeReal(-1.0);
+
+    int32_t count = (int32_t) arrlen(system->emitters);
+    int32_t id = count;
+    repeat(count, i) {
+        if (!system->emitters[i].used) { id = (int32_t) i; break; }
+    }
+
+    ParticleEmitter emitter;
+    ZERO_STRUCT(emitter);
+    emitter.used = true;
+    emitter.shape = PS_SHAPE_RECTANGLE;
+    emitter.distribution = PS_DISTR_LINEAR;
+    emitter.streamType = -1;
+
+    if (id == count) {
+        arrput(system->emitters, emitter);
+    } else {
+        system->emitters[id] = emitter;
+    }
+    return RValue_makeReal((GMLReal) id);
+}
+
+static RValue builtin_part_emitter_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleEmitter* emitter = particleEmitterGet(ctx->runner, RValue_toInt32(args[0]), RValue_toInt32(args[1]));
+    if (emitter != nullptr) ZERO_STRUCT(*emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_emitter_destroy_all(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleSystem* system = Particles_systemGet(ctx->runner, RValue_toInt32(args[0]));
+    if (system != nullptr) arrsetlen(system->emitters, 0);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_emitter_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(particleEmitterGet(ctx->runner, RValue_toInt32(args[0]), RValue_toInt32(args[1])) != nullptr ? 1.0 : 0.0);
+}
+
+static RValue builtin_part_emitter_region(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleEmitter* emitter = particleEmitterGet(ctx->runner, RValue_toInt32(args[0]), RValue_toInt32(args[1]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->xmin = RValue_toReal(args[2]);
+    emitter->xmax = RValue_toReal(args[3]);
+    emitter->ymin = RValue_toReal(args[4]);
+    emitter->ymax = RValue_toReal(args[5]);
+    emitter->shape = RValue_toInt32(args[6]);
+    emitter->distribution = RValue_toInt32(args[7]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_emitter_stream(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    ParticleEmitter* emitter = particleEmitterGet(ctx->runner, RValue_toInt32(args[0]), RValue_toInt32(args[1]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->streamType = RValue_toInt32(args[2]);
+    // Kept as a real: GameMaker spends the fractional part as a chance of one extra particle, which
+    // is how a game asks an emitter for fewer than one particle per step.
+    emitter->streamNumber = RValue_toReal(args[3]);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_part_emitter_burst(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t systemId = RValue_toInt32(args[0]);
+    ParticleSystem* system = Particles_systemGet(runner, systemId);
+    ParticleEmitter* emitter = particleEmitterGet(runner, systemId, RValue_toInt32(args[1]));
+    if (system == nullptr || emitter == nullptr) return RValue_makeUndefined();
+
+    particleEmitterSpawn(runner, system, emitter, RValue_toInt32(args[2]), particleResolveCount(RValue_toReal(args[3])));
+    return RValue_makeUndefined();
+}
+
+// Vertex formats
+// ===[ REGISTRATION ]===
 
 enum yyVertexType {
     yyVTFLOAT1 = 0x1,
@@ -20563,6 +21545,55 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_freeze", builtin_vertex_freeze);
     VM_registerBuiltin(ctx, "vertex_submit", builtin_vertex_submit);
     VM_registerBuiltin(ctx, "vertex_submit_ext", builtin_vertex_submit_ext);
+    // Particles
+    VM_registerBuiltin(ctx, "part_system_create", builtin_part_system_create);
+    VM_registerBuiltin(ctx, "part_system_destroy", builtin_part_system_destroy);
+    VM_registerBuiltin(ctx, "part_system_depth", builtin_part_system_depth);
+    VM_registerBuiltin(ctx, "part_system_automatic_draw", builtin_part_system_automatic_draw);
+    VM_registerBuiltin(ctx, "part_system_automatic_update", builtin_part_system_automatic_update);
+    VM_registerBuiltin(ctx, "part_system_update", builtin_part_system_update);
+    VM_registerBuiltin(ctx, "part_system_drawit", builtin_part_system_drawit);
+    VM_registerBuiltin(ctx, "part_system_position", builtin_part_system_position);
+    VM_registerBuiltin(ctx, "part_system_clear", builtin_part_system_clear);
+    VM_registerBuiltin(ctx, "part_system_exists", builtin_part_system_exists);
+    VM_registerBuiltin(ctx, "part_particles_create", builtin_part_particles_create);
+    VM_registerBuiltin(ctx, "part_particles_create_colour", builtin_part_particles_create_colour);
+    VM_registerBuiltin(ctx, "part_particles_create_color", builtin_part_particles_create_colour);
+    VM_registerBuiltin(ctx, "part_particles_count", builtin_part_particles_count);
+    VM_registerBuiltin(ctx, "part_particles_clear", builtin_part_particles_clear);
+    VM_registerBuiltin(ctx, "part_type_create", builtin_part_type_create);
+    VM_registerBuiltin(ctx, "part_type_destroy", builtin_part_type_destroy);
+    VM_registerBuiltin(ctx, "part_type_clear", builtin_part_type_clear);
+    VM_registerBuiltin(ctx, "part_type_exists", builtin_part_type_exists);
+    VM_registerBuiltin(ctx, "part_type_sprite", builtin_part_type_sprite);
+    VM_registerBuiltin(ctx, "part_type_size", builtin_part_type_size);
+    VM_registerBuiltin(ctx, "part_type_scale", builtin_part_type_scale);
+    VM_registerBuiltin(ctx, "part_type_speed", builtin_part_type_speed);
+    VM_registerBuiltin(ctx, "part_type_direction", builtin_part_type_direction);
+    VM_registerBuiltin(ctx, "part_type_orientation", builtin_part_type_orientation);
+    VM_registerBuiltin(ctx, "part_type_gravity", builtin_part_type_gravity);
+    VM_registerBuiltin(ctx, "part_type_life", builtin_part_type_life);
+    VM_registerBuiltin(ctx, "part_type_alpha1", builtin_part_type_alpha1);
+    VM_registerBuiltin(ctx, "part_type_alpha2", builtin_part_type_alpha2);
+    VM_registerBuiltin(ctx, "part_type_alpha3", builtin_part_type_alpha3);
+    VM_registerBuiltin(ctx, "part_type_colour1", builtin_part_type_colour1);
+    VM_registerBuiltin(ctx, "part_type_color1", builtin_part_type_colour1);
+    VM_registerBuiltin(ctx, "part_type_colour2", builtin_part_type_colour2);
+    VM_registerBuiltin(ctx, "part_type_color2", builtin_part_type_colour2);
+    VM_registerBuiltin(ctx, "part_type_colour3", builtin_part_type_colour3);
+    VM_registerBuiltin(ctx, "part_type_color3", builtin_part_type_colour3);
+    VM_registerBuiltin(ctx, "part_type_colour_mix", builtin_part_type_colour_mix);
+    VM_registerBuiltin(ctx, "part_type_color_mix", builtin_part_type_colour_mix);
+    VM_registerBuiltin(ctx, "part_type_blend", builtin_part_type_blend);
+    VM_registerBuiltin(ctx, "part_type_step", builtin_part_type_step);
+    VM_registerBuiltin(ctx, "part_type_death", builtin_part_type_death);
+    VM_registerBuiltin(ctx, "part_emitter_create", builtin_part_emitter_create);
+    VM_registerBuiltin(ctx, "part_emitter_destroy", builtin_part_emitter_destroy);
+    VM_registerBuiltin(ctx, "part_emitter_destroy_all", builtin_part_emitter_destroy_all);
+    VM_registerBuiltin(ctx, "part_emitter_exists", builtin_part_emitter_exists);
+    VM_registerBuiltin(ctx, "part_emitter_region", builtin_part_emitter_region);
+    VM_registerBuiltin(ctx, "part_emitter_stream", builtin_part_emitter_stream);
+    VM_registerBuiltin(ctx, "part_emitter_burst", builtin_part_emitter_burst);
 
     // Misc
     VM_registerBuiltin(ctx, "get_timer", builtin_get_timer);
