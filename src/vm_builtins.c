@@ -6647,19 +6647,13 @@ STUB_RETURN_ZERO(steam_get_persona_name)
 
 // ===[ Audio Built-in Functions ]===
 
-// Helper to get the AudioSystem from VMContext (returns nullptr if no audio)
-static AudioSystem* getAudioSystem(VMContext* ctx) {
-    Runner* runner = ctx->runner;
-    return runner->audioSystem;
-}
-
 static RValue builtin_audio_system_is_available(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     logSemiStubbedFunction(ctx, "audio_system_is_available");
     return RValue_makeBool(true);
 }
 
 static RValue builtin_audio_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr || audio->vtable == nullptr || 1 > argCount) return RValue_makeBool(false);
     if (args[0].type == RVALUE_UNDEFINED) return RValue_makeBool(false);
 
@@ -6681,7 +6675,7 @@ static RValue builtin_audio_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED in
 }
 
 static RValue builtin_audio_channel_num(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t count = RValue_toInt32(args[0]);
     audio->vtable->setChannelCount(audio, count);
@@ -6690,7 +6684,7 @@ static RValue builtin_audio_channel_num(VMContext* ctx, RValue* args, MAYBE_UNUS
 
 // Old version of builtin_audio_play_sound, the GMS2 compatibility script sets the priority to 10 for... some reason
 static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
 
     // Do not attempt to play "undefined" sounds
@@ -6703,7 +6697,7 @@ static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 }
 
 static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr || audio->vtable == nullptr || 1 > argCount) return RValue_makeString("<undefined>");
     if (args[0].type == RVALUE_UNDEFINED) return RValue_makeString("<undefined>");
 
@@ -6723,7 +6717,7 @@ static RValue builtin_audio_get_name(VMContext* ctx, RValue* args, MAYBE_UNUSED 
 
 // same as builtin_sound_play with loop enabled
 static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
 
     // Do not attempt to play "undefined" sounds
@@ -6736,7 +6730,7 @@ static RValue builtin_sound_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 }
 
 static RValue builtin_sound_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
 
     int32_t soundIndex = RValue_toInt32(args[0]);
@@ -6749,7 +6743,7 @@ static RValue builtin_sound_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED in
 }
 
 static RValue builtin_audio_play_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
 
     // Do not attempt to play "undefined" sounds (matches GameMaker-HTML5 behavior, and fixes random sound effects on room transitions in DELTARUNE Chapter 2)
@@ -6764,7 +6758,7 @@ static RValue builtin_audio_play_sound(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_action_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
 
     // Do not attempt to play "undefined" sounds
@@ -6778,7 +6772,7 @@ static RValue builtin_action_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED in
 }
 
 static RValue builtin_audio_stop_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     audio->vtable->stopSound(audio, soundOrInstance);
@@ -6786,7 +6780,7 @@ static RValue builtin_audio_stop_sound(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_stop_all(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     audio->vtable->stopAll(audio);
@@ -6795,7 +6789,7 @@ static RValue builtin_audio_stop_all(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 }
 
 static RValue builtin_audio_is_playing(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeBool(false);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     bool playing = audio->vtable->isPlaying(audio, soundOrInstance);
@@ -6803,7 +6797,7 @@ static RValue builtin_audio_is_playing(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_is_paused(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeBool(false);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     bool playing = audio->vtable->isPlaying(audio, soundOrInstance);
@@ -6813,7 +6807,7 @@ static RValue builtin_audio_is_paused(VMContext* ctx, RValue* args, MAYBE_UNUSED
 
 // audio_sound_length(sound) - returns the length of a sound in seconds.
 static RValue builtin_audio_sound_length(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(0.0);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float length = audio->vtable->getSoundLength(audio, soundOrInstance);
@@ -6821,7 +6815,7 @@ static RValue builtin_audio_sound_length(VMContext* ctx, RValue* args, MAYBE_UNU
 }
 
 static RValue builtin_audio_sound_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float gain = (float) RValue_toReal(args[1]);
@@ -6831,7 +6825,7 @@ static RValue builtin_audio_sound_gain(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_sound_pitch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float pitch = (float) RValue_toReal(args[1]);
@@ -6840,7 +6834,7 @@ static RValue builtin_audio_sound_pitch(VMContext* ctx, RValue* args, MAYBE_UNUS
 }
 
 static RValue builtin_audio_sound_get_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(0.0);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float gain = audio->vtable->getSoundGain(audio, soundOrInstance);
@@ -6848,7 +6842,7 @@ static RValue builtin_audio_sound_get_gain(VMContext* ctx, RValue* args, MAYBE_U
 }
 
 static RValue builtin_audio_sound_get_pitch(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(1.0);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float pitch = audio->vtable->getSoundPitch(audio, soundOrInstance);
@@ -6856,7 +6850,7 @@ static RValue builtin_audio_sound_get_pitch(VMContext* ctx, RValue* args, MAYBE_
 }
 
 static RValue builtin_audio_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     float gain = (float) RValue_toReal(args[0]);
     audio->vtable->setMasterGain(audio, gain);
@@ -6864,7 +6858,7 @@ static RValue builtin_audio_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUS
 }
 
 static RValue builtin_audio_set_master_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t id = RValue_toInt32(args[0]);
     float gain = (float) RValue_toReal(args[1]);
@@ -6873,7 +6867,7 @@ static RValue builtin_audio_set_master_gain(VMContext* ctx, RValue* args, MAYBE_
 }
 
 static RValue builtin_audio_group_load(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t groupIndex = RValue_toInt32(args[0]);
     audio->vtable->groupLoad(audio, groupIndex);
@@ -6881,7 +6875,7 @@ static RValue builtin_audio_group_load(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_group_is_loaded(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeBool(false);
     int32_t groupIndex = RValue_toInt32(args[0]);
     bool loaded = audio->vtable->groupIsLoaded(audio, groupIndex);
@@ -6894,7 +6888,7 @@ static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSE
         return RValue_makeUndefined();
     }
 
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
     int32_t soundIndex = RValue_toInt32(args[0]);
     bool loop = RValue_toBool(args[1]);
@@ -6910,7 +6904,7 @@ static RValue builtin_audio_stop_music(VMContext* ctx, MAYBE_UNUSED RValue* args
         return RValue_makeUndefined();
     }
 
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     if (runner->lastMusicInstance >= 0) {
@@ -6921,7 +6915,7 @@ static RValue builtin_audio_stop_music(VMContext* ctx, MAYBE_UNUSED RValue* args
 }
 
 static RValue builtin_audio_music_gain(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     if (runner->lastMusicInstance >= 0) {
@@ -6933,7 +6927,7 @@ static RValue builtin_audio_music_gain(VMContext* ctx, RValue* args, MAYBE_UNUSE
 }
 
 static RValue builtin_audio_music_is_playing(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeBool(false);
     Runner* runner = ctx->runner;
     if (runner->lastMusicInstance >= 0) {
@@ -6943,7 +6937,7 @@ static RValue builtin_audio_music_is_playing(VMContext* ctx, MAYBE_UNUSED RValue
 }
 
 static RValue builtin_audio_pause_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     audio->vtable->pauseSound(audio, soundOrInstance);
@@ -6951,7 +6945,7 @@ static RValue builtin_audio_pause_sound(VMContext* ctx, RValue* args, MAYBE_UNUS
 }
 
 static RValue builtin_audio_resume_sound(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     audio->vtable->resumeSound(audio, soundOrInstance);
@@ -6959,21 +6953,21 @@ static RValue builtin_audio_resume_sound(VMContext* ctx, RValue* args, MAYBE_UNU
 }
 
 static RValue builtin_audio_pause_all(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     audio->vtable->pauseAll(audio);
     return RValue_makeUndefined();
 }
 
 static RValue builtin_audio_resume_all(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     audio->vtable->resumeAll(audio);
     return RValue_makeUndefined();
 }
 
 static RValue builtin_audio_sound_get_track_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(0.0);
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float pos = audio->vtable->getTrackPosition(audio, soundOrInstance);
@@ -6981,7 +6975,7 @@ static RValue builtin_audio_sound_get_track_position(VMContext* ctx, RValue* arg
 }
 
 static RValue builtin_audio_sound_set_track_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t soundOrInstance = RValue_toInt32(args[0]);
     float pos = (float) RValue_toReal(args[1]);
@@ -6990,7 +6984,7 @@ static RValue builtin_audio_sound_set_track_position(VMContext* ctx, RValue* arg
 }
 
 static RValue builtin_audio_create_stream(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
     char* filename = RValue_toString(args[0], ctx->runner->dataWin);
     int32_t streamIndex = audio->vtable->createStream(audio, filename);
@@ -6999,7 +6993,7 @@ static RValue builtin_audio_create_stream(VMContext* ctx, RValue* args, MAYBE_UN
 }
 
 static RValue builtin_audio_destroy_stream(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    AudioSystem* audio = getAudioSystem(ctx);
+    AudioSystem* audio = ctx->runner->audioSystem;
     if (audio == nullptr) return RValue_makeReal(-1.0);
     int32_t streamIndex = RValue_toInt32(args[0]);
     bool success = audio->vtable->destroyStream(audio, streamIndex);
