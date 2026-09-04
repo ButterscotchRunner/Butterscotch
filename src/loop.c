@@ -517,18 +517,19 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.parseTxtr = true;
 #ifdef PLATFORM_VITA
         do {
-            char *lastSlash = strrchr(args.dataWinPath, '/');
-            if (!lastSlash) {
-                lastSlash = strrchr(args.dataWinPath, ':');
-                if (!lastSlash) /* should be impossible if dataWinPath is valid */
-                    break;
+            char *texBinDir = safeStrdup(args.dataWinPath);
+            bsGetDirname(texBinDir);
+            if (strcmp(texBinDir, ".") == 0) {
+                free(texBinDir);
+                break;
             }
-            size_t texBinPathSize = lastSlash - args.dataWinPath + 1;
+            size_t dirLen = strlen(texBinDir);
+            bool needsSep = texBinDir[dirLen - 1] != '/' && texBinDir[dirLen - 1] != '\\' && texBinDir[dirLen - 1] != ':';
             const char *texBinName = "textures.bin";
-            size_t texBinNameSize = strlen(texBinName) + 1;
-            char *texBinPath = (char *)safeMalloc(texBinPathSize + texBinNameSize);
-            memcpy(texBinPath, args.dataWinPath, texBinPathSize);
-            memcpy(texBinPath + texBinPathSize, texBinName, texBinNameSize);
+            size_t texBinPathSize = dirLen + (needsSep ? 1 : 0) + strlen(texBinName) + 1;
+            char *texBinPath = (char *)safeMalloc(texBinPathSize);
+            snprintf(texBinPath, texBinPathSize, "%s%s%s", texBinDir, needsSep ? "/" : "", texBinName);
+            free(texBinDir);
             FILE *texBinFile = fopen(texBinPath, "rb");
             free(texBinPath);
             if (!texBinFile)
