@@ -533,17 +533,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
         char baseDir[2048] = {0};
         strncpy(baseDir, argv[0], sizeof(baseDir) - 1);
         
-        char* lastSlash = strrchr(baseDir, '/');
-        if (!lastSlash) lastSlash = strrchr(baseDir, '\\');
-        
-        if (lastSlash) {
-            *(lastSlash + 1) = '\0';
-        } else {
-            baseDir[0] = '\0';
-        }
+        bsGetDirname(baseDir);
         for (int i = 0; i < 4; i++) {
             snprintf(resolvedPath, sizeof(resolvedPath), "%s%s", baseDir, defaultDataWinPaths[i]);
-            if (access(resolvedPath, F_OK) == 0) {
+            if (access(resolvedPath, 0) == 0) {
                 args->dataWinPath = resolvedPath;
                 break;
             }
