@@ -14,7 +14,6 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <io.h>
-#include <psapi.h>
 #endif
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -77,6 +76,20 @@ const GLuint *hostFramebuffer;
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
+#else
+/* we define this ourselves because psapi.h isn't available in msvc 4.0 */
+typedef struct {
+    DWORD cb;
+    DWORD PageFaultCount;
+    size_t PeakWorkingSetSize;
+    size_t WorkingSetSize;
+    size_t QuotaPeakPagedPoolUsage;
+    size_t QuotaPagedPoolUsage;
+    size_t QuotaPeakNonPagedPoolUsage;
+    size_t QuotaNonPagedPoolUsage;
+    size_t PagefileUsage;
+    size_t PeakPagefileUsage;
+} BS_PROCESS_MEMORY_COUNTERS;
 #endif
 
 static size_t get_used_memory(void) {
@@ -115,7 +128,7 @@ static size_t get_used_memory(void) {
         return info.resident_size;
     }
 #elif defined(_WIN32)
-    typedef BOOL (WINAPI *GetProcessMemoryInfo_t)(HANDLE, PPROCESS_MEMORY_COUNTERS, DWORD);
+    typedef BOOL (WINAPI *GetProcessMemoryInfo_t)(HANDLE, BS_PROCESS_MEMORY_COUNTERS*, DWORD);
     static GetProcessMemoryInfo_t func = NULL;
     static bool initialized = false;
 
@@ -129,7 +142,7 @@ static size_t get_used_memory(void) {
     }
 
     if (func) {
-        PROCESS_MEMORY_COUNTERS pmc;
+        BS_PROCESS_MEMORY_COUNTERS pmc;
         pmc.cb = sizeof(pmc);
         if (func(GetCurrentProcess(), &pmc, sizeof(pmc)))
             return pmc.WorkingSetSize;

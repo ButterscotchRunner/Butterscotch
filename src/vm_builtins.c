@@ -14192,7 +14192,7 @@ static RValue builtin_layer_tile_create(VMContext* ctx, RValue* args, MAYBE_UNUS
     int32_t height = RValue_toInt32(args[7]);
 
     RoomTile* tile = (RoomTile *)safeMalloc(sizeof(RoomTile));
-    *tile = (RoomTile){0};
+    ZERO_STRUCT(*tile);
     tile->x = x;
     tile->y = y;
     tile->backgroundDefinition = tileset;
@@ -17892,6 +17892,7 @@ static void particleUpdateSystem(Runner* runner, int32_t systemId) {
     // Pass 2: increments, then gravity, then the move. The increment lands before the particle
     // travels, so its very first step already runs at (speed + speed increment).
     int32_t particleCount = (int32_t) arrlen(system->particles);
+    {
     repeat(particleCount, i) {
         Particle* particle = &system->particles[i];
         ParticleType* type = particleTypeGetLive(runner, particle->typeId);
@@ -17927,13 +17928,16 @@ static void particleUpdateSystem(Runner* runner, int32_t systemId) {
         particle->size += type->sizeIncr;
         if (0.0 > particle->size) particle->size = 0.0;
     }
+    }
 
     // Emitters stream last, into a system where everything already alive has finished moving.
     int32_t emitterCount = (int32_t) arrlen(system->emitters);
+    {
     repeat(emitterCount, i) {
         ParticleEmitter* emitter = &system->emitters[i];
         if (!emitter->used || 0 > emitter->streamType || emitter->streamNumber == 0.0) continue;
         particleEmitterSpawn(runner, system, emitter, emitter->streamType, particleResolveCount(emitter->streamNumber));
+    }
     }
 }
 
