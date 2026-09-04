@@ -93,9 +93,7 @@ jobs:
 
       - name: Build
         shell: msys2 {0}
-        run: |
-          cl hellotest.c
-          make CC='cl' BACKEND=noop AUDIO_BACKEND=noop NO_COLOR=1 VERBOSE=1
+        run: make CC='cl' BACKEND=noop AUDIO_BACKEND=noop NO_COLOR=1 VERBOSE=1
 
   build-cxx:
     name: Build as C++
