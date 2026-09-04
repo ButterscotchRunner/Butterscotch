@@ -60,6 +60,37 @@ jobs:
           sudo mv ~/woody/butterscotch .
           sudo chown -R $(whoami):$(id -gn) butterscotch/.ccache
 
+  build-msvc4:
+    name: Build (MSVC 4.0)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Download MSVC 4.0
+        uses: actions/checkout@v4
+        with:
+          repository: itsmattkc/MSVC400
+          path: msvc400
+
+      - name: Setup MSVC 4.0
+        run: |
+          cmd /c "msvc400\bin\VCVARS32.BAT && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              "$($Matches[1])=$($Matches[2])" | Out-File -Append -FilePath $env:GITHUB_ENV
+            }
+          }
+        shell: pwsh
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          packages: make
+
+      - name: Build
+        shell: msys2 {0}
+        run: make CC='cl' BACKEND=noop AUDIO_BACKEND=noop NO_COLOR=1 VERBOSE=1
+
   build-cxx:
     name: Build as C++
     runs-on: ubuntu-24.04
