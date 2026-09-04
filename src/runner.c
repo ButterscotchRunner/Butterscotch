@@ -855,6 +855,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 
         // Particle systems are not room-scoped: a system created in one room keeps running until the
         // game destroys it, so they are re-added on every rebuild rather than tracked per room.
+        {
         repeat((int32_t) arrlen(runner->particleSystemPool), i) {
             ParticleSystem* particleSystem = &runner->particleSystemPool[i];
             if (!particleSystem->used || !particleSystem->automaticDraw) continue;
@@ -864,6 +865,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             d.depth = particleSystem->depth;
             d.particleSystemId = (int32_t) i;
             arrput(runner->cachedDrawables, d);
+        }
         }
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
@@ -1999,8 +2001,10 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->callLaterEntries), i) {
         RValue_free(&runner->callLaterEntries[i].callback);
+    }
     }
     arrfree(runner->callLaterEntries);
     runner->callLaterEntries = nullptr;
