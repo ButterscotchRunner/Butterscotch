@@ -241,6 +241,7 @@ char* Instance_toStringFancy(Instance* inst, DataWin* dataWin) {
     size_t pos = 0;
     pos += snprintf(buf + pos, bufSize - pos, "{ ");
     first = true;
+    {
     for (uint32_t idx = 0; idx <= mask; ++idx) {
         int32_t slotKey = entries[idx].key;
         if (slotKey != INT_RVALUE_HASHMAP_EMPTY_KEY) {
@@ -265,6 +266,7 @@ char* Instance_toStringFancy(Instance* inst, DataWin* dataWin) {
             pos += snprintf(buf + pos, bufSize - pos, "%s : %s", name, valStr);
             free(valStr);
         }
+    }
     }
     pos += snprintf(buf + pos, bufSize - pos, " }");
     return buf;
