@@ -420,7 +420,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__MORPHOS__)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;

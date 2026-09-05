@@ -91,3 +91,41 @@ jobs:
         with:
           name: butterscotch-android
           path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
+
+  build-morphos:
+    name: Build (MorphOS)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build deps and MorphOS SDK
+        run: |
+          sudo apt-get update && sudo apt-get install -y ccache lhasa
+          curl -L -O https://bigfoot.morphos-team.net/test/morphos-sdk_20230510-1_amd64.deb
+          sudo apt-get install -y ./morphos-sdk_20230510-1_amd64.deb
+
+      - name: Fetch SDL2 and OpenAL
+        run: |
+          curl -L -o SDL2.lha https://www.morphos-storage.net/dl.php?id=2450563
+          sudo lhasa -xw=/opt SDL2.lha
+          curl -L -o OpenAL.lha https://www.morphos-storage.net/dl.php?id=1532605
+          sudo lhasa -xw=/opt OpenAL.lha
+
+          # uppercase al to AL
+          sudo mv /opt/OpenAL/include/al /opt/OpenAL/include/AL
+
+      - name: Build Butterscotch
+        run: |
+          make CC='ppc-morphos-gcc' \
+            BACKEND=sdl2 \
+            AUDIO_BACKEND=openal \
+            SDL2_CFLAGS='-I/opt/SDL_2.32.10_Libraries/SDK/include -I/opt/OpenAL/include -D__MORPHOS__' \
+            SDL2_LIBS='-noixemul -L/gg/lib -lSDL2 /gg/ppc-morphos/lib/libnix/libGL.a -laboxstubs -lauto -Wl,--defsym=TGLGetMaximumContextVersion=0 -Wl,--defsym=errno=0 -L/opt/OpenAL -lopenal' \
+            -j$(nproc)
+          ppc-morphos-strip -s build/butterscotch
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-morphos
+          path: build/butterscotch
