@@ -212,8 +212,12 @@ endif
 endif
 
 ifdef ENABLE_GLAD
+ifneq ($(ENABLE_GLAD),0)
+ifndef DISABLE_GLAD
 SRCS += vendor/glad/src/glad.c
 INCLUDES += $(INC)vendor/glad/include
+endif
+endif
 endif
 
 ifeq ($(OS),Windows)

@@ -37,7 +37,9 @@
 #include <glad/glad.h>
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+#ifdef ENABLE_MODERN_GL
 #include "gl_renderer.h"
+#endif
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
 #endif

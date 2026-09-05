@@ -9,6 +9,8 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #define GL_BOOL 0x8B56
+#elif defined(__MORPHOS__)
+#include <GL/gl.h>
 #else
 #include <glad/glad.h>
 #endif
