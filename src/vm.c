@@ -2378,6 +2378,8 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
     }
 
     if (0 > target) {
+        // This is triggered in DELTARUNE Chapter 5 in room_dw_garden_meetflowery. This is not a bug, as
+        // gml_Object_obj_bush_leaf_Step_0 calls scr_depth(-20). scr_depth then uses with(arg0), causing this log.
         logWarn("VM: [%s] PushEnv with negative target %d, this could be a Int64 number that is getting truncated to Int32!\n", ctx->currentCodeName, target);
     } else {
         logWarn("VM: [%s] PushEnv with unhandled target %d\n", ctx->currentCodeName, target);
