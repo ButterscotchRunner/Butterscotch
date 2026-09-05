@@ -104,19 +104,27 @@ jobs:
           curl -L -O https://bigfoot.morphos-team.net/test/morphos-sdk_20230510-1_amd64.deb
           sudo apt-get install -y ./morphos-sdk_20230510-1_amd64.deb
 
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-morphos-${{ github.sha }}
+          restore-keys: |
+            ccache-morphos-
+
       - name: Fetch SDL2 and OpenAL
         run: |
           curl -L -o SDL2.lha https://www.morphos-storage.net/dl.php?id=2450563
           sudo lhasa -xw=/opt SDL2.lha
           curl -L -o OpenAL.lha https://www.morphos-storage.net/dl.php?id=1532605
           sudo lhasa -xw=/opt OpenAL.lha
+          sudo chmod -R 755 /opt
 
           # uppercase al to AL
           sudo mv /opt/OpenAL/include/al /opt/OpenAL/include/AL
 
       - name: Build Butterscotch
         run: |
-          make CC='ppc-morphos-gcc' \
+          make CC='ccache ppc-morphos-gcc' \
             BACKEND=sdl2 \
             AUDIO_BACKEND=openal \
             SDL2_CFLAGS='-I/opt/SDL_2.32.10_Libraries/SDK/include -I/opt/OpenAL/include -D__MORPHOS__' \
