@@ -128,7 +128,7 @@ jobs:
             BACKEND=sdl2 \
             AUDIO_BACKEND=openal \
             SDL2_CFLAGS='-I/opt/SDL_2.32.10_Libraries/SDK/include -I/opt/OpenAL/include -D__MORPHOS__' \
-            SDL2_LIBS='-noixemul -L/gg/lib -lSDL2 /gg/ppc-morphos/lib/libnix/libGL.a -laboxstubs -lauto -Wl,--defsym=TGLGetMaximumContextVersion=0 -Wl,--defsym=errno=0 -L/opt/OpenAL -lopenal' \
+            SDL2_LIBS='-noixemul -L/opt/SDL_2.32.10_Libraries/SDK/lib -lSDL2 /gg/ppc-morphos/lib/libnix/libGL.a -laboxstubs -lauto -Wl,--defsym=TGLGetMaximumContextVersion=0 -Wl,--defsym=errno=0 -L/opt/OpenAL -lopenal' \
             -j$(nproc)
           ppc-morphos-strip -s build/butterscotch
 
