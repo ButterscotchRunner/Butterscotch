@@ -12,7 +12,7 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #elif defined(__MORPHOS__)
-#include <GL/GL.h>
+#include <GL/gl.h>
 #else
 #include <glad/glad.h>
 #endif

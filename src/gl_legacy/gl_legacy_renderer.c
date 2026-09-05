@@ -34,7 +34,7 @@ extern GLint  gPalettedUPaletteVLoc;
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
 #define PS3_PALETTED_END()            ((void)0)
 #elif defined(__MORPHOS__)
-#include <GL/GL.h>
+#include <GL/gl.h>
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
 #define PS3_PALETTED_END()            ((void)0)
 #else
