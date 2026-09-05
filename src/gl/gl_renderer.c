@@ -7,6 +7,8 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #include "vita_textures.h"
+#elif defined(__MORPHOS__)
+#include <GL/GL.h>
 #else
 #include <glad/glad.h>
 #endif

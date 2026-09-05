@@ -9,6 +9,8 @@
 #include "rsxutil.h"
 #elif PLATFORM_VITA
 #include <vitaGL.h>
+#elif defined(__MORPHOS__)
+#include <GL/GL.h>
 #else
 #include <glad/glad.h>
 #endif

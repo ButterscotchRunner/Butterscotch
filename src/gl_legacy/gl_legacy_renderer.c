@@ -33,6 +33,10 @@ extern GLint  gPalettedUPaletteVLoc;
 #include "vita_textures.h"
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
 #define PS3_PALETTED_END()            ((void)0)
+#elif defined(__MORPHOS__)
+#include <GL/GL.h>
+#define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
+#define PS3_PALETTED_END()            ((void)0)
 #else
 #include <glad/glad.h>
 #define PS3_PALETTED_BEGIN(tpagIndex) ((void)0)
