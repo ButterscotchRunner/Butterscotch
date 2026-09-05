@@ -127,6 +127,7 @@ jobs:
           make CC='ccache ppc-morphos-gcc' \
             BACKEND=sdl2 \
             AUDIO_BACKEND=openal \
+            ENABLE_GLAD=0 \
             CFLAGS="-O3 -DNDEBUG -mcpu=750 -ffast-math -fno-finite-math-only -fomit-frame-pointer -ffunction-sections -fdata-sections -flto" \
             LDFLAGS="-Wl,--gc-sections" \
             SDL2_CFLAGS='-I/opt/SDL_2.32.10_Libraries/SDK/include -I/opt/OpenAL/include -D__MORPHOS__' \
