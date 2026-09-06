@@ -238,7 +238,6 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         return -1;
     }
 
-    int32_t slotIndex = (int32_t) (slot - ma->instances);
     ma_result result;
 
     if (isStream) {
@@ -311,7 +310,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     // Set up instance tracking
     slot->active = true;
     slot->soundIndex = soundIndex;
-    slot->instanceId = SOUND_INSTANCE_ID_BASE + slotIndex;
+    slot->instanceId = SOUND_INSTANCE_ID_BASE + ma->nextInstanceCounter++;
     slot->currentGain = volume;
     slot->targetGain = volume;
     slot->fadeTimeRemaining = 0.0f;
