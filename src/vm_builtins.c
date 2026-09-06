@@ -14388,6 +14388,18 @@ static bool isValidLayerSpriteElement(RuntimeLayerElement* element) {
     return true;
 }
 
+static RValue builtin_layer_sprite_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t elementId = RValue_toInt32(args[1]);
+    RuntimeLayer* rl = Runner_findRuntimeLayerById(ctx->runner, layerId);
+    if (!rl) return RValue_makeBool(false);
+    repeat(arrlenu(rl->elements), i) {
+      if ((int32_t)rl->elements[i].id == elementId && isValidLayerSpriteElement(&rl->elements[i]))
+        return RValue_makeBool(true);
+    }
+    return RValue_makeBool(false);
+}
+
 static RValue builtin_layer_sprite_get_id(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     RValue idOrName = args[0];
@@ -19370,6 +19382,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_instance_get_instance", builtin_layer_instance_get_instance);
 #endif
     VM_registerBuiltin(ctx, "layer_get_element_type", builtin_layer_get_element_type);
+    VM_registerBuiltin(ctx, "layer_sprite_exists", builtin_layer_sprite_exists);
     VM_registerBuiltin(ctx, "layer_sprite_get_id", builtin_layer_sprite_get_id);
     VM_registerBuiltin(ctx, "layer_sprite_get_sprite", builtin_layer_sprite_get_sprite);
     VM_registerBuiltin(ctx, "layer_sprite_get_x", builtin_layer_sprite_get_x);
