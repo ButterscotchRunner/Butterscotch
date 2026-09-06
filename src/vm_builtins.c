@@ -6372,26 +6372,32 @@ static RValue builtin_array_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     GMLArray* dest = args[0].array;
     GMLArray* src = args[2].array;
     RValue* temp = (RValue*) safeMalloc((size_t) length * sizeof(RValue));
-    repeat(length, i) {
-        RValue* slot = GMLArray_slot(src, srcIndex + i);
-        temp[i] = (slot != nullptr) ? RValue_makeIndependent(*slot) : RValue_makeUndefined();
+    {
+        repeat(length, i) {
+            RValue* slot = GMLArray_slot(src, srcIndex + i);
+            temp[i] = (slot != nullptr) ? RValue_makeIndependent(*slot) : RValue_makeUndefined();
+        }
     }
     int32_t oldLen = GMLArray_length1D(dest);
     int32_t endIndex = destIndex + length;
     if (endIndex > oldLen) {
         GMLArray_growTo(dest, endIndex);
-        for (int32_t i = oldLen; endIndex > i; i++) {
-            RValue* gap = GMLArray_slot(dest, i);
-            if (gap != nullptr) { RValue_free(gap); *gap = RValue_makeReal(0.0); }
+        {
+            for (int32_t i = oldLen; endIndex > i; i++) {
+                RValue* gap = GMLArray_slot(dest, i);
+                if (gap != nullptr) { RValue_free(gap); *gap = RValue_makeReal(0.0); }
+            }
         }
     }
-    repeat(length, i) {
-        RValue* slot = GMLArray_slot(dest, destIndex + i);
-        if (slot != nullptr) {
-            RValue_free(slot);
-            *slot = temp[i];
-        } else {
-            RValue_free(&temp[i]);
+    {
+        repeat(length, i) {
+            RValue* slot = GMLArray_slot(dest, destIndex + i);
+            if (slot != nullptr) {
+                RValue_free(slot);
+                *slot = temp[i];
+            } else {
+                RValue_free(&temp[i]);
+            }
         }
     }
     free(temp);
