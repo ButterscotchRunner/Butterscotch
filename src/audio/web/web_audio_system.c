@@ -195,7 +195,6 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         return -1;
     }
 
-    int32_t slotIndex = (int32_t) (slot - ma->instances);
     ma_result result;
 
     if (isStream) {

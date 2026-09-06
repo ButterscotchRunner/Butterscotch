@@ -849,8 +849,6 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         return -1;
     }
 
-    int32_t slotIndex = (int32_t) (slot - ps2->instances);
-
     slot->active = true;
     slot->soundIndex = soundIndex;
     slot->audoIndex = sond->audoIndex;

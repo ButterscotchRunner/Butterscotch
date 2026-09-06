@@ -376,8 +376,6 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
         return -1;
     }
 
-    int32_t slotIndex = (int32_t) (slot - ma->instances);
-
     slot->streaming = false;
     slot->vorbis = nullptr;
     slot->decodeScratch = nullptr;
