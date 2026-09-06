@@ -51,6 +51,7 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
     inst->gravityDirection = 270.0f;
     inst->pathIndex = -1;
     inst->pathScale = 1.0f;
+    inst->bboxCacheValid = false;
     inst->timelineIndex = -1;
     inst->timelinePosition = 0.0f;
     inst->timelineSpeed = 1.0f;
