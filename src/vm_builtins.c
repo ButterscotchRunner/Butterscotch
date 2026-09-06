@@ -17025,6 +17025,28 @@ static RValue builtin_font_get_name(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeString(ctx->dataWin->font.fonts[fontIndex].name);
 }
 
+static RValue builtin_font_get_bold(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        logWarn("[font_exists] Expected 1 argument, got 0");
+        return RValue_makeBool(false);
+    }
+    
+    int32_t fontIndex = RValue_toInt32(args[0]);
+    if (0 > fontIndex || (uint32_t) fontIndex >= ctx->dataWin->font.count) return RValue_makeBool(false);
+    return RValue_makeBool(ctx->dataWin->font.fonts[fontIndex].bold);
+}
+
+static RValue builtin_font_get_italic(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (1 > argCount) {
+        logWarn("[font_exists] Expected 1 argument, got 0");
+        return RValue_makeBool(false);
+    }
+    
+    int32_t fontIndex = RValue_toInt32(args[0]);
+    if (0 > fontIndex || (uint32_t) fontIndex >= ctx->dataWin->font.count) return RValue_makeBool(false);
+    return RValue_makeBool(ctx->dataWin->font.fonts[fontIndex].italic);
+}
+
 static RValue builtin_font_get_size(VMContext* ctx, RValue* args, int32_t argCount) {
     if (1 > argCount) {
         logError("[font_get_size] Expected 1 argument, got 0");
@@ -19699,6 +19721,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
     VM_registerBuiltin(ctx, "font_exists", builtin_font_exists);
     VM_registerBuiltin(ctx, "font_get_name", builtin_font_get_name);
+    VM_registerBuiltin(ctx, "font_get_bold", builtin_font_get_bold);
+    VM_registerBuiltin(ctx, "font_get_italic", builtin_font_get_italic);
     VM_registerBuiltin(ctx, "font_get_size", builtin_font_get_size);
     VM_registerBuiltin(ctx, "font_get_info", builtin_font_get_info);
     VM_registerBuiltin(ctx, "object_exists", builtin_object_exists);
