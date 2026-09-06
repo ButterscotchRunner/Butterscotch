@@ -6524,18 +6524,22 @@ static void arraySortWith(GMLArray* arr, int (*cmp)(const void*, const void*)) {
     int32_t len = GMLArray_length1D(arr);
     if (len > 1) {
         RValue* temp = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
-        repeat(len, i) {
-            RValue* slot = GMLArray_slot(arr, i);
-            temp[i] = (slot != nullptr) ? *slot : RValue_makeUndefined();
+        {
+            repeat(len, i) {
+                RValue* slot = GMLArray_slot(arr, i);
+                temp[i] = (slot != nullptr) ? *slot : RValue_makeUndefined();
+            }
         }
         qsort(temp, (size_t) len, sizeof(RValue), cmp);
-        repeat(len, i) {
-            RValue* slot = GMLArray_slot(arr, i);
-            if (slot != nullptr) {
-                RValue_free(slot);
-                *slot = temp[i];
-            } else {
-                RValue_free(&temp[i]);
+        {
+            repeat(len, i) {
+                RValue* slot = GMLArray_slot(arr, i);
+                if (slot != nullptr) {
+                    RValue_free(slot);
+                    *slot = temp[i];
+                } else {
+                    RValue_free(&temp[i]);
+                }
             }
         }
         free(temp);
