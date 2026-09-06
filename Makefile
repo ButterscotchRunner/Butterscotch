@@ -52,9 +52,16 @@ INCLUDES += $(INC). \
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
+ifeq ($(OS),iOS)
+PLATFORM := ios
+BACKEND := ios
+AUDIO_BACKEND := openal
+DISABLE_LEGACY_GL := 1
+else
 PLATFORM := cli
 BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
+endif
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
@@ -132,6 +139,11 @@ DISABLE_LEGACY_GL := 1
 DISABLE_MODERN_GL := 1
 DEFINES += $(DEFINE)USE_NOOP
 endif
+ifeq ($(BACKEND),ios)
+LIBS += -framework Foundation -framework UIKit -framework OpenGLES -framework QuartzCore -framework CoreGraphics
+DEFINES += $(DEFINE)USE_IOS
+ENABLE_GLAD := 1
+endif
 
 # Noop renderer is exclusive to noop backend; GL renderers exclusive to non-noop backends
 ifneq ($(BACKEND),noop)
@@ -196,7 +208,11 @@ DEFINES += $(DEFINE)USE_MINIAUDIO
 SRCS += $(wildcard src/audio/miniaudio/*.c)
 HEADERS += $(wildcard src/audio/miniaudio/*.h)
 ifneq ($(OS),Windows)
+ifeq ($(OS),iOS)
+LIBS += -framework AVFoundation -framework AudioToolbox
+else
 LIBS += -pthread
+endif
 endif
 endif
 ifeq ($(AUDIO_BACKEND),openal)
@@ -204,7 +220,7 @@ INCLUDES += $(INC)src/audio/openal
 DEFINES += $(DEFINE)USE_OPENAL
 SRCS += $(wildcard src/audio/openal/*.c)
 HEADERS += $(wildcard src/audio/openal/*.h)
-ifeq ($(OS),Darwin)
+ifneq ($(filter Darwin iOS,$(OS)),) # OS is 'Darwin' or 'iOS'
 LIBS += -framework OpenAL
 else
 LIBS += -lopenal
@@ -213,7 +229,7 @@ endif
 
 ifdef ENABLE_GLAD
 SRCS += vendor/glad/src/glad.c
-INCLUDES += $(INC)vendor/glad/include
+INCLUDES += $(INC)vendor/glad/include $(INC)src/gl_common
 endif
 
 ifeq ($(OS),Windows)
@@ -226,7 +242,7 @@ LIBS += -lwinmm
 endif
 DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else
-ifeq ($(OS),Darwin)
+ifneq ($(filter Darwin iOS,$(OS)),) # OS is 'Darwin' or 'iOS'
 LIBS += -lobjc
 else
 LIBS += -lm
@@ -251,10 +267,11 @@ compat/config.mk: compat/configure.sh compat/tmp/cc
 
 endif
 
-build/butterscotch: $(OBJS)
+build/butterscotch: $(OBJS) $(if $(filter iOS,$(OS)),artifacts/ios/build-ipa.sh $(wildcard artifacts/ios/assets/*))
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
+	@if [ "$(OS)" = 'iOS' ]; then artifacts/ios/build-ipa.sh; fi
 
 build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
