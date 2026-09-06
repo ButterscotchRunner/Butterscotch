@@ -322,11 +322,20 @@ static Ps2SoundInstance* findFreeSlot(Ps2AudioSystem* ps2) {
 }
 
 static Ps2SoundInstance* findSfxInstanceById(Ps2AudioSystem* ps2, int32_t instanceId) {
+<<<<<<< HEAD
+    for (int32_t i = 0; i < MAX_PS2_SOUND_INSTANCES; i++) {
+        Ps2SoundInstance* inst = &ps2->instances[i];
+        if (inst->active && inst->instanceId == instanceId)
+            return inst;
+    }
+    return nullptr;
+=======
     int32_t slotIndex = instanceId - PS2_SOUND_INSTANCE_ID_BASE;
     if (0 > slotIndex || slotIndex >= MAX_PS2_SOUND_INSTANCES) return nullptr;
     Ps2SoundInstance* inst = &ps2->instances[slotIndex];
     if (!inst->active || inst->instanceId != instanceId) return nullptr;
     return inst;
+>>>>>>> f53379a5f4bae7b05d23fcf9282a4d1c04259b6c
 }
 
 // Find a music stream by instance ID
@@ -853,7 +862,11 @@ static int32_t ps2PlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     slot->active = true;
     slot->soundIndex = soundIndex;
     slot->audoIndex = sond->audoIndex;
+<<<<<<< HEAD
+    slot->instanceId = PS2_SOUND_INSTANCE_ID_BASE + ps2->nextInstanceCounter++;
+=======
     slot->instanceId = PS2_SOUND_INSTANCE_ID_BASE + slotIndex;
+>>>>>>> f53379a5f4bae7b05d23fcf9282a4d1c04259b6c
     slot->priority = priority;
     slot->loop = loop;
     slot->paused = false;

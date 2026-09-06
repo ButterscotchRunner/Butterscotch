@@ -46,6 +46,14 @@ static bool isValidSoundInstanceId(int32_t instanceId) {
 }
 
 static WebSoundInstance* findInstanceById(WebAudioSystem* ma, int32_t instanceId) {
+<<<<<<< HEAD
+    for (int32_t i = 0; i < WEB_MAX_SOUND_INSTANCES; i++) {
+        WebSoundInstance* inst = &ma->instances[i];
+        if (inst->active && inst->instanceId == instanceId)
+            return inst;
+    }
+    return nullptr;
+=======
     int32_t slotIndex = instanceId - WEB_SOUND_INSTANCE_ID_BASE;
     if (0 > slotIndex || slotIndex >= WEB_MAX_SOUND_INSTANCES)
         return nullptr;
@@ -55,6 +63,7 @@ static WebSoundInstance* findInstanceById(WebAudioSystem* ma, int32_t instanceId
         return nullptr;
 
     return inst;
+>>>>>>> f53379a5f4bae7b05d23fcf9282a4d1c04259b6c
 }
 
 static char* resolveExternalPath(WebAudioSystem* ma, Sound* sound) {
@@ -266,7 +275,11 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
     slot->active = true;
     slot->soundIndex = soundIndex;
+<<<<<<< HEAD
+    slot->instanceId = WEB_SOUND_INSTANCE_ID_BASE + ma->nextInstanceCounter++;
+=======
     slot->instanceId = WEB_SOUND_INSTANCE_ID_BASE + slotIndex;
+>>>>>>> f53379a5f4bae7b05d23fcf9282a4d1c04259b6c
     slot->currentGain = volume;
     slot->targetGain = volume;
     slot->fadeTimeRemaining = 0.0f;
