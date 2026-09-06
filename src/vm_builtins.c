@@ -18670,6 +18670,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tan", builtin_tan);
     VM_registerBuiltin(ctx, "dot_product", builtin_dot_product);
     VM_registerBuiltin(ctx, "dot_product_3d", builtin_dot_product_3d);
+    VM_registerBuiltin(ctx, "dot_product_3d_normalized", builtin_dot_product_3d_normalised);
+    VM_registerBuiltin(ctx, "dot_product_normalized", builtin_dot_product_normalised);    
     VM_registerBuiltin(ctx, "dot_product_3d_normalised", builtin_dot_product_3d_normalised);
     VM_registerBuiltin(ctx, "dot_product_normalised", builtin_dot_product_normalised);    
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
