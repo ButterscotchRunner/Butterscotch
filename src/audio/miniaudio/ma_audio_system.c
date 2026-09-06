@@ -64,15 +64,12 @@ static bool isValidSoundInstanceId(int32_t instanceId) {
 }
 
 static SoundInstance* findInstanceById(MaAudioSystem* ma, int32_t instanceId) {
-    int32_t slotIndex = instanceId - SOUND_INSTANCE_ID_BASE;
-    if (0 > slotIndex || slotIndex >= MAX_SOUND_INSTANCES)
-        return nullptr;
-
-    SoundInstance* inst = &ma->instances[slotIndex];
-    if (!inst->active || inst->instanceId != instanceId)
-        return nullptr;
-
-    return inst;
+    for (int32_t i = 0; i < MAX_SOUND_INSTANCES; i++) {
+        SoundInstance* inst = &ma->instances[i];
+        if (inst->active && inst->instanceId == instanceId)
+            return inst;
+    }
+    return nullptr;
 }
 
 // Helper: resolve external audio file path from Sound entry
