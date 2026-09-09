@@ -30,7 +30,6 @@ if ! [ -d "$sdk" ] || [ "$(cat "$sdk/sdkver" 2>/dev/null)" != "$sdkver" ]; then
     wait
     rm ./*.tar.xz
     printf '%s' "$sdkver" > "$sdk/sdkver"
-    outdated_sdk=1
 fi
 
 if command -v nproc >/dev/null; then
@@ -51,14 +50,6 @@ if ! cmp -s workdir lastworkdir; then
     rm -rf toolchain-ppc
 fi
 mv workdir lastworkdir
-
-# Increase this if we ever make a change to the toolchain, for example
-# using a newer cctools-port version, and we need to invalidate the cache.
-toolchainver=3
-if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$toolchainver" ]; then
-    rm -rf toolchain-ppc
-    outdated_toolchain=1
-fi
 
 mkdir -p toolchain-ppc/bin
 export PATH="$PWD/toolchain-ppc/bin:$PATH"
