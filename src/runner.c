@@ -2393,6 +2393,12 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
     runner->mouse = RunnerMouse_create();
+    runner->vertexFormats = nullptr;
+    runner->newVertexFormat = nullptr;
+    runner->vertexFormatBit = 0;
+    runner->currentVertexFormatId = 1;
+    runner->vertexBuffers = nullptr;
+    runner->vertexBufferCount = 0;
     runner->appSurfaceEnabled = true;
     runner->windowTitle = dataWin->gen8.displayName ? safeStrdup(dataWin->gen8.displayName) : nullptr;
     runner->appSurfaceAutoDraw = true;
@@ -4757,6 +4763,59 @@ void Runner_free(Runner* runner) {
         free(runner->gameArgs[i]);
     }
     arrfree(runner->gameArgs);
+
+    if (runner->vertexFormats != nullptr) {
+        repeat((int32_t) arrlen(runner->vertexFormats), i) {
+            VmVertexFormat* format = runner->vertexFormats[i];
+            if (format == nullptr) continue;
+            if (format->pNative != nullptr) {
+                free(format->pNative);
+                format->pNative = nullptr;
+            }
+            if (format->format != nullptr) {
+                free(format->format);
+                format->format = nullptr;
+            }
+            free(format);
+        }
+        arrfree(runner->vertexFormats);
+        runner->vertexFormats = nullptr;
+    }
+    if (runner->newVertexFormat != nullptr) {
+        if (runner->newVertexFormat->pNative != nullptr) {
+            free(runner->newVertexFormat->pNative);
+            runner->newVertexFormat->pNative = nullptr;
+        }
+        if (runner->newVertexFormat->format != nullptr) {
+            free(runner->newVertexFormat->format);
+            runner->newVertexFormat->format = nullptr;
+        }
+        free(runner->newVertexFormat);
+        runner->newVertexFormat = nullptr;
+    }
+    if (runner->vertexBuffers != nullptr) {
+        repeat(runner->vertexBufferCount, i) {
+            Buffer_Vertex* buffer = runner->vertexBuffers[i];
+            if (buffer == nullptr) continue;
+            if (buffer->buffer.pBuffer8 != nullptr) {
+                free(buffer->buffer.pBuffer8);
+                buffer->buffer.pBuffer8 = nullptr;
+            }
+            if (buffer->pFrozenVB != nullptr) {
+                if (buffer->pFrozenVB->pVertexBuffer != nullptr) {
+                    free(buffer->pFrozenVB->pVertexBuffer);
+                    buffer->pFrozenVB->pVertexBuffer = nullptr;
+                }
+                free(buffer->pFrozenVB);
+                buffer->pFrozenVB = nullptr;
+            }
+            free(buffer);
+            runner->vertexBuffers[i] = nullptr;
+        }
+        free(runner->vertexBuffers);
+        runner->vertexBuffers = nullptr;
+    }
+    runner->vertexBufferCount = 0;
 
     RunnerKeyboard_free(runner->keyboard);
     RunnerGamepad_free(runner->gamepads);
