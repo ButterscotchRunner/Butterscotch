@@ -1433,13 +1433,15 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // game_change was called, so we need to restart the runner with the new data.win and launch parameters
+        bool macosGameChange = (args.osType == OS_MACOSX);
+
         if (nextWorkingDirectory != nullptr && nextLaunchParameters != nullptr) {
             char** newArguments = nullptr;
             newArguments = extractRunnerArguments(nextLaunchParameters);
 
             // Extract the data.win filename from "-game <file>" inside the new launch parameters
             char* dataWinFilename = nullptr;
-            {
+            if (!macosGameChange) {
                 // After extraction, we now need to figure out where is the "-game" argument
                 size_t length = arrlen(newArguments);
                 repeat(length, i) {
@@ -1454,11 +1456,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                 }
             }
 
-            bool macosGameChange = (args.osType == OS_MACOSX);
             // For some reason in the official runner, this value is just hardcoded to be game.ios.
-            // I think this is stupid so I'm only including it as a fallback, since the documentation
-            // says that this requires a "-game <file>". Oh well.
-            if (macosGameChange && dataWinFilename == nullptr) {
+            if (macosGameChange) {
                 dataWinFilename = safeStrdup("game.ios");
             }
 
