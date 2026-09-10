@@ -10208,7 +10208,7 @@ static RValue builtin_draw_primitive_begin(MAYBE_UNUSED VMContext* ctx, RValue* 
     Runner* runner = ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
-    int32_t primitiveType = RValue_toInt32(args[0]) - 1;
+    int32_t primitiveType = RValue_toInt32(args[0]);
     Renderer_primitiveBegin(runner->renderer, primitiveType);
     return RValue_makeUndefined();
 }
@@ -10222,7 +10222,7 @@ static RValue builtin_draw_primitive_begin_texture(MAYBE_UNUSED VMContext* ctx, 
     Runner* runner = ctx->runner;
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
-    int32_t primitiveType = RValue_toInt32(args[0]) - 1;
+    int32_t primitiveType = RValue_toInt32(args[0]);
     int32_t textureId = RValue_toInt32(args[1]);
     Renderer_primitiveBeginTexture(runner->renderer, primitiveType, textureId);
     return RValue_makeUndefined();
