@@ -275,7 +275,7 @@ static GMLArray* VM_arraySetWithCoW(VMContext* ctx, RValue* slot, int32_t index,
     // Case 1: slot doesn't hold an array yet, replace whatever's there with a fresh one.
     if (slot->type != RVALUE_ARRAY || slot->array == nullptr) {
         RValue_free(slot);
-        GMLArray* fresh = GMLArray_create(ctx->dataWin->gen8.wadVersion, 0);
+        GMLArray* fresh = GMLArray_create(ctx->dataWin, 0);
         fresh->owner = intendedOwner;
         *slot = RValue_makeArray(fresh);
         GMLArray_growTo(fresh, index + 1);
@@ -549,7 +549,7 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
 #if IS_WAD17_OR_HIGHER_ENABLED
 // Static variables: Each code index has its own "struct" for static variables.
 // Lazily create a struct for each codeIndex that needs a static variable.
-static Instance* getOrCreateStaticStruct(VMContext* ctx, int32_t codeIndex) {
+Instance* VM_getOrCreateStaticStruct(VMContext* ctx, int32_t codeIndex) {
     if (ctx->staticStructs == nullptr || 0 > codeIndex || (uint32_t) codeIndex >= ctx->dataWin->code.count) return nullptr;
     Instance* staticStruct = ctx->staticStructs[codeIndex];
     if (staticStruct == nullptr) {
@@ -605,8 +605,8 @@ void VM_copyStatic(VMContext* ctx, RValue* parentRef) {
         }
     }
     if (0 > parentCodeIndex) return;
-    Instance* childStatic = getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
-    Instance* parentStatic = getOrCreateStaticStruct(ctx, parentCodeIndex);
+    Instance* childStatic = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+    Instance* parentStatic = VM_getOrCreateStaticStruct(ctx, parentCodeIndex);
     if (childStatic != nullptr && parentStatic != nullptr && childStatic != parentStatic) {
         childStatic->staticParent = parentStatic;
     }
@@ -710,7 +710,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 #if IS_WAD17_OR_HIGHER_ENABLED
     } else if (instanceType == INSTANCE_STATIC) {
         // "static" scope: read from the current constructor's shared static struct via the normal slot path below.
-        targetInstance = getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        targetInstance = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
 #endif
     } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
@@ -940,7 +940,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // "static" scope: write to the current constructor's shared static struct (runs once, guarded by isstaticok/setstatic).
     if (instanceType == INSTANCE_STATIC) {
-        Instance* staticStruct = getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        Instance* staticStruct = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
         if (staticStruct != nullptr) {
             writeSingleInstanceVariable(ctx, staticStruct, varDef, &access, val);
         }
@@ -1228,7 +1228,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 // Materialise the top-level array in the slot if needed.
                 if (slot->type != RVALUE_ARRAY || slot->array == nullptr) {
                     RValue_free(slot);
-                    GMLArray* fresh = GMLArray_create(ctx->dataWin->gen8.wadVersion, 0);
+                    GMLArray* fresh = GMLArray_create(ctx->dataWin, 0);
                     fresh->owner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
                     *slot = RValue_makeArray(fresh);
                 } else if (forWrite) {
@@ -1240,7 +1240,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 // Materialise the sub-array at [firstIndex] if it's not already an array.
                 if (topSlot->type != RVALUE_ARRAY || topSlot->array == nullptr) {
                     RValue_free(topSlot);
-                    GMLArray* sub = GMLArray_create(ctx->dataWin->gen8.wadVersion, 0);
+                    GMLArray* sub = GMLArray_create(ctx->dataWin, 0);
                     sub->owner = top->owner;
                     *topSlot = RValue_makeArray(sub);
                 } else if (forWrite) {
@@ -1283,7 +1283,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
 static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot, bool forWrite) {
     if (slot->type != RVALUE_ARRAY || slot->array == nullptr) {
         RValue_free(slot);
-        GMLArray* fresh = GMLArray_create(ctx->dataWin->gen8.wadVersion, 0);
+        GMLArray* fresh = GMLArray_create(ctx->dataWin, 0);
         fresh->owner = IS_WAD17_OR_HIGHER(ctx) ? ctx->currentArrayOwner : (void*) slot;
         *slot = RValue_makeArray(fresh);
     } else if (forWrite) {
@@ -2711,7 +2711,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
     RValue* parentSlot = GMLArray_slot(parent, idx);
     if (parentSlot->type != RVALUE_ARRAY || parentSlot->array == nullptr) {
         RValue_free(parentSlot);
-        GMLArray* sub = GMLArray_create(ctx->dataWin->gen8.wadVersion, 0);
+        GMLArray* sub = GMLArray_create(ctx->dataWin, 0);
         sub->owner = ctx->currentArrayOwner;
         *parentSlot = RValue_makeArray(sub);
     } else {

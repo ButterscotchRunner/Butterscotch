@@ -38,16 +38,16 @@ ifndef DISABLE_VM_TRACING
 DEFINES += $(DEFINE)ENABLE_VM_TRACING
 endif
 
-INCLUDES += $(INCLUDE). \
-		    $(INCLUDE)src \
-		    $(INCLUDE)vendor/stb/ds \
-		    $(INCLUDE)src/image \
-		    $(INCLUDE)vendor/stb/image \
-		    $(INCLUDE)vendor/stb/vorbis \
-		    $(INCLUDE)vendor/md5 \
-		    $(INCLUDE)vendor/sha1 \
-		    $(INCLUDE)vendor/base64 \
-		    $(INCLUDE)vendor/bzip2
+INCLUDES += $(INC). \
+		    $(INC)src \
+		    $(INC)vendor/stb/ds \
+		    $(INC)src/image \
+		    $(INC)vendor/stb/image \
+		    $(INC)vendor/stb/vorbis \
+		    $(INC)vendor/md5 \
+		    $(INC)vendor/sha1 \
+		    $(INC)vendor/base64 \
+		    $(INC)vendor/bzip2
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
 SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
@@ -81,7 +81,7 @@ endif
 
 SRCS += $(wildcard src/$(PLATFORM)/*.c)
 SRCS += $(wildcard src/backends/$(BACKEND).*)
-INCLUDES += $(INCLUDE)src/$(PLATFORM)
+INCLUDES += $(INC)src/$(PLATFORM)
 ifeq ($(OS),Windows)
 PKG_CONFIG_FLAGS := --static
 endif
@@ -145,7 +145,7 @@ endif
 
 ifdef ENABLE_GL
 SRCS += $(wildcard src/gl_common/*.c)
-INCLUDES += $(INCLUDE)src/gl_common $(INCLUDE)src/gl
+INCLUDES += $(INC)src/gl_common $(INC)src/gl
 HEADERS += $(wildcard src/gl_common/*.h)
 ENABLE_GLAD := 1
 endif
@@ -153,7 +153,7 @@ endif
 ifndef DISABLE_LEGACY_GL
 DEFINES += $(DEFINE)ENABLE_LEGACY_GL
 SRCS += $(wildcard src/gl_legacy/*.c)
-INCLUDES += $(INCLUDE)src/gl_legacy
+INCLUDES += $(INC)src/gl_legacy
 HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
 endif
 
@@ -191,7 +191,7 @@ endif
 endif
 
 ifeq ($(AUDIO_BACKEND),miniaudio)
-INCLUDES += $(INCLUDE)src/audio/miniaudio $(INCLUDE)vendor/miniaudio
+INCLUDES += $(INC)src/audio/miniaudio $(INC)vendor/miniaudio
 DEFINES += $(DEFINE)USE_MINIAUDIO
 SRCS += $(wildcard src/audio/miniaudio/*.c)
 HEADERS += $(wildcard src/audio/miniaudio/*.h)
@@ -200,7 +200,7 @@ LIBS += -pthread
 endif
 endif
 ifeq ($(AUDIO_BACKEND),openal)
-INCLUDES += $(INCLUDE)src/audio/openal
+INCLUDES += $(INC)src/audio/openal
 DEFINES += $(DEFINE)USE_OPENAL
 SRCS += $(wildcard src/audio/openal/*.c)
 HEADERS += $(wildcard src/audio/openal/*.h)
@@ -213,7 +213,7 @@ endif
 
 ifdef ENABLE_GLAD
 SRCS += vendor/glad/src/glad.c
-INCLUDES += $(INCLUDE)vendor/glad/include
+INCLUDES += $(INC)vendor/glad/include
 endif
 
 ifeq ($(OS),Windows)

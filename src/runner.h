@@ -713,6 +713,7 @@ struct Runner {
     uint32_t backgroundColor;      // runtime-mutable (BGR format)
     bool drawBackgroundColor;
     bool shouldExit;
+    bool paused;
     bool debugMode;
     // application_surface runtime state (mirrors GML toggles)
     bool appSurfaceEnabled;
@@ -736,6 +737,8 @@ struct Runner {
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
+    int32_t cursorSprite;   // storages BUILTIN_VAR_CURSOR_SPRITE. Independent of currentCursor/setCursor
+    int32_t cursorSpriteSubimage; // storages the current sprite subimage
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
@@ -767,6 +770,8 @@ struct Runner {
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
     GMLReal deltaTime;
+    // Runtime override for the active game speed. 0 means "unset" and the loop falls back to the room/default FPS.
+    GMLReal gameSpeedOverride;
     // Current frame rate (capped at room speed)
     double fps;                   // last measured frames-per-second value returned to GML
     uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
@@ -887,6 +892,8 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed);
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
+void Runner_setPaused(Runner* runner, bool paused);
+bool Runner_isPaused(Runner* runner);
 void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);
 void Runner_handlePendingRoomChange(Runner* runner);
@@ -986,6 +993,14 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 #endif
 
     instance->active = active;
+}
+
+static inline GMLReal Runner_getEffectiveGameSpeed(Runner* runner) {
+    if (runner == nullptr) return 0.0;
+    if (runner->gameSpeedOverride > 0.0) return runner->gameSpeedOverride;
+    if (runner->currentRoom != nullptr && runner->currentRoom->speed > 0) return (GMLReal) runner->currentRoom->speed;
+    if (runner->dataWin != nullptr && runner->dataWin->gen8.gms2FPS > 0.0f) return (GMLReal) runner->dataWin->gen8.gms2FPS;
+    return 30.0;
 }
 
 #endif /* _BS_RUNNER_H_ */

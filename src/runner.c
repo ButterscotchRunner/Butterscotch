@@ -744,13 +744,12 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
     uint32_t borderY = tileset->gms2OutputBorderY;
     uint32_t columns = tileset->gms2TileColumns;
 
-    static bool rotateWarned = false;
-
     repeat(data->tilesY, ty) {
         repeat(data->tilesX, tx) {
             uint32_t cell = data->tileData[ty * data->tilesX + tx];
             uint32_t tileIndex = cell & GMS2_TILE_INDEX_MASK;
             if (tileIndex == 0) continue; // 0 = empty
+            if (tileIndex > tileset->gms2TileCount) continue;
 
             uint32_t col = tileIndex % columns;
             uint32_t row = tileIndex / columns;
@@ -761,10 +760,9 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             bool flip = (cell & GMS2_TILE_FLIP_MASK) != 0;
             bool rotate = (cell & GMS2_TILE_ROTATE_MASK) != 0;
 
-            if (rotate && !rotateWarned) {
-                logWarn("Runner: GMS2 tile layer has rotated tiles; rotation not yet implemented, drawing unrotated\n");
-                rotateWarned = true;
-            }
+            float angleDeg = rotate ? 90.0f : 0.0f;
+            float pivotX = (float)(tx * tileW) + layerOffsetX + (float)tileW / 2.0f;
+            float pivotY = (float)(ty * tileH) + layerOffsetY + (float)tileH / 2.0f;
 
             float xscale = mirror ? -1.0f : 1.0f;
             float yscale = flip ? -1.0f : 1.0f;
@@ -774,7 +772,7 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             float dstX = (float) (tx * tileW) + layerOffsetX + (mirror ? (float) tileW : 0.0f);
             float dstY = (float) (ty * tileH) + layerOffsetY + (flip ? (float) tileH : 0.0f);
 
-            runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t) tileW, (int32_t) tileH, dstX, dstY, xscale, yscale, 0.0f, 0.0f, 0.0f, 0xFFFFFF, 1.0f);
+            runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t) tileW, (int32_t) tileH, dstX, dstY, xscale, yscale, angleDeg, pivotX, pivotY, 0xFFFFFF, 1.0f);
         }
     }
 }
@@ -855,6 +853,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 
         // Particle systems are not room-scoped: a system created in one room keeps running until the
         // game destroys it, so they are re-added on every rebuild rather than tracked per room.
+        {
         repeat((int32_t) arrlen(runner->particleSystemPool), i) {
             ParticleSystem* particleSystem = &runner->particleSystemPool[i];
             if (!particleSystem->used || !particleSystem->automaticDraw) continue;
@@ -864,6 +863,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             d.depth = particleSystem->depth;
             d.particleSystemId = (int32_t) i;
             arrput(runner->cachedDrawables, d);
+        }
         }
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
@@ -1179,11 +1179,24 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
+
+    //Rendering cursor_sprite
+    if (runner->cursorSprite >= 0 && (uint32_t)runner->cursorSprite < runner->dataWin->sprt.count) {
+        Sprite* cursorSprite = &runner->dataWin->sprt.sprites[runner->cursorSprite];
+        if (cursorSprite->textureCount > 0) {
+            float cursorX = (float)(runner->mouse->normalizedX * guiW);
+            float cursorY = (float)(runner->mouse->normalizedY * guiH);
+            Renderer_drawSpriteExt(runner->renderer, runner->cursorSprite, runner->cursorSpriteSubimage,
+                                   cursorX, cursorY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
+            runner->cursorSpriteSubimage = (runner->cursorSpriteSubimage + 1) % (int32_t) cursorSprite->textureCount;
+        }
+    }
+
     endGuiPass(runner);
 
     if (runner->fpsRealFrameStartNanos != 0) {
         uint64_t elapsed = nowNanos() - runner->fpsRealFrameStartNanos;
-        if (elapsed > 0) runner->fpsReal = (double)1e9 / (double)elapsed;
+        if (elapsed > 0) runner->fpsReal = (double)1e9 / (double)(int64_t)elapsed;
     }
 }
 
@@ -1999,8 +2012,10 @@ static void cleanupState(Runner* runner) {
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->callLaterEntries), i) {
         RValue_free(&runner->callLaterEntries[i].callback);
+    }
     }
     arrfree(runner->callLaterEntries);
     runner->callLaterEntries = nullptr;
@@ -2130,7 +2145,10 @@ void Runner_reset(Runner* runner) {
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
+    runner->cursorSprite = -1;
+    runner->cursorSpriteSubimage = 0;
     runner->gameStartFired = false;
+    runner->gameSpeedOverride = 0.0;
     runner->currentRoomIndex = -1;
     runner->currentRoomOrderPosition = -1;
     runner->nextInstanceId = runner->dataWin->gen8.lastObj + 1;
@@ -2330,6 +2348,26 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
+void Runner_setPaused(Runner* runner, bool paused) {
+    if (runner == nullptr) {
+        return;
+    }
+
+    runner->paused = paused;
+
+    if (runner->audioSystem != nullptr && runner->audioSystem->vtable != nullptr) {
+        if (paused) {
+            runner->audioSystem->vtable->pauseAll(runner->audioSystem);
+        } else {
+            runner->audioSystem->vtable->resumeAll(runner->audioSystem);
+        }
+    }
+}
+
+bool Runner_isPaused(Runner* runner) {
+    return runner != nullptr && runner->paused;
+}
+
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
@@ -2345,6 +2383,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->fileSystem = fileSystem;
     runner->audioSystem = audioSystem;
     runner->frameCount = 0;
+    runner->gameSpeedOverride = 0.0;
     double initialFps = (double)dataWin->gen8.gms2FPS;
     runner->fps = initialFps;
     runner->fpsReal = initialFps;
@@ -2378,6 +2417,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->viewportW = 1;
     runner->viewportH = 1;
     runner->random = Random_create(randomSeed);
+    runner->paused = false;
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
