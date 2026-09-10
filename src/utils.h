@@ -188,12 +188,16 @@ static inline void bsGetDirname(char* path) {
     }
     
     char* lastSlash = strrchr(path, '/');
+#ifdef _WIN32
     char* lastBackslash = strrchr(path, '\\');
+#endif
     char* target = nullptr;
     if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
         target = lastSlash;
+#ifdef _WIN32
     if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
         target = lastBackslash;
+#endif
 #ifdef PLATFORM_VITA
     if (target == nullptr)
         target = strrchr(path, ':');
