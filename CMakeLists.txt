@@ -64,6 +64,13 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         if(HAS_FOMIT_FRAME_POINTER)
             add_compile_options(-fomit-frame-pointer)
         endif()
+
+        # bfd sucks ass but this saves a couple kbs of binary size on linkers that do support this
+        include(CheckLinkerFlag)
+        check_linker_flag(C "-Wl,--icf=safe" HAS_ICF_SAFE)
+        if(HAS_ICF_SAFE)
+            add_link_options("-Wl,--icf=safe")
+        endif()
     endif()
 endif()
 
