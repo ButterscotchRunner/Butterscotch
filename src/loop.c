@@ -1489,8 +1489,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                     free(newArguments[i]);
                 }
                 arrfree(newArguments);
-                repeat(arrlen(currentGameArgs), i) {
-                    free(currentGameArgs[i]);
+                repeat(arrlen(currentGameArgs), j) {
+                    free(currentGameArgs[j]);
                 }
                 arrfree(currentGameArgs);
                 return 1;
