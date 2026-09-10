@@ -1942,11 +1942,6 @@ static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
 static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implicitApplicationSurface) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
-    // Capture the pre-surface view matrix for the implicit app-surface restore path.
-    if (surfaceId != renderer->runner->applicationSurfaceId || !implicitApplicationSurface) {
-        renderer->previousViewMatrix = renderer->gmlMatrices[MATRIX_VIEW];
-    }
-
     int32_t viewCurrent = 0;
     if (renderer->runner->viewsEnabled) {
         viewCurrent = renderer->runner->viewCurrent;
@@ -1974,31 +1969,37 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     }
 
     if (surfaceId == view->surfaceId) {
+        //the surface belongs to the view we are rending, we use the view's camera.
         glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
         glDisable(GL_SCISSOR_TEST);
-        glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        return true;
+    } else {
+        //camera will use full surface.
+        gl->base.cameraCurrent = SURFACE_CAMERA;
+        GMLCamera* camera =  &renderer->runner->surfaceCamera;
+
+        camera->allocated = true;
+        camera->viewX = 0.0;
+        camera->viewY = 0.0;
+        camera->viewWidth = gl->surfaceWidth[surfaceId];
+        camera->viewHeight = gl->surfaceHeight[surfaceId];
+        camera->borderX = 0;
+        camera->borderY = 0;
+        camera->speedX = 0;
+        camera->speedY = 0;
+        camera->objectId = -1;
+        camera->viewAngle = 0;
+        Runner_updateCameraViewSimple(camera);
+
+        glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
+        glDisable(GL_SCISSOR_TEST);
+        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
         return true;
     }
 
-    gl->base.cameraCurrent = SURFACE_CAMERA;
-    GMLCamera* surfaceCamera = &renderer->runner->surfaceCamera;
-
-    surfaceCamera->allocated = true;
-    surfaceCamera->viewX = 0.0;
-    surfaceCamera->viewY = 0.0;
-    surfaceCamera->viewWidth = gl->surfaceWidth[surfaceId];
-    surfaceCamera->viewHeight = gl->surfaceHeight[surfaceId];
-    surfaceCamera->borderX = 0;
-    surfaceCamera->borderY = 0;
-    surfaceCamera->speedX = 0;
-    surfaceCamera->speedY = 0;
-    surfaceCamera->objectId = -1;
-    surfaceCamera->viewAngle = 0;
-    Runner_updateCameraViewSimple(surfaceCamera);
-
     glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
     glDisable(GL_SCISSOR_TEST);
-    glApplyProjection(renderer, &surfaceCamera->viewMatrix, &surfaceCamera->projectionMatrix);
     return true;
 }
 
