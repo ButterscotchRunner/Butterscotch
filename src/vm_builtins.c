@@ -19084,8 +19084,8 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
     VM_structSetAndFreeVal(ctx, ret, "stride", RValue_makeInt32((int32_t) vertexFormat->size), 0);
     VM_structSetAndFreeVal(ctx, ret, "num_elements", RValue_makeInt32((int32_t) vertexFormat->count), 1);
 
-    GMLArray* elements = GMLArray_create(ctx->dataWin->gen8.wadVersion,
-        vertexFormat->count > 0 ? (int32_t) vertexFormat->count : 0);
+    int initialLength = vertexFormat->count > 0 ? (int32_t) vertexFormat->count : 0;
+    GMLArray* elements = GMLArray_create(ctx->dataWin->gen8.wadVersion, initialLength);
 
     for (uint32_t i = 0; i < vertexFormat->count; i++) {
         Instance* element = Runner_createStruct(ctx->runner);
