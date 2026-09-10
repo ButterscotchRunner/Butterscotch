@@ -198,15 +198,19 @@ static inline void bsGetDirname(char* path) {
     if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
         target = lastBackslash;
 #endif
-#ifdef PLATFORM_VITA
+
+#if defined(_WIN32) || defined(PLATFORM_VITA)
     if (target == nullptr)
         target = strrchr(path, ':');
 #endif
 
     if (target) {
+#if defined(_WIN32) || defined(PLATFORM_VITA)
         if (target[0] == ':') {
             target[1] = '\0';
-        } else if (target == path || target[-1] == ':') {
+        } else
+#endif
+        if (target == path || target[-1] == ':') {
             target[1] = '\0';
         } else {
             target[0] = '\0';
