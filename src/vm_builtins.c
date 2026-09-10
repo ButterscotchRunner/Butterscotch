@@ -19388,8 +19388,12 @@ static void registerVertexFormat(VMContext* ctx, VmVertexFormat* vertexFormat) {
     if (ctx == nullptr || ctx->runner == nullptr || vertexFormat == nullptr) return;
     uint32_t index = vertexFormatIdToIndex(vertexFormat->id);
     if (index == 0) return;
-    if (index >= (uint32_t) arrlen(ctx->runner->vertexFormats)) {
+    int oldLen = arrlen(ctx->runner->vertexFormats);
+    if (index >= (uint32_t) oldLen) {
         arrsetlen(ctx->runner->vertexFormats, (int32_t)(index + 1));
+    }
+    for (int j = oldLen; j < arrlen(ctx->runner->vertexFormats); j++) {
+        ctx->runner->vertexFormats[j] = nullptr;
     }
     ctx->runner->vertexFormats[index] = vertexFormat;
 }
@@ -19743,7 +19747,7 @@ static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t
     }
 
     if (vertexFormat->format != nullptr) {
-        free(vertexFormat->format);
+        arrfree(vertexFormat->format);
         vertexFormat->format = nullptr;
     }
 

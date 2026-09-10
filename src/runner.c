@@ -4773,7 +4773,7 @@ void Runner_free(Runner* runner) {
                 format->pNative = nullptr;
             }
             if (format->format != nullptr) {
-                free(format->format);
+                arrfree(format->format);
                 format->format = nullptr;
             }
             free(format);
