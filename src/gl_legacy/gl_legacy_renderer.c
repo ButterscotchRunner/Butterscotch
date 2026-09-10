@@ -299,9 +299,11 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, portW, portH);
+        int32_t sx, sy, ex, ey;
+        GLCommon_computeLetterbox(guiW, guiH, portW, portH, &sx, &sy, &ex, &ey);
+        glViewport(sx, sy, ex - sx, ey - sy);
         glEnable(GL_SCISSOR_TEST);
-        glScissor(0, 0, portW, portH);
+        glScissor(sx, sy, ex - sx, ey - sy);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
@@ -1730,8 +1732,14 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
+        gl->base.CPortX = 0;
+        gl->base.CPortY = 0;
+        gl->base.CPortW = gl->gameW;
+        gl->base.CPortH = gl->gameH;
+
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
+        glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
         return true;
     }

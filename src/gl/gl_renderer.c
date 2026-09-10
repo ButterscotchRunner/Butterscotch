@@ -880,7 +880,7 @@ static void glEndView(Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
 }
 
-static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, int32_t portX, int32_t portY, int32_t portW, MAYBE_UNUSED int32_t portH, int32_t targetSurfaceId) {
+static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     gl->batchCount = 0;
@@ -888,8 +888,10 @@ static void glBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUS
 
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
         glBindFramebuffer(GL_FRAMEBUFFER, gl->hostFramebuffer);
-        glViewport(0, 0, portW, portH);
-        glScissor(0, 0, portW, portH);
+        int32_t sx, sy, ex, ey;
+        GLCommon_computeLetterbox(guiW, guiH, portW, portH, &sx, &sy, &ex, &ey);
+        glViewport(sx, sy, ex - sx, ey - sy);
+        glScissor(sx, sy, ex - sx, ey - sy);
     } else {
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
@@ -2249,8 +2251,14 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
 
     if (surfaceId == renderer->runner->applicationSurfaceId && implicitApplicationSurface) {
+        gl->base.CPortX = 0;
+        gl->base.CPortY = 0;
+        gl->base.CPortW = gl->gameW;
+        gl->base.CPortH = gl->gameH;
+
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
+        glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
 
         glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
 
