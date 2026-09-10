@@ -303,6 +303,32 @@ char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
+static char* buildGameChangeTargetPath(const char* currentDataWinPath, const char* workingDirectory, const char* dataWinFilename) {
+    if (dataWinFilename == nullptr || dataWinFilename[0] == '\0') {
+        return nullptr;
+    }
+
+    char* parentDir = safeStrdup(currentDataWinPath);
+    bsGetDirname(parentDir);
+
+    const char* normalizedWorkingDir = workingDirectory;
+    while (*normalizedWorkingDir == '/' || *normalizedWorkingDir == '\\') {
+        normalizedWorkingDir++;
+    }
+
+    bool needParentSeparator = parentDir[0] != '\0' && parentDir[strlen(parentDir) - 1] != '/' && parentDir[strlen(parentDir) - 1] != '\\';
+    size_t newPathLen = strlen(parentDir) + (needParentSeparator ? 1 : 0) + strlen(normalizedWorkingDir) + 1 + strlen(dataWinFilename) + 1;
+    char* newPath = (char *)safeMalloc(newPathLen);
+    if (normalizedWorkingDir[0] == '\0') {
+        snprintf(newPath, newPathLen, "%s%s%s", parentDir, needParentSeparator ? "/" : "", dataWinFilename);
+    } else {
+        snprintf(newPath, newPathLen, "%s%s%s/%s", parentDir, needParentSeparator ? "/" : "", normalizedWorkingDir, dataWinFilename);
+    }
+
+    free(parentDir);
+    return newPath;
+}
+
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
@@ -1408,13 +1434,15 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // game_change was called, so we need to restart the runner with the new data.win and launch parameters
+        bool macosGameChange = (args.osType == OS_MACOSX);
+        char* dataWinFilename = nullptr;
+
         if (nextWorkingDirectory != nullptr && nextLaunchParameters != nullptr) {
             char** newArguments = nullptr;
             newArguments = extractRunnerArguments(nextLaunchParameters);
 
             // Extract the data.win filename from "-game <file>" inside the new launch parameters
-            char* dataWinFilename = nullptr;
-            {
+            if (!macosGameChange) {
                 // After extraction, we now need to figure out where is the "-game" argument
                 size_t length = arrlen(newArguments);
                 repeat(length, i) {
@@ -1427,6 +1455,11 @@ int loop(CommandLineArgs args, const char *argv0) {
                         break;
                     }
                 }
+            }
+
+            // For some reason in the official runner, this value is just hardcoded to be game.ios.
+            if (macosGameChange) {
+                dataWinFilename = safeStrdup("game.ios");
             }
 
             if (dataWinFilename == nullptr) {
@@ -1447,17 +1480,23 @@ int loop(CommandLineArgs args, const char *argv0) {
                 return 1;
             }
 
-            // Get the parent directory of the main data.win file
-            char* parentDir = safeStrdup(currentDataWinPath);
-            bsGetDirname(parentDir);
+            char* newPath = buildGameChangeTargetPath(currentDataWinPath, nextWorkingDirectory, dataWinFilename);
+            if (newPath == nullptr) {
+                logError("Runner: Failed to build target path for game_change! Shutting down...\n");
+                free(nextWorkingDirectory);
+                free(nextLaunchParameters);
+                free(currentDataWinPath);
+                repeat(arrlen(newArguments), i) {
+                    free(newArguments[i]);
+                }
+                arrfree(newArguments);
+                repeat(arrlen(currentGameArgs), j) {
+                    free(currentGameArgs[j]);
+                }
+                arrfree(currentGameArgs);
+                return 1;
+            }
 
-            // The pendingWorkingDirectory contains a slash at the beginning of it (example: /chapter3)
-            // The parentDir does NOT have a trailing slash, so we don't need to bother with it
-            size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-            char* newPath = (char *)safeMalloc(newPathLen);
-            snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDirectory, dataWinFilename);
-
-            free(parentDir);
             free(currentDataWinPath);
             currentDataWinPath = newPath;
             args.dataWinPath = currentDataWinPath;
@@ -1469,13 +1508,21 @@ int loop(CommandLineArgs args, const char *argv0) {
                 arrdel(currentGameArgs, 1);
             }
 
-            repeat(arrlen(newArguments), i) {
-                arrput(currentGameArgs, newArguments[i]);
+            if (macosGameChange) {
+                arrput(currentGameArgs, safeStrdup("-game"));
+                arrput(currentGameArgs, safeStrdup(currentDataWinPath));
+            } else {
+                repeat(arrlen(newArguments), i) {
+                    arrput(currentGameArgs, safeStrdup(newArguments[i]));
+                }
             }
 
             free(dataWinFilename);
             free(nextWorkingDirectory);
             free(nextLaunchParameters);
+            repeat(arrlen(newArguments), i) {
+                free(newArguments[i]);
+            }
             arrfree(newArguments);
         }
     }
