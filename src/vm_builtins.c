@@ -19373,13 +19373,6 @@ static RValue builtin_part_emitter_burst(VMContext* ctx, RValue* args, MAYBE_UNU
 
 // Vertex formats
 
-static inline uint32_t vertexFormatPendingResourceId(VMContext* ctx) {
-    if (ctx == nullptr || ctx->runner == nullptr) {
-        return RESOURCE_VERTEX_FORMAT;
-    }
-    return ((uint32_t) ctx->runner->currentVertexFormatId) | RESOURCE_VERTEX_FORMAT;
-}
-
 static inline uint32_t vertexFormatIdToIndex(uint32_t formatId) {
     return formatId & ~RESOURCE_VERTEX_FORMAT;
 }
@@ -19802,7 +19795,7 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
     VM_structSetAndFreeVal(ctx, ret, "num_elements", RValue_makeInt32((int32_t) vertexFormat->count), 1);
 
     int initialLength = vertexFormat->count > 0 ? (int32_t) vertexFormat->count : 0;
-    GMLArray* elements = GMLArray_create(ctx->dataWin->gen8.wadVersion, initialLength);
+    GMLArray* elements = GMLArray_create(ctx->dataWin, initialLength);
 
     for (uint32_t i = 0; i < vertexFormat->count; i++) {
         Instance* element = Runner_createStruct(ctx->runner);
