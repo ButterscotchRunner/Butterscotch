@@ -18655,81 +18655,33 @@ static RValue builtin_part_emitter_burst(VMContext* ctx, RValue* args, MAYBE_UNU
 }
 
 // Vertex formats
-// ===[ REGISTRATION ]===
 
-enum yyVertexType {
-    yyVTFLOAT1 = 0x1,
-    yyVTFLOAT2 = 0x2,
-    yyVTFLOAT3 = 0x3,
-    yyVTFLOAT4 = 0x4,
-    yyVTCOLOR = 0x5,
-    yyVTUBYTE4 = 0x6,
-    yyVTMaxType = 0x6
-};
-
-enum yyVertexUsage {
-    yyVUPOSITION = 0x1,
-    yyVUCOLOR = 0x2,
-    yyVUNORMAL = 0x3,
-    yyVUTEXCOORD = 0x4,
-    yyVUBLENDWEIGHT = 0x5,
-    yyVUBLENDINDICES = 0x6,
-    yyVUPSIZE = 0x7,
-    yyVUTANGENT = 0x8,
-    yyVUBINORMAL = 0x9,
-    yyVUTESSFACTOR = 0xa,
-    yyVUPOSITIONT = 0xb,
-    yyVUFOG = 0xc,
-    yyVUDEPTH = 0xd,
-    yyVUSAMPLER = 0xe,
-    yyVUMaxVertexUsage = 0xe
-} yyVertexUsage;
-
-typedef struct {
-    int32_t offset;
-    enum yyVertexType type;
-    enum yyVertexUsage usage;
-    uint32_t bit;
-} VmVertexElement;
-
-typedef struct {
-    uint32_t id;
-    uint32_t count;
-    VmVertexElement *format;
-    void *pNative;
-    uint32_t bitMask;
-    uint32_t size;
-    uint32_t yyFVF;
-} VmVertexFormat;
-
-#define RESOURCE_VERTEX_FORMAT 0x1000000
-
-static VmVertexFormat** g_VertexFormats = nullptr;
-VmVertexFormat* g_NewFormat = nullptr;
-uint32_t g_FormatBit = 0;
-int g_currVertexFormatID = 1;
-
-static inline uint32_t vertexFormatPendingResourceId(void) {
-    return ((uint32_t) g_currVertexFormatID) | RESOURCE_VERTEX_FORMAT;
+static inline uint32_t vertexFormatPendingResourceId(VMContext* ctx) {
+    if (ctx == nullptr || ctx->runner == nullptr) {
+        return RESOURCE_VERTEX_FORMAT;
+    }
+    return ((uint32_t) ctx->runner->currentVertexFormatId) | RESOURCE_VERTEX_FORMAT;
 }
 
 static inline uint32_t vertexFormatIdToIndex(uint32_t formatId) {
     return formatId & ~RESOURCE_VERTEX_FORMAT;
 }
 
-static VmVertexFormat* vertexFormatById(uint32_t formatId) {
+static VmVertexFormat* vertexFormatById(VMContext* ctx, uint32_t formatId) {
+    if (ctx == nullptr || ctx->runner == nullptr) return nullptr;
     uint32_t index = vertexFormatIdToIndex(formatId);
-    if (index == 0 || index >= (uint32_t) arrlen(g_VertexFormats)) return nullptr;
-    return g_VertexFormats[index];
+    if (index == 0 || index >= (uint32_t) arrlen(ctx->runner->vertexFormats)) return nullptr;
+    return ctx->runner->vertexFormats[index];
 }
 
-static void registerVertexFormat(VmVertexFormat* vertexFormat) {
+static void registerVertexFormat(VMContext* ctx, VmVertexFormat* vertexFormat) {
+    if (ctx == nullptr || ctx->runner == nullptr || vertexFormat == nullptr) return;
     uint32_t index = vertexFormatIdToIndex(vertexFormat->id);
     if (index == 0) return;
-    if (index >= (uint32_t) arrlen(g_VertexFormats)) {
-        arrsetlen(g_VertexFormats, (int32_t)(index + 1));
+    if (index >= (uint32_t) arrlen(ctx->runner->vertexFormats)) {
+        arrsetlen(ctx->runner->vertexFormats, (int32_t)(index + 1));
     }
-    g_VertexFormats[index] = vertexFormat;
+    ctx->runner->vertexFormats[index] = vertexFormat;
 }
 
 static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* args, int32_t argCount) {
@@ -18738,21 +18690,16 @@ static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* a
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat != nullptr) {
+    if (ctx->runner->newVertexFormat != nullptr) {
         logWarn("[vertex_format_begin] Can't start a new format, still creating another one.\n");
         return RValue_makeUndefined();
     }
 
     VmVertexFormat* vertexFormat = (VmVertexFormat*) safeMalloc(sizeof(VmVertexFormat));
-
     if (vertexFormat == nullptr) {
         logError("[vertex_format_begin] Memory allocation failed\n");
         return RValue_makeUndefined();
     }
-
-        printf("[vertex_format_begin] Begin format build: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
 
     vertexFormat->id = 0;
     vertexFormat->count = 0;
@@ -18762,13 +18709,10 @@ static RValue builtin_vertex_format_begin(VMContext* ctx, MAYBE_UNUSED RValue* a
     vertexFormat->size = 0;
     vertexFormat->yyFVF = 0;
 
-    g_NewFormat = vertexFormat;
-    g_FormatBit = 1;
-
+    ctx->runner->newVertexFormat = vertexFormat;
+    ctx->runner->vertexFormatBit = 1;
     return RValue_makeUndefined();
 }
-
-
 
 static int vertexFormatTypeSize(enum yyVertexType type) {
     switch (type) {
@@ -18788,8 +18732,8 @@ static int vertexFormatTypeSize(enum yyVertexType type) {
     }
 }
 
-static bool vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
-    if (vertexFormat == nullptr || g_FormatBit == 0) {
+static bool vertexFormatAddElement(VMContext* ctx, VmVertexFormat* vertexFormat, enum yyVertexType type, enum yyVertexUsage usage) {
+    if (ctx == nullptr || ctx->runner == nullptr || vertexFormat == nullptr || ctx->runner->vertexFormatBit == 0) {
         return false;
     }
 
@@ -18799,12 +18743,12 @@ static bool vertexFormatAddElement(VmVertexFormat* vertexFormat, enum yyVertexTy
     element->offset = vertexFormat->size;
     element->type = type;
     element->usage = usage;
-    element->bit = g_FormatBit;
+    element->bit = ctx->runner->vertexFormatBit;
 
     vertexFormat->count++;
-    vertexFormat->bitMask |= g_FormatBit;
+    vertexFormat->bitMask |= ctx->runner->vertexFormatBit;
     vertexFormat->size += vertexFormatTypeSize(type);
-    g_FormatBit <<= 1;
+    ctx->runner->vertexFormatBit <<= 1;
     return true;
 }
 
@@ -18818,21 +18762,17 @@ static RValue builtin_vertex_format_add_color(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_colour] Can't add colour, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_colour] Too many elements\n");
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_colour] Adding color element to pending format: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, yyVTCOLOR, yyVUCOLOR)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, yyVTCOLOR, yyVUCOLOR)) {
         logWarn("[vertex_format_add_colour] Failed to add colour element\n");
         return RValue_makeUndefined();
     }
@@ -18850,21 +18790,17 @@ static RValue builtin_vertex_format_add_position(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_position] Can't add position, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_position] Too many elements\n");
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_position] Adding position element to pending format: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUPOSITION)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, yyVTFLOAT2, yyVUPOSITION)) {
         logWarn("[vertex_format_add_position] Failed to add position element\n");
         return RValue_makeUndefined();
     }
@@ -18882,21 +18818,17 @@ static RValue builtin_vertex_format_add_position_3d(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_position_3d] Can't add 3D position, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_position_3d] Too many elements\n");
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_position_3d] Adding 3D position element to pending format: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUPOSITION)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, yyVTFLOAT3, yyVUPOSITION)) {
         logWarn("[vertex_format_add_position_3d] Failed to add position element\n");
         return RValue_makeUndefined();
     }
@@ -18914,21 +18846,17 @@ static RValue builtin_vertex_format_add_textcoord(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_textcoord] Can't add textcoord, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_textcoord] Too many elements\n");
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_textcoord] Adding texture coordinate element to pending format: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT2, yyVUTEXCOORD)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, yyVTFLOAT2, yyVUTEXCOORD)) {
         logWarn("[vertex_format_add_textcoord] Failed to add texture coordinate element\n");
         return RValue_makeUndefined();
     }
@@ -18946,21 +18874,17 @@ static RValue builtin_vertex_format_add_normal(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_normal] Can't add normal, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_normal] Too many elements\n");
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_normal] Adding normal element to pending format: slot=%d, pending_resource_id=%u\n",
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, yyVTFLOAT3, yyVUNORMAL)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, yyVTFLOAT3, yyVUNORMAL)) {
         logWarn("[vertex_format_add_normal] Failed to add normal element\n");
         return RValue_makeUndefined();
     }
@@ -18978,12 +18902,12 @@ static RValue builtin_vertex_format_add_custom(
         return RValue_makeUndefined();
     }
 
-    if (g_NewFormat == nullptr) {
+    if (ctx->runner->newVertexFormat == nullptr) {
         logWarn("[vertex_format_add_custom] Can't add custom element, no format is under construction.\n");
         return RValue_makeUndefined();
     }
 
-    if (g_FormatBit == 0) {
+    if (ctx->runner->vertexFormatBit == 0) {
         logWarn("[vertex_format_add_custom] Too many elements\n");
         return RValue_makeUndefined();
     }
@@ -19000,13 +18924,7 @@ static RValue builtin_vertex_format_add_custom(
         return RValue_makeUndefined();
     }
 
-        printf("[vertex_format_add_custom] Adding custom element: type=%d, usage=%d to pending format: slot=%d, pending_resource_id=%u\n",
-            type,
-            usage,
-            g_currVertexFormatID,
-            vertexFormatPendingResourceId());
-
-    if (!vertexFormatAddElement(g_NewFormat, type, usage)) {
+    if (!vertexFormatAddElement(ctx, ctx->runner->newVertexFormat, type, usage)) {
         logWarn("[vertex_format_add_custom] Failed to add custom element\n");
         return RValue_makeUndefined();
     }
@@ -19019,7 +18937,7 @@ static RValue builtin_vertex_format_end(
     MAYBE_UNUSED RValue* args,
     int32_t argCount
 ) {
-    VmVertexFormat* vertexFormat = g_NewFormat;
+    VmVertexFormat* vertexFormat = ctx->runner->newVertexFormat;
 
     if (argCount != 0) {
         logWarn("[vertex_format_end] Expected 0 arguments, got %d\n", argCount);
@@ -19027,16 +18945,14 @@ static RValue builtin_vertex_format_end(
     }
 
     if (vertexFormat == nullptr) {
-        logWarn(
-            "[vertex_format_end] Can't end format, you haven't started one yet.\n"
-        );
+        logWarn("[vertex_format_end] Can't end format, you haven't started one yet.\n");
         return RValue_makeUndefined();
     }
 
-    uint32_t formatId = g_currVertexFormatID | RESOURCE_VERTEX_FORMAT;
+    uint32_t formatId = ctx->runner->currentVertexFormatId | RESOURCE_VERTEX_FORMAT;
     vertexFormat->id = formatId;
-    g_currVertexFormatID++;
-    registerVertexFormat(vertexFormat);
+    ctx->runner->currentVertexFormatId++;
+    registerVertexFormat(ctx, vertexFormat);
 
     void* nativeFormat = nullptr;
     int usageCounts[16] = {0};
@@ -19058,32 +18974,18 @@ static RValue builtin_vertex_format_end(
         }
 
         VertexElementNative* nativeElements = (VertexElementNative*) nativeFormat;
-
         for (uint32_t i = 0; i < vertexFormat->count; i++) {
             VmVertexElement* element = &vertexFormat->format[i];
             uint32_t nativeType = 0x02;
 
             switch (element->type) {
-                case yyVTFLOAT1:
-                    nativeType = 0x29;
-                    break;
-                case yyVTFLOAT2:
-                    nativeType = 0x10;
-                    break;
-                case yyVTFLOAT3:
-                    nativeType = 0x06;
-                    break;
-                case yyVTFLOAT4:
-                    nativeType = 0x1c;
-                    break;
-                case yyVTCOLOR:
-                    nativeType = 0x1c;
-                    break;
-                case yyVTUBYTE4:
-                    nativeType = 0x1e;
-                    break;
-                default:
-                    break;
+                case yyVTFLOAT1: nativeType = 0x29; break;
+                case yyVTFLOAT2: nativeType = 0x10; break;
+                case yyVTFLOAT3: nativeType = 0x06; break;
+                case yyVTFLOAT4: nativeType = 0x1c; break;
+                case yyVTCOLOR: nativeType = 0x1c; break;
+                case yyVTUBYTE4: nativeType = 0x1e; break;
+                default: break;
             }
 
             nativeElements[i].offset = element->offset;
@@ -19099,19 +19001,11 @@ static RValue builtin_vertex_format_end(
         }
     }
 
-        printf("[vertex_format_end] Finalized vertex format: slot=%u, resource_id=%u, elements=%u, stride=%u bytes\n",
-            vertexFormatIdToIndex(formatId),
-            formatId,
-            vertexFormat->count,
-            vertexFormat->size);
-
     vertexFormat->pNative = nativeFormat;
-    g_NewFormat = nullptr;
-    g_FormatBit = 0;
-
+    ctx->runner->newVertexFormat = nullptr;
+    ctx->runner->vertexFormatBit = 0;
     return RValue_makeInt32((int32_t) formatId);
 }
-
 
 static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t argCount) {
     if (argCount != 1) {
@@ -19128,7 +19022,7 @@ static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t
         ctx->runner->renderer->vtable->flush(ctx->runner->renderer);
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, formatId);
     if (vertexFormat == nullptr) {
         return RValue_makeUndefined();
     }
@@ -19144,8 +19038,11 @@ static RValue builtin_vertex_format_delete(VMContext* ctx, RValue* args, int32_t
     }
 
     uint32_t index = vertexFormatIdToIndex(formatId);
-    if (index < (uint32_t) arrlen(g_VertexFormats)) {
-        g_VertexFormats[index] = nullptr;
+    if (ctx == nullptr || ctx->runner == nullptr) {
+        return RValue_makeUndefined();
+    }
+    if (index < (uint32_t) arrlen(ctx->runner->vertexFormats)) {
+        ctx->runner->vertexFormats[index] = nullptr;
     }
 
     free(vertexFormat);
@@ -19163,7 +19060,7 @@ static RValue builtin_vertex_format_exists(VMContext* ctx, RValue* args, int32_t
         return RValue_makeBool(false);
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, formatId);
     return RValue_makeBool(vertexFormat != nullptr);
 }
 
@@ -19178,7 +19075,7 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, formatId);
     if (vertexFormat == nullptr) {
         return RValue_makeUndefined();
     }
@@ -19208,59 +19105,18 @@ static RValue builtin_vertex_format_get_info(VMContext* ctx, RValue* args, int32
 
 // Vertex Buffers
 
-typedef struct VmVertexBuffer {
-    struct VmVertexBuffer* pPrev;
-    struct VmVertexBuffer* pNext;
-    uint32_t flags;
-    void *pVertexBuffer;
-    void *pHW0;
-    void *pHW1;
-    void *pHW2;
-    void *pHW3;
-    int32_t FVF;
-    int32_t FVFSize;
-    int32_t lockCurrent;
-    int32_t current;
-    int32_t total;
-    void *pAddress;
-    uint64_t frameLock;
-} VmVertexBuffer;
+static int allocBufferVertex(VMContext* ctx, int32_t bufferSize) {
+    if (ctx == nullptr || ctx->runner == nullptr) {
+        return -1;
+    }
 
-typedef union Buffer_Vertex_u_0 {
-    uint32_t *pBuffer32;
-    uint16_t *pBuffer16;
-    uint8_t  *pBuffer8;
-    float    *pBufferF32;
-} Buffer_Vertex_u_0;
-
-typedef struct {
-    Buffer_Vertex_u_0 buffer;
-    uint32_t bufferSize;
-    uint32_t streamStart;
-    uint32_t streamCurrent;
-    uint32_t elementIndex;
-    uint32_t elementCount;
-    uint32_t currentMask;
-    int32_t vertexCount;
-    uint32_t deletionCountdown;
-    bool frozen;
-    int32_t currentFormat;
-    int32_t storedFormat;
-    VmVertexFormat *pCurrentFormatVFRelease;
-    VmVertexBuffer *pFrozenVB;
-} Buffer_Vertex;
-
-static Buffer_Vertex** g_VertexBuffers = nullptr;
-static int32_t g_VertexBufferCount = 0;
-
-static int allocBufferVertex(int32_t bufferSize) {
     if (bufferSize < 0) {
         bufferSize = 0;
     }
 
-    if (g_VertexBuffers != nullptr && g_VertexBufferCount > 0) {
-        for (int32_t i = 0; i < g_VertexBufferCount; ++i) {
-            if (g_VertexBuffers[i] == nullptr) {
+    if (ctx->runner->vertexBuffers != nullptr && ctx->runner->vertexBufferCount > 0) {
+        for (int32_t i = 0; i < ctx->runner->vertexBufferCount; ++i) {
+            if (ctx->runner->vertexBuffers[i] == nullptr) {
                 Buffer_Vertex* buffer = (Buffer_Vertex*) safeMalloc(sizeof(Buffer_Vertex));
                 if (buffer == nullptr) {
                     logError("[vertex_create_buffer] Memory allocation failed\n");
@@ -19281,17 +19137,17 @@ static int allocBufferVertex(int32_t bufferSize) {
                 buffer->currentFormat = -1;
                 buffer->storedFormat = -1;
 
-                g_VertexBuffers[i] = buffer;
+                ctx->runner->vertexBuffers[i] = buffer;
                 return i;
             }
         }
     }
 
-    int32_t oldCount = g_VertexBufferCount;
+    int32_t oldCount = ctx->runner->vertexBufferCount;
     int32_t newCount = oldCount == 0 ? 32 : oldCount * 2;
 
     Buffer_Vertex** newBuffers = (Buffer_Vertex**) safeRealloc(
-        g_VertexBuffers,
+        ctx->runner->vertexBuffers,
         (size_t) newCount * sizeof(Buffer_Vertex*)
     );
     if (newBuffers == nullptr) {
@@ -19303,8 +19159,8 @@ static int allocBufferVertex(int32_t bufferSize) {
         memset(newBuffers + oldCount, 0, (size_t)(newCount - oldCount) * sizeof(Buffer_Vertex*));
     }
 
-    g_VertexBuffers = newBuffers;
-    g_VertexBufferCount = newCount;
+    ctx->runner->vertexBuffers = newBuffers;
+    ctx->runner->vertexBufferCount = newCount;
 
     Buffer_Vertex* buffer = (Buffer_Vertex*) safeMalloc(sizeof(Buffer_Vertex));
     if (buffer == nullptr) {
@@ -19326,7 +19182,7 @@ static int allocBufferVertex(int32_t bufferSize) {
     buffer->currentFormat = -1;
     buffer->storedFormat = -1;
 
-    g_VertexBuffers[oldCount] = buffer;
+    ctx->runner->vertexBuffers[oldCount] = buffer;
     return oldCount;
 }
 
@@ -19341,7 +19197,7 @@ static RValue builtin_vertex_create_buffer_ext(VMContext* ctx, RValue* args, int
         bufferSize = 0x100;
     }
 
-    int32_t bufferIndex = allocBufferVertex(bufferSize);
+    int32_t bufferIndex = allocBufferVertex(ctx, bufferSize);
     return RValue_makeInt32(bufferIndex);
 }
 
@@ -19351,7 +19207,7 @@ static RValue builtin_vertex_create_buffer(VMContext* ctx, MAYBE_UNUSED RValue* 
         return RValue_makeUndefined();
     }
 
-    int32_t bufferIndex = allocBufferVertex(0x8000);
+    int32_t bufferIndex = allocBufferVertex(ctx, 0x8000);
     return RValue_makeInt32(bufferIndex);
 }
 
@@ -19378,7 +19234,7 @@ static RValue builtin_vertex_create_buffer_from_buffer_ext(VMContext* ctx, RValu
         return RValue_makeInt32(-1);
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, formatId);
     if (vertexFormat == nullptr) {
         logWarn("[vertex_create_buffer_from_buffer_ext] Specified vertex format doesn't exist");
         return RValue_makeInt32(-1);
@@ -19417,12 +19273,16 @@ static RValue builtin_vertex_create_buffer_from_buffer_ext(VMContext* ctx, RValu
         }
     }
 
-    int32_t bufferIndex = allocBufferVertex(totalBytes);
+    int32_t bufferIndex = allocBufferVertex(ctx, totalBytes);
     if (bufferIndex < 0) {
         return RValue_makeInt32(-1);
     }
 
-    Buffer_Vertex* dest = g_VertexBuffers[bufferIndex];
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
+        return RValue_makeInt32(-1);
+    }
+
+    Buffer_Vertex* dest = ctx->runner->vertexBuffers[bufferIndex];
     if (dest == nullptr) {
         return RValue_makeInt32(-1);
     }
@@ -19476,10 +19336,10 @@ static int vertexFormatElementSize(enum yyVertexType type) {
     }
 }
 
-static bool vertexBufferOffsetIsAligned(Buffer_Vertex* buffer, uint32_t offset) {
-    if (buffer == nullptr) return false;
+static bool vertexBufferOffsetIsAligned(VMContext* ctx, Buffer_Vertex* buffer, uint32_t offset) {
+    if (buffer == nullptr || ctx == nullptr || ctx->runner == nullptr) return false;
 
-    VmVertexFormat* vertexFormat = vertexFormatById((uint32_t) buffer->storedFormat);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, (uint32_t) buffer->storedFormat);
     if (vertexFormat == nullptr || vertexFormat->count == 0 || vertexFormat->format == nullptr) {
         return false;
     }
@@ -19530,12 +19390,12 @@ static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* a
         return RValue_makeUndefined();
     }
 
-    if (bufferId < 0 || bufferId >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferId < 0 || bufferId >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_update_buffer_from_buffer] Vertex Buffer index is out of range");
         return RValue_makeUndefined();
     }
 
-    Buffer_Vertex* dest = g_VertexBuffers[bufferId];
+    Buffer_Vertex* dest = ctx->runner->vertexBuffers[bufferId];
     if (dest == nullptr) {
         logWarn("[vertex_update_buffer_from_buffer] Vertex Buffer index is out of range");
         return RValue_makeUndefined();
@@ -19574,7 +19434,7 @@ static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* a
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById((uint32_t) dest->storedFormat);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, (uint32_t) dest->storedFormat);
     if (vertexFormat == nullptr) {
         logWarn("[vertex_update_buffer_from_buffer] unknown vertex buffer format");
         return RValue_makeUndefined();
@@ -19586,7 +19446,7 @@ static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* a
         return RValue_makeUndefined();
     }
 
-    if (!vertexBufferOffsetIsAligned(dest, (uint32_t) destOffset)) {
+    if (!vertexBufferOffsetIsAligned(ctx, dest, (uint32_t) destOffset)) {
         logWarn("[vertex_update_buffer_from_buffer] destination offset must be aligned to a vertex element");
         return RValue_makeUndefined();
     }
@@ -19598,7 +19458,7 @@ static RValue builtin_vertex_update_buffer_from_buffer(VMContext* ctx, RValue* a
     }
 
     uint32_t destSize = (uint32_t) destSize64;
-    if (!vertexBufferOffsetIsAligned(dest, destSize)) {
+    if (!vertexBufferOffsetIsAligned(ctx, dest, destSize)) {
         logWarn("[vertex_update_buffer_from_buffer] destination size must be aligned to a vertex element");
         return RValue_makeUndefined();
     }
@@ -19661,23 +19521,23 @@ static RValue builtin_vertex_update_buffer_from_vertex(VMContext* ctx, RValue* a
         return RValue_makeUndefined();
     }
 
-    if (destBufferId < 0 || destBufferId >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || destBufferId < 0 || destBufferId >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_update_buffer_from_vertex] destination vertex buffer index is out of range");
         return RValue_makeUndefined();
     }
 
-    Buffer_Vertex* dest = g_VertexBuffers[destBufferId];
+    Buffer_Vertex* dest = ctx->runner->vertexBuffers[destBufferId];
     if (dest == nullptr) {
         logWarn("[vertex_update_buffer_from_vertex] destination vertex buffer index is out of range");
         return RValue_makeUndefined();
     }
 
-    if (srcBufferId < 0 || srcBufferId >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || srcBufferId < 0 || srcBufferId >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_update_buffer_from_vertex] source vertex buffer index is out of range");
         return RValue_makeUndefined();
     }
 
-    Buffer_Vertex* src = g_VertexBuffers[srcBufferId];
+    Buffer_Vertex* src = ctx->runner->vertexBuffers[srcBufferId];
     if (src == nullptr) {
         logWarn("[vertex_update_buffer_from_vertex] source vertex buffer index is out of range");
         return RValue_makeUndefined();
@@ -19698,13 +19558,13 @@ static RValue builtin_vertex_update_buffer_from_vertex(VMContext* ctx, RValue* a
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* srcFormat = vertexFormatById((uint32_t) src->storedFormat);
+    VmVertexFormat* srcFormat = vertexFormatById(ctx, (uint32_t) src->storedFormat);
     if (srcFormat == nullptr) {
         logWarn("[vertex_update_buffer_from_vertex] unknown source vertex buffer format");
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* destFormat = vertexFormatById((uint32_t) dest->storedFormat);
+    VmVertexFormat* destFormat = vertexFormatById(ctx, (uint32_t) dest->storedFormat);
     if (destFormat == nullptr) {
         dest->storedFormat = src->storedFormat;
         destFormat = srcFormat;
@@ -19796,12 +19656,12 @@ static RValue builtin_vertex_get_buffer_size(MAYBE_UNUSED VMContext* ctx, RValue
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_get_buffer_size] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = ctx->runner->vertexBuffers[bufferIndex];
     if (buffer == nullptr) {
         logWarn("[vertex_get_buffer_size] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
@@ -19818,12 +19678,12 @@ static RValue builtin_vertex_get_number(MAYBE_UNUSED VMContext* ctx, RValue* arg
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_get_number] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = ctx->runner->vertexBuffers[bufferIndex];
     if (buffer == nullptr) {
         logWarn("[vertex_get_number] Vertex Buffer index is out of range");
         return RValue_makeReal(0.0);
@@ -19839,12 +19699,12 @@ static RValue builtin_vertex_delete_buffer(MAYBE_UNUSED VMContext* ctx, RValue* 
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_delete_buffer] Invalid vertex buffer specified");
         return RValue_makeUndefined();
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = ctx->runner->vertexBuffers[bufferIndex];
     if (buffer == nullptr) {
         logWarn("[vertex_delete_buffer] Invalid vertex buffer specified");
         return RValue_makeUndefined();
@@ -19866,7 +19726,7 @@ static RValue builtin_vertex_delete_buffer(MAYBE_UNUSED VMContext* ctx, RValue* 
     }
 
     free(buffer);
-    g_VertexBuffers[bufferIndex] = nullptr;
+    ctx->runner->vertexBuffers[bufferIndex] = nullptr;
     return RValue_makeUndefined();
 }
 
@@ -19878,27 +19738,25 @@ static RValue builtin_vertex_buffer_exists(MAYBE_UNUSED VMContext* ctx, RValue* 
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
         return RValue_makeBool(false);
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = ctx->runner->vertexBuffers[bufferIndex];
     return RValue_makeBool(buffer != nullptr);
 }
 
-static bool vertexBufferResolve(int32_t bufferIndex, const char* functionName, bool allowFrozen, Buffer_Vertex** outBuffer) {
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+static bool vertexBufferResolve(Runner* runner, int32_t bufferIndex, const char* functionName, bool allowFrozen, Buffer_Vertex** outBuffer) {
+    if (runner == nullptr || bufferIndex < 0 || bufferIndex >= runner->vertexBufferCount) {
         logWarn("[%s] Illegal vertex buffer specified\n", functionName);
         return false;
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = runner->vertexBuffers[bufferIndex];
     if (buffer == nullptr || (!allowFrozen && buffer->frozen)) {
         logWarn("[%s] Illegal vertex buffer specified\n", functionName);
         return false;
     }
-
-    printf("[%s] Resolved vertex buffer at index %d\n", functionName, bufferIndex);
 
     *outBuffer = buffer;
     return true;
@@ -19930,11 +19788,11 @@ static RValue builtin_vertex_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     int32_t formatId = RValue_toInt32(args[1]);
 
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_begin", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_begin", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vertexFormat = vertexFormatById(formatId);
+    VmVertexFormat* vertexFormat = vertexFormatById(ctx, formatId);
     if (vertexFormat == nullptr) {
         logWarn("[vertex_begin] Illegal vertex format specified");
         return RValue_makeUndefined();
@@ -19996,7 +19854,7 @@ static RValue builtin_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, in
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_color", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_color", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20040,7 +19898,7 @@ static RValue builtin_vertex_normal(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_normal", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_normal", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20066,7 +19924,7 @@ static RValue builtin_vertex_position(MAYBE_UNUSED VMContext* ctx, RValue* args,
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_position", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_position", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20091,7 +19949,7 @@ static RValue builtin_vertex_position_3d(MAYBE_UNUSED VMContext* ctx, RValue* ar
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_position_3d", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_position_3d", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20117,7 +19975,7 @@ static RValue builtin_vertex_argb(MAYBE_UNUSED VMContext* ctx, RValue* args, int
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_argb", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_argb", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20150,7 +20008,7 @@ static RValue builtin_vertex_texcoord(MAYBE_UNUSED VMContext* ctx, RValue* args,
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_texcoord", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_texcoord", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20175,7 +20033,7 @@ static RValue builtin_vertex_float1(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_float1", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_float1", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20198,7 +20056,7 @@ static RValue builtin_vertex_float2(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_float2", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_float2", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20223,7 +20081,7 @@ static RValue builtin_vertex_float3(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_float3", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_float3", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20249,7 +20107,7 @@ static RValue builtin_vertex_float4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_float4", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_float4", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20276,7 +20134,7 @@ static RValue builtin_vertex_ubyte4(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_ubyte4", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_ubyte4", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20302,7 +20160,7 @@ static RValue builtin_vertex_end(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_end", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_end", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20326,7 +20184,7 @@ static RValue builtin_vertex_freeze(MAYBE_UNUSED VMContext* ctx, RValue* args, i
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
     Buffer_Vertex* buffer = nullptr;
-    if (!vertexBufferResolve(bufferIndex, "vertex_freeze", false, &buffer)) {
+    if (!vertexBufferResolve(ctx == nullptr ? nullptr : ctx->runner, bufferIndex, "vertex_freeze", false, &buffer)) {
         return RValue_makeUndefined();
     }
 
@@ -20394,12 +20252,12 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
     }
 
     int32_t bufferIndex = RValue_toInt32(args[0]);
-    if (bufferIndex < 0 || bufferIndex >= g_VertexBufferCount) {
+    if (ctx == nullptr || ctx->runner == nullptr || bufferIndex < 0 || bufferIndex >= ctx->runner->vertexBufferCount) {
         logWarn("[vertex_submit_ext] Illegal vertex buffer specified.\n");
         return RValue_makeUndefined();
     }
 
-    Buffer_Vertex* buffer = g_VertexBuffers[bufferIndex];
+    Buffer_Vertex* buffer = ctx->runner->vertexBuffers[bufferIndex];
     if (buffer == nullptr) {
         logWarn("[vertex_submit_ext] Illegal vertex buffer specified.\n");
         return RValue_makeUndefined();
@@ -20416,7 +20274,7 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
         return RValue_makeUndefined();
     }
 
-    VmVertexFormat* vmFormat = vertexFormatById((uint32_t) buffer->storedFormat);
+    VmVertexFormat* vmFormat = vertexFormatById(ctx, (uint32_t) buffer->storedFormat);
     if (vmFormat == nullptr || vmFormat->size == 0 || vmFormat->format == nullptr) {
         logWarn("[vertex_submit_ext] Illegal vertex format.\n");
         return RValue_makeUndefined();
