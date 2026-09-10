@@ -204,12 +204,12 @@ static inline void bsGetDirname(char* path) {
 #endif
 
     if (target) {
-        if (*target == ':') {
-            *(target + 1) = '\0';
-        } else if (target == path || *(target - 1) == ':') {
-            *(target + 1) = '\0';
+        if (target[0] == ':') {
+            target[1] = '\0';
+        } else if (target == path || target[-1] == ':') {
+            target[1] = '\0';
         } else {
-            *target = '\0';
+            target[0] = '\0';
         }
     } else {
         path[0] = '.';
