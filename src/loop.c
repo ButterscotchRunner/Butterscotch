@@ -1434,13 +1434,13 @@ int loop(CommandLineArgs args, const char *argv0) {
 
         // game_change was called, so we need to restart the runner with the new data.win and launch parameters
         bool macosGameChange = (args.osType == OS_MACOSX);
+        char* dataWinFilename = nullptr;
 
         if (nextWorkingDirectory != nullptr && nextLaunchParameters != nullptr) {
             char** newArguments = nullptr;
             newArguments = extractRunnerArguments(nextLaunchParameters);
 
             // Extract the data.win filename from "-game <file>" inside the new launch parameters
-            char* dataWinFilename = nullptr;
             if (!macosGameChange) {
                 // After extraction, we now need to figure out where is the "-game" argument
                 size_t length = arrlen(newArguments);
