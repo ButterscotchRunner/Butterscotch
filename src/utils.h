@@ -210,7 +210,11 @@ static inline void bsGetDirname(char* path) {
             target[1] = '\0';
         } else
 #endif
-        if (target == path || target[-1] == ':') {
+        if (target == path
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+            || target[0] == ':'
+#endif
+            ) {
             target[1] = '\0';
         } else {
             target[0] = '\0';
