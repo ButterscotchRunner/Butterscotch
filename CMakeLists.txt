@@ -274,7 +274,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "switch")
         if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            add_compile_options(-ffast-math)
+            add_compile_options(-ffast-math -fno-finite-math-only)
         endif()
 
         add_compile_definitions(PLATFORM_SWITCH)
