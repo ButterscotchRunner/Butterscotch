@@ -19392,9 +19392,7 @@ static void registerVertexFormat(VMContext* ctx, VmVertexFormat* vertexFormat) {
     if (index >= (uint32_t) oldLen) {
         arrsetlen(ctx->runner->vertexFormats, (int32_t)(index + 1));
     }
-    for (int j = oldLen; j < arrlen(ctx->runner->vertexFormats); j++) {
-        ctx->runner->vertexFormats[j] = nullptr;
-    }
+    memset(&ctx->runner->vertexFormats[oldLen], 0, (arrlen(ctx->runner->vertexFormats) - oldLen) * sizeof(ctx->runner->vertexFormats[0]));
     ctx->runner->vertexFormats[index] = vertexFormat;
 }
 
