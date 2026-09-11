@@ -22,7 +22,6 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
-#include "debug_font/debug_font.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -892,7 +891,7 @@ static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     glDeleteTextures(1, &gl->whiteTexture);
-    if (gl->debugUIFontTexture != 0) glDeleteTextures(1, &gl->debugUIFontTexture);
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
 
     repeat(gl->gmlShaderCount, i) {
         freeShader(&gl->gmlShaders[i]);
@@ -2128,66 +2127,9 @@ typedef struct {
 
 // ===[ Debug UI font (drawTextUI) ]===
 // drawTextUI must not depend on game fonts (data.win may ship none), so it uses
-// the embedded debug font atlas (src/debug_font/) uploaded as its own GL texture.
+// the embedded debug font from gl_common.h, uploaded as its own GL texture.
 // A synthetic Font + GlFontState pair is built per renderer instance and passed
-// as real pointers into drawText(), replacing the previous null/null stub.
-static void initDebugUIFont(GLRenderer* gl) {
-    if (gl->debugUIFontInitialized) return;
-    gl->debugUIFontInitialized = true;
-
-    gl->debugUIFont.name = "DebugUI";
-    gl->debugUIFont.displayName = "DebugUI";
-    gl->debugUIFont.scaleX = 1.0f;
-    gl->debugUIFont.scaleY = 1.0f;
-    gl->debugUIFont.ascenderOffset = 0;
-    gl->debugUIFont.maxGlyphHeight = DEBUGFONT_LINE_HEIGHT;
-    gl->debugUIFont.emSize = (float) DEBUGFONT_LINE_HEIGHT;
-    gl->debugUIFont.isSpriteFont = false;
-    gl->debugUIFont.tpagIndex = -1;
-
-    repeat(DEBUGFONT_GLYPH_COUNT, i) {
-        const DebugFontGlyphEntry* e = &debugFontGlyphs[i];
-        FontGlyph* g = &gl->debugUIFontGlyphs[i];
-        g->character = (uint16_t) (DEBUGFONT_FIRST_CP + i);
-        g->sourceX = e->x;
-        g->sourceY = e->y;
-        g->sourceWidth = e->w;
-        g->sourceHeight = e->h;
-        g->shift = e->xadvance;
-        g->offset = e->xoffset;
-        g->kerningCount = 0;
-        g->kerning = nullptr;
-    }
-    gl->debugUIFont.glyphs = gl->debugUIFontGlyphs;
-    gl->debugUIFont.glyphCount = DEBUGFONT_GLYPH_COUNT;
-    Font_buildGlyphLUT(&gl->debugUIFont);
-}
-
-static bool ensureDebugFontTexture(GLRenderer* gl) {
-    if (gl->debugUIFontTexture != 0) return true;
-
-    glGenTextures(1, &gl->debugUIFontTexture);
-    if (gl->debugUIFontTexture == 0) return false;
-
-    size_t pixelCount = (size_t) DEBUGFONT_ATLAS_W * (size_t) DEBUGFONT_ATLAS_H;
-    uint8_t* rgba = (uint8_t *)safeMalloc(pixelCount * 4);
-    repeat(pixelCount, i) {
-        rgba[i * 4 + 0] = 0xFF;
-        rgba[i * 4 + 1] = 0xFF;
-        rgba[i * 4 + 2] = 0xFF;
-        rgba[i * 4 + 3] = debugFontPixels[i];
-    }
-
-    glBindTexture(GL_TEXTURE_2D, gl->debugUIFontTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    free(rgba);
-    return true;
-}
+// as real pointers into drawText().
 
 // Resolves font texture state
 // Returns false if the font can't be drawn
@@ -2255,12 +2197,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY;
-        // GameMaker fonts have no per-glyph Y offset, but the debug atlas does:
-        // apply the debug yoffset (from top of line) when drawing with the UI font.
-        if (font == &gl->debugUIFont && DEBUGFONT_FIRST_CP <= glyph->character && glyph->character <= DEBUGFONT_LAST_CP) {
-            *outLocalY0 = cursorY + (float) debugFontGlyphs[glyph->character - DEBUGFONT_FIRST_CP].yoffset;
-        }
+        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
     }
     return true;
 }
@@ -2486,13 +2423,13 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
 static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
-    initDebugUIFont(gl);
-    if (!ensureDebugFontTexture(gl)) return;
+    GLCommon_initDebugUIFont(&gl->debugUI);
+    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
 
     GlFontState fs;
-    fs.font = &gl->debugUIFont;
-    fs.fontTpag = &gl->debugUIFontTpag;
-    fs.texId = gl->debugUIFontTexture;
+    fs.font = &gl->debugUI.font;
+    fs.fontTpag = &gl->debugUI.tpag;
+    fs.texId = gl->debugUI.texture;
     fs.texW = DEBUGFONT_ATLAS_W;
     fs.texH = DEBUGFONT_ATLAS_H;
     fs.spriteFontSprite = nullptr;
