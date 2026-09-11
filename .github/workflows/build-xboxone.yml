@@ -17,7 +17,6 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            C:\Program Files\Microsoft GDK
             C:\Program Files (x86)\Microsoft GDK
           key: gdk-${{ runner.os }}-x64
 
@@ -34,7 +33,6 @@ jobs:
         shell: pwsh
         run: |
           $gdkRoot = @(
-            "$env:ProgramFiles\Microsoft GDK",
             "$env:ProgramFiles(x86)\Microsoft GDK"
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
