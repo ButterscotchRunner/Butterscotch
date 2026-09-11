@@ -25,5 +25,8 @@ jobs:
   Other:
     uses: ./.github/workflows/build-other.yml
 
+  XboxOne:
+    uses: ./.github/workflows/build-xboxone.yml
+
   Compilers:
     uses: ./.github/workflows/build-old-compilers.yml

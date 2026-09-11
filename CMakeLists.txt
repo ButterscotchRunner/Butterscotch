@@ -26,6 +26,15 @@ endif()
 
 set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "xboxone")
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    if(NOT DEFINED ENV{GDK} AND NOT DEFINED ENV{GDKX})
+        message(FATAL_ERROR "Please define GDK or GDKX to point to your Xbox GDK installation before configuring PLATFORM=xboxone!")
+    endif()
+endif()
+
+set(BACKEND "sdl3")
+
 endif()
 
 project(butterscotch C)
@@ -260,7 +269,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "xboxone")
     if(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -274,6 +283,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "xboxone")
+        add_compile_definitions(PLATFORM_XBOXONE)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -400,11 +416,23 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL3 REQUIRED sdl3)
-        target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
+        if(MSVC)
+            if(DEFINED SDL3_DIR)
+                find_package(SDL3 CONFIG REQUIRED)
+                set(BACKEND_LIBRARIES SDL3::SDL3)
+            elseif(DEFINED ENV{SDL3_DIR})
+                find_package(SDL3 CONFIG REQUIRED)
+                set(BACKEND_LIBRARIES SDL3::SDL3)
+            else()
+                message(FATAL_ERROR "For Windows/GDK builds, set SDL3_DIR to the SDL3 CMake package directory before configuring with BACKEND=sdl3.")
+            endif()
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL3 REQUIRED sdl3)
+            target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "appkit")
         add_compile_definitions(USE_APPKIT)
         target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)

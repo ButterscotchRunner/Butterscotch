@@ -1,0 +1,83 @@
+name: Xbox One builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-xboxone:
+    name: Build (Xbox One)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install GDK
+        shell: pwsh
+        run: |
+          winget install Microsoft.Gaming.GDK `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --silent
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Checkout SDL3
+        uses: actions/checkout@v7
+        with:
+          repository: libsdl-org/SDL
+          ref: release-3.2.10
+          path: vendor/SDL3
+
+      - name: Configure SDL3
+        shell: pwsh
+        run: |
+          cmake -S "$env:GITHUB_WORKSPACE/vendor/SDL3" `
+            -B "$env:GITHUB_WORKSPACE/vendor/SDL3/build" `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DSDL_SHARED=OFF `
+            -DSDL_STATIC=ON `
+            -DSDL_TESTS=OFF `
+            -DSDL_INSTALL=ON `
+            -DSDL_GDK=ON `
+            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/vendor/SDL3/install"
+
+      - name: Build SDL3
+        shell: pwsh
+        run: |
+          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL3/build"
+
+      - name: Install SDL3
+        shell: pwsh
+        run: |
+          cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL3/build"
+
+      - name: Configure Butterscotch
+        shell: pwsh
+        run: |
+          cmake -S "$env:GITHUB_WORKSPACE" `
+            -B "$env:GITHUB_WORKSPACE/build" `
+            -G Ninja `
+            -DPLATFORM=xboxone `
+            -DBACKEND=sdl3 `
+            -DSDL3_DIR="$env:GITHUB_WORKSPACE/vendor/SDL3/install" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DWERROR=ON
+
+      - name: Build Butterscotch
+        shell: pwsh
+        run: |
+          cmake --build "$env:GITHUB_WORKSPACE/build"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-xboxone
+          path: build/**/*
