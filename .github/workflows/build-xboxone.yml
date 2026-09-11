@@ -88,48 +88,52 @@ jobs:
         with:
           arch: x64
 
-      - name: Checkout SDL3
+      - name: Cache SDL2 build
+        id: cache-sdl2
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vendor/SDL2/install
+          key: sdl2-xboxone-${{ runner.os }}-2.32.10-rev2
+
+      - name: Checkout SDL2
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
-          ref: release-3.2.10
-          path: vendor/SDL3
+          ref: release-2.32.10
+          path: vendor/SDL2
 
-      - name: Configure SDL3
+      - name: Build SDL2 from source
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          cmake -S "$env:GITHUB_WORKSPACE/vendor/SDL3" `
-            -B "$env:GITHUB_WORKSPACE/vendor/SDL3/build" `
+          cmake -S "$env:GITHUB_WORKSPACE/vendor/SDL2" `
+            -B "$env:GITHUB_WORKSPACE/vendor/SDL2/build" `
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
             -DSDL_SHARED=OFF `
             -DSDL_STATIC=ON `
             -DSDL_TESTS=OFF `
-            -DSDL_INSTALL=ON `
-            -DSDL_GDK=ON `
-            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/vendor/SDL3/install"
-
-      - name: Build SDL3
-        shell: pwsh
-        run: |
-          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL3/build"
-
-      - name: Install SDL3
-        shell: pwsh
-        run: |
-          cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL3/build"
+            -DSDL_GDK=ON
+          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
+          cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
 
       - name: Configure Butterscotch
+        env:
+          PKG_CONFIG_PATH: "$env:GITHUB_WORKSPACE/vendor/SDL2/install/lib/pkgconfig"
+          PKG_CONFIG_LIBDIR: "$env:GITHUB_WORKSPACE/vendor/SDL2/install/lib/pkgconfig"
+          PKG_CONFIG_SYSROOT_DIR: "$env:GITHUB_WORKSPACE/vendor/SDL2/install"
         shell: pwsh
         run: |
           cmake -S "$env:GITHUB_WORKSPACE" `
             -B "$env:GITHUB_WORKSPACE/build" `
             -G Ninja `
             -DPLATFORM=xboxone `
-            -DBACKEND=sdl3 `
+            -DBACKEND=sdl2 `
             -DGDK="$env:GDK" `
             -DGDKX="$env:GDKX" `
-            -DSDL3_DIR="$env:GITHUB_WORKSPACE/vendor/SDL3/install" `
+            -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
             -DCMAKE_BUILD_TYPE=Release `
             -DWERROR=ON
 
