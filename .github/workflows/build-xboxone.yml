@@ -15,13 +15,63 @@ jobs:
       - name: Install GDK
         shell: pwsh
         run: |
-          winget install Microsoft.Gaming.GDK `
+          $ErrorActionPreference = "Stop"
+
+          # GitHub's Windows images may have App Installer/WinGet
+          # installed without winget.exe being on PATH.
+          $winget = Get-ChildItem `
+            "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe", `
+            "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe\winget.exe" `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $winget) {
+            Write-Host "winget.exe was not found."
+            Write-Host "WindowsApps contents:"
+            Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WindowsApps" `
+              -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -like "*winget*" }
+
+            throw "WinGet is not available on this GitHub Actions runner."
+          }
+
+          Write-Host "Using WinGet: $winget"
+
+          & $winget install Microsoft.Gaming.GDK `
             --accept-package-agreements `
             --accept-source-agreements `
-            --silent
+            --silent `
+            --disable-interactivity
 
-      - name: Install Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+          if ($LASTEXITCODE -ne 0) {
+            throw "GDK installation failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Verify GDK
+        shell: pwsh
+        run: |
+          $gdkPaths = @(
+            "C:\Program Files (x86)\Microsoft GDK",
+            "C:\Program Files\Microsoft GDK"
+          )
+
+          foreach ($path in $gdkPaths) {
+            if (Test-Path $path) {
+              Write-Host "GDK found at: $path"
+              Get-ChildItem $path -Directory | Select-Object Name
+            }
+          }
+
+          $makepkg = Get-ChildItem `
+            "C:\Program Files (x86)\Microsoft GDK" `
+            -Recurse `
+            -Filter "makepkg.exe" `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if ($makepkg) {
+            Write-Host "makepkg.exe: $makepkg"
+          }
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -52,7 +102,7 @@ jobs:
       - name: Build SDL3
         shell: pwsh
         run: |
-          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL3/build"
+          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL3/build" --parallel
 
       - name: Install SDL3
         shell: pwsh
@@ -74,10 +124,10 @@ jobs:
       - name: Build Butterscotch
         shell: pwsh
         run: |
-          cmake --build "$env:GITHUB_WORKSPACE/build"
+          cmake --build "$env:GITHUB_WORKSPACE/build" --parallel
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: butterscotch-xboxone
-          path: build/**/*
+          path: build/**
