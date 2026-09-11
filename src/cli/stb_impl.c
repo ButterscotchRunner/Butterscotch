@@ -6,6 +6,7 @@
 #elif defined(__clang__)
 #pragma clang diagnostic ignored "-Wuninitialized"
 #endif
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
