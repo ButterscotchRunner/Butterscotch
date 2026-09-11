@@ -318,6 +318,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
+        add_compile_definitions(NO_STRINGS_H)
         add_compile_definitions(NO_STRTOK_R)
         add_compile_definitions(NO_STRCASECMP)
     endif()
