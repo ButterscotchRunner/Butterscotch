@@ -4,6 +4,7 @@
 #include "common.h"
 #include "renderer.h"
 #include "runner.h"
+#include "debug_font/debug_font.h"
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
@@ -78,6 +79,12 @@ typedef struct {
     uint32_t textureCount;
 
     GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
+
+    Font debugUIFont;
+    FontGlyph debugUIFontGlyphs[DEBUGFONT_GLYPH_COUNT];
+    TexturePageItem debugUIFontTpag;
+    bool debugUIFontInitialized;
+    GLuint debugUIFontTexture; // 0 = not uploaded yet
 
     int32_t windowW; // stored from beginFrame for endFrame blit
     int32_t windowH;

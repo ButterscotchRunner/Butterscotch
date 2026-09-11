@@ -40,8 +40,9 @@ endif
 
 INCLUDES += $(INC). \
 		    $(INC)src \
-		    $(INC)vendor/stb/ds \
 		    $(INC)src/image \
+		    $(INC)src/debug_font \
+		    $(INC)vendor/stb/ds \
 		    $(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
 		    $(INC)vendor/md5 \
@@ -50,7 +51,7 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/bzip2
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3

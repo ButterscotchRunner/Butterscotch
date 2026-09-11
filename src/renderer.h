@@ -160,6 +160,7 @@ typedef struct {
     void (*drawLineColor)(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha);
     void (*drawText)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation);
     void (*drawTextColor)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation);
+    void (*drawTextUI)(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation);
     void (*primitiveBegin)(Renderer* renderer, int32_t primitiveType);
     void (*primitiveBeginTexture)(Renderer* renderer, int32_t primitiveType, int32_t texture);
     void (*primitiveEnd)(Renderer* renderer);
