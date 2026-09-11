@@ -52,9 +52,17 @@ else()
 endif()
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CheckLinkerFlag)
+    
     if(MSVC)
         # equivalent to -fomit-frame-pointer
         add_compile_options(/Oy)
+
+        # equivalent to -Wl,--icf=all
+        check_linker_flag(C "/OPT:ICF" HAS_MSVC_ICF)
+        if(HAS_MSVC_ICF)
+            add_link_options("$<$<NOT:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>>:/OPT:ICF>")
+        endif()
     else()
         add_compile_options(-ffast-math -fno-finite-math-only)
 
@@ -63,6 +71,12 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
         if(HAS_FOMIT_FRAME_POINTER)
             add_compile_options(-fomit-frame-pointer)
+        endif()
+
+        # bfd sucks ass but this saves a couple kbs of binary size on linkers that do support this
+        check_linker_flag(C "-Wl,--icf=all" HAS_ICF_ALL)
+        if(HAS_ICF_ALL)
+            add_link_options("-Wl,--icf=all")
         endif()
     endif()
 endif()
