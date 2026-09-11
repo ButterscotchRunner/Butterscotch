@@ -1,6 +1,7 @@
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wall"
 #pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
 #define STB_IMAGE_IMPLEMENTATION

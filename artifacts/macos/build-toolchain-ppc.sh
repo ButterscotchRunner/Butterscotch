@@ -26,6 +26,8 @@ if ! [ -d "$sdk" ] || [ "$(cat "$sdk/sdkver" 2>/dev/null)" != "$sdkver" ]; then
     wait
     tar -xJf MacOSX10.5.sdk.tar.xz
     mv MacOSX10.5.sdk "$sdk"
+    cd "$sdk"
+    patch -fNp1 < "$platformdir/leopard-sdk-fix.patch"
     )
     wait
     rm ./*.tar.xz
@@ -56,7 +58,7 @@ export PATH="$PWD/toolchain-ppc/bin:$PATH"
 
 # Increase this if we ever make a change to the toolchain, for example
 # using a newer GCC version, and we need to invalidate the cache.
-ppctoolchainver=1
+ppctoolchainver=2
 ppc_triple='powerpc-apple-darwin8'
 if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; then
     printf '\nBuilding powerpc toolchain...\n\n'
@@ -113,7 +115,7 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
         --disable-multilib \
         --disable-nls \
         --with-system-zlib \
-        --enable-languages=c \
+        --enable-languages=c,objc \
         --with-sysroot="$sdk" \
         --with-as="$(command -v ppc-as)" \
         --with-ld="$(command -v ppc-ld)" \
@@ -127,6 +129,28 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
     make -j"$ncpus" install-strip
     cd ../..
     rm -rf "gcc-$gcc_version" &
+
+    sdl1_version='39e1580a7d2f8c09521338108c2a94019e37798e'
+    rm -rf SDL-1.2-*
+    wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/$sdl1_version.tar.gz" | tar -xz
+    cd "SDL-1.2-$sdl1_version"
+    sed -i 's/-fpascal-strings//g' configure
+    ./configure \
+        --host="$ppc_triple" \
+        --prefix="$workdir/toolchain-ppc/$ppc_triple" \
+        --disable-shared \
+        --disable-stdio-redirect \
+        --disable-threads \
+        --disable-video-x11 \
+        --disable-altivec \
+        CC="$workdir/toolchain-ppc/bin/$ppc_triple-gcc" \
+        AR="$(command -v ppc-ar)" \
+        RANLIB="$(command -v ppc-ranlib)" \
+        CPPFLAGS="-DNDEBUG"
+    make -j"$ncpus"
+    make -j"$ncpus" install
+    cd ..
+    rm -rf "SDL-1.2-$sdl1_version" &
 
     rm -rf toolchain-ppc/share
     printf '%s' "$ppctoolchainver" > toolchain-ppc/toolchainver
