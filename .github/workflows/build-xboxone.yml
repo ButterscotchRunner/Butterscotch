@@ -12,13 +12,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Cache GDK
+        id: cache-gdk
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Program Files\Microsoft GDK
+            C:\Program Files (x86)\Microsoft GDK
+          key: gdk-${{ runner.os }}-x64
+
       - name: Install GDK
+        if: steps.cache-gdk.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           winget install Microsoft.Gaming.GDK `
             --accept-package-agreements `
             --accept-source-agreements `
             --silent
+
+      - name: Resolve GDK path
+        shell: pwsh
+        run: |
+          $gdkRoot = @(
+            "$env:ProgramFiles\Microsoft GDK",
+            "$env:ProgramFiles(x86)\Microsoft GDK"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+          if (-not $gdkRoot) {
+            throw "Microsoft GDK was not found under Program Files after installation."
+          }
+
+          "GDK=$gdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "GDKX=$gdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
@@ -67,6 +92,8 @@ jobs:
             -G Ninja `
             -DPLATFORM=xboxone `
             -DBACKEND=sdl3 `
+            -DGDK="$env:GDK" `
+            -DGDKX="$env:GDKX" `
             -DSDL3_DIR="$env:GITHUB_WORKSPACE/vendor/SDL3/install" `
             -DCMAKE_BUILD_TYPE=Release `
             -DWERROR=ON
