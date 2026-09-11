@@ -119,28 +119,28 @@ jobs:
           cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
           cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
 
-      # - name: Configure Butterscotch
-      #   shell: pwsh
-      #   run: |
-      #     cmake -S "$env:GITHUB_WORKSPACE" `
-      #       -B "$env:GITHUB_WORKSPACE/build" `
-      #       -G Ninja `
-      #       -DPLATFORM=xboxone `
-      #       -DBACKEND=sdl2 `
-      #       -DGDK="$env:GDK" `
-      #       -DGDKX="$env:GDKX" `
-      #       -DSDL2_DIR="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
-      #       -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
-      #       -DCMAKE_BUILD_TYPE=Release `
-      #       -DWERROR=ON
+      - name: Configure Butterscotch
+        shell: pwsh
+        run: |
+          cmake -S "$env:GITHUB_WORKSPACE" `
+            -B "$env:GITHUB_WORKSPACE/build" `
+            -G Ninja `
+            -DPLATFORM=xboxone `
+            -DBACKEND=sdl2 `
+            -DGDK="$env:GDK" `
+            -DGDKX="$env:GDKX" `
+            -DSDL2_DIR="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
+            -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DWERROR=ON
 
-      # - name: Build Butterscotch
-      #   shell: pwsh
-      #   run: |
-      #     cmake --build "$env:GITHUB_WORKSPACE/build"
+      - name: Build Butterscotch
+        shell: pwsh
+        run: |
+          cmake --build "$env:GITHUB_WORKSPACE/build"
 
-      # - name: Upload artifact
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: butterscotch-xboxone
-      #     path: build/**/*
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-xboxone
+          path: build/**/*
