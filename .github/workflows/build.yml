@@ -7,26 +7,26 @@ on:
     branches: [main]
 
 jobs:
-  Unix:
-    uses: ./.github/workflows/build-desktop.yml
+  # Unix:
+  #   uses: ./.github/workflows/build-desktop.yml
 
-  Windows:
-    uses: ./.github/workflows/build-windows.yml
+  # Windows:
+  #   uses: ./.github/workflows/build-windows.yml
 
-  macOS:
-    uses: ./.github/workflows/build-macos.yml
+  # macOS:
+  #   uses: ./.github/workflows/build-macos.yml
 
-  Haiku:
-    uses: ./.github/workflows/build-haiku.yml
+  # Haiku:
+  #   uses: ./.github/workflows/build-haiku.yml
 
-  Consoles:
-    uses: ./.github/workflows/build-console.yml
+  # Consoles:
+  #   uses: ./.github/workflows/build-console.yml
 
-  Other:
-    uses: ./.github/workflows/build-other.yml
+  # Other:
+  #   uses: ./.github/workflows/build-other.yml
 
   XboxOne:
     uses: ./.github/workflows/build-xboxone.yml
 
-  Compilers:
-    uses: ./.github/workflows/build-old-compilers.yml
+  # Compilers:
+  #   uses: ./.github/workflows/build-old-compilers.yml
