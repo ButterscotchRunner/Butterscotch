@@ -16,43 +16,65 @@ jobs:
         id: cache-gdk
         uses: actions/cache@v4
         with:
-          path: |
-            C:\Program Files\Microsoft GDK
-            C:\Program Files (x86)\Microsoft GDK
+          path: ${{ runner.temp }}\gdk-cache
           key: gdk-${{ runner.os }}-x64
 
-      - name: Install GDK
-        if: steps.cache-gdk.outputs.cache-hit != 'true'
+      - name: Install or restore GDK
         shell: pwsh
         run: |
-          winget install Microsoft.Gaming.GDK `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --silent
+          $cacheRoot = Join-Path '${{ runner.temp }}' 'gdk-cache'
+          $installRoots = @(
+            "${env:ProgramFiles}\Microsoft GDK",
+            "${env:ProgramFiles(x86)}\Microsoft GDK"
+          )
 
-      - name: Resolve GDK path
-        shell: pwsh
-        run: |
-          $gdkRoot = @(
-            "${env:ProgramFiles(x86)}\Microsoft GDK",
-            "${env:ProgramFiles}\Microsoft GDK"
-          ) |
+          $gdkRoot = $installRoots |
             Where-Object { $_ -and (Test-Path $_) } |
             Select-Object -First 1
 
-          if (-not $gdkRoot) {
-            $gdkRoot = @(
-              (Get-ChildItem -Path "${env:ProgramFiles(x86)}" -Directory -Filter "Microsoft GDK" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
-              (Get-ChildItem -Path "${env:ProgramFiles}" -Directory -Filter "Microsoft GDK" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
-              (Get-ChildItem -Path "${env:ProgramFiles(x86)}" -Recurse -Directory -Filter "GDK*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
-              (Get-ChildItem -Path "${env:ProgramFiles}" -Recurse -Directory -Filter "GDK*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+          if ("${{ steps.cache-gdk.outputs.cache-hit }}" -eq "true") {
+            $cached = @(
+              (Join-Path $cacheRoot 'Microsoft GDK'),
+              (Join-Path $cacheRoot 'MicrosoftGDK'),
+              $cacheRoot
             ) |
               Where-Object { $_ -and (Test-Path $_) } |
               Select-Object -First 1
+
+            if (-not $cached) {
+              throw "Cached GDK directory was not found in $cacheRoot."
+            }
+
+            if (-not $gdkRoot) {
+              $gdkRoot = "${env:ProgramFiles}\Microsoft GDK"
+            }
+
+            if (Test-Path $gdkRoot) {
+              Remove-Item $gdkRoot -Recurse -Force
+            }
+
+            Copy-Item $cached $gdkRoot -Recurse -Force
+          }
+          else {
+            winget install Microsoft.Gaming.GDK `
+              --accept-package-agreements `
+              --accept-source-agreements `
+              --silent
+
+            $gdkRoot = $installRoots |
+              Where-Object { $_ -and (Test-Path $_) } |
+              Select-Object -First 1
+
+            if (-not $gdkRoot) {
+              throw "Microsoft GDK was not found under Program Files after installation."
+            }
+
+            New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
+            Copy-Item $gdkRoot (Join-Path $cacheRoot 'Microsoft GDK') -Recurse -Force
           }
 
           if (-not $gdkRoot) {
-            throw "Microsoft GDK was not found under Program Files after installation."
+            throw "Microsoft GDK was not found under Program Files after restore."
           }
 
           "GDK=$gdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
