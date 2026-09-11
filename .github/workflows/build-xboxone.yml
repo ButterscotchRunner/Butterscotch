@@ -120,10 +120,6 @@ jobs:
           cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
 
       - name: Configure Butterscotch
-        env:
-          PKG_CONFIG_PATH: "$env:GITHUB_WORKSPACE/vendor/SDL2/install/lib/pkgconfig"
-          PKG_CONFIG_LIBDIR: "$env:GITHUB_WORKSPACE/vendor/SDL2/install/lib/pkgconfig"
-          PKG_CONFIG_SYSROOT_DIR: "$env:GITHUB_WORKSPACE/vendor/SDL2/install"
         shell: pwsh
         run: |
           cmake -S "$env:GITHUB_WORKSPACE" `
@@ -133,6 +129,7 @@ jobs:
             -DBACKEND=sdl2 `
             -DGDK="$env:GDK" `
             -DGDKX="$env:GDKX" `
+            -DSDL2_DIR="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
             -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
             -DCMAKE_BUILD_TYPE=Release `
             -DWERROR=ON
