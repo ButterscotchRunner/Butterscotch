@@ -351,7 +351,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
-    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "xboxone")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
