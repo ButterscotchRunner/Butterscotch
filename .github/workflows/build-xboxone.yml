@@ -17,61 +17,83 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          # GitHub's Windows images may have App Installer/WinGet
-          # installed without winget.exe being on PATH.
-          $winget = Get-ChildItem `
-            "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe", `
-            "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe\winget.exe" `
-            -ErrorAction SilentlyContinue |
-            Select-Object -First 1 -ExpandProperty FullName
+          $gdkInstaller = "$env:RUNNER_TEMP\gdk.exe"
 
-          if (-not $winget) {
-            Write-Host "winget.exe was not found."
-            Write-Host "WindowsApps contents:"
-            Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WindowsApps" `
-              -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -like "*winget*" }
+          Write-Host "Downloading GDK..."
+          Invoke-WebRequest `
+            -Uri "https://aka.ms/gdkdl" `
+            -OutFile $gdkInstaller
 
-            throw "WinGet is not available on this GitHub Actions runner."
+          Write-Host "Downloaded GDK installer:"
+          Get-Item $gdkInstaller | Format-List FullName, Length
+
+          Write-Host "Installing GDK..."
+          $process = Start-Process `
+            -FilePath $gdkInstaller `
+            -ArgumentList "/quiet", "/norestart" `
+            -Wait `
+            -PassThru
+
+          if ($process.ExitCode -ne 0) {
+            throw "GDK installer failed with exit code $($process.ExitCode)"
           }
 
-          Write-Host "Using WinGet: $winget"
-
-          & $winget install Microsoft.Gaming.GDK `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --silent `
-            --disable-interactivity
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "GDK installation failed with exit code $LASTEXITCODE"
-          }
+          Write-Host "GDK installation completed."
 
       - name: Verify GDK
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           $gdkPaths = @(
             "C:\Program Files (x86)\Microsoft GDK",
             "C:\Program Files\Microsoft GDK"
           )
 
+          $gdkRoot = $null
+
           foreach ($path in $gdkPaths) {
             if (Test-Path $path) {
               Write-Host "GDK found at: $path"
-              Get-ChildItem $path -Directory | Select-Object Name
+              $gdkRoot = $path
+              break
             }
           }
 
+          if (-not $gdkRoot) {
+            throw "Microsoft GDK was not found after installation."
+          }
+
+          Write-Host "GDK contents:"
+          Get-ChildItem $gdkRoot
+
           $makepkg = Get-ChildItem `
-            "C:\Program Files (x86)\Microsoft GDK" `
+            $gdkRoot `
             -Recurse `
             -Filter "makepkg.exe" `
             -ErrorAction SilentlyContinue |
-            Select-Object -First 1 -ExpandProperty FullName
+            Select-Object -First 1
 
-          if ($makepkg) {
-            Write-Host "makepkg.exe: $makepkg"
+          if (-not $makepkg) {
+            throw "makepkg.exe was not found in the GDK installation."
           }
+
+          Write-Host "Found makepkg:"
+          Write-Host $makepkg.FullName
+
+          # Make GDK tools available to subsequent steps.
+          Add-Content $env:GITHUB_PATH $makepkg.Directory.FullName
+
+      - name: Check GDK tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "makepkg:"
+          Get-Command makepkg.exe
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -125,6 +147,12 @@ jobs:
         shell: pwsh
         run: |
           cmake --build "$env:GITHUB_WORKSPACE/build" --parallel
+
+      - name: Show build output
+        shell: pwsh
+        run: |
+          Write-Host "Build directory:"
+          Get-ChildItem "$env:GITHUB_WORKSPACE/build" -Recurse
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
