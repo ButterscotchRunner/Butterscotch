@@ -122,6 +122,23 @@ jobs:
       - name: Configure Butterscotch
         shell: pwsh
         run: |
+          $setup = @(
+            Join-Path ${env:ProgramFiles} 'Microsoft GDK\SetEnvironment.cmd',
+            Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\SetEnvironment.cmd'
+          ) |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -First 1
+
+          if (-not $setup) {
+            throw 'Microsoft GDK SetEnvironment.cmd was not found.'
+          }
+
+          if (Test-Path "$env:GITHUB_WORKSPACE/build") {
+            Remove-Item "$env:GITHUB_WORKSPACE/build" -Recurse -Force
+          }
+
+          & $setup /release /x64
+
           cmake -S "$env:GITHUB_WORKSPACE" `
             -B "$env:GITHUB_WORKSPACE/build" `
             -G Ninja `
@@ -137,6 +154,18 @@ jobs:
       - name: Build Butterscotch
         shell: pwsh
         run: |
+          $setup = @(
+            Join-Path ${env:ProgramFiles} 'Microsoft GDK\SetEnvironment.cmd',
+            Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\SetEnvironment.cmd'
+          ) |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -First 1
+
+          if (-not $setup) {
+            throw 'Microsoft GDK SetEnvironment.cmd was not found.'
+          }
+
+          & $setup /release /x64
           cmake --build "$env:GITHUB_WORKSPACE/build"
 
       - name: Upload artifact
