@@ -27,14 +27,11 @@ endif()
 set(BACKEND "sdl2")
 
 elseif(PLATFORM STREQUAL "xboxone")
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    if(NOT DEFINED ENV{GDK} AND NOT DEFINED ENV{GDKX})
-        message(FATAL_ERROR "Please define GDK or GDKX to point to your Xbox GDK installation before configuring PLATFORM=xboxone!")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+        if(NOT DEFINED ENV{GDK} AND NOT DEFINED ENV{GDKX})
+            message(FATAL_ERROR "Please define GDK or GDKX to point to your Xbox GDK installation before configuring PLATFORM=xboxone!")
+        endif()
     endif()
-endif()
-
-set(BACKEND "sdl3")
-
 endif()
 
 project(butterscotch C)
