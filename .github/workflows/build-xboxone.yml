@@ -17,6 +17,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
+            C:\Program Files\Microsoft GDK
             C:\Program Files (x86)\Microsoft GDK
           key: gdk-${{ runner.os }}-x64
 
@@ -33,8 +34,22 @@ jobs:
         shell: pwsh
         run: |
           $gdkRoot = @(
-            "$env:ProgramFiles(x86)\Microsoft GDK"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+            "${env:ProgramFiles(x86)}\Microsoft GDK",
+            "${env:ProgramFiles}\Microsoft GDK"
+          ) |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -First 1
+
+          if (-not $gdkRoot) {
+            $gdkRoot = @(
+              (Get-ChildItem -Path "${env:ProgramFiles(x86)}" -Directory -Filter "Microsoft GDK" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+              (Get-ChildItem -Path "${env:ProgramFiles}" -Directory -Filter "Microsoft GDK" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+              (Get-ChildItem -Path "${env:ProgramFiles(x86)}" -Recurse -Directory -Filter "GDK*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+              (Get-ChildItem -Path "${env:ProgramFiles}" -Recurse -Directory -Filter "GDK*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+            ) |
+              Where-Object { $_ -and (Test-Path $_) } |
+              Select-Object -First 1
+          }
 
           if (-not $gdkRoot) {
             throw "Microsoft GDK was not found under Program Files after installation."
