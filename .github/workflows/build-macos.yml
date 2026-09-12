@@ -40,6 +40,7 @@ jobs:
           sed -e 's/-fpascal-strings//g' configure > configure.patched
           mv configure.patched configure
           chmod +x configure
+          export PATH="$PWD/artifacts/macos/build/toolchain-ppc/bin:$PATH"
           ./configure \
             --host="${{ matrix.triple }}" \
             --prefix="$HOME/sdl" \
@@ -57,7 +58,6 @@ jobs:
 
       - name: Configure
         run: |
-          export PATH="$PWD/artifacts/macos/build/toolchain-ppc/bin:$PATH"
           cmake -B build -G Ninja \
             -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
             -DCMAKE_SYSTEM_NAME=Darwin \
