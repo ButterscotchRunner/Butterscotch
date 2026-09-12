@@ -122,51 +122,68 @@ jobs:
       - name: Configure Butterscotch
         shell: pwsh
         run: |
-          $setup = @(
-            Join-Path ${env:ProgramFiles} 'Microsoft GDK\SetEnvironment.cmd',
-            Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\SetEnvironment.cmd'
-          ) |
-            Where-Object { $_ -and (Test-Path $_) } |
-            Select-Object -First 1
+          function Invoke-WithGdkPrompt {
+            param([string]$Command)
 
-          if (-not $setup) {
-            throw 'Microsoft GDK SetEnvironment.cmd was not found.'
+            $gdkPrompt = @(
+              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
+              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
+            ) |
+              Where-Object { $_ -and (Test-Path $_) } |
+              Select-Object -First 1
+
+            if (-not $gdkPrompt) {
+              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
+            }
+
+            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
+            $target = $shortcut.TargetPath
+            $args = $shortcut.Arguments
+
+            if (-not $target) {
+              throw 'The GDK command prompt shortcut target could not be resolved.'
+            }
+
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            cmd.exe /d /c "$launcher && $Command"
           }
 
           if (Test-Path "$env:GITHUB_WORKSPACE/build") {
             Remove-Item "$env:GITHUB_WORKSPACE/build" -Recurse -Force
           }
 
-          & $setup /release /x64
-
-          cmake -S "$env:GITHUB_WORKSPACE" `
-            -B "$env:GITHUB_WORKSPACE/build" `
-            -G Ninja `
-            -DPLATFORM=xboxone `
-            -DBACKEND=sdl2 `
-            -DGDK="$env:GDK" `
-            -DGDKX="$env:GDKX" `
-            -DSDL2_DIR="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
-            -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DWERROR=ON
+          Invoke-WithGdkPrompt "cmake -S `"$env:GITHUB_WORKSPACE`" -B `"$env:GITHUB_WORKSPACE/build`" -G Ninja -DPLATFORM=xboxone -DBACKEND=sdl2 -DGDK=`"$env:GDK`" -DGDKX=`"$env:GDKX`" -DSDL2_DIR=`"$env:GITHUB_WORKSPACE/vendor/SDL2/install`" -DCMAKE_PREFIX_PATH=`"$env:GITHUB_WORKSPACE/vendor/SDL2/install`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
 
       - name: Build Butterscotch
         shell: pwsh
         run: |
-          $setup = @(
-            Join-Path ${env:ProgramFiles} 'Microsoft GDK\SetEnvironment.cmd',
-            Join-Path ${env:ProgramFiles(x86)} 'Microsoft GDK\SetEnvironment.cmd'
-          ) |
-            Where-Object { $_ -and (Test-Path $_) } |
-            Select-Object -First 1
+          function Invoke-WithGdkPrompt {
+            param([string]$Command)
 
-          if (-not $setup) {
-            throw 'Microsoft GDK SetEnvironment.cmd was not found.'
+            $gdkPrompt = @(
+              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
+              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
+            ) |
+              Where-Object { $_ -and (Test-Path $_) } |
+              Select-Object -First 1
+
+            if (-not $gdkPrompt) {
+              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
+            }
+
+            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
+            $target = $shortcut.TargetPath
+            $args = $shortcut.Arguments
+
+            if (-not $target) {
+              throw 'The GDK command prompt shortcut target could not be resolved.'
+            }
+
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            cmd.exe /d /c "$launcher && $Command"
           }
 
-          & $setup /release /x64
-          cmake --build "$env:GITHUB_WORKSPACE/build"
+          Invoke-WithGdkPrompt 'cmake --build "${env:GITHUB_WORKSPACE}/build"'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
