@@ -42,7 +42,7 @@ jobs:
           chmod +x configure
           ./configure \
             --host="${{ matrix.triple }}" \
-            --prefix="$workdir/toolchain-ppc/${{ matrix.triple }}" \
+            --prefix="$HOME/sdl" \
             --disable-shared \
             --disable-stdio-redirect \
             --disable-threads \
@@ -60,9 +60,9 @@ jobs:
         run: |
           export PATH="$PWD/artifacts/macos/build/toolchain-ppc/bin:$PATH"
           cmake -B build -G Ninja \
-            -DCMAKE_C_COMPILER=powerpc-apple-darwin8-gcc \
+            -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
             -DCMAKE_SYSTEM_NAME=Darwin \
-            -DCMAKE_FIND_ROOT_PATH="$PWD/artifacts/macos/build/toolchain-ppc/powerpc-apple-darwin8" \
+            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl" \
             -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
             -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
             -DCMAKE_RANLIB="$(command -v ${{ matrix.ranlib }})" \
