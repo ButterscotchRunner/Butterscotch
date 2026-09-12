@@ -133,7 +133,7 @@ jobs:
           $sdlSrc = Join-Path $workspace 'vendor\SDL2'
           $sdlBuild = Join-Path $sdlSrc 'build'
           $sdlInstall = Join-Path $workspace 'vendor\SDL2\install'
-          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
+          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G `"Visual Studio 18 2026`" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
           Invoke-WithGdkPrompt $cmakeCommand
           Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`" --config Release"
           Invoke-WithGdkPrompt "cmake --install `"$sdlBuild`""
