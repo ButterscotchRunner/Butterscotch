@@ -83,15 +83,15 @@ jobs:
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      # - name: Cache SDL2 build
-      #   id: cache-sdl2
-      #   uses: actions/cache@v6
-      #   with:
-      #     path: ${{ github.workspace }}/vendor/SDL2/install
-      #     key: sdl2-xboxone-${{ runner.os }}-2.32.10-rev2
+      - name: Cache SDL2 build
+        id: cache-sdl2
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vendor/SDL2/install
+          key: sdl2-gdk-${{ runner.os }}-2.32.10-rev2
 
       - name: Checkout SDL2
-        # if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -99,7 +99,7 @@ jobs:
           path: vendor/SDL2
 
       - name: Build SDL2 from source
-        # if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           function Invoke-WithGdkPrompt {
