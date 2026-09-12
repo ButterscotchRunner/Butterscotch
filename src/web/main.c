@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     args.traceBytecodeAfterFrame = 0;
 #endif
     args.speedMultiplier = 1.0;
-    args.fastForwardSpeed = 0.0;
+    args.fastForwardSpeed = 2.0;
     args.osType = OS_WINDOWS;
     args.profilerFramesBetween = 0;
     args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
@@ -47,8 +47,6 @@ int main(int argc, char* argv[]) {
 #else
     args.renderer = SOFTWARE;
 #endif
-    // Matches where src/web/shell.html stages the uploaded folder in the
-    // Emscripten virtual filesystem.
     args.dataWinPath = "data.win";
 
     int ret = loop(args, argv[0]);
