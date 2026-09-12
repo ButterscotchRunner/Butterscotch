@@ -23,7 +23,7 @@ jobs:
     uses: ./.github/workflows/build-console.yml
 
   Other:
-    uses: ./.github/workflows/build-other.yml
+    uses: ./.github/workflows/build-web.yml
 
   Compilers:
     uses: ./.github/workflows/build-old-compilers.yml

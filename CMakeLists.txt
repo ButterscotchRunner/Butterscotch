@@ -26,6 +26,10 @@ endif()
 
 set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "web")
+# Emscripten provides its own toolchain file via emcmake, nothing to set up here.
+set(BACKEND "sdl2")
+
 endif()
 
 project(butterscotch C)
@@ -85,11 +89,7 @@ add_compile_definitions(
 
 # Audio backend defaults
 if(AUDIO_BACKEND STREQUAL "")
-    if(PLATFORM STREQUAL "web")
-        set(AUDIO_BACKEND "web")
-    elseif(PLATFORM STREQUAL "web-meta")
-        set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+    if(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -105,8 +105,6 @@ elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     if(PLATFORM STREQUAL "vita")
         add_compile_definitions(MA_NO_RUNTIME_LINKING)
     endif()
-elseif(AUDIO_BACKEND STREQUAL "web")
-    file(GLOB AUDIO_SOURCES src/audio/web/*.c src/audio/miniaudio/*.c)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
     file(GLOB AUDIO_SOURCES src/audio/ps2/*.c)
 elseif(NOT AUDIO_BACKEND STREQUAL "none")
@@ -122,6 +120,10 @@ option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
 if(PLATFORM STREQUAL "switch")
+    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
+endif()
+if(PLATFORM STREQUAL "web")
+    # WebGL2 only exposes GLES3, so the fixed-function legacy GL renderer can't work there.
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -158,21 +160,11 @@ if(ENABLE_NOOP_RENDERER)
     add_compile_definitions(ENABLE_NOOP_RENDERER)
 endif()
 
-if(PLATFORM STREQUAL "web-meta")
-    # Metadata-only build: just the data.win parser and its direct deps. No VM, no runner, no I/O subsystems.
-    set(SOURCES
-        src/data_win.c
-        src/binary_reader.c
-		src/log.c
-		src/stb_ds.c
-    )
-else()
-    file(GLOB SOURCES src/*.c)
-    # These platforms haven't been converted to the refactored system yet.
-    # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
-        list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
-    endif()
+file(GLOB SOURCES src/*.c)
+# These platforms haven't been converted to the refactored system yet.
+# This list should NEVER grow, all new platforms should use the new system.
+if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "android")
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
 endif()
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
@@ -205,11 +197,6 @@ elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     if (NOT WIN32)
         set(AUDIO_LIBRARIES pthread)
     endif()
-elseif(AUDIO_BACKEND STREQUAL "web")
-    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
-    target_include_directories(butterscotch PUBLIC src/audio/web)
-    target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
-    add_compile_definitions(USE_WEB_AUDIO)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
     target_include_directories(butterscotch PUBLIC src/audio/ps2)
     add_compile_definitions(USE_PS2_AUDIO)
@@ -260,7 +247,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
     if(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -274,6 +261,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "web")
+        add_compile_definitions(PLATFORM_WEB)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -338,11 +332,15 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+        # Emscripten provides its own GLES3 headers, so cross-compiled web builds don't
+        # need GLAD. Native PLATFORM=web builds (used for testing) still use it like cli.
+        if(NOT (PLATFORM STREQUAL "web" AND CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
         target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
+        endif()
     endif()
     if(NOT MSVC)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
@@ -392,11 +390,17 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL2 REQUIRED sdl2)
-        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+            # Emscripten ships SDL2 as a port, there is no pkg-config package for it.
+            target_compile_options(butterscotch PRIVATE "-sUSE_SDL=2")
+            set(BACKEND_LIBRARIES "-sUSE_SDL=2")
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL2 REQUIRED sdl2)
+            target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
@@ -441,6 +445,27 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
+
+        if (PLATFORM STREQUAL "web" AND CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+            if (NOT ENABLE_MODERN_GL)
+                message(FATAL_ERROR "Web requires modern gl!")
+            endif()
+            # Emit a runnable page (butterscotch.html + .js + .wasm).
+            set_target_properties(butterscotch PROPERTIES SUFFIX ".html")
+            target_link_options(butterscotch PRIVATE
+                "-sUSE_SDL=2"
+                "-sUSE_WEBGL2=1"
+                "-sFULL_ES3=1"
+                "-sALLOW_MEMORY_GROWTH=1"
+                # The shared game loop is blocking, ASYNCIFY lets it yield to the browser.
+                "-sASYNCIFY=1"
+                "-sFORCE_FILESYSTEM=1"
+                # The shell page drives the game through these, and they are
+                # not attached to Module by default.
+                "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']"
+                "--shell-file=${CMAKE_SOURCE_DIR}/src/web/shell.html"
+            )
+        endif()
     endif()
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
@@ -455,7 +480,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(ENABLE_ASAN_DEFAULT OFF)
     endif()
     set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(butterscotch PRIVATE -fsanitize=address)
     endif()
@@ -465,64 +490,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
             $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-    )
-elseif(PLATFORM STREQUAL "web")
-    if (NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "Web requires modern gl!")
-    endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis)
-
-    set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=worker"
-            "-sWASMFS=1"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_mountOpfs', '_startRunner', '_stopRunner', '_malloc', '_free', '_getKeyDownPtr', '_getKeyUpPtr', '_getKeyCount', '_setAudioSampleRate', '_pullAudioFrames']"
-            "-sOFFSCREENCANVAS_SUPPORT=1"
-            "-sOFFSCREEN_FRAMEBUFFER=1"
-            "-sMIN_WEBGL_VERSION=2"
-            "-sMAX_WEBGL_VERSION=2"
-            "-sFULL_ES3=1"
-            "-sALLOW_MEMORY_GROWTH"
-            "-sSHARED_MEMORY=1"
-            "-sPTHREAD_POOL_SIZE=4"
-            "-pthread"
-    )
-
-    target_compile_options(butterscotch PRIVATE "-pthread")
-elseif(PLATFORM STREQUAL "web-meta")
-    set_target_properties(butterscotch PROPERTIES
-        SUFFIX ".mjs"
-        OUTPUT_NAME "butterscotch-meta"
-    )
-
-    target_link_libraries(butterscotch PRIVATE stb_ds)
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=web"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAPU8', 'ccall', 'cwrap', 'UTF8ToString', 'FS']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_parseDataWin', '_freeDataWin', '_getGameName', '_getGameDisplayName', '_getMajorVersion', '_getMinorVersion', '_getRelease', '_getBuild', '_getDefaultWindowWidth', '_getDefaultWindowHeight', '_malloc', '_free']"
-            "-sALLOW_MEMORY_GROWTH=1"
-            "-sFORCE_FILESYSTEM=1"
     )
 elseif(PLATFORM STREQUAL "android")
     if (NOT ENABLE_MODERN_GL)
