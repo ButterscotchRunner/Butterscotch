@@ -9,19 +9,6 @@
 #include <SDL3/SDL_main.h>
 #endif
 
-// Web (Emscripten + SDL2) entry point.
-//
-// This is intentionally kept close to src/embedded/main.c: the SDL2 backend
-// (src/backends/sdl2.c) and the shared game loop (src/loop.c) do all of the
-// heavy lifting, so the platform layer only has to provide fixed startup
-// arguments. The blocking loop() call yields to the browser via -sASYNCIFY
-// (see the PLATFORM STREQUAL "web" block in the top-level CMakeLists.txt).
-//
-// The game data is loaded from the Emscripten virtual filesystem at
-// "data.win", which is where src/web/shell.html stages the folder the user
-// picks (a --preload-file data.win baked into the build lands there too).
-// The shell also accepts sibling names like game.unx and stages them as
-// data.win, so the runner only ever has to look in one place.
 int main(int argc, char* argv[]) {
     (void)argc;
     setbuf(stderr, NULL);
