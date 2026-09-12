@@ -124,16 +124,22 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
+            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
+            $batchLines = @(
+              '@echo off',
+              ('call "' + $target + '" ' + $args),
+              $Command
+            )
+            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
+            & $batchPath
+            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
           }
 
           $workspace = $env:GITHUB_WORKSPACE
           $sdlSrc = Join-Path $workspace 'vendor\SDL2'
           $sdlBuild = Join-Path $sdlSrc 'build'
           $sdlInstall = Join-Path $workspace 'vendor\SDL2\install'
-          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
+          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF"
           Invoke-WithGdkPrompt $cmakeCommand
           Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`""
           Invoke-WithGdkPrompt "cmake --install `"$sdlBuild`""
@@ -163,9 +169,15 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
+            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
+            $batchLines = @(
+              '@echo off',
+              ('call "' + $target + '" ' + $args),
+              $Command
+            )
+            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
+            & $batchPath
+            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
           }
 
           if (Test-Path "$env:GITHUB_WORKSPACE/build") {
@@ -203,9 +215,15 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
+            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
+            $batchLines = @(
+              '@echo off',
+              ('call "' + $target + '" ' + $args),
+              $Command
+            )
+            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
+            & $batchPath
+            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
           }
 
           $workspace = $env:GITHUB_WORKSPACE
