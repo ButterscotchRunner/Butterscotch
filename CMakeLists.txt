@@ -25,6 +25,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
 endif()
 
 set(BACKEND "sdl2")
+
 endif()
 
 project(butterscotch C)
@@ -259,7 +260,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "xboxone")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
     if(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -273,13 +274,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
-
-        set(VM_GML_PROFILER_DEFAULT OFF)
-        set(VM_TRACING_DEFAULT OFF)
-        set(VM_OPCODE_PROFILER_DEFAULT OFF)
-        set(VM_STUB_LOGS_DEFAULT OFF)
-    elseif(PLATFORM STREQUAL "xboxone")
-        add_compile_definitions(PLATFORM_XBOXONE)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -311,7 +305,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
-        if (PLATFORM STREQUAL "xboxone")
+        if (IS_GDK)
             add_compile_definitions(NO_STRINGS_H)
         endif()
         add_compile_definitions(NO_STRTOK_R)
@@ -350,7 +344,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
-        if(NOT PLATFORM STREQUAL "xboxone")
+        if(NOT IS_GDK)
             target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
         endif()
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
@@ -406,7 +400,11 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         if(MSVC)
             if(DEFINED SDL2_DIR OR DEFINED ENV{SDL2_DIR})
                 find_package(SDL2 CONFIG REQUIRED)
-                set(BACKEND_LIBRARIES SDL2::SDL2)
+                if(TARGET SDL2::SDL2main)
+                    set(BACKEND_LIBRARIES SDL2::SDL2main SDL2::SDL2)
+                else()
+                    set(BACKEND_LIBRARIES SDL2::SDL2)
+                endif()
             else()
                 find_package(PkgConfig REQUIRED)
                 pkg_check_modules(SDL2 REQUIRED sdl2)

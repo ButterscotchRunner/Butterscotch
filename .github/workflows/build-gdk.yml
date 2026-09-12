@@ -1,11 +1,11 @@
-name: Xbox One builds
+name: GDK builds
 
 on:
   workflow_call:
 
 jobs:
   build-xboxone:
-    name: Build (Xbox One)
+    name: Build (GDK)
     runs-on: windows-2025
 
     steps:
@@ -124,24 +124,18 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
-            $batchLines = @(
-              '@echo off',
-              ('call "' + $target + '" ' + $args),
-              $Command
-            )
-            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
-            & $batchPath
-            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
           }
 
           $workspace = $env:GITHUB_WORKSPACE
           $sdlSrc = Join-Path $workspace 'vendor\SDL2'
           $sdlBuild = Join-Path $sdlSrc 'build'
           $sdlInstall = Join-Path $workspace 'vendor\SDL2\install'
-          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF"
+          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
           Invoke-WithGdkPrompt $cmakeCommand
-          Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`""
+          Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`" --config Release"
           Invoke-WithGdkPrompt "cmake --install `"$sdlBuild`""
 
       - name: Configure Butterscotch
@@ -169,15 +163,9 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
-            $batchLines = @(
-              '@echo off',
-              ('call "' + $target + '" ' + $args),
-              $Command
-            )
-            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
-            & $batchPath
-            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
           }
 
           if (Test-Path "$env:GITHUB_WORKSPACE/build") {
@@ -187,7 +175,7 @@ jobs:
           $workspace = $env:GITHUB_WORKSPACE
           $buildDir = Join-Path $workspace 'build'
           $sdlDir = Join-Path $workspace 'vendor\SDL2\install'
-          $cmakeCommand = "cmake -S `"$workspace`" -B `"$buildDir`" -G Ninja -DPLATFORM=xboxone -DBACKEND=sdl2 -DGDK=`"$env:GDK`" -DGDKX=`"$env:GDKX`" -DSDL2_DIR=`"$sdlDir`" -DCMAKE_PREFIX_PATH=`"$sdlDir`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
+          $cmakeCommand = "cmake -S `"$workspace`" -B `"$buildDir`" -G `"Visual Studio 18 2026`" -A x64 -DBACKEND=sdl2 -DIS_GDK=ON -DSDL2_DIR=`"$sdlDir`" -DCMAKE_PREFIX_PATH=`"$sdlDir`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
           Invoke-WithGdkPrompt $cmakeCommand
 
       - name: Build Butterscotch
@@ -215,23 +203,17 @@ jobs:
               throw 'The GDK command prompt shortcut target could not be resolved.'
             }
 
-            $batchPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gdk-run-{0}.cmd" -f [System.Guid]::NewGuid())
-            $batchLines = @(
-              '@echo off',
-              ('call "' + $target + '" ' + $args),
-              $Command
-            )
-            [System.IO.File]::WriteAllLines($batchPath, $batchLines)
-            & $batchPath
-            Remove-Item $batchPath -Force -ErrorAction SilentlyContinue
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
           }
 
           $workspace = $env:GITHUB_WORKSPACE
           $buildDir = Join-Path $workspace 'build'
-          Invoke-WithGdkPrompt "cmake --build `"$buildDir`""
+          Invoke-WithGdkPrompt "cmake --build `"$buildDir`" --config Release"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-xboxone
+          name: butterscotch-gdk
           path: build/**/*
