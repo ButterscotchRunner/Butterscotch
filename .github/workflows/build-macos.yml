@@ -11,6 +11,9 @@ jobs:
       matrix:
         include:
           - arch: ppc
+            triple: powerpc-apple-darwin8
+            ar: ppc-ar
+            ranlib: ppc-ranlib
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +33,29 @@ jobs:
         run: |
           ./artifacts/macos/build-toolchain-ppc.sh
 
+      - name: Build SDL 1.2
+        run: |
+          wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/39e1580a7d2f8c09521338108c2a94019e37798e.tar.gz" | tar -xz
+          cd SDL-1.2-*
+          sed -e 's/-fpascal-strings//g' configure > configure.patched
+          mv configure.patched configure
+          chmod +x configure
+          ./configure \
+            --host="${{ matrix.triple }}" \
+            --prefix="$workdir/toolchain-ppc/${{ matrix.triple }}" \
+            --disable-shared \
+            --disable-stdio-redirect \
+            --disable-threads \
+            --disable-video-x11 \
+            --disable-altivec \
+            CC="$workdir/toolchain-ppc/bin/${{ matrix.triple }}-gcc" \
+            AR="$(command -v ${{ matrix.ar }})" \
+            RANLIB="$(command -v ${{ matrix.ranlib }})" \
+            CPPFLAGS="-DNDEBUG"
+          make -j$(nproc)
+          make -j$(nproc) install
+          cd ..
+
       - name: Configure
         run: |
           export PATH="$PWD/artifacts/macos/build/toolchain-ppc/bin:$PATH"
@@ -38,8 +64,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=Darwin \
             -DCMAKE_FIND_ROOT_PATH="$PWD/artifacts/macos/build/toolchain-ppc/powerpc-apple-darwin8" \
             -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
-            -DCMAKE_AR="$(command -v ppc-ar)" \
-            -DCMAKE_RANLIB="$(command -v ppc-ranlib)" \
+            -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
+            -DCMAKE_RANLIB="$(command -v ${{ matrix.ranlib }})" \
             -DWERROR=ON \
             -DBACKEND=sdl1 \
             -DAUDIO_BACKEND=openal \
