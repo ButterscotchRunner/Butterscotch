@@ -526,6 +526,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
+    bool showDebugOverlay = false;
     while (true) {
         logInfo("Loading %s...\n", args.dataWinPath);
 
@@ -1006,7 +1007,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 
         // Main loop
         bool debugShowCollisionMasks = false;
-        bool showDebugOverlay = false;
         size_t overlayCachedMemBytes = 0;
         uint64_t overlayLastMemCheck = 0;
         bool freeCamActive = false;
