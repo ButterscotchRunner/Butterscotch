@@ -2,7 +2,7 @@ name: Deploy Web to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [web-refactor]
   workflow_dispatch:
 
 permissions:
