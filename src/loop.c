@@ -1322,6 +1322,10 @@ int loop(CommandLineArgs args, const char *argv0) {
 
                     char fpsText[64];
                     snprintf(fpsText, sizeof(fpsText), "FPS: %.1f", runner->fps);
+
+                    float text_height = 10.0f;
+                    renderer->vtable->drawTextUI(renderer, fpsText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+
                     /*
                      * get_used_memory() is too slow to do every frame so we
                      * cache the result and only re-check twice a second.
@@ -1330,13 +1334,13 @@ int loop(CommandLineArgs args, const char *argv0) {
                         overlayCachedMemBytes = get_used_memory();
                         overlayLastMemCheck = frameStartNow;
                     }
-                    char memText[96];
-                    snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
+                    if (overlayCachedMemBytes != 0) {
+                        char memText[96];
+                        snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
 
-                    float text_height = 10.0f;
-                    renderer->vtable->drawTextUI(renderer, fpsText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
-                    text_height += (float)DEBUGFONT_LINE_HEIGHT * 0.5f;
-                    renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+                        text_height += (float)DEBUGFONT_LINE_HEIGHT * 0.5f;
+                        renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+                    }
 
                     renderer->drawHalign = savedHalign;
                     renderer->drawValign = savedValign;
