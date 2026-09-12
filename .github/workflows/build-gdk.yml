@@ -102,115 +102,37 @@ jobs:
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          function Invoke-WithGdkPrompt {
-            param([string]$Command)
-
-            $gdkPrompt = @(
-              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
-              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
-            ) |
-              Where-Object { $_ -and (Test-Path $_) } |
-              Select-Object -First 1
-
-            if (-not $gdkPrompt) {
-              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
-            }
-
-            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
-            $target = $shortcut.TargetPath
-            $args = $shortcut.Arguments
-
-            if (-not $target) {
-              throw 'The GDK command prompt shortcut target could not be resolved.'
-            }
-
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
-          }
-
           $workspace = $env:GITHUB_WORKSPACE
+          $gdkScript = Join-Path $workspace 'scripts\invoke-gdk.ps1'
           $sdlSrc = Join-Path $workspace 'vendor\SDL2'
           $sdlBuild = Join-Path $sdlSrc 'build'
           $sdlInstall = Join-Path $workspace 'vendor\SDL2\install'
           $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G `"Visual Studio 18 2026`" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
-          Invoke-WithGdkPrompt $cmakeCommand
-          Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`" --config Release"
-          Invoke-WithGdkPrompt "cmake --install `"$sdlBuild`""
+          & $gdkScript $cmakeCommand
+          & $gdkScript "cmake --build `"$sdlBuild`" --config Release"
+          & $gdkScript "cmake --install `"$sdlBuild`""
 
       - name: Configure Butterscotch
         shell: pwsh
         run: |
-          function Invoke-WithGdkPrompt {
-            param([string]$Command)
-
-            $gdkPrompt = @(
-              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
-              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
-            ) |
-              Where-Object { $_ -and (Test-Path $_) } |
-              Select-Object -First 1
-
-            if (-not $gdkPrompt) {
-              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
-            }
-
-            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
-            $target = $shortcut.TargetPath
-            $args = $shortcut.Arguments
-
-            if (-not $target) {
-              throw 'The GDK command prompt shortcut target could not be resolved.'
-            }
-
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
-          }
-
           if (Test-Path "$env:GITHUB_WORKSPACE/build") {
             Remove-Item "$env:GITHUB_WORKSPACE/build" -Recurse -Force
           }
 
           $workspace = $env:GITHUB_WORKSPACE
+          $gdkScript = Join-Path $workspace 'scripts\invoke-gdk.ps1'
           $buildDir = Join-Path $workspace 'build'
           $sdlDir = Join-Path $workspace 'vendor\SDL2\install'
           $cmakeCommand = "cmake -S `"$workspace`" -B `"$buildDir`" -G `"Visual Studio 18 2026`" -A x64 -DBACKEND=sdl2 -DIS_GDK=ON -DSDL2_DIR=`"$sdlDir`" -DCMAKE_PREFIX_PATH=`"$sdlDir`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
-          Invoke-WithGdkPrompt $cmakeCommand
+          & $gdkScript $cmakeCommand
 
       - name: Build Butterscotch
         shell: pwsh
         run: |
-          function Invoke-WithGdkPrompt {
-            param([string]$Command)
-
-            $gdkPrompt = @(
-              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
-              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
-            ) |
-              Where-Object { $_ -and (Test-Path $_) } |
-              Select-Object -First 1
-
-            if (-not $gdkPrompt) {
-              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
-            }
-
-            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
-            $target = $shortcut.TargetPath
-            $args = $shortcut.Arguments
-
-            if (-not $target) {
-              throw 'The GDK command prompt shortcut target could not be resolved.'
-            }
-
-            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            $cmdline = $launcher + ' && ' + $Command
-            cmd.exe /d /s /c $cmdline
-          }
-
           $workspace = $env:GITHUB_WORKSPACE
+          $gdkScript = Join-Path $workspace 'scripts\invoke-gdk.ps1'
           $buildDir = Join-Path $workspace 'build'
-          Invoke-WithGdkPrompt "cmake --build `"$buildDir`" --config Release"
+          & $gdkScript "cmake --build `"$buildDir`" --config Release"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
