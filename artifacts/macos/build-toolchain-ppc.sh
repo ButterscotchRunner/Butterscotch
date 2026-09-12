@@ -59,7 +59,7 @@ export PATH="$PWD/toolchain-ppc/bin:$PATH"
 # Increase this if we ever make a change to the toolchain, for example
 # using a newer GCC version, and we need to invalidate the cache.
 ppctoolchainver=3
-ppc_triple='powerpc-apple-darwin8'
+triple='powerpc-apple-darwin8'
 if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; then
     printf '\nBuilding powerpc toolchain...\n\n'
 
@@ -67,8 +67,8 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
     mkdir -p toolchain-ppc/bin
 
     # building the real dsymutil would require a partial LLVM build, we don't need debug info that bad
-    printf '#!/bin/sh\nexit 0\n' > "toolchain-ppc/bin/$ppc_triple-dsymutil"
-    chmod +x "toolchain-ppc/bin/$ppc_triple-dsymutil"
+    printf '#!/bin/sh\nexit 0\n' > "toolchain-ppc/bin/$triple-dsymutil"
+    chmod +x "toolchain-ppc/bin/$triple-dsymutil"
 
     cctools_commit=a35aa0162cb2614e68db577a28fdd903fae47f20
     rm -rf cctools-port-*
@@ -111,7 +111,7 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
     [ -n "$MPC" ] && set -- "$@" --with-mpc="$MPC"
     ../configure \
         --prefix="$workdir/toolchain-ppc" \
-        --target="$ppc_triple" \
+        --target="$triple" \
         --disable-multilib \
         --disable-nls \
         --with-system-zlib \
