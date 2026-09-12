@@ -26,6 +26,10 @@ endif()
 
 set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "web")
+# Emscripten provides its own toolchain file via emcmake, nothing to set up here.
+set(BACKEND "sdl2")
+
 endif()
 
 project(butterscotch C)
@@ -116,6 +120,10 @@ option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
 if(PLATFORM STREQUAL "switch")
+    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
+endif()
+if(PLATFORM STREQUAL "web")
+    # WebGL2 only exposes GLES3, so the fixed-function legacy GL renderer can't work there.
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -258,6 +266,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "web")
+        add_compile_definitions(PLATFORM_WEB)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
     else()
         set(VM_GML_PROFILER_DEFAULT ON)
         set(VM_TRACING_DEFAULT ON)
@@ -317,11 +332,15 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+        # Emscripten provides its own GLES3 headers, so cross-compiled web builds don't
+        # need GLAD. Native PLATFORM=web builds (used for testing) still use it like cli.
+        if(NOT (PLATFORM STREQUAL "web" AND CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
         target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
+        endif()
     endif()
     if(NOT MSVC)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
@@ -371,11 +390,17 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL2 REQUIRED sdl2)
-        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+            # Emscripten ships SDL2 as a port, there is no pkg-config package for it.
+            target_compile_options(butterscotch PRIVATE "-sUSE_SDL=2")
+            set(BACKEND_LIBRARIES "-sUSE_SDL=2")
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL2 REQUIRED sdl2)
+            target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
@@ -420,6 +445,27 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
+
+        if (PLATFORM STREQUAL "web" AND CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+            if (NOT ENABLE_MODERN_GL)
+                message(FATAL_ERROR "Web requires modern gl!")
+            endif()
+            # Emit a runnable page (butterscotch.html + .js + .wasm).
+            set_target_properties(butterscotch PROPERTIES SUFFIX ".html")
+            target_link_options(butterscotch PRIVATE
+                "-sUSE_SDL=2"
+                "-sUSE_WEBGL2=1"
+                "-sFULL_ES3=1"
+                "-sALLOW_MEMORY_GROWTH=1"
+                # The shared game loop is blocking, ASYNCIFY lets it yield to the browser.
+                "-sASYNCIFY=1"
+                "-sFORCE_FILESYSTEM=1"
+                # The shell page drives the game through these, and they are
+                # not attached to Module by default.
+                "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']"
+                "--shell-file=${CMAKE_SOURCE_DIR}/src/web/shell.html"
+            )
+        endif()
     endif()
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
@@ -434,7 +480,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(ENABLE_ASAN_DEFAULT OFF)
     endif()
     set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(butterscotch PRIVATE -fsanitize=address)
     endif()

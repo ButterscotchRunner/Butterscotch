@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Butterscotch</title>
+<style>
+html, body { margin: 0; padding: 0; height: 100%; background: #000; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<input id="pick" type="file" webkitdirectory>
+<progress id="progress" max="1" value="0" hidden></progress>
+<canvas id="canvas" hidden></canvas>
+<script>
+var Module = {
+  noInitialRun: true,
+  canvas: document.getElementById('canvas'),
+};
+
+var runtimeReady = false;
+var pendingFiles = null;
+
+Module.onRuntimeInitialized = function() {
+  runtimeReady = true;
+  maybeStart();
+};
+
+document.getElementById('pick').addEventListener('change', function(e) {
+  pendingFiles = Array.prototype.slice.call(e.target.files);
+  maybeStart();
+});
+
+function maybeStart() {
+  if (!runtimeReady || !pendingFiles) return;
+  var files = pendingFiles;
+  pendingFiles = null;
+  startGame(files);
+}
+
+// Scales the canvas to fill the viewport while keeping its aspect ratio.
+// Mouse input stays accurate because Emscripten maps events through the
+// canvas's bounding box back onto its pixel size.
+function fitCanvas() {
+  var canvas = document.getElementById('canvas');
+  if (!canvas.width || !canvas.height) return;
+  var scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height);
+  canvas.style.width = Math.floor(canvas.width * scale) + 'px';
+  canvas.style.height = Math.floor(canvas.height * scale) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+new MutationObserver(fitCanvas).observe(document.getElementById('canvas'), { attributes: true, attributeFilter: ['width', 'height'] });
+
+async function startGame(files) {
+  // Flatten the picked folder, dropping the top-level folder name.
+  var entries = files.map(function(f) {
+    var rel = f.webkitRelativePath || f.name;
+    var parts = rel.split('/');
+    parts.shift();
+    return { path: parts.join('/') || f.name, file: f };
+  });
+
+  // Find the game file and rebase everything to the directory containing it.
+  // Only the root of the picked folder counts: nested files (like DELTARUNE's
+  // per-chapter data.wins) are staged but never booted directly. Ties fall
+  // back to name order, data.win first. The winner is always staged as
+  // "data.win" so the runner only ever has to look in one place.
+  var GAME_FILE_NAMES = ['data.win', 'game.unx', 'game.droid', 'game.ios'];
+  var gameFile = -1;
+  for (var n = 0; gameFile < 0 && n < GAME_FILE_NAMES.length; n++) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].path.indexOf('/') < 0 && entries[i].path.toLowerCase() === GAME_FILE_NAMES[n]) {
+        gameFile = i;
+        break;
+      }
+    }
+  }
+  if (gameFile < 0) {
+    alert('No game file found in that folder (looked for ' + GAME_FILE_NAMES.join(', ') + ')');
+    return;
+  }
+  var full = entries[gameFile].path;
+  var prefix = full.indexOf('/') >= 0 ? full.slice(0, full.lastIndexOf('/') + 1) : '';
+
+  // Copy the game into the virtual filesystem, reporting progress as we go.
+  var progressTotal = 0;
+  for (var k = 0; k < entries.length; k++) {
+    if (entries[k].path.slice(0, prefix.length) === prefix) {
+      progressTotal += entries[k].file.size;
+    }
+  }
+  var bar = document.getElementById('progress');
+  bar.max = progressTotal > 0 ? progressTotal : 1;
+  bar.value = 0;
+  document.getElementById('pick').hidden = true;
+  bar.hidden = false;
+
+  var FS = Module.FS;
+  var progressDone = 0;
+  for (var j = 0; j < entries.length; j++) {
+    var target = entries[j].path;
+    if (target.slice(0, prefix.length) !== prefix) continue;
+    target = target.slice(prefix.length);
+    if (j === gameFile) target = 'data.win';
+    var buf = new Uint8Array(await entries[j].file.arrayBuffer());
+    if (target.indexOf('/') >= 0) {
+      FS.mkdirTree('/' + target.split('/').slice(0, -1).join('/'));
+    }
+    FS.writeFile('/' + target, buf);
+    progressDone += buf.byteLength;
+    bar.value = progressDone;
+  }
+
+  bar.hidden = true;
+  document.getElementById('canvas').hidden = false;
+  fitCanvas();
+  Module.callMain();
+}
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
