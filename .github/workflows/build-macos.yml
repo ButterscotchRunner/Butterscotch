@@ -48,7 +48,6 @@ jobs:
             --disable-threads \
             --disable-video-x11 \
             --disable-altivec \
-            CC="$workdir/toolchain-ppc/bin/${{ matrix.triple }}-gcc" \
             AR="$(command -v ${{ matrix.ar }})" \
             RANLIB="$(command -v ${{ matrix.ranlib }})" \
             CPPFLAGS="-DNDEBUG"
