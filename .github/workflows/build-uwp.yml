@@ -43,16 +43,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install vcpkg
-        shell: pwsh
-        run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:GITHUB_WORKSPACE\vcpkg"
-          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat"
+      - name: Checkout SDL2
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/sdl2
 
-      - name: Install SDL3 for UWP
+      - name: Build and install SDL2 for UWP
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe" install sdl3 --triplet ${{ matrix.triplet }} --host-triplet x64-windows
+          $sdlRoot = Join-Path $env:GITHUB_WORKSPACE 'sdl2-uwp'
+          $sdlBuild = Join-Path $env:GITHUB_WORKSPACE 'vendor\sdl2\build'
+
+          if (Test-Path $sdlRoot) {
+            Remove-Item $sdlRoot -Recurse -Force
+          }
+
+          cmake -S "$env:GITHUB_WORKSPACE\vendor\sdl2" -B $sdlBuild `
+            -G "Visual Studio 17 2022" `
+            -A ${{ matrix.cmake_arch }} `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX="$sdlRoot" `
+            -DSDL_SHARED=OFF `
+            -DSDL_STATIC=ON `
+            -DSDL_TESTS=OFF `
+            -DSDL_STATIC_PIC=OFF
+
+          cmake --build $sdlBuild --config Release --parallel
+          cmake --install $sdlBuild --config Release
 
       - name: Configure UWP build
         shell: pwsh
@@ -65,7 +86,7 @@ jobs:
             $sdkRoot = "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Community"
           }
 
-          $sdlRoot = "$env:GITHUB_WORKSPACE\vcpkg\installed\${{ matrix.triplet }}"
+          $sdlRoot = Join-Path $env:GITHUB_WORKSPACE 'sdl2-uwp'
 
           cmake -S . -B build-uwp `
             -G "Visual Studio 17 2022" `
@@ -73,9 +94,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=WindowsStore `
             -DCMAKE_SYSTEM_VERSION=10.0 `
             -DCMAKE_PREFIX_PATH="$sdlRoot" `
-            -DSDL3_UWP_ROOT="$sdlRoot" `
             -DPLATFORM=uwp `
-            -DBACKEND=sdl3 `
+            -DBACKEND=sdl2 `
             -DCMAKE_BUILD_TYPE=Release `
             -DWERROR=ON
 
@@ -92,12 +112,16 @@ jobs:
           $packagePath = Join-Path $env:GITHUB_WORKSPACE "butterscotch-uwp-${{ matrix.arch }}.appx"
           $manifestPath = Join-Path $appRoot 'AppxManifest.xml'
           $exePath = Join-Path $env:GITHUB_WORKSPACE "build-uwp\Release\butterscotch.exe"
-          $sdlDll = Join-Path $env:GITHUB_WORKSPACE "vcpkg\installed\${{ matrix.triplet }}\bin\SDL3.dll"
+          $sdlDll = Join-Path $env:GITHUB_WORKSPACE "sdl2-uwp\bin\SDL2.dll"
 
           New-Item -ItemType Directory -Force -Path $appRoot, $assetsDir | Out-Null
 
           Copy-Item $exePath (Join-Path $appRoot 'butterscotch.exe') -Force
-          Copy-Item $sdlDll (Join-Path $appRoot 'SDL3.dll') -Force
+          if (Test-Path $sdlDll) {
+            Copy-Item $sdlDll (Join-Path $appRoot 'SDL2.dll') -Force
+          } else {
+            Write-Host 'No SDL2 DLL found in the install tree; assuming static linkage.'
+          }
           Copy-Item "$env:GITHUB_WORKSPACE\vendor\gamecontrollerdb.txt" (Join-Path $appRoot 'gamecontrollerdb.txt') -Force
 
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\data.win")) {

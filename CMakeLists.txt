@@ -408,11 +408,32 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL2 REQUIRED sdl2)
-        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        if(MSVC)
+            if(PLATFORM STREQUAL "uwp")
+                set(SDL2_UWP_ROOT "$ENV{SDL2_UWP_ROOT}" CACHE PATH "Path to the installed SDL2-UWP distribution")
+                if(EXISTS "${SDL2_UWP_ROOT}")
+                    list(APPEND CMAKE_PREFIX_PATH "${SDL2_UWP_ROOT}")
+                endif()
+
+                find_package(SDL2 CONFIG REQUIRED
+                    HINTS
+                        "${SDL2_UWP_ROOT}"
+                        "C:/SDL2-UWP"
+                    PATH_SUFFIXES
+                        lib/cmake/SDL2
+                        cmake
+                )
+            else()
+                find_package(SDL2 CONFIG REQUIRED)
+            endif()
+            set(BACKEND_LIBRARIES SDL2::SDL2)
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL2 REQUIRED sdl2)
+            target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
