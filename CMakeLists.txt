@@ -71,6 +71,12 @@ set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
+if(PLATFORM STREQUAL "uwp")
+    if(BACKEND STREQUAL "" OR BACKEND STREQUAL "uwp" OR BACKEND STREQUAL "winrt")
+        set(BACKEND "sdl3" CACHE STRING "UWP uses SDL3-UWP backend" FORCE)
+    endif()
+endif()
+
 if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
     message(FATAL_ERROR "You need to set a BACKEND!")
 endif()
@@ -260,7 +266,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "uwp")
     if(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -279,6 +285,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "uwp")
+        add_compile_definitions(PLATFORM_UWP)
+
+        set(VM_GML_PROFILER_DEFAULT ON)
+        set(VM_TRACING_DEFAULT ON)
+        set(VM_OPCODE_PROFILER_DEFAULT ON)
+        set(VM_STUB_LOGS_DEFAULT ON)
     else()
         set(VM_GML_PROFILER_DEFAULT ON)
         set(VM_TRACING_DEFAULT ON)
@@ -305,6 +318,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
+        add_compile_definitions(NO_STRINGS_H)
         add_compile_definitions(NO_STRTOK_R)
         add_compile_definitions(NO_STRCASECMP)
     endif()
@@ -341,7 +355,9 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
-        target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
+        if(NOT MSVC)
+            target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
+        endif()
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
     endif()
     if(NOT MSVC)
@@ -392,19 +408,62 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL2 REQUIRED sdl2)
-        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        if(MSVC)
+            if(PLATFORM STREQUAL "uwp")
+                set(SDL2_UWP_ROOT "$ENV{SDL2_UWP_ROOT}" CACHE PATH "Path to the installed SDL2-UWP distribution")
+                if(EXISTS "${SDL2_UWP_ROOT}")
+                    list(APPEND CMAKE_PREFIX_PATH "${SDL2_UWP_ROOT}")
+                endif()
+
+                find_package(SDL2 CONFIG REQUIRED
+                    HINTS
+                        "${SDL2_UWP_ROOT}"
+                        "C:/SDL2-UWP"
+                    PATH_SUFFIXES
+                        lib/cmake/SDL2
+                        cmake
+                )
+            else()
+                find_package(SDL2 CONFIG REQUIRED)
+            endif()
+            set(BACKEND_LIBRARIES SDL2::SDL2)
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL2 REQUIRED sdl2)
+            target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL3 REQUIRED sdl3)
-        target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
+        if(PLATFORM STREQUAL "uwp")
+            set(SDL3_UWP_ROOT "C:/SDL-UWP" CACHE PATH "Path to the installed SDL-UWP distribution")
+            if(EXISTS "${SDL3_UWP_ROOT}")
+                list(APPEND CMAKE_PREFIX_PATH "${SDL3_UWP_ROOT}")
+            endif()
+
+            find_package(SDL3 CONFIG REQUIRED
+                HINTS
+                    "${SDL3_UWP_ROOT}"
+                    "C:/SDL-UWP"
+                PATH_SUFFIXES
+                    lib/cmake/SDL3
+                    cmake
+            )
+            set(BACKEND_LIBRARIES SDL3::SDL3)
+
+        elseif(MSVC)
+            find_package(SDL3 CONFIG REQUIRED)
+            set(BACKEND_LIBRARIES SDL3::SDL3)
+
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL3 REQUIRED sdl3)
+            target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "appkit")
         add_compile_definitions(USE_APPKIT)
         target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)

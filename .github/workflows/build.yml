@@ -27,3 +27,6 @@ jobs:
 
   Compilers:
     uses: ./.github/workflows/build-old-compilers.yml
+
+  UWP:
+    uses: ./.github/workflows/build-uwp.yml
