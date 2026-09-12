@@ -83,11 +83,6 @@ jobs:
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Cache SDL2 build
         id: cache-sdl2
         uses: actions/cache@v6
@@ -107,17 +102,41 @@ jobs:
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          cmake -S "$env:GITHUB_WORKSPACE/vendor/SDL2" `
-            -B "$env:GITHUB_WORKSPACE/vendor/SDL2/build" `
-            -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/vendor/SDL2/install" `
-            -DSDL_SHARED=OFF `
-            -DSDL_STATIC=ON `
-            -DSDL_TESTS=OFF `
-            -DSDL_GDK=ON
-          cmake --build "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
-          cmake --install "$env:GITHUB_WORKSPACE/vendor/SDL2/build"
+          function Invoke-WithGdkPrompt {
+            param([string]$Command)
+
+            $gdkPrompt = @(
+              "${env:ProgramFiles(x86)}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk",
+              "${env:ProgramFiles}\Microsoft GDK\Command Prompts\Desktop VS 2026 Gaming Command Prompt.lnk"
+            ) |
+              Where-Object { $_ -and (Test-Path $_) } |
+              Select-Object -First 1
+
+            if (-not $gdkPrompt) {
+              throw 'Microsoft GDK Desktop VS 2026 Gaming Command Prompt.lnk was not found.'
+            }
+
+            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($gdkPrompt)
+            $target = $shortcut.TargetPath
+            $args = $shortcut.Arguments
+
+            if (-not $target) {
+              throw 'The GDK command prompt shortcut target could not be resolved.'
+            }
+
+            $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
+          }
+
+          $workspace = $env:GITHUB_WORKSPACE
+          $sdlSrc = Join-Path $workspace 'vendor\SDL2'
+          $sdlBuild = Join-Path $sdlSrc 'build'
+          $sdlInstall = Join-Path $workspace 'vendor\SDL2\install'
+          $cmakeCommand = "cmake -S `"$sdlSrc`" -B `"$sdlBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`"$sdlInstall`" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_GDK=ON"
+          Invoke-WithGdkPrompt $cmakeCommand
+          Invoke-WithGdkPrompt "cmake --build `"$sdlBuild`""
+          Invoke-WithGdkPrompt "cmake --install `"$sdlBuild`""
 
       - name: Configure Butterscotch
         shell: pwsh
@@ -145,14 +164,19 @@ jobs:
             }
 
             $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            cmd.exe /d /c "$launcher && $Command"
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
           }
 
           if (Test-Path "$env:GITHUB_WORKSPACE/build") {
             Remove-Item "$env:GITHUB_WORKSPACE/build" -Recurse -Force
           }
 
-          Invoke-WithGdkPrompt "cmake -S `"$env:GITHUB_WORKSPACE`" -B `"$env:GITHUB_WORKSPACE/build`" -G Ninja -DPLATFORM=xboxone -DBACKEND=sdl2 -DGDK=`"$env:GDK`" -DGDKX=`"$env:GDKX`" -DSDL2_DIR=`"$env:GITHUB_WORKSPACE/vendor/SDL2/install`" -DCMAKE_PREFIX_PATH=`"$env:GITHUB_WORKSPACE/vendor/SDL2/install`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
+          $workspace = $env:GITHUB_WORKSPACE
+          $buildDir = Join-Path $workspace 'build'
+          $sdlDir = Join-Path $workspace 'vendor\SDL2\install'
+          $cmakeCommand = "cmake -S `"$workspace`" -B `"$buildDir`" -G Ninja -DPLATFORM=xboxone -DBACKEND=sdl2 -DGDK=`"$env:GDK`" -DGDKX=`"$env:GDKX`" -DSDL2_DIR=`"$sdlDir`" -DCMAKE_PREFIX_PATH=`"$sdlDir`" -DCMAKE_BUILD_TYPE=Release -DWERROR=ON"
+          Invoke-WithGdkPrompt $cmakeCommand
 
       - name: Build Butterscotch
         shell: pwsh
@@ -180,10 +204,13 @@ jobs:
             }
 
             $launcher = if ($args) { '"{0}" {1}' -f $target, $args } else { '"{0}"' -f $target }
-            cmd.exe /d /c "$launcher && $Command"
+            $cmdline = $launcher + ' && ' + $Command
+            cmd.exe /d /s /c $cmdline
           }
 
-          Invoke-WithGdkPrompt 'cmake --build "${env:GITHUB_WORKSPACE}/build"'
+          $workspace = $env:GITHUB_WORKSPACE
+          $buildDir = Join-Path $workspace 'build'
+          Invoke-WithGdkPrompt "cmake --build `"$buildDir`""
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
