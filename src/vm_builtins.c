@@ -10599,23 +10599,65 @@ static RValue builtin_draw_healthbar(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     float x2 = (float) RValue_toReal(args[2]);
     float y2 = (float) RValue_toReal(args[3]);
     float amount = (float) RValue_toReal(args[4]);
-
-    amount = amount / (float)100; // 0 - 1;
-    float healthbarX = (x1 * (1-amount) + x2 * amount);
-    //float healthbarY = (y1 * (1-amount) + y2 * amount);
+    if (amount < 0.0f) amount = 0.0f;
+    if (amount > 100.0f) amount = 100.0f;
+    float fr = amount / 100.0f; // 0 - 1;
 
     uint32_t backCol = RValue_toColour(args[5]);
     uint32_t minCol = RValue_toColour(args[6]);
     uint32_t maxCol = RValue_toColour(args[7]);
-    uint32_t intermediateColor = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, amount);
 
+    int32_t direction = RValue_toInt32(args[8]);
     bool showBack = RValue_toBool(args[9]);
+    bool showBorder = RValue_toBool(args[10]);
 
     if (showBack) {
         runner->renderer->vtable->drawRectangle(runner->renderer, x1,y1,x2,y2,backCol, runner->renderer->drawAlpha, false);
+        if (showBorder) {
+            float bx2 = x2, by2 = y2;
+            if (runner->applyOffsetForPrimitives) {
+                bx2 += 1.0f; by2 += 1.0f;
+                if (bx2 == floorf(bx2)) bx2 += 0.01f;
+                if (by2 == floorf(by2)) by2 += 0.01f;
+            }
+            runner->renderer->vtable->drawRectangle(runner->renderer, x1, y1, bx2, by2, 0x000000u, runner->renderer->drawAlpha, true);
+        }
     }
 
-    runner->renderer->vtable->drawRectangle(runner->renderer,x1,y1,healthbarX,y2,intermediateColor, runner->renderer->drawAlpha, false);
+    float xx1, yy1, xx2, yy2;
+    switch (direction) {
+        case 1:
+            xx1 = x2 - fr * (x2 - x1); yy1 = y1; xx2 = x2; yy2 = y2;
+            break;
+        case 2:
+            xx1 = x1; yy1 = y1; xx2 = x2; yy2 = y1 + fr * (y2 - y1);
+            break;
+        case 3:
+            xx1 = x1; yy1 = y2 - fr * (y2 - y1); xx2 = x2; yy2 = y2;
+            break;
+        default:
+            xx1 = x1; yy1 = y1; xx2 = x1 + fr * (x2 - x1); yy2 = y2;
+            break;
+    }
+
+    uint32_t midCol = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) maxCol, 0.5f);
+    uint32_t barCol;
+    if (amount > 50.0f) {
+        barCol = (uint32_t) Color_lerp((int32_t) midCol, (int32_t) maxCol, (amount - 50.0f) / 50.0f);
+    } else {
+        barCol = (uint32_t) Color_lerp((int32_t) minCol, (int32_t) midCol, amount / 50.0f);
+    }
+
+    runner->renderer->vtable->drawRectangle(runner->renderer, xx1, yy1, xx2, yy2, barCol, runner->renderer->drawAlpha, false);
+    if (showBorder) {
+        float bx2 = xx2, by2 = yy2;
+        if (runner->applyOffsetForPrimitives) {
+            bx2 += 1.0f; by2 += 1.0f;
+            if (bx2 == floorf(bx2)) bx2 += 0.01f;
+            if (by2 == floorf(by2)) by2 += 0.01f;
+        }
+        runner->renderer->vtable->drawRectangle(runner->renderer, xx1, yy1, bx2, by2, 0x000000u, runner->renderer->drawAlpha, true);
+    }
     return RValue_makeUndefined();
 }
 
