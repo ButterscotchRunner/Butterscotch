@@ -891,6 +891,7 @@ static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
     glDeleteTextures(1, &gl->whiteTexture);
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
 
     repeat(gl->gmlShaderCount, i) {
         freeShader(&gl->gmlShaders[i]);
@@ -2124,6 +2125,12 @@ typedef struct {
     Sprite* spriteFontSprite; // source sprite for sprite fonts (nullptr for regular fonts)
 } GlFontState;
 
+// ===[ Debug UI font (drawTextUI) ]===
+// drawTextUI must not depend on game fonts (data.win may ship none), so it uses
+// the embedded debug font from gl_common.h, uploaded as its own GL texture.
+// A synthetic Font + GlFontState pair is built per renderer instance and passed
+// as real pointers into drawText().
+
 // Resolves font texture state
 // Returns false if the font can't be drawn
 static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontState* state) {
@@ -2190,7 +2197,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY;
+        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
     }
     return true;
 }
@@ -2208,20 +2215,27 @@ static void drawText(
     uint32_t _c2,
     uint32_t _c3,
     uint32_t _c4,
-    float alpha
+    float alpha,
+    Font *font,
+    GlFontState *fs
 ) {
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
-    int32_t fontIndex = renderer->drawFont;
-    if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
-        return;
+    if (!font) {
+        int32_t fontIndex = renderer->drawFont;
+        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
+            return;
 
-    Font* font = &dw->font.fonts[fontIndex];
+        font = &dw->font.fonts[fontIndex];
+    }
 
     GlFontState fontState;
-    if (!glResolveFontState(gl, dw, font, &fontState))
-        return;
+    if (!fs) {
+        if (!glResolveFontState(gl, dw, font, &fontState))
+            return;
+    } else
+        fontState = *fs;
 
     int32_t textLen = (int32_t) strlen(text);
     if (textLen == 0)
@@ -2380,7 +2394,9 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
         renderer->drawColor,
         renderer->drawColor,
         renderer->drawColor,
-        renderer->drawAlpha
+        renderer->drawAlpha,
+        nullptr,
+        nullptr
     );
 }
 
@@ -2398,7 +2414,42 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
         _c2,
         _c3,
         _c4,
-        alpha
+        alpha,
+        nullptr,
+        nullptr
+    );
+}
+
+static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
+    if (text == nullptr) return;
+    GLRenderer* gl = (GLRenderer*) renderer;
+    GLCommon_initDebugUIFont(&gl->debugUI);
+    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+
+    GlFontState fs;
+    fs.font = &gl->debugUI.font;
+    fs.fontTpag = &gl->debugUI.tpag;
+    fs.texId = gl->debugUI.texture;
+    fs.texW = DEBUGFONT_ATLAS_W;
+    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.spriteFontSprite = nullptr;
+
+    drawText(
+        renderer,
+        text,
+        x,
+        y,
+        xscale,
+        yscale,
+        angleDeg,
+        lineSeparation,
+        _c1,
+        _c2,
+        _c3,
+        _c4,
+        alpha,
+        fs.font,
+        &fs
     );
 }
 
@@ -3336,6 +3387,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.drawVertexBuffer = glDrawVertexBuffer;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
+    glVtable.drawTextUI = glDrawTextUI;
     glVtable.primitiveBegin = glPrimitiveBegin;
     glVtable.primitiveBeginTexture = glPrimitiveBeginTexture;
     glVtable.primitiveEnd = glPrimitiveEnd;

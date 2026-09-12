@@ -240,6 +240,7 @@ static void glDestroy(Renderer* renderer) {
     gl->primitiveCapacity = 0;
 
     glDeleteTextures(1, &gl->whiteTexture);
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -1283,7 +1284,7 @@ static bool glResolveGlyph(GLLegacyRenderer* gl, DataWin* dw, GlFontState* state
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY;
+        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
     }
     return true;
 }
@@ -1429,17 +1430,40 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
     }
 }
 
-static void glDrawTextColor(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
+static void drawTextColor(
+    Renderer* renderer,
+    const char* text,
+    float x,
+    float y,
+    float xscale,
+    float yscale,
+    float angleDeg,
+    int32_t _c1,
+    int32_t _c2,
+    int32_t _c3,
+    int32_t _c4,
+    float alpha,
+    float lineSeparation,
+    Font *font,
+    GlFontState *fs
+) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
-    int32_t fontIndex = renderer->drawFont;
-    if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex) return;
+    if (!font) {
+        int32_t fontIndex = renderer->drawFont;
+        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
+            return;
 
-    Font* font = &dw->font.fonts[fontIndex];
+        font = &dw->font.fonts[fontIndex];
+    }
 
     GlFontState fontState;
-    if (!glResolveFontState(gl, dw, font, &fontState)) return;
+    if (!fs) {
+        if (!glResolveFontState(gl, dw, font, &fontState))
+            return;
+    } else
+        fontState = *fs;
 
     int32_t textLen = (int32_t) strlen(text);
     if(textLen == 0) return;
@@ -1572,6 +1596,61 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
             lineStart = lineEnd;
         }
     }
+}
+
+static void glDrawTextColor(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
+    drawTextColor(
+        renderer,
+        text,
+        x,
+        y,
+        xscale,
+        yscale,
+        angleDeg,
+        _c1,
+        _c2,
+        _c3,
+        _c4,
+        alpha,
+        lineSeparation,
+        nullptr,
+        nullptr
+    );
+}
+
+static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
+    if (text == nullptr) return;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+
+    GLCommon_initDebugUIFont(&gl->debugUI);
+    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+
+    GlFontState fs;
+    fs.font = &gl->debugUI.font;
+    fs.fontTpag = &gl->debugUI.tpag;
+    fs.fontTpagIndex = -1; // no game TPAG; PS3_PALETTED_BEGIN(-1) safely no-ops
+    fs.texId = gl->debugUI.texture;
+    fs.texW = DEBUGFONT_ATLAS_W;
+    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.spriteFontSprite = nullptr;
+
+    drawTextColor(
+        renderer,
+        text,
+        x,
+        y,
+        xscale,
+        yscale,
+        angleDeg,
+        _c1,
+        _c2,
+        _c3,
+        _c4,
+        alpha,
+        lineSeparation,
+        fs.font,
+        &fs
+    );
 }
 
 // ===[ Dynamic Sprite Creation/Deletion ]===
@@ -2259,6 +2338,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.drawVertexBuffer = glDrawVertexBuffer;
     glVtable.drawText = glDrawText;
     glVtable.drawTextColor = glDrawTextColor;
+    glVtable.drawTextUI = glDrawTextUI;
     glVtable.flush = glRendererFlush;
     glVtable.clearScreen = glClearScreen;
     glVtable.createSpriteFromSurface = glCreateSpriteFromSurface;
