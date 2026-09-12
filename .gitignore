@@ -6,3 +6,4 @@ CMakeUserPresets.json
 compat/config.mk
 /.vs
 *.log
+Packaging/ManualAppx/
