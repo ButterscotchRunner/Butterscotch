@@ -179,7 +179,20 @@ fi
 config "_CC := $CC"
 
 checklog 'the target OS'
-if checkdefine '_WIN32' > /dev/null; then
+
+printf '%s' "\
+#include <TargetConditionals.h>
+#if !TARGET_OS_IPHONE
+#error not iOS
+#endif
+int main(void){return 0;}
+" > tmp/ios.c
+
+if nolink=1 check 'if we are targetting iOS' ios > /dev/null; then
+    printgreen 'ios'
+    config 'OS := iOS'
+    config '_CC := \$(CC) -ObjC'
+elif checkdefine '_WIN32' > /dev/null; then
     printgreen 'windows'
     config 'OS := Windows'
 elif checkdefine '__APPLE__' > /dev/null; then
