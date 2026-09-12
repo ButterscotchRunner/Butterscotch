@@ -1326,7 +1326,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                      * get_used_memory() is too slow to do every frame so we
                      * cache the result and only re-check twice a second.
                      */
-                    if (overlayCachedMemBytes == 0 || frameStartNow - overlayLastMemCheck >= 500000000ULL) {
+                    if (overlayCachedMemBytes == 0 || frameStartNow - overlayLastMemCheck >= 500000000U) {
                         overlayCachedMemBytes = get_used_memory();
                         overlayLastMemCheck = frameStartNow;
                     }
