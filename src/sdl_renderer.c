@@ -462,15 +462,15 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
         }
 
         if (sdl->sdlRenderer != NULL) {
-            int32_t renderW = 0;
-            int32_t renderH = 0;
-            SDL_GetWindowSize(window, &renderW, &renderH);
-            if (renderW <= 0 || renderH <= 0) {
-                SDL_GetRendererOutputSize(sdl->sdlRenderer, &renderW, &renderH);
+            int32_t windowW = 0;
+            int32_t windowH = 0;
+            SDL_GetWindowSize(window, &windowW, &windowH);
+            if (windowW <= 0 || windowH <= 0) {
+                SDL_GetRendererOutputSize(sdl->sdlRenderer, &windowW, &windowH);
             }
-            if (renderW <= 0 || renderH <= 0) return;
+            if (windowW <= 0 || windowH <= 0) return;
 
-            SDL_RenderSetLogicalSize(sdl->sdlRenderer, sdl->framebufferW, sdl->framebufferH);
+            SDL_RenderSetLogicalSize(sdl->sdlRenderer, windowW, windowH);
 
             sdlEnsureHardwareTexture(sdl, sdl->sdlRenderer, sdl->framebufferW, sdl->framebufferH);
             if (sdl->framebufferTex != NULL) {
@@ -481,9 +481,21 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
                     SDL_UnlockTexture(sdl->framebufferTex);
                 }
 
-                SDL_Rect dstRect = { 0, 0, renderW, renderH };
+                float scale = (float)windowW / (float)sdl->framebufferW;
+                float heightScale = (float)windowH / (float)sdl->framebufferH;
+                if (heightScale < scale) {
+                    scale = heightScale;
+                }
+
+                int32_t dstW = (int32_t)lroundf((float)sdl->framebufferW * scale);
+                int32_t dstH = (int32_t)lroundf((float)sdl->framebufferH * scale);
+                int32_t dstX = (windowW - dstW) / 2;
+                int32_t dstY = (windowH - dstH) / 2;
+
                 SDL_SetRenderDrawColor(sdl->sdlRenderer, 0, 0, 0, 255);
                 SDL_RenderClear(sdl->sdlRenderer);
+
+                SDL_Rect dstRect = { dstX, dstY, dstW, dstH };
                 SDL_RenderCopy(sdl->sdlRenderer, sdl->framebufferTex, NULL, &dstRect);
                 SDL_RenderPresent(sdl->sdlRenderer);
                 return;
