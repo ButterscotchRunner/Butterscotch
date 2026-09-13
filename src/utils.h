@@ -25,7 +25,7 @@
 #endif
 #else
 #include <windows.h>
-typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, SIZE_T);
+typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, size_t);
 #endif
 
 #ifdef _MSC_VER
