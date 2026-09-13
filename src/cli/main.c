@@ -399,8 +399,10 @@ static void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) 
                     args->renderer = MODERN_GL;
                 else if (strcmp(optarg, "legacy-gl") == 0)
                     args->renderer = LEGACY_GL;
-                else if (strcmp(optarg, "software") == 0 || strcmp(optarg, "sdl") == 0 || strcmp(optarg, "sdl2") == 0)
-                    args->renderer = SOFTWARE;
+                else if (strcmp(optarg, "sdl-software") == 0 || strcmp(optarg, "sdl-sw") == 0)
+                    args->renderer = SDL_SOFTWARE;
+                else if (strcmp(optarg, "sdl-hardware") == 0 || strcmp(optarg, "sdl-hw") == 0)
+                    args->renderer = SDL_HARDWARE;
                 else if (strcmp(optarg, "noop") == 0)
                     args->renderer = NOOP;
                 else {

@@ -25,6 +25,9 @@
 typedef struct {
     Renderer base;
 
+    SDLRendererMode mode;
+    bool hardwareAccelerated;
+
     SDL_Window* window;
     SDL_Renderer* sdlRenderer;
     SDL_Texture* framebufferTex;
@@ -403,6 +406,11 @@ Renderer* SDLRenderer_getCurrent(void) {
     return g_currentSDLRenderer != NULL ? (Renderer*)g_currentSDLRenderer : NULL;
 }
 
+bool SDLRenderer_isHardwareAccelerated(const Renderer* renderer) {
+    if (renderer == NULL) return false;
+    return ((const SDLRenderer*)renderer)->hardwareAccelerated;
+}
+
 void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
     SDL_TRACE_CALL();
     SDLRenderer* sdl = g_currentSDLRenderer;
@@ -458,6 +466,11 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     Matrix4f world;
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
+
+    sdl->hardwareAccelerated = false;
+    if (sdl->mode == SDL_RENDERER_MODE_HARDWARE) {
+        logInfo("SDL: hardware renderer mode requested; falling back to software framebuffer path until a GPU-backed path is implemented.\n");
+    }
 
     sdl->originalTexturePageCount = dataWin != NULL ? dataWin->txtr.count : 0;
     sdl->pageCount = sdl->originalTexturePageCount;
@@ -1518,10 +1531,12 @@ void SDLRenderer_clearFrameBuffer(Renderer* renderer, uint32_t color) {
     sdlClearScreen(renderer, color, 1.0f);
 }
 
-Renderer* SDLRenderer_create(void) {
+Renderer* SDLRenderer_createWithMode(SDLRendererMode mode) {
     SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)safeCalloc(1, sizeof(SDLRenderer));
     g_currentSDLRenderer = sdl;
+    sdl->mode = mode;
+    sdl->hardwareAccelerated = false;
     sdl->base.vtable = &sdlVtable;
 
     sdlVtable.init = sdlInit;
@@ -1621,4 +1636,16 @@ Renderer* SDLRenderer_create(void) {
     sdl->fogColor = 0;
 
     return (Renderer*)sdl;
+}
+
+Renderer* SDLRenderer_create(void) {
+    return SDLRenderer_createWithMode(SDL_RENDERER_MODE_SOFTWARE);
+}
+
+Renderer* SDLRenderer_createSoftware(void) {
+    return SDLRenderer_createWithMode(SDL_RENDERER_MODE_SOFTWARE);
+}
+
+Renderer* SDLRenderer_createHardware(void) {
+    return SDLRenderer_createWithMode(SDL_RENDERER_MODE_HARDWARE);
 }

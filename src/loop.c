@@ -894,8 +894,10 @@ int loop(CommandLineArgs args, const char *argv0) {
             renderer = SWRenderer_create();
 #endif
 #ifdef ENABLE_SDL_RENDERER
-        if (gfx == SOFTWARE)
-            renderer = SDLRenderer_create();
+        if (gfx == SDL_SOFTWARE)
+            renderer = SDLRenderer_createSoftware();
+        else if (gfx == SDL_HARDWARE)
+            renderer = SDLRenderer_createHardware();
 #endif
 #ifdef ENABLE_NOOP_RENDERER
         if (gfx == NOOP) {

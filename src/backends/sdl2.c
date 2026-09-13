@@ -22,7 +22,7 @@ static SDL_Window *window;
 static SDL_GameController* openControllers[MAX_GAMEPADS];
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
-    if (gfx == SOFTWARE) {
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) {
         return SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
@@ -105,8 +105,8 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    if (gfx == SOFTWARE) {
-        if (scr->w <= 0 || scr->h <= 0) return false;
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) {
+        if (scr == NULL || scr->w <= 0 || scr->h <= 0) return false;
         *outW = scr->w;
         *outH = scr->h;
     } else {
@@ -163,7 +163,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     // quarter-sized top-left region on Retina/HiDPI displays.
     SDL_SetWindowSize(window, width, height);
 
-    if (gfx == SOFTWARE)
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE)
         scr = SDL_GetWindowSurface(window);
 }
 
@@ -192,7 +192,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 
     Uint32 flags = 0;
-    if (gfx != SOFTWARE)
+    if (gfx != SOFTWARE && gfx != SDL_HARDWARE)
         flags |= SDL_WINDOW_OPENGL;
     if (headless)
         flags |= SDL_WINDOW_HIDDEN;
@@ -204,12 +204,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     window = tryOpenWindow(reqW, reqH, title, flags);
 
-    if (!window && gfx != SOFTWARE) {
+    if (!window && gfx != SOFTWARE && gfx != SDL_SOFTWARE && gfx != SDL_HARDWARE) {
         logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
 
-    if (!window && gfx == SOFTWARE) {
+    if (!window && (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE)) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
@@ -229,7 +229,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
-    if (gfx != SOFTWARE) {
+    if (gfx != SOFTWARE && gfx != SDL_SOFTWARE && gfx != SDL_HARDWARE) {
 #ifndef PLATFORM_VITA
         SDL_GL_SetSwapInterval(0); // disable vsync
 #endif
@@ -325,7 +325,7 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SDL_RENDERER
-    if (gfx == SOFTWARE && SDLRenderer_getCurrent() != NULL) {
+    if ((gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) && SDLRenderer_getCurrent() != NULL) {
         SDLRenderer_presentCurrentFrame(window);
         return;
     }
