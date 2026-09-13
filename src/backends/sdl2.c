@@ -8,6 +8,9 @@
 #include "platformdefs.h"
 #include "gettime.h"
 #include "runner_mouse.h"
+#ifdef ENABLE_SDL_RENDERER
+#include "sdl_renderer.h"
+#endif
 #ifdef PLATFORM_SWITCH
 #include <switch.h>
 #include "switch_input.h"
@@ -134,10 +137,16 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 
 static float platformGetWindowScale(void) {
     int32_t draw_w = 0, draw_h = 0;
-    int logical_w, logical_h;
+    int logical_w = 0, logical_h = 0;
+
     platformGetWindowSize(&draw_w, &draw_h);
     SDL_GetWindowSize(window, &logical_w, &logical_h);
-    return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
+
+    if (draw_w <= 0 || draw_h <= 0 || logical_w <= 0 || logical_h <= 0) {
+        return 1.0f;
+    }
+
+    return (float)draw_w / (float)logical_w;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
@@ -149,8 +158,10 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     height = (operationMode == AppletOperationMode_Console) ? 1080 : 720;
 #endif
 
-    float scale = platformGetWindowScale();
-    SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
+    // The logical window size is already the target size for the game; re-dividing by the
+    // current HiDPI scale on a reused window causes game_change to shrink the window to a
+    // quarter-sized top-left region on Retina/HiDPI displays.
+    SDL_SetWindowSize(window, width, height);
 
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
@@ -313,6 +324,12 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 #endif
 
 void platformSwapBuffers(void) {
+#ifdef ENABLE_SDL_RENDERER
+    if (gfx == SOFTWARE && SDLRenderer_getCurrent() != NULL) {
+        SDLRenderer_presentCurrentFrame(window);
+        return;
+    }
+#endif
 #ifdef ENABLE_SW_RENDERER
     if(gfx == SOFTWARE) {
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
