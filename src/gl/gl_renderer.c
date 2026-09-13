@@ -1508,11 +1508,9 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     int32_t texW = gl->textureWidths[pageId];
     int32_t texH = gl->textureHeights[pageId];
 
-    // Compute UVs for the sub-region within the atlas
-    float u0 = (float) (tpag->sourceX + srcOffX) / (float) texW;
-    float v0 = (float) (tpag->sourceY + srcOffY) / (float) texH;
-    float u1 = (float) (tpag->sourceX + srcOffX + srcW) / (float) texW;
-    float v1 = (float) (tpag->sourceY + srcOffY + srcH) / (float) texH;
+    // Compute UVs for the sub-region within the atlas using the shared helper logic.
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpritePartUVs(tpag, srcOffX, srcOffY, srcW, srcH, texW, texH, &u0, &v0, &u1, &v1);
 
     // Convert BGR colors to RGB bytes
     uint8_t r1 = (uint8_t) BGR_R(color1), g1 = (uint8_t) BGR_G(color1), b1 = (uint8_t) BGR_B(color1);
@@ -1538,10 +1536,8 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     int32_t texW, texH;
     if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return;
 
-    float u0 = (float) tpag->sourceX / (float) texW;
-    float v0 = (float) tpag->sourceY / (float) texH;
-    float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
-    float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpriteUVs(tpag, texW, texH, &u0, &v0, &u1, &v1);
 
     emitTexturedQuad(gl, texId, x1, y1, x2, y2, x3, y3, x4, y4, u0, v0, u1, v1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, alpha);
 }

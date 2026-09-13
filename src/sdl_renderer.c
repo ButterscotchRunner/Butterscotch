@@ -662,6 +662,9 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
     SDL_Surface* pageSurf = sdl->pageSurfaces[pageId];
     if (pageSurf == NULL) return;
 
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpriteUVs(tpag, pageSurf->w, pageSurf->h, &u0, &v0, &u1, &v1);
+
     float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
     Renderer_computeQuadBounds(x1, y1, x2, y2, x3, y3, x4, y4, &minX, &minY, &maxX, &maxY);
     int32_t xMin = (int32_t)floorf(minX);
@@ -692,8 +695,10 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
                 continue;
             }
 
-            int32_t srcX = tpag->sourceX + (int32_t)floorf((float)tpag->sourceWidth * a);
-            int32_t srcY = tpag->sourceY + (int32_t)floorf((float)tpag->sourceHeight * b);
+            float srcU = u0 + (u1 - u0) * a;
+            float srcV = v0 + (v1 - v0) * b;
+            int32_t srcX = (int32_t)lroundf(srcU * (float)pageSurf->w);
+            int32_t srcY = (int32_t)lroundf(srcV * (float)pageSurf->h);
             if (srcX < 0) srcX = 0;
             if (srcY < 0) srcY = 0;
             if (srcX >= pageSurf->w) continue;

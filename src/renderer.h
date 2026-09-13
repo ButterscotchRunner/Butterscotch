@@ -731,11 +731,19 @@ static inline void Renderer_computeTiledGrid(float x, float y, float originX, fl
     if (tilesY != nullptr) *tilesY = tileY ? (int32_t) (( *endY - *startY) / tileH) + 1 : 1;
 }
 
+static inline void Renderer_computeSubRectUVs(int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, int32_t texW, int32_t texH, float* u0, float* v0, float* u1, float* v1) {
+    if (u0 != nullptr) *u0 = (float) srcX / (float) texW;
+    if (v0 != nullptr) *v0 = (float) srcY / (float) texH;
+    if (u1 != nullptr) *u1 = (float) (srcX + srcW) / (float) texW;
+    if (v1 != nullptr) *v1 = (float) (srcY + srcH) / (float) texH;
+}
+
 static inline void Renderer_computeSpriteUVs(const TexturePageItem* tpag, int32_t texW, int32_t texH, float* u0, float* v0, float* u1, float* v1) {
-    if (u0 != nullptr) *u0 = (float) tpag->sourceX / (float) texW;
-    if (v0 != nullptr) *v0 = (float) tpag->sourceY / (float) texH;
-    if (u1 != nullptr) *u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
-    if (v1 != nullptr) *v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+    Renderer_computeSubRectUVs(tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, texW, texH, u0, v0, u1, v1);
+}
+
+static inline void Renderer_computeSpritePartUVs(const TexturePageItem* tpag, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, int32_t texW, int32_t texH, float* u0, float* v0, float* u1, float* v1) {
+    Renderer_computeSubRectUVs(tpag->sourceX + srcOffX, tpag->sourceY + srcOffY, srcW, srcH, texW, texH, u0, v0, u1, v1);
 }
 
 static inline void Renderer_computeTiledCellQuad(float startX, float startY, float tileW, float tileH, float quadOffsetX0, float quadOffsetY0, float quadW, float quadH, int32_t col, int32_t row, float* vx0, float* vy0, float* vx1, float* vy1) {
