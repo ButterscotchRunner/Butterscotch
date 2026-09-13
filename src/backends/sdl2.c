@@ -105,10 +105,17 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) {
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE) {
         if (scr == NULL || scr->w <= 0 || scr->h <= 0) return false;
         *outW = scr->w;
         *outH = scr->h;
+    } else if (gfx == SDL_HARDWARE) {
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSize(window, &w, &h);
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
     } else {
         int w = 0;
         int h = 0;
@@ -163,7 +170,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     // quarter-sized top-left region on Retina/HiDPI displays.
     SDL_SetWindowSize(window, width, height);
 
-    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE)
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
 
@@ -233,7 +240,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 #ifndef PLATFORM_VITA
         SDL_GL_SetSwapInterval(0); // disable vsync
 #endif
-    } else {
+    } else if (gfx == SOFTWARE || gfx == SDL_SOFTWARE) {
         scr = SDL_GetWindowSurface(window);
     }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.

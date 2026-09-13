@@ -138,6 +138,28 @@ static void sdlEnsureFrameBuffer(SDLRenderer* sdl, int32_t width, int32_t height
     sdl->framebuffer = (uint32_t*)safeCalloc((size_t)width * (size_t)height, sizeof(uint32_t));
     sdl->framebufferW = width;
     sdl->framebufferH = height;
+
+    if (sdl->mode == SDL_RENDERER_MODE_HARDWARE && sdl->framebufferTex != NULL) {
+        SDL_DestroyTexture(sdl->framebufferTex);
+        sdl->framebufferTex = NULL;
+    }
+}
+
+static void sdlEnsureHardwareTexture(SDLRenderer* sdl, SDL_Renderer* renderer, int32_t width, int32_t height) {
+    if (renderer == NULL || width <= 0 || height <= 0) return;
+    if (sdl->framebufferTex != NULL && sdl->framebufferW == width && sdl->framebufferH == height) return;
+
+    SDL_DestroyTexture(sdl->framebufferTex);
+    sdl->framebufferTex = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        width,
+        height
+    );
+    if (sdl->framebufferTex == NULL) {
+        logWarn("SDL: failed to create hardware framebuffer texture: %s\n", SDL_GetError());
+    }
 }
 
 static bool sdlLoadTexturePage(SDLRenderer* sdl, uint32_t pageId) {
@@ -199,18 +221,29 @@ static inline uint8_t sdlAlphaBlendComponent(uint8_t dst, uint8_t src, uint8_t a
 
 static inline uint32_t sdlAlphaBlendPixel(uint32_t dst, uint32_t src, uint8_t alpha) {
     // SDL_TRACE_CALL();
-    if (alpha >= 255) return src;
-    uint8_t sr = (uint8_t)((src >> 16) & 0xFF);
-    uint8_t sg = (uint8_t)((src >> 8) & 0xFF);
-    uint8_t sb = (uint8_t)(src & 0xFF);
-    uint8_t dr = (uint8_t)((dst >> 16) & 0xFF);
-    uint8_t dg = (uint8_t)((dst >> 8) & 0xFF);
-    uint8_t db = (uint8_t)(dst & 0xFF);
-    uint8_t da = (uint8_t)((dst >> 24) & 0xFF);
-    uint8_t outA = (uint8_t)(alpha + ((da * (255 - alpha)) / 255));
-    uint8_t outR = (uint8_t)((sr * alpha + dr * (255 - alpha)) / 255);
-    uint8_t outG = (uint8_t)((sg * alpha + dg * (255 - alpha)) / 255);
-    uint8_t outB = (uint8_t)((sb * alpha + db * (255 - alpha)) / 255);
+    uint8_t srcA = (uint8_t)((src >> 24) & 0xFF);
+    uint8_t srcR = (uint8_t)((src >> 16) & 0xFF);
+    uint8_t srcG = (uint8_t)((src >> 8) & 0xFF);
+    uint8_t srcB = (uint8_t)(src & 0xFF);
+    uint8_t dstR = (uint8_t)((dst >> 16) & 0xFF);
+    uint8_t dstG = (uint8_t)((dst >> 8) & 0xFF);
+    uint8_t dstB = (uint8_t)(dst & 0xFF);
+    uint8_t dstA = (uint8_t)((dst >> 24) & 0xFF);
+
+    // Source texels with zero alpha must remain transparent and preserve the destination behind them.
+    if (srcA == 0) return dst;
+
+    uint8_t effectiveSrcA = (uint8_t)((srcA * alpha + 127) / 255);
+    if (effectiveSrcA == 0) return dst;
+    if (effectiveSrcA >= 255) return src;
+
+    uint8_t invA = (uint8_t)(255 - effectiveSrcA);
+    uint8_t outA = (uint8_t)((effectiveSrcA + ((dstA * invA) + 127) / 255));
+
+    uint8_t outR = (uint8_t)((srcR * effectiveSrcA + dstR * invA + 127) / 255);
+    uint8_t outG = (uint8_t)((srcG * effectiveSrcA + dstG * invA + 127) / 255);
+    uint8_t outB = (uint8_t)((srcB * effectiveSrcA + dstB * invA + 127) / 255);
+
     return ((uint32_t)outA << 24) | ((uint32_t)outR << 16) | ((uint32_t)outG << 8) | (uint32_t)outB;
 }
 
@@ -416,6 +449,48 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
     SDLRenderer* sdl = g_currentSDLRenderer;
     if (sdl == NULL || sdl->framebuffer == NULL || window == NULL) return;
 
+    if (sdl->mode == SDL_RENDERER_MODE_HARDWARE) {
+        if (sdl->sdlRenderer == NULL) {
+            sdl->sdlRenderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+            if (sdl->sdlRenderer == NULL) {
+                logWarn("SDL: hardware renderer unavailable; falling back to software blit: %s\n", SDL_GetError());
+                sdl->sdlRenderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+                sdl->hardwareAccelerated = false;
+            } else {
+                sdl->hardwareAccelerated = true;
+            }
+        }
+
+        if (sdl->sdlRenderer != NULL) {
+            int32_t renderW = 0;
+            int32_t renderH = 0;
+            SDL_GetWindowSize(window, &renderW, &renderH);
+            if (renderW <= 0 || renderH <= 0) {
+                SDL_GetRendererOutputSize(sdl->sdlRenderer, &renderW, &renderH);
+            }
+            if (renderW <= 0 || renderH <= 0) return;
+
+            SDL_RenderSetLogicalSize(sdl->sdlRenderer, sdl->framebufferW, sdl->framebufferH);
+
+            sdlEnsureHardwareTexture(sdl, sdl->sdlRenderer, sdl->framebufferW, sdl->framebufferH);
+            if (sdl->framebufferTex != NULL) {
+                void* pixels = NULL;
+                int32_t pitch = 0;
+                if (SDL_LockTexture(sdl->framebufferTex, NULL, &pixels, &pitch) == 0 && pixels != NULL) {
+                    memcpy(pixels, sdl->framebuffer, (size_t)sdl->framebufferW * (size_t)sdl->framebufferH * sizeof(uint32_t));
+                    SDL_UnlockTexture(sdl->framebufferTex);
+                }
+
+                SDL_Rect dstRect = { 0, 0, renderW, renderH };
+                SDL_SetRenderDrawColor(sdl->sdlRenderer, 0, 0, 0, 255);
+                SDL_RenderClear(sdl->sdlRenderer);
+                SDL_RenderCopy(sdl->sdlRenderer, sdl->framebufferTex, NULL, &dstRect);
+                SDL_RenderPresent(sdl->sdlRenderer);
+                return;
+            }
+        }
+    }
+
     SDL_Surface* windowSurface = SDL_GetWindowSurface(window);
     if (windowSurface == NULL) return;
 
@@ -453,6 +528,10 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
     );
     if (frameSurface == NULL) return;
 
+    // Match the GL renderer's alpha semantics: the final framebuffer surface must
+    // preserve per-pixel alpha when composing onto the window surface.
+    SDL_SetSurfaceBlendMode(frameSurface, SDL_BLENDMODE_BLEND);
+
     SDL_Rect dstRect = { startX, startY, effW, effH };
     SDL_BlitScaled(frameSurface, NULL, windowSurface, &dstRect);
     SDL_FreeSurface(frameSurface);
@@ -467,9 +546,9 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
-    sdl->hardwareAccelerated = false;
+    sdl->hardwareAccelerated = (sdl->mode == SDL_RENDERER_MODE_HARDWARE);
     if (sdl->mode == SDL_RENDERER_MODE_HARDWARE) {
-        logInfo("SDL: hardware renderer mode requested; falling back to software framebuffer path until a GPU-backed path is implemented.\n");
+        logInfo("SDL: hardware renderer mode enabled; using SDL accelerated texture upload/present path.\n");
     }
 
     sdl->originalTexturePageCount = dataWin != NULL ? dataWin->txtr.count : 0;
