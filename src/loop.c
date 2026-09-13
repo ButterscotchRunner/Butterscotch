@@ -183,7 +183,7 @@ static size_t get_used_memory(void) {
     int mib[6] = {CTL_KERN, KERN_PROC2, KERN_PROC_PID, getpid(), (int)sizeof(struct kinfo_proc2), 1};
     size_t len = sizeof(kp);
 
-    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(struct kinfo_proc)) {
+    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(struct kinfo_proc2)) {
         return (size_t)kp.p_vm_rssize * (size_t)getpagesize();
     }
 #elif defined(__HAIKU__)
