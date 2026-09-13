@@ -679,6 +679,186 @@ static inline void Renderer_drawBackgroundTiled(Renderer* renderer, int32_t tpag
     renderer->vtable->drawSpriteTiled(renderer, tpagIndex, 0.0f, 0.0f, bgX, bgY, xscale, yscale, tileX, tileY, roomW, roomH, blend, alpha);
 }
 
+static inline void Renderer_computeSpriteLocalRect(const TexturePageItem* tpag, float originX, float originY, float* localX0, float* localY0, float* localX1, float* localY1) {
+    if (localX0 != nullptr) *localX0 = (float) tpag->targetX - originX;
+    if (localY0 != nullptr) *localY0 = (float) tpag->targetY - originY;
+    if (localX1 != nullptr) *localX1 = (float) tpag->targetX - originX + (float) tpag->targetWidth;
+    if (localY1 != nullptr) *localY1 = (float) tpag->targetY - originY + (float) tpag->targetHeight;
+}
+
+static inline void Renderer_computeTiledQuadOffsets(const TexturePageItem* tpag, float originX, float originY, float xscale, float yscale, float* quadOffX0, float* quadOffY0, float* quadW, float* quadH) {
+    float axScale = fabsf(xscale);
+    float ayScale = fabsf(yscale);
+    float localX0 = (float) tpag->targetX - originX;
+    float localY0 = (float) tpag->targetY - originY;
+    if (quadOffX0 != nullptr) *quadOffX0 = originX * axScale + xscale * localX0;
+    if (quadOffY0 != nullptr) *quadOffY0 = originY * ayScale + yscale * localY0;
+    if (quadW != nullptr) *quadW = xscale * (float) tpag->targetWidth;
+    if (quadH != nullptr) *quadH = yscale * (float) tpag->targetHeight;
+}
+
+static inline void Renderer_computeTiledGrid(float x, float y, float originX, float originY, float xscale, float yscale, float tileW, float tileH, bool tileX, bool tileY, float roomW, float roomH, float* startX, float* startY, float* endX, float* endY, int32_t* tilesX, int32_t* tilesY) {
+    float axScale = fabsf(xscale);
+    float ayScale = fabsf(yscale);
+    float gridX = x - originX * axScale;
+    float gridY = y - originY * ayScale;
+
+    if (tileX) {
+        *startX = fmodf(gridX, tileW);
+        if (*startX > 0.0f) *startX -= tileW;
+        *endX = roomW;
+    } else {
+        *startX = gridX;
+        *endX = *startX + tileW;
+    }
+
+    if (tileY) {
+        *startY = fmodf(gridY, tileH);
+        if (*startY > 0.0f) *startY -= tileH;
+        *endY = roomH;
+    } else {
+        *startY = gridY;
+        *endY = *startY + tileH;
+    }
+
+    if (*startX >= *endX || *startY >= *endY) {
+        if (tilesX != nullptr) *tilesX = 0;
+        if (tilesY != nullptr) *tilesY = 0;
+        return;
+    }
+
+    if (tilesX != nullptr) *tilesX = tileX ? (int32_t) (( *endX - *startX) / tileW) + 1 : 1;
+    if (tilesY != nullptr) *tilesY = tileY ? (int32_t) (( *endY - *startY) / tileH) + 1 : 1;
+}
+
+static inline void Renderer_computeSpriteUVs(const TexturePageItem* tpag, int32_t texW, int32_t texH, float* u0, float* v0, float* u1, float* v1) {
+    if (u0 != nullptr) *u0 = (float) tpag->sourceX / (float) texW;
+    if (v0 != nullptr) *v0 = (float) tpag->sourceY / (float) texH;
+    if (u1 != nullptr) *u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
+    if (v1 != nullptr) *v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+}
+
+static inline void Renderer_computeTiledCellQuad(float startX, float startY, float tileW, float tileH, float quadOffsetX0, float quadOffsetY0, float quadW, float quadH, int32_t col, int32_t row, float* vx0, float* vy0, float* vx1, float* vy1) {
+    float drawX = startX + (float) col * tileW;
+    float drawY = startY + (float) row * tileH;
+    float cellX0 = drawX + quadOffsetX0;
+    float cellY0 = drawY + quadOffsetY0;
+    float cellX1 = cellX0 + quadW;
+    float cellY1 = cellY0 + quadH;
+    if (vx0 != nullptr) *vx0 = cellX0;
+    if (vy0 != nullptr) *vy0 = cellY0;
+    if (vx1 != nullptr) *vx1 = cellX1;
+    if (vy1 != nullptr) *vy1 = cellY1;
+}
+
+static inline void Renderer_computeTiledCellBounds(float startX, float startY, float tileW, float tileH, float quadOffsetX0, float quadOffsetY0, float quadW, float quadH, int32_t col, int32_t row, float* minX, float* minY, float* maxX, float* maxY) {
+    float vx0 = 0.0f, vy0 = 0.0f, vx1 = 0.0f, vy1 = 0.0f;
+    Renderer_computeTiledCellQuad(startX, startY, tileW, tileH, quadOffsetX0, quadOffsetY0, quadW, quadH, col, row, &vx0, &vy0, &vx1, &vy1);
+    if (minX != nullptr) *minX = fminf(vx0, vx1);
+    if (maxX != nullptr) *maxX = fmaxf(vx0, vx1);
+    if (minY != nullptr) *minY = fminf(vy0, vy1);
+    if (maxY != nullptr) *maxY = fmaxf(vy0, vy1);
+}
+
+static inline void Renderer_computeSpriteDrawRect(const TexturePageItem* tpag, float x, float y, float originX, float originY, float xscale, float yscale, int32_t* dstX, int32_t* dstY, int32_t* dstW, int32_t* dstH) {
+    float localX0 = 0.0f, localY0 = 0.0f, localX1 = 0.0f, localY1 = 0.0f;
+    Renderer_computeSpriteLocalRect(tpag, originX, originY, &localX0, &localY0, &localX1, &localY1);
+    if (dstX != nullptr) *dstX = (int32_t) floorf(x + xscale * localX0);
+    if (dstY != nullptr) *dstY = (int32_t) floorf(y + yscale * localY0);
+    if (dstW != nullptr) *dstW = (int32_t) floorf((localX1 - localX0) * fabsf(xscale));
+    if (dstH != nullptr) *dstH = (int32_t) floorf((localY1 - localY0) * fabsf(yscale));
+}
+
+static inline bool Renderer_computeTileAtlasClipping(const TexturePageItem* tpag, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float scaleX, float scaleY, float* drawX, float* drawY, int32_t* outSrcX, int32_t* outSrcY, int32_t* outSrcW, int32_t* outSrcH) {
+    if (tpag == nullptr || srcW <= 0 || srcH <= 0) return false;
+
+    int32_t clampedX = srcX;
+    int32_t clampedY = srcY;
+    int32_t clampedW = srcW;
+    int32_t clampedH = srcH;
+    float clippedDrawX = drawX != nullptr ? *drawX : 0.0f;
+    float clippedDrawY = drawY != nullptr ? *drawY : 0.0f;
+
+    int32_t contentLeft = tpag->targetX;
+    int32_t contentTop = tpag->targetY;
+    if (contentLeft > clampedX) {
+        int32_t clip = contentLeft - clampedX;
+        clippedDrawX += (float) clip * scaleX;
+        clampedW -= clip;
+        clampedX = contentLeft;
+    }
+    if (contentTop > clampedY) {
+        int32_t clip = contentTop - clampedY;
+        clippedDrawY += (float) clip * scaleY;
+        clampedH -= clip;
+        clampedY = contentTop;
+    }
+
+    int32_t contentRight = tpag->targetX + tpag->sourceWidth;
+    int32_t contentBottom = tpag->targetY + tpag->sourceHeight;
+    if (clampedX + clampedW > contentRight) {
+        clampedW = contentRight - clampedX;
+    }
+    if (clampedY + clampedH > contentBottom) {
+        clampedH = contentBottom - clampedY;
+    }
+
+    if (clampedW <= 0 || clampedH <= 0) return false;
+
+    if (drawX != nullptr) *drawX = clippedDrawX;
+    if (drawY != nullptr) *drawY = clippedDrawY;
+    if (outSrcX != nullptr) *outSrcX = clampedX;
+    if (outSrcY != nullptr) *outSrcY = clampedY;
+    if (outSrcW != nullptr) *outSrcW = clampedW;
+    if (outSrcH != nullptr) *outSrcH = clampedH;
+    return true;
+}
+
+static inline void Renderer_computeSpritePartQuad(int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, float* x0, float* y0, float* x1, float* y1, float* x2, float* y2, float* x3, float* y3) {
+    if (angleDeg == 0.0f) {
+        if (x0 != nullptr) *x0 = x;
+        if (y0 != nullptr) *y0 = y;
+        if (x1 != nullptr) *x1 = x + (float) srcW * xscale;
+        if (y1 != nullptr) *y1 = y;
+        if (x2 != nullptr) *x2 = x + (float) srcW * xscale;
+        if (y2 != nullptr) *y2 = y + (float) srcH * yscale;
+        if (x3 != nullptr) *x3 = x;
+        if (y3 != nullptr) *y3 = y + (float) srcH * yscale;
+        return;
+    }
+
+    float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+    float cosA = cosf(angleRad);
+    float sinA = sinf(angleRad);
+
+    float qx0 = x, qy0 = y;
+    float qx1 = x + (float) srcW * xscale, qy1 = y;
+    float qx2 = x + (float) srcW * xscale, qy2 = y + (float) srcH * yscale;
+    float qx3 = x, qy3 = y + (float) srcH * yscale;
+
+    float dx = qx0 - pivotX; float dy = qy0 - pivotY;
+    if (x0 != nullptr) *x0 = cosA * dx - sinA * dy + pivotX;
+    if (y0 != nullptr) *y0 = sinA * dx + cosA * dy + pivotY;
+
+    dx = qx1 - pivotX; dy = qy1 - pivotY;
+    if (x1 != nullptr) *x1 = cosA * dx - sinA * dy + pivotX;
+    if (y1 != nullptr) *y1 = sinA * dx + cosA * dy + pivotY;
+
+    dx = qx2 - pivotX; dy = qy2 - pivotY;
+    if (x2 != nullptr) *x2 = cosA * dx - sinA * dy + pivotX;
+    if (y2 != nullptr) *y2 = sinA * dx + cosA * dy + pivotY;
+
+    dx = qx3 - pivotX; dy = qy3 - pivotY;
+    if (x3 != nullptr) *x3 = cosA * dx - sinA * dy + pivotX;
+    if (y3 != nullptr) *y3 = sinA * dx + cosA * dy + pivotY;
+}
+
+static inline void Renderer_computeSurfaceTileGrid(float x, float y, float xscale, float yscale, float w, float h, bool tileX, bool tileY, float roomW, float roomH, float* startX, float* startY, float* endX, float* endY, int32_t* tilesX, int32_t* tilesY) {
+    float tileW = w * fabsf(xscale);
+    float tileH = h * fabsf(yscale);
+    Renderer_computeTiledGrid(x, y, 0.0f, 0.0f, xscale, yscale, tileW, tileH, tileX, tileY, roomW, roomH, startX, startY, endX, endY, tilesX, tilesY);
+}
+
 // Draws a tiled sprite across the room
 static inline void Renderer_drawSpriteTiled(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {
     DataWin* dw = renderer->dataWin;
@@ -735,41 +915,20 @@ static inline void Renderer_drawTile(Renderer* renderer, RoomTile* tile, float o
     float drawX = (float) tile->x + offsetX;
     float drawY = (float) tile->y + offsetY;
 
-    // Clip left/top: if tile starts before the content region
-    int32_t contentLeft = tpag->targetX;
-    int32_t contentTop = tpag->targetY;
-    if (contentLeft > srcX) {
-        int32_t clip = contentLeft - srcX;
-        drawX += (float) clip * tile->scaleX;
-        srcW -= clip;
-        srcX = contentLeft;
-    }
-    if (contentTop > srcY) {
-        int32_t clip = contentTop - srcY;
-        drawY += (float) clip * tile->scaleY;
-        srcH -= clip;
-        srcY = contentTop;
+    int32_t clippedSrcX = 0;
+    int32_t clippedSrcY = 0;
+    int32_t clippedSrcW = 0;
+    int32_t clippedSrcH = 0;
+    if (!Renderer_computeTileAtlasClipping(tpag, srcX, srcY, srcW, srcH, tile->scaleX, tile->scaleY, &drawX, &drawY, &clippedSrcX, &clippedSrcY, &clippedSrcW, &clippedSrcH)) {
+        return;
     }
 
-    // Clip right/bottom: if tile extends past the content region
-    int32_t contentRight = tpag->targetX + tpag->sourceWidth;
-    int32_t contentBottom = tpag->targetY + tpag->sourceHeight;
-    if (srcX + srcW > contentRight) {
-        srcW = contentRight - srcX;
-    }
-    if (srcY + srcH > contentBottom) {
-        srcH = contentBottom - srcY;
-    }
-
-    if (0 >= srcW || 0 >= srcH) return;
-
-    // Convert from bounding-rect coords to atlas-relative coords (subtract targetX/Y)
-    int32_t atlasOffX = srcX - tpag->targetX;
-    int32_t atlasOffY = srcY - tpag->targetY;
+    int32_t atlasOffX = clippedSrcX - tpag->targetX;
+    int32_t atlasOffY = clippedSrcY - tpag->targetY;
 
     uint32_t bgr = tile->color & 0x00FFFFFF;
 
-    renderer->vtable->drawSpritePart(renderer, tpagIndex, atlasOffX, atlasOffY, srcW, srcH, drawX, drawY, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f, bgr, tile->alpha);
+    renderer->vtable->drawSpritePart(renderer, tpagIndex, atlasOffX, atlasOffY, clippedSrcW, clippedSrcH, drawX, drawY, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f, bgr, tile->alpha);
 }
 
 // Native runner clamps to [4, 64] and rounds down to the nearest multiple of 4.

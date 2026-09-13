@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SDL_TRACE_ENABLED
+// #define SDL_TRACE_ENABLED
 
 #ifdef SDL_TRACE_ENABLED
 #define SDL_TRACE_CALL() logInfo("SDL: trace %s\n", __func__)
@@ -161,15 +161,19 @@ static bool sdlLoadTexturePage(SDLRenderer* sdl, uint32_t pageId) {
         return false;
     }
 
-    if (surf->pitch != (int)(w * 4)) {
-        SDL_LockSurface(surf);
+    SDL_LockSurface(surf);
+    uint8_t* dstPixels = (uint8_t*)surf->pixels;
+    for (int32_t y = 0; y < h; ++y) {
+        for (int32_t x = 0; x < w; ++x) {
+            const int32_t srcIndex = (y * w + x) * 4;
+            const int32_t dstIndex = (y * w + x) * 4;
+            dstPixels[dstIndex + 0] = rgba[srcIndex + 2]; // B
+            dstPixels[dstIndex + 1] = rgba[srcIndex + 1]; // G
+            dstPixels[dstIndex + 2] = rgba[srcIndex + 0]; // R
+            dstPixels[dstIndex + 3] = rgba[srcIndex + 3]; // A
+        }
     }
-    memcpy(surf->pixels, rgba, (size_t) w * (size_t) h * 4);
-    if (surf->pitch == (int)(w * 4)) {
-        /* no-op */
-    } else {
-        SDL_UnlockSurface(surf);
-    }
+    SDL_UnlockSurface(surf);
 
     free(rgba);
     sdl->pageSurfaces[pageId] = surf;
@@ -253,9 +257,9 @@ static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int3
             if (srcXIndex >= src->w) continue;
 
             int32_t srcIndex = (srcYIndex * src->w + srcXIndex) * 4;
-            uint8_t r = srcPixels[srcIndex + 0];
+            uint8_t b = srcPixels[srcIndex + 0];
             uint8_t g = srcPixels[srcIndex + 1];
-            uint8_t b = srcPixels[srcIndex + 2];
+            uint8_t r = srcPixels[srcIndex + 2];
             uint8_t a = srcPixels[srcIndex + 3];
             uint32_t srcPixel = ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 
@@ -593,18 +597,11 @@ static void sdlDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float 
     if (pageId < 0 || pageId >= (int32_t)sdl->pageCount) return;
     if (!sdlLoadTexturePage(sdl, (uint32_t)pageId)) return;
 
-    SDL_Surface* pageSurf = sdl->pageSurfaces[pageId];
-    int32_t srcX = tpag->sourceX;
-    int32_t srcY = tpag->sourceY;
-    int32_t srcW = tpag->sourceWidth;
-    int32_t srcH = tpag->sourceHeight;
-    int32_t dstX = (int32_t)floorf(x - originX * xscale + tpag->targetX * xscale);
-    int32_t dstY = (int32_t)floorf(y - originY * yscale + tpag->targetY * yscale);
-    int32_t dstW = (int32_t)floorf((float)tpag->targetWidth * fabsf(xscale));
-    int32_t dstH = (int32_t)floorf((float)tpag->targetHeight * fabsf(yscale));
+    int32_t dstX = 0, dstY = 0, dstW = 0, dstH = 0;
+    Renderer_computeSpriteDrawRect(tpag, x, y, originX, originY, xscale, yscale, &dstX, &dstY, &dstW, &dstH);
 
     if (dstW <= 0 || dstH <= 0) return;
-    sdlBlitSurfaceToFramebuffer(sdl, pageSurf, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH, xscale, yscale, color, alpha);
+    sdlBlitSurfaceToFramebuffer(sdl, sdl->pageSurfaces[pageId], tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, dstX, dstY, dstW, dstH, xscale, yscale, color, alpha);
 }
 
 static void sdlDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, uint32_t color, float alpha) {
@@ -618,10 +615,17 @@ static void sdlDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t src
     if (pageId < 0 || pageId >= (int32_t)sdl->pageCount) return;
     if (!sdlLoadTexturePage(sdl, (uint32_t)pageId)) return;
 
-    int32_t dstX = (int32_t)floorf(x);
-    int32_t dstY = (int32_t)floorf(y);
-    int32_t dstW = (int32_t)floorf((float)srcW * fabsf(xscale));
-    int32_t dstH = (int32_t)floorf((float)srcH * fabsf(yscale));
+    float cx0 = 0.0f, cy0 = 0.0f, cx1 = 0.0f, cy1 = 0.0f, cx2 = 0.0f, cy2 = 0.0f, cx3 = 0.0f, cy3 = 0.0f;
+    Renderer_computeSpritePartQuad(srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, &cx0, &cy0, &cx1, &cy1, &cx2, &cy2, &cx3, &cy3);
+
+    float minX = fminf(cx0, fminf(cx1, fminf(cx2, cx3)));
+    float maxX = fmaxf(cx0, fmaxf(cx1, fmaxf(cx2, cx3)));
+    float minY = fminf(cy0, fminf(cy1, fminf(cy2, cy3)));
+    float maxY = fmaxf(cy0, fmaxf(cy1, fmaxf(cy2, cy3)));
+    int32_t dstX = (int32_t)floorf(minX);
+    int32_t dstY = (int32_t)floorf(minY);
+    int32_t dstW = (int32_t)ceilf(maxX - minX);
+    int32_t dstH = (int32_t)ceilf(maxY - minY);
 
     if (dstW <= 0 || dstH <= 0) return;
     sdlBlitSurfaceToFramebuffer(sdl, sdl->pageSurfaces[pageId], tpag->sourceX + srcOffX, tpag->sourceY + srcOffY, srcW, srcH, dstX, dstY, dstW, dstH, xscale, yscale, color, alpha);
@@ -686,10 +690,11 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
             if (srcY >= pageSurf->h) continue;
 
             int32_t srcIndex = (srcY * pageSurf->w + srcX) * 4;
-            uint8_t r = ((uint8_t*)pageSurf->pixels)[srcIndex + 0];
-            uint8_t g = ((uint8_t*)pageSurf->pixels)[srcIndex + 1];
-            uint8_t bChannel = ((uint8_t*)pageSurf->pixels)[srcIndex + 2];
-            uint8_t a8 = ((uint8_t*)pageSurf->pixels)[srcIndex + 3];
+            uint8_t* srcBytes = (uint8_t*)pageSurf->pixels + srcIndex;
+            uint8_t bChannel = srcBytes[0];
+            uint8_t g = srcBytes[1];
+            uint8_t r = srcBytes[2];
+            uint8_t a8 = srcBytes[3];
             uint32_t srcColor = ((uint32_t)a8 << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)bChannel;
 
             uint32_t dstColor = sdl->framebuffer[y * sdl->framebufferW + x];
@@ -1134,16 +1139,27 @@ static void sdlDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float
     if (0 > tpagIndex) return;
 
     TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
-    float xx = tile->x + offsetX;
-    float yy = tile->y + offsetY;
 
     int32_t srcX = tile->sourceX;
     int32_t srcY = tile->sourceY;
-    int32_t srcW = (int32_t)tile->width;
-    int32_t srcH = (int32_t)tile->height;
-    if (srcW <= 0 || srcH <= 0) return;
+    int32_t srcW = (int32_t) tile->width;
+    int32_t srcH = (int32_t) tile->height;
+    float drawX = (float) tile->x + offsetX;
+    float drawY = (float) tile->y + offsetY;
 
-    renderer->vtable->drawSpritePart(renderer, tpagIndex, srcX - tpag->sourceX, srcY - tpag->sourceY, srcW, srcH, xx, yy, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, tile->color, tile->alpha);
+    int32_t clippedSrcX = 0;
+    int32_t clippedSrcY = 0;
+    int32_t clippedSrcW = 0;
+    int32_t clippedSrcH = 0;
+    if (!Renderer_computeTileAtlasClipping(tpag, srcX, srcY, srcW, srcH, tile->scaleX, tile->scaleY, &drawX, &drawY, &clippedSrcX, &clippedSrcY, &clippedSrcW, &clippedSrcH)) {
+        return;
+    }
+
+    int32_t atlasOffX = clippedSrcX - tpag->targetX;
+    int32_t atlasOffY = clippedSrcY - tpag->targetY;
+    uint32_t bgr = tile->color & 0x00FFFFFF;
+
+    renderer->vtable->drawSpritePart(renderer, tpagIndex, atlasOffX, atlasOffY, clippedSrcW, clippedSrcH, drawX, drawY, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f, bgr, tile->alpha);
 }
 static void sdlDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
     SDL_TRACE_CALL();
@@ -1152,20 +1168,47 @@ static void sdlDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float orig
     TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
     if (tpag->boundingWidth <= 0 || tpag->boundingHeight <= 0) return;
 
-    float tileW = (float)tpag->boundingWidth * fabsf(xscale);
-    float tileH = (float)tpag->boundingHeight * fabsf(yscale);
+    float axScale = fabsf(xscale);
+    float ayScale = fabsf(yscale);
+    float tileW = (float)tpag->boundingWidth * axScale;
+    float tileH = (float)tpag->boundingHeight * ayScale;
     if (tileW <= 0.0f || tileH <= 0.0f) return;
 
-    float startX = x - originX * fabsf(xscale);
-    float startY = y - originY * fabsf(yscale);
-    int32_t cols = tileX ? (int32_t)ceilf(roomW / tileW) + 1 : 1;
-    int32_t rows = tileY ? (int32_t)ceilf(roomH / tileH) + 1 : 1;
+    float startX = 0.0f, startY = 0.0f, endX = 0.0f, endY = 0.0f;
+    int32_t tilesX = 0, tilesY = 0;
+    Renderer_computeTiledGrid(x, y, originX, originY, xscale, yscale, tileW, tileH, tileX, tileY, roomW, roomH, &startX, &startY, &endX, &endY, &tilesX, &tilesY);
+    if (startX >= endX || startY >= endY || tilesX <= 0 || tilesY <= 0) return;
 
-    for (int32_t row = 0; row < rows; ++row) {
-        for (int32_t col = 0; col < cols; ++col) {
-            float drawX = startX + (float)col * tileW;
-            float drawY = startY + (float)row * tileH;
-            renderer->vtable->drawSprite(renderer, tpagIndex, drawX, drawY, originX, originY, xscale, yscale, 0.0f, color, alpha);
+    float quadOffX0 = 0.0f, quadOffY0 = 0.0f, quadW = 0.0f, quadH = 0.0f;
+    Renderer_computeTiledQuadOffsets(tpag, originX, originY, xscale, yscale, &quadOffX0, &quadOffY0, &quadW, &quadH);
+
+    int32_t pageId = tpag->texturePageId;
+    if (pageId < 0 || (uint32_t)pageId >= renderer->dataWin->tpag.count) return;
+    if (!sdlLoadTexturePage((SDLRenderer*)renderer, (uint32_t)pageId)) return;
+    SDL_Surface* pageSurf = ((SDLRenderer*)renderer)->pageSurfaces[pageId];
+    if (pageSurf == NULL) return;
+
+    for (int32_t row = 0; row < tilesY; ++row) {
+        float dy = startY + (float) row * tileH;
+        if (dy >= endY) break;
+        for (int32_t col = 0; col < tilesX; ++col) {
+            float dx = startX + (float) col * tileW;
+            if (dx >= endX) break;
+
+            float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+            Renderer_computeTiledCellBounds(startX, startY, tileW, tileH, quadOffX0, quadOffY0, quadW, quadH, col, row, &minX, &minY, &maxX, &maxY);
+
+            int32_t dstX = (int32_t)floorf(minX);
+            int32_t dstY = (int32_t)floorf(minY);
+            int32_t dstW = (int32_t)ceilf(maxX - minX);
+            int32_t dstH = (int32_t)ceilf(maxY - minY);
+            if (dstW <= 0 || dstH <= 0) continue;
+
+            sdlBlitSurfaceToFramebuffer((SDLRenderer*)renderer, pageSurf,
+                tpag->sourceX, tpag->sourceY,
+                tpag->sourceWidth, tpag->sourceHeight,
+                dstX, dstY, dstW, dstH,
+                xscale, yscale, color, alpha);
         }
     }
 }
@@ -1248,11 +1291,30 @@ static void sdlDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, 
     float tileH = (float)surf->h * fabsf(yscale);
     if (tileW <= 0.0f || tileH <= 0.0f) return;
 
-    int32_t cols = (int32_t)ceilf(roomW / tileW) + 1;
-    int32_t rows = (int32_t)ceilf(roomH / tileH) + 1;
-    for (int32_t row = 0; row < rows; ++row) {
-        for (int32_t col = 0; col < cols; ++col) {
-            renderer->vtable->drawSurface(renderer, surfaceID, 0, 0, surf->w, surf->h, x + col * tileW, y + row * tileH, xscale, yscale, 0.0f, color, alpha);
+    float startX = 0.0f, startY = 0.0f, endX = 0.0f, endY = 0.0f;
+    int32_t tilesX = 0, tilesY = 0;
+    Renderer_computeSurfaceTileGrid(x, y, xscale, yscale, (float)surf->w, (float)surf->h, true, true, roomW, roomH, &startX, &startY, &endX, &endY, &tilesX, &tilesY);
+    if (startX >= endX || startY >= endY || tilesX <= 0 || tilesY <= 0) return;
+
+    float quadW = (float)surf->w * xscale;
+    float quadH = (float)surf->h * yscale;
+    for (int32_t row = 0; row < tilesY; ++row) {
+        float dy = startY + (float) row * tileH;
+        if (dy >= endY) break;
+        for (int32_t col = 0; col < tilesX; ++col) {
+            float dx = startX + (float) col * tileW;
+            if (dx >= endX) break;
+
+            float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+            Renderer_computeTiledCellBounds(startX, startY, tileW, tileH, 0.0f, 0.0f, quadW, quadH, col, row, &minX, &minY, &maxX, &maxY);
+
+            int32_t dstX = (int32_t)floorf(minX);
+            int32_t dstY = (int32_t)floorf(minY);
+            int32_t dstW = (int32_t)ceilf(maxX - minX);
+            int32_t dstH = (int32_t)ceilf(maxY - minY);
+            if (dstW <= 0 || dstH <= 0) continue;
+
+            renderer->vtable->drawSurface(renderer, surfaceID, 0, 0, surf->w, surf->h, dstX, dstY, xscale, yscale, 0.0f, color, alpha);
         }
     }
 }
