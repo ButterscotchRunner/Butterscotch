@@ -1095,24 +1095,33 @@ int loop(CommandLineArgs args, const char *argv0) {
                 logDebug("Dumping runner state at frame %d\n", runner->frameCount);
                 char* json = Runner_dumpStateJson(runner);
 
-                if (args.dumpJsonFilePattern != nullptr) {
-                    char filename[512];
-                    snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
-                    FILE* f = fopen(filename, "wb");
-                    if (f != nullptr) {
-                        fwrite(json, 1, strlen(json), f);
-                        fputc('\n', f);
-                        fclose(f);
-                        logInfo("JSON dump saved: %s\n", filename);
-                    } else {
-                        logWarn("Could not write JSON dump to '%s'\n", filename);
-                    }
-                } else {
-                    logInfo("%s\n", json);
-                }
+                if (json != nullptr) {
+                    if (args.dumpJsonFilePattern != nullptr) {
+                        char filename[512];
+                        snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
+                        FILE* f = fopen(filename, "wb");
 
-                free(json);
+                        if (f != nullptr) {
+                            size_t len = strlen(json);
+                            if (fwrite(json, 1, len, f) != len) {
+                                logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                                fclose(f);
+                            } else {
+                                fputc('\n', f);
+                                fclose(f);
+                                logInfo("JSON dump saved: %s\n", filename);
+                            }
+                        } else {
+                            logWarn("Could not write JSON dump to '%s'\n", filename);
+                        }
+                    } else {
+                        logInfo("%s\n", json);
+                    }
+
+                    free(json);
+                }
             }
+
 
             // Toggle the collision mask debug overlay
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
@@ -1209,22 +1218,31 @@ int loop(CommandLineArgs args, const char *argv0) {
             // Dump runner state as JSON if this frame was requested
             if (hmget(args.dumpJsonFrames, runner->frameCount)) {
                 char* json = Runner_dumpStateJson(runner);
-                if (args.dumpJsonFilePattern != nullptr) {
-                    char filename[512];
-                    snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
-                    FILE* f = fopen(filename, "wb");
-                    if (f != nullptr) {
-                        fwrite(json, 1, strlen(json), f);
-                        fputc('\n', f);
-                        fclose(f);
-                        logInfo("JSON dump saved: %s\n", filename);
+
+                if (json != nullptr) {
+                    if (args.dumpJsonFilePattern != nullptr) {
+                        char filename[512];
+                        snprintf(filename, sizeof(filename), args.dumpJsonFilePattern, runner->frameCount);
+                        FILE* f = fopen(filename, "wb");
+
+                        if (f != nullptr) {
+                            size_t len = strlen(json);
+                            if (fwrite(json, 1, len, f) != len) {
+                                logWarn("Error: Could not write JSON dump to '%s'\n", filename);
+                                fclose(f);
+                            } else {
+                                fputc('\n', f);
+                                fclose(f);
+                                logInfo("JSON dump saved: %s\n", filename);
+                            }
+                        } else {
+                            logWarn("Could not write JSON dump to '%s'\n", filename);
+                        }
                     } else {
-                        logWarn("Could not write JSON dump to '%s'\n", filename);
+                        logInfo("%s\n", json);
                     }
-                } else {
-                    logInfo("%s\n", json);
+                    free(json);
                 }
-                free(json);
             }
 
             // Query actual framebuffer size
