@@ -3010,13 +3010,16 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
         }
 
-        if (dw->mappedFile && chunkLength > 0
-            && memcmp(chunkName, "STRG", 4) != 0
-            && memcmp(chunkName, "CODE", 4) != 0
-            && memcmp(chunkName, "TXTR", 4) != 0
-            && memcmp(chunkName, "AUDO", 4) != 0
-            && memcmp(chunkName, "SPRT", 4) != 0) {
-            dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+        if (dw->mappedFile && chunkLength > 0) {
+            bool keepMapped =
+                (memcmp(chunkName, "STRG", 4) == 0 && options.parseStrg) ||
+                (memcmp(chunkName, "CODE", 4) == 0 && options.parseCode) ||
+                (memcmp(chunkName, "TXTR", 4) == 0 && options.parseTxtr) ||
+                (memcmp(chunkName, "AUDO", 4) == 0 && options.parseAudo) ||
+                (memcmp(chunkName, "SPRT", 4) == 0 && options.parseSprt);
+            if (!keepMapped) {
+                dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+            }
         }
 
         // Free the chunk buffer and revert to FILE*-based reads for the next header
