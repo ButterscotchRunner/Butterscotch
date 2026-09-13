@@ -1183,7 +1183,6 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         txtr->blobData = nullptr;
     } else if (txtr->blobData && txtr->blobSize) {
         dropMappedRange(txtr->blobData, 0, txtr->blobSize);
-        txtr->blobData = nullptr;
     }
 
     gl->textureWidths[pageId] = w;
