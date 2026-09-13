@@ -28,12 +28,16 @@ typedef struct {
     int32_t* pageWidths;
     int32_t* pageHeights;
     uint32_t pageCount;
+    uint32_t originalTexturePageCount;
 
+    SDL_Surface** surfaceSurfaces;
     int32_t *surfaceWidths;
     int32_t *surfaceHeights;
     bool *surfaceExistsFlag;
     uint32_t surfaceCount;
     uint32_t surfaceCapacity;
+    uint32_t originalTpagCount;
+    uint32_t originalSpriteCount;
 
     bool blendEnable;
     int32_t blendMode;
@@ -54,11 +58,13 @@ static void sdlEnsureSurfaceCapacity(SDLRenderer* sdl, uint32_t needed) {
     uint32_t newCap = sdl->surfaceCapacity ? sdl->surfaceCapacity * 2 : 16;
     while (newCap < needed) newCap *= 2;
 
+    sdl->surfaceSurfaces = (SDL_Surface**)safeRealloc(sdl->surfaceSurfaces, newCap * sizeof(SDL_Surface*));
     sdl->surfaceWidths = (int32_t*)safeRealloc(sdl->surfaceWidths, newCap * sizeof(int32_t));
     sdl->surfaceHeights = (int32_t*)safeRealloc(sdl->surfaceHeights, newCap * sizeof(int32_t));
     sdl->surfaceExistsFlag = (bool*)safeRealloc(sdl->surfaceExistsFlag, newCap * sizeof(bool));
 
     for (uint32_t i = sdl->surfaceCapacity; i < newCap; i++) {
+        sdl->surfaceSurfaces[i] = NULL;
         sdl->surfaceWidths[i] = 0;
         sdl->surfaceHeights[i] = 0;
         sdl->surfaceExistsFlag[i] = false;
@@ -66,6 +72,36 @@ static void sdlEnsureSurfaceCapacity(SDLRenderer* sdl, uint32_t needed) {
 
     sdl->surfaceCapacity = newCap;
     if (needed > sdl->surfaceCount) sdl->surfaceCount = needed;
+}
+
+static uint32_t sdlFindOrAllocTexturePageSlot(SDLRenderer* sdl) {
+    for (uint32_t i = sdl->originalTexturePageCount; i < sdl->pageCount; ++i) {
+        if (sdl->pageSurfaces[i] == NULL) return i;
+    }
+
+    uint32_t newPageId = sdl->pageCount;
+    sdl->pageCount++;
+    sdl->pageSurfaces = (SDL_Surface**)safeRealloc(sdl->pageSurfaces, sdl->pageCount * sizeof(SDL_Surface*));
+    sdl->pageWidths = (int32_t*)safeRealloc(sdl->pageWidths, sdl->pageCount * sizeof(int32_t));
+    sdl->pageHeights = (int32_t*)safeRealloc(sdl->pageHeights, sdl->pageCount * sizeof(int32_t));
+
+    sdl->pageSurfaces[newPageId] = NULL;
+    sdl->pageWidths[newPageId] = 0;
+    sdl->pageHeights[newPageId] = 0;
+    return newPageId;
+}
+
+static uint32_t sdlFindOrAllocTpagSlot(SDLRenderer* sdl, DataWin* dw) {
+    for (uint32_t i = sdl->originalTpagCount; i < dw->tpag.count; ++i) {
+        if (dw->tpag.items[i].texturePageId == -1) return i;
+    }
+
+    uint32_t newIndex = dw->tpag.count;
+    dw->tpag.count++;
+    dw->tpag.items = (TexturePageItem*)safeRealloc(dw->tpag.items, dw->tpag.count * sizeof(TexturePageItem));
+    memset(&dw->tpag.items[newIndex], 0, sizeof(TexturePageItem));
+    dw->tpag.items[newIndex].texturePageId = -1;
+    return newIndex;
 }
 
 static void sdlEnsureFrameBuffer(SDLRenderer* sdl, int32_t width, int32_t height) {
@@ -209,6 +245,9 @@ static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int3
     }
 }
 
+static void sdlDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha);
+static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline);
+
 static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t color, float alpha) {
     if (sdl->framebuffer == NULL) return;
     int32_t xMin = (x0 < x1) ? x0 : x1;
@@ -240,6 +279,70 @@ static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, in
             sdl->framebuffer[y * sdl->framebufferW + x] = outColor;
         }
     }
+}
+
+typedef struct {
+    bool active;
+    int32_t primitiveType;
+    int32_t texture;
+    float x[256];
+    float y[256];
+    float z[256];
+    float u[256];
+    float v[256];
+    uint32_t color[256];
+    float alpha[256];
+    uint32_t count;
+} SDLPrimitiveState;
+
+static SDLPrimitiveState g_sdlPrimitiveState = {0};
+
+static void sdlPrimitiveFlush(Renderer* renderer) {
+    if (!g_sdlPrimitiveState.active || g_sdlPrimitiveState.count == 0) return;
+
+    uint32_t count = g_sdlPrimitiveState.count;
+    int32_t primitiveType = g_sdlPrimitiveState.primitiveType;
+
+    for (uint32_t i = 0; i + 1 < count; ++i) {
+        if (primitiveType == PRIMITIVE_LINES || primitiveType == PRIMITIVE_LINE_STRIP) {
+            uint32_t j = (primitiveType == PRIMITIVE_LINE_STRIP && i + 1 == count) ? i : i + 1;
+            sdlDrawLine(renderer, g_sdlPrimitiveState.x[i], g_sdlPrimitiveState.y[i], g_sdlPrimitiveState.x[j], g_sdlPrimitiveState.y[j], 1.0f, g_sdlPrimitiveState.color[i], g_sdlPrimitiveState.alpha[i]);
+            if (primitiveType == PRIMITIVE_LINES) ++i;
+        } else if (primitiveType == PRIMITIVE_TRIANGLES) {
+            if (i + 2 < count) {
+                float x1 = g_sdlPrimitiveState.x[i], y1 = g_sdlPrimitiveState.y[i];
+                float x2 = g_sdlPrimitiveState.x[i + 1], y2 = g_sdlPrimitiveState.y[i + 1];
+                float x3 = g_sdlPrimitiveState.x[i + 2], y3 = g_sdlPrimitiveState.y[i + 2];
+                sdlDrawTriangle(renderer, x1, y1, x2, y2, x3, y3,
+                    g_sdlPrimitiveState.color[i], g_sdlPrimitiveState.color[i + 1], g_sdlPrimitiveState.color[i + 2],
+                    g_sdlPrimitiveState.alpha[i], false);
+                i += 2;
+            }
+        } else if (primitiveType == PRIMITIVE_TRIANGLE_STRIP) {
+            if (i + 2 < count) {
+                float x1 = g_sdlPrimitiveState.x[i], y1 = g_sdlPrimitiveState.y[i];
+                float x2 = g_sdlPrimitiveState.x[i + 1], y2 = g_sdlPrimitiveState.y[i + 1];
+                float x3 = g_sdlPrimitiveState.x[i + 2], y3 = g_sdlPrimitiveState.y[i + 2];
+                sdlDrawTriangle(renderer, x1, y1, x2, y2, x3, y3,
+                    g_sdlPrimitiveState.color[i], g_sdlPrimitiveState.color[i + 1], g_sdlPrimitiveState.color[i + 2],
+                    g_sdlPrimitiveState.alpha[i], false);
+            }
+        } else if (primitiveType == PRIMITIVE_TRIANGLE_FAN) {
+            if (i + 2 < count) {
+                float x1 = g_sdlPrimitiveState.x[0], y1 = g_sdlPrimitiveState.y[0];
+                float x2 = g_sdlPrimitiveState.x[i + 1], y2 = g_sdlPrimitiveState.y[i + 1];
+                float x3 = g_sdlPrimitiveState.x[i + 2], y3 = g_sdlPrimitiveState.y[i + 2];
+                sdlDrawTriangle(renderer, x1, y1, x2, y2, x3, y3,
+                    g_sdlPrimitiveState.color[0], g_sdlPrimitiveState.color[i + 1], g_sdlPrimitiveState.color[i + 2],
+                    g_sdlPrimitiveState.alpha[0], false);
+            }
+        }
+    }
+
+    g_sdlPrimitiveState.count = 0;
+    g_sdlPrimitiveState.active = false;
+    g_sdlPrimitiveState.primitiveType = PRIMITIVE_NONE;
+    g_sdlPrimitiveState.texture = 0;
 }
 
 static SDLRenderer* g_currentSDLRenderer = NULL;
@@ -282,11 +385,15 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
-    sdl->pageCount = dataWin != NULL ? dataWin->txtr.count : 0;
+    sdl->originalTexturePageCount = dataWin != NULL ? dataWin->txtr.count : 0;
+    sdl->pageCount = sdl->originalTexturePageCount;
     sdl->pageSurfaces = dataWin != NULL ? (SDL_Surface**)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(SDL_Surface*)) : NULL;
     sdl->pageWidths = dataWin != NULL ? (int32_t*)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(int32_t)) : NULL;
     sdl->pageHeights = dataWin != NULL ? (int32_t*)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(int32_t)) : NULL;
+    sdl->originalTpagCount = dataWin != NULL ? dataWin->tpag.count : 0;
+    sdl->originalSpriteCount = dataWin != NULL ? dataWin->sprt.count : 0;
 
+    sdl->surfaceSurfaces = NULL;
     sdl->framebufferW = 0;
     sdl->framebufferH = 0;
     sdl->window = NULL;
@@ -327,6 +434,14 @@ static void sdlDestroy(Renderer* renderer) {
     free(sdl->pageWidths);
     free(sdl->pageHeights);
     free(sdl->framebuffer);
+    if (sdl->surfaceSurfaces != NULL) {
+        for (uint32_t i = 0; i < sdl->surfaceCount; ++i) {
+            if (sdl->surfaceSurfaces[i] != NULL) {
+                SDL_FreeSurface(sdl->surfaceSurfaces[i]);
+            }
+        }
+        free(sdl->surfaceSurfaces);
+    }
     free(sdl->surfaceWidths);
     free(sdl->surfaceHeights);
     free(sdl->surfaceExistsFlag);
@@ -412,9 +527,79 @@ static void sdlDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_
     (void)color2; (void)color3; (void)color4;
     sdlDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
 }
-static void sdlDrawSpritePos(Renderer* renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float x3, MAYBE_UNUSED float y3, MAYBE_UNUSED float x4, MAYBE_UNUSED float y4, MAYBE_UNUSED float alpha) {
-    (void)renderer;
-    sdlLogStub("sdlDrawSpritePos");
+static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    DataWin* dw = renderer->dataWin;
+    if (dw == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= dw->tpag.count) return;
+
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
+    int32_t pageId = tpag->texturePageId;
+    if (pageId < 0 || (uint32_t)pageId >= sdl->pageCount) return;
+    if (!sdlLoadTexturePage(sdl, (uint32_t)pageId)) return;
+
+    SDL_Surface* pageSurf = sdl->pageSurfaces[pageId];
+    if (pageSurf == NULL) return;
+
+    float minX = fminf(x1, fminf(x2, fminf(x3, x4)));
+    float maxX = fmaxf(x1, fmaxf(x2, fmaxf(x3, x4)));
+    float minY = fminf(y1, fminf(y2, fminf(y3, y4)));
+    float maxY = fmaxf(y1, fmaxf(y2, fmaxf(y3, y4)));
+    int32_t xMin = (int32_t)floorf(minX);
+    int32_t xMax = (int32_t)ceilf(maxX);
+    int32_t yMin = (int32_t)floorf(minY);
+    int32_t yMax = (int32_t)ceilf(maxY);
+
+    if (xMin < 0) xMin = 0;
+    if (yMin < 0) yMin = 0;
+    if (xMax > sdl->framebufferW) xMax = sdl->framebufferW;
+    if (yMax > sdl->framebufferH) yMax = sdl->framebufferH;
+
+    float denom = (x2 - x4) * (y3 - y1) - (x3 - x1) * (y2 - y4);
+    if (denom == 0.0f) {
+        denom = 1.0f;
+    }
+
+    for (int32_t y = yMin; y < yMax; ++y) {
+        for (int32_t x = xMin; x < xMax; ++x) {
+            float px = (float)x + 0.5f;
+            float py = (float)y + 0.5f;
+
+            float a = ((x2 - x4) * (py - y4) - (y2 - y4) * (px - x4)) / denom;
+            float b = ((x3 - x1) * (py - y1) - (y3 - y1) * (px - x1)) / denom;
+            float c = 1.0f - a - b;
+
+            if (a < 0.0f || b < 0.0f || c < 0.0f || a > 1.0f || b > 1.0f || c > 1.0f) {
+                continue;
+            }
+
+            int32_t srcX = tpag->sourceX + (int32_t)floorf((float)tpag->sourceWidth * a);
+            int32_t srcY = tpag->sourceY + (int32_t)floorf((float)tpag->sourceHeight * b);
+            if (srcX < 0) srcX = 0;
+            if (srcY < 0) srcY = 0;
+            if (srcX >= pageSurf->w) continue;
+            if (srcY >= pageSurf->h) continue;
+
+            int32_t srcIndex = (srcY * pageSurf->w + srcX) * 4;
+            uint8_t r = ((uint8_t*)pageSurf->pixels)[srcIndex + 0];
+            uint8_t g = ((uint8_t*)pageSurf->pixels)[srcIndex + 1];
+            uint8_t bChannel = ((uint8_t*)pageSurf->pixels)[srcIndex + 2];
+            uint8_t a8 = ((uint8_t*)pageSurf->pixels)[srcIndex + 3];
+            uint32_t srcColor = ((uint32_t)a8 << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)bChannel;
+
+            uint32_t dstColor = sdl->framebuffer[y * sdl->framebufferW + x];
+            uint8_t dr = (uint8_t)((dstColor >> 16) & 0xFF);
+            uint8_t dg = (uint8_t)((dstColor >> 8) & 0xFF);
+            uint8_t db = (uint8_t)(dstColor & 0xFF);
+            uint8_t da = (uint8_t)((dstColor >> 24) & 0xFF);
+
+            uint8_t outA = (uint8_t)((a8 * alpha + da * (255 - a8 * alpha / 255)) / 255);
+            uint8_t outR = (uint8_t)((r * a8 + dr * (255 - a8)) / 255);
+            uint8_t outG = (uint8_t)((g * a8 + dg * (255 - a8)) / 255);
+            uint8_t outB = (uint8_t)((bChannel * a8 + db * (255 - a8)) / 255);
+
+            sdl->framebuffer[y * sdl->framebufferW + x] = ((uint32_t)outA << 24) | ((uint32_t)outR << 16) | ((uint32_t)outG << 8) | (uint32_t)outB;
+        }
+    }
 }
 static void sdlDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, MAYBE_UNUSED bool outline) {
     sdlFillRect((SDLRenderer*)renderer, (int32_t)floorf(x1), (int32_t)floorf(y1), (int32_t)floorf(x2), (int32_t)floorf(y2), color, alpha);
@@ -680,14 +865,106 @@ static void sdlClearScreen(Renderer* renderer, uint32_t color, MAYBE_UNUSED floa
     }
 }
 
-static int32_t sdlCreateSpriteFromSurface(Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y, MAYBE_UNUSED int32_t w, MAYBE_UNUSED int32_t h, MAYBE_UNUSED bool removeback, MAYBE_UNUSED bool smooth, MAYBE_UNUSED int32_t xorig, MAYBE_UNUSED int32_t yorig) {
-    (void)renderer;
-    sdlLogStub("sdlCreateSpriteFromSurface");
-    return -1;
+static int32_t sdlCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    DataWin* dw = renderer->dataWin;
+
+    if (dw == NULL) return -1;
+    if (0 >= w || 0 >= h) return -1;
+    if (0 > surfaceID || (uint32_t) surfaceID >= sdl->surfaceCount) return -1;
+    if (!sdl->surfaceExistsFlag[surfaceID] || sdl->surfaceSurfaces[surfaceID] == NULL) return -1;
+
+    SDL_Surface* srcSurf = sdl->surfaceSurfaces[surfaceID];
+    int32_t srcX = x;
+    int32_t srcY = y;
+    int32_t srcW = w;
+    int32_t srcH = h;
+
+    if (srcX < 0) { srcW += srcX; srcX = 0; }
+    if (srcY < 0) { srcH += srcY; srcY = 0; }
+    if (srcX + srcW > srcSurf->w) srcW = srcSurf->w - srcX;
+    if (srcY + srcH > srcSurf->h) srcH = srcSurf->h - srcY;
+    if (srcW <= 0 || srcH <= 0) return -1;
+
+    SDL_Surface* spriteSurf = SDL_CreateRGBSurfaceWithFormat(0, srcW, srcH, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (spriteSurf == NULL) return -1;
+
+    SDL_Rect srcRect = { srcX, srcY, srcW, srcH };
+    SDL_Rect dstRect = { 0, 0, srcW, srcH };
+    if (SDL_BlitSurface(srcSurf, &srcRect, spriteSurf, &dstRect) != 0) {
+        SDL_FreeSurface(spriteSurf);
+        return -1;
+    }
+
+    uint32_t pageId = sdlFindOrAllocTexturePageSlot(sdl);
+    SDL_FreeSurface(sdl->pageSurfaces[pageId]);
+    sdl->pageSurfaces[pageId] = spriteSurf;
+    sdl->pageWidths[pageId] = srcW;
+    sdl->pageHeights[pageId] = srcH;
+
+    uint32_t tpagIndex = sdlFindOrAllocTpagSlot(sdl, dw);
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
+    tpag->sourceX = 0;
+    tpag->sourceY = 0;
+    tpag->sourceWidth = (uint16_t)srcW;
+    tpag->sourceHeight = (uint16_t)srcH;
+    tpag->targetX = 0;
+    tpag->targetY = 0;
+    tpag->targetWidth = (uint16_t)srcW;
+    tpag->targetHeight = (uint16_t)srcH;
+    tpag->boundingWidth = (uint16_t)srcW;
+    tpag->boundingHeight = (uint16_t)srcH;
+    tpag->texturePageId = (int16_t)pageId;
+
+    uint32_t spriteIndex = DataWin_allocSpriteSlot(dw, sdl->originalSpriteCount);
+    Sprite* sprite = &dw->sprt.sprites[spriteIndex];
+    sprite->width = (uint32_t)srcW;
+    sprite->height = (uint32_t)srcH;
+    sprite->originX = xorig;
+    sprite->originY = yorig;
+    sprite->textureCount = 1;
+    sprite->tpagIndices = (int32_t*)safeMalloc(sizeof(int32_t));
+    sprite->tpagIndices[0] = (int32_t)tpagIndex;
+    sprite->maskCount = 0;
+    sprite->masks = NULL;
+
+    (void)removeback;
+    (void)smooth;
+    logInfo("SDL: Created dynamic sprite %u (%dx%d) from surface %d at (%d,%d)\n", spriteIndex, srcW, srcH, surfaceID, x, y);
+    return (int32_t)spriteIndex;
 }
-static void sdlDeleteSprite(Renderer* renderer, MAYBE_UNUSED int32_t spriteIndex) {
-    (void)renderer;
-    sdlLogStub("sdlDeleteSprite");
+static void sdlDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    DataWin* dw = renderer->dataWin;
+
+    if (dw == NULL || 0 > spriteIndex || dw->sprt.count <= (uint32_t)spriteIndex) return;
+    if (sdl->originalSpriteCount > (uint32_t)spriteIndex) {
+        logWarn("SDL: Cannot delete data.win sprite %d\n", spriteIndex);
+        return;
+    }
+
+    Sprite* sprite = &dw->sprt.sprites[spriteIndex];
+    if (sprite->textureCount == 0) return;
+
+    for (uint32_t i = 0; i < sprite->textureCount; ++i) {
+        int32_t tpagIdx = sprite->tpagIndices[i];
+        if (tpagIdx >= 0 && (uint32_t)tpagIdx >= sdl->originalTpagCount) {
+            TexturePageItem* tpag = &dw->tpag.items[tpagIdx];
+            int16_t pageId = tpag->texturePageId;
+            if (pageId >= 0 && (uint32_t)pageId < sdl->pageCount && sdl->pageSurfaces[pageId] != NULL) {
+                SDL_FreeSurface(sdl->pageSurfaces[pageId]);
+                sdl->pageSurfaces[pageId] = NULL;
+                sdl->pageWidths[pageId] = 0;
+                sdl->pageHeights[pageId] = 0;
+            }
+            tpag->texturePageId = -1;
+        }
+    }
+
+    free(sprite->tpagIndices);
+    const char* keepName = sprite->name;
+    memset(sprite, 0, sizeof(Sprite));
+    sprite->name = keepName;
 }
 
 static BlendFactors sdlGpuGetBlendFactors(Renderer* renderer) { return ((SDLRenderer*)renderer)->blendFactors; }
@@ -724,13 +1001,46 @@ static void sdlGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
     sdl->fogEnable = enable;
     sdl->fogColor = color;
 }
-static void sdlDrawTile(Renderer* renderer, MAYBE_UNUSED RoomTile* tile, MAYBE_UNUSED float offsetX, MAYBE_UNUSED float offsetY) {
-    (void)renderer;
-    sdlLogStub("sdlDrawTile");
+static void sdlDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY) {
+    if (tile == NULL || renderer == NULL || renderer->dataWin == NULL) return;
+
+    int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(renderer->dataWin, tile);
+    if (0 > tpagIndex) return;
+
+    TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
+    float xx = tile->x + offsetX;
+    float yy = tile->y + offsetY;
+
+    int32_t srcX = tile->sourceX;
+    int32_t srcY = tile->sourceY;
+    int32_t srcW = (int32_t)tile->width;
+    int32_t srcH = (int32_t)tile->height;
+    if (srcW <= 0 || srcH <= 0) return;
+
+    renderer->vtable->drawSpritePart(renderer, tpagIndex, srcX - tpag->sourceX, srcY - tpag->sourceY, srcW, srcH, xx, yy, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, tile->color, tile->alpha);
 }
-static void sdlDrawSpriteTiled(Renderer* renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED bool tileX, MAYBE_UNUSED bool tileY, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
-    (void)renderer;
-    sdlLogStub("sdlDrawSpriteTiled");
+static void sdlDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
+    if (renderer == NULL || renderer->dataWin == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
+
+    TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
+    if (tpag->boundingWidth <= 0 || tpag->boundingHeight <= 0) return;
+
+    float tileW = (float)tpag->boundingWidth * fabsf(xscale);
+    float tileH = (float)tpag->boundingHeight * fabsf(yscale);
+    if (tileW <= 0.0f || tileH <= 0.0f) return;
+
+    float startX = x - originX * fabsf(xscale);
+    float startY = y - originY * fabsf(yscale);
+    int32_t cols = tileX ? (int32_t)ceilf(roomW / tileW) + 1 : 1;
+    int32_t rows = tileY ? (int32_t)ceilf(roomH / tileH) + 1 : 1;
+
+    for (int32_t row = 0; row < rows; ++row) {
+        for (int32_t col = 0; col < cols; ++col) {
+            float drawX = startX + (float)col * tileW;
+            float drawY = startY + (float)row * tileH;
+            renderer->vtable->drawSprite(renderer, tpagIndex, drawX, drawY, originX, originY, xscale, yscale, 0.0f, color, alpha);
+        }
+    }
 }
 
 static int32_t sdlCreateSurface(Renderer* renderer, int32_t width, int32_t height) {
@@ -739,7 +1049,12 @@ static int32_t sdlCreateSurface(Renderer* renderer, int32_t width, int32_t heigh
         if (!sdl->surfaceExistsFlag[i]) {
             sdl->surfaceWidths[i] = width;
             sdl->surfaceHeights[i] = height;
-            sdl->surfaceExistsFlag[i] = true;
+            sdl->surfaceSurfaces[i] = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+            sdl->surfaceExistsFlag[i] = sdl->surfaceSurfaces[i] != NULL;
+            if (!sdl->surfaceExistsFlag[i]) {
+                sdl->surfaceWidths[i] = 0;
+                sdl->surfaceHeights[i] = 0;
+            }
             return (int32_t)i;
         }
     }
@@ -747,7 +1062,12 @@ static int32_t sdlCreateSurface(Renderer* renderer, int32_t width, int32_t heigh
     sdlEnsureSurfaceCapacity(sdl, id + 1);
     sdl->surfaceWidths[id] = width;
     sdl->surfaceHeights[id] = height;
-    sdl->surfaceExistsFlag[id] = true;
+    sdl->surfaceSurfaces[id] = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+    sdl->surfaceExistsFlag[id] = sdl->surfaceSurfaces[id] != NULL;
+    if (!sdl->surfaceExistsFlag[id]) {
+        sdl->surfaceWidths[id] = 0;
+        sdl->surfaceHeights[id] = 0;
+    }
     return (int32_t)id;
 }
 static bool sdlSurfaceExists(Renderer* renderer, int32_t surfaceID) {
@@ -774,69 +1094,198 @@ static void sdlDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLef
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (!sdlSurfaceExists(renderer, surfaceID) || sdl->framebuffer == NULL) return;
     if (srcWidth <= 0 || srcHeight <= 0) return;
+    if (sdl->surfaceSurfaces[surfaceID] == NULL) return;
     int32_t dstW = (int32_t)floorf((float)srcWidth * fabsf(xscale));
     int32_t dstH = (int32_t)floorf((float)srcHeight * fabsf(yscale));
     if (dstW <= 0 || dstH <= 0) return;
-    sdlBlitSurfaceToFramebuffer(sdl, sdl->pageSurfaces[surfaceID], srcLeft, srcTop, srcWidth, srcHeight, (int32_t)floorf(x), (int32_t)floorf(y), dstW, dstH, xscale, yscale, color, alpha);
+    sdlBlitSurfaceToFramebuffer(sdl, sdl->surfaceSurfaces[surfaceID], srcLeft, srcTop, srcWidth, srcHeight, (int32_t)floorf(x), (int32_t)floorf(y), dstW, dstH, xscale, yscale, color, alpha);
 }
 static void sdlDrawSurfaceColor(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
     sdlDrawSurface(renderer, surfaceID, srcLeft, srcTop, srcWidth, srcHeight, x, y, xscale, yscale, angleDeg, color1, alpha);
 }
-static void sdlDrawSurfaceTiled(Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
-    (void)renderer;
-    sdlLogStub("sdlDrawSurfaceTiled");
+static void sdlDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    if (!sdlSurfaceExists(renderer, surfaceID) || sdl->framebuffer == NULL) return;
+    if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount || sdl->surfaceSurfaces[surfaceID] == NULL) return;
+
+    SDL_Surface* surf = sdl->surfaceSurfaces[surfaceID];
+    float tileW = (float)surf->w * fabsf(xscale);
+    float tileH = (float)surf->h * fabsf(yscale);
+    if (tileW <= 0.0f || tileH <= 0.0f) return;
+
+    int32_t cols = (int32_t)ceilf(roomW / tileW) + 1;
+    int32_t rows = (int32_t)ceilf(roomH / tileH) + 1;
+    for (int32_t row = 0; row < rows; ++row) {
+        for (int32_t col = 0; col < cols; ++col) {
+            renderer->vtable->drawSurface(renderer, surfaceID, 0, 0, surf->w, surf->h, x + col * tileW, y + row * tileH, xscale, yscale, 0.0f, color, alpha);
+        }
+    }
 }
 static void sdlSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return;
     if (!sdl->surfaceExistsFlag[surfaceID]) return;
+    if (sdl->surfaceSurfaces[surfaceID] != NULL) {
+        SDL_FreeSurface(sdl->surfaceSurfaces[surfaceID]);
+    }
+    sdl->surfaceSurfaces[surfaceID] = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
     sdl->surfaceWidths[surfaceID] = width;
     sdl->surfaceHeights[surfaceID] = height;
+    sdl->surfaceExistsFlag[surfaceID] = sdl->surfaceSurfaces[surfaceID] != NULL;
 }
 static void sdlSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return;
+    if (sdl->surfaceSurfaces[surfaceID] != NULL) {
+        SDL_FreeSurface(sdl->surfaceSurfaces[surfaceID]);
+        sdl->surfaceSurfaces[surfaceID] = NULL;
+    }
     sdl->surfaceExistsFlag[surfaceID] = false;
     sdl->surfaceWidths[surfaceID] = 0;
     sdl->surfaceHeights[surfaceID] = 0;
 }
-static void sdlSurfaceCopy(Renderer* renderer, MAYBE_UNUSED int32_t destSurfaceID, MAYBE_UNUSED int32_t destX, MAYBE_UNUSED int32_t destY, MAYBE_UNUSED int32_t srcSurfaceID, MAYBE_UNUSED int32_t srcX, MAYBE_UNUSED int32_t srcY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED bool part) {
-    (void)renderer;
-    sdlLogStub("sdlSurfaceCopy");
+static void sdlSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    if (!sdlSurfaceExists(renderer, destSurfaceID) || !sdlSurfaceExists(renderer, srcSurfaceID)) return;
+    SDL_Surface* dst = sdl->surfaceSurfaces[destSurfaceID];
+    SDL_Surface* src = sdl->surfaceSurfaces[srcSurfaceID];
+    if (dst == NULL || src == NULL) return;
+
+    if (!part) {
+        srcX = 0; srcY = 0; srcW = src->w; srcH = src->h;
+    }
+    if (srcW <= 0 || srcH <= 0) return;
+
+    SDL_Rect srcRect = { srcX, srcY, srcW, srcH };
+    SDL_Rect dstRect = { destX, destY, srcW, srcH };
+    SDL_BlitSurface(src, &srcRect, dst, &dstRect);
 }
-static bool sdlSurfaceGetPixels(Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t* outRGBA) {
-    (void)renderer;
-    sdlLogStub("sdlSurfaceGetPixels");
-    return false;
+static bool sdlSurfaceGetPixels(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    if (outRGBA == NULL || surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return false;
+    SDL_Surface* surf = sdl->surfaceSurfaces[surfaceID];
+    if (surf == NULL || !sdl->surfaceExistsFlag[surfaceID]) return false;
+
+    SDL_LockSurface(surf);
+    uint8_t* pixels = (uint8_t*)surf->pixels;
+    int32_t bytesPerPixel = surf->format != NULL ? surf->format->BytesPerPixel : 4;
+    for (int32_t y = 0; y < surf->h; ++y) {
+        for (int32_t x = 0; x < surf->w; ++x) {
+            int32_t idx = (y * surf->w + x) * bytesPerPixel;
+            uint32_t pixel = 0;
+            switch (bytesPerPixel) {
+                case 4: pixel = ((uint32_t)pixels[idx + 0]) | ((uint32_t)pixels[idx + 1] << 8) | ((uint32_t)pixels[idx + 2] << 16) | ((uint32_t)pixels[idx + 3] << 24); break;
+                case 3: pixel = ((uint32_t)pixels[idx + 0]) | ((uint32_t)pixels[idx + 1] << 8) | ((uint32_t)pixels[idx + 2] << 16); break;
+                default: pixel = 0; break;
+            }
+            uint8_t a = (uint8_t)((pixel >> 24) & 0xFF);
+            uint8_t r = (uint8_t)((pixel >> 16) & 0xFF);
+            uint8_t g = (uint8_t)((pixel >> 8) & 0xFF);
+            uint8_t b = (uint8_t)(pixel & 0xFF);
+            int32_t outIndex = (y * surf->w + x) * 4;
+            outRGBA[outIndex + 0] = r;
+            outRGBA[outIndex + 1] = g;
+            outRGBA[outIndex + 2] = b;
+            outRGBA[outIndex + 3] = a;
+        }
+    }
+    SDL_UnlockSurface(surf);
+    return true;
 }
-static void sdlDrawTiledPart(Renderer* renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcX, MAYBE_UNUSED int32_t srcY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float dstX, MAYBE_UNUSED float dstY, MAYBE_UNUSED float dstW, MAYBE_UNUSED float dstH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
-    (void)renderer;
-    sdlLogStub("sdlDrawTiledPart");
+static void sdlDrawTiledPart(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha) {
+    if (renderer == NULL || renderer->dataWin == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
+    if (srcW <= 0 || srcH <= 0 || dstW <= 0.0f || dstH <= 0.0f) return;
+
+    TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
+    int32_t pageId = tpag->texturePageId;
+    if (pageId < 0 || pageId >= (int32_t)((SDLRenderer*)renderer)->pageCount) return;
+    if (!sdlLoadTexturePage((SDLRenderer*)renderer, (uint32_t)pageId)) return;
+
+    int32_t cols = (int32_t)ceilf(dstW / (float)srcW);
+    int32_t rows = (int32_t)ceilf(dstH / (float)srcH);
+    for (int32_t row = 0; row < rows; ++row) {
+        for (int32_t col = 0; col < cols; ++col) {
+            float x = dstX + (float)col * (float)srcW;
+            float y = dstY + (float)row * (float)srcH;
+            int32_t drawW = srcW;
+            int32_t drawH = srcH;
+            if (x + drawW > dstX + dstW) drawW = (int32_t)floorf((dstX + dstW) - x);
+            if (y + drawH > dstY + dstH) drawH = (int32_t)floorf((dstY + dstH) - y);
+            if (drawW <= 0 || drawH <= 0) continue;
+            renderer->vtable->drawSpritePart(renderer, tpagIndex, srcX, srcY, drawW, drawH, x, y, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, color, alpha);
+        }
+    }
 }
 
 static void sdlPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     (void)renderer;
-    (void)primitiveType;
-    sdlLogStub("sdlPrimitiveBegin");
+    g_sdlPrimitiveState.active = true;
+    g_sdlPrimitiveState.primitiveType = primitiveType;
+    g_sdlPrimitiveState.texture = 0;
+    g_sdlPrimitiveState.count = 0;
 }
 static void sdlPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
-    (void)renderer;
-    (void)primitiveType;
-    (void)texture;
-    sdlLogStub("sdlPrimitiveBeginTexture");
+    sdlPrimitiveBegin(renderer, primitiveType);
+    g_sdlPrimitiveState.texture = texture;
 }
 static void sdlPrimitiveEnd(Renderer* renderer) {
-    (void)renderer;
-    sdlLogStub("sdlPrimitiveEnd");
+    sdlPrimitiveFlush(renderer);
 }
 static void sdlDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
-    (void)renderer;
-    (void)x; (void)y; (void)z; (void)color; (void)alpha; (void)u; (void)v;
-    sdlLogStub("sdlDrawVertex");
+    if (!g_sdlPrimitiveState.active) return;
+    if (g_sdlPrimitiveState.count >= 256) {
+        sdlPrimitiveFlush(renderer);
+    }
+    uint32_t idx = g_sdlPrimitiveState.count++;
+    g_sdlPrimitiveState.x[idx] = x;
+    g_sdlPrimitiveState.y[idx] = y;
+    g_sdlPrimitiveState.z[idx] = z;
+    g_sdlPrimitiveState.u[idx] = u;
+    g_sdlPrimitiveState.v[idx] = v;
+    g_sdlPrimitiveState.color[idx] = color;
+    g_sdlPrimitiveState.alpha[idx] = alpha;
 }
 static void sdlDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t count) {
-    (void)renderer; (void)buffer; (void)primitive; (void)texture; (void)offset; (void)count;
-    sdlLogStub("sdlDrawVertexBuffer");
+    if (buffer == NULL || buffer->data == NULL || count <= 0) return;
+    size_t stride = buffer->vertexSize ? buffer->vertexSize : buffer->format != NULL ? buffer->format->stride : 0;
+    if (stride == 0) return;
+    sdlPrimitiveBeginTexture(renderer, primitive, texture);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* base = buffer->data + (size_t)(offset + i) * stride;
+        float x = 0.0f, y = 0.0f, z = 0.0f, u = 0.0f, v = 0.0f;
+        uint32_t color = 0xFFFFFF;
+        float alpha = 1.0f;
+
+        if (buffer->format != NULL) {
+            for (int j = 0; j < buffer->format->numElements; ++j) {
+                VertexElement* e = &buffer->format->elements[j];
+                uint8_t* ptr = base + e->offset;
+                switch (e->usage) {
+                    case VERTEX_USAGE_POSITION: {
+                        float* f = (float*)ptr;
+                        x = f[0];
+                        y = f[1];
+                        if (e->type == VERTEX_TYPE_FLOAT3) z = f[2];
+                        break;
+                    }
+                    case VERTEX_USAGE_COLOR: {
+                        uint8_t* b = ptr;
+                        color = ((uint32_t)b[0]) | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+                        break;
+                    }
+                    case VERTEX_USAGE_TEXCOORD: {
+                        float* f = (float*)ptr;
+                        u = f[0];
+                        v = f[1];
+                        break;
+                    }
+                    default: break;
+                }
+            }
+        }
+        sdlDrawVertex(renderer, x, y, z, color, alpha, u, v);
+    }
+    sdlPrimitiveEnd(renderer);
 }
 
 static void sdlGpuSetShader(Renderer* renderer, int32_t shaderIndex) { renderer->currentShader = shaderIndex; }
