@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SDL_TRACE_ENABLED
+
+#ifdef SDL_TRACE_ENABLED
+#define SDL_TRACE_CALL() logInfo("SDL: trace %s\n", __func__)
+#else
+#define SDL_TRACE_CALL() ((void)0)
+#endif
+
 #define SDL_PIXEL_FORMAT_BGRA32 SDL_PIXELFORMAT_ARGB8888
 
 typedef struct {
@@ -50,10 +58,12 @@ typedef struct {
 } SDLRenderer;
 
 static void sdlLogStub(const char* fnName) {
+    SDL_TRACE_CALL();
     logInfo("SDL: stubbed %s\n", fnName);
 }
 
 static void sdlEnsureSurfaceCapacity(SDLRenderer* sdl, uint32_t needed) {
+    SDL_TRACE_CALL();
     if (needed <= sdl->surfaceCapacity) return;
     uint32_t newCap = sdl->surfaceCapacity ? sdl->surfaceCapacity * 2 : 16;
     while (newCap < needed) newCap *= 2;
@@ -75,6 +85,7 @@ static void sdlEnsureSurfaceCapacity(SDLRenderer* sdl, uint32_t needed) {
 }
 
 static uint32_t sdlFindOrAllocTexturePageSlot(SDLRenderer* sdl) {
+    SDL_TRACE_CALL();
     for (uint32_t i = sdl->originalTexturePageCount; i < sdl->pageCount; ++i) {
         if (sdl->pageSurfaces[i] == NULL) return i;
     }
@@ -92,6 +103,7 @@ static uint32_t sdlFindOrAllocTexturePageSlot(SDLRenderer* sdl) {
 }
 
 static uint32_t sdlFindOrAllocTpagSlot(SDLRenderer* sdl, DataWin* dw) {
+    SDL_TRACE_CALL();
     for (uint32_t i = sdl->originalTpagCount; i < dw->tpag.count; ++i) {
         if (dw->tpag.items[i].texturePageId == -1) return i;
     }
@@ -105,6 +117,7 @@ static uint32_t sdlFindOrAllocTpagSlot(SDLRenderer* sdl, DataWin* dw) {
 }
 
 static void sdlEnsureFrameBuffer(SDLRenderer* sdl, int32_t width, int32_t height) {
+    SDL_TRACE_CALL();
     if (width <= 0 || height <= 0) return;
     if (sdl->framebuffer != NULL && sdl->framebufferW == width && sdl->framebufferH == height) return;
 
@@ -115,6 +128,7 @@ static void sdlEnsureFrameBuffer(SDLRenderer* sdl, int32_t width, int32_t height
 }
 
 static bool sdlLoadTexturePage(SDLRenderer* sdl, uint32_t pageId) {
+    SDL_TRACE_CALL();
     if (pageId >= sdl->pageCount) return false;
     if (sdl->pageSurfaces[pageId] != NULL) return true;
 
@@ -155,26 +169,28 @@ static bool sdlLoadTexturePage(SDLRenderer* sdl, uint32_t pageId) {
 }
 
 static inline uint8_t sdlClampByte(float value) {
+    // SDL_TRACE_CALL();
     if (value < 0.0f) return 0;
     if (value > 255.0f) return 255;
     return (uint8_t) value;
 }
 
-static inline uint8_t sdlAlphaBlendComponent(uint8_t dst, uint8_t src, uint8_t a) {
-    return (uint8_t)((src * a + dst * (255 - a)) / 255);
+static inline uint8_t sdlAlphaBlendComponent(uint8_t dst, uint8_t src, uint8_t alpha) {
+    SDL_TRACE_CALL();
+    return (uint8_t)((src * alpha + dst * (255 - alpha)) / 255);
 }
 
 static inline uint32_t sdlAlphaBlendPixel(uint32_t dst, uint32_t src, uint8_t alpha) {
+    // SDL_TRACE_CALL();
     if (alpha >= 255) return src;
     uint8_t sr = (uint8_t)((src >> 16) & 0xFF);
     uint8_t sg = (uint8_t)((src >> 8) & 0xFF);
     uint8_t sb = (uint8_t)(src & 0xFF);
-    uint8_t sa = (uint8_t)((src >> 24) & 0xFF);
     uint8_t dr = (uint8_t)((dst >> 16) & 0xFF);
     uint8_t dg = (uint8_t)((dst >> 8) & 0xFF);
     uint8_t db = (uint8_t)(dst & 0xFF);
     uint8_t da = (uint8_t)((dst >> 24) & 0xFF);
-    uint8_t outA = (uint8_t)((sa * alpha + da * (255 - alpha)) / 255);
+    uint8_t outA = (uint8_t)(alpha + ((da * (255 - alpha)) / 255));
     uint8_t outR = (uint8_t)((sr * alpha + dr * (255 - alpha)) / 255);
     uint8_t outG = (uint8_t)((sg * alpha + dg * (255 - alpha)) / 255);
     uint8_t outB = (uint8_t)((sb * alpha + db * (255 - alpha)) / 255);
@@ -182,6 +198,7 @@ static inline uint32_t sdlAlphaBlendPixel(uint32_t dst, uint32_t src, uint8_t al
 }
 
 static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, int32_t dstX, int32_t dstY, int32_t dstW, int32_t dstH, float xscale, float yscale, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     if (src == NULL || sdl->framebuffer == NULL || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0) return;
 
     uint8_t colR = (uint8_t)BGR_R(color);
@@ -230,14 +247,15 @@ static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int3
                 srcPixel = ((uint32_t)a << 24) | ((uint32_t)mulR << 16) | ((uint32_t)mulG << 8) | (uint32_t)mulB;
             }
 
-            if (alpha < 1.0f) {
+            if (alpha < 1.0f || a < 255) {
                 int32_t dstIndex = y * sdl->framebufferW + x;
                 uint32_t dstColor = sdl->framebuffer[dstIndex];
-                uint8_t outA = (uint8_t)((a * colA + 127) / 255);
-                uint8_t outR = (uint8_t)((((srcPixel >> 16) & 0xFF) * outA + ((dstColor >> 16) & 0xFF) * (255 - outA)) / 255);
-                uint8_t outG = (uint8_t)((((srcPixel >> 8) & 0xFF) * outA + ((dstColor >> 8) & 0xFF) * (255 - outA)) / 255);
-                uint8_t outB = (uint8_t)((((srcPixel) & 0xFF) * outA + ((dstColor) & 0xFF) * (255 - outA)) / 255);
-                sdl->framebuffer[dstIndex] = ((uint32_t)outA << 24) | ((uint32_t)outR << 16) | ((uint32_t)outG << 8) | (uint32_t)outB;
+                uint8_t srcAlpha = sdlClampByte((float)a * alpha);
+                if (srcAlpha == 0) {
+                    sdl->framebuffer[dstIndex] = dstColor;
+                } else {
+                    sdl->framebuffer[dstIndex] = sdlAlphaBlendPixel(dstColor, srcPixel, srcAlpha);
+                }
             } else {
                 sdl->framebuffer[y * sdl->framebufferW + x] = srcPixel;
             }
@@ -249,6 +267,7 @@ static void sdlDrawLine(Renderer* renderer, float x1, float y1, float x2, float 
 static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline);
 
 static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     if (sdl->framebuffer == NULL) return;
     int32_t xMin = (x0 < x1) ? x0 : x1;
     int32_t xMax = (x0 < x1) ? x1 : x0;
@@ -259,16 +278,13 @@ static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, in
     if (xMax > sdl->framebufferW) xMax = sdl->framebufferW;
     if (yMax > sdl->framebufferH) yMax = sdl->framebufferH;
 
-    uint32_t outColor = color;
-    uint8_t a = (uint8_t)(alpha * 255.0f);
+    uint32_t outColor = color | 0xFF000000u;
+    uint8_t a = sdlClampByte(alpha * 255.0f);
     if (a < 255) {
         for (int32_t y = yMin; y < yMax; ++y) {
             for (int32_t x = xMin; x < xMax; ++x) {
                 uint32_t dst = sdl->framebuffer[y * sdl->framebufferW + x];
-                uint8_t r = (uint8_t)((((color >> 16) & 0xFF) * a + ((dst >> 16) & 0xFF) * (255 - a)) / 255);
-                uint8_t g = (uint8_t)((((color >> 8) & 0xFF) * a + ((dst >> 8) & 0xFF) * (255 - a)) / 255);
-                uint8_t b = (uint8_t)(((color & 0xFF) * a + (dst & 0xFF) * (255 - a)) / 255);
-                sdl->framebuffer[y * sdl->framebufferW + x] = ((uint32_t)0xFF << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+                sdl->framebuffer[y * sdl->framebufferW + x] = sdlAlphaBlendPixel(dst, outColor, a);
             }
         }
         return;
@@ -298,6 +314,7 @@ typedef struct {
 static SDLPrimitiveState g_sdlPrimitiveState = {0};
 
 static void sdlPrimitiveFlush(Renderer* renderer) {
+    SDL_TRACE_CALL();
     if (!g_sdlPrimitiveState.active || g_sdlPrimitiveState.count == 0) return;
 
     uint32_t count = g_sdlPrimitiveState.count;
@@ -348,10 +365,12 @@ static void sdlPrimitiveFlush(Renderer* renderer) {
 static SDLRenderer* g_currentSDLRenderer = NULL;
 
 Renderer* SDLRenderer_getCurrent(void) {
+    SDL_TRACE_CALL();
     return g_currentSDLRenderer != NULL ? (Renderer*)g_currentSDLRenderer : NULL;
 }
 
 void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = g_currentSDLRenderer;
     if (sdl == NULL || sdl->framebuffer == NULL || window == NULL) return;
 
@@ -379,6 +398,7 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
 }
 
 static void sdlInit(Renderer* renderer, DataWin* dataWin) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     renderer->dataWin = dataWin;
     Matrix4f world;
@@ -417,6 +437,7 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
 }
 
 static void sdlDestroy(Renderer* renderer) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
 
     if (sdl->framebufferTex) { SDL_DestroyTexture(sdl->framebufferTex); sdl->framebufferTex = NULL; }
@@ -449,38 +470,51 @@ static void sdlDestroy(Renderer* renderer) {
 }
 
 static void sdlBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, MAYBE_UNUSED int32_t windowW, MAYBE_UNUSED int32_t windowH) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     sdlEnsureFrameBuffer(sdl, gameW, gameH);
     if (sdl->framebuffer != NULL) {
-        memset(sdl->framebuffer, 0, (size_t)sdl->framebufferW * (size_t)sdl->framebufferH * sizeof(uint32_t));
+        uint32_t clearColor = 0xFF000000u;
+        for (int32_t i = 0; i < sdl->framebufferW * sdl->framebufferH; ++i) {
+            sdl->framebuffer[i] = clearColor;
+        }
     }
 }
 static void sdlEndFrameInit(Renderer* renderer) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlEndFrameEnd(Renderer* renderer) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED float viewAngle) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlEndView(Renderer* renderer) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlApplyProjection(Renderer* renderer, MAYBE_UNUSED const Matrix4f* viewMatrix, MAYBE_UNUSED const Matrix4f* projectionMatrix) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlBeginGUI(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED int32_t targetSurfaceId) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlSetGuiProjection(Renderer* renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 static void sdlEndGUI(Renderer* renderer) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
 
 static void sdlDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, MAYBE_UNUSED float angleDeg, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
     if (dw == NULL || tpagIndex < 0 || (uint32_t)tpagIndex >= dw->tpag.count) return;
@@ -505,6 +539,7 @@ static void sdlDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float 
 }
 
 static void sdlDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
     if (dw == NULL || tpagIndex < 0 || (uint32_t)tpagIndex >= dw->tpag.count) return;
@@ -524,10 +559,12 @@ static void sdlDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t src
 }
 
 static void sdlDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+    SDL_TRACE_CALL();
     (void)color2; (void)color3; (void)color4;
     sdlDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
 }
 static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
     if (dw == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= dw->tpag.count) return;
@@ -602,13 +639,16 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
     }
 }
 static void sdlDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, MAYBE_UNUSED bool outline) {
+    SDL_TRACE_CALL();
     sdlFillRect((SDLRenderer*)renderer, (int32_t)floorf(x1), (int32_t)floorf(y1), (int32_t)floorf(x2), (int32_t)floorf(y2), color, alpha);
 }
 static void sdlDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha, MAYBE_UNUSED bool outline) {
+    SDL_TRACE_CALL();
     sdlDrawRectangle(renderer, x1, y1, x2, y2, color1, alpha, false);
 }
-static void sdlDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color, float alpha) { sdlFillRect((SDLRenderer*)renderer, (int32_t)floorf(x1), (int32_t)floorf(y1), (int32_t)floorf(x2), (int32_t)floorf(y2), color, alpha); }
+static void sdlDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color, float alpha) { SDL_TRACE_CALL(); sdlFillRect((SDLRenderer*)renderer, (int32_t)floorf(x1), (int32_t)floorf(y1), (int32_t)floorf(x2), (int32_t)floorf(y2), color, alpha); }
 static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (sdl->framebuffer == NULL) return;
 
@@ -684,7 +724,7 @@ static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, fl
         }
     }
 }
-static void sdlDrawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color1, uint32_t color2, float alpha) { sdlDrawLine(renderer, x1, y1, x2, y2, 1.0f, color1, alpha); (void)color2; }
+static void sdlDrawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color1, uint32_t color2, float alpha) { SDL_TRACE_CALL(); sdlDrawLine(renderer, x1, y1, x2, y2, 1.0f, color1, alpha); (void)color2; }
 typedef struct {
     Font* font;
     TexturePageItem* fontTpag;
@@ -693,6 +733,7 @@ typedef struct {
 } SDLFontState;
 
 static bool sdlResolveFontState(SDLRenderer* sdl, DataWin* dw, Font* font, SDLFontState* state) {
+    SDL_TRACE_CALL();
     memset(state, 0, sizeof(*state));
     state->font = font;
 
@@ -716,6 +757,7 @@ static bool sdlResolveFontState(SDLRenderer* sdl, DataWin* dw, Font* font, SDLFo
 static bool sdlResolveGlyph(SDLRenderer* sdl, DataWin* dw, SDLFontState* state, FontGlyph* glyph, float cursorX, float cursorY,
     SDL_Surface** outSurface, int32_t* outSrcX, int32_t* outSrcY, int32_t* outSrcW, int32_t* outSrcH,
     float* outLocalX0, float* outLocalY0) {
+    SDL_TRACE_CALL();
     Font* font = state->font;
 
     if (font->isSpriteFont && state->spriteFontSprite != nullptr) {
@@ -754,6 +796,7 @@ static bool sdlResolveGlyph(SDLRenderer* sdl, DataWin* dw, SDLFontState* state, 
 }
 
 static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -847,25 +890,33 @@ static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, f
 }
 
 static void sdlDrawText(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {
+    SDL_TRACE_CALL();
     sdlDrawTextInternal(renderer, text, x, y, xscale, yscale, angleDeg, lineSeparation, renderer->drawColor, renderer->drawAlpha);
 }
 static void sdlDrawTextColor(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation) {
+    SDL_TRACE_CALL();
     (void)c2; (void)c3; (void)c4;
     sdlDrawTextInternal(renderer, text, x, y, xscale, yscale, angleDeg, lineSeparation, c1, alpha);
 }
 static void sdlFlush(Renderer* renderer) {
+    SDL_TRACE_CALL();
     (void)renderer;
 }
-static void sdlClearScreen(Renderer* renderer, uint32_t color, MAYBE_UNUSED float alpha) {
+static void sdlClearScreen(Renderer* renderer, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (sdl->framebuffer == NULL) return;
-    uint32_t value = color;
+
+    uint8_t alphaByte = sdlClampByte(alpha * 255.0f);
+    uint32_t value = ((uint32_t)alphaByte << 24) | (uint32_t)color;
+
     for (int32_t i = 0; i < sdl->framebufferW * sdl->framebufferH; ++i) {
         sdl->framebuffer[i] = value;
     }
 }
 
 static int32_t sdlCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -934,6 +985,7 @@ static int32_t sdlCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID,
     return (int32_t)spriteIndex;
 }
 static void sdlDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -967,21 +1019,23 @@ static void sdlDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     sprite->name = keepName;
 }
 
-static BlendFactors sdlGpuGetBlendFactors(Renderer* renderer) { return ((SDLRenderer*)renderer)->blendFactors; }
-static int32_t sdlGpuGetBlendMode(Renderer* renderer) { return ((SDLRenderer*)renderer)->blendMode; }
-static void sdlGpuSetBlendMode(Renderer* renderer, int32_t mode) { ((SDLRenderer*)renderer)->blendMode = mode; }
+static BlendFactors sdlGpuGetBlendFactors(Renderer* renderer) { SDL_TRACE_CALL(); return ((SDLRenderer*)renderer)->blendFactors; }
+static int32_t sdlGpuGetBlendMode(Renderer* renderer) { SDL_TRACE_CALL(); return ((SDLRenderer*)renderer)->blendMode; }
+static void sdlGpuSetBlendMode(Renderer* renderer, int32_t mode) { SDL_TRACE_CALL(); ((SDLRenderer*)renderer)->blendMode = mode; }
 static void sdlGpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     sdl->blendFactors.src = sfactor;
     sdl->blendFactors.dst = dfactor;
     sdl->blendFactors.srcAlpha = sfactor_alpha;
     sdl->blendFactors.dstAlpha = dfactor_alpha;
 }
-static void sdlGpuSetBlendEnable(Renderer* renderer, bool enable) { ((SDLRenderer*)renderer)->blendEnable = enable; }
-static void sdlGpuSetAlphaTestEnable(Renderer* renderer, bool enable) { ((SDLRenderer*)renderer)->alphaTestEnable = enable; }
-static bool sdlGpuGetAlphaTestEnable(Renderer* renderer) { return ((SDLRenderer*)renderer)->alphaTestEnable; }
-static void sdlGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) { ((SDLRenderer*)renderer)->alphaTestRef = ref; }
+static void sdlGpuSetBlendEnable(Renderer* renderer, bool enable) { SDL_TRACE_CALL(); ((SDLRenderer*)renderer)->blendEnable = enable; }
+static void sdlGpuSetAlphaTestEnable(Renderer* renderer, bool enable) { SDL_TRACE_CALL(); ((SDLRenderer*)renderer)->alphaTestEnable = enable; }
+static bool sdlGpuGetAlphaTestEnable(Renderer* renderer) { SDL_TRACE_CALL(); return ((SDLRenderer*)renderer)->alphaTestEnable; }
+static void sdlGpuSetAlphaTestRef(Renderer* renderer, uint8_t ref) { SDL_TRACE_CALL(); ((SDLRenderer*)renderer)->alphaTestRef = ref; }
 static void sdlGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     sdl->colorWriteR = red;
     sdl->colorWriteG = green;
@@ -989,19 +1043,22 @@ static void sdlGpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, 
     sdl->colorWriteA = alpha;
 }
 static void sdlGpuGetColorWriteEnable(Renderer* renderer, bool* red, bool* green, bool* blue, bool* alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (red) *red = sdl->colorWriteR;
     if (green) *green = sdl->colorWriteG;
     if (blue) *blue = sdl->colorWriteB;
     if (alpha) *alpha = sdl->colorWriteA;
 }
-static bool sdlGpuGetBlendEnable(Renderer* renderer) { return ((SDLRenderer*)renderer)->blendEnable; }
+static bool sdlGpuGetBlendEnable(Renderer* renderer) { SDL_TRACE_CALL(); return ((SDLRenderer*)renderer)->blendEnable; }
 static void sdlGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     sdl->fogEnable = enable;
     sdl->fogColor = color;
 }
 static void sdlDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY) {
+    SDL_TRACE_CALL();
     if (tile == NULL || renderer == NULL || renderer->dataWin == NULL) return;
 
     int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(renderer->dataWin, tile);
@@ -1020,6 +1077,7 @@ static void sdlDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float
     renderer->vtable->drawSpritePart(renderer, tpagIndex, srcX - tpag->sourceX, srcY - tpag->sourceY, srcW, srcH, xx, yy, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, tile->color, tile->alpha);
 }
 static void sdlDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     if (renderer == NULL || renderer->dataWin == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
 
     TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
@@ -1044,6 +1102,7 @@ static void sdlDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float orig
 }
 
 static int32_t sdlCreateSurface(Renderer* renderer, int32_t width, int32_t height) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     for (uint32_t i = 0; i < sdl->surfaceCount; i++) {
         if (!sdl->surfaceExistsFlag[i]) {
@@ -1071,26 +1130,31 @@ static int32_t sdlCreateSurface(Renderer* renderer, int32_t width, int32_t heigh
     return (int32_t)id;
 }
 static bool sdlSurfaceExists(Renderer* renderer, int32_t surfaceID) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return false;
     return sdl->surfaceExistsFlag[surfaceID];
 }
 static bool sdlSetRenderTarget(MAYBE_UNUSED Renderer* renderer, int32_t surfaceID, MAYBE_UNUSED bool implicitApplicationSurface) {
+    SDL_TRACE_CALL();
     if (surfaceID == APPLICATION_SURFACE_ID || surfaceID == RENDER_TARGET_HOST_FRAMEBUFFER) return true;
     return sdlSurfaceExists(renderer, surfaceID);
 }
-static int32_t sdlEnsureApplicationSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) { return APPLICATION_SURFACE_ID; }
+static int32_t sdlEnsureApplicationSurface(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) { SDL_TRACE_CALL(); return APPLICATION_SURFACE_ID; }
 static float sdlGetSurfaceWidth(Renderer* renderer, int32_t surfaceID) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return 0.0f;
     return sdl->surfaceExistsFlag[surfaceID] ? (float)sdl->surfaceWidths[surfaceID] : 0.0f;
 }
 static float sdlGetSurfaceHeight(Renderer* renderer, int32_t surfaceID) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return 0.0f;
     return sdl->surfaceExistsFlag[surfaceID] ? (float)sdl->surfaceHeights[surfaceID] : 0.0f;
 }
 static void sdlDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (!sdlSurfaceExists(renderer, surfaceID) || sdl->framebuffer == NULL) return;
     if (srcWidth <= 0 || srcHeight <= 0) return;
@@ -1101,9 +1165,11 @@ static void sdlDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLef
     sdlBlitSurfaceToFramebuffer(sdl, sdl->surfaceSurfaces[surfaceID], srcLeft, srcTop, srcWidth, srcHeight, (int32_t)floorf(x), (int32_t)floorf(y), dstW, dstH, xscale, yscale, color, alpha);
 }
 static void sdlDrawSurfaceColor(Renderer* renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, MAYBE_UNUSED float angleDeg, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+    SDL_TRACE_CALL();
     sdlDrawSurface(renderer, surfaceID, srcLeft, srcTop, srcWidth, srcHeight, x, y, xscale, yscale, angleDeg, color1, alpha);
 }
 static void sdlDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (!sdlSurfaceExists(renderer, surfaceID) || sdl->framebuffer == NULL) return;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount || sdl->surfaceSurfaces[surfaceID] == NULL) return;
@@ -1122,6 +1188,7 @@ static void sdlDrawSurfaceTiled(Renderer* renderer, int32_t surfaceID, float x, 
     }
 }
 static void sdlSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width, int32_t height) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return;
     if (!sdl->surfaceExistsFlag[surfaceID]) return;
@@ -1134,6 +1201,7 @@ static void sdlSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t widt
     sdl->surfaceExistsFlag[surfaceID] = sdl->surfaceSurfaces[surfaceID] != NULL;
 }
 static void sdlSurfaceFree(Renderer* renderer, int32_t surfaceID) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return;
     if (sdl->surfaceSurfaces[surfaceID] != NULL) {
@@ -1145,6 +1213,7 @@ static void sdlSurfaceFree(Renderer* renderer, int32_t surfaceID) {
     sdl->surfaceHeights[surfaceID] = 0;
 }
 static void sdlSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (!sdlSurfaceExists(renderer, destSurfaceID) || !sdlSurfaceExists(renderer, srcSurfaceID)) return;
     SDL_Surface* dst = sdl->surfaceSurfaces[destSurfaceID];
@@ -1161,6 +1230,7 @@ static void sdlSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t de
     SDL_BlitSurface(src, &srcRect, dst, &dstRect);
 }
 static bool sdlSurfaceGetPixels(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     if (outRGBA == NULL || surfaceID < 0 || (uint32_t)surfaceID >= sdl->surfaceCount) return false;
     SDL_Surface* surf = sdl->surfaceSurfaces[surfaceID];
@@ -1193,6 +1263,7 @@ static bool sdlSurfaceGetPixels(Renderer* renderer, int32_t surfaceID, uint8_t* 
     return true;
 }
 static void sdlDrawTiledPart(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
     if (renderer == NULL || renderer->dataWin == NULL || 0 > tpagIndex || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
     if (srcW <= 0 || srcH <= 0 || dstW <= 0.0f || dstH <= 0.0f) return;
 
@@ -1218,6 +1289,7 @@ static void sdlDrawTiledPart(Renderer* renderer, int32_t tpagIndex, int32_t srcX
 }
 
 static void sdlPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
+    SDL_TRACE_CALL();
     (void)renderer;
     g_sdlPrimitiveState.active = true;
     g_sdlPrimitiveState.primitiveType = primitiveType;
@@ -1225,13 +1297,16 @@ static void sdlPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     g_sdlPrimitiveState.count = 0;
 }
 static void sdlPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
+    SDL_TRACE_CALL();
     sdlPrimitiveBegin(renderer, primitiveType);
     g_sdlPrimitiveState.texture = texture;
 }
 static void sdlPrimitiveEnd(Renderer* renderer) {
+    SDL_TRACE_CALL();
     sdlPrimitiveFlush(renderer);
 }
 static void sdlDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
+    SDL_TRACE_CALL();
     if (!g_sdlPrimitiveState.active) return;
     if (g_sdlPrimitiveState.count >= 256) {
         sdlPrimitiveFlush(renderer);
@@ -1246,6 +1321,7 @@ static void sdlDrawVertex(Renderer* renderer, float x, float y, float z, uint32_
     g_sdlPrimitiveState.alpha[idx] = alpha;
 }
 static void sdlDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t count) {
+    SDL_TRACE_CALL();
     if (buffer == NULL || buffer->data == NULL || count <= 0) return;
     size_t stride = buffer->vertexSize ? buffer->vertexSize : buffer->format != NULL ? buffer->format->stride : 0;
     if (stride == 0) return;
@@ -1288,22 +1364,23 @@ static void sdlDrawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_
     sdlPrimitiveEnd(renderer);
 }
 
-static void sdlGpuSetShader(Renderer* renderer, int32_t shaderIndex) { renderer->currentShader = shaderIndex; }
-static void sdlGpuResetShader(Renderer* renderer) { renderer->currentShader = -1; }
-static int32_t sdlShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
-static int32_t sdlShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { return -1; }
-static void sdlShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) {}
-static void sdlShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) {}
-static void sdlShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) {}
-static uint32_t sdlSpriteGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t tpagIndex) { return 0; }
-static uint32_t sdlSurfaceGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { return 0; }
-static float sdlTextureGetTexelWidth(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID) { return 1.0f; }
-static float sdlTextureGetTexelHeight(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID) { return 1.0f; }
-static bool sdlTextureGetUVs(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID, MAYBE_UNUSED float* outUVs) { return false; }
-static void sdlTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texID) {}
-static bool sdlShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
-static bool sdlShadersSupported(void) { return false; }
+static void sdlGpuSetShader(Renderer* renderer, int32_t shaderIndex) { SDL_TRACE_CALL(); renderer->currentShader = shaderIndex; }
+static void sdlGpuResetShader(Renderer* renderer) { SDL_TRACE_CALL(); renderer->currentShader = -1; }
+static int32_t sdlShaderGetUniform(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { SDL_TRACE_CALL(); return -1; }
+static int32_t sdlShaderGetSamplerIndex(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char* uniform) { SDL_TRACE_CALL(); return -1; }
+static void sdlShaderSetUniformF(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float value1, MAYBE_UNUSED float value2, MAYBE_UNUSED float value3, MAYBE_UNUSED float value4) { SDL_TRACE_CALL(); }
+static void sdlShaderSetUniformFArray(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float* values, MAYBE_UNUSED uint32_t count) { SDL_TRACE_CALL(); }
+static void sdlShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t value1, MAYBE_UNUSED int32_t value2, MAYBE_UNUSED int32_t value3, MAYBE_UNUSED int32_t value4) { SDL_TRACE_CALL(); }
+static uint32_t sdlSpriteGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t tpagIndex) { SDL_TRACE_CALL(); return 0; }
+static uint32_t sdlSurfaceGetTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID) { SDL_TRACE_CALL(); return 0; }
+static float sdlTextureGetTexelWidth(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID) { SDL_TRACE_CALL(); return 1.0f; }
+static float sdlTextureGetTexelHeight(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID) { SDL_TRACE_CALL(); return 1.0f; }
+static bool sdlTextureGetUVs(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED uint32_t texID, MAYBE_UNUSED float* outUVs) { SDL_TRACE_CALL(); return false; }
+static void sdlTextureSetStage(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texID) { SDL_TRACE_CALL(); }
+static bool sdlShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { SDL_TRACE_CALL(); return false; }
+static bool sdlShadersSupported(void) { SDL_TRACE_CALL(); return false; }
 static void sdlSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
+    SDL_TRACE_CALL();
     if (matrixType >= 0 && matrixType < MATRICES_MAX) {
         renderer->gmlMatrices[matrixType] = matrix;
     }
@@ -1312,10 +1389,12 @@ static void sdlSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix
 static RendererVtable sdlVtable;
 
 void SDLRenderer_clearFrameBuffer(Renderer* renderer, uint32_t color) {
+    SDL_TRACE_CALL();
     sdlClearScreen(renderer, color, 1.0f);
 }
 
 Renderer* SDLRenderer_create(void) {
+    SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)safeCalloc(1, sizeof(SDLRenderer));
     g_currentSDLRenderer = sdl;
     sdl->base.vtable = &sdlVtable;
