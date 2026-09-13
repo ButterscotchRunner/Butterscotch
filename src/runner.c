@@ -749,6 +749,7 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             uint32_t cell = data->tileData[ty * data->tilesX + tx];
             uint32_t tileIndex = cell & GMS2_TILE_INDEX_MASK;
             if (tileIndex == 0) continue; // 0 = empty
+            if (tileIndex > tileset->gms2TileCount) continue;
 
             uint32_t col = tileIndex % columns;
             uint32_t row = tileIndex / columns;
@@ -1178,6 +1179,19 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
+
+    //Rendering cursor_sprite
+    if (runner->cursorSprite >= 0 && (uint32_t)runner->cursorSprite < runner->dataWin->sprt.count) {
+        Sprite* cursorSprite = &runner->dataWin->sprt.sprites[runner->cursorSprite];
+        if (cursorSprite->textureCount > 0) {
+            float cursorX = (float)(runner->mouse->normalizedX * guiW);
+            float cursorY = (float)(runner->mouse->normalizedY * guiH);
+            Renderer_drawSpriteExt(runner->renderer, runner->cursorSprite, runner->cursorSpriteSubimage,
+                                   cursorX, cursorY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
+            runner->cursorSpriteSubimage = (runner->cursorSpriteSubimage + 1) % (int32_t) cursorSprite->textureCount;
+        }
+    }
+
     endGuiPass(runner);
 
     if (runner->fpsRealFrameStartNanos != 0) {
@@ -2131,7 +2145,10 @@ void Runner_reset(Runner* runner) {
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
+    runner->cursorSprite = -1;
+    runner->cursorSpriteSubimage = 0;
     runner->gameStartFired = false;
+    runner->gameSpeedOverride = 0.0;
     runner->currentRoomIndex = -1;
     runner->currentRoomOrderPosition = -1;
     runner->nextInstanceId = runner->dataWin->gen8.lastObj + 1;
@@ -2331,6 +2348,26 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
+void Runner_setPaused(Runner* runner, bool paused) {
+    if (runner == nullptr) {
+        return;
+    }
+
+    runner->paused = paused;
+
+    if (runner->audioSystem != nullptr && runner->audioSystem->vtable != nullptr) {
+        if (paused) {
+            runner->audioSystem->vtable->pauseAll(runner->audioSystem);
+        } else {
+            runner->audioSystem->vtable->resumeAll(runner->audioSystem);
+        }
+    }
+}
+
+bool Runner_isPaused(Runner* runner) {
+    return runner != nullptr && runner->paused;
+}
+
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
@@ -2346,6 +2383,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->fileSystem = fileSystem;
     runner->audioSystem = audioSystem;
     runner->frameCount = 0;
+    runner->gameSpeedOverride = 0.0;
     double initialFps = (double)dataWin->gen8.gms2FPS;
     runner->fps = initialFps;
     runner->fpsReal = initialFps;
@@ -2355,6 +2393,12 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
     runner->mouse = RunnerMouse_create();
+    runner->vertexFormats = nullptr;
+    runner->newVertexFormat = nullptr;
+    runner->vertexFormatBit = 0;
+    runner->currentVertexFormatId = 1;
+    runner->vertexBuffers = nullptr;
+    runner->vertexBufferCount = 0;
     runner->appSurfaceEnabled = true;
     runner->windowTitle = dataWin->gen8.displayName ? safeStrdup(dataWin->gen8.displayName) : nullptr;
     runner->appSurfaceAutoDraw = true;
@@ -2373,6 +2417,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->viewportW = 1;
     runner->viewportH = 1;
     runner->random = Random_create(randomSeed);
+    runner->paused = false;
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
@@ -4718,6 +4763,59 @@ void Runner_free(Runner* runner) {
         free(runner->gameArgs[i]);
     }
     arrfree(runner->gameArgs);
+
+    if (runner->vertexFormats != nullptr) {
+        repeat((int32_t) arrlen(runner->vertexFormats), i) {
+            VmVertexFormat* format = runner->vertexFormats[i];
+            if (format == nullptr) continue;
+            if (format->pNative != nullptr) {
+                free(format->pNative);
+                format->pNative = nullptr;
+            }
+            if (format->format != nullptr) {
+                arrfree(format->format);
+                format->format = nullptr;
+            }
+            free(format);
+        }
+        arrfree(runner->vertexFormats);
+        runner->vertexFormats = nullptr;
+    }
+    if (runner->newVertexFormat != nullptr) {
+        if (runner->newVertexFormat->pNative != nullptr) {
+            free(runner->newVertexFormat->pNative);
+            runner->newVertexFormat->pNative = nullptr;
+        }
+        if (runner->newVertexFormat->format != nullptr) {
+            free(runner->newVertexFormat->format);
+            runner->newVertexFormat->format = nullptr;
+        }
+        free(runner->newVertexFormat);
+        runner->newVertexFormat = nullptr;
+    }
+    if (runner->vertexBuffers != nullptr) {
+        repeat(runner->vertexBufferCount, i) {
+            Buffer_Vertex* buffer = runner->vertexBuffers[i];
+            if (buffer == nullptr) continue;
+            if (buffer->buffer.pBuffer8 != nullptr) {
+                free(buffer->buffer.pBuffer8);
+                buffer->buffer.pBuffer8 = nullptr;
+            }
+            if (buffer->pFrozenVB != nullptr) {
+                if (buffer->pFrozenVB->pVertexBuffer != nullptr) {
+                    free(buffer->pFrozenVB->pVertexBuffer);
+                    buffer->pFrozenVB->pVertexBuffer = nullptr;
+                }
+                free(buffer->pFrozenVB);
+                buffer->pFrozenVB = nullptr;
+            }
+            free(buffer);
+            runner->vertexBuffers[i] = nullptr;
+        }
+        free(runner->vertexBuffers);
+        runner->vertexBuffers = nullptr;
+    }
+    runner->vertexBufferCount = 0;
 
     RunnerKeyboard_free(runner->keyboard);
     RunnerGamepad_free(runner->gamepads);

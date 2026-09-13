@@ -277,10 +277,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "switch")
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            add_compile_options(-ffast-math)
-        endif()
-
         add_compile_definitions(PLATFORM_SWITCH)
 
         set(VM_GML_PROFILER_DEFAULT OFF)

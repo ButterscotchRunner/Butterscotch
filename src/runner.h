@@ -515,6 +515,97 @@ void Particles_drawSystem(Runner* runner, int32_t systemId);
 // Frees both pools. Called from the Runner's cleanup path.
 void Particles_freeAll(Runner* runner);
 
+// Vertex stuffs
+
+#define RESOURCE_VERTEX_FORMAT 0x1000000
+
+enum yyVertexType {
+    yyVTFLOAT1 = 0x1,
+    yyVTFLOAT2 = 0x2,
+    yyVTFLOAT3 = 0x3,
+    yyVTFLOAT4 = 0x4,
+    yyVTCOLOR = 0x5,
+    yyVTUBYTE4 = 0x6,
+    yyVTMaxType = 0x6
+};
+
+enum yyVertexUsage {
+    yyVUPOSITION = 0x1,
+    yyVUCOLOR = 0x2,
+    yyVUNORMAL = 0x3,
+    yyVUTEXCOORD = 0x4,
+    yyVUBLENDWEIGHT = 0x5,
+    yyVUBLENDINDICES = 0x6,
+    yyVUPSIZE = 0x7,
+    yyVUTANGENT = 0x8,
+    yyVUBINORMAL = 0x9,
+    yyVUTESSFACTOR = 0xa,
+    yyVUPOSITIONT = 0xb,
+    yyVUFOG = 0xc,
+    yyVUDEPTH = 0xd,
+    yyVUSAMPLER = 0xe,
+    yyVUMaxVertexUsage = 0xe
+};
+
+typedef struct {
+    int32_t offset;
+    enum yyVertexType type;
+    enum yyVertexUsage usage;
+    uint32_t bit;
+} VmVertexElement;
+
+typedef struct {
+    uint32_t id;
+    uint32_t count;
+    VmVertexElement* format;
+    void* pNative;
+    uint32_t bitMask;
+    uint32_t size;
+    uint32_t yyFVF;
+} VmVertexFormat;
+
+typedef struct VmVertexBuffer {
+    struct VmVertexBuffer* pPrev;
+    struct VmVertexBuffer* pNext;
+    uint32_t flags;
+    void* pVertexBuffer;
+    void* pHW0;
+    void* pHW1;
+    void* pHW2;
+    void* pHW3;
+    int32_t FVF;
+    int32_t FVFSize;
+    int32_t lockCurrent;
+    int32_t current;
+    int32_t total;
+    void* pAddress;
+    uint64_t frameLock;
+} VmVertexBuffer;
+
+typedef union Buffer_Vertex_u_0 {
+    uint32_t* pBuffer32;
+    uint16_t* pBuffer16;
+    uint8_t* pBuffer8;
+    float* pBufferF32;
+} Buffer_Vertex_u_0;
+
+typedef struct Buffer_Vertex {
+    Buffer_Vertex_u_0 buffer;
+    uint32_t bufferSize;
+    uint32_t streamStart;
+    uint32_t streamCurrent;
+    uint32_t elementIndex;
+    uint32_t elementCount;
+    uint32_t currentMask;
+    int32_t vertexCount;
+    uint32_t deletionCountdown;
+    bool frozen;
+    int32_t currentFormat;
+    int32_t storedFormat;
+    VmVertexFormat* pCurrentFormatVFRelease;
+    VmVertexBuffer* pFrozenVB;
+} Buffer_Vertex;
+
 // Open text file handle for GML file_text_* functions
 #define MAX_OPEN_TEXT_FILES 32
 typedef struct {
@@ -622,6 +713,7 @@ struct Runner {
     uint32_t backgroundColor;      // runtime-mutable (BGR format)
     bool drawBackgroundColor;
     bool shouldExit;
+    bool paused;
     bool debugMode;
     // application_surface runtime state (mirrors GML toggles)
     bool appSurfaceEnabled;
@@ -645,6 +737,8 @@ struct Runner {
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
+    int32_t cursorSprite;   // storages BUILTIN_VAR_CURSOR_SPRITE. Independent of currentCursor/setCursor
+    int32_t cursorSpriteSubimage; // storages the current sprite subimage
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
@@ -676,6 +770,8 @@ struct Runner {
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
     GMLReal deltaTime;
+    // Runtime override for the active game speed. 0 means "unset" and the loop falls back to the room/default FPS.
+    GMLReal gameSpeedOverride;
     // Current frame rate (capped at room speed)
     double fps;                   // last measured frames-per-second value returned to GML
     uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
@@ -694,6 +790,14 @@ struct Runner {
     DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
+    // Vertex format/buffer state is runtime-global, not VM-local, because all active GML vertex
+    // builders and submitted buffers survive across scripts and are resolved by id from the runner.
+    VmVertexFormat** vertexFormats; // stb_ds array of vertex format entries indexed by resource id
+    VmVertexFormat* newVertexFormat; // format currently being assembled
+    uint32_t vertexFormatBit;
+    int32_t currentVertexFormatId;
+    Buffer_Vertex** vertexBuffers; // sparse array of live vertex buffers by id
+    int32_t vertexBufferCount;
     // Particle systems own their emitters and live particles; types are global and can be streamed by
     // any system's emitters. Both pools reuse destroyed slots, matching the ds_* id behaviour.
     ParticleSystem* particleSystemPool; // stb_ds array of ParticleSystem
@@ -788,6 +892,8 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed);
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
+void Runner_setPaused(Runner* runner, bool paused);
+bool Runner_isPaused(Runner* runner);
 void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);
 void Runner_handlePendingRoomChange(Runner* runner);
@@ -887,6 +993,14 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 #endif
 
     instance->active = active;
+}
+
+static inline GMLReal Runner_getEffectiveGameSpeed(Runner* runner) {
+    if (runner == nullptr) return 0.0;
+    if (runner->gameSpeedOverride > 0.0) return runner->gameSpeedOverride;
+    if (runner->currentRoom != nullptr && runner->currentRoom->speed > 0) return (GMLReal) runner->currentRoom->speed;
+    if (runner->dataWin != nullptr && runner->dataWin->gen8.gms2FPS > 0.0f) return (GMLReal) runner->dataWin->gen8.gms2FPS;
+    return 30.0;
 }
 
 #endif /* _BS_RUNNER_H_ */
