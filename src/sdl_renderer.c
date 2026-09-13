@@ -423,9 +423,81 @@ static void sdlDrawRectangleColor(Renderer* renderer, float x1, float y1, float 
     sdlDrawRectangle(renderer, x1, y1, x2, y2, color1, alpha, false);
 }
 static void sdlDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color, float alpha) { sdlFillRect((SDLRenderer*)renderer, (int32_t)floorf(x1), (int32_t)floorf(y1), (int32_t)floorf(x2), (int32_t)floorf(y2), color, alpha); }
-static void sdlDrawTriangle(Renderer* renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float x3, MAYBE_UNUSED float y3, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {
-    (void)renderer;
-    sdlLogStub("sdlDrawTriangle");
+static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline) {
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    if (sdl->framebuffer == NULL) return;
+
+    if (outline) {
+        sdlDrawLine(renderer, x1, y1, x2, y2, 1.0f, color1, alpha);
+        sdlDrawLine(renderer, x2, y2, x3, y3, 1.0f, color2, alpha);
+        sdlDrawLine(renderer, x3, y3, x1, y1, 1.0f, color3, alpha);
+        return;
+    }
+
+    float xMin = fminf(x1, fminf(x2, x3));
+    float xMax = fmaxf(x1, fmaxf(x2, x3));
+    float yMin = fminf(y1, fminf(y2, y3));
+    float yMax = fmaxf(y1, fmaxf(y2, y3));
+
+    int32_t minX = (int32_t)floorf(xMin);
+    int32_t maxX = (int32_t)ceilf(xMax);
+    int32_t minY = (int32_t)floorf(yMin);
+    int32_t maxY = (int32_t)ceilf(yMax);
+
+    if (minX < 0) minX = 0;
+    if (minY < 0) minY = 0;
+    if (maxX > sdl->framebufferW) maxX = sdl->framebufferW;
+    if (maxY > sdl->framebufferH) maxY = sdl->framebufferH;
+
+    float denom = ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3));
+    if (denom == 0.0f) return;
+
+    float aR = (float)BGR_R(color1);
+    float aG = (float)BGR_G(color1);
+    float aB = (float)BGR_B(color1);
+    float bR = (float)BGR_R(color2);
+    float bG = (float)BGR_G(color2);
+    float bB = (float)BGR_B(color2);
+    float cR = (float)BGR_R(color3);
+    float cG = (float)BGR_G(color3);
+    float cB = (float)BGR_B(color3);
+    float aAlpha = alpha;
+
+    for (int32_t y = minY; y < maxY; ++y) {
+        for (int32_t x = minX; x < maxX; ++x) {
+            float px = (float)x + 0.5f;
+            float py = (float)y + 0.5f;
+
+            float w1 = ((y2 - y3) * (px - x3) + (x3 - x2) * (py - y3)) / denom;
+            float w2 = ((y3 - y1) * (px - x3) + (x1 - x3) * (py - y3)) / denom;
+            float w3 = 1.0f - w1 - w2;
+
+            if (w1 < 0.0f || w2 < 0.0f || w3 < 0.0f) {
+                continue;
+            }
+
+            float r = w1 * aR + w2 * bR + w3 * cR;
+            float g = w1 * aG + w2 * bG + w3 * cG;
+            float b = w1 * aB + w2 * bB + w3 * cB;
+
+            uint32_t dstColor = sdl->framebuffer[y * sdl->framebufferW + x];
+            uint8_t dr = (uint8_t)((dstColor >> 16) & 0xFF);
+            uint8_t dg = (uint8_t)((dstColor >> 8) & 0xFF);
+            uint8_t db = (uint8_t)(dstColor & 0xFF);
+            uint8_t da = (uint8_t)((dstColor >> 24) & 0xFF);
+
+            uint8_t srcA = (uint8_t)(aAlpha * 255.0f);
+            uint8_t srcR = (uint8_t)r;
+            uint8_t srcG = (uint8_t)g;
+            uint8_t srcB = (uint8_t)b;
+
+            uint8_t outA = (uint8_t)((srcA * 255 + da * (255 - srcA)) / 255);
+            uint8_t outR = (uint8_t)((srcR * srcA + dr * (255 - srcA)) / 255);
+            uint8_t outG = (uint8_t)((srcG * srcA + dg * (255 - srcA)) / 255);
+            uint8_t outB = (uint8_t)((srcB * srcA + db * (255 - srcA)) / 255);
+            sdl->framebuffer[y * sdl->framebufferW + x] = ((uint32_t)outA << 24) | ((uint32_t)outR << 16) | ((uint32_t)outG << 8) | (uint32_t)outB;
+        }
+    }
 }
 static void sdlDrawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2, MAYBE_UNUSED float width, uint32_t color1, uint32_t color2, float alpha) { sdlDrawLine(renderer, x1, y1, x2, y2, 1.0f, color1, alpha); (void)color2; }
 typedef struct {
