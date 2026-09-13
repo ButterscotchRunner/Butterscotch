@@ -7,13 +7,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
-#ifndef _WIN32
-#include <sys/mman.h>
-#else
-#include <windows.h>
-typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, SIZE_T);
-#endif
 #include "string_compat.h"
 #include "math_compat.h"
 
@@ -23,6 +16,16 @@ typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, SIZE_T);
 
 #ifdef PLATFORM_PS2
 #include <malloc.h>
+#endif
+
+#ifndef _WIN32
+#include <unistd.h>
+#if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
+#include <sys/mman.h>
+#endif
+#else
+#include <windows.h>
+typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, SIZE_T);
 #endif
 
 #ifdef _MSC_VER
