@@ -64,7 +64,8 @@ bool swrEnsureTextureIsLoaded(SWRenderer* swr, uint32_t pageId)
                 if (!txtr->mapped) {
                     free(txtr->blobData);
                     txtr->blobData = NULL;
-                }
+                } else
+                    dropMappedRange(txtr->blobData, 0, txtr->blobSize);
                 break;
             }
             
