@@ -26,6 +26,21 @@
 #endif
 #endif
 #endif
+#ifdef __FreeBSD__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#include <unistd.h>
+#endif
+#if defined(__OpenBSD__) || defined(__NetBSD__)
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <unistd.h>
+#endif
+#ifdef __HAIKU__
+#include <os/kernel/OS.h>
+#endif
 
 #include "runner_keyboard.h"
 #include "runner.h"
@@ -147,6 +162,36 @@ static size_t get_used_memory(void) {
         if (func(GetCurrentProcess(), &pmc, sizeof(pmc)))
             return pmc.WorkingSetSize;
     }
+#elif defined(__FreeBSD__)
+    struct kinfo_proc kp = {0};
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
+    size_t len = sizeof(kp);
+
+    if (sysctl(mib, 4, &kp, &len, NULL, 0) == 0 && len == sizeof(kp)) {
+        return (size_t)kp.ki_rssize * (size_t)getpagesize();
+    }
+#elif defined(__OpenBSD__)
+    struct kinfo_proc kp = {0};
+    int mib[6] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid(), (int)sizeof(kp), 1};
+    size_t len = sizeof(kp);
+
+    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(kp)) {
+        return (size_t)kp.p_vm_rssize * (size_t)getpagesize();
+    }
+#elif defined(__NetBSD__)
+    struct kinfo_proc2 kp = {0};
+    int mib[6] = {CTL_KERN, KERN_PROC2, KERN_PROC_PID, getpid(), (int)sizeof(kp), 1};
+    size_t len = sizeof(kp);
+
+    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(kp)) {
+        return (size_t)kp.p_vm_rssize * (size_t)getpagesize();
+    }
+#elif defined(__HAIKU__)
+    area_info info;
+    ssize_t cookie = 0;
+    size_t total_rss = 0;
+    while (get_next_area_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) total_rss += info.ram_size;
+    return total_rss;
 #endif
     return 0;
 }
