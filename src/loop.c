@@ -172,18 +172,18 @@ static size_t get_used_memory(void) {
     }
 #elif defined(__OpenBSD__)
     struct kinfo_proc kp = {0};
-    int mib[6] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid(), (int)sizeof(kp), 1};
+    int mib[6] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid(), (int)sizeof(struct kinfo_proc), 1};
     size_t len = sizeof(kp);
 
-    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(kp)) {
+    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(struct kinfo_proc)) {
         return (size_t)kp.p_vm_rssize * (size_t)getpagesize();
     }
 #elif defined(__NetBSD__)
     struct kinfo_proc2 kp = {0};
-    int mib[6] = {CTL_KERN, KERN_PROC2, KERN_PROC_PID, getpid(), (int)sizeof(kp), 1};
+    int mib[6] = {CTL_KERN, KERN_PROC2, KERN_PROC_PID, getpid(), (int)sizeof(struct kinfo_proc), 1};
     size_t len = sizeof(kp);
 
-    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(kp)) {
+    if (sysctl(mib, 6, &kp, &len, NULL, 0) == 0 && len == sizeof(struct kinfo_proc)) {
         return (size_t)kp.p_vm_rssize * (size_t)getpagesize();
     }
 #elif defined(__HAIKU__)
