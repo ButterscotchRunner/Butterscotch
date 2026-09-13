@@ -32,6 +32,16 @@ typedef struct {
     int32_t framebufferW;
     int32_t framebufferH;
 
+    int32_t viewX;
+    int32_t viewY;
+    int32_t viewW;
+    int32_t viewH;
+    int32_t portX;
+    int32_t portY;
+    int32_t portW;
+    int32_t portH;
+    bool hasView;
+
     SDL_Surface** pageSurfaces;
     int32_t* pageWidths;
     int32_t* pageHeights;
@@ -201,6 +211,15 @@ static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int3
     SDL_TRACE_CALL();
     if (src == NULL || sdl->framebuffer == NULL || srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0) return;
 
+    if (sdl->hasView && sdl->viewW > 0 && sdl->viewH > 0 && sdl->portW > 0 && sdl->portH > 0) {
+        float scaleX = (float)sdl->portW / (float)sdl->viewW;
+        float scaleY = (float)sdl->portH / (float)sdl->viewH;
+        dstX = (int32_t)lroundf((float)(dstX - sdl->viewX) * scaleX + (float)sdl->portX);
+        dstY = (int32_t)lroundf((float)(dstY - sdl->viewY) * scaleY + (float)sdl->portY);
+        dstW = (int32_t)lroundf((float)dstW * scaleX);
+        dstH = (int32_t)lroundf((float)dstH * scaleY);
+    }
+
     uint8_t colR = (uint8_t)BGR_R(color);
     uint8_t colG = (uint8_t)BGR_G(color);
     uint8_t colB = (uint8_t)BGR_B(color);
@@ -273,6 +292,16 @@ static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, in
     int32_t xMax = (x0 < x1) ? x1 : x0;
     int32_t yMin = (y0 < y1) ? y0 : y1;
     int32_t yMax = (y0 < y1) ? y1 : y0;
+
+    if (sdl->hasView && sdl->viewW > 0 && sdl->viewH > 0 && sdl->portW > 0 && sdl->portH > 0) {
+        float scaleX = (float)sdl->portW / (float)sdl->viewW;
+        float scaleY = (float)sdl->portH / (float)sdl->viewH;
+        xMin = (int32_t)lroundf((float)(xMin - sdl->viewX) * scaleX + (float)sdl->portX);
+        xMax = (int32_t)lroundf((float)(xMax - sdl->viewX) * scaleX + (float)sdl->portX);
+        yMin = (int32_t)lroundf((float)(yMin - sdl->viewY) * scaleY + (float)sdl->portY);
+        yMax = (int32_t)lroundf((float)(yMax - sdl->viewY) * scaleY + (float)sdl->portY);
+    }
+
     if (xMin < 0) xMin = 0;
     if (yMin < 0) yMin = 0;
     if (xMax > sdl->framebufferW) xMax = sdl->framebufferW;
@@ -377,22 +406,42 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
     SDL_Surface* windowSurface = SDL_GetWindowSurface(window);
     if (windowSurface == NULL) return;
 
+    int32_t windowW = windowSurface->w;
+    int32_t windowH = windowSurface->h;
+    if (windowW <= 0 || windowH <= 0) {
+        SDL_GetWindowSize(window, &windowW, &windowH);
+    }
+    if (windowW <= 0 || windowH <= 0) return;
+
+    int32_t effW = windowW;
+    int32_t effH = windowH;
+    int32_t startX = 0;
+    int32_t startY = 0;
+
+    if ((sdl->framebufferW * windowH) / sdl->framebufferH < windowW) {
+        effW = (sdl->framebufferW * windowH) / sdl->framebufferH;
+        effH = windowH;
+    } else {
+        effW = windowW;
+        effH = (sdl->framebufferH * windowW) / sdl->framebufferW;
+    }
+    startX = (windowW - effW) / 2;
+    startY = (windowH - effH) / 2;
+
     SDL_FillRect(windowSurface, NULL, SDL_MapRGB(windowSurface->format, 0, 0, 0));
 
-    SDL_Surface* frameSurface = SDL_CreateRGBSurfaceFrom(
+    SDL_Surface* frameSurface = SDL_CreateRGBSurfaceWithFormatFrom(
         sdl->framebuffer,
         sdl->framebufferW,
         sdl->framebufferH,
         32,
         sdl->framebufferW * 4,
-        0x00FF0000,
-        0x0000FF00,
-        0x000000FF,
-        0xFF000000
+        SDL_PIXELFORMAT_ARGB8888
     );
     if (frameSurface == NULL) return;
 
-    SDL_BlitScaled(frameSurface, NULL, windowSurface, NULL);
+    SDL_Rect dstRect = { startX, startY, effW, effH };
+    SDL_BlitScaled(frameSurface, NULL, windowSurface, &dstRect);
     SDL_FreeSurface(frameSurface);
     SDL_UpdateWindowSurface(window);
 }
@@ -416,6 +465,15 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     sdl->surfaceSurfaces = NULL;
     sdl->framebufferW = 0;
     sdl->framebufferH = 0;
+    sdl->viewX = 0;
+    sdl->viewY = 0;
+    sdl->viewW = 0;
+    sdl->viewH = 0;
+    sdl->portX = 0;
+    sdl->portY = 0;
+    sdl->portW = 0;
+    sdl->portH = 0;
+    sdl->hasView = false;
     sdl->window = NULL;
     sdl->sdlRenderer = NULL;
     sdl->framebufferTex = NULL;
@@ -472,6 +530,7 @@ static void sdlDestroy(Renderer* renderer) {
 static void sdlBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, MAYBE_UNUSED int32_t windowW, MAYBE_UNUSED int32_t windowH) {
     SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
+    sdl->hasView = false;
     sdlEnsureFrameBuffer(sdl, gameW, gameH);
     if (sdl->framebuffer != NULL) {
         uint32_t clearColor = 0xFF000000u;
@@ -488,13 +547,23 @@ static void sdlEndFrameEnd(Renderer* renderer) {
     SDL_TRACE_CALL();
     (void)renderer;
 }
-static void sdlBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED float viewAngle) {
+static void sdlBeginView(Renderer* renderer, int32_t viewX, int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     SDL_TRACE_CALL();
-    (void)renderer;
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    sdl->viewX = viewX;
+    sdl->viewY = viewY;
+    sdl->viewW = viewW;
+    sdl->viewH = viewH;
+    sdl->portX = portX;
+    sdl->portY = portY;
+    sdl->portW = portW;
+    sdl->portH = portH;
+    sdl->hasView = true;
 }
 static void sdlEndView(Renderer* renderer) {
     SDL_TRACE_CALL();
-    (void)renderer;
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    sdl->hasView = false;
 }
 static void sdlApplyProjection(Renderer* renderer, MAYBE_UNUSED const Matrix4f* viewMatrix, MAYBE_UNUSED const Matrix4f* projectionMatrix) {
     SDL_TRACE_CALL();
