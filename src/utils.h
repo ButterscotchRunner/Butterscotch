@@ -257,7 +257,7 @@ static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
     if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t)GetProcAddress(hKernel32, "DiscardVirtualMemory");
     checked = 1;
   }
-  if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (SIZE_T)len);
+  if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
 #elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
   static long ps = 0;
   if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
