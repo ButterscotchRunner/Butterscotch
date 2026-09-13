@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include "string_compat.h"
 #include <time.h>
-#include <signal.h>
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
@@ -25,6 +24,9 @@
 #define HAVE_MALLINFO2
 #endif
 #endif
+#endif
+#ifndef __wasi__
+#include <signal.h>
 #endif
 
 #include "runner_keyboard.h"
@@ -403,6 +405,8 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
 InputRecording* globalInputRecording = nullptr;
 
+#ifndef __wasi__
+
 #if defined(__has_feature)
     #if __has_feature(address_sanitizer)
         #define BUTTERSCOTCH_HAS_ASAN 1
@@ -445,6 +449,8 @@ static void installCrashHandlers(void) {
     signal(SIGILL,  crashSignalHandler);
 }
 
+#endif
+
 void saveInputRecording() {
     // Save input recording if active, then free
     if (globalInputRecording != nullptr) {
@@ -456,7 +462,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
@@ -962,7 +968,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
         if (globalInputRecording != nullptr) {
             globalInputRecording->filterDebugKeys = args.debug;
+#ifndef __wasi__
             installCrashHandlers();
+#endif
         }
 #ifdef ENABLE_VM_TRACING
         shcopyFromTo(args.varReadsToBeTraced, runner->vmContext->varReadsToBeTraced);
