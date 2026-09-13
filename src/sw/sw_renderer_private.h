@@ -6,7 +6,7 @@
 #include "pixel_convert.h"
 
 // Unimplemented Functions
-#define UNIMP() do { fprintf(stderr, "NYI %s\n", __func__); } while (0)
+#define UNIMP() do { logWarn("NYI %s\n", __func__); } while (0)
 //#define UNIMP() do { } while (0)
 #define UNIMP2() do { } while (0)
 

@@ -41,7 +41,7 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
         dataWin->tpag.items[i].texturePageId = -1;
     }
     
-    fprintf(stderr, "SWRenderer initialized.\n");
+    logInfo("SWRenderer initialized.\n");
 }
 
 static void SWRenderer_destroy(Renderer* renderer)
@@ -51,7 +51,7 @@ static void SWRenderer_destroy(Renderer* renderer)
     // TODO: why didn't I implement this.
     (void) swr;
     
-    fprintf(stderr, "SWRenderer destroyed.\n");
+    logInfo("SWRenderer destroyed.\n");
 }
 
 static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH)
@@ -206,18 +206,18 @@ static void SWRenderer_drawSprite(Renderer* renderer, int32_t tpagIndex, float x
     DataWin* dwin = renderer->dataWin;
 
     if (tpagIndex < 0 || (uint32_t) tpagIndex >= dwin->tpag.count) {
-        fprintf(stderr, "%s: tpagIndex of %d is invalid\n", __func__, tpagIndex);
+        logError("%s: tpagIndex of %d is invalid\n", __func__, tpagIndex);
         return;
     }
 
     TexturePageItem* tpag = &dwin->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
     if (0 > pageId || swr->totalTextureCount <= (uint32_t) pageId) {
-        fprintf(stderr, "%s: tpagIndex of %d is invalid, as pageId of %d is invalid\n", __func__, tpagIndex, pageId);
+        logError("%s: tpagIndex of %d is invalid, as pageId of %d is invalid\n", __func__, tpagIndex, pageId);
         return;
     }
     if (!swrEnsureTextureIsLoaded(swr, (uint32_t) pageId)) {
-        fprintf(stderr, "%s: could not ensure texture is loaded, tpagIndex: %d, pageId: %d\n", __func__, tpagIndex, pageId);
+        logError("%s: could not ensure texture is loaded, tpagIndex: %d, pageId: %d\n", __func__, tpagIndex, pageId);
         return;
     }
     
@@ -574,7 +574,7 @@ static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
     
     //if (mode != bm_normal && mode != bm_add && mode != bm_subtract)
     {
-        fprintf(stderr, "swr: unsupported blend mode: %d\n", mode);
+        logWarn("swr: unsupported blend mode: %d\n", mode);
     }
 }
 
@@ -607,7 +607,7 @@ static void SWRenderer_gpuSetColorWriteEnable(Renderer* renderer, bool red, bool
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (!swr->drawingToSurface) {
-        fprintf(stderr, "swr: gpuSetColorWriteEnable not supported for main framebuffer");
+        logWarn("swr: gpuSetColorWriteEnable not supported for main framebuffer");
         return;
     }
     
@@ -643,7 +643,7 @@ static void SWRenderer_gpuGetColorWriteEnable(Renderer* renderer, bool* red, boo
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (!swr->drawingToSurface) {
-        fprintf(stderr, "swr: gpuGetColorWriteEnable not supported for main framebuffer");
+        logWarn("swr: gpuGetColorWriteEnable not supported for main framebuffer");
         return;
     }
     
@@ -680,7 +680,7 @@ static int32_t SWRenderer_createSurface(Renderer* renderer, int32_t width, int32
     }
     
     if (slot < 0) {
-        fprintf(stderr, "swr: Could not create surface, too many exist at once.\n");
+        logError("swr: Could not create surface, too many exist at once.\n");
         return slot;
     }
     
@@ -740,7 +740,7 @@ static void SWRenderer_drawSurface(Renderer* renderer, int32_t surfaceID,
         surface = &localSurface;
     } else {
         if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
-            fprintf(stderr, "swr: Invalid surface id %d for drawSurface\n", surfaceID);
+            logError("swr: Invalid surface id %d for drawSurface\n", surfaceID);
             return;
         }
 
@@ -793,12 +793,12 @@ static void SWRenderer_surfaceResize(Renderer* renderer, int32_t surfaceID, int3
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (surfaceID == APPLICATION_SURFACE_ID) {
-        fprintf(stderr, "swr: Don't support resizing the application window with this.  There must be another way! (need to set to %dx%d)\n", width, height);
+        logError("swr: Don't support resizing the application window with this.  There must be another way! (need to set to %dx%d)\n", width, height);
         return;
     }
     
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
-        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
+        logError("swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
         return;
     }
     
@@ -811,12 +811,12 @@ static void SWRenderer_surfaceFree(Renderer* renderer, int32_t surfaceID)
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (surfaceID == APPLICATION_SURFACE_ID) {
-        fprintf(stderr, "swr: Don't support SWRenderer_surfaceCopy the application window with this.  There must be another way!\n");
+        logError("swr: Don't support SWRenderer_surfaceCopy the application window with this.  There must be another way!\n");
         return;
     }
     
     if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL) {
-        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
+        logError("swr: Cannot resize surface id %d, it's invalid\n", surfaceID);
         return;
     }
     
@@ -843,7 +843,7 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
         temp1.buffer = swr->mainFb;
     }
     else if (DestSurfaceID < 0 || (size_t) DestSurfaceID >= swr->surfaceCount || swr->surfaces[DestSurfaceID] == NULL) {
-        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid (dest in surfaceCopy)\n", DestSurfaceID);
+        logError("swr: Cannot resize surface id %d, it's invalid (dest in surfaceCopy)\n", DestSurfaceID);
         return;
     }
     else {
@@ -857,7 +857,7 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
         temp2.buffer = swr->mainFb;
     }
     else if (SrcSurfaceID < 0 || (size_t) SrcSurfaceID >= swr->surfaceCount || swr->surfaces[SrcSurfaceID] == NULL) {
-        fprintf(stderr, "swr: Cannot resize surface id %d, it's invalid (src in surfaceCopy)\n", SrcSurfaceID);
+        logError("swr: Cannot resize surface id %d, it's invalid (src in surfaceCopy)\n", SrcSurfaceID);
         return;
     }
     else {
@@ -946,7 +946,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     else
     {
         if (surfaceID < 0 || (size_t) surfaceID >= swr->surfaceCount || swr->surfaces[surfaceID] == NULL){
-            fprintf(stderr, "%s: Invalid surface ID %d\n", __func__, surfaceID);
+            logError("%s: Invalid surface ID %d\n", __func__, surfaceID);
             return -1;
         }
         SWSurface* surf = swr->surfaces[surfaceID];
@@ -957,7 +957,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     int32_t texturePageId = swrFindSurfaceTextureSlot(swr);
     int32_t tpagIndex = swrFindSurfaceTPagSlot(swr);
     if (texturePageId == -1 || tpagIndex == -1) {
-        fprintf(stderr, "%s: Sprite overflow!!\n", __func__);
+        logError("%s: Sprite overflow!!\n", __func__);
         return 0;
     }
     
@@ -995,7 +995,7 @@ static int32_t SWRenderer_createSpriteFromSurface(Renderer* renderer, int32_t su
     sprite->maskCount = 0;
     sprite->masks = nullptr;
 
-    fprintf(stderr, "%s: Allocated surface sprite with ID %d\n", __func__, spriteIndex);
+    logInfo("%s: Allocated surface sprite with ID %d\n", __func__, spriteIndex);
     return spriteIndex;
 }
 
@@ -1008,7 +1008,7 @@ static void SWRenderer_deleteSprite(Renderer* renderer, int32_t spriteIndex)
 
     // Refuse to delete original data.win sprites
     if (swr->originalSpriteCount > (uint32_t) spriteIndex) {
-        fprintf(stderr, "%s: Cannot delete sprite with index %d, it's invalid.\n", __func__, spriteIndex);
+        logError("%s: Cannot delete sprite with index %d, it's invalid.\n", __func__, spriteIndex);
         return;
     }
 
@@ -1037,7 +1037,7 @@ static void SWRenderer_deleteSprite(Renderer* renderer, int32_t spriteIndex)
     memset(sprite, 0, sizeof(Sprite));
     sprite->name = keepName;
 
-    fprintf(stderr, "SWR: Deleted sprite %d\n", spriteIndex);
+    logInfo("SWR: Deleted sprite %d\n", spriteIndex);
 }
 
 static void SWRenderer_drawTiledPart(Renderer* renderer, int32_t tpagIndex,

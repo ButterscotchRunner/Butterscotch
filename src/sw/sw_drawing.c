@@ -668,7 +668,7 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
             return true;
         
         // restore the original framebuffer
-        fprintf(stderr, "back to original framebuffer\n");
+        logInfo("back to original framebuffer\n");
         swr->drawingToSurface = false;
         swr->fb = swr->mainFb;
         swr->width = swr->mainWidth;
@@ -699,7 +699,7 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
     }
     
     if (targetSurfaceId < 0 || (size_t) targetSurfaceId >= swr->surfaceCount || swr->surfaces[targetSurfaceId] == NULL) {
-        fprintf(stderr, "swr: Invalid surface id %d\n", targetSurfaceId);
+        logError("swr: Invalid surface id %d\n", targetSurfaceId);
         return false;
     }
     
@@ -746,7 +746,7 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
     swr->maxY = swr->viewH = swr->portH = surface->height;
     swr->scaleX = swr->scaleY = 1.0f;
     
-    fprintf(stderr, "switching to surface %p, fb %p, %dx%d\n", surface, swr->fb, swr->width, swr->height);
+    logInfo("switching to surface %p, fb %p, %dx%d\n", surface, swr->fb, swr->width, swr->height);
     
     return true;
 }

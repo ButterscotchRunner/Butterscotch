@@ -68,31 +68,31 @@ bool swrEnsureTextureIsLoaded(SWRenderer* swr, uint32_t pageId)
                 break;
             }
             
-            fprintf(stderr, "swr: Failed to decode TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
+            logWarn("swr: Failed to decode TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
         } else {
-            fprintf(stderr, "swr: Failed to load TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
+            logWarn("swr: Failed to load TXTR page %u.  This is likely because we're out of memory, so evicting a texture.\n", pageId);
         }
         
         int tail = swrTailTextureIndexLRU(swr, true);
         if (tail == -1) {
-            fprintf(stderr, "swr: Looks like we can't fit this texture in memory at all. Bummer.\n");
+            logError("swr: Looks like we can't fit this texture in memory at all. Bummer.\n");
             break;
         }
         
         swrEvictTextureFromCache(swr, tail);
-        fprintf(stderr, "swr: Evicted texture %d, trying again.\n", tail);
+        logInfo("swr: Evicted texture %d, trying again.\n", tail);
     }
     while (!pixels);
     
     if (pixels == nullptr) {
-        fprintf(stderr, "swr: Failed to decode TXTR page %u.\n", pageId);
+        logError("swr: Failed to decode TXTR page %u.\n", pageId);
         return false;
     }
 
     swr->textures[pageId] = swrCreateTexture(pixels, w, h);
     free(pixels);
     
-    fprintf(stderr, "SWR: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
+    logInfo("SWR: Loaded TXTR page %u (%dx%d)\n", pageId, w, h);
     
     // add it to the LRU
     do
@@ -103,7 +103,7 @@ bool swrEnsureTextureIsLoaded(SWRenderer* swr, uint32_t pageId)
         
         int tail = swrTailTextureIndexLRU(swr, true);
         if (tail == -1) {
-            fprintf(stderr, "swr: Come on now.\n");
+            logError("swr: Come on now.\n");
             assert(tail != -1);
             return false;
         }

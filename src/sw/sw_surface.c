@@ -76,7 +76,7 @@ void swrCommitShadowWritesToSurfaceIfNeeded(SWRenderer* swr, SWSurface* surface)
     if (swr->writeMask & WRITE_MASK_ALPHA) l |= 0x8000;
 #else
     //although it DOES ues rgb332, needs special handling for ALPHA
-    fprintf(stderr, "swr: Unimplemented color masking for 8-bit mode TODO\n");
+    logError("swr: Unimplemented color masking for 8-bit mode TODO\n");
     swrFreeTexture(surface->texture);
     surface->texture = surface->shadowTexture;
     surface->shadowTexture = NULL;

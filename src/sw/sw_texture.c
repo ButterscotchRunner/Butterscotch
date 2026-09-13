@@ -54,7 +54,7 @@ void swrFreeTexture(SWTexture* texture)
 SWTexture* swrCropSectionFromTexture(SWTexture* src, int32_t width, int32_t height, int32_t cropLeft, int32_t cropTop, int32_t cropRight, int32_t cropBottom)
 {
     if (width <= 0 || height <= 0) {
-        fprintf(stderr, "SWR: Cannot resize texture to %dx%d.\n", width, height);
+        logError("SWR: Cannot resize texture to %dx%d.\n", width, height);
         return NULL;
     }
     
@@ -64,7 +64,7 @@ SWTexture* swrCropSectionFromTexture(SWTexture* src, int32_t width, int32_t heig
     if (cropBottom >= src->height) cropBottom = src->height;
     
     if (cropLeft >= cropRight || cropTop >= cropBottom) {
-        fprintf(stderr, "SWR: Invalid crop coordinates for resize.\n");
+        logError("SWR: Invalid crop coordinates for resize.\n");
         return NULL;
     }
     
