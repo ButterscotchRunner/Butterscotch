@@ -224,9 +224,8 @@ static void sdlBlitSurfaceToFramebuffer(SDLRenderer* sdl, SDL_Surface* src, int3
         dstH = (int32_t)lroundf((float)dstH * scaleY);
     }
 
-    uint8_t colR = (uint8_t)BGR_R(color);
-    uint8_t colG = (uint8_t)BGR_G(color);
-    uint8_t colB = (uint8_t)BGR_B(color);
+    uint8_t colR = 0, colG = 0, colB = 0;
+    Renderer_unpackColorToRGB(color, &colR, &colG, &colB);
     uint8_t colA = sdlClampByte(alpha * 255.0f);
     bool flipX = xscale < 0.0f;
     bool flipY = yscale < 0.0f;
@@ -311,7 +310,9 @@ static void sdlFillRect(SDLRenderer* sdl, int32_t x0, int32_t y0, int32_t x1, in
     if (xMax > sdl->framebufferW) xMax = sdl->framebufferW;
     if (yMax > sdl->framebufferH) yMax = sdl->framebufferH;
 
-    uint32_t outColor = color | 0xFF000000u;
+    uint8_t rectR = 0, rectG = 0, rectB = 0;
+    Renderer_unpackColorToRGB(color, &rectR, &rectG, &rectB);
+    uint32_t outColor = ((uint32_t)0xFFu << 24) | ((uint32_t)rectR << 16) | ((uint32_t)rectG << 8) | (uint32_t)rectB;
     uint8_t a = sdlClampByte(alpha * 255.0f);
     if (a < 255) {
         for (int32_t y = yMin; y < yMax; ++y) {
@@ -618,10 +619,8 @@ static void sdlDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t src
     float cx0 = 0.0f, cy0 = 0.0f, cx1 = 0.0f, cy1 = 0.0f, cx2 = 0.0f, cy2 = 0.0f, cx3 = 0.0f, cy3 = 0.0f;
     Renderer_computeSpritePartQuad(srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, &cx0, &cy0, &cx1, &cy1, &cx2, &cy2, &cx3, &cy3);
 
-    float minX = fminf(cx0, fminf(cx1, fminf(cx2, cx3)));
-    float maxX = fmaxf(cx0, fmaxf(cx1, fmaxf(cx2, cx3)));
-    float minY = fminf(cy0, fminf(cy1, fminf(cy2, cy3)));
-    float maxY = fmaxf(cy0, fmaxf(cy1, fmaxf(cy2, cy3)));
+    float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+    Renderer_computeQuadBounds(cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3, &minX, &minY, &maxX, &maxY);
     int32_t dstX = (int32_t)floorf(minX);
     int32_t dstY = (int32_t)floorf(minY);
     int32_t dstW = (int32_t)ceilf(maxX - minX);
@@ -650,10 +649,8 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
     SDL_Surface* pageSurf = sdl->pageSurfaces[pageId];
     if (pageSurf == NULL) return;
 
-    float minX = fminf(x1, fminf(x2, fminf(x3, x4)));
-    float maxX = fmaxf(x1, fmaxf(x2, fmaxf(x3, x4)));
-    float minY = fminf(y1, fminf(y2, fminf(y3, y4)));
-    float maxY = fmaxf(y1, fmaxf(y2, fmaxf(y3, y4)));
+    float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+    Renderer_computeQuadBounds(x1, y1, x2, y2, x3, y3, x4, y4, &minX, &minY, &maxX, &maxY);
     int32_t xMin = (int32_t)floorf(minX);
     int32_t xMax = (int32_t)ceilf(maxX);
     int32_t yMin = (int32_t)floorf(minY);
@@ -695,7 +692,6 @@ static void sdlDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, fl
             uint8_t g = srcBytes[1];
             uint8_t r = srcBytes[2];
             uint8_t a8 = srcBytes[3];
-            uint32_t srcColor = ((uint32_t)a8 << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)bChannel;
 
             uint32_t dstColor = sdl->framebuffer[y * sdl->framebufferW + x];
             uint8_t dr = (uint8_t)((dstColor >> 16) & 0xFF);
@@ -733,10 +729,8 @@ static void sdlDrawTriangle(Renderer* renderer, float x1, float y1, float x2, fl
         return;
     }
 
-    float xMin = fminf(x1, fminf(x2, x3));
-    float xMax = fmaxf(x1, fmaxf(x2, x3));
-    float yMin = fminf(y1, fminf(y2, y3));
-    float yMax = fmaxf(y1, fmaxf(y2, y3));
+    float xMin = 0.0f, yMin = 0.0f, xMax = 0.0f, yMax = 0.0f;
+    Renderer_computeQuadBounds(x1, y1, x2, y2, x3, y3, x3, y3, &xMin, &yMin, &xMax, &yMax);
 
     int32_t minX = (int32_t)floorf(xMin);
     int32_t maxX = (int32_t)ceilf(xMax);

@@ -1428,7 +1428,8 @@ static void drawTiled(
     }
     if (startX >= endX || startY >= endY) return;
 
-    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
+    uint8_t r = 0, g = 0, b = 0;
+    Renderer_splitBGRColor(color, &r, &g, &b);
 
     // Integer tile counts avoid FP-comparison drift; the inner break handles overshoot at the boundary
     int32_t tilesX = (int32_t) ((endX - startX) / tileW) + 1;

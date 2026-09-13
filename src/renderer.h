@@ -769,6 +769,34 @@ static inline void Renderer_computeSpriteDrawRect(const TexturePageItem* tpag, f
     if (dstH != nullptr) *dstH = (int32_t) floorf((localY1 - localY0) * fabsf(yscale));
 }
 
+static inline void Renderer_splitBGRColor(uint32_t color, uint8_t* r, uint8_t* g, uint8_t* b) {
+    if (r != nullptr) *r = (uint8_t) BGR_R(color);
+    if (g != nullptr) *g = (uint8_t) BGR_G(color);
+    if (b != nullptr) *b = (uint8_t) BGR_B(color);
+}
+
+static inline void Renderer_unpackColorToRGB(uint32_t color, uint8_t* r, uint8_t* g, uint8_t* b) {
+    // GameMaker stores colors as packed BGR in the integer, and the GL renderer
+    // consumes those bytes directly: r = BGR_R(color), g = BGR_G(color), b = BGR_B(color).
+    // SDL's ARGB8888 framebuffer uses the same channel order after packing, so do not swap R/B.
+    if (r != nullptr) *r = (uint8_t) BGR_R(color);
+    if (g != nullptr) *g = (uint8_t) BGR_G(color);
+    if (b != nullptr) *b = (uint8_t) BGR_B(color);
+}
+
+static inline void Renderer_splitBGRColorFloat(uint32_t color, float* r, float* g, float* b) {
+    if (r != nullptr) *r = (float) BGR_R(color) / 255.0f;
+    if (g != nullptr) *g = (float) BGR_G(color) / 255.0f;
+    if (b != nullptr) *b = (float) BGR_B(color) / 255.0f;
+}
+
+static inline void Renderer_computeQuadBounds(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float* minX, float* minY, float* maxX, float* maxY) {
+    if (minX != nullptr) *minX = fminf(x0, fminf(x1, fminf(x2, x3)));
+    if (maxX != nullptr) *maxX = fmaxf(x0, fmaxf(x1, fmaxf(x2, x3)));
+    if (minY != nullptr) *minY = fminf(y0, fminf(y1, fminf(y2, y3)));
+    if (maxY != nullptr) *maxY = fmaxf(y0, fmaxf(y1, fmaxf(y2, y3)));
+}
+
 static inline bool Renderer_computeTileAtlasClipping(const TexturePageItem* tpag, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float scaleX, float scaleY, float* drawX, float* drawY, int32_t* outSrcX, int32_t* outSrcY, int32_t* outSrcW, int32_t* outSrcH) {
     if (tpag == nullptr || srcW <= 0 || srcH <= 0) return false;
 
