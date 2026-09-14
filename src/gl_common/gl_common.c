@@ -223,6 +223,80 @@ GLenum GLCommon_blendModeToDFactor(int mode) {
     }
 }
 
+// Primitive
+
+void GlPrimitive_reset(GlPrimitive* primitive) {
+    primitive->type = PRIMITIVE_NONE;
+    primitive->vertexCount = 0;
+    primitive->textureId = 0;
+    primitive->hasTexture = false;
+}
+
+static void _primitiveBeginEx(GlPrimitive* primitive, int32_t type, GLuint textureId, GLuint fallbackTexture) {
+    primitive->type = type;
+    primitive->vertexCount = 0;
+    primitive->hasTexture = (textureId != 0);
+    primitive->textureId = primitive->hasTexture
+        ? textureId
+        : fallbackTexture;
+}
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+    _primitiveBeginEx(primitive, type, textureId, 0);
+}
+
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture) {
+    _primitiveBeginEx(&gl->currentPrimitive, primitiveType, resolvedTexture, gl->whiteTexture);
+}
+
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+) {
+    if (primitive->vertexCount <= 0)
+        return false;
+
+    switch (primitive->type) {
+        case PRIMITIVE_POINTS: *mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: *mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: *mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: *mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: *mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: *mode = GL_TRIANGLE_FAN; break;
+        default: return false;
+    }
+
+    *textureId = primitive->hasTexture
+        ? primitive->textureId
+        : whiteTexture;
+
+    return true;
+}
+
+void GLCommon_drawVertex(
+    GLRenderer* gl,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+) {
+    int32_t vertexCount = gl->currentPrimitive.vertexCount;
+    GlVertex* vertex = &gl->vertexData[vertexCount];
+
+    vertex->x = x;
+    vertex->y = y;
+    vertex->z = z;
+
+    vertex->u = u;
+    vertex->v = v;
+
+    vertex->r = (uint8_t)BGR_R(color);
+    vertex->g = (uint8_t)BGR_G(color);
+    vertex->b = (uint8_t)BGR_B(color);
+    vertex->a = floatToUnormByte(alpha);
+
+    gl->currentPrimitive.vertexCount++;
+}
+
 // ===[ Debug UI font (drawTextUI) ]===
 
 void GLCommon_initDebugUIFont(GLDebugUIFont* ui) {
