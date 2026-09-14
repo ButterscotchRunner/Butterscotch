@@ -98,6 +98,6 @@ void platformSleepUntil(uint64_t time) {
     }
 }
 
-void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height) {
-    (void)framebuffer, (void)width, (void)height;
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, int bpp) {
+    (void)framebuffer, (void)width, (void)height, (void)bpp;
 }

@@ -833,7 +833,7 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
     return true;
 }
 
-void swrPlotPixel(Renderer* renderer, float x, float y, uint32_t color, float alpha)
+void swrPlotPixel(Renderer* renderer, float x, float y, uintpixel_t color, float alpha)
 {
     SWRenderer *swr = (SWRenderer*) renderer;
     int srcalpha = swrCalcSrcAlpha(swr, alpha);

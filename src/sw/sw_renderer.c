@@ -11,7 +11,7 @@
 #define VERTICES_PER_TRIANGLE 3
 #define VERTICES_PER_QUAD 4
 
-void platformSetNextFramebuffer(uintpixel_t* framebuffer, int width, int height);
+void platformSetNextFramebuffer(uintpixel_t* framebuffer, int width, int height, int bpp);
 
 static void SWRenderer_gpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
 
@@ -103,7 +103,7 @@ static void SWRenderer_endFrameEnd(Renderer* renderer)
     
     logDebug("SWRenderer_endFrameEnd\n");
     
-    platformSetNextFramebuffer(swr->fb, swr->width, swr->height);
+    platformSetNextFramebuffer(swr->fb, swr->width, swr->height, PIXEL_SIZE);
     
     swr->primitiveOverflow = false;
 }

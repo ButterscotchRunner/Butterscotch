@@ -70,13 +70,13 @@ void swrCommitShadowWritesToSurfaceIfNeeded(SWRenderer* swr, SWSurface* surface)
     if (swr->writeMask & WRITE_MASK_ALPHA) x.p.a = 255;
     mask = x.l;
 #elif PIXEL_SIZE == 16
-    if (swr->writeMask & WRITE_MASK_RED)   l |= 0x7C00;
-    if (swr->writeMask & WRITE_MASK_GREEN) l |= 0x03E0;
-    if (swr->writeMask & WRITE_MASK_BLUE)  l |= 0x001F;
-    if (swr->writeMask & WRITE_MASK_ALPHA) l |= 0x8000;
+    if (swr->writeMask & WRITE_MASK_RED)   mask |= 0x7C00;
+    if (swr->writeMask & WRITE_MASK_GREEN) mask |= 0x03E0;
+    if (swr->writeMask & WRITE_MASK_BLUE)  mask |= 0x001F;
+    if (swr->writeMask & WRITE_MASK_ALPHA) mask |= 0x8000;
 #else
-    //although it DOES ues rgb332, needs special handling for ALPHA
-    logError("swr: Unimplemented color masking for 8-bit mode TODO\n");
+    // TODO: although it DOES use rgb332, needs special handling for ALPHA
+    logError("swr: Unimplemented color masking for 8-bit mode\n");
     swrFreeTexture(surface->texture);
     surface->texture = surface->shadowTexture;
     surface->shadowTexture = NULL;

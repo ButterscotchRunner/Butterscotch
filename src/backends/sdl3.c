@@ -237,10 +237,14 @@ void platformInitFunctions(Runner *runner) {
 
 static SDL_Surface* nextFb = NULL;
 
-void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height) {
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, int bpp) {
     if (nextFb) {
         SDL_DestroySurface(nextFb);
         nextFb = NULL;
+    }
+
+    if (bpp != 32) {
+        logWarn("platformSetNextFramebuffer: BPP of %d is not supported.\n", bpp);
     }
 
     nextFb = SDL_CreateSurfaceFrom(
