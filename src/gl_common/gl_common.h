@@ -7,6 +7,9 @@
 #include "data_win.h"
 #include "debug_font/debug_font.h"
 
+struct GLRenderer;
+typedef struct GLRenderer GLRenderer;
+
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_PS3
@@ -154,7 +157,7 @@ enum GlMode {
     GL_MODE_MODERN = 1
 };
 
-typedef struct {
+struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
 
@@ -201,6 +204,6 @@ typedef struct {
 
     bool alphaTestEnable;
     float alphaTestRef;
-} GLRenderer;
+};
 
 #endif /* _BS_GL_COMMON_H_ */
