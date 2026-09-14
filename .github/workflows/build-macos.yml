@@ -14,6 +14,10 @@ jobs:
             triple: powerpc-apple-darwin8
             ar: ppc-ar
             ranlib: ppc-ranlib
+          #- arch: i386
+          #  triple: i386-apple-darwin8
+          #  ar: llvm-ar
+          #  ranlib: llvm-ranlib
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -31,7 +35,7 @@ jobs:
 
       - name: Build toolchain
         run: |
-          ./artifacts/macos/build-toolchain-ppc.sh
+          ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
 
       - name: Build SDL 1.2
         run: |
@@ -40,7 +44,7 @@ jobs:
           sed -e 's/-fpascal-strings//g' configure > configure.patched
           mv configure.patched configure
           chmod +x configure
-          export PATH="$PWD/artifacts/macos/build/toolchain-ppc/bin:$PATH"
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           ./configure \
             --host="${{ matrix.triple }}" \
             --prefix="$HOME/sdl" \
