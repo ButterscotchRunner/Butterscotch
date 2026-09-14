@@ -1,7 +1,7 @@
 #ifndef _SW_INLINED_H
 #define _SW_INLINED_H
 
-#include "defines.h"
+#include "sw_defines.h"
 
 FORCE_INLINE int swrMin(int a, int b) { return a < b ? a : b; }
 FORCE_INLINE int swrMax(int a, int b) { return a > b ? a : b; }

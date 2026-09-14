@@ -2,8 +2,8 @@
 #define _SW_RENDERER_PRIVATE_H
 
 #include "sw_renderer.h"
-#include "defines.h"
-#include "pixel_convert.h"
+#include "sw_defines.h"
+#include "sw_pixel_convert.h"
 
 // Unimplemented Functions
 #define UNIMP() do { logWarn("NYI %s\n", __func__); } while (0)

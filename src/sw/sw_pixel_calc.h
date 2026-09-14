@@ -1,8 +1,8 @@
 #ifndef _SW_PIXEL_CALC_H
 #define _SW_PIXEL_CALC_H
 
-#include "defines.h"
-#include "pixel_convert.h"
+#include "sw_defines.h"
+#include "sw_pixel_convert.h"
 
 // Random number generator to be used for 8-bpp blending operations.
 FORCE_INLINE int fastRandomIsh()

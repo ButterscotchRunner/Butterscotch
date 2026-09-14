@@ -1,7 +1,7 @@
-#ifndef _PIXEL_CONVERT_H
-#define _PIXEL_CONVERT_H
+#ifndef _SW__PIXEL_CONVERT_H
+#define _SW__PIXEL_CONVERT_H
 
-#include "defines.h"
+#include "sw_defines.h"
 #include "binary_utils.h"
 
 #if PIXEL_SIZE == 32
@@ -111,4 +111,4 @@ FORCE_INLINE float swrGetAlpha(uintpixel_t pixel)
 
 #endif
 
-#endif//_PIXEL_CONVERT_H
+#endif//_SW__PIXEL_CONVERT_H
