@@ -232,24 +232,21 @@ void GlPrimitive_reset(GlPrimitive* primitive) {
     primitive->hasTexture = false;
 }
 
-void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+static void _primitiveBeginEx(GlPrimitive* primitive, int32_t type, GLuint textureId, GLuint fallbackTexture) {
     primitive->type = type;
     primitive->vertexCount = 0;
-    primitive->textureId = textureId;
     primitive->hasTexture = (textureId != 0);
+    primitive->textureId = primitive->hasTexture
+        ? textureId
+        : fallbackTexture;
+}
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+    _primitiveBeginEx(primitive, type, textureId, 0);
 }
 
 void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture) {
-    glPrimitiveBegin(gl, primitiveType);
-    GlPrimitive* primitive = &gl->currentPrimitive;
-
-    primitive->type = primitiveType;
-    primitive->vertexCount = 0;
-
-    primitive->hasTexture = resolvedTexture != 0;
-    primitive->textureId = primitive->hasTexture
-        ? resolvedTexture
-        : gl->whiteTexture;
+    _primitiveBeginEx(&gl->currentPrimitive, primitiveType, resolvedTexture, gl->whiteTexture);
 }
 
 bool GLCommon_primitivePrepare(
@@ -283,7 +280,7 @@ void GLCommon_drawVertex(
     float u, float v
 ) {
     int32_t vertexCount = gl->currentPrimitive.vertexCount;
-    GLVertex* vertex = &gl->vertexData[vertexCount];
+    GlVertex* vertex = &gl->vertexData[vertexCount];
 
     vertex->x = x;
     vertex->y = y;

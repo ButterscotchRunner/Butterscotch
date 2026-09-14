@@ -403,7 +403,12 @@ static void glPrimitiveBeginTexture(
     GLRenderer* gl = (GLRenderer*)renderer;
     GLuint texId = 0;
     glResolvePrimitiveTexture(gl, texture, &texId);
-    GLCommon_primitiveBeginTexture(gl, primitiveType, texId);
+    GLCommon_primitiveBeginTexture(
+        &gl->currentPrimitive,
+        primitiveType,
+        gl->whiteTexture,
+        texId
+    );
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {

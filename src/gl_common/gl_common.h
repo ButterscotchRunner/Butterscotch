@@ -104,10 +104,7 @@ typedef struct {
 void GlPrimitive_reset(GlPrimitive* primitive);
 
 void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
-void GLCommon_primitiveBeginTexture(
-    GlPrimitive* primitive, int32_t primitiveType,
-    GLuint whiteTexture, GLuint resolvedTexture
-);
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture);
 bool GLCommon_primitivePrepare(
     GlPrimitive* primitive, GLuint whiteTexture,
     GLenum* mode, GLuint* textureId
