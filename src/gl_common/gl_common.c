@@ -222,3 +222,145 @@ GLenum GLCommon_blendModeToDFactor(int mode) {
         case bm_max:              return GL_ONE_MINUS_SRC_COLOR;
     }
 }
+
+// Primitive
+
+void GlPrimitive_reset(GlPrimitive* primitive) {
+    primitive->type = PRIMITIVE_NONE;
+    primitive->vertexCount = 0;
+    primitive->textureId = 0;
+    primitive->hasTexture = false;
+}
+
+static void _primitiveBeginEx(GlPrimitive* primitive, int32_t type, GLuint textureId, GLuint fallbackTexture) {
+    primitive->type = type;
+    primitive->vertexCount = 0;
+    primitive->hasTexture = (textureId != 0);
+    primitive->textureId = primitive->hasTexture
+        ? textureId
+        : fallbackTexture;
+}
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+    _primitiveBeginEx(primitive, type, textureId, 0);
+}
+
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture) {
+    _primitiveBeginEx(&gl->currentPrimitive, primitiveType, resolvedTexture, gl->whiteTexture);
+}
+
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+) {
+    if (primitive->vertexCount <= 0)
+        return false;
+
+    switch (primitive->type) {
+        case PRIMITIVE_POINTS: *mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: *mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: *mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: *mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: *mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: *mode = GL_TRIANGLE_FAN; break;
+        default: return false;
+    }
+
+    *textureId = primitive->hasTexture
+        ? primitive->textureId
+        : whiteTexture;
+
+    return true;
+}
+
+void GLCommon_drawVertex(
+    GLRenderer* gl,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+) {
+    int32_t vertexCount = gl->currentPrimitive.vertexCount;
+    GlVertex* vertex = &gl->vertexData[vertexCount];
+
+    vertex->x = x;
+    vertex->y = y;
+    vertex->z = z;
+
+    vertex->u = u;
+    vertex->v = v;
+
+    vertex->r = (uint8_t)BGR_R(color);
+    vertex->g = (uint8_t)BGR_G(color);
+    vertex->b = (uint8_t)BGR_B(color);
+    vertex->a = floatToUnormByte(alpha);
+
+    gl->currentPrimitive.vertexCount++;
+}
+
+// ===[ Debug UI font (drawTextUI) ]===
+
+void GLCommon_initDebugUIFont(GLDebugUIFont* ui) {
+    if (ui->initialized) return;
+    ui->initialized = true;
+
+    ui->font.name = "DebugUI";
+    ui->font.displayName = "DebugUI";
+    ui->font.scaleX = 1.0f;
+    ui->font.scaleY = 1.0f;
+    ui->font.ascenderOffset = 0;
+    ui->font.maxGlyphHeight = DEBUGFONT_LINE_HEIGHT;
+    ui->font.emSize = (float) DEBUGFONT_LINE_HEIGHT;
+    ui->font.isSpriteFont = false;
+    ui->font.tpagIndex = -1;
+
+    repeat(DEBUGFONT_GLYPH_COUNT, i) {
+        const DebugFontGlyphEntry* e = &debugFontGlyphs[i];
+        FontGlyph* g = &ui->glyphs[i];
+        g->character = (uint16_t) (DEBUGFONT_FIRST_CP + i);
+        g->sourceX = e->x;
+        g->sourceY = e->y;
+        g->sourceWidth = e->w;
+        g->sourceHeight = e->h;
+        g->shift = e->xadvance;
+        g->offset = e->xoffset;
+        g->kerningCount = 0;
+        g->kerning = nullptr;
+    }
+    ui->font.glyphs = ui->glyphs;
+    ui->font.glyphCount = DEBUGFONT_GLYPH_COUNT;
+    Font_buildGlyphLUT(&ui->font);
+}
+
+bool GLCommon_ensureDebugFontTexture(GLDebugUIFont* ui) {
+    if (ui->texture != 0) return true;
+
+    glGenTextures(1, &ui->texture);
+    if (ui->texture == 0) return false;
+
+    size_t pixelCount = (size_t) DEBUGFONT_ATLAS_W * (size_t) DEBUGFONT_ATLAS_H;
+    uint8_t* rgba = (uint8_t *)safeMalloc(pixelCount * 4);
+    if (rgba == nullptr) return false;
+    repeat(pixelCount, i) {
+        rgba[i * 4 + 0] = 0xFF;
+        rgba[i * 4 + 1] = 0xFF;
+        rgba[i * 4 + 2] = 0xFF;
+        rgba[i * 4 + 3] = debugFontPixels[i];
+    }
+
+    glBindTexture(GL_TEXTURE_2D, ui->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    free(rgba);
+    return true;
+}
+
+void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui) {
+    if (ui->texture != 0) {
+        glDeleteTextures(1, &ui->texture);
+        ui->texture = 0;
+    }
+}

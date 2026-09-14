@@ -18,6 +18,16 @@
 #include <malloc.h>
 #endif
 
+#ifndef _WIN32
+#include <unistd.h>
+#if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
+#include <sys/mman.h>
+#endif
+#else
+#include <windows.h>
+typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, size_t);
+#endif
+
 #ifdef _MSC_VER
 #define strdup _strdup
 #endif
@@ -182,6 +192,49 @@ static inline int32_t Color_lerp(int32_t color1, int32_t color2, float blending)
     return r | (g << 8) | (b << 16);
 }
 
+static inline void bsGetDirname(char* path) {
+    if (!path || *path == '\0') {
+        return;
+    }
+    
+    char* lastSlash = strrchr(path, '/');
+#ifdef _WIN32
+    char* lastBackslash = strrchr(path, '\\');
+#endif
+    char* target = nullptr;
+    if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
+        target = lastSlash;
+#ifdef _WIN32
+    if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
+        target = lastBackslash;
+#endif
+
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+    if (target == nullptr)
+        target = strrchr(path, ':');
+#endif
+
+    if (target) {
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+        if (target[0] == ':') {
+            target[1] = '\0';
+        } else
+#endif
+        if (target == path
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+            || target[0] == ':'
+#endif
+            ) {
+            target[1] = '\0';
+        } else {
+            target[0] = '\0';
+        }
+    } else {
+        path[0] = '.';
+        path[1] = '\0';
+    }
+}
+
 #define shcopyFromTo(src, dst)                        \
 do {                                        \
 (dst) = NULL;                           \
@@ -193,5 +246,30 @@ typedef struct {
     char* key;
     bool value;
 } StringBooleanEntry;
+
+static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
+    if (!base || len == 0) return;
+#if defined(_WIN32)
+    static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
+    static int checked = 0;
+    if (!checked) {
+        HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t)(void*)GetProcAddress(hKernel32, "DiscardVirtualMemory");
+        checked = 1;
+    }
+    if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
+#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
+    static long ps = 0;
+    if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
+    if (ps <= 0) return;
+    uintptr_t s = (uintptr_t)(base + off);
+    uintptr_t e = s + len;
+    uintptr_t as = (s + ps-1) & ~(uintptr_t)(ps-1); // round start UP
+    uintptr_t ae = e & ~(uintptr_t)(ps-1);          // round end DOWN
+    if (ae > as) madvise((void*)as, ae-as, MADV_DONTNEED);
+#else
+    (void)base; (void)off; (void)len;
+#endif
+}
 
 #endif /* _BS_UTILS_H_ */
