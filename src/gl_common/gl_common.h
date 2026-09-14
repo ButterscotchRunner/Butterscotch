@@ -2,9 +2,13 @@
 #define _BS_GL_COMMON_H_
 
 #include "common.h"
+#include "renderer.h"
 #include <stdint.h>
 #include "data_win.h"
 #include "debug_font/debug_font.h"
+
+struct GLRenderer;
+typedef struct GLRenderer GLRenderer;
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
@@ -77,6 +81,44 @@ GLVer GLCommon_getGLVersion(void);
 
 #endif
 
+// Utils
+
+static inline uint8_t floatToUnormByte(float v) {
+    if (v <= 0.0f) return 0;
+    if (v >= 1.0f) return 255;
+    return (uint8_t)(v * 255.0f + 0.5f);
+}
+
+// Primitives and vertices
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} GlVertex;
+
+typedef struct {
+    int32_t type;
+    int32_t vertexCount;
+    GLuint textureId;
+    bool hasTexture;
+} GlPrimitive;
+
+void GlPrimitive_reset(GlPrimitive* primitive);
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture);
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+);
+void GLCommon_drawVertex(
+    GLRenderer* gl,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+);
+
 // ===[ Debug UI font (drawTextUI) ]===
 
 // Embedded debug-font state backing drawTextUI. Embedded in each GL renderer
@@ -107,5 +149,61 @@ static inline float GLCommon_debugUIFontYOffset(GLDebugUIFont* ui, Font* font, F
         return (float) debugFontGlyphs[glyph->character - DEBUGFONT_FIRST_CP].yoffset;
     return 0.0f;
 }
+
+// Common GL Renderer struct
+
+enum GlMode {
+    GL_MODE_LEGACY = 0,
+    GL_MODE_MODERN = 1
+};
+
+struct GLRenderer {
+    Renderer base; // Must be first field for struct embedding
+    enum GlMode glMode;
+
+    GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
+    GlPrimitive currentPrimitive;
+
+    GLuint* glTextures;       // one GL texture per TXTR page
+    int32_t* textureWidths;   // needed for UV normalization
+    int32_t* textureHeights;
+    bool* textureLoaded;      // lazy loading: true once PNG decoded and uploaded
+    uint32_t textureCount;
+
+    GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
+
+    // Embedded debug UI font backing drawTextUI (see gl_common.h).
+    GLDebugUIFont debugUI;
+
+    int32_t windowW; // stored from beginFrame for endFrame blit
+    int32_t windowH;
+    int32_t gameW; // game width (matches the application_surface size)
+    int32_t gameH; // game height (matches the application_surface size)
+
+    // Original counts from data.win (dynamic slots start at these indices)
+    uint32_t originalTexturePageCount;
+    uint32_t originalTpagCount;
+    uint32_t originalSpriteCount;
+
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
+
+    // GML surfaces (each is an FBO with a backing color texture)
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t surfaceCount;
+
+    // Blending mode + factors
+    bool blendEnable;
+    int32_t currentBlendMode;
+    int32_t currentSFactor;
+    int32_t currentDFactor;
+    int32_t currentSFactorAlpha;
+    int32_t currentDFactorAlpha;
+
+    bool alphaTestEnable;
+    float alphaTestRef;
+};
 
 #endif /* _BS_GL_COMMON_H_ */

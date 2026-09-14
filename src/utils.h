@@ -250,25 +250,25 @@ typedef struct {
 static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
     if (!base || len == 0) return;
 #if defined(_WIN32)
-  static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
-  static int checked = 0;
-  if (!checked) {
-    HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
-    if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t) (void*) GetProcAddress(hKernel32, "DiscardVirtualMemory");
-    checked = 1;
-  }
-  if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
+    static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
+    static int checked = 0;
+    if (!checked) {
+        HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t)(void*)GetProcAddress(hKernel32, "DiscardVirtualMemory");
+        checked = 1;
+    }
+    if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
 #elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
-  static long ps = 0;
-  if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
-  if (ps <= 0) return;
-  uintptr_t s = (uintptr_t)(base + off);
-  uintptr_t e = s + len;
-  uintptr_t as = (s + ps-1) & ~(uintptr_t)(ps-1); // round start UP
-  uintptr_t ae = e & ~(uintptr_t)(ps-1);          // round end DOWN
-  if (ae > as) madvise((void*)as, ae-as, MADV_DONTNEED);
+    static long ps = 0;
+    if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
+    if (ps <= 0) return;
+    uintptr_t s = (uintptr_t)(base + off);
+    uintptr_t e = s + len;
+    uintptr_t as = (s + ps-1) & ~(uintptr_t)(ps-1); // round start UP
+    uintptr_t ae = e & ~(uintptr_t)(ps-1);          // round end DOWN
+    if (ae > as) madvise((void*)as, ae-as, MADV_DONTNEED);
 #else
-  (void)base; (void)off; (void)len;
+    (void)base; (void)off; (void)len;
 #endif
 }
 
