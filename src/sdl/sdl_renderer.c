@@ -31,6 +31,7 @@ typedef struct {
     SDL_Window* window;
     SDL_Renderer* sdlRenderer;
     SDL_Texture* framebufferTex;
+    SDL_Texture** pageTextures;
     uint32_t* framebuffer;
     int32_t framebufferW;
     int32_t framebufferH;
@@ -108,10 +109,16 @@ static uint32_t sdlFindOrAllocTexturePageSlot(SDLRenderer* sdl) {
     sdl->pageSurfaces = (SDL_Surface**)safeRealloc(sdl->pageSurfaces, sdl->pageCount * sizeof(SDL_Surface*));
     sdl->pageWidths = (int32_t*)safeRealloc(sdl->pageWidths, sdl->pageCount * sizeof(int32_t));
     sdl->pageHeights = (int32_t*)safeRealloc(sdl->pageHeights, sdl->pageCount * sizeof(int32_t));
+    if (sdl->mode == SDL_RENDERER_MODE_HARDWARE) {
+        sdl->pageTextures = (SDL_Texture**)safeRealloc(sdl->pageTextures, sdl->pageCount * sizeof(SDL_Texture*));
+    }
 
     sdl->pageSurfaces[newPageId] = NULL;
     sdl->pageWidths[newPageId] = 0;
     sdl->pageHeights[newPageId] = 0;
+    if (sdl->pageTextures != NULL) {
+        sdl->pageTextures[newPageId] = NULL;
+    }
     return newPageId;
 }
 
@@ -204,6 +211,20 @@ static bool sdlLoadTexturePage(SDLRenderer* sdl, uint32_t pageId) {
     sdl->pageSurfaces[pageId] = surf;
     sdl->pageWidths[pageId] = w;
     sdl->pageHeights[pageId] = h;
+
+    if (sdl->mode == SDL_RENDERER_MODE_HARDWARE && sdl->sdlRenderer != NULL) {
+        if (sdl->pageTextures == NULL) {
+            sdl->pageTextures = (SDL_Texture**)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(SDL_Texture*));
+        }
+        if (sdl->pageTextures[pageId] != NULL) {
+            SDL_DestroyTexture(sdl->pageTextures[pageId]);
+            sdl->pageTextures[pageId] = NULL;
+        }
+        sdl->pageTextures[pageId] = SDL_CreateTextureFromSurface(sdl->sdlRenderer, surf);
+        if (sdl->pageTextures[pageId] == NULL) {
+            logWarn("SDL: failed to cache texture page %u in VRAM: %s\n", pageId, SDL_GetError());
+        }
+    }
     return true;
 }
 
@@ -474,12 +495,12 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
 
             sdlEnsureHardwareTexture(sdl, sdl->sdlRenderer, sdl->framebufferW, sdl->framebufferH);
             if (sdl->framebufferTex != NULL) {
-                void* pixels = NULL;
-                int32_t pitch = 0;
-                if (SDL_LockTexture(sdl->framebufferTex, NULL, &pixels, &pitch) == 0 && pixels != NULL) {
-                    memcpy(pixels, sdl->framebuffer, (size_t)sdl->framebufferW * (size_t)sdl->framebufferH * sizeof(uint32_t));
-                    SDL_UnlockTexture(sdl->framebufferTex);
-                }
+                SDL_UpdateTexture(
+                    sdl->framebufferTex,
+                    NULL,
+                    sdl->framebuffer,
+                    sdl->framebufferW * sizeof(uint32_t)
+                );
 
                 float scale = (float)windowW / (float)sdl->framebufferW;
                 float heightScale = (float)windowH / (float)sdl->framebufferH;
@@ -492,6 +513,7 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
                 int32_t dstX = (windowW - dstW) / 2;
                 int32_t dstY = (windowH - dstH) / 2;
 
+                SDL_SetRenderTarget(sdl->sdlRenderer, NULL);
                 SDL_SetRenderDrawColor(sdl->sdlRenderer, 0, 0, 0, 255);
                 SDL_RenderClear(sdl->sdlRenderer);
 
@@ -540,8 +562,6 @@ void SDLRenderer_presentCurrentFrame(SDL_Window* window) {
     );
     if (frameSurface == NULL) return;
 
-    // Match the GL renderer's alpha semantics: the final framebuffer surface must
-    // preserve per-pixel alpha when composing onto the window surface.
     SDL_SetSurfaceBlendMode(frameSurface, SDL_BLENDMODE_BLEND);
 
     SDL_Rect dstRect = { startX, startY, effW, effH };
@@ -566,6 +586,7 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     sdl->originalTexturePageCount = dataWin != NULL ? dataWin->txtr.count : 0;
     sdl->pageCount = sdl->originalTexturePageCount;
     sdl->pageSurfaces = dataWin != NULL ? (SDL_Surface**)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(SDL_Surface*)) : NULL;
+    sdl->pageTextures = dataWin != NULL ? (SDL_Texture**)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(SDL_Texture*)) : NULL;
     sdl->pageWidths = dataWin != NULL ? (int32_t*)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(int32_t)) : NULL;
     sdl->pageHeights = dataWin != NULL ? (int32_t*)safeCalloc(sdl->pageCount ? sdl->pageCount : 1, sizeof(int32_t)) : NULL;
     sdl->originalTpagCount = dataWin != NULL ? dataWin->tpag.count : 0;
