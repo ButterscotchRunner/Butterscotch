@@ -200,10 +200,16 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
         dcr &= ((-dcr) >> 31);
         dcg &= ((-dcg) >> 31);
         dcb &= ((-dcb) >> 31);
+    #if PIXEL_SIZE == 16
+        if (dcr > 31) dcr = 31;
+        if (dcg > 31) dcg = 31;
+        if (dcb > 31) dcb = 31;
+    #else
         //clamp to 255
         dcr |= ((signed char)(dcr >> 1) >> 7);
         dcg |= ((signed char)(dcg >> 1) >> 7);
         dcb |= ((signed char)(dcb >> 1) >> 7);
+    #endif
     }
 #endif // SW_BAD_BLEND_MODE_SUPPORT
 
@@ -279,9 +285,9 @@ FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2
     out.p.a = x1.p.a;
     return out.l;
 #elif PIXEL_SIZE == 16
-    int c1r = color1 & 0x1F, c1g = (color2 >> 5) & 0x1F, c1b = (color3 >> 10) & 0x1F;
-    int c2r = color2 & 0x1F, c2g = (color2 >> 5) & 0x1F, c2b = (color3 >> 10) & 0x1F;
-    int c3r = color3 & 0x1F, c3g = (color2 >> 5) & 0x1F, c3b = (color3 >> 10) & 0x1F;
+    int c1b = color1 & 0x1F, c1g = (color1 >> 5) & 0x1F, c1r = (color1 >> 10) & 0x1F;
+    int c2b = color2 & 0x1F, c2g = (color2 >> 5) & 0x1F, c2r = (color2 >> 10) & 0x1F;
+    int c3b = color3 & 0x1F, c3g = (color3 >> 5) & 0x1F, c3r = (color3 >> 10) & 0x1F;
     int ca = color1 & 0x8000;
     int cr = (c1r * frac1 + c2r * frac2 + c3r * frac3) >> 16;
     int cg = (c1g * frac1 + c2g * frac2 + c3g * frac3) >> 16;
