@@ -509,7 +509,7 @@ static void swrDrawSpriteRotatedInternal(
     }
 }
 
-static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uint32_t color1, uint32_t color2, uint32_t color3, int alpha)
+static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, int alpha)
 {
     // TODO: update this
     (void) color2;
@@ -533,6 +533,65 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
             xmid2 = xup + (xleft - xup) * (ymid - yup) / (yleft - yup);
     }
     
+    if (color1 == color2 && color2 == color3)
+    {
+        // fast path: the triangle is all the same color
+        for (int y = yup; y < ymax; y++)
+        {
+            if (y < 0) continue;
+            if (y >= swr->height) break;
+            
+            int x1 = xup, x2 = xup;
+            if (y <= ymid)
+            {
+                // Lines: between up and mid, and between up and max
+                if (ymid != yup)
+                    x1 = xup + (xmid - xup) * (y - yup) / (ymid - yup);
+                
+                if (ymid != yup)
+                    x2 = xup + (xmid2 - xup) * (y - yup) / (ymid - yup);
+            }
+            else
+            {
+                // Lines: between mid and max, and between up and max
+                if (ymax != yup)
+                    x1 = xup + (xmax - xup) * (y - yup) / (ymax - yup);
+                
+                if (ymax != ymid)
+                    x2 = xmid + (xmax - xmid) * (y - ymid) / (ymax - ymid);
+            }
+            
+            if (x1 >= x2) {
+                int tmp = x1;
+                x1 = x2;
+                x2 = tmp;
+            }
+            
+            if (x1 < swr->portX) x1 = swr->portX;
+            if (x1 >= swr->maxX) continue;
+            if (x2 < swr->portX) continue;
+            if (x2 >= swr->maxX) x2 = swr->maxX - 1;
+            if (x1 > x2) continue;
+            
+            uintpixel_t* line = &swr->fb[y * swr->width];
+            for (int x = x1; x < x2; x++) {
+                alphaBlend(&line[x], color1, srcalpha, invalpha);
+            }
+        }
+        
+        return;
+    }
+    
+    // slow path: the triangle is all three different colors
+    
+    int area = (xleft - xup) * (yright - yup) - (yleft - yup) * (xright - xup);
+    if (area == 0) {
+        logDebug("SWR: Area is 0, returning early");
+        return;
+    }
+    
+    // tried making this 32-bit and it didn't work.  maybe another day.
+    int64_t areaReciprocal = ((int64_t) 65535 << 16) / area;
     for (int y = yup; y < ymax; y++)
     {
         if (y < 0) continue;
@@ -571,8 +630,27 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
         if (x1 > x2) continue;
         
         uintpixel_t* line = &swr->fb[y * swr->width];
-        for (int x = x1; x < x2; x++) {
-            alphaBlend(&line[x], color1, srcalpha, invalpha);
+        
+        int e_up   = (xleft - x1) * (yright - y) - (yleft - y) * (xright - x1);
+        int e_left = (xright - x1) * (yup - y) - (yright - y) * (xup - x1);
+        int d_up   = (yleft - yright);
+        int d_left = (yright - yup);
+        
+        for (int x = x1; x < x2; x++)
+        {
+            int w1 = (int)((e_up * areaReciprocal) >> 16);
+            int w2 = (int)((e_left * areaReciprocal) >> 16);
+            
+            if (w1 < 0) w1 = 0;
+            if (w1 > 65535) w1 = 65535;
+            if (w2 < 0) w2 = 0;
+            if (w2 > 65535 - w1) w2 = 65535 - w1;
+            
+            uintpixel_t blended = swrThreeWayBlend(color1, color2, color3, w1, w2, 65535 - w1 - w2);
+            alphaBlend(&line[x], blended, srcalpha, invalpha);
+            
+            e_up += d_up;
+            e_left += d_left;
         }
     }
 }

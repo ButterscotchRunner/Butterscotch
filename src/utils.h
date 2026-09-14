@@ -254,7 +254,7 @@ static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
   static int checked = 0;
   if (!checked) {
     HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
-    if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t)GetProcAddress(hKernel32, "DiscardVirtualMemory");
+    if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t) (void*) GetProcAddress(hKernel32, "DiscardVirtualMemory");
     checked = 1;
   }
   if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);

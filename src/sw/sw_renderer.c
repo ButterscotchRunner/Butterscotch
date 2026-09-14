@@ -85,6 +85,11 @@ static void SWRenderer_endFrameEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     assert(!swr->drawingToSurface);
+    
+    
+    // DEBUG
+    swrDrawTriangle(renderer, 300, 20, 20, 300, 580, 400, 0xFF0000, 0x00FF00, 0x0000FF, 1.0f);
+    
     platformSetNextFramebuffer(swr->fb, swr->width, swr->height);
 }
 

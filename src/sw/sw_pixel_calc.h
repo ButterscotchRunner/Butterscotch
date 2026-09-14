@@ -4,6 +4,20 @@
 #include "defines.h"
 #include "pixel_convert.h"
 
+// Define if you want dithered alpha blending and triangle color blending.
+// It might be a good bit faster than doing blending the proper way.
+//#define SW_DITHERED_BLENDING
+
+// Define if you want tinting to be implemented inaccurately
+//#define SW_INACCURATE_TINTING
+
+// Random number generator to be used for 8-bpp blending operations.
+FORCE_INLINE int fastRandomIsh()
+{
+    static uint32_t rng = 1;
+	return rng = (uint64_t)rng * 48271 % 0x7fffffff;
+}
+
 // Check if a pixel is opaque.
 //
 // Later, this should be changed to perform full alpha-blending
@@ -20,11 +34,22 @@ FORCE_INLINE bool opaque(uintpixel_t color)
 // Multiplies a color value (`color`) by another color value (`tintColor`).
 FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
 {
-#if PIXEL_SIZE == 32
-    Pixel32ARGB x, y;
-    
+#if PIXEL_SIZE == 8
+    if (tintColor == 0xFF || tintColor == PXL_TRANSPARENT)
+        return color;
+#elif PIXEL_SIZE == 16
+    if ((tintColor & 0x7FFF) == 0x7FFF)
+        return color;
+#else
     if ((tintColor & 0xFFFFFF) == 0xFFFFFF)
         return color;
+#endif
+    
+#if PIXEL_SIZE == 8 || defined SW_INACCURATE_TINTING
+    // fast but probably doesn't really work all that well
+    return color & tintColor;
+#elif PIXEL_SIZE == 32
+    Pixel32ARGB x, y;
     
     x.l = color;
     y.l = tintColor;
@@ -34,9 +59,6 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
     x.p.r = (int)x.p.r * y.p.r / 255;
     return x.l;
 #elif PIXEL_SIZE == 16
-    if ((tintColor & 0x7FFF) == 0x7FFF)
-        return color;
-    
     int tcb = tintColor & 0x1F;
     int tcg = (tintColor >> 5) & 0x1F;
     int tcr = (tintColor >> 10) & 0x1F;
@@ -50,12 +72,6 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
     cg = (cg * tcg) / 32;
     cr = (cr * tcr) / 32;
     return ca | cb | (cg << 5) | (cr << 10);
-#elif PIXEL_SIZE == 8
-    // fast but hacky
-    if (tintColor == 0xFF || tintColor == PXL_TRANSPARENT)
-        return color;
-    
-    return color & tintColor;
 #endif
 }
 
@@ -82,7 +98,14 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalp
         return;
 #endif
 
-#if PIXEL_SIZE == 32
+#if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
+    if (srcalpha < 240) {
+        if ((fastRandomIsh() & 0xFF) >= srcalpha)
+            return;
+    }
+    
+    *dcolor = scolor;
+#elif PIXEL_SIZE == 32
     Pixel32ARGB dc, sc;
     dc.l = *dcolor;
     sc.l = scolor;
@@ -120,29 +143,16 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalp
     dcg = (dcg * dstalpha + scg * srcalpha) >> 8;
     dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
     
-    //clamp to 0
+    // clamp to 0
     dcr &= ((-dcr) >> 31);
     dcg &= ((-dcg) >> 31);
     dcb &= ((-dcb) >> 31);
-    //clamp to 255
+    // clamp to 255
     dcr |= ((signed char)(dcr >> 1) >> 7);
     dcg |= ((signed char)(dcg >> 1) >> 7);
     dcb |= ((signed char)(dcb >> 1) >> 7);
     
     *dcolor = 0x8000 | dcb | (dcg << 5) | (dcr << 10);
-#else
-    if (srcalpha < 240) {
-        static int alphaApproximationThingy = 0;
-        alphaApproximationThingy += 1339;
-        if (alphaApproximationThingy > 601000)
-            alphaApproximationThingy = 0;
-        
-        //gotta love that RNG
-        if ((alphaApproximationThingy & 0xFF) >= srcalpha)
-            return;
-    }
-    
-    *dcolor = scolor;
 #endif
 }
 
@@ -178,6 +188,38 @@ FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
         case bm_subtract:
             return 256;
     }
+}
+
+// Blends a pixel between three colors.
+// frac means 0-65535 where 65535 means one.  And frac1 + frac2 + frac3 MUST be equal to 65535.
+FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, uint16_t frac1, uint16_t frac2, uint16_t frac3)
+{
+#if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
+    int rng = fastRandomIsh() & 0xFFFF;
+	if (rng < frac1) return color1; else rng -= frac1;
+	if (rng < frac2) return color2;
+    (void) frac3;
+	return color3;
+#elif PIXEL_SIZE == 32
+    Pixel32ARGB x1, x2, x3, out;
+    x1.l = color1;
+    x2.l = color2;
+    x3.l = color3;
+    out.p.r = (x1.p.r * frac1 + x2.p.r * frac2 + x3.p.r * frac3) >> 16;
+    out.p.g = (x1.p.g * frac1 + x2.p.g * frac2 + x3.p.g * frac3) >> 16;
+    out.p.b = (x1.p.b * frac1 + x2.p.b * frac2 + x3.p.b * frac3) >> 16;
+    out.p.a = x1.p.a;
+    return out.l;
+#elif PIXEL_SIZE == 16
+    int c1r = color1 & 0x1F, c1g = (color2 >> 5) & 0x1F, c1b = (color3 >> 10) & 0x1F;
+    int c2r = color2 & 0x1F, c2g = (color2 >> 5) & 0x1F, c2b = (color3 >> 10) & 0x1F;
+    int c3r = color3 & 0x1F, c3g = (color2 >> 5) & 0x1F, c3b = (color3 >> 10) & 0x1F;
+    int ca = color1 & 0x8000;
+    int cr = (c1r * frac1 + c2r * frac2 + c3r * frac3) >> 16;
+    int cg = (c1g * frac1 + c2g * frac2 + c3g * frac3) >> 16;
+    int cb = (c1b * frac1 + c2b * frac2 + c3b * frac3) >> 16;
+    return ca | cb | (cg << 5) | (cr << 10);
+#endif
 }
 
 #endif//_SW_PIXEL_CALC_H
