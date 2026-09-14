@@ -14,16 +14,18 @@ jobs:
             triple: powerpc-apple-darwin8
             ar: ppc-ar
             ranlib: ppc-ranlib
+            deps: libgmp-dev libmpc-dev libmpfr-dev
           #- arch: i386
           #  triple: i386-apple-darwin8
           #  ar: llvm-ar
           #  ranlib: llvm-ranlib
+          #  deps: clang llvm
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
       - name: install dependencies
-        run: sudo apt-get install libgmp-dev libmpc-dev libmpfr-dev ccache
+        run: sudo apt-get install ${{ matrix.deps }} ccache
 
       - uses: actions/cache@v6
         with:
