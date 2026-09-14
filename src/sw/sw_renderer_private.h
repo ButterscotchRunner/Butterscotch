@@ -44,6 +44,11 @@ SWSurface;
 #define WRITE_MASK_BLUE  (4)
 #define WRITE_MASK_ALPHA (8)
 
+typedef struct {
+    float x, y;
+    uintpixel_t color;
+} SWVertex;
+
 typedef struct
 {
     Renderer base;
@@ -86,10 +91,18 @@ typedef struct
     float defaultScaleX, defaultScaleY;
     
     int blendMode;
+    bool usingAlphaBlendState;
     
     // only used for surfaces.  The application surface doesn't support these at the moment.
     int currentSurfaceIndex;
     int writeMask;
+    
+    SWVertex* vertexData;
+    int vertexCount;
+    int maxVertexCount;
+    int primitiveType;
+    bool primitiveBegun;
+    bool primitiveOverflow;
 }
 SWRenderer;
 

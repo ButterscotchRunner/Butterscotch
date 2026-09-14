@@ -7,7 +7,13 @@
 
 #include "sw_renderer_private.h"
 
+#define MAX_TRIS 4096
+#define VERTICES_PER_TRIANGLE 3
+#define VERTICES_PER_QUAD 4
+
 void platformSetNextFramebuffer(uintpixel_t* framebuffer, int width, int height);
+
+static void SWRenderer_gpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha);
 
 static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
 {
@@ -41,6 +47,13 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
         dataWin->tpag.items[i].texturePageId = -1;
     }
     
+    // Allocate vertex data for primitive support
+    swr->maxVertexCount = MAX_TRIS * VERTICES_PER_QUAD;
+    swr->vertexData = (SWVertex*) safeCalloc(swr->maxVertexCount, sizeof(SWVertex));
+    swr->vertexCount = 0;
+    swr->primitiveType = 0;
+    swr->primitiveBegun = false;
+    
     logInfo("SWRenderer initialized.\n");
 }
 
@@ -71,6 +84,8 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
         swr->width = windowW;
         swr->height = windowH;
     }
+    
+    logDebug("SWRenderer_beginFrame\n");
 }
 
 // This used to be just one, "endFrame". Not sure what the difference is.
@@ -86,7 +101,11 @@ static void SWRenderer_endFrameEnd(Renderer* renderer)
     SWRenderer* swr = (SWRenderer*) renderer;
     assert(!swr->drawingToSurface);
     
+    logDebug("SWRenderer_endFrameEnd\n");
+    
     platformSetNextFramebuffer(swr->fb, swr->width, swr->height);
+    
+    swr->primitiveOverflow = false;
 }
 
 static void SWRenderer_beginView(Renderer* renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH,
@@ -527,12 +546,6 @@ static void SWRenderer_drawSurfaceTiled(Renderer* renderer, int32_t surfaceID, f
     }
 }
 
-static void SWRenderer_flush(Renderer* renderer)
-{
-    (void)renderer;
-    UNIMP();
-}
-
 static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
@@ -565,30 +578,13 @@ static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alp
     }
 }
 
-static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
-{
-    //UNIMP();
-    //(void)renderer; (void)mode;
-    
-    SWRenderer* swr = (SWRenderer*) renderer;
-    swr->blendMode = mode;
-    
-    //if (mode != bm_normal && mode != bm_add && mode != bm_subtract)
-    {
-        logWarn("swr: unsupported blend mode: %d\n", mode);
-    }
-}
-
-static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha)
-{
-    UNIMP();
-    (void)renderer; (void)sfactor; (void)dfactor; (void)sfactor_alpha; (void)dfactor_alpha;
-}
-
 static void SWRenderer_gpuSetBlendEnable(Renderer* renderer, bool enable)
 {
     UNIMP();
-    (void)renderer; (void)enable;
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    if (!enable)
+        swr->blendMode = bm_normal;
 }
 
 static void SWRenderer_gpuSetAlphaTestEnable(Renderer* renderer, bool enable)
@@ -603,15 +599,40 @@ static void SWRenderer_gpuSetAlphaTestRef(Renderer* renderer, uint8_t ref)
     (void)renderer; (void)ref;
 }
 
+static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
+{
+    // these are the only ones we support right now
+    if (mode != bm_normal && mode != bm_add && mode != bm_subtract) {
+        logWarn("swr: unsupported blend mode %d\n", mode);
+        mode = bm_normal;
+    }
+
+#ifdef SW_NO_BLEND_MODE_SUPPORT
+    mode = bm_normal;
+#endif
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    swr->blendMode = mode;
+    
+    logDebug("swr: switching to blend mode %d\n", mode);
+    
+    if (swr->usingAlphaBlendState)
+    {
+        swr->usingAlphaBlendState = false;
+        SWRenderer_gpuSetColorWriteEnable(renderer, true, true, true, true);
+    }
+}
+
 static void SWRenderer_gpuSetColorWriteEnable(Renderer* renderer, bool red, bool green, bool blue, bool alpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (!swr->drawingToSurface) {
-        logWarn("swr: gpuSetColorWriteEnable not supported for main framebuffer");
+        logWarn("swr: gpuSetColorWriteEnable not supported for main framebuffer\n");
         return;
     }
     
+    logWarn("SWRenderer_gpuSetColorWriteEnable(%d, %d, %d, %d)\n", red, green, blue, alpha);
     SWSurface* currSurf = swr->surfaces[swr->currentSurfaceIndex];
     
     swrCommitShadowWritesToSurfaceIfNeeded(swr, currSurf);
@@ -644,7 +665,7 @@ static void SWRenderer_gpuGetColorWriteEnable(Renderer* renderer, bool* red, boo
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (!swr->drawingToSurface) {
-        logWarn("swr: gpuGetColorWriteEnable not supported for main framebuffer");
+        logWarn("swr: gpuGetColorWriteEnable not supported for main framebuffer\n");
         return;
     }
     
@@ -652,6 +673,50 @@ static void SWRenderer_gpuGetColorWriteEnable(Renderer* renderer, bool* red, boo
     *green = (swr->writeMask & WRITE_MASK_GREEN) != 0;
     *blue = (swr->writeMask & WRITE_MASK_BLUE) != 0;
     *alpha = (swr->writeMask & WRITE_MASK_ALPHA) != 0;
+}
+
+static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    if (sfactor == bm_src_alpha && dfactor == bm_one) {
+        swr->blendMode = bm_add;
+    }
+    else if (sfactor == bm_src_alpha && (dfactor == bm_dest_alpha || dfactor == bm_inv_src_alpha)) {
+        swr->blendMode = bm_normal;
+    }
+    /* else */ {
+        swr->blendMode = bm_normal;
+        logWarn("swr: unsupported ext blend mode combo: sfactor=%d  dfactor=%d\n", sfactor, dfactor);
+    }
+    
+    // alpha handling now
+    bool unhandled_alpha = false;
+    if (swr->drawingToSurface && (sfactor_alpha == bm_dest_alpha && dfactor_alpha == bm_zero)) {
+        swr->usingAlphaBlendState = true;
+        SWRenderer_gpuSetColorWriteEnable(renderer, true, true, true, false);
+    }
+    else {
+        swr->usingAlphaBlendState = false;
+        SWRenderer_gpuSetColorWriteEnable(renderer, true, true, true, true);
+        unhandled_alpha = true;
+    }
+    
+    /* if (unhandled_alpha) */ {
+        logWarn("swr: unsupported ext blend mode combo: sfactoralpha=%d  dfactoralpha=%d\n", sfactor_alpha, dfactor_alpha);
+    }
+}
+
+static void SWRenderer_flush(Renderer* renderer)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    UNIMP();
+    
+    if (swr->drawingToSurface) {
+        bool red, green, blue, alpha;
+        SWRenderer_gpuGetColorWriteEnable(renderer, &red, &green, &blue, &alpha);
+        SWRenderer_gpuSetColorWriteEnable(renderer, red, green, blue, alpha);
+    }
 }
 
 static bool SWRenderer_gpuGetBlendEnable(Renderer* renderer)
@@ -1199,6 +1264,151 @@ static void SWRenderer_applyProjection(Renderer* renderer, const Matrix4f* world
     UNIMP();
 }
 
+static void SWRenderer_primitiveBegin(Renderer* renderer, int32_t primitiveType)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    swr->primitiveType = primitiveType;
+    swr->vertexCount = 0;
+    swr->primitiveBegun = true;
+    logDebug("swr: primitiveBegin(%d)\n", primitiveType);
+}
+
+static void SWRenderer_primitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture)
+{
+    static bool shownWarning = false;
+    if (!shownWarning) {
+        shownWarning = true;
+        logError("SWR: Do not support primitiveBeginTexture.  Redirect to primitiveBegin.\n");
+    }
+    
+    (void) texture;
+    return SWRenderer_primitiveBegin(renderer, primitiveType);
+}
+
+static void swrPrimitiveLine(Renderer* renderer, SWVertex* vtx0, SWVertex* vtx1)
+{
+    float alphaAvg = (swrGetAlpha(vtx0->color) + swrGetAlpha(vtx1->color)) / 2;
+    SWRenderer_drawLineColor(renderer, vtx0->x, vtx0->y, vtx1->x, vtx1->y, 1.0f, vtx0->color, vtx1->color, alphaAvg);
+}
+
+static void swrPrimitiveTriangle(Renderer* renderer, SWVertex* vtx0, SWVertex* vtx1, SWVertex* vtx2)
+{
+    const bool bWireFrameMode = false; // for debugging
+    
+    float alphaAvg = (swrGetAlpha(vtx0->color) + swrGetAlpha(vtx1->color) + swrGetAlpha(vtx2->color)) / 3;
+    SWRenderer_drawTriangle(renderer, vtx0->x, vtx0->y, vtx1->x, vtx1->y, vtx2->x, vtx2->y, vtx0->color, vtx1->color, vtx2->color, alphaAvg, bWireFrameMode);
+}
+
+static void SWRenderer_primitiveEnd(Renderer* renderer)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    logWarn("SWR: Ending with %d vertices, primitive type %d\n", swr->vertexCount, swr->primitiveType);
+    switch (swr->primitiveType)
+    {
+        case PRIMITIVE_POINTS:
+        {
+            for (int i = 0; i < swr->vertexCount; i++)
+            {
+                SWVertex *vtx = &swr->vertexData[i];
+                swrPlotPixel(renderer, vtx->x, vtx->y, swrConvertPixel(vtx->color), swrGetAlpha(vtx->color));
+            }
+            break;
+        }
+        case PRIMITIVE_LINES:
+        {
+            for (int i = 0; i + 1 < swr->vertexCount; i += 2)
+                swrPrimitiveLine(renderer, &swr->vertexData[i], &swr->vertexData[i + 1]);
+            
+            break;
+        }
+        case PRIMITIVE_LINE_STRIP:
+        {
+            for (int i = 0; i + 1 < swr->vertexCount; i++)
+                swrPrimitiveLine(renderer, &swr->vertexData[i], &swr->vertexData[i + 1]);
+            
+            break;
+        }
+        case PRIMITIVE_TRIANGLES:
+        {
+            for (int i = 0; i + 2 < swr->vertexCount; i += 3)
+                swrPrimitiveTriangle(renderer, &swr->vertexData[i], &swr->vertexData[i + 1], &swr->vertexData[i + 2]);
+            
+            break;
+        }
+        case PRIMITIVE_TRIANGLE_STRIP:
+        {
+            if (swr->vertexCount < 3)
+                break;
+            
+            for (int i = 0; i < swr->vertexCount; i++)
+                swrPrimitiveTriangle(renderer, &swr->vertexData[i], &swr->vertexData[i + 1], &swr->vertexData[i + 2]);
+            
+            break;
+        }
+        case PRIMITIVE_TRIANGLE_FAN:
+        {
+            for (int i = 1; i + 1 < swr->vertexCount; i += 2)
+                swrPrimitiveTriangle(renderer, &swr->vertexData[0], &swr->vertexData[i], &swr->vertexData[i + 1]);
+            
+            break;
+        }
+        default:
+        {
+            logError("SWR: Unimplemented primitive type %d", swr->primitiveType);
+            break;
+        }
+    }
+    
+    swr->primitiveBegun = false;
+    swr->vertexCount = 0;
+}
+
+static void SWRenderer_drawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alphaMod, float u, float v)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (swr->vertexCount >= swr->maxVertexCount)
+    {
+        // TODO: we could just expand this?
+        if (!swr->primitiveOverflow)
+            logError("SWR: Vertex overflow.  Vertices will be ignored until the next primitiveEnd.");
+        
+        swr->primitiveOverflow = true;
+    }
+    
+    SWVertex* pVertex = &swr->vertexData[swr->vertexCount++];
+    
+    Pixel32ABGR pixel;
+    pixel.l = color;
+    pixel.p.a = (uint8_t)(pixel.p.a * alphaMod);
+    
+    pVertex->color = swrConvertPixel(pixel.l);
+    pVertex->x = x;
+    pVertex->y = y;
+    
+    logDebug("swr:      drawVertex(%f, %f)\n", x, y);
+    
+    // Texture mapping and the third dimension are not supported.
+    (void) z;
+    (void) u;
+    (void) v;
+}
+
+static void SWRenderer_drawVertexBuffer(Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t count)
+{
+    // TODO
+    
+    (void) renderer;
+    (void) buffer;
+    (void) primitive;
+    (void) texture;
+    (void) offset;
+    (void) count;
+    
+    UNIMP();
+}
+
 Renderer* SWRenderer_create(void)
 {
     SWRenderer* swr = (SWRenderer*) safeCalloc(1, sizeof(SWRenderer));
@@ -1266,6 +1476,11 @@ Renderer* SWRenderer_create(void)
     swrVtable.shaderIsCompiled         = SWRenderer_shaderIsCompiled;
     swrVtable.shadersSupported         = SWRenderer_shadersSupported;
     swrVtable.applyProjection          = SWRenderer_applyProjection;
+    swrVtable.primitiveBegin           = SWRenderer_primitiveBegin;
+    swrVtable.primitiveBeginTexture    = SWRenderer_primitiveBeginTexture;
+    swrVtable.primitiveEnd             = SWRenderer_primitiveEnd;
+    swrVtable.drawVertex               = SWRenderer_drawVertex;
+    swrVtable.drawVertexBuffer         = SWRenderer_drawVertexBuffer;
     
     swrVtable.drawTile                 = NULL;
     

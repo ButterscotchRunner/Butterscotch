@@ -15,7 +15,7 @@ typedef uint8_t uintpixel_t;
 #error "Unknown pixel size!"
 #endif
 
-// The native format coming out of GameMaker Studio's assets.
+// The native format coming out of GameMaker Studio.
 typedef union
 {
 	struct {
@@ -79,6 +79,17 @@ uintpixel_t swrConvertPixelBase(uint32_t gmPixel)
 	return abgr8888_to_rgb1555(gmPixel);
 #elif PIXEL_SIZE == 8
 	return abgr8888_to_rgb332(gmPixel);
+#endif
+}
+
+FORCE_INLINE float swrGetAlpha(uintpixel_t pixel)
+{
+#if PIXEL_SIZE == 8
+    return pixel == PXL_TRANSPARENT ? 0.0 : 1.0f;
+#elif PIXEL_SIZE == 16
+    return (pixel & 0x8000) ? 1.0f : 0.0f;
+#else
+    return ((pixel & 0xFF000000) >> 24) / 255.0f;
 #endif
 }
 

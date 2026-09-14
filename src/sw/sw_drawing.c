@@ -18,7 +18,7 @@ SwrFontState;
 
 // ==== Internal functions ====
 
-FORCE_INLINE void swrPlotPixel(Renderer* renderer, int x, int y, uintpixel_t color, int srcalpha, int dstalpha)
+FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int srcalpha, int dstalpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
@@ -192,7 +192,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
+        swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
         
         while (x < xe)
         {
@@ -218,7 +218,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
+            swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
         }
     }
     else
@@ -242,7 +242,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
+        swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
         
         while (y < ye)
         {
@@ -268,7 +268,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel(renderer, x, y, color, srcalpha, invalpha);
+            swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
         }
     }
 }
@@ -511,9 +511,7 @@ static void swrDrawSpriteRotatedInternal(
 
 static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, int alpha)
 {
-    // TODO: update this
-    (void) color2;
-    (void) color3;
+    logDebug("swrDrawTriangleInternal:  Coords: (%d,%d) (%d,%d) (%d,%d)\n", xup, yup, xleft, yleft, xright, yright);
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
@@ -538,7 +536,6 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
         // fast path: the triangle is all the same color
         for (int y = yup; y < ymax; y++)
         {
-            if (y < 0) continue;
             if (y >= swr->height) break;
             
             int x1 = xup, x2 = xup;
@@ -573,9 +570,11 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
             if (x2 >= swr->maxX) x2 = swr->maxX - 1;
             if (x1 > x2) continue;
             
-            uintpixel_t* line = &swr->fb[y * swr->width];
-            for (int x = x1; x < x2; x++) {
-                alphaBlend(&line[x], color1, srcalpha, invalpha);
+            if (y >= 0) {
+                uintpixel_t* line = &swr->fb[y * swr->width];
+                for (int x = x1; x < x2; x++) {
+                    alphaBlend(&line[x], color1, srcalpha, invalpha);
+                }
             }
         }
         
@@ -586,7 +585,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     
     int area = (xleft - xup) * (yright - yup) - (yleft - yup) * (xright - xup);
     if (area == 0) {
-        logDebug("SWR: Area is 0, returning early");
+        logDebug("SWR: Area is 0, returning early. Coords: (%d,%d) (%d,%d) (%d,%d)\n", xup, yup, xleft, yleft, xright, yright);
         return;
     }
     
@@ -594,7 +593,6 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     int64_t areaReciprocal = ((int64_t) 65535 << 16) / area;
     for (int y = yup; y < ymax; y++)
     {
-        if (y < 0) continue;
         if (y >= swr->height) break;
         
         int x1 = xup, x2 = xup;
@@ -628,6 +626,8 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
         if (x2 < swr->portX) continue;
         if (x2 >= swr->maxX) x2 = swr->maxX - 1;
         if (x1 > x2) continue;
+        
+        if (y < 0) continue;
         
         uintpixel_t* line = &swr->fb[y * swr->width];
         
@@ -746,13 +746,12 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
             return true;
         
         // restore the original framebuffer
-        logInfo("back to original framebuffer\n");
+        logDebug("swr: back to original framebuffer (%d)\n", targetSurfaceId);
         swr->drawingToSurface = false;
         swr->fb = swr->mainFb;
         swr->width = swr->mainWidth;
         swr->height = swr->mainHeight;
         swr->fbPitch = swr->mainPitch;
-        swr->blendMode = bm_normal;
         swr->currentSurfaceIndex = -1;
         swr->writeMask = WRITE_MASK_ALL;
         
@@ -789,7 +788,6 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
         swr->mainWidth = swr->width;
         swr->mainHeight = swr->height;
         swr->mainPitch = swr->fbPitch;
-        swr->blendMode = bm_normal;
         
         // and the old transform
         swr->lastViewX = swr->viewX;
@@ -814,7 +812,6 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
     swr->height = surface->height;
     swr->fbPitch = surface->width;
     swr->drawingToSurface = true;
-    swr->blendMode = bm_normal;
     swr->currentSurfaceIndex = targetSurfaceId;
     swr->writeMask = WRITE_MASK_ALL;
     
@@ -824,9 +821,17 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
     swr->maxY = swr->viewH = swr->portH = surface->height;
     swr->scaleX = swr->scaleY = 1.0f;
     
-    logInfo("switching to surface %p, fb %p, %dx%d\n", surface, swr->fb, swr->width, swr->height);
+    logDebug("swr: switching to surface %d -> %p, fb %p, %dx%d\n", targetSurfaceId, surface, swr->fb, swr->width, swr->height);
     
     return true;
+}
+
+void swrPlotPixel(Renderer* renderer, float x, float y, uint32_t color, float alpha)
+{
+    SWRenderer *swr = (SWRenderer*) renderer;
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    swrPlotPixel_(renderer, (float) x, (float) y, color, srcalpha, invalpha);
 }
 
 void swrDrawHLine(Renderer* renderer, float dx, float dy, float dw, uintpixel_t color, uintpixel_t color2, float alpha)

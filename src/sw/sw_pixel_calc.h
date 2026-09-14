@@ -11,6 +11,10 @@
 // Define if you want tinting to be implemented inaccurately
 //#define SW_INACCURATE_TINTING
 
+// Define if you want to disable support for additional blend modes and only support bm_normal.
+// Should be set if you enable SW_DITHERED_BLENDING.
+//#define SW_NO_BLEND_MODE_SUPPORT
+
 // Random number generator to be used for 8-bpp blending operations.
 FORCE_INLINE int fastRandomIsh()
 {
@@ -168,6 +172,9 @@ FORCE_INLINE int swrIntAlpha(float alphaf)
 // Calculates the source alpha for a pixel based on the current blend mode.
 FORCE_INLINE int swrCalcSrcAlpha(SWRenderer* swr, int alpha)
 {
+#ifdef SW_NO_BLEND_MODE_SUPPORT
+    return alpha;
+#else
     switch (swr->blendMode)
     {
         default:
@@ -177,11 +184,15 @@ FORCE_INLINE int swrCalcSrcAlpha(SWRenderer* swr, int alpha)
         case bm_subtract:
             return -alpha;
     }
+#endif
 }
 
 // Calculates the destination alpha for a pixel based on the current blend mode.
 FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
 {
+#ifdef SW_NO_BLEND_MODE_SUPPORT
+    return 256 - alpha;
+#else
     switch (swr->blendMode)
     {
         default:
@@ -191,6 +202,7 @@ FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
         case bm_subtract:
             return 256;
     }
+#endif
 }
 
 // Blends a pixel between three colors.
