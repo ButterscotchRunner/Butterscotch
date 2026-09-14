@@ -80,36 +80,75 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
 //
 // NOTE: Obviously I could use SIMD here, but old computers didn't have SIMD, and the code
 // runs fast enough on modern computers to not need to do SIMD.
-FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srcalpha, int dstalpha)
+//
+// Another note: Wow, it' become a huge mess of ifdef's...
+FORCE_INLINE
+void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srcalpha, int dstalpha)
 {
+#ifdef SW_DITHERED_BLENDING
+    /* Dithered blending does not use the dstalpha member */
+    (void) dstalpha;
+#endif
+
+    /* If we didn't disable subtract support and are in dithered blending mode */
+#if defined SW_DITHERED_BLENDING
+#ifndef SW_NO_SUBTRACT_SUPPORT
+    if (UNLIKELY(blendmode == bm_subtract))
+    {
+    #if PIXEL_SIZE == 8
+        srcalpha = scolor & 0x7;
+        srcalpha = (srcalpha << 5) | (srcalpha << 2) | (srcalpha >> 1);
+    #elif PIXEL_SIZE == 16
+        srcalpha = scolor & 0x1F;
+        srcalpha = (srcalpha << 3) | (srcalpha >> 2);
+    #elif PIXEL_SIZE == 32
+        srcalpha = scolor & 0xFF;
+    #endif
+    
+        if (UNLIKELY(srcalpha < 5))
+            return;
+        if (UNLIKELY(srcalpha > 250))
+            *dcolor = 0;
+        
+        if ((fastRandomIsh() & 0xFF) < srcalpha)
+            *dcolor = 0;
+        
+        return;
+    }
+#endif // !SW_NO_SUBTRACT_SUPPORT
+#endif // defined SW_DITHERED_BLENDING
+
 #if PIXEL_SIZE == 32 || PIXEL_SIZE == 16
 
-#ifndef SW_NO_BLEND_MODE_SUPPORT
+    /* Check extremely common cases in 32- and 16-bit modes */
+#ifndef SW_BAD_BLEND_MODE_SUPPORT
     if (LIKELY(blendmode == bm_normal))
 #endif
     {
         // it's so significant here we might as well fill in the whole color
-        if (LIKELY(dstalpha < 2)) {
+        if (LIKELY(srcalpha > 253)) {
             *dcolor = scolor;
             return;
         }
         
         // it's so insignificant here nobody will notice if we just don't...
-        if (UNLIKELY(dstalpha > 253))
+        if (UNLIKELY(srcalpha < 4))
             return;
     }
 
-#endif
+#endif // PIXEL_SIZE == 32 || PIXEL_SIZE == 16
 
-#if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
-    if (srcalpha < 240) {
+    /* With dithered blending, randomly place the color, or don't */
+#ifdef SW_DITHERED_BLENDING
+    if (srcalpha < 240)
+    {
         if ((fastRandomIsh() & 0xFF) >= srcalpha)
             return;
     }
     
     *dcolor = scolor;
-    return;
-#endif
+
+#else
 
     /* Extract pixel channels */
 #if PIXEL_SIZE == 32
@@ -136,7 +175,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
     int dcg = (_dcolor >> 5) & 0x1F;
     int dcr = (_dcolor >> 10) & 0x1F;
     int dca = 0xFF;
-#endif
+#endif // PIXEL_SIZE
     
     if (UNLIKELY(blendmode == bm_subtract))
     {
@@ -153,7 +192,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
         dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
     }
     
-#ifndef SW_NO_BLEND_MODE_SUPPORT
+#ifndef SW_BAD_BLEND_MODE_SUPPORT
     /* Clamp them if needed */
     if (UNLIKELY(blendmode != bm_normal))
     {
@@ -166,7 +205,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
         dcg |= ((signed char)(dcg >> 1) >> 7);
         dcb |= ((signed char)(dcb >> 1) >> 7);
     }
-#endif
+#endif // SW_BAD_BLEND_MODE_SUPPORT
 
     /* Then re-assemble the pixel. */
 #if PIXEL_SIZE == 32
@@ -179,6 +218,8 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
 #elif PIXEL_SIZE == 16
     *dcolor = (dca ? 0x8000 : 0) | dcb | (dcg << 5) | (dcr << 10);
 #endif
+
+#endif // SW_DITHERED_BLENDING
 }
 
 // Calculates an internal "alpha" value from GML-provided "alpha" values.
@@ -190,26 +231,20 @@ FORCE_INLINE int swrIntAlpha(float alphaf)
 // Calculates the source alpha for a pixel based on the current blend mode.
 FORCE_INLINE int swrCalcSrcAlpha(SWRenderer* swr, int alpha)
 {
-#ifdef SW_NO_BLEND_MODE_SUPPORT
+    // Here you would depend on swr->blendMode, but all
+    // of them return the same value right now.
+    (void) swr;
     return alpha;
-#else
-    switch (swr->blendMode)
-    {
-        default:
-            return alpha;
-        case bm_add:
-            return alpha;
-        case bm_subtract:
-            return -alpha;
-    }
-#endif
 }
 
 // Calculates the destination alpha for a pixel based on the current blend mode.
 FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
 {
-#ifdef SW_NO_BLEND_MODE_SUPPORT
-    return 256 - alpha;
+#ifdef SW_DITHERED_BLENDING
+    /* Dithered blending does not use the dstalpha member */
+    (void) swr;
+    (void) alpha;
+    return 0;
 #else
     switch (swr->blendMode)
     {
@@ -227,7 +262,7 @@ FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
 // frac means 0-65535 where 65535 means one.  And frac1 + frac2 + frac3 MUST be equal to 65535.
 FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, uint16_t frac1, uint16_t frac2, uint16_t frac3)
 {
-#if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
+#if defined SW_DITHERED_BLENDING
     int rng = fastRandomIsh() & 0xFFFF;
 	if (rng < frac1) return color1; else rng -= frac1;
 	if (rng < frac2) return color2;

@@ -607,10 +607,6 @@ static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
         mode = bm_normal;
     }
 
-#ifdef SW_NO_BLEND_MODE_SUPPORT
-    mode = bm_normal;
-#endif
-    
     SWRenderer* swr = (SWRenderer*) renderer;
     swr->blendMode = mode;
     
@@ -684,7 +680,7 @@ static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, i
     else if (sfactor == bm_src_alpha && (dfactor == bm_dest_alpha || dfactor == bm_inv_src_alpha)) {
         swr->blendMode = bm_normal;
     }
-    /* else */ {
+    else {
         swr->blendMode = bm_normal;
         logWarn("swr: unsupported ext blend mode combo: sfactor=%d  dfactor=%d\n", sfactor, dfactor);
     }
@@ -701,7 +697,7 @@ static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, i
         unhandled_alpha = true;
     }
     
-    /* if (unhandled_alpha) */ {
+    if (unhandled_alpha) {
         logWarn("swr: unsupported ext blend mode combo: sfactoralpha=%d  dfactoralpha=%d\n", sfactor_alpha, dfactor_alpha);
     }
 }
@@ -1282,7 +1278,7 @@ static void SWRenderer_primitiveBeginTexture(Renderer* renderer, int32_t primiti
     }
     
     (void) texture;
-    return SWRenderer_primitiveBegin(renderer, primitiveType);
+    SWRenderer_primitiveBegin(renderer, primitiveType);
 }
 
 static void swrPrimitiveLine(Renderer* renderer, SWVertex* vtx0, SWVertex* vtx1)

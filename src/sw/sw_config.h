@@ -20,19 +20,30 @@
 // Define if you want tinting to be implemented inaccurately
 //#define SW_INACCURATE_TINTING
 
-// Define if you want to disable support for additional blend modes and only support bm_normal.
-// Should be set if you enable SW_DITHERED_BLENDING.
-//#define SW_NO_BLEND_MODE_SUPPORT
+// Define if you want to decrease the quality of additional blend modes and
+// only fully support bm_normal.  Automatically set if you enable SW_DITHERED_BLENDING.
+//#define SW_BAD_BLEND_MODE_SUPPORT
+
+// Completely exclude bm_subtract support
 
 // -======- USER CONFIG END -======-
 
+// Force enable dithered blending if in 8bpp mode.
+#if PIXEL_SIZE == 8
+
+#ifndef SW_DITHERED_BLENDING
+#define SW_DITHERED_BLENDING
+#endif // SW_DITHERED_BLENDING
+
+#endif // PIXEL_SIZE == 8
+
 // Disable blend mode support forcefully if we're on 8-bpp color
 // or if we requested dithered blending
-#if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
+#ifdef SW_DITHERED_BLENDING
 
-#ifndef SW_NO_BLEND_MODE_SUPPORT
-#define SW_NO_BLEND_MODE_SUPPORT
-#endif // !SW_NO_BLEND_MODE_SUPPORT
+#ifndef SW_BAD_BLEND_MODE_SUPPORT
+#define SW_BAD_BLEND_MODE_SUPPORT
+#endif // !SW_BAD_BLEND_MODE_SUPPORT
 
 #endif // SW_DITHERED_BLENDING
 
