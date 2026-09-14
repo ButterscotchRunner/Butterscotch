@@ -182,12 +182,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 #else
     gl->textureCount = dataWin->txtr.count;
 #endif
-    gl->primitiveVertices = nullptr;
-    gl->primitiveVertexCount = 0;
+
+    gl->currentPrimitive.type = PRIMITIVE_NONE;
+    gl->currentPrimitive.vertexCount = 0;
+    gl->currentPrimitive.textureId = 0;
+    gl->currentPrimitive.hasTexture = false;
+    
+    gl->vertexData = nullptr;
     gl->primitiveCapacity = 0;
-    gl->primitiveType = PRIMITIVE_TRIANGLES;
-    gl->primitiveTextureId = 0;
-    gl->primitiveHasTexture = false;
 
     gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
     gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
@@ -234,10 +236,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 static void glDestroy(Renderer* renderer) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
 
-    free(gl->primitiveVertices);
-    gl->primitiveVertices = nullptr;
-    gl->primitiveVertexCount = 0;
+    free(gl->vertexData);
+    gl->vertexData = nullptr;
     gl->primitiveCapacity = 0;
+    
+    gl->currentPrimitive.type = PRIMITIVE_NONE;
+    gl->currentPrimitive.vertexCount = 0;
+    gl->currentPrimitive.textureId = 0;
+    gl->currentPrimitive.hasTexture = false;
 
     glDeleteTextures(1, &gl->whiteTexture);
 
@@ -425,82 +431,108 @@ static void legacyPrimitiveEnsureCapacity(GLLegacyRenderer* gl, int32_t needed) 
     if (needed <= gl->primitiveCapacity) return;
     int32_t newCapacity = gl->primitiveCapacity > 0 ? gl->primitiveCapacity : 16;
     while (newCapacity < needed) newCapacity *= 2;
-    gl->primitiveVertices = (LegacyPrimitiveVertex *)safeRealloc(gl->primitiveVertices, (size_t) newCapacity * sizeof(LegacyPrimitiveVertex));
+    gl->vertexData = (GlVertex *)safeRealloc(gl->vertexData, (size_t) newCapacity * sizeof(GlVertex));
     gl->primitiveCapacity = newCapacity;
 }
 
 static void glPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    gl->primitiveType = primitiveType;
-    gl->primitiveVertexCount = 0;
-    gl->primitiveTextureId = gl->whiteTexture;
-    gl->primitiveHasTexture = false;
+    GLCommon_primitiveBegin(&gl->currentPrimitive, primitiveType, gl->whiteTexture);
 }
 
-static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
-    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
+static bool glResolvePrimitiveTexture(GLLegacyRenderer* gl, int32_t texture, GLuint* textureId) {
+    if (texture <= 0)
+        return false;
+
+    TexturePageItem* tpag = nullptr;
+    int32_t texW = 0;
+    int32_t texH = 0;
+
+    if (glLegacyResolveTextureHandle(
+            gl, (uint32_t) texture, &tpag, &texW, &texH)) {
+
+        if (tpag &&
+            tpag->texturePageId >= 0 &&
+            (uint32_t)tpag->texturePageId < gl->textureCount) {
+
+            *textureId = gl->glTextures[tpag->texturePageId];
+            return *textureId != 0;
+        }
+
+        if ((texture & GL_SURFACE_TEXTURE_FLAG) != 0) {
+            uint32_t sid =
+                (uint32_t)texture & ~GL_SURFACE_TEXTURE_FLAG;
+
+            if (sid < gl->surfaceCount &&
+                gl->surfaceTexture[sid] != 0) {
+
+                *textureId = gl->surfaceTexture[sid];
+                return true;
+            }
+        }
+    }
+
+#if !defined(PLATFORM_PS3)
+    if (glIsTexture((GLuint)texture)) {
+        *textureId = (GLuint)texture;
+        return true;
+    }
+#endif
+
+    return false;
+}
+
+static void glPrimitiveBeginTexture(
+    Renderer* renderer,
+    int32_t primitiveType,
+    int32_t texture
+) {
+    GLLegacyRenderer* gl = (GLLegacyRenderer*)renderer;
     glPrimitiveBegin(renderer, primitiveType);
 
-    if (texture > 0) {
-        TexturePageItem* tpag = nullptr;
-        int32_t texW = 0, texH = 0;
-        if (glLegacyResolveTextureHandle(gl, (uint32_t) texture, &tpag, &texW, &texH)) {
-            if (tpag != nullptr && tpag->texturePageId >= 0 && (uint32_t) tpag->texturePageId < gl->textureCount) {
-                gl->primitiveTextureId = gl->glTextures[tpag->texturePageId];
-                gl->primitiveHasTexture = true;
-            } else if ((texture & GL_SURFACE_TEXTURE_FLAG) != 0) {
-                uint32_t sid = (uint32_t) texture & ~GL_SURFACE_TEXTURE_FLAG;
-                if (sid < gl->surfaceCount && gl->surfaceTexture[sid] != 0) {
-                    gl->primitiveTextureId = gl->surfaceTexture[sid];
-                    gl->primitiveHasTexture = true;
-                }
-            }
-#if !defined(PLATFORM_PS3)
-        } else if (glIsTexture((GLuint) texture)) {
-            gl->primitiveTextureId = (GLuint) texture;
-            gl->primitiveHasTexture = true;
-#endif
-        }
-    } else {
-        gl->primitiveTextureId = gl->whiteTexture;
-        gl->primitiveHasTexture = false;
-    }
+    GLuint texId = 0;
+    glResolvePrimitiveTexture(gl, texture, &texId);
+
+    GLCommon_primitiveBeginTexture(
+        &gl->currentPrimitive, primitiveType,
+        gl->whiteTexture, texId
+    );
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {
-    GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    if (gl->primitiveVertexCount <= 0) return;
+    GLLegacyRenderer* gl = (GLLegacyRenderer*)renderer;
 
-    GLenum mode = GL_TRIANGLES;
-    switch (gl->primitiveType) {
-        case PRIMITIVE_POINTS: mode = GL_POINTS; break;
-        case PRIMITIVE_LINES: mode = GL_LINES; break;
-        case PRIMITIVE_LINE_STRIP: mode = GL_LINE_STRIP; break;
-        case PRIMITIVE_TRIANGLES: mode = GL_TRIANGLES; break;
-        case PRIMITIVE_TRIANGLE_STRIP: mode = GL_TRIANGLE_STRIP; break;
-        case PRIMITIVE_TRIANGLE_FAN: mode = GL_TRIANGLE_FAN; break;
-        default: return;
-    }
+    GLenum mode;
+    GLuint textureId;
 
-    GLuint texId = gl->primitiveHasTexture ? gl->primitiveTextureId : gl->whiteTexture;
+    if (!GLCommon_primitivePrepare(
+            &gl->currentPrimitive, gl->whiteTexture,
+            &mode, &textureId))
+        return;
 
     glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, texId);
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
     glBegin(mode);
-    for (int32_t i = 0; i < gl->primitiveVertexCount; ++i) {
-        LegacyPrimitiveVertex* v = &gl->primitiveVertices[i];
+
+    for (int32_t i = 0; i < gl->currentPrimitive.vertexCount; ++i) {
+        GlVertex* v =
+            &gl->vertexData[i];
+
         glColor4ub(v->r, v->g, v->b, v->a);
         glTexCoord2f(v->u, v->v);
         glVertex3f(v->x, v->y, v->z);
     }
+
     glEnd();
-    gl->primitiveVertexCount = 0;
+
+    gl->currentPrimitive.vertexCount = 0;
 }
 
 static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
-    legacyPrimitiveEnsureCapacity(gl, gl->primitiveVertexCount + 1);
-    LegacyPrimitiveVertex* vert = &gl->primitiveVertices[gl->primitiveVertexCount++];
+    legacyPrimitiveEnsureCapacity(gl, gl->currentPrimitive.vertexCount + 1);
+    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount++];
     vert->x = x;
     vert->y = y;
     vert->z = z;

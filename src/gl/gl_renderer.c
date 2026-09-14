@@ -293,16 +293,16 @@ static void flushBatch(GLRenderer* gl) {
     int32_t indexCount = gl->batchCount * INDICES_PER_QUAD;
 
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex);
 #ifdef PLATFORM_VITA
     vglBufferData(GL_ARRAY_BUFFER, (void*)gl->vertexData);
-    gl->vertexData = (Vertex*)vglAllocFromScratch((size_t)totalVboSize);
+    gl->vertexData = (GlVertex*)vglAllocFromScratch((size_t)totalVboSize);
     //glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
 #else
     int32_t singleVertexCount = (gl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
     int32_t vertexCount = gl->batchCount * singleVertexCount;
     glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(Vertex), gl->vertexData);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(GlVertex), gl->vertexData);
 #endif
 
 
@@ -311,12 +311,12 @@ static void flushBatch(GLRenderer* gl) {
     } else {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
-        int32_t stride = sizeof(Vertex);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
+        int32_t stride = sizeof(GlVertex);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(GlVertex, r));
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, u));
         glEnableVertexAttribArray(2);
     }
 
@@ -371,59 +371,108 @@ static GLenum primitiveTypeToGL(int32_t primitiveType) {
 static void glPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
-
-    gl->primitiveType = primitiveType;
-    gl->primitiveVertexCount = 0;
-    gl->primitiveTextureId = gl->whiteTexture;
-    gl->primitiveHasTexture = false;
+    GLCommon_primitiveBegin(&gl->currentPrimitive, primitiveType, gl->whiteTexture);
 }
 
-static void glPrimitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture) {
-    GLRenderer* gl = (GLRenderer*) renderer;
+static bool glResolvePrimitiveTexture(GLRenderer* gl, int32_t texture, GLuint* textureId) {
+    if (texture <= 0)
+        return false;
+
+    TexturePageItem* tpag = nullptr;
+    int32_t texW = 0;
+    int32_t texH = 0;
+
+    if (glResolveTextureHandle(
+            gl, (uint32_t)texture,
+            &tpag, textureId, &texW, &texH)) {
+
+        return *textureId != 0;
+    }
+
+    if (glIsTexture((GLuint)texture)) {
+        *textureId = (GLuint)texture;
+        return true;
+    }
+
+    return false;
+}
+
+static void glPrimitiveBeginTexture(
+    Renderer* renderer,
+    int32_t primitiveType,
+    int32_t texture
+) {
+    GLRenderer* gl = (GLRenderer*)renderer;
     glPrimitiveBegin(renderer, primitiveType);
 
-    if (texture > 0) {
-        TexturePageItem* tpag = nullptr;
-        GLuint resolvedTexId = 0;
-        int32_t resolvedTexW = 0;
-        int32_t resolvedTexH = 0;
+    GLuint texId = 0;
+    glResolvePrimitiveTexture(gl, texture, &texId);
 
-        if (glResolveTextureHandle(gl, (uint32_t) texture, &tpag, &resolvedTexId, &resolvedTexW, &resolvedTexH) && resolvedTexId != 0) {
-            gl->primitiveTextureId = resolvedTexId;
-            gl->primitiveHasTexture = true;
-        } else if (glIsTexture((GLuint) texture)) {
-            gl->primitiveTextureId = (GLuint) texture;
-            gl->primitiveHasTexture = true;
-        }
-    }
+    GLCommon_primitiveBeginTexture(
+        &gl->currentPrimitive, primitiveType,
+        gl->whiteTexture, texId
+    );
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    if (gl->primitiveVertexCount <= 0) return;
+    GLRenderer* gl = (GLRenderer*)renderer;
 
-    GLuint textureId = gl->primitiveHasTexture ? gl->primitiveTextureId : gl->whiteTexture;
+    GLenum mode;
+    GLuint textureId;
+
+    if (!GLCommon_primitivePrepare(
+            &gl->currentPrimitive,
+            gl->whiteTexture,
+            &mode,
+            &textureId))
+        return;
+
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, textureId);
 
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(gl->primitiveVertexCount * sizeof(Vertex)), gl->vertexData, GL_DYNAMIC_DRAW);
+
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        (GLsizeiptr)(
+            gl->currentPrimitive.vertexCount *
+            sizeof(GlVertex)
+        ),
+        gl->vertexData,
+        GL_DYNAMIC_DRAW
+    );
 
     if (hasVAO()) {
         glBindVertexArray(gl->vao);
     } else {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl->ebo);
 
-        int32_t stride = sizeof(Vertex);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
+        int32_t stride = sizeof(GlVertex);
+
+        glVertexAttribPointer(
+            0, 2, GL_FLOAT, GL_FALSE,
+            stride, (void*)offsetof(GlVertex, x)
+        );
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
+
+        glVertexAttribPointer(
+            1, 4, GL_UNSIGNED_BYTE, GL_TRUE,
+            stride, (void*)offsetof(GlVertex, r)
+        );
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
+
+        glVertexAttribPointer(
+            2, 2, GL_FLOAT, GL_FALSE,
+            stride, (void*)offsetof(GlVertex, u)
+        );
         glEnableVertexAttribArray(2);
     }
 
-    glDrawArrays(primitiveTypeToGL(gl->primitiveType), 0, gl->primitiveVertexCount);
+    glDrawArrays(
+        mode,
+        0,
+        gl->currentPrimitive.vertexCount
+    );
 
     if (!hasVAO()) {
         glDisableVertexAttribArray(0);
@@ -431,17 +480,17 @@ static void glPrimitiveEnd(Renderer* renderer) {
         glDisableVertexAttribArray(2);
     }
 
-    gl->primitiveVertexCount = 0;
+    gl->currentPrimitive.vertexCount = 0;
 }
 
 static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    if (gl->primitiveVertexCount < 0) {
-        gl->primitiveVertexCount = 0;
+    if (gl->currentPrimitive.vertexCount < 0) {
+        gl->currentPrimitive.vertexCount = 0;
     }
 
-    Vertex* vert = &gl->vertexData[gl->primitiveVertexCount];
+    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount];
     vert->x = x;
     vert->y = y;
     vert->z = z;
@@ -452,7 +501,7 @@ static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t
     vert->b = (uint8_t) BGR_B(color);
     vert->a = floatToUnormByte(alpha);
 
-    gl->primitiveVertexCount++;
+    gl->currentPrimitive.vertexCount++;
 }
 
 // ===[ Vtable Implementations ]===
@@ -702,7 +751,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // VBO: sized for max quads
     glBindBuffer(GL_ARRAY_BUFFER, gl->vbo);
 #ifndef PLATFORM_VITA // We don't really need to warm up the buffer since we have scratch memory on VitaGL...
-    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex);
+    int32_t vboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex);
     glBufferData(GL_ARRAY_BUFFER, vboSize, nullptr, GL_DYNAMIC_DRAW);
 #endif
 
@@ -719,21 +768,21 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     if (hasVAO()) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
-        int32_t stride = sizeof(Vertex);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, x));
+        int32_t stride = sizeof(GlVertex);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(Vertex, r));
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(GlVertex, r));
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(Vertex, u));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, u));
         glEnableVertexAttribArray(2);
         glBindVertexArray(0);
     }
 
     // Allocate CPU-side vertex buffer
 #if PLATFORM_VITA
-    gl->vertexData = (Vertex *)vglAllocFromScratch(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+    gl->vertexData = (GlVertex *)vglAllocFromScratch(MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex));
 #else
-    gl->vertexData = (Vertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(Vertex));
+    gl->vertexData = (GlVertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex));
 #endif
 
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
@@ -1232,7 +1281,7 @@ static void emitTexturedQuad(
 ) {
     flushIfNeededAndSetActiveState(gl, BATCHTYPE_QUAD, texId);
 
-    Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD;
+    GlVertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_QUAD;
     uint8_t ca = floatToUnormByte(alpha);
 
     verts[0].x = x0; verts[0].y = y0; verts[0].u = u0; verts[0].v = v0; verts[0].r = r0; verts[0].g = g0; verts[0].b = b0; verts[0].a = ca;
@@ -1891,7 +1940,7 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
 
         // Woo, pointers!
         // This gets the vertex data for the new triangle batch
-        Vertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE;
+        GlVertex* verts = gl->vertexData + gl->batchCount * VERTICES_PER_TRIANGLE;
         uint8_t ca = floatToUnormByte(alpha);
 
         verts[0].x = x1; verts[0].y = y1; verts[0].u = 0.0f; verts[0].v = 0.0f; verts[0].r = (uint8_t) BGR_R(color1); verts[0].g = (uint8_t) BGR_G(color1); verts[0].b = (uint8_t) BGR_B(color1); verts[0].a = ca;
@@ -1943,36 +1992,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         buffer->rendererData = (void *) glBuffer;
     }
 
-    GLenum mode;
-
-    switch (primitive) {
-        case PRIMITIVE_POINTS:
-            mode = GL_POINTS;
-            break;
-
-        case PRIMITIVE_LINES:
-            mode = GL_LINES;
-            break;
-
-        case PRIMITIVE_LINE_STRIP:
-            mode = GL_LINE_STRIP;
-            break;
-
-        case PRIMITIVE_TRIANGLES:
-            mode = GL_TRIANGLES;
-            break;
-
-        case PRIMITIVE_TRIANGLE_STRIP:
-            mode = GL_TRIANGLE_STRIP;
-            break;
-
-        case PRIMITIVE_TRIANGLE_FAN:
-            mode = GL_TRIANGLE_FAN;
-            break;
-
-        default:
-            return;
-    }
+    GLenum mode = primitiveTypeToGL(primitive);
 
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);

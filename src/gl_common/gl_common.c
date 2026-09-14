@@ -222,3 +222,49 @@ GLenum GLCommon_blendModeToDFactor(int mode) {
         case bm_max:              return GL_ONE_MINUS_SRC_COLOR;
     }
 }
+
+// Primitive
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
+    primitive->type = type;
+    primitive->vertexCount = 0;
+    primitive->textureId = textureId;
+    primitive->hasTexture = (textureId != 0);
+}
+
+void GLCommon_primitiveBeginTexture(
+    GlPrimitive* primitive, int32_t primitiveType,
+    GLuint whiteTexture, GLuint resolvedTexture
+) {
+    primitive->type = primitiveType;
+    primitive->vertexCount = 0;
+
+    primitive->hasTexture = resolvedTexture != 0;
+    primitive->textureId = primitive->hasTexture
+        ? resolvedTexture
+        : whiteTexture;
+}
+
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+) {
+    if (primitive->vertexCount <= 0)
+        return false;
+
+    switch (primitive->type) {
+        case PRIMITIVE_POINTS: *mode = GL_POINTS; break;
+        case PRIMITIVE_LINES: *mode = GL_LINES; break;
+        case PRIMITIVE_LINE_STRIP: *mode = GL_LINE_STRIP; break;
+        case PRIMITIVE_TRIANGLES: *mode = GL_TRIANGLES; break;
+        case PRIMITIVE_TRIANGLE_STRIP: *mode = GL_TRIANGLE_STRIP; break;
+        case PRIMITIVE_TRIANGLE_FAN: *mode = GL_TRIANGLE_FAN; break;
+        default: return false;
+    }
+
+    *textureId = primitive->hasTexture
+        ? primitive->textureId
+        : whiteTexture;
+
+    return true;
+}

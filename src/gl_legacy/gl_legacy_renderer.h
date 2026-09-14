@@ -2,6 +2,7 @@
 #define _BS_GL_LEGACY_RENDERER_H_
 
 #include "common.h"
+#include "gl_common.h"
 #include "renderer.h"
 #include "runner.h"
 #ifdef PLATFORM_PS3
@@ -15,21 +16,12 @@
 
 // ===[ GLLegacyRenderer Struct ]===
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
-typedef struct {
-    float x, y, z;
-    float u, v;
-    uint8_t r, g, b, a;
-} LegacyPrimitiveVertex;
 
 typedef struct {
     Renderer base; // Must be first field for struct embedding
 
-    LegacyPrimitiveVertex* primitiveVertices;
-    int32_t primitiveVertexCount;
-    int32_t primitiveCapacity;
-    int32_t primitiveType;
-    uint32_t primitiveTextureId;
-    bool primitiveHasTexture;
+    GlVertex* vertexData;
+    GlPrimitive currentPrimitive;
 
     GLuint* glTextures;       // one GL texture per TXTR page
     int32_t* textureWidths;   // needed for UV normalization

@@ -2,6 +2,7 @@
 #define _BS_GL_RENDERER_H_
 
 #include "common.h"
+#include "gl_common.h"
 #include "renderer.h"
 #include "runner.h"
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
@@ -40,12 +41,6 @@ typedef struct {
     GLShaderUniform* gmAlphaRefValue;
 } GMLShader;
 
-typedef struct {
-    float x, y, z;
-    float u, v;
-    uint8_t r, g, b, a;
-} Vertex;
-
 // Exposed in the header so platform-specific code (main.c) can access FBO fields for screenshots.
 typedef struct {
     Renderer base; // Must be first field for struct embedding
@@ -61,16 +56,13 @@ typedef struct {
     uint32_t fogColor; // BGR
 
     GLuint vao, vbo, ebo;
-    Vertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
+    GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
+    GlPrimitive currentPrimitive;
 
     BatchType batchType;
-    int32_t primitiveType;
-    int32_t primitiveVertexCount;
-    GLuint primitiveTextureId;
-    bool primitiveHasTexture;
     int32_t batchCount;
     GLuint currentTextureId;
-
+    
     GLuint* glTextures;       // one GL texture per TXTR page
     int32_t* textureWidths;   // needed for UV normalization
     int32_t* textureHeights;

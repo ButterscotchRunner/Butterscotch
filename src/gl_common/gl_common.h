@@ -75,4 +75,29 @@ GLVer GLCommon_getGLVersion(void);
 
 #endif
 
+// Primitives
+
+typedef struct {
+    int32_t type;
+    int32_t vertexCount;
+    GLuint textureId;
+    bool hasTexture;
+} GlPrimitive;
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} GlVertex;
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
+void GLCommon_primitiveBeginTexture(
+    GlPrimitive* primitive, int32_t primitiveType,
+    GLuint whiteTexture, GLuint resolvedTexture
+);
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+);
+
 #endif /* _BS_GL_COMMON_H_ */
