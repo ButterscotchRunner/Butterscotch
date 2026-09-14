@@ -2395,6 +2395,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
         // BC<=14: bytecode is intermixed with entry headers. Capture the whole chunk as the bytecode buffer so that the per-entry bytecodeAbsoluteOffset values resolve correctly into it.
         dw->bytecodeBufferBase = chunkDataStart;
         dw->bytecodeBuffer = BinaryReader_readBytesAt(reader, chunkDataStart, chunkLength);
+        if (dw->mappedFile) dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
         return;
     }
 
@@ -2415,6 +2416,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
 
     dw->bytecodeBufferBase = blobStart;
     dw->bytecodeBuffer = BinaryReader_readBytesAt(reader, blobStart, blobSize);
+    if (dw->mappedFile) dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
 }
 
 static void parseVARI(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
@@ -2985,10 +2987,39 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             parseSTRG(&reader, dw);
         } else if (options.parseTxtr && memcmp(chunkName, "TXTR", 4) == 0) {
             parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTextures);
+            if (dw->mappedFile && chunkLength > 0) {
+                if (options.lazyLoadTextures) {
+                    dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+                } else {
+                    uint32_t minOff = UINT32_MAX;
+                    repeat(dw->txtr.count, ti) {
+                        uint32_t off = dw->txtr.textures[ti].blobOffset;
+                        if (off != 0 && off < minOff) minOff = off;
+                    }
+                    if (minOff != UINT32_MAX && minOff > chunkDataStart) {
+                        dropMappedRange(dw->mappedFile, chunkDataStart, minOff - chunkDataStart);
+                    }
+                }
+            }
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
             parseAUDO(&reader, dw, options.lazyLoadAudio);
+            if (dw->mappedFile && chunkLength > 0 && options.lazyLoadAudio) {
+                dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+            }
         } else {
             logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
+        }
+
+        if (dw->mappedFile && chunkLength > 0) {
+            bool keepMapped =
+                (memcmp(chunkName, "STRG", 4) == 0 && options.parseStrg) ||
+                (memcmp(chunkName, "CODE", 4) == 0 && options.parseCode) ||
+                (memcmp(chunkName, "TXTR", 4) == 0 && options.parseTxtr) ||
+                (memcmp(chunkName, "AUDO", 4) == 0 && options.parseAudo) ||
+                (memcmp(chunkName, "SPRT", 4) == 0 && options.parseSprt);
+            if (!keepMapped) {
+                dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+            }
         }
 
         // Free the chunk buffer and revert to FILE*-based reads for the next header

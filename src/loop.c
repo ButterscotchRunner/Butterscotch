@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include "string_compat.h"
 #include <time.h>
-#include <signal.h>
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
@@ -26,11 +25,15 @@
 #endif
 #endif
 #endif
+#ifndef __wasi__
+#include <signal.h>
+#endif
 
 #include "runner_keyboard.h"
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
+#include "debug_font/debug_font.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
     !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
 #define USE_GLAD
@@ -403,6 +406,8 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
 InputRecording* globalInputRecording = nullptr;
 
+#ifndef __wasi__
+
 #if defined(__has_feature)
     #if __has_feature(address_sanitizer)
         #define BUTTERSCOTCH_HAS_ASAN 1
@@ -445,6 +450,8 @@ static void installCrashHandlers(void) {
     signal(SIGILL,  crashSignalHandler);
 }
 
+#endif
+
 void saveInputRecording() {
     // Save input recording if active, then free
     if (globalInputRecording != nullptr) {
@@ -456,7 +463,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
@@ -525,6 +532,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
+    bool showDebugOverlay = false;
     while (true) {
         logInfo("Loading %s...\n", args.dataWinPath);
 
@@ -962,7 +970,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
         if (globalInputRecording != nullptr) {
             globalInputRecording->filterDebugKeys = args.debug;
+#ifndef __wasi__
             installCrashHandlers();
+#endif
         }
 #ifdef ENABLE_VM_TRACING
         shcopyFromTo(args.varReadsToBeTraced, runner->vmContext->varReadsToBeTraced);
@@ -1005,6 +1015,8 @@ int loop(CommandLineArgs args, const char *argv0) {
 
         // Main loop
         bool debugShowCollisionMasks = false;
+        size_t overlayCachedMemBytes = 0;
+        uint64_t overlayLastMemCheck = 0;
         bool freeCamActive = false;
         bool actuallyShuttingDown = false;
         bool wasPaused = false;
@@ -1112,6 +1124,13 @@ int loop(CommandLineArgs args, const char *argv0) {
                 }
 
                 free(json);
+            }
+
+            // Toggle the debug overlay
+            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F1)) {
+                showDebugOverlay = !showDebugOverlay;
+                shouldRender = true;
+                logDebug("Debug overlay %s!\n", showDebugOverlay ? "enabled" : "disabled");
             }
 
             // Toggle the collision mask debug overlay
@@ -1300,6 +1319,42 @@ int loop(CommandLineArgs args, const char *argv0) {
                 Runner_drawPost(runner, fbWidth, fbHeight);
                 renderer->vtable->endFrameEnd(renderer);
                 Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
+
+                if (showDebugOverlay && renderer->vtable->drawTextUI != nullptr) {
+                    renderer->vtable->beginGUI(renderer, fbWidth, fbHeight, 0, 0, fbWidth, fbHeight, RENDER_TARGET_HOST_FRAMEBUFFER);
+
+                    int32_t savedHalign = renderer->drawHalign;
+                    int32_t savedValign = renderer->drawValign;
+                    renderer->drawHalign = 0;
+                    renderer->drawValign = 0;
+
+                    char fpsText[64];
+                    snprintf(fpsText, sizeof(fpsText), "FPS: %.1f", runner->fps);
+
+                    float text_height = 10.0f;
+                    renderer->vtable->drawTextUI(renderer, fpsText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+
+                    /*
+                     * get_used_memory() is too slow to do every frame so we
+                     * cache the result and only re-check twice a second.
+                     */
+                    if (overlayCachedMemBytes == 0 || frameStartNow - overlayLastMemCheck >= 500000000U) {
+                        overlayCachedMemBytes = get_used_memory();
+                        overlayLastMemCheck = frameStartNow;
+                    }
+                    if (overlayCachedMemBytes != 0) {
+                        char memText[96];
+                        snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
+
+                        text_height += (float)DEBUGFONT_LINE_HEIGHT * 0.5f;
+                        renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+                    }
+
+                    renderer->drawHalign = savedHalign;
+                    renderer->drawValign = savedValign;
+
+                    renderer->vtable->endGUI(renderer);
+                }
             }
 
             if (runner->paused && enteringPause && !runner->debugMode) {
