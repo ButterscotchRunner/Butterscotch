@@ -15,12 +15,6 @@
 #define M_PI 3.1415926535897932384626
 #endif
 
-// Configurable Properties
-#define TEXTURE_LRU_LENGTH 64
-#define SURFACE_MAX_COUNT 64
-// (NOTE: See PIXEL_SIZE in defines.h)
-
-
 // Struct Definitions
 typedef struct
 {

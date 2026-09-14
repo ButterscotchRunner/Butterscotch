@@ -24,7 +24,16 @@
 // only fully support bm_normal.  Automatically set if you enable SW_DITHERED_BLENDING.
 //#define SW_BAD_BLEND_MODE_SUPPORT
 
-// Completely exclude bm_subtract support
+// Completely exclude bm_subtract support.
+//#define SW_NO_SUBTRACT_SUPPORT
+
+// Amount of textures that can be loaded in at once.  If too many are loaded,
+// start unloading.  Note that this isn't particularly effective towards memory
+// optimization, and we should be looking into something else.
+#define TEXTURE_LRU_LENGTH 64
+
+// Amount of surfaces that can be created at the same time.
+#define SURFACE_MAX_COUNT 64
 
 // -======- USER CONFIG END -======-
 
