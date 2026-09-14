@@ -10,7 +10,7 @@ jobs:
   Unix:
     uses: ./.github/workflows/build-desktop.yml
     with:
-      full-matrix: ${{ github.event_name == 'push' }}
+      full_matrix: ${{ github.event_name == 'push' }}
 
   Windows:
     uses: ./.github/workflows/build-windows.yml

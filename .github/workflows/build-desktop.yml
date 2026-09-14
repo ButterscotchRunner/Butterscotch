@@ -3,14 +3,14 @@ name: Unix builds
 on:
   workflow_call:
     inputs:
-        full-matrix:
+        full_matrix:
           type: boolean
           required: false
           default: true
 
 jobs:
   build-sdl2-desktop:
-    if: inputs.full-matrix || matrix.arch_config.name == 'amd64' || matrix.arch_config.name == 'i486'
+    if: inputs.full_matrix || matrix.arch_config.name == 'amd64' || matrix.arch_config.name == 'i486'
     name: Build (SDL2 ${{ matrix.os_config.name }} ${{ matrix.arch_config.name }})
     runs-on: ubuntu-24.04
     strategy:
@@ -30,95 +30,95 @@ jobs:
           - name: NetBSD
             triple_suffix_base: netbsd.10.1
             lib_dir_name: lib
-        arch_config:
-          - name: amd64
+        arch: ${{ inputs.full_matrix && fromJSON('["amd64","i486","aarch64","arm","powerpc","powerpc64","powerpc64le","riscv","loongarch64","mips","mipsel","mips64","mips64el"]') || fromJSON('["amd64","i486"]') }}
+        include:
+          - arch: amd64
             triple_prefix: x86_64
             linux_glibc_floor: "2.17"
-          - name: i486
+          - arch: i486
             triple_prefix: x86
             linux_glibc_floor: "2.17"
             cflags: "-march=i486"
-          - name: aarch64
+          - arch: aarch64
             triple_prefix: aarch64
             linux_glibc_floor: "2.17"
-          - name: arm
+          - arch: arm
             triple_prefix: arm
             abi: eabihf
             linux_glibc_floor: "2.17"
-          - name: powerpc
+          - arch: powerpc
             triple_prefix: powerpc
             abi: eabihf
             linux_glibc_floor: "2.17"
-          - name: powerpc64
+          - arch: powerpc64
             triple_prefix: powerpc64
             linux_glibc_floor: "2.17"
-          - name: powerpc64le
+          - arch: powerpc64le
             triple_prefix: powerpc64le
             linux_glibc_floor: "2.19"
-          - name: riscv
+          - arch: riscv
             triple_prefix: riscv64
             cflags: "-mcpu=generic_rv64+m+a+f+d+c"
             linux_glibc_floor: "2.27"
-          - name: loongarch64
+          - arch: loongarch64
             triple_prefix: loongarch64
             linux_glibc_floor: "2.36"
-          - name: mips
+          - arch: mips
             triple_prefix: mips
             abi: eabihf
             linux_glibc_floor: "2.17"
-          - name: mipsel
+          - arch: mipsel
             triple_prefix: mipsel
             abi: eabihf
             linux_glibc_floor: "2.17"
-          - name: mips64
+          - arch: mips64
             triple_prefix: mips64
             abi: abi64
             linux_glibc_floor: "2.17"
-          - name: mips64el
+          - arch: mips64el
             triple_prefix: mips64el
             abi: abi64
             linux_glibc_floor: "2.17"
         exclude:
           - os_config: { name: FreeBSD }
-            arch_config: { name: loongarch64 }
+            arch: loongarch64
           - os_config: { name: FreeBSD }
-            arch_config: { name: powerpc }
+            arch: powerpc 
           - os_config: { name: OpenBSD }
-            arch_config: { name: loongarch64 }
+            arch: loongarch64
           - os_config: { name: NetBSD }
-            arch_config: { name: loongarch64 }
+            arch: loongarch64
           - os_config: { name: NetBSD }
-            arch_config: { name: riscv }
+            arch: riscv
           - os_config: { name: NetBSD }
-            arch_config: { name: powerpc64 }
+            arch: powerpc64
           - os_config: { name: NetBSD }
-            arch_config: { name: powerpc64le }
+            arch: powerpc64le
           - os_config: { name: OpenBSD }
-            arch_config: { name: powerpc64le }
+            arch: powerpc64le
           - os_config: { name: FreeBSD }
-            arch_config: { name: mips }
+            arch: mips
           - os_config: { name: OpenBSD }
-            arch_config: { name: mips }
+            arch: mips
           - os_config: { name: NetBSD }
-            arch_config: { name: mips64 }
+            arch: mips64
           - os_config: { name: FreeBSD }
-            arch_config: { name: mips64 }
+            arch: mips64
           - os_config: { name: FreeBSD }
-            arch_config: { name: mipsel }
+            arch: mipsel
           - os_config: { name: OpenBSD }
-            arch_config: { name: mipsel }
+            arch: mipsel
           - os_config: { name: NetBSD }
-            arch_config: { name: mips64el }
+            arch: mips64el
           - os_config: { name: FreeBSD }
-            arch_config: { name: mips64el }
-            
+            arch: mips64el
     env:
       ZIG_VERSION: 0.16.0
       CC: zig cc
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
-      CFLAGS: "${{ matrix.arch_config.cflags }}"
-      TARGET_TRIPLE: "${{ matrix.arch_config.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'NetBSD') && format('-{0}', matrix.arch_config.abi) || '' }}${{ (matrix.arch_config.abi != '' && matrix.os_config.name == 'Linux') && matrix.arch_config.abi || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch_config.linux_glibc_floor) || '' }}"
+      CFLAGS: "${{ matrix.arch.cflags }}"
+      TARGET_TRIPLE: "${{ matrix.arch.triple_prefix }}-${{ matrix.os_config.triple_suffix_base }}${{ (matrix.arch.abi != '' && matrix.os_config.name == 'NetBSD') && format('-{0}', matrix.arch.abi) || '' }}${{ (matrix.arch.abi != '' && matrix.os_config.name == 'Linux') && matrix.arch.abi || '' }}${{ matrix.os_config.name == 'Linux' && format('.{0}', matrix.arch.linux_glibc_floor) || '' }}"
     
     steps:
       - name: Checkout Code
@@ -188,12 +188,12 @@ jobs:
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_FLAGS="${{ matrix.arch_config.cflags }} -flto"
+            -DCMAKE_C_FLAGS="${{ matrix.arch.cflags }} -flto"
           cmake --build build
           llvm-strip build/butterscotch
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Butterscotch-${{ matrix.os_config.name }}-${{ matrix.arch_config.name }}
+          name: Butterscotch-${{ matrix.os_config.name }}-${{ matrix.arch }}
           path: build/butterscotch${{ matrix.os_config.executable_suffix }}
