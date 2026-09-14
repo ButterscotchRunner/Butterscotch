@@ -18,14 +18,14 @@ SwrFontState;
 
 // ==== Internal functions ====
 
-FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int srcalpha, int dstalpha)
+FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int blendmode, int srcalpha, int dstalpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (x < swr->portX || y < swr->portY) return;
     if (x >= swr->maxX || y >= swr->maxY) return;
     
-    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, srcalpha, dstalpha);
+    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, blendmode, srcalpha, dstalpha);
 }
 
 static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixel_t color, UNUSED uintpixel_t color2, int alpha)
@@ -40,6 +40,7 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
 #if PIXEL_SIZE == 32
     if (color == color2)
@@ -47,7 +48,7 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
     {
         uintpixel_t *line = &swr->fb[dy * swr->fbPitch + dx];
         for (int i = 0; i < dw; i++)
-            alphaBlend(&line[i], color, srcalpha, invalpha);
+            alphaBlend(&line[i], color, blendmode, srcalpha, invalpha);
     }
 #if PIXEL_SIZE == 32
     else
@@ -76,7 +77,7 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
             rinit += rstep;
             ginit += gstep;
             binit += bstep;
-            alphaBlend(&line[i], resultPixel.l, srcalpha, invalpha);
+            alphaBlend(&line[i], resultPixel.l, blendmode, srcalpha, invalpha);
         }
     }
 #endif
@@ -94,6 +95,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
 #if PIXEL_SIZE == 32
     if (color == color2)
@@ -102,7 +104,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
         for (int i = 0; i < dh; i++)
         {
             uintpixel_t *line = &swr->fb[(dy + i) * swr->fbPitch + dx];
-            alphaBlend(&line[0], color, srcalpha, invalpha);
+            alphaBlend(&line[0], color, blendmode, srcalpha, invalpha);
         }
     }
 #if PIXEL_SIZE == 32
@@ -132,7 +134,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
             rinit += rstep;
             ginit += gstep;
             binit += bstep;
-            alphaBlend(&line[0], resultPixel.l, srcalpha, invalpha);
+            alphaBlend(&line[0], resultPixel.l, blendmode, srcalpha, invalpha);
         }
     }
 #endif
@@ -151,11 +153,13 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         return;
     }
     
+    SWRenderer* swr = (SWRenderer*) renderer;
     int dx = x2 - x1, dy = y2 - y1;
     int dx1 = swrAbs(dx), dy1 = swrAbs(dy), xe, ye, x, y;
     int px = 2 * dy1 - dx1, py = 2 * dx1 - dy1;
-    int srcalpha = swrCalcSrcAlpha((SWRenderer*) renderer, alpha);
-    int invalpha = swrCalcDstAlpha((SWRenderer*) renderer, alpha);
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
     uintpixel_t color = color1;
 #if PIXEL_SIZE == 32
@@ -192,7 +196,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
+        swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         
         while (x < xe)
         {
@@ -218,7 +222,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
+            swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         }
     }
     else
@@ -242,7 +246,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
         }
 #endif
         
-        swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
+        swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         
         while (y < ye)
         {
@@ -268,7 +272,7 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, M
             color = resultPixel.l;
 #endif
             
-            swrPlotPixel_(renderer, x, y, color, srcalpha, invalpha);
+            swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         }
     }
 }
@@ -346,6 +350,7 @@ static void swrDrawSpriteInternal(
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
     if (sw == dw)
     {
@@ -364,7 +369,7 @@ static void swrDrawSpriteInternal(
             {
                 uintpixel_t pixel = srcline[xs];
                 if (opaque(pixel))
-                    alphaBlend(&dstline[x], tint(tintColor, pixel), srcalpha, invalpha);
+                    alphaBlend(&dstline[x], tint(tintColor, pixel), blendmode, srcalpha, invalpha);
             }
         }
     }
@@ -386,7 +391,7 @@ static void swrDrawSpriteInternal(
             {
                 uintpixel_t pixel = srcline[(int)(xs2 >> fp_prec)];
                 if (opaque(pixel))
-                    alphaBlend(&dstline[x], tint(tintColor, pixel), srcalpha, invalpha);
+                    alphaBlend(&dstline[x], tint(tintColor, pixel), blendmode, srcalpha, invalpha);
             }
         }
     }
@@ -467,6 +472,7 @@ static void swrDrawSpriteRotatedInternal(
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
     for (int cy = minYc; cy < maxYc; cy++)
     {
@@ -504,7 +510,7 @@ static void swrDrawSpriteRotatedInternal(
             uintpixel_t src = texture->buffer[ty * texture->width + tx];
             
             if (opaque(src))
-                alphaBlend(&dstline[cx], tint(tintColor, src), srcalpha, invalpha);
+                alphaBlend(&dstline[cx], tint(tintColor, src), blendmode, srcalpha, invalpha);
         }
     }
 }
@@ -515,6 +521,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
     
     // Figure out the maximum Y extent of the triangle.
     // (Note that we know yup is the minimum.)
@@ -573,7 +580,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
             if (y >= 0) {
                 uintpixel_t* line = &swr->fb[y * swr->width];
                 for (int x = x1; x < x2; x++) {
-                    alphaBlend(&line[x], color1, srcalpha, invalpha);
+                    alphaBlend(&line[x], color1, blendmode, srcalpha, invalpha);
                 }
             }
         }
@@ -647,7 +654,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
             if (w2 > 65535 - w1) w2 = 65535 - w1;
             
             uintpixel_t blended = swrThreeWayBlend(color1, color2, color3, w1, w2, 65535 - w1 - w2);
-            alphaBlend(&line[x], blended, srcalpha, invalpha);
+            alphaBlend(&line[x], blended, blendmode, srcalpha, invalpha);
             
             e_up += d_up;
             e_left += d_left;
@@ -831,7 +838,8 @@ void swrPlotPixel(Renderer* renderer, float x, float y, uint32_t color, float al
     SWRenderer *swr = (SWRenderer*) renderer;
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
-    swrPlotPixel_(renderer, (float) x, (float) y, color, srcalpha, invalpha);
+    int blendmode = swr->blendMode;
+    swrPlotPixel_(renderer, (float) x, (float) y, color, blendmode, srcalpha, invalpha);
 }
 
 void swrDrawHLine(Renderer* renderer, float dx, float dy, float dw, uintpixel_t color, uintpixel_t color2, float alpha)

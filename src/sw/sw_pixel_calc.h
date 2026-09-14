@@ -4,17 +4,6 @@
 #include "defines.h"
 #include "pixel_convert.h"
 
-// Define if you want dithered alpha blending and triangle color blending.
-// It might be a good bit faster than doing blending the proper way.
-//#define SW_DITHERED_BLENDING
-
-// Define if you want tinting to be implemented inaccurately
-//#define SW_INACCURATE_TINTING
-
-// Define if you want to disable support for additional blend modes and only support bm_normal.
-// Should be set if you enable SW_DITHERED_BLENDING.
-//#define SW_NO_BLEND_MODE_SUPPORT
-
 // Random number generator to be used for 8-bpp blending operations.
 FORCE_INLINE int fastRandomIsh()
 {
@@ -91,18 +80,25 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
 //
 // NOTE: Obviously I could use SIMD here, but old computers didn't have SIMD, and the code
 // runs fast enough on modern computers to not need to do SIMD.
-FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalpha, int dstalpha)
+FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srcalpha, int dstalpha)
 {
 #if PIXEL_SIZE == 32 || PIXEL_SIZE == 16
-    // it's so significant here we might as well fill in the whole color
-    if (LIKELY(dstalpha < 3 && srcalpha > 253)) {
-        *dcolor = scolor;
-        return;
+
+#ifndef SW_NO_BLEND_MODE_SUPPORT
+    if (LIKELY(blendmode == bm_normal))
+#endif
+    {
+        // it's so significant here we might as well fill in the whole color
+        if (LIKELY(dstalpha < 2)) {
+            *dcolor = scolor;
+            return;
+        }
+        
+        // it's so insignificant here nobody will notice if we just don't...
+        if (UNLIKELY(dstalpha > 253))
+            return;
     }
-    
-    // it's so insignificant here nobody will notice if we just don't...
-    if (UNLIKELY(srcalpha == 0))
-        return;
+
 #endif
 
 #if PIXEL_SIZE == 8 || defined SW_DITHERED_BLENDING
@@ -112,30 +108,22 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalp
     }
     
     *dcolor = scolor;
-#elif PIXEL_SIZE == 32
+    return;
+#endif
+
+    /* Extract pixel channels */
+#if PIXEL_SIZE == 32
     Pixel32ARGB dc, sc;
     dc.l = *dcolor;
     sc.l = scolor;
     
-    int dcr = (dc.p.r * dstalpha + sc.p.r * srcalpha) >> 8;
-    int dcg = (dc.p.g * dstalpha + sc.p.g * srcalpha) >> 8;
-    int dcb = (dc.p.b * dstalpha + sc.p.b * srcalpha) >> 8;
-    
-    //clamp to 0
-    dcr &= ((-dcr) >> 31);
-    dcg &= ((-dcg) >> 31);
-    dcb &= ((-dcb) >> 31);
-    //clamp to 255
-    dcr |= ((signed char)(dcr >> 1) >> 7);
-    dcg |= ((signed char)(dcg >> 1) >> 7);
-    dcb |= ((signed char)(dcb >> 1) >> 7);
-    
-    dc.p.r = dcr;
-    dc.p.g = dcg;
-    dc.p.b = dcb;
-    dc.p.a = 0xFF;
-    
-    *dcolor = dc.l;
+    int scr = sc.p.r;
+    int scg = sc.p.g;
+    int scb = sc.p.b;
+    int dcr = dc.p.r;
+    int dcg = dc.p.g;
+    int dcb = dc.p.b;
+    int dca = 0xFF;
 #elif PIXEL_SIZE == 16
     int scb = scolor & 0x1F;
     int scg = (scolor >> 5) & 0x1F;
@@ -145,21 +133,39 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int srcalp
     int dcb = _dcolor & 0x1F;
     int dcg = (_dcolor >> 5) & 0x1F;
     int dcr = (_dcolor >> 10) & 0x1F;
+    int dca = 0xFF;
+#endif
     
+    /* Perform the actual blending ops on them */
     dcr = (dcr * dstalpha + scr * srcalpha) >> 8;
     dcg = (dcg * dstalpha + scg * srcalpha) >> 8;
     dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
     
-    // clamp to 0
-    dcr &= ((-dcr) >> 31);
-    dcg &= ((-dcg) >> 31);
-    dcb &= ((-dcb) >> 31);
-    // clamp to 255
-    dcr |= ((signed char)(dcr >> 1) >> 7);
-    dcg |= ((signed char)(dcg >> 1) >> 7);
-    dcb |= ((signed char)(dcb >> 1) >> 7);
+#ifndef SW_NO_BLEND_MODE_SUPPORT
+    /* Clamp them if needed */
+    if (UNLIKELY(blendmode != bm_normal))
+    {
+        //clamp to 0
+        dcr &= ((-dcr) >> 31);
+        dcg &= ((-dcg) >> 31);
+        dcb &= ((-dcb) >> 31);
+        //clamp to 255
+        dcr |= ((signed char)(dcr >> 1) >> 7);
+        dcg |= ((signed char)(dcg >> 1) >> 7);
+        dcb |= ((signed char)(dcb >> 1) >> 7);
+    }
+#endif
+
+    /* Then re-assemble the pixel. */
+#if PIXEL_SIZE == 32
+    dc.p.r = dcr;
+    dc.p.g = dcg;
+    dc.p.b = dcb;
+    dc.p.a = dca;
     
-    *dcolor = 0x8000 | dcb | (dcg << 5) | (dcr << 10);
+    *dcolor = dc.l;
+#elif PIXEL_SIZE == 16
+    *dcolor = (dca ? 0x8000 : 0) | dcb | (dcg << 5) | (dcr << 10);
 #endif
 }
 
