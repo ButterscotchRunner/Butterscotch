@@ -3123,7 +3123,6 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
 }
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     int32_t targetShader = (shaderIndex != -1) ? shaderIndex : renderer->currentShader;
