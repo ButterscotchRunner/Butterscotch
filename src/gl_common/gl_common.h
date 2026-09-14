@@ -101,5 +101,11 @@ bool GLCommon_primitivePrepare(
     GlPrimitive* primitive, GLuint whiteTexture,
     GLenum* mode, GLuint* textureId
 );
+void GLCommon_drawVertex(
+    GlVertex* vertex,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+);
 
 #endif /* _BS_GL_COMMON_H_ */

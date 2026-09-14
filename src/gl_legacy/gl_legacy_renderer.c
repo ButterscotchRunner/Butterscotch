@@ -237,7 +237,7 @@ static void glDestroy(Renderer* renderer) {
     gl->primitiveCapacity = 0;
     
     GlPrimitive_reset(&gl->currentPrimitive);
-    
+
     glDeleteTextures(1, &gl->whiteTexture);
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
@@ -525,16 +525,17 @@ static void glPrimitiveEnd(Renderer* renderer) {
 static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
     GLLegacyRenderer* gl = (GLLegacyRenderer*) renderer;
     legacyPrimitiveEnsureCapacity(gl, gl->currentPrimitive.vertexCount + 1);
-    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount++];
-    vert->x = x;
-    vert->y = y;
-    vert->z = z;
-    vert->u = u;
-    vert->v = v;
-    vert->r = BGR_R(color);
-    vert->g = BGR_G(color);
-    vert->b = BGR_B(color);
-    vert->a = floatToUnormByte(alpha);
+
+    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount];
+
+    GLCommon_drawVertex(
+        vert,
+        x, y, z,
+        color, alpha,
+        u, v
+    );
+
+    gl->currentPrimitive.vertexCount++;
 }
 
 static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t number) {

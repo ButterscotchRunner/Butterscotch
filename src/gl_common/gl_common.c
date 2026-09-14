@@ -275,3 +275,22 @@ bool GLCommon_primitivePrepare(
 
     return true;
 }
+
+void GLCommon_drawVertex(
+    GlVertex* vertex,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+) {
+    vertex->x = x;
+    vertex->y = y;
+    vertex->z = z;
+
+    vertex->u = u;
+    vertex->v = v;
+
+    vertex->r = (uint8_t)BGR_R(color);
+    vertex->g = (uint8_t)BGR_G(color);
+    vertex->b = (uint8_t)BGR_B(color);
+    vertex->a = floatToUnormByte(alpha);
+}

@@ -491,15 +491,13 @@ static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t
     }
 
     GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount];
-    vert->x = x;
-    vert->y = y;
-    vert->z = z;
-    vert->u = u;
-    vert->v = v;
-    vert->r = (uint8_t) BGR_R(color);
-    vert->g = (uint8_t) BGR_G(color);
-    vert->b = (uint8_t) BGR_B(color);
-    vert->a = floatToUnormByte(alpha);
+
+    GLCommon_drawVertex(
+        vert,
+        x, y, z,
+        color, alpha,
+        u, v
+    );
 
     gl->currentPrimitive.vertexCount++;
 }
