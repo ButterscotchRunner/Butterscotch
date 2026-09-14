@@ -9,9 +9,13 @@ on:
 jobs:
   Unix:
     uses: ./.github/workflows/build-desktop.yml
+    with:
+      full-matrix: ${{ github.event_name == 'push' }}
 
   Windows:
     uses: ./.github/workflows/build-windows.yml
+    with:
+      full-matrix: ${{ github.event_name == 'push' }}
 
   macOS:
     uses: ./.github/workflows/build-macos.yml

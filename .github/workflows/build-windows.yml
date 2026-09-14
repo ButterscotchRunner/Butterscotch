@@ -5,6 +5,7 @@ on:
 
 jobs:
   build-arm-windows:
+    if: inputs.full-matrix
     name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
