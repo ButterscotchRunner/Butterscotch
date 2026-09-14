@@ -183,11 +183,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->textureCount = dataWin->txtr.count;
 #endif
 
-    gl->currentPrimitive.type = PRIMITIVE_NONE;
-    gl->currentPrimitive.vertexCount = 0;
-    gl->currentPrimitive.textureId = 0;
-    gl->currentPrimitive.hasTexture = false;
-    
+    GlPrimitive_reset(&gl->currentPrimitive);
     gl->vertexData = nullptr;
     gl->primitiveCapacity = 0;
 
@@ -240,11 +236,8 @@ static void glDestroy(Renderer* renderer) {
     gl->vertexData = nullptr;
     gl->primitiveCapacity = 0;
     
-    gl->currentPrimitive.type = PRIMITIVE_NONE;
-    gl->currentPrimitive.vertexCount = 0;
-    gl->currentPrimitive.textureId = 0;
-    gl->currentPrimitive.hasTexture = false;
-
+    GlPrimitive_reset(&gl->currentPrimitive);
+    
     glDeleteTextures(1, &gl->whiteTexture);
 
     glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);

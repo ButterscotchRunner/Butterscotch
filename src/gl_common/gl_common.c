@@ -225,6 +225,13 @@ GLenum GLCommon_blendModeToDFactor(int mode) {
 
 // Primitive
 
+void GlPrimitive_reset(GlPrimitive* primitive) {
+    primitive->type = PRIMITIVE_NONE;
+    primitive->vertexCount = 0;
+    primitive->textureId = 0;
+    primitive->hasTexture = false;
+}
+
 void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId) {
     primitive->type = type;
     primitive->vertexCount = 0;

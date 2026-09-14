@@ -75,7 +75,13 @@ GLVer GLCommon_getGLVersion(void);
 
 #endif
 
-// Primitives
+// Primitives and vertices
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} GlVertex;
 
 typedef struct {
     int32_t type;
@@ -84,11 +90,7 @@ typedef struct {
     bool hasTexture;
 } GlPrimitive;
 
-typedef struct {
-    float x, y, z;
-    float u, v;
-    uint8_t r, g, b, a;
-} GlVertex;
+void GlPrimitive_reset(GlPrimitive* primitive);
 
 void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
 void GLCommon_primitiveBeginTexture(
