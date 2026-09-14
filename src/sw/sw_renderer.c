@@ -418,6 +418,24 @@ static void SWRenderer_drawTextColor(Renderer* renderer, const char* text, float
     swrDrawText(swr, text, x, y, xscale, yscale, angleDeg, c1, renderer->drawAlpha, lineSeparation);
 }
 
+static void SWRenderer_drawTextUI(Renderer* renderer, const char* text, float x, float y,
+                                  float xscale, float yscale, float angleDeg,
+                                  int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha,
+                                  float lineSeparation)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    (void) xscale;
+    (void) yscale;
+    (void) angleDeg;
+    (void) c2;
+    (void) c3;
+    (void) c4;
+    (void) lineSeparation;
+    
+    swrDrawDebugText(swr, text, (int) x, (int) y, c1, alpha);
+}
+
 static void SWRenderer_drawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
                                        float originX, float originY, float x, float y,
                                        float xscale, float yscale, bool tileX, bool tileY,
@@ -1480,6 +1498,7 @@ Renderer* SWRenderer_create(void)
     swrVtable.primitiveEnd             = SWRenderer_primitiveEnd;
     swrVtable.drawVertex               = SWRenderer_drawVertex;
     swrVtable.drawVertexBuffer         = SWRenderer_drawVertexBuffer;
+    swrVtable.drawTextUI               = SWRenderer_drawTextUI;
     
     swrVtable.drawTile                 = NULL;
     

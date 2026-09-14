@@ -4,6 +4,9 @@
 #include "text_utils.h"
 #include "sw_renderer_private.h"
 
+#define SWR_DEBUG_FONT_LINE_HEIGHT  16
+#define SWR_DEBUG_FONT_CHAR_WIDTH   8
+
 // ==== Internal structures ====
 
 typedef struct
@@ -17,6 +20,16 @@ typedef struct
 SwrFontState;
 
 // ==== Internal functions ====
+
+FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int blendmode, int srcalpha, int dstalpha)
+{
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    if (x < swr->portX || y < swr->portY) return;
+    if (x >= swr->maxX || y >= swr->maxY) return;
+    
+    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, blendmode, srcalpha, dstalpha);
+}
 
 static bool swrResolveFontState(SWRenderer* swr, DataWin* dw, Font* font, SwrFontState* state)
 {
@@ -92,6 +105,37 @@ static bool swrResolveGlyph(
     
     return true;
 }
+
+#ifdef SW_ENABLE_DEBUG_FONT
+
+extern const uint8_t swrDebugFont1bpp[];
+
+static void swrDrawDebugFontChar(SWRenderer* swr, char chr, int ax, int ay, uint32_t color, float alphaf)
+{
+    if (chr == ' ')
+        return;
+    if (chr < '!' || chr > '~')
+        chr = '?';
+    
+    int alpha = swrIntAlpha(alphaf);
+    int srcalpha = swrCalcSrcAlpha(swr, alpha);
+    int dstalpha = swrCalcDstAlpha(swr, alpha);
+    int blendmode = swr->blendMode;
+    
+    uintpixel_t actualColor = swrConvertPixel(color);
+    for (int y = 0; y < SWR_DEBUG_FONT_LINE_HEIGHT; y++)
+    {
+        for (int x = 0; x < SWR_DEBUG_FONT_CHAR_WIDTH; x++)
+        {
+            uint8_t row = swrDebugFont1bpp[chr * SWR_DEBUG_FONT_LINE_HEIGHT + y];
+            
+            if (row & (1 << (SWR_DEBUG_FONT_CHAR_WIDTH - 1 - x)))
+                swrPlotPixel_(&swr->base, ax + x, ay + y, actualColor, blendmode, srcalpha, dstalpha);
+        }
+    }
+}
+
+#endif
 
 // ==== Exposed interface ====
 
@@ -229,3 +273,40 @@ void swrDrawText(SWRenderer* swr, const char* text, float x, float y, float xsca
         }
     }
 }
+
+#ifdef SW_ENABLE_DEBUG_FONT
+
+void swrDrawDebugText(SWRenderer* swr, const char* text, int x, int y, uint32_t color, float alpha)
+{
+    int px = 0;
+    int py = 0;
+    
+    while (*text)
+    {
+        char chr = *text;
+        text++;
+        
+        if (chr == '\n') {
+            px = 0;
+            py += SWR_DEBUG_FONT_LINE_HEIGHT;
+            continue;
+        }
+        
+        swrDrawDebugFontChar(swr, chr, x + px, y + py, color, alpha);
+        px += SWR_DEBUG_FONT_CHAR_WIDTH;
+    }
+}
+
+#else
+
+void swrDrawDebugText(SWRenderer* swr, const char* text, int x, int y, uint32_t color, float alpha)
+{
+    (void) swr;
+    (void) text;
+    (void) x;
+    (void) y;
+    (void) color;
+    (void) alpha;
+}
+
+#endif

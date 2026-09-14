@@ -35,6 +35,9 @@
 // Amount of surfaces that can be created at the same time.
 #define SURFACE_MAX_COUNT 64
 
+// Whether to enable the debug font.
+#define SW_ENABLE_DEBUG_FONT
+
 // -======- USER CONFIG END -======-
 
 // Force enable dithered blending if in 8bpp mode.

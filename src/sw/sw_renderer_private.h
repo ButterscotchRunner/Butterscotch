@@ -109,5 +109,6 @@ SWRenderer;
 #include "sw_surface.h"
 #include "sw_drawing.h"
 #include "sw_texture_lru.h"
+#include "sw_text.h"
 
 #endif//_SW_RENDERER_PRIVATE_H
