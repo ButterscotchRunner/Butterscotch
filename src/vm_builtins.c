@@ -4816,6 +4816,33 @@ static RValue builtin_ds_map_destroy(VMContext* ctx, RValue* args, int32_t argCo
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_map_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_copy", 2, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t destId = RValue_toInt32(args[0]);
+    int32_t srcId = RValue_toInt32(args[1]);
+    DsMapEntry** destPtr = dsMapGet(runner, destId);
+    DsMapEntry** srcPtr = dsMapGet(runner, srcId);
+    if (destPtr == nullptr || srcPtr == nullptr || destPtr == srcPtr) return RValue_makeUndefined();
+    
+    ptrdiff_t len = shlen(*destPtr);
+    for (ptrdiff_t i = 0; i < len; i++) {
+        RValue_free(&(*destPtr)[i].value);
+        free((*destPtr)[i].key);
+    }
+    shfree(*destPtr);
+    *destPtr = nullptr;
+    
+    ptrdiff_t srcLen = shlen(*srcPtr);
+    {
+    for (ptrdiff_t i = 0; i < srcLen; i++) {
+        shput(*destPtr, safeStrdup((*srcPtr)[i].key),
+            RValue_makeIndependent((*srcPtr)[i].value));
+    }
+    }
+    return RValue_makeUndefined();
+}
+
 // ===[ DS_LIST FUNCTIONS ]===
 
 static RValue builtin_ds_list_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -5356,7 +5383,7 @@ static RValue builtin_ds_grid_height(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 }
 
 static RValue builtin_ds_grid_set(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    REQUIRE_ARGC_AT_MOST("ds_grid_set", 3, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_MOST("ds_grid_set", 4, RValue_makeUndefined());
 
     DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
     if (grid == nullptr) return RValue_makeUndefined();
@@ -21340,6 +21367,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_find_next", builtin_ds_map_find_next);
     VM_registerBuiltin(ctx, "ds_map_size", builtin_ds_map_size);
     VM_registerBuiltin(ctx, "ds_map_destroy", builtin_ds_map_destroy);
+    VM_registerBuiltin(ctx, "ds_map_copy", builtin_ds_map_copy);    
     VM_registerBuiltin(ctx, "ds_map_read", builtin_ds_map_read);
     VM_registerBuiltin(ctx, "ds_map_write", builtin_ds_map_write);
 
