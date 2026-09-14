@@ -2,6 +2,11 @@ name: Windows builds
 
 on:
   workflow_call:
+    inputs:
+      full-matrix:
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   build-arm-windows:
