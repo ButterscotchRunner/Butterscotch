@@ -2,6 +2,7 @@
 #define _BS_GL_COMMON_H_
 
 #include "common.h"
+#include "renderer.h"
 #include <stdint.h>
 #include "data_win.h"
 #include "debug_font/debug_font.h"
@@ -148,5 +149,61 @@ static inline float GLCommon_debugUIFontYOffset(GLDebugUIFont* ui, Font* font, F
         return (float) debugFontGlyphs[glyph->character - DEBUGFONT_FIRST_CP].yoffset;
     return 0.0f;
 }
+
+// Common GL Renderer struct
+
+enum GlMode {
+    GL_MODE_LEGACY = 0,
+    GL_MODE_MODERN = 1
+};
+
+typedef struct {
+    Renderer base; // Must be first field for struct embedding
+    enum GlMode glMode;
+
+    GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
+    GlPrimitive currentPrimitive;
+
+    GLuint* glTextures;       // one GL texture per TXTR page
+    int32_t* textureWidths;   // needed for UV normalization
+    int32_t* textureHeights;
+    bool* textureLoaded;      // lazy loading: true once PNG decoded and uploaded
+    uint32_t textureCount;
+
+    GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
+
+    // Embedded debug UI font backing drawTextUI (see gl_common.h).
+    GLDebugUIFont debugUI;
+
+    int32_t windowW; // stored from beginFrame for endFrame blit
+    int32_t windowH;
+    int32_t gameW; // game width (matches the application_surface size)
+    int32_t gameH; // game height (matches the application_surface size)
+
+    // Original counts from data.win (dynamic slots start at these indices)
+    uint32_t originalTexturePageCount;
+    uint32_t originalTpagCount;
+    uint32_t originalSpriteCount;
+
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
+
+    // GML surfaces (each is an FBO with a backing color texture)
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t surfaceCount;
+
+    // Blending mode + factors
+    bool blendEnable;
+    int32_t currentBlendMode;
+    int32_t currentSFactor;
+    int32_t currentDFactor;
+    int32_t currentSFactorAlpha;
+    int32_t currentDFactorAlpha;
+
+    bool alphaTestEnable;
+    float alphaTestRef;
+} GLRenderer;
 
 #endif /* _BS_GL_COMMON_H_ */

@@ -913,7 +913,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            hostFramebuffer = &((GLRenderer *)renderer)->hostFramebuffer;
+            hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif
         if (!renderer) {
