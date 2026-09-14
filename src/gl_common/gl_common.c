@@ -277,11 +277,14 @@ bool GLCommon_primitivePrepare(
 }
 
 void GLCommon_drawVertex(
-    GlVertex* vertex,
+    GLRenderer* gl,
     float x, float y, float z,
     uint32_t color, float alpha,
     float u, float v
 ) {
+    int32_t vertexCount = gl->currentPrimitive.vertexCount;
+    GLVertex* vertex = &gl->vertexData[vertexCount];
+
     vertex->x = x;
     vertex->y = y;
     vertex->z = z;
@@ -293,6 +296,8 @@ void GLCommon_drawVertex(
     vertex->g = (uint8_t)BGR_G(color);
     vertex->b = (uint8_t)BGR_B(color);
     vertex->a = floatToUnormByte(alpha);
+
+    gl->currentPrimitive.vertexCount++;
 }
 
 // ===[ Debug UI font (drawTextUI) ]===

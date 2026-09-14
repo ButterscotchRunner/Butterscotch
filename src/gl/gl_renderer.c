@@ -489,16 +489,12 @@ static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t
         gl->currentPrimitive.vertexCount = 0;
     }
 
-    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount];
-
     GLCommon_drawVertex(
-        vert,
+        gl,
         x, y, z,
         color, alpha,
         u, v
     );
-
-    gl->currentPrimitive.vertexCount++;
 }
 
 // ===[ Vtable Implementations ]===

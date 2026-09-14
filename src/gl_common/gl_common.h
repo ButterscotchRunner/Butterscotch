@@ -113,7 +113,7 @@ bool GLCommon_primitivePrepare(
     GLenum* mode, GLuint* textureId
 );
 void GLCommon_drawVertex(
-    GlVertex* vertex,
+    GLRenderer* gl,
     float x, float y, float z,
     uint32_t color, float alpha,
     float u, float v
