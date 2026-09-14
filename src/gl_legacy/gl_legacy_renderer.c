@@ -175,7 +175,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
     GlPrimitive_reset(&gl->currentPrimitive);
     gl->vertexData = nullptr;
-
     legacyGl->primitiveCapacity = 0;
 
     gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
