@@ -469,15 +469,9 @@ static void glPrimitiveBeginTexture(
     int32_t texture
 ) {
     GLRenderer* gl = (GLRenderer*)renderer;
-    glPrimitiveBegin(renderer, primitiveType);
-
     GLuint texId = 0;
     glResolvePrimitiveTexture(gl, texture, &texId);
-
-    GLCommon_primitiveBeginTexture(
-        &gl->currentPrimitive, primitiveType,
-        gl->whiteTexture, texId
-    );
+    GLCommon_primitiveBeginTexture(gl, primitiveType, texId);
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {
@@ -514,16 +508,12 @@ static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t
     GLRenderer* gl = (GLRenderer*) renderer;
     legacyPrimitiveEnsureCapacity(gl, gl->currentPrimitive.vertexCount + 1);
 
-    GlVertex* vert = &gl->vertexData[gl->currentPrimitive.vertexCount];
-
     GLCommon_drawVertex(
-        vert,
+        gl,
         x, y, z,
         color, alpha,
         u, v
     );
-
-    gl->currentPrimitive.vertexCount++;
 }
 
 static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* buffer, int32_t primitive, int32_t texture, int32_t offset, int32_t number) {

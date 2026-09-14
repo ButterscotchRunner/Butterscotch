@@ -7,6 +7,9 @@
 #include "data_win.h"
 #include "debug_font/debug_font.h"
 
+struct GLRenderer;
+typedef struct GLRenderer GLRenderer;
+
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_PS3
@@ -104,16 +107,13 @@ typedef struct {
 void GlPrimitive_reset(GlPrimitive* primitive);
 
 void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
-void GLCommon_primitiveBeginTexture(
-    GlPrimitive* primitive, int32_t primitiveType,
-    GLuint whiteTexture, GLuint resolvedTexture
-);
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture);
 bool GLCommon_primitivePrepare(
     GlPrimitive* primitive, GLuint whiteTexture,
     GLenum* mode, GLuint* textureId
 );
 void GLCommon_drawVertex(
-    GlVertex* vertex,
+    GLRenderer* gl,
     float x, float y, float z,
     uint32_t color, float alpha,
     float u, float v
@@ -157,7 +157,7 @@ enum GlMode {
     GL_MODE_MODERN = 1
 };
 
-typedef struct {
+struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
 
@@ -204,6 +204,6 @@ typedef struct {
 
     bool alphaTestEnable;
     float alphaTestRef;
-} GLRenderer;
+};
 
 #endif /* _BS_GL_COMMON_H_ */
