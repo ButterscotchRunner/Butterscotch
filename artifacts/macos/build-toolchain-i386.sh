@@ -60,7 +60,7 @@ if [ "$(cat toolchain-i386/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; t
     cd ../..
     rm -rf "cctools-port-$cctools_commit" &
 
-    cp "platformdir/clang-wrapper-i386.sh" toolchain-i386/bin/i386-apple-darwin8-gcc
+    cp "$platformdir/clang-wrapper-i386.sh" toolchain-i386/bin/i386-apple-darwin8-gcc
 
     rm -rf toolchain-i386/share
     printf '%s' "$ppctoolchainver" > toolchain-i386/toolchainver
