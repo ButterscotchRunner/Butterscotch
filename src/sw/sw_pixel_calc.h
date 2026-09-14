@@ -120,6 +120,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
     int scr = sc.p.r;
     int scg = sc.p.g;
     int scb = sc.p.b;
+    int sca = sc.p.a;
     int dcr = dc.p.r;
     int dcg = dc.p.g;
     int dcb = dc.p.b;
@@ -128,6 +129,7 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
     int scb = scolor & 0x1F;
     int scg = (scolor >> 5) & 0x1F;
     int scr = (scolor >> 10) & 0x1F;
+    int sca = (scolor & 0x8000) ? 255 : 0;
 
     uintpixel_t _dcolor = *dcolor;
     int dcb = _dcolor & 0x1F;
@@ -136,10 +138,20 @@ FORCE_INLINE void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendm
     int dca = 0xFF;
 #endif
     
-    /* Perform the actual blending ops on them */
-    dcr = (dcr * dstalpha + scr * srcalpha) >> 8;
-    dcg = (dcg * dstalpha + scg * srcalpha) >> 8;
-    dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
+    if (UNLIKELY(blendmode == bm_subtract))
+    {
+        dcr = (dcr * (255 - scr)) >> 8;
+        dcg = (dcg * (255 - scg)) >> 8;
+        dcb = (dcb * (255 - scb)) >> 8;
+        dca = (dca * (255 - sca)) >> 8;
+    }
+    else
+    {
+        /* Perform the actual blending ops on them */
+        dcr = (dcr * dstalpha + scr * srcalpha) >> 8;
+        dcg = (dcg * dstalpha + scg * srcalpha) >> 8;
+        dcb = (dcb * dstalpha + scb * srcalpha) >> 8;
+    }
     
 #ifndef SW_NO_BLEND_MODE_SUPPORT
     /* Clamp them if needed */
