@@ -22,6 +22,7 @@ typedef struct GLRenderer GLRenderer;
 #endif
 
 void GLCommon_beginFrame(GLRenderer* gl,  int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+void GLCommon_init(Renderer* renderer);
 
 // ===[ Letterbox blit ]===
 

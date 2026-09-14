@@ -128,21 +128,14 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, co
 static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) renderer;
-
     renderer->dataWin = dataWin;
-
-    Matrix4f world;
-    Matrix4f_identity(&world);
-    renderer->gmlMatrices[MATRIX_WORLD] = world;
-
-#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
-    gl_init_wrappers();
-#endif
 
     if (!hasFBO()) {
         logError("GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
+
+    GLCommon_init(renderer);
 
     // GL 2.0+ has NPOT textures as core; older GL (1.x) may or may not have
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
@@ -161,60 +154,10 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glDisable(GL_DEPTH_TEST);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-#ifdef PLATFORM_PS3
-    // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
-    gl->textureCount = PS3Textures_getPageCount();
-#elif defined(PLATFORM_VITA)
-    if (VitaTextures_Active())
-        gl->textureCount = VitaTextures_GetPageCount();
-    else
-        gl->textureCount = dataWin->txtr.count;
-#else
-    gl->textureCount = dataWin->txtr.count;
-#endif
-
-    GlPrimitive_reset(&gl->currentPrimitive);
     gl->vertexData = nullptr;
     legacyGl->primitiveCapacity = 0;
 
-    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
-
-    glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
-
-    for (uint32_t i = 0; gl->textureCount > i; i++) {
-        gl->textureWidths[i] = 0;
-        gl->textureHeights[i] = 0;
-        gl->textureLoaded[i] = false;
-    }
-
-    // Create 1x1 white pixel texture for primitive drawing (rectangles, lines, etc.)
-    glGenTextures(1, &gl->whiteTexture);
-    glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
-    uint8_t whitePixel[4] = {255, 255, 255, 255};
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // Enable blending
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     glBindTexture(GL_TEXTURE_2D, 0);
-
-    // Save original counts so we know which slots are from data.win vs dynamic
-    gl->originalTexturePageCount = gl->textureCount;
-    gl->originalTpagCount = dataWin->tpag.count;
-    gl->originalSpriteCount = dataWin->sprt.count;
-
-    // application_surface is allocated lazily by glLegacyEnsureApplicationSurface as a normal entry in the surface table.
-    gl->surfaces = nullptr;
-    gl->surfaceTexture = nullptr;
-    gl->surfaceWidth = nullptr;
-    gl->surfaceHeight = nullptr;
-    gl->surfaceCount = 0;
 
     logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }

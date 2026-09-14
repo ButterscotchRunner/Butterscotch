@@ -1,4 +1,5 @@
 #include "gl_common.h"
+#include "gl_wrappers.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -22,6 +23,77 @@ void GLCommon_beginFrame(GLRenderer* gl,  int32_t gameW, int32_t gameH, int32_t 
     gl->base.CPortY = 0;
     gl->base.CPortW = gameW;
     gl->base.CPortH = gameH;
+}
+
+void GLCommon_init(Renderer* renderer) {   
+    GLRenderer* gl = (GLRenderer*) renderer; 
+    DataWin* dataWin = renderer->dataWin;
+
+    Matrix4f world;
+    Matrix4f_identity(&world);
+    renderer->gmlMatrices[MATRIX_WORLD] = world;
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3)
+    gl_init_wrappers();
+#endif
+
+    gl->alphaTestEnable = false;
+    gl->alphaTestRef = 0.0f;
+    gl->colorWriteR = true;
+    gl->colorWriteG = true;
+    gl->colorWriteB = true;
+    gl->colorWriteA = true;
+
+    // Prepare texture slots for lazy loading (PNG decode deferred to first use)
+#ifdef PLATFORM_PS3
+    // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
+    gl->textureCount = PS3Textures_getPageCount();
+#elif defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
+#else
+    gl->textureCount = dataWin->txtr.count;
+#endif
+
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
+
+    glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
+
+    for (uint32_t i = 0; gl->textureCount > i; i++) {
+        gl->textureWidths[i] = 0;
+        gl->textureHeights[i] = 0;
+        gl->textureLoaded[i] = false;
+    }
+
+    GlPrimitive_reset(&gl->currentPrimitive);
+
+    // Create 1x1 white pixel texture for primitive drawing (rectangles, lines, etc.)
+    glGenTextures(1, &gl->whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
+    uint8_t whitePixel[4] = {255, 255, 255, 255};
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Save original counts so we know which slots are from data.win vs dynamic
+    gl->originalTexturePageCount = gl->textureCount;
+    gl->originalTpagCount = dataWin->tpag.count;
+    gl->originalSpriteCount = dataWin->sprt.count;
+
+    gl->surfaces = nullptr;
+    gl->surfaceTexture = nullptr;
+    gl->surfaceWidth = nullptr;
+    gl->surfaceHeight = nullptr;
+    gl->surfaceCount = 0;
 }
 
 // ===[ Letterbox blit ]===

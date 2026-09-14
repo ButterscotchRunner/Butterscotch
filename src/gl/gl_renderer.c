@@ -571,11 +571,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLModernRenderer *modernGl = (GLModernRenderer*) renderer;
     renderer->dataWin = dataWin;
 
-    Matrix4f world;
-    Matrix4f_identity(&world);
-    renderer->gmlMatrices[MATRIX_WORLD] = world;
-
-    GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
     GLVer ver = GLCommon_getGLVersion();
     if (ver.major < 2) {
         logError("GL: The modern-gl renderer requires OpenGL 2.0 or newer\n");
@@ -584,14 +579,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     modernGl->isGL3 = (ver.major >= 3);
     modernGl->isGLES = ver.isGLES;
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
-    gl_init_wrappers();
-#endif
-
     if (!hasFBO()) {
         logError("GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
+
+    GLCommon_init(renderer);
+    
+    GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
 
     char vertSrc[1024];
     char fragSrc[1024];
@@ -714,12 +709,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLShaderUniform* uAlphaTestRef = getShaderUniform(modernGl->defaultShaderProgram, "uAlphaTestRef", GL_FLOAT);
     GLShaderUniform* uFogColor     = getShaderUniform(modernGl->defaultShaderProgram, "uFogColor",     GL_FLOAT_VEC4);
 
-    gl->alphaTestEnable = false;
-    gl->alphaTestRef = 0.0f;
-    gl->colorWriteR = true;
-    gl->colorWriteG = true;
-    gl->colorWriteB = true;
-    gl->colorWriteA = true;
     modernGl->fogEnable = false;
     modernGl->fogColor = 0;
     glUseProgram(modernGl->defaultShaderProgram->shaderId);
@@ -773,47 +762,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     gl->vertexData = (GlVertex *)safeMalloc(MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex));
 #endif
 
-    // Prepare texture slots for lazy loading (PNG decode deferred to first use)
-#if defined(PLATFORM_VITA)
-    if (VitaTextures_Active())
-        gl->textureCount = VitaTextures_GetPageCount();
-    else
-        gl->textureCount = dataWin->txtr.count;
-#else
-    gl->textureCount = dataWin->txtr.count;
-#endif
-    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
-    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
-    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
-
-    glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
-
-    for (uint32_t i = 0; gl->textureCount > i; i++) {
-        gl->textureWidths[i] = 0;
-        gl->textureHeights[i] = 0;
-        gl->textureLoaded[i] = false;
-    }
-
-    // Create 1x1 white pixel texture for primitive drawing (rectangles, lines, etc.)
-    glGenTextures(1, &gl->whiteTexture);
-    glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
-    uint8_t whitePixel[4] = {255, 255, 255, 255};
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // Enable blending
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
-
-    // Save original counts so we know which slots are from data.win vs dynamic
-    gl->originalTexturePageCount = gl->textureCount;
-    gl->originalTpagCount = dataWin->tpag.count;
-    gl->originalSpriteCount = dataWin->sprt.count;
 
     logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
