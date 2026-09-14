@@ -41,12 +41,12 @@ jobs:
 
       - name: Build SDL 1.2
         run: |
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/39e1580a7d2f8c09521338108c2a94019e37798e.tar.gz" | tar -xz
           cd SDL-1.2-*
           sed -e 's/-fpascal-strings//g' configure > configure.patched
           mv configure.patched configure
           chmod +x configure
-          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           ./configure \
             --host="${{ matrix.triple }}" \
             --prefix="$HOME/sdl" \
