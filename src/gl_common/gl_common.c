@@ -239,17 +239,17 @@ void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textu
     primitive->hasTexture = (textureId != 0);
 }
 
-void GLCommon_primitiveBeginTexture(
-    GlPrimitive* primitive, int32_t primitiveType,
-    GLuint whiteTexture, GLuint resolvedTexture
-) {
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture) {
+    glPrimitiveBegin(gl, primitiveType);
+    GlPrimitive* primitive = &gl->currentPrimitive;
+
     primitive->type = primitiveType;
     primitive->vertexCount = 0;
 
     primitive->hasTexture = resolvedTexture != 0;
     primitive->textureId = primitive->hasTexture
         ? resolvedTexture
-        : whiteTexture;
+        : gl->whiteTexture;
 }
 
 bool GLCommon_primitivePrepare(
