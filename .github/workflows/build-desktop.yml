@@ -10,7 +10,6 @@ on:
 
 jobs:
   build-sdl2-desktop:
-    if: inputs.full_matrix || matrix.arch_config.name == 'amd64' || matrix.arch_config.name == 'i486'
     name: Build (SDL2 ${{ matrix.os_config.name }} ${{ matrix.arch_config.name }})
     runs-on: ubuntu-24.04
     strategy:
