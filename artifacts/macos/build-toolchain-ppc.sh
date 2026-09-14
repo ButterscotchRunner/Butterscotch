@@ -62,12 +62,11 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
     strip ld64/src/ld/ld
     mv ld64/src/ld/ld ../../toolchain-ppc/bin/ppc-ld
     make -C libstuff -j"$ncpus"
-    make -C misc nm strip ranlib lipo -j"$ncpus"
+    make -C misc nm strip ranlib -j"$ncpus"
     strip misc/nm misc/strip misc/ranlib
     mv misc/nm ../../toolchain-ppc/bin/ppc-nm
     mv misc/strip ../../toolchain-ppc/bin/ppc-strip
     mv misc/ranlib ../../toolchain-ppc/bin/ppc-ranlib
-    mv misc/lipo ../../toolchain-ppc/bin
     make -C as/ppc -j"$ncpus"
     strip as/ppc/ppc-as
     mv as/ppc/ppc-as ../../toolchain-ppc/bin/ppc-as
@@ -101,7 +100,6 @@ if [ "$(cat toolchain-ppc/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; th
         AR_FOR_TARGET="$(command -v ppc-ar)" \
         RANLIB_FOR_TARGET="$(command -v ppc-ranlib)" \
         NM_FOR_TARGET="$(command -v ppc-nm)" \
-        LIPO_FOR_TARGET="$(command -v lipo)" \
         STRIP_FOR_TARGET="$(command -v ppc-strip)" \
         "$@"
     make -j"$ncpus"

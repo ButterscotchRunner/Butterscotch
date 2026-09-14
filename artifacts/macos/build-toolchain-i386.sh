@@ -57,9 +57,6 @@ if [ "$(cat toolchain-i386/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; t
     make -C ld64 -j"$ncpus"
     strip ld64/src/ld/ld
     mv ld64/src/ld/ld ../../toolchain-i386/bin/i386-apple-darwin8-ld
-    #make -C libstuff -j"$ncpus"
-    make -C misc lipo -j"$ncpus"
-    mv misc/lipo ../../toolchain-i386/bin
     cd ../..
     rm -rf "cctools-port-$cctools_commit" &
 

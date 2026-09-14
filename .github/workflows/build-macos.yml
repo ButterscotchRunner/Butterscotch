@@ -15,11 +15,11 @@ jobs:
             ar: ppc-ar
             ranlib: ppc-ranlib
             deps: libgmp-dev libmpc-dev libmpfr-dev
-          #- arch: i386
-          #  triple: i386-apple-darwin8
-          #  ar: llvm-ar
-          #  ranlib: llvm-ranlib
-          #  deps: clang llvm
+          - arch: i386
+            triple: i386-apple-darwin8
+            ar: llvm-ar
+            ranlib: llvm-ranlib
+            deps: clang llvm
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
