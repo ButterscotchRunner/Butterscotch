@@ -14,8 +14,11 @@
 // Random number generator to be used for 8-bpp blending operations.
 FORCE_INLINE int fastRandomIsh()
 {
-    static uint32_t rng = 1;
-	return rng = (uint64_t)rng * 48271 % 0x7fffffff;
+    static int rng = 0;
+    rng += 1339;
+    if (rng > 601000)
+        rng = 0;
+    return rng;
 }
 
 // Check if a pixel is opaque.
