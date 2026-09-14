@@ -1,2 +1,2 @@
 #!/bin/sh
-exec clang -target i386-apple-darwin8 -isysroot "${0%/*}/../../sdk" "$@"
+SDKROOT="${0%/*}/../../sdk" exec clang -target i386-apple-darwin8 "$@"
