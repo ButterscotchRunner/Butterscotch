@@ -22,6 +22,7 @@ typedef struct {
 
     GlVertex* vertexData;
     GlPrimitive currentPrimitive;
+    int32_t primitiveCapacity;
 
     GLuint* glTextures;       // one GL texture per TXTR page
     int32_t* textureWidths;   // needed for UV normalization

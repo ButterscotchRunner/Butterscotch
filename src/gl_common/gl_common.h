@@ -75,6 +75,14 @@ GLVer GLCommon_getGLVersion(void);
 
 #endif
 
+// Utils
+
+static inline uint8_t floatToUnormByte(float v) {
+    if (v <= 0.0f) return 0;
+    if (v >= 1.0f) return 255;
+    return (uint8_t)(v * 255.0f + 0.5f);
+}
+
 // Primitives and vertices
 
 typedef struct {
