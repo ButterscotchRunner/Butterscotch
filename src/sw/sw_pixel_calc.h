@@ -92,7 +92,14 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
 
     /* If we didn't disable subtract support and are in dithered blending mode */
 #if defined SW_DITHERED_BLENDING
-#ifndef SW_NO_SUBTRACT_SUPPORT
+#ifdef SW_NO_SUBTRACT_SUPPORT
+
+#ifndef SW_BAD_BLEND_MODE_SUPPORT
+    if (UNLIKELY(blendmode == bm_subtract))
+        return;
+#endif // SW_NO_BLEND_MODE_SUPPORT
+
+#else // SW_NO_SUBTRACT_SUPPORT
     if (UNLIKELY(blendmode == bm_subtract))
     {
     #if PIXEL_SIZE == 8
@@ -146,6 +153,14 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
             return;
     }
     
+#ifndef SW_BAD_BLEND_MODE_SUPPORT
+    if (UNLIKELY(blendmode == bm_add))
+    {
+        *dcolor |= scolor;
+        return;
+    }
+#endif
+
     *dcolor = scolor;
 
 #else

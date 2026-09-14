@@ -568,6 +568,9 @@ static void SWRenderer_clearScreen(Renderer* renderer, uint32_t color, float alp
         color |= (alpha > 0.5f);
     #endif
     }
+#else
+    if (alpha < 0.5f)
+        color = PXL_TRANSPARENT;
 #endif
     
     for (int y = 0; y < swr->height; y++) {

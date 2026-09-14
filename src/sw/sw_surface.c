@@ -75,18 +75,28 @@ void swrCommitShadowWritesToSurfaceIfNeeded(SWRenderer* swr, SWSurface* surface)
     if (swr->writeMask & WRITE_MASK_BLUE)  mask |= 0x001F;
     if (swr->writeMask & WRITE_MASK_ALPHA) mask |= 0x8000;
 #else
-    // TODO: although it DOES use rgb332, needs special handling for ALPHA
-    logError("swr: Unimplemented color masking for 8-bit mode\n");
-    swrFreeTexture(surface->texture);
-    surface->texture = surface->shadowTexture;
-    surface->shadowTexture = NULL;
-    return;
+    bool copyAlpha = false;
+    if (swr->writeMask & WRITE_MASK_RED)   mask |= 0x07;
+    if (swr->writeMask & WRITE_MASK_GREEN) mask |= 0x38;
+    if (swr->writeMask & WRITE_MASK_BLUE)  mask |= 0xC0;
+    if (swr->writeMask & WRITE_MASK_ALPHA) copyAlpha = true;
 #endif
 
     uintpixel_t invmask = ~mask;
     size_t max = surface->texture->width * surface->texture->height;
     for (size_t i = 0; i < max; i++)
     {
+    #if PIXEL_SIZE == 8
+        // If the new pixel is transparent
+        if (surface->shadowTexture->buffer[i] == PXL_TRANSPARENT) {
+            surface->texture->buffer[i] = copyAlpha ? PXL_TRANSPARENT : PXL_TRANSPARENT + 1;
+            continue;
+        }
+        // If the old pixel was transparent and we aren't copying alpha
+        if (surface->texture->buffer[i] == PXL_TRANSPARENT && !copyAlpha) {
+            continue;
+        }
+    #endif
         surface->shadowTexture->buffer[i] =
         surface->texture->buffer[i] = (surface->texture->buffer[i] & invmask) | (surface->shadowTexture->buffer[i] & mask);
     }

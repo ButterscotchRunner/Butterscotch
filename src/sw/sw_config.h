@@ -42,18 +42,12 @@
 
 #ifndef SW_DITHERED_BLENDING
 #define SW_DITHERED_BLENDING
-#endif // SW_DITHERED_BLENDING
+#endif
+
+#ifndef SW_NO_SUBTRACT_SUPPORT
+#define SW_NO_SUBTRACT_SUPPORT
+#endif
 
 #endif // PIXEL_SIZE == 8
-
-// Disable blend mode support forcefully if we're on 8-bpp color
-// or if we requested dithered blending
-#ifdef SW_DITHERED_BLENDING
-
-#ifndef SW_BAD_BLEND_MODE_SUPPORT
-#define SW_BAD_BLEND_MODE_SUPPORT
-#endif // !SW_BAD_BLEND_MODE_SUPPORT
-
-#endif // SW_DITHERED_BLENDING
 
 #endif // __SW_CONFIG_H
