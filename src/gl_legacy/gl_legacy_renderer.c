@@ -109,21 +109,10 @@ static void glApplyViewport(GLLegacyRenderer* gl, int32_t x, int32_t y, int32_t 
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
 static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix) {
+    Renderer_applyProjection(renderer, viewMatrix, projectionMatrix);
 
-    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f view = *viewMatrix;
-    Matrix4f projection = *projectionMatrix;
-
-    Matrix4f worldView;
-    Matrix4f_multiply(&worldView, &view, &world);
-
-    Matrix4f worldViewProjection;
-    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
-
-    renderer->gmlMatrices[MATRIX_VIEW] = view;
-    renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
+    Matrix4f projection = renderer->gmlMatrices[MATRIX_PROJECTION];
+    Matrix4f worldView = renderer->gmlMatrices[MATRIX_WORLD_VIEW];
 
 #ifndef PLATFORM_PS3
     Matrix4f_flipClipY(&projection);

@@ -891,22 +891,9 @@ static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix,con
 
     // Flush first so pending quads draw under the projection they were issued with.
     flushBatch(gl);
+    
+    Renderer_applyProjection(renderer, viewMatrix, projectionMatrix);
 
-    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
-    Matrix4f view = *viewMatrix;
-    Matrix4f projection = *projectionMatrix;
-
-    Matrix4f worldView;
-    Matrix4f_multiply(&worldView, &view, &world);
-
-    Matrix4f worldViewProjection;
-    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
-
-    renderer->gmlMatrices[MATRIX_VIEW] = view;
-    renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
-    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
-    //oh my I hope it's good enough.
     glShaderSettingsRefresh(renderer);
 }
 

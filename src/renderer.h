@@ -933,4 +933,21 @@ static inline void Renderer_drawRoundRect(Renderer* renderer, float x1, float y1
     Renderer_drawRoundRectColor(renderer, x1, y1, x2, y2, xrad, yrad, renderer->drawColor, renderer->drawColor, outline);
 }
 
+static inline void Renderer_applyProjection(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix) {
+    Matrix4f world = renderer->gmlMatrices[MATRIX_WORLD];
+    Matrix4f view = *viewMatrix;
+    Matrix4f projection = *projectionMatrix;
+
+    Matrix4f worldView;
+    Matrix4f worldViewProjection;
+
+    Matrix4f_multiply(&worldView, &view, &world);
+    Matrix4f_multiply(&worldViewProjection, &projection, &worldView);
+
+    renderer->gmlMatrices[MATRIX_VIEW] = view;
+    renderer->gmlMatrices[MATRIX_PROJECTION] = projection;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW] = worldView;
+    renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION] = worldViewProjection;
+}
+
 #endif /* _BS_RENDERER_H_ */
