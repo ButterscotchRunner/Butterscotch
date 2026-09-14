@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "data_win.h"
+#include "debug_font/debug_font.h"
 #include "image_decoder.h"
 #include "log.h"
 #include "runner.h"
@@ -51,6 +52,11 @@ typedef struct {
     int32_t* pageHeights;
     uint32_t pageCount;
     uint32_t originalTexturePageCount;
+
+    Font debugUIFont;
+    FontGlyph debugUIGlyphs[DEBUGFONT_GLYPH_COUNT];
+    SDL_Surface* debugUISurface;
+    bool debugUIInitialized;
 
     SDL_Surface** surfaceSurfaces;
     int32_t *surfaceWidths;
@@ -592,6 +598,8 @@ static void sdlInit(Renderer* renderer, DataWin* dataWin) {
     sdl->originalTpagCount = dataWin != NULL ? dataWin->tpag.count : 0;
     sdl->originalSpriteCount = dataWin != NULL ? dataWin->sprt.count : 0;
 
+    sdl->debugUISurface = NULL;
+    sdl->debugUIInitialized = false;
     sdl->surfaceSurfaces = NULL;
     sdl->framebufferW = 0;
     sdl->framebufferH = 0;
@@ -631,6 +639,7 @@ static void sdlDestroy(Renderer* renderer) {
     if (sdl->framebufferTex) { SDL_DestroyTexture(sdl->framebufferTex); sdl->framebufferTex = NULL; }
     if (sdl->sdlRenderer) { SDL_DestroyRenderer(sdl->sdlRenderer); sdl->sdlRenderer = NULL; }
     if (sdl->window) { SDL_DestroyWindow(sdl->window); sdl->window = NULL; }
+    if (sdl->debugUISurface) { SDL_FreeSurface(sdl->debugUISurface); sdl->debugUISurface = NULL; }
 
     if (sdl->pageSurfaces != NULL) {
         for (uint32_t i = 0; i < sdl->pageCount; ++i) {
@@ -952,6 +961,54 @@ static bool sdlResolveFontState(SDLRenderer* sdl, DataWin* dw, Font* font, SDLFo
     return true;
 }
 
+static void sdlInitDebugUIFont(SDLRenderer* sdl) {
+    if (sdl == NULL || sdl->debugUIInitialized) return;
+
+    Font* font = &sdl->debugUIFont;
+    font->name = "DebugUI";
+    font->displayName = "DebugUI";
+    font->scaleX = 1.0f;
+    font->scaleY = 1.0f;
+    font->ascenderOffset = 0;
+    font->maxGlyphHeight = DEBUGFONT_LINE_HEIGHT;
+    font->emSize = (float) DEBUGFONT_LINE_HEIGHT;
+    font->isSpriteFont = false;
+    font->tpagIndex = -1;
+
+    repeat(DEBUGFONT_GLYPH_COUNT, i) {
+        const DebugFontGlyphEntry* e = &debugFontGlyphs[i];
+        FontGlyph* g = &sdl->debugUIGlyphs[i];
+        g->character = (uint16_t) (DEBUGFONT_FIRST_CP + i);
+        g->sourceX = e->x;
+        g->sourceY = e->y;
+        g->sourceWidth = e->w;
+        g->sourceHeight = e->h;
+        g->shift = e->xadvance;
+        g->offset = e->xoffset;
+        g->kerningCount = 0;
+        g->kerning = NULL;
+    }
+
+    font->glyphs = sdl->debugUIGlyphs;
+    font->glyphCount = DEBUGFONT_GLYPH_COUNT;
+    Font_buildGlyphLUT(font);
+
+    SDL_Surface* surf = SDL_CreateRGBSurfaceWithFormat(0, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (surf != NULL) {
+        uint8_t* pixels = (uint8_t*)surf->pixels;
+        for (int32_t i = 0; i < DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H; ++i) {
+            uint8_t a = debugFontPixels[i];
+            pixels[i * 4 + 0] = 0xFF;
+            pixels[i * 4 + 1] = 0xFF;
+            pixels[i * 4 + 2] = 0xFF;
+            pixels[i * 4 + 3] = a;
+        }
+        sdl->debugUISurface = surf;
+    }
+
+    sdl->debugUIInitialized = true;
+}
+
 static bool sdlResolveGlyph(SDLRenderer* sdl, DataWin* dw, SDLFontState* state, FontGlyph* glyph, float cursorX, float cursorY,
     SDL_Surface** outSurface, int32_t* outSrcX, int32_t* outSrcY, int32_t* outSrcW, int32_t* outSrcH,
     float* outLocalX0, float* outLocalY0) {
@@ -981,7 +1038,27 @@ static bool sdlResolveGlyph(SDLRenderer* sdl, DataWin* dw, SDLFontState* state, 
         return true;
     }
 
-    if (state->fontTpag == nullptr || state->pageSurface == nullptr) return false;
+    if (state->pageSurface == nullptr) return false;
+    if (state->fontTpag == nullptr) {
+        *outSurface = state->pageSurface;
+        *outSrcX = glyph->sourceX;
+        *outSrcY = glyph->sourceY;
+        *outSrcW = glyph->sourceWidth;
+        *outSrcH = glyph->sourceHeight;
+        *outLocalX0 = cursorX + (float) glyph->offset;
+
+        if (font == &sdl->debugUIFont && DEBUGFONT_FIRST_CP <= glyph->character && glyph->character <= DEBUGFONT_LAST_CP) {
+            int32_t glyphIndex = (int32_t) (glyph - font->glyphs);
+            if (glyphIndex >= 0 && glyphIndex < DEBUGFONT_GLYPH_COUNT) {
+                *outLocalY0 = cursorY + (float) debugFontGlyphs[glyphIndex].yoffset;
+            } else {
+                *outLocalY0 = cursorY;
+            }
+        } else {
+            *outLocalY0 = cursorY;
+        }
+        return true;
+    }
 
     *outSurface = state->pageSurface;
     *outSrcX = state->fontTpag->sourceX + glyph->sourceX;
@@ -993,31 +1070,26 @@ static bool sdlResolveGlyph(SDLRenderer* sdl, DataWin* dw, SDLFontState* state, 
     return true;
 }
 
-static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation, uint32_t color, float alpha) {
+static void sdlDrawTextWithFont(Renderer* renderer, Font* font, SDLFontState* fontState, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation, uint32_t color, float alpha) {
     SDL_TRACE_CALL();
     SDLRenderer* sdl = (SDLRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
 
-    if (text == nullptr || text[0] == '\0') return;
-    if (0 > renderer->drawFont || dw == nullptr || dw->font.count <= (uint32_t) renderer->drawFont) return;
+    if (font == NULL || text == NULL || text[0] == '\0') return;
+    if (fontState == NULL) return;
 
-    Font* font = &dw->font.fonts[renderer->drawFont];
-    SDLFontState fontState;
-    if (!sdlResolveFontState(sdl, dw, font, &fontState)) return;
-
-    int32_t textLen = (int32_t) strlen(text);
+    int32_t textLen = (int32_t)strlen(text);
     if (textLen == 0) return;
 
-    (void) angleDeg;
-
+    (void)angleDeg;
     int32_t lineCount = TextUtils_countLines(text, textLen);
     float lineStride = (0.0f > lineSeparation) ? TextUtils_lineStride(font) : (lineSeparation / (font->scaleY != 0.0f ? font->scaleY : 1.0f));
 
     float valignOffset = 0.0f;
-    if (renderer->drawValign == 1) valignOffset = -((float) lineCount * lineStride) / 2.0f;
-    else if (renderer->drawValign == 2) valignOffset = -((float) lineCount * lineStride);
+    if (renderer->drawValign == 1) valignOffset = -((float)lineCount * lineStride) / 2.0f;
+    else if (renderer->drawValign == 2) valignOffset = -((float)lineCount * lineStride);
 
-    float cursorY = valignOffset - (float) font->ascenderOffset;
+    float cursorY = valignOffset - (float)font->ascenderOffset;
     int32_t lineStart = 0;
 
     while (textLen >= lineStart) {
@@ -1028,14 +1100,13 @@ static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, f
 
         int32_t lineLen = lineEnd - lineStart;
         const char* line = text + lineStart;
-
         float lineWidth = TextUtils_measureLineWidth(font, line, lineLen);
+
         float halignOffset = 0.0f;
         if (renderer->drawHalign == 1) halignOffset = -lineWidth / 2.0f;
         else if (renderer->drawHalign == 2) halignOffset = -lineWidth;
 
         float cursorX = halignOffset;
-
         int32_t pos = 0;
         uint16_t ch = 0;
         bool hasCh = false;
@@ -1050,18 +1121,18 @@ static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, f
             bool hasNext = lineLen > pos;
             if (hasNext) nextCh = TextUtils_decodeUtf8(line, lineLen, &pos);
 
-            if (glyph != nullptr && glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
+            if (glyph != NULL && glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
                 SDL_Surface* glyphSurface = NULL;
                 int32_t srcX = 0, srcY = 0, srcW = 0, srcH = 0;
                 float localX0 = 0.0f, localY0 = 0.0f;
-                if (sdlResolveGlyph(sdl, dw, &fontState, glyph, cursorX, cursorY,
+                if (sdlResolveGlyph(sdl, dw, fontState, glyph, cursorX, cursorY,
                     &glyphSurface, &srcX, &srcY, &srcW, &srcH, &localX0, &localY0)) {
                     float drawScaleX = xscale * font->scaleX;
                     float drawScaleY = yscale * font->scaleY;
-                    int32_t dstX = (int32_t) floorf(x + localX0 * drawScaleX);
-                    int32_t dstY = (int32_t) floorf(y + localY0 * drawScaleY);
-                    int32_t dstW = (int32_t) floorf((float) srcW * fabsf(drawScaleX));
-                    int32_t dstH = (int32_t) floorf((float) srcH * fabsf(drawScaleY));
+                    int32_t dstX = (int32_t)floorf(x + localX0 * drawScaleX);
+                    int32_t dstY = (int32_t)floorf(y + localY0 * drawScaleY);
+                    int32_t dstW = (int32_t)floorf((float)srcW * fabsf(drawScaleX));
+                    int32_t dstH = (int32_t)floorf((float)srcH * fabsf(drawScaleY));
                     if (dstW > 0 && dstH > 0) {
                         sdlBlitSurfaceToFramebuffer(sdl, glyphSurface, srcX, srcY, srcW, srcH,
                             dstX, dstY, dstW, dstH, drawScaleX, drawScaleY, color, alpha);
@@ -1069,8 +1140,8 @@ static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, f
                 }
             }
 
-            cursorX += (float) glyph->shift;
-            if (glyph != nullptr && hasNext) {
+            cursorX += (float)glyph->shift;
+            if (glyph != NULL && hasNext) {
                 cursorX += TextUtils_getKerningOffset(glyph, nextCh);
             }
 
@@ -1087,6 +1158,21 @@ static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, f
     }
 }
 
+static void sdlDrawTextInternal(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation, uint32_t color, float alpha) {
+    SDL_TRACE_CALL();
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    DataWin* dw = renderer->dataWin;
+
+    if (text == nullptr || text[0] == '\0') return;
+    if (0 > renderer->drawFont || dw == nullptr || dw->font.count <= (uint32_t) renderer->drawFont) return;
+
+    Font* font = &dw->font.fonts[renderer->drawFont];
+    SDLFontState fontState;
+    if (!sdlResolveFontState(sdl, dw, font, &fontState)) return;
+
+    sdlDrawTextWithFont(renderer, font, &fontState, text, x, y, xscale, yscale, angleDeg, lineSeparation, color, alpha);
+}
+
 static void sdlDrawText(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {
     SDL_TRACE_CALL();
     sdlDrawTextInternal(renderer, text, x, y, xscale, yscale, angleDeg, lineSeparation, renderer->drawColor, renderer->drawAlpha);
@@ -1095,6 +1181,35 @@ static void sdlDrawTextColor(Renderer* renderer, const char* text, float x, floa
     SDL_TRACE_CALL();
     (void)c2; (void)c3; (void)c4;
     sdlDrawTextInternal(renderer, text, x, y, xscale, yscale, angleDeg, lineSeparation, c1, alpha);
+}
+static void sdlDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation) {
+    SDL_TRACE_CALL();
+    if (renderer == NULL || text == NULL || text[0] == '\0') return;
+
+    SDLRenderer* sdl = (SDLRenderer*)renderer;
+    sdlInitDebugUIFont(sdl);
+    if (sdl->debugUISurface == NULL) return;
+
+    Font* font = &sdl->debugUIFont;
+    SDLFontState fontState;
+    memset(&fontState, 0, sizeof(fontState));
+    fontState.font = font;
+    fontState.pageSurface = sdl->debugUISurface;
+
+    int32_t textLen = (int32_t)strlen(text);
+    if (textLen == 0) return;
+
+    int32_t lineCount = TextUtils_countLines(text, textLen);
+    float lineStride = (0.0f > lineSeparation) ? TextUtils_lineStride(font) : (lineSeparation / (font->scaleY != 0.0f ? font->scaleY : 1.0f));
+
+    float valignOffset = 0.0f;
+    if (renderer->drawValign == 1) valignOffset = -((float) lineCount * lineStride) / 2.0f;
+    else if (renderer->drawValign == 2) valignOffset = -((float) lineCount * lineStride);
+
+    float cursorY = valignOffset - (float) font->ascenderOffset;
+    int32_t lineStart = 0;
+
+    sdlDrawTextWithFont(renderer, font, &fontState, text, x, y, xscale, yscale, angleDeg, lineSeparation, c1, alpha);
 }
 static void sdlFlush(Renderer* renderer) {
     SDL_TRACE_CALL();
@@ -1678,6 +1793,7 @@ Renderer* SDLRenderer_createWithMode(SDLRendererMode mode) {
     sdlVtable.drawLineColor = sdlDrawLineColor;
     sdlVtable.drawText = sdlDrawText;
     sdlVtable.drawTextColor = sdlDrawTextColor;
+    sdlVtable.drawTextUI = sdlDrawTextUI;
     sdlVtable.primitiveBegin = sdlPrimitiveBegin;
     sdlVtable.primitiveBeginTexture = sdlPrimitiveBeginTexture;
     sdlVtable.primitiveEnd = sdlPrimitiveEnd;
