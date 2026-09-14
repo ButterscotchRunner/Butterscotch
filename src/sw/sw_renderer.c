@@ -182,8 +182,8 @@ static void SWRenderer_endView(Renderer* renderer)
     
     swr->viewX = 0;
     swr->viewY = 0;
-    swr->portX = swr->offsetX;
-    swr->portY = swr->offsetY;
+    swr->portX = 0;
+    swr->portY = 0;
     swr->portW = swr->viewW = swr->width;
     swr->portH = swr->viewH = swr->height;
     swr->maxX = swr->portX + swr->portW;
@@ -432,7 +432,7 @@ static void SWRenderer_drawTextUI(Renderer* renderer, const char* text, float x,
     (void) c3;
     (void) c4;
     (void) lineSeparation;
-    
+
     swrDrawDebugText(swr, text, (int) x, (int) y, c1, alpha);
 }
 
