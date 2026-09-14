@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-sdl2-desktop:
-    name: Build (SDL2 ${{ matrix.os_config.name }} ${{ matrix.arch_config.name }})
+    name: Build (SDL2 ${{ matrix.os_config.name }} ${{ matrix.arch }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
