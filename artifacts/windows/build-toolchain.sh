@@ -160,8 +160,7 @@ case $arch in
             --disable-shared \
             --disable-stdio-redirect \
             --disable-threads \
-            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -flto -mtune=i686' \
-            AR="$target-gcc-ar"
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -mtune=i686'
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
@@ -177,8 +176,7 @@ case $arch in
             --host="$target" \
             --prefix="$workdir/toolchain-$arch/$target" \
             --disable-shared \
-            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -flto' \
-            AR="$target-gcc-ar"
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer'
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
