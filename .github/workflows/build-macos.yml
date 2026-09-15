@@ -17,15 +17,24 @@ jobs:
             deps: libgmp-dev libmpc-dev libmpfr-dev
           - arch: i386
             triple: i386-apple-darwin8
-            ar: llvm-ar
-            ranlib: llvm-ranlib
-            deps: clang llvm
+            ar: llvm-ar-23
+            ranlib: llvm-ranlib-23
     runs-on: ubuntu-24.04
+    env:
+      CLANG: clang-23
     steps:
       - uses: actions/checkout@v7
 
+      - name: install llvm 23
+        if: ${{ matrix.arch == "i386" }}
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh 23
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang-23 llvm-23
+
       - name: install dependencies
-        run: sudo apt-get install ${{ matrix.deps }} ccache
+        run: sudo apt-get install -y ${{ matrix.deps }} ccache
 
       - uses: actions/cache@v6
         with:
