@@ -24,6 +24,7 @@ class GameMetadataFormState(
     initialRunnerOs: GameEntry.RunnerOs,
     initialEnablePhysicalControllers: Boolean,
     initialEnablePhysicalKeyboard: Boolean,
+    initialPhysicalControllerSideways: Boolean,
     initialEnableWidescreenHack: Boolean,
     initialPostProcessing: GameEntry.PostProcessingSettings,
 ) {
@@ -34,6 +35,7 @@ class GameMetadataFormState(
     var runnerOs by mutableStateOf(initialRunnerOs)
     var enablePhysicalControllers by mutableStateOf(initialEnablePhysicalControllers)
     var enablePhysicalKeyboard by mutableStateOf(initialEnablePhysicalKeyboard)
+    var physicalControllerSideways by mutableStateOf(initialPhysicalControllerSideways)
     var enableWidescreenHack by mutableStateOf(initialEnableWidescreenHack)
     var postProcessing by mutableStateOf(initialPostProcessing)
 
@@ -51,6 +53,7 @@ fun rememberGameMetadataFormState(
     runnerOs: GameEntry.RunnerOs,
     enablePhysicalControllers: Boolean,
     enablePhysicalKeyboard: Boolean,
+    physicalControllerSideways: Boolean,
     enableWidescreenHack: Boolean,
     postProcessing: GameEntry.PostProcessingSettings = GameEntry.PostProcessingSettings()
 ): GameMetadataFormState = remember(key) {
@@ -61,6 +64,7 @@ fun rememberGameMetadataFormState(
         initialLandscapeLayout = landscapeLayout,
         initialRunnerOs = runnerOs,
         initialEnablePhysicalControllers = enablePhysicalControllers,
+        initialPhysicalControllerSideways = physicalControllerSideways,
         initialEnablePhysicalKeyboard = enablePhysicalKeyboard,
         initialEnableWidescreenHack = enableWidescreenHack,
         initialPostProcessing = postProcessing

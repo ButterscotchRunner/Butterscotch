@@ -132,7 +132,19 @@ fun MetadataForm(
             subtitle = null,
             checked = state.enablePhysicalControllers,
             onChange = { state.enablePhysicalControllers = it },
+
+
         )
+
+        Spacer(Modifier.height(16.dp))
+
+        if (state.enablePhysicalControllers)
+            InputToggle(
+                title = "Turn physical controllers sideways",
+                subtitle = "Useful for shmups",
+                checked = state.physicalControllerSideways,
+                onChange = {state.physicalControllerSideways = it},
+            )
 
         Spacer(Modifier.height(16.dp))
 
