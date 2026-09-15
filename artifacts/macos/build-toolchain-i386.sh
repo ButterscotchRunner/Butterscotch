@@ -45,7 +45,7 @@ if [ "$(cat toolchain-i386/toolchainver 2>/dev/null)" != "$ppctoolchainver" ]; t
     rm -rf toolchain-i386
     mkdir -p toolchain-i386/bin
 
-    cctools_commit=db5f7bad6e3a8e26936bc91e69791bc7b5ef6407
+    cctools_commit=264424571c57ad345b8db3fda347a747e04ef160
     rm -rf cctools-port-*
     wget -O- "https://github.com/Un1q32/cctools-port/archive/$cctools_commit.tar.gz" | tar -xz
 
