@@ -96,6 +96,39 @@ void GLCommon_init(Renderer* renderer) {
     gl->surfaceCount = 0;
 }
 
+void GLCommon_destroy(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    GlPrimitive_reset(&gl->currentPrimitive);
+    
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
+
+    glDeleteTextures(1, &gl->whiteTexture);
+    glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
+    gl->textureCount = 0;
+    
+    for (uint32_t i = 0; gl->surfaceCount > i; i++) {
+        if (gl->surfaceTexture[i] != 0) glDeleteTextures(1, &gl->surfaceTexture[i]);
+        if (gl->surfaces[i] != 0) glDeleteFramebuffers(1, &gl->surfaces[i]);
+    }
+    gl->surfaceCount = 0;
+
+    free(gl->surfaces);
+    free(gl->surfaceTexture);
+    free(gl->surfaceWidth);
+    free(gl->surfaceHeight);
+
+    free(gl->glTextures);
+    free(gl->textureWidths);
+    free(gl->textureHeights);
+    free(gl->textureLoaded);
+
+#ifndef PLATFORM_VITA
+    free(gl->vertexData);
+#endif
+
+    free(gl);
+}
+
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {

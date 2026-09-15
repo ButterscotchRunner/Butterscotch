@@ -870,45 +870,25 @@ static void freeShader(GMLShader* shader) {
 static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
-    
-    glDeleteTextures(1, &gl->whiteTexture);
-    GLCommon_deleteDebugFontTexture(&gl->debugUI);
 
     repeat(modernGl->gmlShaderCount, i) {
         freeShader(&modernGl->gmlShaders[i]);
     }
 
     free(modernGl->gmlShaders);
-
-    repeat(gl->surfaceCount, i) {
-        if (gl->surfaceTexture[i] != 0) glDeleteTextures(1, &gl->surfaceTexture[i]);
-        if (gl->surfaces[i] != 0) glDeleteFramebuffers(1, &gl->surfaces[i]);
-    }
-    free(gl->surfaces);
-    free(gl->surfaceTexture);
-    free(gl->surfaceWidth);
-    free(gl->surfaceHeight);
-
     freeShader(modernGl->defaultShaderProgram);
     free(modernGl->defaultShaderProgram);
-    glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
     if (hasVAO()) glDeleteVertexArrays(1, &modernGl->vao);
     glDeleteBuffers(1, &modernGl->vbo);
     glDeleteBuffers(1, &modernGl->ebo);
 
-    free(gl->glTextures);
-    free(gl->textureWidths);
-    free(gl->textureHeights);
-    free(gl->textureLoaded);
     free(modernGl->uWorldViewProjection);
     free(modernGl->uFogColor);
     free(modernGl->uAlphaTestRef);
     free(modernGl->uAlphaTestEnabled);
     free(modernGl->uTexture);
-#ifndef PLATFORM_VITA
-    free(gl->vertexData);
-#endif
-    free(gl);
+
+    GLCommon_destroy(renderer);
 }
 
 static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {

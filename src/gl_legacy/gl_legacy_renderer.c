@@ -166,30 +166,10 @@ static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) renderer;
 
-    free(gl->vertexData);
     gl->vertexData = nullptr;
     legacyGl->primitiveCapacity = 0;
-    
-    GlPrimitive_reset(&gl->currentPrimitive);
 
-    glDeleteTextures(1, &gl->whiteTexture);
-    GLCommon_deleteDebugFontTexture(&gl->debugUI);
-
-    glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
-
-    for (uint32_t i = 0; gl->surfaceCount > i; i++) {
-        if (gl->surfaceTexture[i] != 0) glDeleteTextures(1, &gl->surfaceTexture[i]);
-        if (gl->surfaces[i] != 0) glDeleteFramebuffers(1, &gl->surfaces[i]);
-    }
-    free(gl->surfaces);
-    free(gl->surfaceTexture);
-    free(gl->surfaceWidth);
-    free(gl->surfaceHeight);
-
-    free(gl->glTextures);
-    free(gl->textureWidths);
-    free(gl->textureHeights);
-    free(gl);
+    GLCommon_destroy(renderer);
 }
 
 static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
