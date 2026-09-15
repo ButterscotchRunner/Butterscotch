@@ -97,13 +97,56 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
 
         // Analog sticks: forward raw, the runner deadzones on read. Left = X/Y, right = Z/RZ (the
         // common Android mapping; controllers that expose the right stick on RX/RY won't drive it).
-        sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_X))
-        sendAxis(slot, state, AXIS_LV, event.getAxisValue(MotionEvent.AXIS_Y))
-        sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_Z))
-        sendAxis(slot, state, AXIS_RV, event.getAxisValue(MotionEvent.AXIS_RZ))
+        if (!runner.physicalControllerSideways){
+            sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_X))
+            sendAxis(slot, state, AXIS_LV, event.getAxisValue(MotionEvent.AXIS_Y))
+            sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_Z))
+            sendAxis(slot, state, AXIS_RV, event.getAxisValue(MotionEvent.AXIS_RZ))
 
-        // Many controllers report the dpad as a hat axis rather than dpad keycodes.
-        updateHat(slot, state, event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+            // Many controllers report the dpad as a hat axis rather than dpad keycodes.
+            updateHat(slot, state, event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+
+        } else {
+            // Sideways controller movement
+            sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_Y))
+            sendAxis(slot, state, AXIS_LV, -event.getAxisValue(MotionEvent.AXIS_X))
+            sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_RZ))
+            sendAxis(slot, state, AXIS_RV, -event.getAxisValue(MotionEvent.AXIS_Z))
+
+            // Dpad as buttons
+            val xhat = signOf(event.getAxisValue(MotionEvent.AXIS_HAT_X))
+            val yhat = signOf(event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+
+            if (xhat != state.lastHatX)
+            {
+                if(xhat < 0)
+                    runner.onGamepadButton(slot, 0, true)
+                else if (state.lastHatX < 0)
+                    runner.onGamepadButton(slot, 0, false)
+
+                if(xhat > 0)
+                    runner.onGamepadButton(slot, 3, true)
+                else if (state.lastHatX > 0)
+                    runner.onGamepadButton(slot, 3, false)
+            }
+
+            if(yhat != state.lastHatY)
+            {
+                if (yhat < 0)
+                    runner.onGamepadButton(slot, 2, true)
+                else if(state.lastHatY < 0)
+                    runner.onGamepadButton(slot, 2, false)
+
+                if (yhat > 0)
+                    runner.onGamepadButton(slot, 1, true)
+                else if(state.lastHatY > 0)
+                    runner.onGamepadButton(slot, 1, false)
+            }
+
+            state.lastHatX = xhat
+            state.lastHatY = yhat
+        }
+
 
         // Analog triggers -> digital L2/R2. Different controllers use LTRIGGER/RTRIGGER or BRAKE/GAS.
         val left = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE))

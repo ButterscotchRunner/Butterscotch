@@ -335,8 +335,9 @@ private fun ConfigurePane(
         landscapeLayout = LayoutLibrary.DEFAULT_LANDSCAPE_LAYOUT,
         runnerOs = GameEntry.RunnerOs.WINDOWS,
         enablePhysicalControllers = true,
+        physicalControllerSideways = false,
         enablePhysicalKeyboard = true,
-        enableWidescreenHack = false
+        enableWidescreenHack = false,
     )
 
     MetadataForm(
