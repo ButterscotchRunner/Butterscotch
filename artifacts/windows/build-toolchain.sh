@@ -44,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=3
+toolchainver=4
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -159,7 +159,9 @@ case $arch in
             --prefix="$workdir/toolchain-$arch/$target" \
             --disable-shared \
             --disable-stdio-redirect \
-            --disable-threads
+            --disable-threads \
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -flto -mtune=i686' \
+            AR="$target-gcc-ar"
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
@@ -174,7 +176,9 @@ case $arch in
         ./configure \
             --host="$target" \
             --prefix="$workdir/toolchain-$arch/$target" \
-            --disable-shared
+            --disable-shared \
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -flto' \
+            AR="$target-gcc-ar"
         make -j"$ncpus"
         make -j"$ncpus" install
         cd ..
