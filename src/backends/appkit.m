@@ -707,3 +707,16 @@ void platformSleepUntil(uint64_t time) {
         YIELD();
     }
 }
+
+#ifdef ENABLE_SW_RENDERER
+
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, int bpp)
+{
+    // TODO: this is a placeholder
+    (void) framebuffer;
+    (void) width;
+    (void) height;
+    (void) bpp;
+}
+
+#endif
