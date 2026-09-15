@@ -9,6 +9,12 @@
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
 
+#ifdef PLATFORM_PS3
+#include "ps3_textures.h"
+#elif PLATFORM_VITA
+#include "vita_textures.h"
+#endif
+
 void GLCommon_beginFrame(GLRenderer* gl,  int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
     gl->gameW = gameW;
     gl->gameH = gameH;
