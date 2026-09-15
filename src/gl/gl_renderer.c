@@ -924,7 +924,10 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
 
-    GLCommon_beginGUI(renderer, targetSurfaceId, modernGl->hostFramebuffer, GL_TEXTURE1, glApplyProjection);
+    GLCommon_beginGUI(
+        renderer, targetSurfaceId, modernGl->hostFramebuffer, GL_TEXTURE1, glApplyProjection,
+        guiW, guiH, portX, portY, portW, portH
+    );
 
     if (hasVAO()) glBindVertexArray(modernGl->vao);
 }

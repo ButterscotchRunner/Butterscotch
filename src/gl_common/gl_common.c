@@ -169,19 +169,22 @@ void GLCommon_endView() {
     glDisable(GL_SCISSOR_TEST);
 }
 
-void GLCommon_beginGUI(Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection) {
+void GLCommon_beginGUI(
+    Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection,
+    int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH
+) {
     GLRenderer* gl = (GLRenderer*) renderer;
     if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
         glBindFramebuffer(GL_FRAMEBUFFER, hostFramebuffer);
         int32_t sx, sy, ex, ey;
-        GLCommon_computeLetterbox(renderer->runner->gameWidth, renderer->runner->gameHeight, renderer->runner->windowWidth, renderer->runner->windowHeight, &sx, &sy, &ex, &ey);
+        GLCommon_computeLetterbox(guiW, guiH, portW, portH, &sx, &sy, &ex, &ey);
         glViewport(sx, sy, ex - sx, ey - sy);
         glScissor(sx, sy, ex - sx, ey - sy);
     } else {
-        require(targetSurfaceId >= 0 && targetSurfaceId < gl->surfaceCount);
+        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
-        GLCommon_applyViewport(gl, 0, 0, gl->surfaceWidth[targetSurfaceId], gl->surfaceHeight[targetSurfaceId]);
+        int32_t glPortY = gl->gameH - portY - portH;
+        GLCommon_applyViewport(gl, portX, glPortY, portW, portH);
     }
 
     glEnable(GL_SCISSOR_TEST);

@@ -178,7 +178,10 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     GLRenderer* gl = (GLRenderer*) renderer;
 
     glBindTexture(GL_TEXTURE_2D, 0);
-    GLCommon_beginGUI(renderer, targetSurfaceId, 0, GL_TEXTURE0, glApplyProjection);
+    GLCommon_beginGUI(
+        renderer, targetSurfaceId, 0, GL_TEXTURE0, glApplyProjection,
+        guiW, guiH, portX, portY, portW, portH
+    );
 }
 
 static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
