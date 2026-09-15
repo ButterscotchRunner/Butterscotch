@@ -48,7 +48,7 @@ jobs:
       - name: Build toolchain
         run: ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
         env:
-          LLVM_CONFIG=llvm-config-23
+          LLVM_CONFIG: llvm-config-23
 
       - name: Build SDL 1.2
         run: |
