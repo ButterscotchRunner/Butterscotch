@@ -169,6 +169,52 @@ void GLCommon_endView() {
     glDisable(GL_SCISSOR_TEST);
 }
 
+void GLCommon_beginGUI(Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
+        glBindFramebuffer(GL_FRAMEBUFFER, hostFramebuffer);
+        int32_t sx, sy, ex, ey;
+        GLCommon_computeLetterbox(renderer->runner->gameWidth, renderer->runner->gameHeight, renderer->runner->windowWidth, renderer->runner->windowHeight, &sx, &sy, &ex, &ey);
+        glViewport(sx, sy, ex - sx, ey - sy);
+        glScissor(sx, sy, ex - sx, ey - sy);
+    } else {
+        require(targetSurfaceId >= 0 && targetSurfaceId < gl->surfaceCount);
+        require(gl->surfaces[targetSurfaceId] != 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
+        GLCommon_applyViewport(gl, 0, 0, gl->surfaceWidth[targetSurfaceId], gl->surfaceHeight[targetSurfaceId]);
+    }
+
+    glEnable(GL_SCISSOR_TEST);
+
+    gl->base.cameraCurrent = GUI_CAMERA;
+    GMLCamera* camera = &renderer->runner->guiCamera;
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = guiW;
+    camera->viewHeight = guiH;
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+
+    Matrix4f viewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+
+    glActiveTexture(activeTexture);
+}
+
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {

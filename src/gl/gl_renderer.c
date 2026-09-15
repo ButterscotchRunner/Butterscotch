@@ -924,51 +924,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
 
-    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
-        glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
-        int32_t sx, sy, ex, ey;
-        GLCommon_computeLetterbox(guiW, guiH, portW, portH, &sx, &sy, &ex, &ey);
-        glViewport(sx, sy, ex - sx, ey - sy);
-        glScissor(sx, sy, ex - sx, ey - sy);
-    } else {
-        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
-        require(gl->surfaces[targetSurfaceId] != 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
-        int32_t glPortY = gl->gameH - portY - portH;
-        glViewport(portX, glPortY, portW, portH);
-        glScissor(portX, glPortY, portW, portH);
-    }
-
-    glEnable(GL_SCISSOR_TEST);
-    //I dunno hopefully this is at least somewhat correct...
-    gl->base.cameraCurrent = GUI_CAMERA;
-    GMLCamera* camera = &renderer->runner->guiCamera;
-    camera->allocated = true;
-    camera->viewX = 0.0;
-    camera->viewY = 0.0;
-    camera->viewWidth = guiW;
-    camera->viewHeight = guiH;
-    camera->borderX = 0;
-    camera->borderY = 0;
-    camera->speedX = 0;
-    camera->speedY = 0;
-    camera->objectId = -1;
-    camera->viewAngle = 0;
-
-    Matrix4f projectionMatrix;
-    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
-
-    Matrix4f viewMatrix;
-    float x = (float) guiW * 0.5f;
-    float y = (float) guiH * 0.5f;
-    Matrix4f_identity(&viewMatrix);
-    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
-    camera->viewMatrix = viewMatrix;
-    camera->projectionMatrix = projectionMatrix;
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
-
-    glActiveTexture(GL_TEXTURE1);
+    GLCommon_beginGUI(renderer, targetSurfaceId, modernGl->hostFramebuffer, GL_TEXTURE1, glApplyProjection);
 
     if (hasVAO()) glBindVertexArray(modernGl->vao);
 }
