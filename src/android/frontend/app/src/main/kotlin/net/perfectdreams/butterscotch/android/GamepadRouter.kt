@@ -121,12 +121,12 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
             {
                 if(xhat < 0)
                     runner.onGamepadButton(slot, 0, true)
-                else
+                else if (state.lastHatX < 0)
                     runner.onGamepadButton(slot, 0, false)
 
                 if(xhat > 0)
                     runner.onGamepadButton(slot, 3, true)
-                else
+                else if (state.lastHatX > 0)
                     runner.onGamepadButton(slot, 3, false)
             }
 
@@ -134,12 +134,12 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
             {
                 if (yhat < 0)
                     runner.onGamepadButton(slot, 2, true)
-                else
+                else if(state.lastHatY < 0)
                     runner.onGamepadButton(slot, 2, false)
 
                 if (yhat > 0)
                     runner.onGamepadButton(slot, 1, true)
-                else
+                else if(state.lastHatY > 0)
                     runner.onGamepadButton(slot, 1, false)
             }
 
