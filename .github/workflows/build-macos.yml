@@ -19,6 +19,7 @@ jobs:
             triple: i386-apple-darwin8
             ar: llvm-ar-23
             ranlib: llvm-ranlib-23
+            cflags: -flto
     runs-on: ubuntu-24.04
     env:
       CLANG: clang-23
@@ -66,7 +67,8 @@ jobs:
             --disable-altivec \
             AR="$(command -v ${{ matrix.ar }})" \
             RANLIB="$(command -v ${{ matrix.ranlib }})" \
-            CPPFLAGS="-DNDEBUG"
+            CPPFLAGS="-DNDEBUG" \
+            CFLAGS="-O2 ${{ matrix.cflags }}"
           make -j$(nproc)
           make -j$(nproc) install
           cd ..
@@ -77,7 +79,7 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
             -DCMAKE_SYSTEM_NAME=Darwin \
-            -DCMAKE_C_FLAGS="-I$HOME/sdl/include" \
+            -DCMAKE_C_FLAGS="-I$HOME/sdl/include ${{ matrix.cflags }}" \
             -DCMAKE_FIND_ROOT_PATH="$HOME/sdl" \
             -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
             -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
