@@ -46,8 +46,7 @@ jobs:
           restore-keys: ccache-macos-${{ matrix.arch }}-
 
       - name: Build toolchain
-        run: |
-          ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
+        run: ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
         env:
           LLVM_CONFIG=llvm-config-23
 
