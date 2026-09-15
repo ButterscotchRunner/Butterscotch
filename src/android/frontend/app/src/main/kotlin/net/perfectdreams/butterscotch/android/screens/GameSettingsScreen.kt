@@ -49,6 +49,7 @@ fun GameSettingsScreen(
         runnerOs = entry.runnerOs,
         enablePhysicalControllers = entry.enablePhysicalControllers,
         enablePhysicalKeyboard = entry.enablePhysicalKeyboard,
+        physicalControllerSideways = entry.physicalControllerSideways,
         enableWidescreenHack = entry.enableWidescreenHack,
         postProcessing = entry.postProcessing
     )
@@ -63,6 +64,7 @@ fun GameSettingsScreen(
             if (state.portraitLayout != entry.portraitLayout || state.landscapeLayout != entry.landscapeLayout) gameLibrary.update(entry.id) { it.copy(portraitLayout = state.portraitLayout, landscapeLayout = state.landscapeLayout) }
             if (state.runnerOs != entry.runnerOs) gameLibrary.update(entry.id) { it.copy(runnerOs = state.runnerOs) }
             if (state.enablePhysicalControllers != entry.enablePhysicalControllers) gameLibrary.update(entry.id) { it.copy(enablePhysicalControllers = state.enablePhysicalControllers) }
+            if (state.physicalControllerSideways != entry.physicalControllerSideways) gameLibrary.update(entry.id) {it.copy(physicalControllerSideways = state.physicalControllerSideways)}
             if (state.enablePhysicalKeyboard != entry.enablePhysicalKeyboard) gameLibrary.update(entry.id) { it.copy(enablePhysicalKeyboard = state.enablePhysicalKeyboard) }
             if (state.enableWidescreenHack != entry.enableWidescreenHack) gameLibrary.update(entry.id) { it.copy(enableWidescreenHack = state.enableWidescreenHack) }
             if (state.postProcessing != entry.postProcessing) gameLibrary.update(entry.id) { it.copy(postProcessing = state.postProcessing) }
