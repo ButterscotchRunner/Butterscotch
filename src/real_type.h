@@ -20,6 +20,7 @@
 #ifdef USE_FLOAT_REALS
 
 typedef float GMLReal;
+typedef int32_t GMLReal_int;
 
 #define GMLReal_sin sinf
 #define GMLReal_cos cosf
@@ -46,6 +47,7 @@ typedef float GMLReal;
 #else
 
 typedef double GMLReal;
+typedef int64_t GMLReal_int;
 
 #define GMLReal_sin sin
 #define GMLReal_cos cos
@@ -74,14 +76,14 @@ typedef double GMLReal;
 // Round-half-to-even (banker's rounding).
 // While the original runner uses "llrint(double)", we use our own banker's rounding implementation to avoid quirks in specific platforms (like the PlayStation 2) having different llrint rounding implementations.
 static inline GMLReal GMLReal_bankersRound(GMLReal v) {
-    if (isnan(v) || isinf(v)) return v;
     GMLReal f = GMLReal_floor(v);
     GMLReal frac = v - f;
-    if (0.5 > frac) return f;
-    if (frac > 0.5) return f + 1.0;
-    // Exactly halfway: round to the even neighbor.
-    int64_t fi = (int64_t) f;
-    return (fi & 1) == 0 ? f : f + 1.0;
+
+    if (frac == 0.5) {
+        GMLReal_int fi = (GMLReal_int) f;
+        return ((fi & 1) == 0) ? f : (f + 1.0);
+    }
+    return (frac > 0.5) ? (f + 1.0) : f;
 }
 
 #endif /* _BS_REAL_TYPE_H_ */
