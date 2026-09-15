@@ -42,6 +42,7 @@ jobs:
           path: |
             ~/.cache/ccache
             ${{ github.workspace }}/artifacts/macos/build/toolchain-${{ matrix.arch }}
+            lastworkdir
           key: ccache-macos-${{ matrix.arch }}-${{ github.sha }}
           restore-keys: ccache-macos-${{ matrix.arch }}-
 
