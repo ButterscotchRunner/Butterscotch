@@ -10226,6 +10226,16 @@ static RValue builtin_psn_setup_trophies(MAYBE_UNUSED VMContext* ctx, RValue* ar
 }
 
 // Draw functions
+
+static RValue builtin_draw_enable_drawevent(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (1 > argCount) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    if (runner != nullptr) {
+        runner->drawAutomatic = RValue_toBool(args[0]);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_primitive_begin(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (1 > argCount) {
         logWarn("[draw_primitive_begin]: Expected 1 argument, got %d\n", argCount);
@@ -21723,6 +21733,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "psn_setup_trophies", builtin_psn_setup_trophies);
 
     // Draw
+    VM_registerBuiltin(ctx, "draw_enable_drawevent", builtin_draw_enable_drawevent);
     VM_registerBuiltin(ctx, "draw_primitive_begin", builtin_draw_primitive_begin);
     VM_registerBuiltin(ctx, "draw_primitive_begin_texture", builtin_draw_primitive_begin_texture);
     VM_registerBuiltin(ctx, "draw_primitive_end", builtin_draw_primitive_end);
