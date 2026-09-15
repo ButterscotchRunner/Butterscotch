@@ -175,8 +175,6 @@ static void glEndView(MAYBE_UNUSED Renderer* renderer) {
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
     glBindTexture(GL_TEXTURE_2D, 0);
     GLCommon_beginGUI(
         renderer, targetSurfaceId, 0, GL_TEXTURE0, glApplyProjection,

@@ -918,8 +918,7 @@ static void glEndView(Renderer* renderer) {
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
+    GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
