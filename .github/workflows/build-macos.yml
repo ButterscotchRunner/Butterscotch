@@ -17,22 +17,22 @@ jobs:
             deps: libgmp-dev libmpc-dev libmpfr-dev
           - arch: i386
             triple: i386-apple-darwin8
-            ar: llvm-ar-23
-            ranlib: llvm-ranlib-23
+            ar: llvm-ar-22
+            ranlib: llvm-ranlib-22
             cflags: -flto
     runs-on: ubuntu-24.04
     env:
-      CLANG: clang-23
+      CLANG: clang-22
     steps:
       - uses: actions/checkout@v7
 
-      - name: install llvm 23
+      - name: install llvm 22
         if: matrix.arch == 'i386'
         run: |
           wget https://apt.llvm.org/llvm.sh
-          sudo bash llvm.sh 23
+          sudo bash llvm.sh 22
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-23 llvm-23
+          sudo apt-get install --no-install-recommends -y clang-22 llvm-22
 
       - name: install dependencies
         run: sudo apt-get install -y ${{ matrix.deps }} ccache
@@ -48,7 +48,7 @@ jobs:
       - name: Build toolchain
         run: ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
         env:
-          LLVM_CONFIG: llvm-config-23
+          LLVM_CONFIG: llvm-config-22
 
       - name: Build SDL 1.2
         run: |
