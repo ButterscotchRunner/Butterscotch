@@ -19,7 +19,7 @@ jobs:
             triple: i386-apple-darwin8
             ar: llvm-ar-22
             ranlib: llvm-ranlib-22
-            cflags: -flto
+            cflags: -flto -march=pentium-m
     runs-on: ubuntu-24.04
     env:
       CLANG: clang-22
