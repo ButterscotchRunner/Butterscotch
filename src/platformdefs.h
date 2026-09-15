@@ -40,6 +40,8 @@ static const OsTypeNameEntry OS_TYPE_NAMES[] = {
 
 enum GraphicsAPI {
     SOFTWARE,
+    SDL_SOFTWARE,
+    SDL_HARDWARE,
     MODERN_GL,
     LEGACY_GL,
     NOOP
