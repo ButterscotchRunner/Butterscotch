@@ -902,38 +902,13 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 }
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
-
+    GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
 
-    // Set viewport and scissor to the port rectangle within the FBO
-    // FBO uses game resolution, port coordinates are in game space
-    // OpenGL viewport Y is bottom-up, game Y is top-down
-
-    glViewport(portX, portY, portW, portH);
-
-    gl->base.CPortX = portX;
-    gl->base.CPortY = portY;
-    gl->base.CPortW = portW;
-    gl->base.CPortH = portH;
-
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(portX, portY, portW, portH);
-
-    int32_t viewCurrent = 0;
-    if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
-    }
-    RuntimeView* view = &renderer->runner->views[viewCurrent];
-    gl->base.cameraCurrent = view->cameraId;
-    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-    glActiveTexture(GL_TEXTURE1);
+    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1, glApplyProjection);
 
     if (hasVAO()) glBindVertexArray(modernGl->vao);
-
 }
 
 static void glEndView(Renderer* renderer) {

@@ -129,6 +129,36 @@ void GLCommon_destroy(Renderer* renderer) {
     free(gl);
 }
 
+void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+    glViewport(portX, portY, portW, portH);
+
+    gl->base.CPortX = portX;
+    gl->base.CPortY = portY;
+    gl->base.CPortW = portW;
+    gl->base.CPortH = portH;
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(portX, portY, portW, portH);
+}
+
+void GLCommon_beginView(
+    Renderer* renderer,
+    int32_t portX, int32_t portY, int32_t portW, int32_t portH,
+    GLuint activeTexture, GLApplyProjectionFunc glApplyProjection
+) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    GLCommon_applyViewport(gl, portX, portY, portW, portH);
+    int32_t viewCurrent = 0;
+    if (gl->base.runner->viewsEnabled) {
+        viewCurrent = gl->base.runner->viewCurrent;
+    }
+    RuntimeView* view = &gl->base.runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(gl->base.runner, gl->base.cameraCurrent);
+    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+    glActiveTexture(activeTexture);
+}
+
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {

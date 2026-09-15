@@ -93,19 +93,6 @@ static bool hasFBO() {
 #endif
 }
 
-// ===[ Helpers ]===
-
-static void glApplyViewport(GLRenderer* gl, int32_t x, int32_t y, int32_t w, int32_t h) {
-    glViewport(x, y, w, h);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(x, y, w, h);
-
-    gl->base.CPortX = x;
-    gl->base.CPortY = y;
-    gl->base.CPortW = w;
-    gl->base.CPortH = h;
-}
-
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
 static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix) {
     Renderer_applyProjection(renderer, viewMatrix, projectionMatrix);
@@ -179,26 +166,8 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 }
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
     glBindTexture(GL_TEXTURE_2D, 0);
-
-    // Set viewport and scissor to the port rectangle within the FBO
-    // FBO uses game resolution, port coordinates are in game space
-    // OpenGL viewport Y is bottom-up, game Y is top-down
-    glApplyViewport(gl, portX, portY, portW, portH);
-
-    int32_t viewCurrent = 0;
-    if (renderer->runner->viewsEnabled) {
-    viewCurrent = renderer->runner->viewCurrent;
-    }
-    RuntimeView* view = &renderer->runner->views[viewCurrent];
-    gl->base.cameraCurrent = view->cameraId;
-    GMLCamera* camera = Runner_getCameraById(renderer->runner, gl->base.cameraCurrent);
-    glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
-
-    glActiveTexture(GL_TEXTURE0);
-
+    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE0, glApplyProjection);
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
@@ -221,7 +190,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
         require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
         require(gl->surfaces[targetSurfaceId] != 0);
         glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[targetSurfaceId]);
-        glApplyViewport(gl, portX, portY, portW, portH);
+        GLCommon_applyViewport(gl, portX, portY, portW, portH);
     }
 
     //I dunno hopefully this is at least somewhat correct...
