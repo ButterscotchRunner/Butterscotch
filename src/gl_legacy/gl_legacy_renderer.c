@@ -171,7 +171,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
-    glDisable(GL_SCISSOR_TEST);
+    GLCommon_endView();
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {

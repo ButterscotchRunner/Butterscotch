@@ -165,6 +165,10 @@ void GLCommon_beginView(
     glActiveTexture(activeTexture);
 }
 
+void GLCommon_endView() {
+    glDisable(GL_SCISSOR_TEST);
+}
+
 // ===[ Letterbox blit ]===
 
 void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t* outStartX, int32_t* outStartY, int32_t* outEndX, int32_t* outEndY) {
