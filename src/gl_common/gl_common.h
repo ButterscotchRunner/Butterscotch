@@ -30,6 +30,7 @@ typedef void (*GLApplyProjectionFunc)(Renderer* renderer, const Matrix4f* viewMa
 void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
 void GLCommon_endView();
 void GLCommon_beginGUI(Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
+void GLCommon_setGuiProjection(Renderer *renderer, bool renderingToUserSurface, GLApplyProjectionFunc glApplyProjection, int32_t guiW, int32_t guiH);
 
 // ===[ Letterbox blit ]===
 
