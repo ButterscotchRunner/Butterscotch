@@ -1,4 +1,5 @@
 #include "gl_common.h"
+#include "gl_wrappers.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -7,6 +8,245 @@
 #include "runner.h"
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
+
+#ifdef PLATFORM_PS3
+#include "ps3_textures.h"
+#elif PLATFORM_VITA
+#include "vita_textures.h"
+#endif
+
+void GLCommon_beginFrame(GLRenderer* gl,  int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
+    gl->gameW = gameW;
+    gl->gameH = gameH;
+    gl->windowW = windowW;
+    gl->windowH = windowH;
+
+    // Bind the application surface
+    int32_t appId = gl->base.runner->applicationSurfaceId;
+    glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[appId]);
+    glViewport(0, 0, gameW, gameH);
+    gl->base.CPortX = 0;
+    gl->base.CPortY = 0;
+    gl->base.CPortW = gameW;
+    gl->base.CPortH = gameH;
+}
+
+void GLCommon_init(Renderer* renderer) {   
+    GLRenderer* gl = (GLRenderer*) renderer; 
+    DataWin* dataWin = renderer->dataWin;
+
+    Matrix4f world;
+    Matrix4f_identity(&world);
+    renderer->gmlMatrices[MATRIX_WORLD] = world;
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3)
+    gl_init_wrappers();
+#endif
+
+    gl->alphaTestEnable = false;
+    gl->alphaTestRef = 0.0f;
+    gl->colorWriteR = true;
+    gl->colorWriteG = true;
+    gl->colorWriteB = true;
+    gl->colorWriteA = true;
+
+    // Prepare texture slots for lazy loading (PNG decode deferred to first use)
+#ifdef PLATFORM_PS3
+    // TXTR is empty on PS3; page count comes from TEXTURES.BIN.
+    gl->textureCount = PS3Textures_getPageCount();
+#elif defined(PLATFORM_VITA)
+    if (VitaTextures_Active())
+        gl->textureCount = VitaTextures_GetPageCount();
+    else
+        gl->textureCount = dataWin->txtr.count;
+#else
+    gl->textureCount = dataWin->txtr.count;
+#endif
+
+    gl->glTextures = (GLuint *)safeMalloc(gl->textureCount * sizeof(GLuint));
+    gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
+    gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
+
+    glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
+
+    for (uint32_t i = 0; gl->textureCount > i; i++) {
+        gl->textureWidths[i] = 0;
+        gl->textureHeights[i] = 0;
+        gl->textureLoaded[i] = false;
+    }
+
+    GlPrimitive_reset(&gl->currentPrimitive);
+
+    // Create 1x1 white pixel texture for primitive drawing (rectangles, lines, etc.)
+    glGenTextures(1, &gl->whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
+    uint8_t whitePixel[4] = {255, 255, 255, 255};
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Save original counts so we know which slots are from data.win vs dynamic
+    gl->originalTexturePageCount = gl->textureCount;
+    gl->originalTpagCount = dataWin->tpag.count;
+    gl->originalSpriteCount = dataWin->sprt.count;
+
+    gl->surfaces = nullptr;
+    gl->surfaceTexture = nullptr;
+    gl->surfaceWidth = nullptr;
+    gl->surfaceHeight = nullptr;
+    gl->surfaceCount = 0;
+}
+
+void GLCommon_destroy(Renderer* renderer) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    GlPrimitive_reset(&gl->currentPrimitive);
+    
+    GLCommon_deleteDebugFontTexture(&gl->debugUI);
+
+    glDeleteTextures(1, &gl->whiteTexture);
+    glDeleteTextures((GLsizei) gl->textureCount, gl->glTextures);
+    gl->textureCount = 0;
+    
+    for (uint32_t i = 0; gl->surfaceCount > i; i++) {
+        if (gl->surfaceTexture[i] != 0) glDeleteTextures(1, &gl->surfaceTexture[i]);
+        if (gl->surfaces[i] != 0) glDeleteFramebuffers(1, &gl->surfaces[i]);
+    }
+    gl->surfaceCount = 0;
+
+    free(gl->surfaces);
+    free(gl->surfaceTexture);
+    free(gl->surfaceWidth);
+    free(gl->surfaceHeight);
+
+    free(gl->glTextures);
+    free(gl->textureWidths);
+    free(gl->textureHeights);
+    free(gl->textureLoaded);
+
+#ifndef PLATFORM_VITA
+    free(gl->vertexData);
+#endif
+
+    free(gl);
+}
+
+void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
+    glViewport(portX, portY, portW, portH);
+
+    gl->base.CPortX = portX;
+    gl->base.CPortY = portY;
+    gl->base.CPortW = portW;
+    gl->base.CPortH = portH;
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(portX, portY, portW, portH);
+}
+
+void GLCommon_beginView(
+    Renderer* renderer,
+    int32_t portX, int32_t portY, int32_t portW, int32_t portH,
+    GLuint activeTexture, GLApplyProjectionFunc glApplyProjection
+) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    GLCommon_applyViewport(gl, portX, portY, portW, portH);
+    int32_t viewCurrent = 0;
+    if (gl->base.runner->viewsEnabled) {
+        viewCurrent = gl->base.runner->viewCurrent;
+    }
+    RuntimeView* view = &gl->base.runner->views[viewCurrent];
+    gl->base.cameraCurrent = view->cameraId;
+    GMLCamera* camera = Runner_getCameraById(gl->base.runner, gl->base.cameraCurrent);
+    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+    glActiveTexture(activeTexture);
+}
+
+void GLCommon_endView() {
+    glDisable(GL_SCISSOR_TEST);
+}
+
+void GLCommon_beginGUI(
+    Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection,
+    int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH
+) {
+    GLRenderer* gl = (GLRenderer*) renderer;
+    if (targetSurfaceId == RENDER_TARGET_HOST_FRAMEBUFFER) {
+        glBindFramebuffer(GL_FRAMEBUFFER, hostFramebuffer);
+        int32_t sx, sy, ex, ey;
+        GLCommon_computeLetterbox(guiW, guiH, portW, portH, &sx, &sy, &ex, &ey);
+        glViewport(sx, sy, ex - sx, ey - sy);
+        glScissor(sx, sy, ex - sx, ey - sy);
+    } else {
+        require(targetSurfaceId >= 0 && (uint32_t) targetSurfaceId < gl->surfaceCount);
+        require(gl->surfaces[targetSurfaceId] != 0);
+        int32_t glPortY = gl->gameH - portY - portH;
+        GLCommon_applyViewport(gl, portX, glPortY, portW, portH);
+    }
+
+    glEnable(GL_SCISSOR_TEST);
+
+    gl->base.cameraCurrent = GUI_CAMERA;
+    GMLCamera* camera = &renderer->runner->guiCamera;
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = guiW;
+    camera->viewHeight = guiH;
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+
+    Matrix4f viewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+
+    glActiveTexture(activeTexture);
+}
+
+void GLCommon_setGuiProjection(Renderer *renderer, bool renderingToUserSurface, GLApplyProjectionFunc glApplyProjection, int32_t guiW, int32_t guiH) {
+    renderer->cameraCurrent = GUI_CAMERA;
+    GMLCamera* camera = &renderer->runner->guiCamera;
+    camera->allocated = true;
+    camera->viewX = 0.0;
+    camera->viewY = 0.0;
+    camera->viewWidth = guiW;
+    camera->viewHeight = guiH;
+    camera->borderX = 0;
+    camera->borderY = 0;
+    camera->speedX = 0;
+    camera->speedY = 0;
+    camera->objectId = -1;
+    camera->viewAngle = 0;
+
+    //yeah no I have no idea how to do the GUI
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) guiW, (float) guiH, 32000.0, 0.0);
+
+    if (renderingToUserSurface) Matrix4f_flipClipY(&projectionMatrix);
+    Matrix4f viewMatrix;
+    float x = (float) guiW * 0.5f;
+    float y = (float) guiH * 0.5f;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+    glApplyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+}
 
 // ===[ Letterbox blit ]===
 

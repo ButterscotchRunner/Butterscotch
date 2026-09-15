@@ -68,6 +68,7 @@ Additionally, any platform with reasonably complete C and POSIX conformance shou
 * OpenBSD
 * NetBSD
 * Haiku
+* Solaris/illumos (OpenIndiana tested working)
 
 The following backends are available for desktop platforms (Windows and POSIX systems).
 * GLFW 2
