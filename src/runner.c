@@ -8,9 +8,9 @@
 #include "collision.h"
 
 #include <stdint.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "debug_overlay.h"
@@ -32,6 +32,11 @@ void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
             free(el->spriteElement);
             el->spriteElement = nullptr;
         }
+        if (el->tileElement != nullptr && el->tileElementOwned) {
+            free(el->tileElement);
+            el->tileElement = nullptr;
+            el->tileElementOwned = false;
+        }
     }
     arrfree(runtimeLayer->elements);
     runtimeLayer->elements = nullptr;
@@ -44,6 +49,26 @@ static void freeRuntimeLayersArray(RuntimeLayer** runtimeLayerArray) {
     }
     arrfree(*runtimeLayerArray);
     *runtimeLayerArray = nullptr;
+}
+
+void Runner_updateCameraViewSimple(GMLCamera* camera) {
+
+    float x = camera->viewX + camera->viewWidth/2;
+    float y = camera->viewY + camera->viewHeight/2;
+    Matrix4f viewMatrix;
+    Matrix4f_identity(&viewMatrix);
+    Matrix4f_LookAt(&viewMatrix, x, y, -16000.0, x, y, 16000.0, 0.0, 1.0, 0.0);
+    Matrix4f_translate(&viewMatrix, x, y, 0.0f);
+    Matrix4f_rotateZ(&viewMatrix, -camera->viewAngle * (float) M_PI / 180.0f);
+    Matrix4f_translate(&viewMatrix, -x, -y, 0.0f);
+
+    Matrix4f projectionMatrix;
+    Matrix4f_Orthographic(&projectionMatrix, (float) camera->viewWidth, -((float) camera->viewHeight), 32000.0, 0.0);
+
+
+    camera->viewMatrix = viewMatrix;
+    camera->projectionMatrix = projectionMatrix;
+
 }
 
 // ===[ Helper: Find event action in object hierarchy ]===
@@ -332,6 +357,73 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     }
 }
 
+
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
+    if (ctx == nullptr) return;
+
+    Instance* savedInstance = ctx->currentInstance;
+    Instance* targetInstance = nullptr;
+    int32_t rawArg = RValue_toInt32(callback);
+    int32_t codeId = -1;
+    BuiltinFunc builtin = nullptr;
+
+    if (callback.type == RVALUE_METHOD && callback.method != nullptr) {
+        GMLMethod* method = callback.method;
+        if (method->boundInstanceId >= 0) {
+            targetInstance = hmget(ctx->runner->instancesById, method->boundInstanceId);
+        }
+        if (targetInstance == nullptr) {
+            targetInstance = ctx->globalScopeInstance;
+        }
+        ctx->currentInstance = targetInstance;
+
+        if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
+            VM_callCodeIndex(ctx, method->codeIndex, nullptr, 0);
+        } else if (method->builtin != nullptr) {
+            method->builtin(ctx, nullptr, 0);
+        } else if (method->unresolvedName != nullptr) {
+#ifdef ENABLE_VM_STUB_LOGS
+            logWarn("VM: call_later callback method unresolved: %s\n", method->unresolvedName);
+#endif
+        }
+
+        ctx->currentInstance = savedInstance;
+        return;
+    }
+
+    ctx->currentInstance = ctx->globalScopeInstance;
+
+    if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+        const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+        if (funcName != nullptr) {
+            ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+            if (idx >= 0) {
+                codeId = ctx->codeIndexByName[idx].value;
+            } else {
+                ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                if (bidx >= 0) builtin = ctx->builtinMap[bidx].value;
+            }
+        }
+    }
+
+    if (codeId < 0) {
+        if (0 <= rawArg && (uint32_t) rawArg < ctx->dataWin->scpt.count) {
+            codeId = ctx->dataWin->scpt.scripts[rawArg].codeId;
+        }
+    }
+
+    if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
+        VM_callCodeIndex(ctx, codeId, nullptr, 0);
+    } else if (builtin != nullptr) {
+        builtin(ctx, nullptr, 0);
+    }
+
+    ctx->currentInstance = savedInstance;
+}
+#endif
+
 // Some events check if there's a pending room and, if there is, the events are NOT dispatched.
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
 // This mirrors what the official YoYo runner does.
@@ -351,7 +443,7 @@ static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int3
 
 // Executes an already-resolved event handler (see findEventCodeIdAndOwner) and verified codeId >= 0.
 static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
-    if (isEventBlockedByPendingRoom(runner, instance, eventType))
+    if (isEventBlockedByPendingRoom(runner, instance, eventType) || runner->shouldExit)
         return;
 
     VMContext* vm = runner->vmContext;
@@ -374,9 +466,9 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
 
         if (shouldTrace) {
             if (eventType == EVENT_ALARM) {
-                fprintf(stderr, "Runner: [%s] %s %d (instanceId=%d)\n", objectName, eventName, eventSubtype, instance->instanceId);
+                logInfo("Runner: [%s] %s %d (instanceId=%d)\n", objectName, eventName, eventSubtype, instance->instanceId);
             } else {
-                fprintf(stderr, "Runner: [%s] %s (instanceId=%d)\n", objectName, eventName, instance->instanceId);
+                logInfo("Runner: [%s] %s (instanceId=%d)\n", objectName, eventName, instance->instanceId);
             }
         }
     }
@@ -435,10 +527,12 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
         runner->eventDispatchInstances = scratch; // arrsetlen may have realloced
 
         int32_t snapshotCount = (int32_t) arrlen(scratch);
+        {
         repeat(snapshotCount, i) {
             Instance* inst = scratch[i];
             if (!inst->active) continue;
             Runner_executeEvent(runner, inst, eventType, eventSubtype);
+        }
         }
         return;
     }
@@ -510,7 +604,7 @@ static void drawBackground(
         float yscale = roomH / (float) tpag->boundingHeight;
         runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, 0.0f, 0.0f, 0.0f, 0.0f, xscale, yscale, 0.0f, blend, alpha);
     } else if (tileX || tileY) {
-        Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, xScale, yScale, tileX, tileY, roomW, roomH, alpha);
+        Renderer_drawBackgroundTiled(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, xScale, yScale, tileX, tileY, roomW, roomH, blend, alpha);
     } else {
         // Single placement
         runner->renderer->vtable->drawSprite(runner->renderer, tpagIndex, layerOffsetX + backgroundX, layerOffsetY + backgroundY, 0.0f, 0.0f, xScale, yScale, 0.0f, blend, alpha);
@@ -578,6 +672,7 @@ static DrawKey drawableKey(const Drawable* d) {
         case DRAWABLE_TILE: k.order = d->tileIndex; break;
         case DRAWABLE_INSTANCE: k.order = (int32_t) d->instance->instanceId;  break;
         case DRAWABLE_LAYER: k.order = d->runtimeLayerId; break;
+        case DRAWABLE_PARTICLE_SYSTEM: k.order = d->particleSystemId; break;
     }
     return k;
 }
@@ -649,13 +744,12 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
     uint32_t borderY = tileset->gms2OutputBorderY;
     uint32_t columns = tileset->gms2TileColumns;
 
-    static bool rotateWarned = false;
-
     repeat(data->tilesY, ty) {
         repeat(data->tilesX, tx) {
             uint32_t cell = data->tileData[ty * data->tilesX + tx];
             uint32_t tileIndex = cell & GMS2_TILE_INDEX_MASK;
             if (tileIndex == 0) continue; // 0 = empty
+            if (tileIndex > tileset->gms2TileCount) continue;
 
             uint32_t col = tileIndex % columns;
             uint32_t row = tileIndex / columns;
@@ -666,10 +760,9 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             bool flip = (cell & GMS2_TILE_FLIP_MASK) != 0;
             bool rotate = (cell & GMS2_TILE_ROTATE_MASK) != 0;
 
-            if (rotate && !rotateWarned) {
-                fprintf(stderr, "Runner: WARNING: GMS2 tile layer has rotated tiles; rotation not yet implemented, drawing unrotated\n");
-                rotateWarned = true;
-            }
+            float angleDeg = rotate ? 90.0f : 0.0f;
+            float pivotX = (float)(tx * tileW) + layerOffsetX + (float)tileW / 2.0f;
+            float pivotY = (float)(ty * tileH) + layerOffsetY + (float)tileH / 2.0f;
 
             float xscale = mirror ? -1.0f : 1.0f;
             float yscale = flip ? -1.0f : 1.0f;
@@ -679,7 +772,7 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
             float dstX = (float) (tx * tileW) + layerOffsetX + (mirror ? (float) tileW : 0.0f);
             float dstY = (float) (ty * tileH) + layerOffsetY + (flip ? (float) tileH : 0.0f);
 
-            runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t) tileW, (int32_t) tileH, dstX, dstY, xscale, yscale, 0.0f, 0.0f, 0.0f, 0xFFFFFF, 1.0f);
+            runner->renderer->vtable->drawSpritePart(runner->renderer, tpagIndex, srcX, srcY, (int32_t) tileW, (int32_t) tileH, dstX, dstY, xscale, yscale, angleDeg, pivotX, pivotY, 0xFFFFFF, 1.0f);
         }
     }
 }
@@ -704,6 +797,9 @@ static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t c
         } else if (d->type == DRAWABLE_LAYER) {
             RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (rl != nullptr) d->depth = rl->depth;
+        } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
+            ParticleSystem* ps = Particles_systemGet(runner, d->particleSystemId);
+            if (ps != nullptr) d->depth = ps->depth;
         }
     }
 }
@@ -753,6 +849,21 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;
                 arrput(runner->cachedDrawables, d);
             }
+        }
+
+        // Particle systems are not room-scoped: a system created in one room keeps running until the
+        // game destroys it, so they are re-added on every rebuild rather than tracked per room.
+        {
+        repeat((int32_t) arrlen(runner->particleSystemPool), i) {
+            ParticleSystem* particleSystem = &runner->particleSystemPool[i];
+            if (!particleSystem->used || !particleSystem->automaticDraw) continue;
+            Drawable d;
+            ZERO_STRUCT(d);
+            d.type = DRAWABLE_PARTICLE_SYSTEM;
+            d.depth = particleSystem->depth;
+            d.particleSystemId = (int32_t) i;
+            arrput(runner->cachedDrawables, d);
+        }
         }
 
         int32_t count = (int32_t) arrlen(runner->cachedDrawables);
@@ -863,14 +974,14 @@ void Runner_draw(Runner* runner) {
                         int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(dataWin, tile);
                         if (tpagIndex >= 0) {
                             TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                            fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                            logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
 
                             // Warn if tile source rect exceeds TPAG content bounds
                             if ((uint32_t) (tile->sourceX + tile->width) > (uint32_t) tpag->sourceWidth || (uint32_t) (tile->sourceY + tile->height) > (uint32_t) tpag->sourceHeight) {
-                                fprintf(stderr, "Runner: [%s] WARNING: Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
+                                logWarn("Runner: [%s] Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
                             }
                         } else {
-                            fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                            logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
                         }
                     }
                 }
@@ -882,6 +993,7 @@ void Runner_draw(Runner* runner) {
             Instance* inst = d->instance;
             // Filter inactive/invisible instances at draw time so the cache doesn't need invalidation when those flags toggle.
             if (!inst->active || !inst->visible) continue;
+
             int32_t ownerObjectIndex = -1;
             int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
             if (codeId >= 0) {
@@ -889,10 +1001,31 @@ void Runner_draw(Runner* runner) {
             } else if (runner->renderer != nullptr) {
                 Renderer_drawSelf(runner->renderer, inst);
             }
+        } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
+            // Filtered at draw time, like instance visibility: part_system_automatic_draw can be
+            // toggled from a Draw event that already ran this frame.
+            ParticleSystem* particleSystem = Particles_systemGet(runner, d->particleSystemId);
+            if (particleSystem == nullptr || !particleSystem->automaticDraw) continue;
+            Particles_drawSystem(runner, d->particleSystemId);
         } else if (d->type == DRAWABLE_LAYER) {
             // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
             RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
+            VMContext* ctx = runner->vmContext;
+            Instance* savedInstance = ctx->currentInstance;
+            int32_t savedEventType = ctx->currentEventType;
+            int32_t savedEventSubtype = ctx->currentEventSubtype;
+
+            ctx->currentInstance = ctx->globalScopeInstance;
+            ctx->currentEventType = EVENT_DRAW;
+            ctx->currentEventSubtype = DRAW_NORMAL;
+
+            if (runtimeLayer->beginScript >= 0)
+                VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
+
+            ctx->currentInstance = savedInstance;
+            ctx->currentEventType = savedEventType;
+            ctx->currentEventSubtype = savedEventSubtype;
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
 
@@ -905,6 +1038,11 @@ void Runner_draw(Runner* runner) {
                     RuntimeLayerElement* layerElement = &runtimeLayer->elements[j];
                     if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
                         renderBackgroundElement(runner, layerElement->backgroundElement, roomW, roomH, layerOffsetX, layerOffsetY);
+                    } else if (layerElement->type == RuntimeLayerElementType_Tile && layerElement->tileElement != nullptr && layerElement->tileElementOwned) {
+                        if (!layerElement->visible) continue;
+                        RoomTile rt = *layerElement->tileElement;
+                        rt.alpha = layerElement->alpha;
+                        Renderer_drawTile(runner->renderer, &rt, layerOffsetX, layerOffsetY);
                     }
                 }
             }
@@ -950,14 +1088,14 @@ void Runner_draw(Runner* runner) {
                                 int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(dataWin, tile);
                                 if (tpagIndex >= 0) {
                                     TexturePageItem* tpag = &dataWin->tpag.items[tpagIndex];
-                                    fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                                    logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag(srcX=%d srcY=%d srcW=%d srcH=%d tgtX=%d tgtY=%d bndW=%d bndH=%d page=%d) tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tpag->sourceX, tpag->sourceY, tpag->sourceWidth, tpag->sourceHeight, tpag->targetX, tpag->targetY, tpag->boundingWidth, tpag->boundingHeight, tpag->texturePageId, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
 
                                     // Warn if tile source rect exceeds TPAG content bounds
                                     if ((uint32_t) (tile->sourceX + tile->width) > (uint32_t) tpag->sourceWidth || (uint32_t) (tile->sourceY + tile->height) > (uint32_t) tpag->sourceHeight) {
-                                        fprintf(stderr, "Runner: [%s] WARNING: Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
+                                        logWarn("Runner: [%s] Tile #%d source rect (%d,%d %ux%u) exceeds TPAG content bounds (%dx%d)\n", roomName, d->tileIndex, tile->sourceX, tile->sourceY, tile->width, tile->height, tpag->sourceWidth, tpag->sourceHeight);
                                     }
                                 } else {
-                                    fprintf(stderr, "Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
+                                    logInfo("Runner: [%s] Drawing tile #%d bg=%s(%d) tpag=UNRESOLVED tile(srcX=%d srcY=%d w=%u h=%u) at pos=(%d,%d) depth=%d\n", roomName, d->tileIndex, bgName, tile->backgroundDefinition, tile->sourceX, tile->sourceY, tile->width, tile->height, tile->x, tile->y, tile->tileDepth);
                                 }
                             }
                         }
@@ -971,6 +1109,7 @@ void Runner_draw(Runner* runner) {
 
                 // Sprite elements are rendered from the runtime element list (not the parsed data) so that layer_sprite_destroy can remove them at runtime.
                 size_t elementCount = arrlenu(runtimeLayer->elements);
+                {
                 repeat(elementCount, j) {
                     if (runner->renderer == nullptr) break;
                     RuntimeLayerElement* el = &runtimeLayer->elements[j];
@@ -982,6 +1121,7 @@ void Runner_draw(Runner* runner) {
                         (float) spr->x + layerOffsetX, (float) spr->y + layerOffsetY, spr->scaleX,
                         spr->scaleY, spr->rotation, el->blend,
                         el->alpha);
+                }
                 }
             } else if (parsedLayer->type == RoomLayerType_Tiles) {
                 if (runner->renderer == nullptr) continue;
@@ -995,6 +1135,16 @@ void Runner_draw(Runner* runner) {
             } else if (parsedLayer->type == RoomLayerType_Effect) {
                 // TODO: Implement post-processing effect layers!
             }
+            ctx->currentInstance = ctx->globalScopeInstance;
+            ctx->currentEventType = EVENT_DRAW;
+            ctx->currentEventSubtype = DRAW_NORMAL;
+
+            if (runtimeLayer->endScript >= 0)
+                VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
+
+            ctx->currentInstance = savedInstance;
+            ctx->currentEventType = savedEventType;
+            ctx->currentEventSubtype = savedEventSubtype;
         }
     }
 
@@ -1033,7 +1183,25 @@ void Runner_drawGUI(Runner* runner, int32_t windowW, int32_t windowH, int32_t ta
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_BEGIN);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI);
     fireDrawSubtype(runner, drawables, drawableCount, DRAW_GUI_END);
+
+    //Rendering cursor_sprite
+    if (runner->cursorSprite >= 0 && (uint32_t)runner->cursorSprite < runner->dataWin->sprt.count) {
+        Sprite* cursorSprite = &runner->dataWin->sprt.sprites[runner->cursorSprite];
+        if (cursorSprite->textureCount > 0) {
+            float cursorX = (float)(runner->mouse->normalizedX * guiW);
+            float cursorY = (float)(runner->mouse->normalizedY * guiH);
+            Renderer_drawSpriteExt(runner->renderer, runner->cursorSprite, runner->cursorSpriteSubimage,
+                                   cursorX, cursorY, 1.0f, 1.0f, 0.0f, 0xFFFFFF, 1.0f);
+            runner->cursorSpriteSubimage = (runner->cursorSpriteSubimage + 1) % (int32_t) cursorSprite->textureCount;
+        }
+    }
+
     endGuiPass(runner);
+
+    if (runner->fpsRealFrameStartNanos != 0) {
+        uint64_t elapsed = nowNanos() - runner->fpsRealFrameStartNanos;
+        if (elapsed > 0) runner->fpsReal = (double)1e9 / (double)(int64_t)elapsed;
+    }
 }
 
 void Runner_drawPre(Runner* runner, int32_t windowW, int32_t windowH) {
@@ -1146,11 +1314,10 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
 
-                Matrix4f proj;
-                Matrix4f_viewProjection(&proj, (float) camera->viewX, (float) camera->viewY, (float) camera->viewWidth, (float) camera->viewHeight, camera->viewAngle);
-                renderer->vtable->applyProjection(renderer, &proj);
-
                 runner->viewCurrent = (int32_t) vi;
+                runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
+                runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
+
                 Runner_draw(runner);
 
                 renderer->vtable->flush(renderer);
@@ -1171,6 +1338,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             float viewAngle = camera->viewAngle;
 
             runner->viewCurrent = (int32_t) vi;
+            runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Runner_draw(runner);
@@ -1184,13 +1352,27 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
     }
 
     if (!anyViewRendered) {
+        runner->viewCurrent = 0;
+        GMLCamera* camera = Runner_getCameraForView(runner, (int32_t) runner->viewCurrent);
+        runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
         // See GameMaker-HTML5's "DrawViews", in specific the !m_enableviews path
         // When views aren't used, the room width/height is used
         int32_t viewX, viewY, viewW, viewH;
         expandViewAxis(0, (int32_t) runner->currentRoom->width, gameW, widescreenBaseW, &viewX, &viewW);
         expandViewAxis(0, (int32_t) runner->currentRoom->height, gameH, widescreenBaseH, &viewY, &viewH);
         applyFreeCamera(runner, &viewX, &viewY, &viewW, &viewH);
+        //make default projection
+        if (camera != nullptr) {
+            camera->viewX = 0;
+            camera->viewY = 0;
+            camera->viewWidth = runner->currentRoom->width;
+            camera->viewHeight = runner->currentRoom->height;
+            camera->viewAngle = 0.0;
+            Runner_updateCameraViewSimple(camera);
+        }
+
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
+
         Runner_draw(runner);
 
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
@@ -1201,6 +1383,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
     // Reset view_current to 0 so non-Draw events (Step, Alarm, Create) see view_current = 0
     runner->viewCurrent = 0;
+    runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
 }
 
 // ===[ Instance Creation Helper ]===
@@ -1234,7 +1417,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
 
 #ifdef ENABLE_VM_TRACING
     if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, objDef->name) != -1) {
-        fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) created at (%f, %f)\n", objDef->name, instanceId, inst->objectIndex, x, y);
+        logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) created at (%f, %f)\n", objDef->name, instanceId, inst->objectIndex, x, y);
     }
 #endif
 
@@ -1254,7 +1437,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-                fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) has been persisted at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
+                logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) has been persisted at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
             }
 #endif
 
@@ -1267,13 +1450,18 @@ static Instance** takePersistentInstances(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-                fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
+                logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed at (%f, %f) due to room change\n", gameObject->name, inst->instanceId, inst->objectIndex, inst->x, inst->y);
             }
 #endif
+
+            // Clear the slot before freeing the instance so any nested destroy/cleanup code cannot
+            // accidentally dereference a stale pointer that remains in runner->instances during room transitions.
+            runner->instances[i] = nullptr;
 
             hmdel(runner->instancesById, inst->instanceId);
             Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Runner_removeInstanceFromObjectLists(runner, inst);
+            SpatialGrid_removeInstance(runner->spatialGrid, inst);
             Instance_free(inst);
         }
     }
@@ -1302,6 +1490,8 @@ GMLCamera* Runner_getCameraById(Runner* runner, int32_t id) {
     if (0 > id) return nullptr;
     else if (MAX_DEFAULT_ROOM_CAMERAS > id) camera = &runner->defaultCameras[id];
     else if (MAX_CAMERAS > id) camera = &runner->userCameras[id - MAX_DEFAULT_ROOM_CAMERAS];
+    else if (id == SURFACE_CAMERA) camera = &runner->surfaceCamera;
+    else if (id == GUI_CAMERA) camera = &runner->guiCamera;
     else return nullptr;
     if (!camera->allocated) return nullptr;
     return camera;
@@ -1325,6 +1515,8 @@ static void initDefaultCameraFromRoomView(GMLCamera* camera, RoomView* roomView)
     camera->speedY = roomView->speedY;
     camera->objectId = roomView->objectId;
     camera->viewAngle = 0;
+    Runner_updateCameraViewSimple(camera);
+
 }
 
 // Copies the viewport (port) properties and enabled flag from parsed room data.
@@ -1409,7 +1601,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         returnPersistentInstances(runner, carriedPersistent);
 
         // No Create events, no preCreateCode, no creationCode, no room creation code
-        fprintf(stderr, "Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
+        logInfo("Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
         return;
     }
 
@@ -1432,6 +1624,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Dynamic layers created via layer_create are appended to this array later.
     freeRuntimeLayersArray(&runner->runtimeLayers);
     uint32_t maxLayerId = 0;
+    {
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
         RuntimeLayer runtimeLayer = {0};
@@ -1443,13 +1636,17 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         runtimeLayer.hSpeed = layerSource->hSpeed;
         runtimeLayer.vSpeed = layerSource->vSpeed;
         runtimeLayer.dynamic = false;
+        runtimeLayer.beginScript = -1;
+        runtimeLayer.endScript = -1;
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
+    }
     }
     // Watermark: ensure runtime-allocated IDs (layers + elements) stay above parsed IDs.
     if (maxLayerId >= runner->nextLayerId) runner->nextLayerId = maxLayerId + 1;
 
     // Convert room layers into runtime elements
+    {
     repeat(room->layerCount, i) {
         RoomLayer* layerSource = &room->layers[i];
         if (layerSource->type == RoomLayerType_Background && layerSource->backgroundData != nullptr) {
@@ -1515,6 +1712,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             arrput(runtimeLayer->elements, el);
         }
         // Expose legacy tiles as RuntimeLayerElements so GML scripts can find them via layer_get_all_elements and toggle them via layer_tile_visible
+        {
         repeat(assets->legacyTileCount, j) {
             RoomTile* tile = &assets->legacyTiles[j];
             RuntimeLayerElement el = {0};
@@ -1528,11 +1726,14 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             el.tileElement = tile;
             arrput(runtimeLayer->elements, el);
         }
+        }
+    }
     }
 
     // Copy room background definitions into mutable runtime state
     runner->backgroundColor = room->backgroundColor;
     runner->drawBackgroundColor = room->drawBackgroundColor;
+    {
     repeat(8, i) {
         RoomBackground* src = &room->backgrounds[i];
         RuntimeBackground* dst = &runner->backgrounds[i];
@@ -1549,6 +1750,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->yScale = 1.0f;
         dst->stretch = src->stretch;
         dst->alpha = 1.0f;
+    }
     }
 
     Instance** carriedPersistent = takePersistentInstances(runner);
@@ -1589,6 +1791,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 runtimeLayer.visible = true;
                 runtimeLayer.dynamic = true;
                 runtimeLayer.dynamicName = safeStrdup(oldLayerName);
+                runtimeLayer.beginScript = -1;
+                runtimeLayer.endScript = -1;
                 arrput(runner->runtimeLayers, runtimeLayer);
                 newLayerId = (int32_t) runtimeLayer.id;
                 newLayerDepth = runtimeLayer.depth;
@@ -1608,11 +1812,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // (e.g. obj_mainchara reading obj_markerA.x), the target already exists.
 
     // Pass 1: Create all instances without firing events
+    {
     repeat(room->gameObjectCount, i) {
         RoomGameObject* roomObj = &room->gameObjects[i];
 
         if (roomObj->objectDefinition == -1) {
-            fprintf(stderr, "Runner: Object %d in room %s does not have a valid object definition reference! Was it deleted in the editor?\n", roomObj->instanceID, room->name);
+            logWarn("Runner: Object %d in room %s does not have a valid object definition reference! Was it deleted in the editor?\n", roomObj->instanceID, room->name);
             continue;
         }
 
@@ -1629,6 +1834,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
         inst->imageBlend = roomObj->color & 0x00FFFFFF;
         inst->imageAlpha = (float) ((roomObj->color >> 24) & 0xFF) / 255.0f;
+    }
     }
 
     // In GMS2, instances get their depth from their room layer, not the object definition.
@@ -1654,6 +1860,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     returnPersistentInstances(runner, carriedPersistent);
 
     // Pass 2: Fire events for newly created instances (in room definition order)
+    {
     repeat(room->gameObjectCount, i) {
         RoomGameObject* roomObj = &room->gameObjects[i];
 
@@ -1675,22 +1882,26 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (inst->destroyed) continue;
         executeCode(runner, inst, roomObj->creationCode);
     }
+    }
 
     // Run room creation code
     if (room->creationCodeId >= 0 && dataWin->code.count > (uint32_t) room->creationCodeId) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
         Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
         runner->vmContext->currentInstance = dummy;
+        int32_t savedEventType = runner->vmContext->currentEventType;
+        runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
         RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
         RValue_free(&result);
         runner->vmContext->currentInstance = nullptr;
+        runner->vmContext->currentEventType = savedEventType;
         Instance_free(dummy);
     }
 
     // Mark this room as initialized for persistent room support
     savedState->initialized = true;
 
-    fprintf(stderr, "Runner: Room loaded: %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
+    logInfo("Runner: Room loaded: %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
 }
 
 // Cleans up the runner state, used when freeing the Runner or when restarting the Runner
@@ -1728,7 +1939,10 @@ static void cleanupState(Runner* runner) {
     }
     runner->savedRoomStates = nullptr;
 
+    Particles_freeAll(runner);
+
     // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
+    {
     repeat((int32_t) arrlen(runner->dsMapPool), i) {
         DsMapEntry* map = runner->dsMapPool[i];
         if (map != nullptr) {
@@ -1739,9 +1953,11 @@ static void cleanupState(Runner* runner) {
             shfree(map);
         }
     }
+    }
     arrfree(runner->dsMapPool);
     runner->dsMapPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsListPool), i) {
         DsList* list = &runner->dsListPool[i];
         repeat(arrlen(list->items), j) {
@@ -1749,9 +1965,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(list->items);
     }
+    }
     arrfree(runner->dsListPool);
     runner->dsListPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsQueuePool), i) {
         DsQueue* q = &runner->dsQueuePool[i];
         repeat(arrlen(q->items), j) {
@@ -1759,9 +1977,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(q->items);
     }
+    }
     arrfree(runner->dsQueuePool);
     runner->dsQueuePool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsPriorityPool), i) {
         DsPriority* p = &runner->dsPriorityPool[i];
         repeat(arrlen(p->items), j) {
@@ -1769,9 +1989,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(p->items);
     }
+    }
     arrfree(runner->dsPriorityPool);
     runner->dsPriorityPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsStackPool), i) {
         DsStack* s = &runner->dsStackPool[i];
         repeat(arrlen(s->items), j) {
@@ -1779,9 +2001,11 @@ static void cleanupState(Runner* runner) {
         }
         arrfree(s->items);
     }
+    }
     arrfree(runner->dsStackPool);
     runner->dsStackPool = nullptr;
 
+    {
     repeat((int32_t) arrlen(runner->dsGridPool), i) {
         DsGrid* grid = &runner->dsGridPool[i];
         size_t count = (size_t) grid->width * (size_t) grid->height;
@@ -1790,20 +2014,33 @@ static void cleanupState(Runner* runner) {
         }
         free(grid->items);
     }
+    }
     arrfree(runner->dsGridPool);
     runner->dsGridPool = nullptr;
+
+    {
+    repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+        RValue_free(&runner->callLaterEntries[i].callback);
+    }
+    }
+    arrfree(runner->callLaterEntries);
+    runner->callLaterEntries = nullptr;
 
     // Free struct instances.
     // Anything still here at shutdown is leaked refs or a reference cycle - bulk free regardless of refCount.
     // Because structs can reference each other, we need to free every struct's contents FIRST, then we can free the Instance structs themselves.
+    {
     repeat(arrlen(runner->structInstances), i) {
         Instance* s = runner->structInstances[i];
         hmdel(runner->instancesById, s->instanceId);
         s->structRegistryIndex = -1;
         Instance_freeContents(s);
     }
+    }
+    {
     repeat(arrlen(runner->structInstances), i) {
         free(runner->structInstances[i]);
+    }
     }
     arrfree(runner->structInstances);
     runner->structInstances = nullptr;
@@ -1817,15 +2054,19 @@ static void cleanupState(Runner* runner) {
     runner->disabledObjects = nullptr;
 
     // Free mp_grid pool
+    {
     repeat((int32_t) arrlen(runner->mpGridPool), i) {
         free(runner->mpGridPool[i].cells);
+    }
     }
     arrfree(runner->mpGridPool);
     runner->mpGridPool = nullptr;
 
     // Free pending async buffer save/load state
+    {
     repeat((int32_t) arrlen(runner->asyncBufferGroupOps), i) {
         free(runner->asyncBufferGroupOps[i].filename);
+    }
     }
     arrfree(runner->asyncBufferGroupOps);
     runner->asyncBufferGroupOps = nullptr;
@@ -1850,29 +2091,35 @@ static void cleanupState(Runner* runner) {
     runner->cachedIniPath = nullptr;
 
     // Free open text files
+    {
     repeat(MAX_OPEN_TEXT_FILES, i) {
         OpenTextFile* file = &runner->openTextFiles[i];
         if (file->isOpen) {
             free(file->content);
             free(file->writeBuffer);
             free(file->filePath);
-            *file = (OpenTextFile) {0};
+            ZERO_STRUCT(*file);
         }
+    }
     }
 
     // Close any binary file handles still held by the game (close flushes write modes
     // through the FileSystem vtable, so an orderly shutdown still persists pending data)
+    {
     repeat(MAX_OPEN_BINARY_FILES, i) {
         OpenBinaryFile* file = &runner->openBinaryFiles[i];
         if (file->isOpen) {
             runner->fileSystem->vtable->binaryClose(runner->fileSystem, file->handle);
-            *file = (OpenBinaryFile) {0};
+            ZERO_STRUCT(*file);
         }
+    }
     }
 
     // Free any active file_find_* enumeration session
+    {
     repeat(arrlen(runner->fileFindResults), i) {
         free(runner->fileFindResults[i]);
+    }
     }
     arrfree(runner->fileFindResults);
     runner->fileFindResults = nullptr;
@@ -1899,10 +2146,15 @@ void Runner_reset(Runner* runner) {
     runner->xboxAccountPickerPendingId = -1;
     runner->xboxAccountPickerPadIndex = 0;
     runner->xboxAsyncIdCounter = 1;
+    arrsetlen(runner->callLaterEntries, 0);
+    runner->nextCallLaterId = 1;
     runner->score = 0.0;
     runner->lives = -1.0;
     runner->health = 0.0;
+    runner->cursorSprite = -1;
+    runner->cursorSpriteSubimage = 0;
     runner->gameStartFired = false;
+    runner->gameSpeedOverride = 0.0;
     runner->currentRoomIndex = -1;
     runner->currentRoomOrderPosition = -1;
     runner->nextInstanceId = runner->dataWin->gen8.lastObj + 1;
@@ -2102,7 +2354,27 @@ static void validateRendererVtable(Renderer* renderer) {
     #undef requireNotNullFunction
 }
 
-Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem) {
+void Runner_setPaused(Runner* runner, bool paused) {
+    if (runner == nullptr) {
+        return;
+    }
+
+    runner->paused = paused;
+
+    if (runner->audioSystem != nullptr && runner->audioSystem->vtable != nullptr) {
+        if (paused) {
+            runner->audioSystem->vtable->pauseAll(runner->audioSystem);
+        } else {
+            runner->audioSystem->vtable->resumeAll(runner->audioSystem);
+        }
+    }
+}
+
+bool Runner_isPaused(Runner* runner) {
+    return runner != nullptr && runner->paused;
+}
+
+Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed) {
     requireNotNull(dataWin);
     requireNotNull(vm);
     requireNotNull(renderer);
@@ -2117,12 +2389,24 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->fileSystem = fileSystem;
     runner->audioSystem = audioSystem;
     runner->frameCount = 0;
+    runner->gameSpeedOverride = 0.0;
+    double initialFps = (double)dataWin->gen8.gms2FPS;
+    runner->fps = initialFps;
+    runner->fpsReal = initialFps;
+    runner->fpsWindowStartFrame = 0;
+    runner->fpsWindowStartNanos = nowNanos();
     runner->osType = OS_WINDOWS;
     runner->keyboard = RunnerKeyboard_create();
     runner->gamepads = RunnerGamepad_create();
     runner->mouse = RunnerMouse_create();
+    runner->vertexFormats = nullptr;
+    runner->newVertexFormat = nullptr;
+    runner->vertexFormatBit = 0;
+    runner->currentVertexFormatId = 1;
+    runner->vertexBuffers = nullptr;
+    runner->vertexBufferCount = 0;
     runner->appSurfaceEnabled = true;
-    runner->windowTitle = dataWin->gen8.displayName ? strdup(dataWin->gen8.displayName) : nullptr;
+    runner->windowTitle = dataWin->gen8.displayName ? safeStrdup(dataWin->gen8.displayName) : nullptr;
     runner->appSurfaceAutoDraw = true;
     runner->usingAppSurface = true;
     runner->drawAutomatic = true;
@@ -2139,6 +2423,8 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     renderer->runner = runner;
     runner->viewportW = 1;
     runner->viewportH = 1;
+    runner->random = Random_create(randomSeed);
+    runner->paused = false;
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
@@ -2155,48 +2441,68 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
 
     // Create assets map
     shdefault(runner->assetsByName, -1);
+    {
     repeat(dataWin->objt.count, i) {
         if (!dataWin->objt.objects[i].present) continue;
         shput(runner->assetsByName, dataWin->objt.objects[i].name, i);
     }
+    }
+    {
     repeat(dataWin->sprt.count, i) {
         if (!dataWin->sprt.sprites[i].present) continue;
         shput(runner->assetsByName, dataWin->sprt.sprites[i].name, i);
     }
+    }
+    {
     repeat(dataWin->sond.count, i) {
         if (!dataWin->sond.sounds[i].present) continue;
         shput(runner->assetsByName, dataWin->sond.sounds[i].name, i);
     }
+    }
+    {
     repeat(dataWin->bgnd.count, i) {
         if (!dataWin->bgnd.backgrounds[i].present) continue;
         shput(runner->assetsByName, dataWin->bgnd.backgrounds[i].name, i);
     }
+    }
+    {
     repeat(dataWin->path.count, i) {
         if (!dataWin->path.paths[i].present) continue;
         shput(runner->assetsByName, dataWin->path.paths[i].name, i);
     }
+    }
+    {
     repeat(dataWin->scpt.count, i) {
         if (!dataWin->scpt.scripts[i].present) continue;
         shput(runner->assetsByName, dataWin->scpt.scripts[i].name, i);
     }
+    }
+    {
     repeat(dataWin->font.count, i) {
         if (!dataWin->font.fonts[i].present) continue;
         shput(runner->assetsByName, dataWin->font.fonts[i].name, i);
     }
+    }
+    {
     repeat(dataWin->tmln.count, i) {
         if (!dataWin->tmln.timelines[i].present) continue;
         shput(runner->assetsByName, dataWin->tmln.timelines[i].name, i);
     }
+    }
+    {
     repeat(dataWin->room.count, i) {
         if (!dataWin->room.rooms[i].present) continue;
         shput(runner->assetsByName, dataWin->room.rooms[i].name, i);
     }
+    }
 
+    {
     repeat(shlen(vm->builtinMap), i) {
         bool isRegistered = shgeti(vm->codeIndexByName, vm->builtinMap[i].key) != -1;
         if (isRegistered) {
-            fprintf(stderr, "Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
+            logWarn("Runner: Builtin function %s has the same name as a GML script! The script may be a compatibility script provided by GM:S 2+, and the game may have issues due to the builtin overriding it!\n", vm->builtinMap[i].key);
         }
+    }
     }
 
     Runner_reset(runner);
@@ -2239,7 +2545,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
     inst->depth = depth;
-    dispatchInstanceCreationEvents(runner, inst);
+    Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
     return inst;
 }
 
@@ -2247,7 +2553,7 @@ Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     RuntimeLayer* rl = Runner_findRuntimeLayerById(runner, layerId);
     if (rl == nullptr) {
-        fprintf(stderr, "Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
+        logWarn("Runner: instance_create_layer: Layer ID %d not found!\n", layerId);
         return nullptr;
     }
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
@@ -2263,7 +2569,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     if (isObjectDisabled(runner, source->objectIndex)) return nullptr;
 
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, source->objectIndex, source->x, source->y);
-    Instance_copyFields(inst, source);
+    Instance_copyFields(source, inst);
     inst->createEventFired = true;
     if (performEvent) {
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
@@ -2276,7 +2582,42 @@ void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     repeat(arrlen(runner->gameArgs), i) free(runner->gameArgs[i]);
     arrfree(runner->gameArgs);
     runner->gameArgs = nullptr;
-    repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));
+    {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
+}
+
+static void Runner_clearStaleInstanceReferencesToInstance(Runner* runner, Instance* destroyedInst) {
+    if (runner == nullptr || destroyedInst == nullptr) return;
+
+    // A destroyed instance can still be referenced by another instance's per-instance state
+    // as an integer id (e.g. linked-list pointers, owner ids, chain heads, etc.). Rewrite any
+    // stale id equal to the dying instance back to -4.
+
+    // This is probably not very optimal as it loops through every single instance and every single
+    // selfVar slot, but it doesn't happen too often so maybe it should be okay?
+    // Another option would be to keep a reverse lookup table of instance ids to instances that reference them,
+    // but that would be more memory and complexity overhead.
+
+    int32_t destroyedInstanceId = destroyedInst->instanceId;
+    int32_t count = (int32_t) arrlen(runner->instances);
+    for (int32_t i = 0; i < count; i++) {
+        Instance* inst = runner->instances[i];
+        if (inst == nullptr || !inst->active || inst->destroyed || inst->objectIndex < 0) continue;
+        repeat(inst->selfVars.capacity, slotIndex) {
+            IntRValueEntry* entry = &inst->selfVars.entries[slotIndex];
+            if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) continue;
+
+            uint8_t vtype = entry->value.type;
+            if (
+                (vtype == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
+#ifndef NO_RVALUE_INT64
+                (vtype == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
+#endif
+                (vtype == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
+            ) {
+                entry->value = RValue_makeInt32(INSTANCE_NOONE);
+            }
+        }
+    }
 }
 
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool runDestroyEvent) {
@@ -2291,10 +2632,14 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
 
+    // Any selfVars that still hold the destroyed instance's id must be invalidated back to
+    // noone (-4) before the instance is fully reclaimed.
+    Runner_clearStaleInstanceReferencesToInstance(runner, inst);
+
 #ifdef ENABLE_VM_TRACING
     GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
     if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
-        fprintf(stderr, "VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed\n", gameObject->name, inst->instanceId, inst->objectIndex);
+        logInfo("VM: Instance %s (instanceId=%d,objectIndex=%d) destroyed\n", gameObject->name, inst->instanceId, inst->objectIndex);
     }
 #endif
 }
@@ -2431,13 +2776,18 @@ void Runner_initFirstRoom(Runner* runner) {
 
     runner->gameStartTime = nowNanos();
 
+    // GameMaker Studio (as of 2024.14) applies an offset of 1 virtual pixel to certain
+    // primitives if bit 35 is set.  Earlier versions of GameMaker or GameMaker Studio
+    // appear to apply it unconditionally.
+    runner->applyOffsetForPrimitives = !DataWin_isVersionAtLeast(dataWin, 2024, 14, 0, 0) || ((dataWin->optn.info >> 35) & 1);
+
     // Run global init scripts with the global scope instance as "self"
     // In GMS 2.3+ (BC17), GLOB scripts store function declarations on "self" via Pop.v.v
     runner->vmContext->currentInstance = runner->vmContext->globalScopeInstance;
     repeat(dataWin->glob.count, i) {
         int32_t codeId = dataWin->glob.codeIds[i];
         if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
-            fprintf(stderr, "Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
+            logInfo("Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
             RValue result = VM_executeCode(runner->vmContext, codeId);
             RValue_free(&result);
         }
@@ -2452,12 +2802,12 @@ void Runner_initFirstRoom(Runner* runner) {
             if (initScript == nullptr || initScript[0] == '\0') continue;
             int32_t scriptIndex = shget(runner->assetsByName, initScript);
             if (0 > scriptIndex || (uint32_t) scriptIndex >= dataWin->scpt.count) {
-                fprintf(stderr, "Runner: Extension init script '%s' not found, skipping\n", initScript);
+                logWarn("Runner: Extension init script '%s' not found, skipping\n", initScript);
                 continue;
             }
             int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
             if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
-                fprintf(stderr, "Runner: Executing extension init script: %s\n", initScript);
+                logInfo("Runner: Executing extension init script: %s\n", initScript);
                 RValue result = VM_executeCode(runner->vmContext, codeId);
                 RValue_free(&result);
             }
@@ -2542,7 +2892,7 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
         const char* targetName = runner->dataWin->objt.objects[targetObjectIndex].name;
         bool shouldTrace = shgeti(vm->eventsToBeTraced, "*") != -1 || shgeti(vm->eventsToBeTraced, "Collision") != -1 || shgeti(vm->eventsToBeTraced, selfName) != -1;
         if (shouldTrace) {
-            fprintf(stderr, "Runner: [%s] Collision with %s (instanceId=%d, otherId=%d)\n", selfName, targetName, self->instanceId, other->instanceId);
+            logInfo("Runner: [%s] Collision with %s (instanceId=%d, otherId=%d)\n", selfName, targetName, self->instanceId, other->instanceId);
         }
     }
 #endif
@@ -2862,8 +3212,8 @@ static void dispatchMouseEvents(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapshotBase + instCount);
     memcpy(&runner->instanceSnapshots[snapshotBase], runner->instances, (size_t) instCount * sizeof(Instance*));
 
-    // Per-instance mouse-over flags (stack-allocated for typical room sizes, heap for large rooms)
-    bool* isOver = (bool*) alloca((size_t) instCount * sizeof(bool));
+    // Per-instance mouse-over flags
+    bool* isOver = (bool*) safeMalloc((size_t) instCount * sizeof(bool));
 
     // Compute whether the mouse is currently over each instance's mask.
     // Enter / Leave edge detection also updates inst->mouseOver here.
@@ -2885,14 +3235,14 @@ static void dispatchMouseEvents(Runner* runner) {
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotEnter, &ownerObjectIndex);
             if (codeId >= 0) {
                 Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_ENTER, codeId, ownerObjectIndex);
-                if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+                if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         } else if (!over && wasOver && slotLeave >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotLeave, &ownerObjectIndex);
             if (codeId >= 0) {
                 Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_LEAVE, codeId, ownerObjectIndex);
-                if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+                if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         }
     }
@@ -2900,47 +3250,48 @@ static void dispatchMouseEvents(Runner* runner) {
     // Button-held local events (0-2)
     if (RunnerMouse_checkButton(mouse, GML_MB_LEFT))
         fireLocalMouseSubtype(runner, MOUSE_LEFT_BUTTON, slotLeftBtn, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButton(mouse, GML_MB_RIGHT))
         fireLocalMouseSubtype(runner, MOUSE_RIGHT_BUTTON, slotRightBtn, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButton(mouse, GML_MB_MIDDLE))
         fireLocalMouseSubtype(runner, MOUSE_MIDDLE_BUTTON, slotMiddleBtn, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     // No-button local event (3): mouse over but nothing held
     if (!RunnerMouse_checkButton(mouse, GML_MB_ANY))
         fireLocalMouseSubtype(runner, MOUSE_NO_BUTTON, slotNoBtn, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     // Button-pressed local events (4-6)
     if (RunnerMouse_checkButtonPressed(mouse, GML_MB_LEFT))
         fireLocalMouseSubtype(runner, MOUSE_LEFT_PRESSED, slotLeftPress, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButtonPressed(mouse, GML_MB_RIGHT))
         fireLocalMouseSubtype(runner, MOUSE_RIGHT_PRESSED, slotRightPress, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButtonPressed(mouse, GML_MB_MIDDLE))
         fireLocalMouseSubtype(runner, MOUSE_MIDDLE_PRESSED, slotMiddlePress, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     // Button-released local events (7-9)
     if (RunnerMouse_checkButtonReleased(mouse, GML_MB_LEFT))
         fireLocalMouseSubtype(runner, MOUSE_LEFT_RELEASED, slotLeftRel, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButtonReleased(mouse, GML_MB_RIGHT))
         fireLocalMouseSubtype(runner, MOUSE_RIGHT_RELEASED, slotRightRel, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
-    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); return; }
+    if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
 
     if (RunnerMouse_checkButtonReleased(mouse, GML_MB_MIDDLE))
         fireLocalMouseSubtype(runner, MOUSE_MIDDLE_RELEASED, slotMiddleRel, &runner->instanceSnapshots[snapshotBase], instCount, isOver);
 
     arrsetlen(runner->instanceSnapshots, snapshotBase);
+    free(isOver);
 }
 
 static int sortInstancesByObjectIndexThenInstanceIdAscending(const void* element1, const void* element2) {
@@ -3009,7 +3360,7 @@ static void dispatchCollisionEvents(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
                     bool traceThisPair = shouldTraceCollisionPair(runner->vmContext, dataWin, self, other);
                     if (traceThisPair && (!bboxSelf.valid || !bboxOther.valid)) {
-                        fprintf(stderr, "Collision: [%s id=%d] vs [%s id=%d] bbox-invalid (selfValid=%d otherValid=%d)\n",
+                        logInfo("Collision: [%s id=%d] vs [%s id=%d] bbox-invalid (selfValid=%d otherValid=%d)\n",
                             dataWin->objt.objects[self->objectIndex].name, self->instanceId,
                             dataWin->objt.objects[other->objectIndex].name, other->instanceId,
                             bboxSelf.valid, bboxOther.valid);
@@ -3021,7 +3372,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool aabbMiss = bboxSelf.left >= bboxOther.right || bboxOther.left >= bboxSelf.right || bboxSelf.top >= bboxOther.bottom || bboxOther.top >= bboxSelf.bottom;
 #ifdef ENABLE_VM_TRACING
                     if (traceThisPair) {
-                        fprintf(stderr, "Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g %gx%g) otherBB=(%g,%g,%g,%g %gx%g) selfSolid=%d otherSolid=%d AABB=%s\n",
+                        logInfo("Collision: [%s id=%d pos=(%g,%g)] vs [%s id=%d pos=(%g,%g)] selfBB=(%g,%g,%g,%g %gx%g) otherBB=(%g,%g,%g,%g %gx%g) selfSolid=%d otherSolid=%d AABB=%s\n",
                             dataWin->objt.objects[self->objectIndex].name, self->instanceId, self->x, self->y,
                             dataWin->objt.objects[other->objectIndex].name, other->instanceId, other->x, other->y,
                             bboxSelf.left, bboxSelf.top, bboxSelf.right, bboxSelf.bottom, bboxSelf.right - bboxSelf.left, bboxSelf.bottom - bboxSelf.top,
@@ -3038,7 +3389,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     if (needsPrecise) {
                         bool preciseHit = Collision_instancesOverlapPrecise(runner, self, other, bboxSelf, bboxOther);
 #ifdef ENABLE_VM_TRACING
-                        if (traceThisPair) fprintf(stderr, "  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? (int32_t)sprSelf->sepMasks : -1, sprOther ? (int32_t)sprOther->sepMasks : -1);
+                        if (traceThisPair) logInfo("  precise=%s (selfSepMasks=%d otherSepMasks=%d)\n", preciseHit ? "hit" : "miss", sprSelf ? (int32_t)sprSelf->sepMasks : -1, sprOther ? (int32_t)sprOther->sepMasks : -1);
 #endif
                         if (!preciseHit) continue;
                     }
@@ -3047,7 +3398,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     bool hadSolid = self->solid || other->solid;
                     if (hadSolid) {
 #ifdef ENABLE_VM_TRACING
-                        if (traceThisPair) fprintf(stderr, "  solid-restore: self.solid=%d other.solid=%d self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->solid, other->solid, self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+                        if (traceThisPair) logInfo("  solid-restore: self.solid=%d other.solid=%d self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->solid, other->solid, self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
 #endif
                         self->x = self->xprevious;
                         self->y = self->yprevious;
@@ -3063,7 +3414,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                     // And if it DOES move via GML, the variable write handlers will set it to dirty
 
 #ifdef ENABLE_VM_TRACING
-                    if (traceThisPair) fprintf(stderr, "  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d codeName=%s\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId, dataWin->code.entries[evt->codeId].name);
+                    if (traceThisPair) logInfo("  fire self->other: subtype=%d (%s) owner=%d (%s) codeId=%d codeName=%s\n", targetObjIndex, dataWin->objt.objects[targetObjIndex].name, evt->ownerObjectIndex, dataWin->objt.objects[evt->ownerObjectIndex].name, evt->codeId, dataWin->code.entries[evt->codeId].name);
 #endif
                     executeCollisionEvent(runner, self, other, targetObjIndex, evt->codeId, evt->ownerObjectIndex);
 
@@ -3076,8 +3427,8 @@ static void dispatchCollisionEvents(Runner* runner) {
                         FlattenedCollisionEvent* reverseEvt = findSymmetricCollisionEvent(runner, other, self);
 #ifdef ENABLE_VM_TRACING
                         if (traceThisPair) {
-                            if (reverseEvt != nullptr) fprintf(stderr, "  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d codeName=%s  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId, dataWin->code.entries[evt->codeId].name);
-                            else fprintf(stderr, "  fire other->self: none (no matching handler)  [symmetric]\n");
+                            if (reverseEvt != nullptr) logInfo("  fire other->self: subtype=%u (%s) owner=%d (%s) codeId=%d codeName=%s  [symmetric]\n", reverseEvt->targetObjectIndex, dataWin->objt.objects[reverseEvt->targetObjectIndex].name, reverseEvt->ownerObjectIndex, dataWin->objt.objects[reverseEvt->ownerObjectIndex].name, reverseEvt->codeId, dataWin->code.entries[evt->codeId].name);
+                            else logInfo("  fire other->self: none (no matching handler)  [symmetric]\n");
                         }
 #endif
                         if (reverseEvt != nullptr)
@@ -3120,7 +3471,7 @@ static void dispatchCollisionEvents(Runner* runner) {
                                 }
                                 if (stillColliding) {
     #ifdef ENABLE_VM_TRACING
-                                    if (traceThisPair) fprintf(stderr, "  post-event re-revert: still colliding, restoring self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
+                                    if (traceThisPair) logInfo("  post-event re-revert: still colliding, restoring self=(%g,%g)->(%g,%g) other=(%g,%g)->(%g,%g)\n", self->x, self->y, self->xprevious, self->yprevious, other->x, other->y, other->xprevious, other->yprevious);
     #endif
                                     self->x = self->xprevious;
                                     self->y = self->yprevious;
@@ -3210,6 +3561,7 @@ static void updateViews(Runner* runner) {
             int32_t iy = (int32_t) GMLReal_floor(target->y);
             camera->viewX = followAxis(camera->viewX, camera->viewWidth, ix, camera->borderX, camera->speedX, (int32_t) room->width);
             camera->viewY = followAxis(camera->viewY, camera->viewHeight, iy, camera->borderY, camera->speedY, (int32_t) room->height);
+            Runner_updateCameraViewSimple(camera);
         }
     }
 }
@@ -3347,6 +3699,7 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
     // Separate persistent instances (travel with player) from room instances (saved)
     Instance** keptInstances = nullptr;
     int32_t count = (int32_t) arrlen(runner->instances);
+    {
     repeat(count, i) {
         Instance* inst = runner->instances[i];
         if (inst->persistent) {
@@ -3358,13 +3711,16 @@ static void persistRoomState(Runner* runner, int32_t roomIndex) {
             Instance_free(inst);
         }
     }
+    }
     arrfree(runner->instances);
     runner->instances = keptInstances;
 
     // The per-object lists referenced the full pre-transition instance set (persistents, saved-to-state, and soon-to-be-freed). Only the kept persistents remain live, so rebuild from scratch from the final runner->instances.
     Runner_clearAllObjectLists(runner);
+    {
     repeat((int32_t) arrlen(runner->instances), i) {
         Runner_addInstanceToObjectLists(runner, runner->instances[i]);
+    }
     }
 
     // Save room visual state
@@ -3415,7 +3771,7 @@ void Runner_handlePendingRoomChange(Runner* runner) {
         require(runner->dataWin->room.count > (uint32_t) newRoomIndex);
         const char* newRoomName = runner->dataWin->room.rooms[newRoomIndex].name;
 
-        fprintf(stderr, "Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
+        logInfo("Room changed: %s (room %d) -> %s (room %d)\n", oldRoomName, oldRoomIndex, newRoomName, newRoomIndex);
 
         // If the old room is persistent, save its instance and visual state
         if (oldRoom->persistent) {
@@ -3544,6 +3900,8 @@ static void tickTimelines(Runner* runner) {
 }
 
 void Runner_step(Runner* runner) {
+    runner->fpsRealFrameStartNanos = nowNanos();
+
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
     requireMessageFormatted(__FILE__, __LINE__, arrlen(runner->instanceSnapshots) == 0, "instanceSnapshots arena was not fully popped at end of previous frame (length=%td)", arrlen(runner->instanceSnapshots));
 
@@ -3562,6 +3920,7 @@ void Runner_step(Runner* runner) {
     // TODO: Newer GameMaker versions (not sure exactly which, but at least GM 2024 does this) defers Animation End: have Instance_Animate just set a per-instance "wrapped" flag, and dispatch the event via a new ProcessSpriteMessageEvents step between Step and the motion loop!
     int32_t animCount = (int32_t) arrlen(runner->instances);
     int32_t animEndSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, OTHER_ANIMATION_END);
+    {
     repeat(animCount, i) {
         Instance* inst = runner->instances[i];
         if (!inst->active) continue;
@@ -3577,10 +3936,10 @@ void Runner_step(Runner* runner) {
                     inst->imageIndex += inst->imageSpeed * sprite->gms2PlaybackSpeed;
                 } else {
                     inst->imageIndex += (1.0/runner->currentRoom->speed) * sprite->gms2PlaybackSpeed * inst->imageSpeed;
-                }   
+                }
             }
         } else {
-            inst->imageIndex += inst->imageSpeed;    
+            inst->imageIndex += inst->imageSpeed;
         }
         float frameCount = (float) sprite->textureCount;
         bool wrapped = false;
@@ -3597,17 +3956,52 @@ void Runner_step(Runner* runner) {
             if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
         }
     }
+    }
 
     // Scroll backgrounds
     Runner_scrollBackgrounds(runner);
 
     // Advance GMS2 layer parallax (hspeed/vspeed per frame)
     size_t layerCount = arrlenu(runner->runtimeLayers);
+    {
     repeat(layerCount, i) {
         RuntimeLayer* rl = &runner->runtimeLayers[i];
         rl->xOffset += rl->hSpeed;
         rl->yOffset += rl->vSpeed;
     }
+    }
+
+#if IS_WAD17_OR_HIGHER_ENABLED
+    // Tick call_later timers.
+    {
+        VMContext* ctx = runner->vmContext;
+        repeat((int32_t) arrlen(runner->callLaterEntries), i) {
+            CallLaterEntry* entry = &runner->callLaterEntries[i];
+            if (!entry->active) continue;
+
+            if (entry->units == 1) {
+                entry->elapsed += (double)1.0;
+            } else {
+                entry->elapsed += (double)runner->deltaTime / (double)1000000.0;
+            }
+
+            if (entry->elapsed >= entry->period) {
+                entry->executing = true;
+                entry->elapsed = 0.0;
+
+                if (ctx != nullptr) {
+                    Runner_executeCallLaterCallback(ctx, entry->callback);
+                }
+
+                entry->executing = false;
+                if (!entry->repeat) {
+                    entry->active = false;
+                    RValue_free(&entry->callback);
+                }
+            }
+        }
+    }
+#endif
 
     // Execute Begin Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_BEGIN);
@@ -3645,7 +4039,7 @@ void Runner_step(Runner* runner) {
 #ifdef ENABLE_VM_TRACING
                 GameObject* object = &runner->dataWin->objt.objects[inst->objectIndex];
                 if (shgeti(runner->vmContext->alarmsToBeTraced, "*") != -1 || shgeti(runner->vmContext->alarmsToBeTraced, object->name) != -1) {
-                    fprintf(stderr, "VM: [%s] Ticking down Alarm[%d] (instanceId=%d), current tick is %d\n", object->name, alarmIdx, inst->instanceId, inst->alarm[alarmIdx]);
+                    logInfo("VM: [%s] Ticking down Alarm[%d] (instanceId=%d), current tick is %d\n", object->name, (int)alarmIdx, inst->instanceId, inst->alarm[alarmIdx]);
                 }
 #endif
 
@@ -3656,7 +4050,7 @@ void Runner_step(Runner* runner) {
 
 #ifdef ENABLE_VM_TRACING
                     if (shgeti(runner->vmContext->alarmsToBeTraced, "*") != -1 || shgeti(runner->vmContext->alarmsToBeTraced, object->name) != -1) {
-                        fprintf(stderr, "VM: [%s] Firing Alarm[%d] (instanceId=%d)\n", object->name, alarmIdx, inst->instanceId);
+                        logInfo("VM: [%s] Firing Alarm[%d] (instanceId=%d)\n", object->name, (int)alarmIdx, inst->instanceId);
                     }
 #endif
 
@@ -3693,7 +4087,6 @@ void Runner_step(Runner* runner) {
     tickTimelines(runner);
 
     dispatchMouseEvents(runner);
-    if (runner->pendingRoom >= 0) { Runner_handlePendingRoomChange(runner); return; }
 
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
@@ -3745,6 +4138,7 @@ void Runner_step(Runner* runner) {
         dispatchOutsideViewEvents(runner, viewIndex);
     }
 
+    {
     for (int i = 0; MAX_GAMEPADS > i; i++) {
         GamepadSlot* slot = &runner->gamepads->slots[i];
         if (slot->connected != slot->connectedPrev) {
@@ -3771,6 +4165,7 @@ void Runner_step(Runner* runner) {
             }
             runner->asyncLoadMapId = -1;
         }
+    }
     }
 
     // Resolve a pending Xbox One account-picker request
@@ -3842,11 +4237,22 @@ void Runner_step(Runner* runner) {
     // Execute End Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_END);
 
+    // Step particle systems left on automatic update. After End Step, so a system whose emitters were
+    // just reconfigured streams with this frame's settings, and before the draw pass that shows them.
+    Particles_updateAutomatic(runner);
+
     // Update view following
     updateViews(runner);
 
     Runner_cleanupDestroyedInstances(runner);
     Runner_sweepDeadStructs(runner);
+
+    // Measure fps builtin
+    if (nowNanos() - runner->fpsWindowStartNanos >= (uint64_t)1000000000) {
+        runner->fps = (double)(runner->frameCount - runner->fpsWindowStartFrame);
+        runner->fpsWindowStartFrame = runner->frameCount;
+        runner->fpsWindowStartNanos = nowNanos();
+    }
 
     runner->frameCount++;
 }
@@ -3964,9 +4370,9 @@ void Runner_dumpState(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     int32_t instanceCount = (int32_t) arrlen(runner->instances);
 
-    printf("=== Frame %d State Dump ===\n", runner->frameCount);
-    printf("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
-    printf("Instance count: %d\n", instanceCount);
+    logInfo("=== Frame %d State Dump ===\n", runner->frameCount);
+    logInfo("Room: %s (index %d)\n", runner->currentRoom->name, runner->currentRoomIndex);
+    logInfo("Instance count: %d\n", instanceCount);
 
     repeat(instanceCount, i) {
         Instance* inst = runner->instances[i];
@@ -3989,23 +4395,23 @@ void Runner_dumpState(Runner* runner) {
             parentName = dataWin->objt.objects[gameObject->parentId].name;
         }
 
-        printf("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
-        printf("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
-        printf("  Depth: %d\n", inst->depth);
-        printf("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
-        printf("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
-        printf("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
-        printf("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
+        logInfo("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
+        logInfo("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
+        logInfo("  Depth: %d\n", inst->depth);
+        logInfo("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
+        logInfo("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
+        logInfo("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
+        logInfo("  Parent: %s (parentId=%d)\n", parentName, gameObject != nullptr ? gameObject->parentId : -1);
 
         // Active alarms
         bool hasAlarm = false;
         repeat(GML_ALARM_COUNT, alarmIdx) {
             if (inst->alarm[alarmIdx] >= 0) {
-                if (!hasAlarm) { printf("  Alarms:"); hasAlarm = true; }
-                printf(" [%d]=%d", alarmIdx, inst->alarm[alarmIdx]);
+                if (!hasAlarm) { logInfo("  Alarms:"); hasAlarm = true; }
+                logInfo(" [%d]=%d", (int)alarmIdx, inst->alarm[alarmIdx]);
             }
         }
-        if (hasAlarm) printf("\n");
+        if (hasAlarm) logInfo("\n");
 
         // Self variables
         bool hasSelfVars = false;
@@ -4027,26 +4433,27 @@ void Runner_dumpState(Runner* runner) {
             }
 
             if (val.type == RVALUE_ARRAY && val.array != nullptr) {
-                if (!hasSelfArrays) { printf("  Self Arrays:\n"); hasSelfArrays = true; }
+                if (!hasSelfArrays) { logInfo("  Self Arrays:\n"); hasSelfArrays = true; }
                 repeat(GMLArray_length1D(val.array), ai) {
                     RValue* cell = GMLArray_slot(val.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
-                    printf("    %s[%d] = %s\n", varName, (int) ai, innerStr);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
+                    logInfo("    %s[%d] = %s\n", varName, (int) ai, innerStr);
                     free(innerStr);
                 }
             } else {
-                if (!hasSelfVars) { printf("  Self Variables:\n"); hasSelfVars = true; }
-                char* valStr = RValue_toStringFancy(val);
-                printf("    %s = %s\n", varName, valStr);
+                if (!hasSelfVars) { logInfo("  Self Variables:\n"); hasSelfVars = true; }
+                char* valStr = RValue_toStringFancy(val, runner->dataWin);
+                logInfo("    %s = %s\n", varName, valStr);
                 free(valStr);
             }
         }
     }
 
     // Global variables (non-array)
-    printf("\n=== Global Variables ===\n");
+    logInfo("\n=== Global Variables ===\n");
 
+    {
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
         IntRValueEntry entryOnTheVarStruct = runner->vmContext->globalScopeInstance->selfVars.entries[i];
         RValue target = VM_structGetVariableByVarId(runner->vmContext->globalScopeInstance, entryOnTheVarStruct.key, -1);
@@ -4058,19 +4465,20 @@ void Runner_dumpState(Runner* runner) {
                 repeat(GMLArray_length1D(target.array), ai) {
                     RValue* cell = GMLArray_slot(target.array, ai);
                     if (cell == nullptr || cell->type == RVALUE_UNDEFINED) continue;
-                    char* innerStr = RValue_toStringFancy(*cell);
-                    printf("  %s[%d] = %s\n", name, (int) ai, innerStr);
+                    char* innerStr = RValue_toStringFancy(*cell, runner->dataWin);
+                    logInfo("  %s[%d] = %s\n", name, (int) ai, innerStr);
                     free(innerStr);
                 }
             }
 
             char* valStr = RValue_toStringTyped(target);
-            printf("  %s = %s\n", name, valStr);
+            logInfo("  %s = %s\n", name, valStr);
             free(valStr);
         }
     }
+    }
 
-    printf("\n=== End Frame %d State Dump ===\n", runner->frameCount);
+    logInfo("\n=== End Frame %d State Dump ===\n", runner->frameCount);
 }
 
 // ===[ JSON State Dump ]===
@@ -4213,7 +4621,7 @@ char* Runner_dumpStateJson(Runner* runner) {
         repeat(GML_ALARM_COUNT, alarmIdx) {
             if (inst->alarm[alarmIdx] >= 0) {
                 char alarmKey[4];
-                snprintf(alarmKey, sizeof(alarmKey), "%d", alarmIdx);
+                snprintf(alarmKey, sizeof(alarmKey), "%d", (int)alarmIdx);
                 JsonWriter_propertyInt(&w, alarmKey, inst->alarm[alarmIdx]);
             }
         }
@@ -4287,6 +4695,7 @@ char* Runner_dumpStateJson(Runner* runner) {
     JsonWriter_key(&w, "globalVariables");
     JsonWriter_beginObject(&w);
 
+    {
     repeat(runner->vmContext->globalScopeInstance->selfVars.capacity, i) {
         IntRValueEntry entryOnTheVarStruct = runner->vmContext->globalScopeInstance->selfVars.entries[i];
         RValue target = VM_structGetVariableByVarId(runner->vmContext->globalScopeInstance, entryOnTheVarStruct.key, -1);
@@ -4297,6 +4706,7 @@ char* Runner_dumpStateJson(Runner* runner) {
             JsonWriter_key(&w, name);
             writeRValueJson(&w, target);
         }
+    }
     }
 
     JsonWriter_endObject(&w);
@@ -4345,7 +4755,7 @@ void Runner_free(Runner* runner) {
         free(runner->flattenedCollisionEvents);
         runner->flattenedCollisionEvents = nullptr;
     }
-    
+
     arrfree(runner->cachedDrawables);
     runner->cachedDrawables = nullptr;
     arrfree(runner->instanceSnapshots);
@@ -4361,8 +4771,63 @@ void Runner_free(Runner* runner) {
     }
     arrfree(runner->gameArgs);
 
+    if (runner->vertexFormats != nullptr) {
+        repeat((int32_t) arrlen(runner->vertexFormats), i) {
+            VmVertexFormat* format = runner->vertexFormats[i];
+            if (format == nullptr) continue;
+            if (format->pNative != nullptr) {
+                free(format->pNative);
+                format->pNative = nullptr;
+            }
+            if (format->format != nullptr) {
+                arrfree(format->format);
+                format->format = nullptr;
+            }
+            free(format);
+        }
+        arrfree(runner->vertexFormats);
+        runner->vertexFormats = nullptr;
+    }
+    if (runner->newVertexFormat != nullptr) {
+        if (runner->newVertexFormat->pNative != nullptr) {
+            free(runner->newVertexFormat->pNative);
+            runner->newVertexFormat->pNative = nullptr;
+        }
+        if (runner->newVertexFormat->format != nullptr) {
+            free(runner->newVertexFormat->format);
+            runner->newVertexFormat->format = nullptr;
+        }
+        free(runner->newVertexFormat);
+        runner->newVertexFormat = nullptr;
+    }
+    if (runner->vertexBuffers != nullptr) {
+        repeat(runner->vertexBufferCount, i) {
+            Buffer_Vertex* buffer = runner->vertexBuffers[i];
+            if (buffer == nullptr) continue;
+            if (buffer->buffer.pBuffer8 != nullptr) {
+                free(buffer->buffer.pBuffer8);
+                buffer->buffer.pBuffer8 = nullptr;
+            }
+            if (buffer->pFrozenVB != nullptr) {
+                if (buffer->pFrozenVB->pVertexBuffer != nullptr) {
+                    free(buffer->pFrozenVB->pVertexBuffer);
+                    buffer->pFrozenVB->pVertexBuffer = nullptr;
+                }
+                free(buffer->pFrozenVB);
+                buffer->pFrozenVB = nullptr;
+            }
+            free(buffer);
+            runner->vertexBuffers[i] = nullptr;
+        }
+        free(runner->vertexBuffers);
+        runner->vertexBuffers = nullptr;
+    }
+    runner->vertexBufferCount = 0;
+
     RunnerKeyboard_free(runner->keyboard);
     RunnerGamepad_free(runner->gamepads);
     RunnerMouse_free(runner->mouse);
+    if (runner->windowTitle)
+        free(runner->windowTitle);
     free(runner);
 }

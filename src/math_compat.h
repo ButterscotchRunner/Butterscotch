@@ -96,6 +96,12 @@ static float cosf(float x) { return cos(x); }
 
 #endif
 
+#ifdef NO_FLOORF
+
+static float floorf(float x) { return floor(x); }
+
+#endif
+
 #ifdef NO_ROUNDF
 
 static float roundf(float x) {
@@ -104,10 +110,6 @@ static float roundf(float x) {
     else           return (float)((int32_t)(x - 0.5f));
 }
 
-#endif
-
-#ifndef INFINITY
-#define INFINITY (1.0f / 0.0f)
 #endif
 
 #ifndef M_PI

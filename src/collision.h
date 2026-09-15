@@ -33,13 +33,17 @@ static inline Sprite* Collision_getSprite(DataWin* dataWin, Instance* inst) {
 
 // Computes the axis-aligned bounding box for an instance using its collision sprite
 static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst) {
+    InstanceBBox ret;
     Sprite* spr = Collision_getSprite(runner->dataWin, inst);
-    if (spr == nullptr) return (InstanceBBox){0, 0, 0, 0, false};
+    if (spr == nullptr) {
+        ZERO_STRUCT(ret);
+        return ret;
+    }
 
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = (spr->bboxMode == 1) ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = (spr->bboxMode == 1) ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = (spr->bboxMode == 1) ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
 
@@ -94,7 +98,12 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
         bottom = GMLReal_bankersRound(bottom);
     }
 
-    return (InstanceBBox){left, right, top, bottom, true};
+    ret.left = left;
+    ret.right = right;
+    ret.top = top;
+    ret.bottom = bottom;
+    ret.valid = true;
+    return ret;
 }
 
 static inline bool Collision_hasFrameMasks(Sprite* sprite) {
@@ -115,10 +124,10 @@ static inline InstanceOBB Collision_instanceOBB(Sprite* spr, Instance* inst) {
     InstanceOBB obb;
     obb.x = inst->x;
     obb.y = inst->y;
-    GMLReal marginL = (GMLReal) spr->marginLeft;
-    GMLReal marginR = (GMLReal) (spr->marginRight + 1);
-    GMLReal marginT = (GMLReal) spr->marginTop;
-    GMLReal marginB = (GMLReal) (spr->marginBottom + 1);
+    GMLReal marginL = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginLeft;
+    GMLReal marginR = spr->bboxMode == 1 ? (GMLReal) spr->width : (GMLReal) (spr->marginRight + 1);
+    GMLReal marginT = spr->bboxMode == 1 ? 0.0 : (GMLReal) spr->marginTop;
+    GMLReal marginB = spr->bboxMode == 1 ? (GMLReal) spr->height : (GMLReal) (spr->marginBottom + 1);
     GMLReal originX = (GMLReal) spr->originX;
     GMLReal originY = (GMLReal) spr->originY;
     obb.lx0 = inst->imageXscale * (marginL - originX);
@@ -233,8 +242,97 @@ static inline bool Collision_circleOverlapsInstance(Runner* runner, Instance* in
     return dx * dx + dy * dy <= rSq;
 }
 
-// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2]. Returns true if the segment intersects the rect.
-static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+// Tests whether world point (px, py) lies inside the ellipse defined by opposite corners (x1,y1)-(x2,y2).
+static inline bool Collision_pointInEllipse(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal px, GMLReal py) {
+    GMLReal cx = (x1 + x2) * 0.5;
+    GMLReal cy = (y1 + y2) * 0.5;
+    GMLReal rx = (x2 - x1) * 0.5;
+    GMLReal ry = (y2 - y1) * 0.5;
+    GMLReal a = (px - cx) / rx;
+    GMLReal b = (py - cy) / ry;
+    return a * a + b * b <= 1.0;
+}
+
+// Ellipse (defined by opposite corners) vs instance collision shape.
+// Mirrors GameMaker-HTML5's yyInstance.Collision_Ellipse flow: AABB rejection, degenerate
+// (zero width/height) fallback to the rectangle test, nearest-corner PtInEllipse rejection,
+// and ellipse-vs-OBB SAT for rotated sepMasks==2 sprites.
+static inline bool Collision_ellipseOverlapsInstance(Runner* runner, Instance* inst, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2) {
+    InstanceBBox bbox = Collision_computeBBox(runner, inst);
+    if (!bbox.valid) return false;
+
+    // Native rounds the ellipse corners in compatibility mode, before computing the centre/radii.
+    if (runner->collisionCompatibilityMode) {
+        x1 = GMLReal_bankersRound(x1);
+        y1 = GMLReal_bankersRound(y1);
+        x2 = GMLReal_bankersRound(x2);
+        y2 = GMLReal_bankersRound(y2);
+    }
+
+    GMLReal minX = GMLReal_fmin(x1, x2);
+    GMLReal maxX = GMLReal_fmax(x1, x2);
+    GMLReal minY = GMLReal_fmin(y1, y2);
+    GMLReal maxY = GMLReal_fmax(y1, y2);
+
+    // Reject when the ellipse box and the instance bbox are separated.
+    if (minX >= bbox.right || maxX < bbox.left || minY >= bbox.bottom || maxY < bbox.top) return false;
+
+    // Degenerate ellipse (a line)
+    if (minX == maxX || minY == maxY) return Collision_rectOverlapsInstance(runner, inst, minX, minY, maxX, maxY);
+
+    GMLReal cx = (x1 + x2) * 0.5;
+    GMLReal cy = (y1 + y2) * 0.5;
+    GMLReal rx = (x2 - x1) * 0.5;
+    GMLReal ry = (y2 - y1) * 0.5;
+
+    if (!(bbox.left <= cx && bbox.right >= cx) &&
+        !(bbox.top <= cy && bbox.bottom >= cy)) {
+        GMLReal px = (bbox.right <= cx) ? bbox.right : bbox.left;
+        GMLReal py = (bbox.bottom <= cy) ? bbox.bottom : bbox.top;
+        if (!Collision_pointInEllipse(x1, y1, x2, y2, px, py)) return false;
+    }
+
+    Sprite* spr = Collision_getSprite(runner->dataWin, inst);
+    if (!Collision_obbNeedsSAT(spr, inst)) return true;
+
+    InstanceOBB obb = Collision_instanceOBB(spr, inst);
+    GMLReal lcx, lcy;
+    Collision_obbWorldToLocal(&obb, cx, cy, &lcx, &lcy);
+
+    GMLReal axes[4][2] = {
+        { 1.0, 0.0 },
+        { 0.0, 1.0 },
+        { obb.cs, obb.sn },
+        { -obb.sn, obb.cs }
+    };
+    GMLReal corners[4][2] = {
+        { obb.lx0, obb.ly0 }, { obb.lx1, obb.ly0 },
+        { obb.lx0, obb.ly1 }, { obb.lx1, obb.ly1 }
+    };
+
+    repeat(4, axIdx) {
+        GMLReal nx = axes[axIdx][0], ny = axes[axIdx][1];
+        GMLReal rMin = corners[0][0] * nx + corners[0][1] * ny;
+        GMLReal rMax = rMin;
+        {
+        for (int c = 1; 4 > c; c++) {
+            GMLReal p = corners[c][0] * nx + corners[c][1] * ny;
+            if (p < rMin) rMin = p;
+            else if (p > rMax) rMax = p;
+        }
+        }
+        GMLReal du = nx * obb.cs + ny * obb.sn;
+        GMLReal dv = -nx * obb.sn + ny * obb.cs;
+        GMLReal halfLen = GMLReal_sqrt(rx * rx * du * du + ry * ry * dv * dv);
+        GMLReal c = lcx * nx + lcy * ny;
+        if (c + halfLen <= rMin || c - halfLen >= rMax) return false;
+    }
+    return true;
+}
+
+// Liang-Barsky clip of a parametric line p(t) = p1 + t*(p2-p1), t in [0,1], against an axis-aligned rect [rx1,rx2] x [ry1,ry2].
+// Returns true if the segment intersects the rect, and writes the clipped parametric range to *outTEnter/*outTExit.
+static inline bool Collision_segmentVsAARectClip(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2, GMLReal* outTEnter, GMLReal* outTExit) {
     GMLReal tEnter = 0.0, tExit = 1.0;
     GMLReal dx = x2 - x1, dy = y2 - y1;
     GMLReal p[4] = { -dx, dx, -dy, dy };
@@ -252,7 +350,14 @@ static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2,
         }
         if (tEnter > tExit) return false;
     }
+    *outTEnter = tEnter;
+    *outTExit = tExit;
     return true;
+}
+
+static inline bool Collision_segmentVsAARect(GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, GMLReal rx1, GMLReal ry1, GMLReal rx2, GMLReal ry2) {
+    GMLReal tEnter, tExit;
+    return Collision_segmentVsAARectClip(x1, y1, x2, y2, rx1, ry1, rx2, ry2, &tEnter, &tExit);
 }
 
 // Line segment (x1,y1)-(x2,y2) vs instance collision rect.

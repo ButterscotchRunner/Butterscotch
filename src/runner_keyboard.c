@@ -2,7 +2,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 static bool isValidKey(int32_t key) {
     return key >= 0 && GML_KEY_COUNT > key;

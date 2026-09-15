@@ -10,7 +10,7 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > Butterscotch is still VERY early in development and it is NOT that good yet.
 
 When you create a game in GameMaker: Studio and export it, GameMaker: Studio exports the game code as bytecode instead of native compiled code, and that bytecode is compatible with any other GameMaker: Studio runner (also known as YoYo runner), as long as they have matching GameMaker: Studio versions. This is similar to how Java applications work.
@@ -20,10 +20,6 @@ This is how projects such as [Droidtale](https://mrpowergamerbr.com/projects/dro
 Ever since I created Droidtale 10+ years ago, I had that lingering thought in my mind... If GameMaker games use bytecode, what prevents us from creating our *own* runner? And if we can write our *own* runner, what prevents us from porting GameMaker: Studio games to other platforms?
 
 And that's where Butterscotch comes in! Butterscotch is an open source re-implementation of GameMaker: Studio's runner.
-
-**Butterscotch Web (WASM):** https://butterscotch.mrpowergamerbr.com/web/
-
-**Butterscotch PlayStation 2 ISO Generator:** https://butterscotch.mrpowergamerbr.com/
 
 ## Game Compatibility
 
@@ -52,21 +48,27 @@ However, that doesn't mean that a game that uses a compatible version WILL run! 
 
 Of course, there are exceptions that break game compatibility altogether:
 
-* Games compiled with YYC, because they use native code instead of bytecode. 
+* Games compiled with YYC, because they use native code instead of bytecode.
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
 
 ## Supported Platforms
 
 * Windows
+* macOS
 * Web
 * PlayStation 2
 * PlayStation 3
+* PlayStation Vita
+* Nintendo Switch
 * ...and maybe more in the future!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1996
+* Linux with glibc as old as about ~1995
 * FreeBSD as old as 2.2.8
+* OpenBSD
+* NetBSD
 * Haiku
+* Solaris/illumos (OpenIndiana tested working)
 
 The following backends are available for desktop platforms (Windows and POSIX systems).
 * GLFW 2
@@ -74,69 +76,127 @@ The following backends are available for desktop platforms (Windows and POSIX sy
 * SDL 1.2
 * SDL 2
 * SDL 3
+* AppKit (macOS only)
 
 The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
 * GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
 * Clang 1.1 and up
 * TinyCC 0.9.27 and up
-* MSVC 19.51.36248
+* MSVC 4.0 and up
+
+## Download Butterscotch
+
+Below are direct links to download the latest auto-build of Butterscotch for your platform.
+
+### Desktop
+
+| OS | x86_64 | i386 | arm64 | armhf | PowerPC | PowerPC64 | PowerPC64 little-endian | RISC-V 64 | LoongArch64 | MIPS | MIPS little-endian | MIPS64 | MIPS64 little-endian |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Windows | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-x86_64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-i486.zip) | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-windows-arm64.zip) | [armv7](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-windows-armv7.zip) | | | | | | | | | |
+| macOS | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-x86_64.zip) | | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-arm64.zip) | | | | | | | | | | |
+| Linux | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-arm.zip) | [powerpc](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc.zip) | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc64.zip) | [powerpc64le](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc64le.zip) | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-riscv.zip) | [loongarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-loongarch64.zip) | [mips](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips.zip) | [mipsel](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mipsel.zip) | [mips64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips64.zip) | [mips64el](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips64el.zip) |
+| FreeBSD 14.0 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-arm.zip) | | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-powerpc64.zip) | [powerpc64le](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-powerpc64le.zip) | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-riscv.zip) | | | | | |
+| OpenBSD 7.8 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-arm.zip) | [powerpc](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-powerpc.zip) | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-powerpc64.zip) | | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-riscv.zip) | | | | [mips64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-mips64.zip) | [mips64el](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-mips64el.zip) |
+| NetBSD 10.1 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-arm.zip) | | | | | | [mips](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mips.zip) | [mipsel](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mipsel.zip) | | |
+| Haiku | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-haiku-x86-64.zip) | | | | | | | | | | | | |
+
+All desktop builds use SDL2, with the exception of Mac OS using AppKit and i486 Windows using SDL 1.2.
+
+All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware floating-point support.
+
+### Consoles
+
+| Platform | Download | Notes |
+|---|---|---|
+| PlayStation 2 | [butterscotch-ps2.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2.zip) | All WAD versions. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad14.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad14.zip) | WAD 14 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad16.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad16.zip) | WAD 16 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad17.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad17.zip) | WAD 17 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 3 | [butterscotch-ps3.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps3.zip) | To be used with the [preprocessor](https://github.com/ButterscotchRunner/ButterscotchPreprocessor). |
+| PlayStation Vita | [butterscotch-vita.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-vita.zip) | Place data.win in `ux0:/data/butterscotch/` directory. |
+| Nintendo Switch | [butterscotch-switch.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-switch.zip) | Place data.win in `sdmc:/switch/butterscotch/` directory. |
+
+### Other
+
+| Platform | Download | Notes |
+| -------- | -------- | ----- |
+| WebAssembly | [butterscotch-web.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-web.zip) | [Play online](https://butterscotch.mrpowergamerbr.com/web/) |
+| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) |
 
 ## Community Ports
 
 * [Xbox 360 (Butterscotch-360)](https://github.com/ceilingtilefan/Butterscotch-360) by @ceilingtilefan
-* [3DS and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682, @d16.dorian, @ralcactus
+* [3DS, Wii and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682, @d16.dorian, @ralcactus
 
 ## Building Butterscotch
 
 ```bash
 mkdir build && cd build
-cmake -DPLATFORM=desktop -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
 make
 ```
 
-If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DPLATFORM=glfw`
+If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
 
-Then run Butterscotch with `./butterscotch /path/to/data.win`!
+Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`.
 
 ## CLI parameters
 
-The GLFW target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
+The desktop target has a lot of nifty CLI parameters that you can use to trace and debug games running on it.
 
-* `--debug`: Enables debugging hotkeys.
-* `--speed`: Speed multiplier.
-* `--fast-forward-speed`: Speed multiplier when pressing TAB (toggle).
-* `--widescreen-hack`: Forces a game to run in widescreen (example: `--widescreen-hack=16:9`).
-* `--screenshot=file_%d.png`: Screenshots the runner, requires `--screenshot-at-frame`.
-* `--screenshot-at-frame=Frame`: Screenshots the runner at a specific frame. Can be used multiple times.
-* `--screenshot-surfaces=file_%d.%d.png`: Screenshots all surfaces (framebuffers), requires `--screenshot-surfaces-at-frame`.
-* `--screenshot-surfaces-at-frame=Frame`: Screenshots all surfaces (framebuffers) at a specific frame. Can be used multiple times.
-* `--headless`: Runs the runner in headless mode. When running in headless mode, the game will run at the max speed that your system can handle.
-* `--trace-variable-reads`: Traces variable reads.
-* `--trace-variable-writes`: Traces variable writes.
-* `--trace-function-calls`: Traces function calls.
-* `--trace-alarms`: Traces alarms.
-* `--trace-instance-lifecycles`: Traces instance creations and deletions.
-* `--trace-events`: Traces events.
-* `--trace-event-inherited`: Traces event inherited calls.
-* `--trace-tiles`: Traces drawn tiles.
-* `--trace-collisions`: Traces collisions between instances.
-* `--trace-opcodes`: Traces opcodes.
-* `--trace-stack`: Traces stack.
-* `--trace-frames`: Logs when a frame starts and when a frame ends, including how much time it took to process each frame.
-* `--always-log-unknown-functions`: When enabled, Butterscotch will always log unknown functions instead of logging them once per script.
-* `--always-log-stubbed-functions`: When enabled, Butterscotch will always log stubbed functions instead of logging them once per script.
-* `--trace-bytecode-after-frame`: When set, controls when `--trace-opcodes` and `--trace-stack` will start logging. Useful when debugging interpreter-heavy scripts.
-* `--exit-at-frame=Frame`: Automatically exit the runner after X frames.
-* `--seed=Seed`: Sets a fixed seed for the runner, useful for reproduceable runs.
-* `--print-rooms`: Prints all rooms to the console, along with all objects present in the room.
-* `--print-declared-functions`: Prints all declared GML scripts by the game.
-* `--print-objects`: Prints all objects definitions of the game.
-* `--disassemble`: Dissassembles a specific script.
-* `--record-inputs`: Records user inputs.
-* `--playback-inputs`: Playbacks user inputs.
-* `--os-type`: Allows changing the built-in `os_type` value. The default is Windows. Example: When running Undertale Xbox, you would need to set it to `--os-type xboxone`.
-* `--profile-gml-scripts`: Logs which GML scripts are the heaviest in terms of time and executed instructions.
-* `--profile-opcodes`: Ranks which GML opcodes were executed the most.
+```
+--help                                 - Show this message
+--screenshot <filename>                - Specify the filename for screenshots
+--screenshot-at-frame <frame>          - Take a screenshot at the specified frame
+--screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
+--screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
+--headless                             - Launch without a window
+--print-rooms                          - Print all rooms in the game and exit
+--print-objects                        - Print all objects in the game and exit
+--print-shaders                        - Print all shaders in the game and exit
+--print-declared-functions             - Print all declared functions in the game and exit
+--print-unknown-functions              - Print all unknown functions used by the game and exit
+--trace-variable-reads                 - Trace variable reads
+--trace-variable-writes                - Trace variable writes
+--trace-function-calls                 - Trace function calls
+--trace-alarms                         - Trace alarms
+--trace-instance-lifecycles            - Trace instance creations and deletions
+--trace-events                         - Trace events
+--trace-collisions                     - Trace collisions between instances
+--trace-event-inherited                - Trace event inherited calls
+--trace-tiles                          - Trace drawn tiles
+--trace-opcodes                        - Trace opcodes
+--trace-stack                          - Trace stack
+--trace-frames                         - Log frametimes
+--always-log-unknown-functions         - Always log unknown function calls instead of once per script
+--always-log-stubbed-functions         - Always log stubbed function calls instead of once per script
+--exit-at-frame <frame>                - Exit at the specified frame
+--trace-bytecode-after-frame <frame>   - Delay stack and opcode tracing until the specified frame
+--dump-frame <frame>                   - Dump the runner state at the specified frame
+--dump-frame-json <frame>              - Dump the runner state in json at the specified frame
+--dump-frame-json-file <file>          - Specify an output file for runner state dumps
+--speed <speed>                        - Set a normal speed multiplier
+--fast-forward-speed <speed>           - Set a fast-forward speed multiplier
+--seed <seed>                          - Seed for the random number generator
+--debug                                - Enable debug mode
+--disassemble <script>                 - Disassemble the specified script and print to console (\* disassembles all)
+--record-inputs <file>                 - Record all keyboard inputs to a file
+--playback-inputs <file>               - Playback input from file
+--renderer <renderer>                  - Set the rendering API
+--lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage
+--eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory
+--os-type <os>                         - Set the reported OS type
+--window-size <dimentions>             - Set a custom window size
+--widescreen-hack <aspect ratio>       - Set a custom aspect ratio
+--profile-gml-scripts                  - Log which GML scripts are the heaviest in terms of time and executed instructions
+--save-folder <directory>              - Set the directory will save files will be stored
+--game-args <args>                     - Arguments to pass to the game
+--profile-opcodes                      - Rank which GML opcodes were executed the most
+--lazy-textures                        - Load textures into VRAM on first use, improving startup times
+--load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
+--disable-log-colours                  - Disable colours for warning, error, and debug logs
+--disable-log-colors                   - Same as --disable-log-colours, but different spelling
+```
 
 ## Debug Features
 
@@ -156,7 +216,7 @@ Performance is pretty good on any modern computer, but when running on low end t
 
 ## Then why not have a transpiler?
 
-The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any 
+The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any
 *improvement* from it, you would need to create a *good* transpiler that actually transpiles it into *good* code, and that's way harder.
 
 Having a transpiler also have other disadvantages:

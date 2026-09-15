@@ -1,7 +1,7 @@
 #ifndef _BS_STDBOOL_H_
 #define _BS_STDBOOL_H_
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && (!defined(_MSC_VER) || _MSC_VER >= 1100)
 
 #define bool  bool
 #define true  true

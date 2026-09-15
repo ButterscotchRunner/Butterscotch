@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- splash_pie is the 16x16 logo padded to 24x24 so the pie sits inside the inner ~2/3 safe zone and the Android 12+ circular mask does not clip it. filter="false" keeps the pixel art crisp when scaled up -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/splash_pie"
+    android:filter="false"
+    android:gravity="fill" />

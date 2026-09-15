@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "data_win.h"
 #include "runner.h"
 #include "utils.h"

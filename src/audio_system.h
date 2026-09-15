@@ -36,6 +36,7 @@ typedef struct {
     // Returns 0.0 if unknown (e.g. stream not yet loaded or invalid index).
     float (*getSoundLength)(AudioSystem* audio, int32_t soundOrInstance);
     void (*setMasterGain)(AudioSystem* audio, float gain);
+    void (*setMasterGainForListener)(AudioSystem* audio, float gain, int32_t listenerId);
     void (*setChannelCount)(AudioSystem* audio, int32_t count);
     void (*groupLoad)(AudioSystem* audio, int32_t groupIndex);
     bool (*groupIsLoaded)(AudioSystem* audio, int32_t groupIndex);

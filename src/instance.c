@@ -1,7 +1,8 @@
 #include "instance.h"
+#include "vm.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include "math_compat.h"
 
 #include "stb_ds.h"
@@ -148,11 +149,13 @@ void Instance_copyFields(Instance* source, Instance* destination) {
     destination->timelineRunning = source->timelineRunning;
 
     // Deep-copy self variables (Instance_setSelfVar handles string duplication + array incRef)
+    {
     repeat(source->selfVars.capacity, i) {
         IntRValueEntry* entry = &source->selfVars.entries[i];
         if (entry->key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
             Instance_setSelfVar(destination, entry->key, entry->value);
         }
+    }
     }
 }
 
@@ -179,7 +182,7 @@ void Instance_computeSpeedFromComponents(Instance* inst) {
     if (GMLReal_fabs(inst->direction - GMLReal_round(inst->direction)) < 0.0001) {
         inst->direction = (float) GMLReal_round(inst->direction);
     }
-    inst->direction = (float) GMLReal_fmod(inst->direction, 360.0);
+    inst->direction = (float) GMLReal_fmod((GMLReal) inst->direction, 360.0);
 
     // Speed
     inst->speed = (float) GMLReal_sqrt(inst->hspeed * inst->hspeed + inst->vspeed * inst->vspeed);
@@ -200,4 +203,71 @@ void Instance_computeComponentsFromSpeed(Instance* inst) {
     if (GMLReal_fabs(inst->vspeed - GMLReal_round(inst->vspeed)) < 0.0001) {
         inst->vspeed = (float) GMLReal_round(inst->vspeed);
     }
+}
+
+char* Instance_toStringFancy(Instance* inst, DataWin* dataWin) {
+    const IntRValueHashMap* map = &inst->selfVars;
+    if (map->capacity == 0) return safeStrdup("{}");
+    const IntRValueEntry* entries = map->entries;
+    uint32_t mask = map->mask;
+
+    size_t requiredSize = 4; // "{ }\0"
+    bool first = true;
+    for (uint32_t idx = 0; idx <= mask; ++idx) {
+        int32_t slotKey = entries[idx].key;
+        if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) continue;
+
+        const char* name = "?";
+        if (dataWin != nullptr) {
+            repeat(dataWin->vari.variableCount, varIdx) {
+                Variable* var = &dataWin->vari.variables[varIdx];
+                if (var->instanceType == INSTANCE_SELF && var->varID == slotKey) {
+                    name = var->name;
+                    break;
+                }
+            }
+        }
+
+        if (name == nullptr) name = "?";
+        RValue val = entries[idx].value;
+        char* valStr = RValue_toStringFancy(val, dataWin);
+        requiredSize += strlen(name) + strlen(valStr) + (first ? 0 : 2) + 5; // "name : value" + separators
+        free(valStr);
+        first = false;
+    }
+
+    size_t bufSize = requiredSize > 128 ? requiredSize : 128;
+    char* buf = (char*) safeCalloc(bufSize, sizeof(char));
+    size_t pos = 0;
+    pos += snprintf(buf + pos, bufSize - pos, "{ ");
+    first = true;
+    {
+    for (uint32_t idx = 0; idx <= mask; ++idx) {
+        int32_t slotKey = entries[idx].key;
+        if (slotKey != INT_RVALUE_HASHMAP_EMPTY_KEY) {
+            const char* name = "?";
+            if (dataWin != nullptr) {
+                repeat(dataWin->vari.variableCount, varIdx) {
+                    Variable* var = &dataWin->vari.variables[varIdx];
+                    if (var->instanceType == INSTANCE_SELF && var->varID == slotKey) {
+                        name = var->name;
+                        break;
+                    }
+                }
+            }
+            if (name == nullptr) name = "?";
+
+            RValue val = entries[idx].value;
+            char* valStr = RValue_toStringFancy(val, dataWin);
+            if (!first) {
+                pos += snprintf(buf + pos, bufSize - pos, ", ");
+            }
+            first = false;
+            pos += snprintf(buf + pos, bufSize - pos, "%s : %s", name, valStr);
+            free(valStr);
+        }
+    }
+    }
+    pos += snprintf(buf + pos, bufSize - pos, " }");
+    return buf;
 }

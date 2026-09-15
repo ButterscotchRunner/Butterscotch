@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 #define MAX_PS2_SOUND_INSTANCES 64
 #define PS2_SOUND_INSTANCE_ID_BASE 100000

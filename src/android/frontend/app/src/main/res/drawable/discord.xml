@@ -1,0 +1,24 @@
+<!--
+  ~ Copyright (C) 2026 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="640dp"
+    android:height="512dp"
+    android:viewportWidth="640"
+    android:viewportHeight="512">
+  <path
+      android:fillColor="#FF000000"
+      android:pathData="M524.53,69.84a1.5,1.5 0,0 0,-0.76 -0.7A485.07,485.07 0,0 0,404.08 32.03a1.82,1.82 0,0 0,-1.92 0.91,337.46 337.46,0 0,0 -14.9,30.6 447.85,447.85 0,0 0,-134.43 0,309.54 309.54,0 0,0 -15.14,-30.6 1.89,1.89 0,0 0,-1.92 -0.91A483.69,483.69 0,0 0,116.08 69.14a1.71,1.71 0,0 0,-0.79 0.68C39.07,183.65 18.19,294.69 28.43,404.35a2.02,2.02 0,0 0,0.76 1.38A487.67,487.67 0,0 0,176.02 479.92a1.9,1.9 0,0 0,2.06 -0.68A348.2,348.2 0,0 0,208.12 430.4a1.86,1.86 0,0 0,-1.02 -2.59,321.17 321.17,0 0,1 -45.87,-21.85 1.88,1.88 0,0 1,-0.19 -3.13c3.08,-2.31 6.17,-4.71 9.11,-7.14a1.82,1.82 0,0 1,1.9 -0.26c96.23,43.92 200.41,43.92 295.5,0a1.81,1.81 0,0 1,1.92 0.23c2.94,2.43 6.03,4.85 9.13,7.16a1.88,1.88 0,0 1,-0.16 3.13,301.41 301.41,0 0,1 -45.89,21.83 1.88,1.88 0,0 0,-1 2.61,391.05 391.05,0 0,0 30.01,48.81 1.86,1.86 0,0 0,2.06 0.7A486.05,486.05 0,0 0,610.7 405.73a1.88,1.88 0,0 0,0.76 -1.35C623.73,277.59 590.93,167.46 524.53,69.84ZM222.49,337.58c-28.97,0 -52.84,-26.59 -52.84,-59.24S193.06,219.1 222.49,219.1c29.67,0 53.31,26.82 52.84,59.24C275.33,310.99 251.92,337.58 222.49,337.58ZM417.87,337.58c-28.97,0 -52.84,-26.59 -52.84,-59.24S388.44,219.1 417.87,219.1c29.67,0 53.31,26.82 52.84,59.24C470.71,310.99 447.54,337.58 417.87,337.58Z"/>
+</vector>

@@ -34,7 +34,7 @@ SET(CMAKE_CXX_COMPILER ppu-g++)
 SET(PPU_CFLAGS "-mcpu=cell -mtune=cell -maltivec -mhard-float -fmodulo-sched -ffunction-sections -fdata-sections -I$ENV{PS3DEV}/ppu/include -I$ENV{PS3DEV}/portlibs/ppu/include -I$ENV{PS3DEV}/ppu/include/simdmath")
 SET(PPU_CFLAGS "${PPU_CFLAGS} -fomit-frame-pointer -fstrict-aliasing -funroll-loops -ftree-vectorize -ffast-math") # TODO: Does fast-math cause issues?
 SET(PPU_CXXFLAGS "-D_GLIBCXX11_USE_C99_STDIO ${PPU_CFLAGS}")
-SET(PPU_LDFLAGS "-mhard-float -fmodulo-sched -Wl,--gc-sections -L$ENV{PS3DEV}/ppu/lib -L$ENV{PS3DEV}/portlibs/ppu/lib -lm -lgcm_sys -lrsx -lsysutil -lio -laudio -lrt -llv2 -lio -laudio")
+SET(PPU_LDFLAGS "-mhard-float -fmodulo-sched -Wl,--gc-sections -L$ENV{PS3DEV}/ppu/lib -L$ENV{PS3DEV}/portlibs/ppu/lib")
 
 SET(CMAKE_INSTALL_PREFIX $ENV{PS3DEV}/portlibs/ppu)
 

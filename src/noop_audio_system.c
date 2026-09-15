@@ -59,6 +59,8 @@ static float noopGetSoundLength(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED in
 
 static void noopSetMasterGain(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED float gain) {}
 
+static void noopSetMasterGainForListener(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED float gain, MAYBE_UNUSED int32_t listenerId) {}
+
 static void noopSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
 static void noopGroupLoad(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex) {}
@@ -100,6 +102,7 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.setTrackPosition = noopSetTrackPosition,
     noopVtable.getSoundLength = noopGetSoundLength,
     noopVtable.setMasterGain = noopSetMasterGain,
+    noopVtable.setMasterGainForListener = noopSetMasterGainForListener,
     noopVtable.setChannelCount = noopSetChannelCount,
     noopVtable.groupLoad = noopGroupLoad,
     noopVtable.groupIsLoaded = noopGroupIsLoaded,

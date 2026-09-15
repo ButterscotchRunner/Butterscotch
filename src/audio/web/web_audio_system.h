@@ -9,6 +9,7 @@
 #define WEB_SOUND_INSTANCE_ID_BASE 100000
 #define WEB_MAX_AUDIO_STREAMS 32
 #define WEB_AUDIO_STREAM_INDEX_BASE 300000
+#define MAX_LISTENERS 4
 
 typedef struct {
     bool active;
@@ -28,6 +29,8 @@ typedef struct {
 typedef struct {
     bool active;
     char* filePath;
+    float initialGain;
+    float initialPitch;
 } WebAudioStreamEntry;
 
 typedef struct {
@@ -39,6 +42,8 @@ typedef struct {
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
     WebAudioStreamEntry streams[WEB_MAX_AUDIO_STREAMS];
+    ma_sound_group listenerGroups[MAX_LISTENERS];
+    float listenerGains[MAX_LISTENERS];
 } WebAudioSystem;
 
 // Creates a no-device miniaudio engine that mixes into a buffer when WebAudioSystem_pullFrames is called.
