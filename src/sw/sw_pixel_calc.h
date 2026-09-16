@@ -9,16 +9,16 @@ FORCE_INLINE int fastRandomIsh()
 {
     static uint32_t rngseed = 1337;
 #ifdef SW_USE_XORSHIFT32_FOR_DITHERING
-	uint32_t x = rngseed;
-	x ^= x << 13;
-	x ^= x >> 17;
-	x ^= x << 5;
-	return rngseed = x;
+    uint32_t x = rngseed;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return rngseed = x;
 #else
-	rngseed += 1339;
-	if (rngseed > 601000)
-		rngseed = 0;
-	return rngseed;
+    rngseed += 1339;
+    if (rngseed > 601000)
+        rngseed = 0;
+    return rngseed;
 #endif
 }
 
@@ -293,10 +293,10 @@ FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2
 {
 #if defined SW_DITHERED_BLENDING
     int rng = fastRandomIsh() & 0xFFFF;
-	if (rng < frac1) return color1; else rng -= frac1;
-	if (rng < frac2) return color2;
+    if (rng < frac1) return color1; else rng -= frac1;
+    if (rng < frac2) return color2;
     (void) frac3;
-	return color3;
+    return color3;
 #elif PIXEL_SIZE == 32
     Pixel32ARGB x1, x2, x3, out;
     x1.l = color1;

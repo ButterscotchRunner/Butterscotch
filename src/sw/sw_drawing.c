@@ -5,6 +5,8 @@
 
 // ==== Internal functions ====
 
+static void swrDrawTriangleTransformed(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, int alpha);
+
 FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int blendmode, int srcalpha, int dstalpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
@@ -127,16 +129,55 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
 #endif
 }
 
-static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, MAYBE_UNUSED int width, uintpixel_t color1, uintpixel_t color2, int alpha)
+static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, int width, uintpixel_t color1, uintpixel_t color2, int alpha, int alignment)
 {
     if (x1 == x2)
     {
-        swrDrawVLineInt(renderer, x1, swrMin(y1, y2), swrAbs(y1 - y2), color1, color2, alpha);
+        if (alignment == SWR_LINE_ALIGN_CENTER)
+            x1 -= width / 2;
+        else if (alignment == SWR_LINE_ALIGN_M1)
+            x1 -= width;
+        
+        logDebug("swrDrawLineInt  V: width: %d\n", width);
+        for (int i = 0; i < width; i++) {
+            swrDrawVLineInt(renderer, x1 + i, swrMin(y1, y2), swrAbs(y1 - y2), color1, color2, alpha);
+        }
         return;
     }
     if (y1 == y2)
     {
-        swrDrawHLineInt(renderer, swrMin(x1, x2), y1, swrAbs(x1 - x2), color1, color2, alpha);
+        if (alignment == SWR_LINE_ALIGN_CENTER)
+            y1 -= width / 2;
+        else if (alignment == SWR_LINE_ALIGN_M1)
+            y1 -= width;
+        
+        logDebug("swrDrawLineInt  H: width: %d\n", width);
+        for (int i = 0; i < width; i++) {
+            swrDrawHLineInt(renderer, swrMin(x1, x2), y1 + i, swrAbs(x1 - x2), color1, color2, alpha);
+        }
+        return;
+    }
+    
+    if (UNLIKELY(width > 1))
+    {
+        // HACK: Just draw two triangles instead.
+        int xd = swrAbs(x1 - x2), yd = swrAbs(y1 - y2);
+        int line_length_sqr = xd * yd + yd * yd;
+        if (line_length_sqr <= 0)
+            return;
+        
+        float line_length = sqrtf(line_length_sqr);
+        float xds = (float)xd * width / line_length;
+        float yds = (float)yd * width / line_length;
+        
+        float x1l = x1 - yds, y1l = y1 + xds;
+        float x1r = x1 + yds, y1r = y1 - xds;
+        float x2l = x2 - yds, y2l = y2 + xds;
+        float x2r = x2 + yds, y2r = y2 - xds;
+        
+        logDebug("swrDrawLineInt  N/A: width: %d, xds: %f, yds: %f\n", width, xds, yds);
+        swrDrawTriangleTransformed(renderer, x1l, y1l, x1r, y1r, x2l, y2l, color1, color1, color2, alpha);
+        swrDrawTriangleTransformed(renderer, x2r, y2r, x1r, y1r, x2l, y2l, color2, color1, color2, alpha);
         return;
     }
     
@@ -649,6 +690,52 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     }
 }
 
+static void swrDrawTriangleTransformed(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, int alpha)
+{
+    float xup, yup, xleft, yleft, xright, yright;
+    uint32_t colorup, colorleft, colorright;
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    
+    //which vertex is higher?
+    xup = x1, yup = y1; colorup = color1;
+    xleft = x2, yleft = y2; colorleft = color2;
+    xright = x3, yright = y3; colorright = color3;
+    if (yup > y2) {
+        xup = x2, yup = y2, colorup = color2;
+        xleft = x1, yleft = y1, colorleft = color1;
+        //xright = x3, yright = y3;
+    }
+    if (yup > y3) {
+        xup = x3, yup = y3, colorup = color3;
+        xleft = x1, yleft = y1, colorleft = color1;
+        xright = x2, yright = y2, colorright = color2;
+    }
+    
+    if (xleft > xright) {
+        float tmp = xleft;
+        xleft = xright;
+        xright = tmp;
+        tmp = yleft;
+        yleft = yright;
+        yright = tmp;
+        uint32_t tmp2 = colorleft;
+        colorleft = colorright;
+        colorright = tmp2;
+    }
+    
+    swrDrawTriangleInternal(
+        swr,
+        swrFloor(xup), swrFloor(yup),
+        swrFloor(xleft), swrCeiling(yleft),
+        swrFloor(xright), swrCeiling(yright),
+        colorup,
+        colorleft,
+        colorright,
+        alpha
+    );
+}
+
 // ==== Exposed interface ====
 
 bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restoreOldView)
@@ -754,53 +841,34 @@ void swrPlotPixel(Renderer* renderer, float x, float y, uintpixel_t color, float
     swrPlotPixel_(renderer, (float) x, (float) y, color, blendmode, srcalpha, invalpha);
 }
 
-void swrDrawHLine(Renderer* renderer, float dx, float dy, float dw, uintpixel_t color, uintpixel_t color2, float alpha)
-{
-    SWRenderer *swr = (SWRenderer*) renderer;
-    float thickness = 1;
-
-    swrTransformPosIfNeeded(swr, &dx, &dy);
-    swrTransformSizeIfNeeded(swr, &dw, &thickness);
-
-    // TODO: use thickness
-    swrDrawHLineInt(renderer, swrFloor(dx), swrFloor(dy), swrCeiling(dw), color, color2, swrIntAlpha(alpha));
-}
-
-void swrDrawVLine(Renderer* renderer, float dx, float dy, float dh, uintpixel_t color, uintpixel_t color2, float alpha)
-{
-    SWRenderer *swr = (SWRenderer*) renderer;
-    float thickness = 1;
-
-    swrTransformPosIfNeeded(swr, &dx, &dy);
-    swrTransformSizeIfNeeded(swr, &thickness, &dh);
-    
-    // TODO: use thickness
-    swrDrawVLineInt(renderer, swrFloor(dx), swrFloor(dy), swrCeiling(dh), color, color2, swrIntAlpha(alpha));
-}
-
-void swrDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uintpixel_t color, uintpixel_t color2, float alpha)
+void swrDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, float width, uintpixel_t color, uintpixel_t color2, float alpha, int alignment)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     swrTransformPosIfNeeded(swr, &x1, &y1);
     swrTransformPosIfNeeded(swr, &x2, &y2);
+    logDebug("swrDrawLine BEFORE width: %f\n", width);
     swrTransformSizeIfNeeded(swr, &width, NULL);
-    swrDrawLineInt(renderer, swrFloor(x1), swrFloor(y1), swrCeiling(x2), swrCeiling(y2), swrCeiling(width), color, color2, swrIntAlpha(alpha));
+    int iwidth = swrRound(width);
+    logDebug("swrDrawLine AFTER  width: %f intwidth: %d\n", width, iwidth);
+    swrDrawLineInt(renderer, swrFloor(x1), swrFloor(y1), swrFloor(x2), swrFloor(y2), iwidth, color, color2, swrIntAlpha(alpha), alignment);
 }
 
 void swrDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uintpixel_t color, float alpha)
 {
-    swrDrawHLine(renderer, x1, y1, (x2 - x1) + 1, color, color, alpha);
-    swrDrawHLine(renderer, x1, y2, (x2 - x1) + 1, color, color, alpha);
-    swrDrawVLine(renderer, x1, y1, (y2 - y1) + 1, color, color, alpha);
-    swrDrawVLine(renderer, x2, y1, (y2 - y1) + 1, color, color, alpha);
+    int x1i = swrRound(x1), x2i = swrRound(x2), y1i = swrRound(y1), y2i = swrRound(y2);
+    swrDrawLine(renderer, x1i, y1i, x2i, y1i, 1.0f, color, color, alpha, SWR_LINE_ALIGN_P1);
+    swrDrawLine(renderer, x1i, y2i, x2i, y2i, 1.0f, color, color, alpha, SWR_LINE_ALIGN_M1);
+    swrDrawLine(renderer, x1i, y1i, x1i, y2i, 1.0f, color, color, alpha, SWR_LINE_ALIGN_P1);
+    swrDrawLine(renderer, x2i, y1i, x2i, y2i, 1.0f, color, color, alpha, SWR_LINE_ALIGN_M1);
 }
 
 void swrDrawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, uintpixel_t color4, float alpha)
 {
-    swrDrawHLine(renderer, x1, y1, (x2 - x1) + 1, color1, color2, alpha);
-    swrDrawHLine(renderer, x1, y2, (x2 - x1) + 1, color3, color4, alpha);
-    swrDrawVLine(renderer, x1, y1, (y2 - y1) + 1, color1, color3, alpha);
-    swrDrawVLine(renderer, x2, y1, (y2 - y1) + 1, color2, color4, alpha);
+    int x1i = swrRound(x1), x2i = swrRound(x2), y1i = swrRound(y1), y2i = swrRound(y2);
+    swrDrawLine(renderer, x1i, y1i, x2i, y1i, 1.0f, color1, color2, alpha, SWR_LINE_ALIGN_P1);
+    swrDrawLine(renderer, x1i, y2i, x2i, y2i, 1.0f, color3, color4, alpha, SWR_LINE_ALIGN_M1);
+    swrDrawLine(renderer, x1i, y1i, x1i, y2i, 1.0f, color1, color3, alpha, SWR_LINE_ALIGN_P1);
+    swrDrawLine(renderer, x2i, y1i, x2i, y2i, 1.0f, color2, color4, alpha, SWR_LINE_ALIGN_M1);
 }
 
 void swrFillRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uintpixel_t pxcolor, float alpha)
@@ -904,49 +972,18 @@ void swrDrawSpriteRotated(
 
 void swrDrawTriangle(Renderer* renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha)
 {
-    float xup, yup, xleft, yleft, xright, yright;
-    uint32_t colorup, colorleft, colorright;
-    
     SWRenderer* swr = (SWRenderer*) renderer;
     swrTransformPosIfNeeded(swr, &x1, &y1);
     swrTransformPosIfNeeded(swr, &x2, &y2);
     swrTransformPosIfNeeded(swr, &x3, &y3);
-    
-    //which vertex is higher?
-    xup = x1, yup = y1; colorup = color1;
-    xleft = x2, yleft = y2; colorleft = color2;
-    xright = x3, yright = y3; colorright = color3;
-    if (yup > y2) {
-        xup = x2, yup = y2, colorup = color2;
-        xleft = x1, yleft = y1, colorleft = color1;
-        //xright = x3, yright = y3;
-    }
-    if (yup > y3) {
-        xup = x3, yup = y3, colorup = color3;
-        xleft = x1, yleft = y1, colorleft = color1;
-        xright = x2, yright = y2, colorright = color2;
-    }
-    
-    if (xleft > xright) {
-        float tmp = xleft;
-        xleft = xright;
-        xright = tmp;
-        tmp = yleft;
-        yleft = yright;
-        yright = tmp;
-        uint32_t tmp2 = colorleft;
-        colorleft = colorright;
-        colorright = tmp2;
-    }
-    
-    swrDrawTriangleInternal(
-        swr,
-        swrFloor(xup), swrFloor(yup),
-        swrFloor(xleft), swrCeiling(yleft),
-        swrFloor(xright), swrCeiling(yright),
-        swrConvertPixel(colorup),
-        swrConvertPixel(colorleft),
-        swrConvertPixel(colorright),
+    swrDrawTriangleTransformed(
+        renderer,
+        x1, y1,
+        x2, y2,
+        x3, y3,
+        swrConvertPixel(color1),
+        swrConvertPixel(color2),
+        swrConvertPixel(color3),
         swrIntAlpha(alpha)
     );
 }

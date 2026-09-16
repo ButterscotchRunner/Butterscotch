@@ -25,6 +25,11 @@ FORCE_INLINE int swrCeiling(float x)
     return i + (x > (float) i);
 }
 
+FORCE_INLINE int swrRound(float x)
+{
+    return swrFloor(x + 0.5f);
+}
+
 // Checks if the "rotate" version of the sprite drawing routine should be used.
 FORCE_INLINE bool swrMustRotate(float angleDeg)
 {

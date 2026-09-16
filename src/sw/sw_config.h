@@ -42,6 +42,9 @@
 // Whether to enable the debug font.
 #define SW_ENABLE_DEBUG_FONT
 
+// In debug mode, print a debug line every time a frame starts/ends.
+#define SW_DEBUG_FRAME_DRAW_BOUNDS
+
 // -======- USER CONFIG END -======-
 
 // Force enable dithered blending if in 8bpp mode.

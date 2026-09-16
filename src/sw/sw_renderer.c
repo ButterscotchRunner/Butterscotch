@@ -85,7 +85,9 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
         swr->height = windowH;
     }
     
-    logDebug("SWRenderer_beginFrame\n");
+#ifdef SW_DEBUG_FRAME_DRAW_BOUNDS
+    logDebug("swr: begin drawing frame\n");
+#endif
 }
 
 // This used to be just one, "endFrame". Not sure what the difference is.
@@ -96,14 +98,20 @@ static void SWRenderer_endFrameInit(Renderer* renderer)
     //this is kinda useless to do twice isn't it?
 }
 
+static void swrDebug(Renderer* renderer);
+
 static void SWRenderer_endFrameEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     assert(!swr->drawingToSurface);
     
-    logDebug("SWRenderer_endFrameEnd\n");
+#ifdef SW_DEBUG_FRAME_DRAW_BOUNDS
+    logDebug("swr: end drawing frame\n");
+#endif
     
     platformSetNextFramebuffer(swr->fb, swr->width, swr->height, PIXEL_SIZE);
+    
+    swrDebug(renderer);
     
     swr->primitiveOverflow = false;
 }
@@ -367,7 +375,8 @@ static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2
 #ifdef TRANSPARENT_MASK
     colorCvt |= TRANSPARENT_MASK;
 #endif
-    swrDrawLine(renderer, x1, y1, x2, y2, width, colorCvt, colorCvt, alpha);
+    logDebug("SWRenderer_drawLine width: %f\n", width);
+    swrDrawLine(renderer, x1, y1, x2, y2, width, colorCvt, colorCvt, alpha, SWR_LINE_ALIGN_CENTER);
 }
 
 static void SWRenderer_drawTriangle(Renderer* renderer,
@@ -380,9 +389,9 @@ static void SWRenderer_drawTriangle(Renderer* renderer,
         uintpixel_t color1cvt = swrConvertPixel(color1);
         uintpixel_t color2cvt = swrConvertPixel(color2);
         uintpixel_t color3cvt = swrConvertPixel(color3);
-        swrDrawLine(renderer, x1, y1, x2, y2, 1, color1cvt, color2cvt, renderer->drawAlpha);
-        swrDrawLine(renderer, x1, y1, x3, y3, 1, color1cvt, color3cvt, renderer->drawAlpha);
-        swrDrawLine(renderer, x2, y2, x3, y3, 1, color3cvt, color3cvt, renderer->drawAlpha);
+        swrDrawLine(renderer, x1, y1, x2, y2, 1, color1cvt, color2cvt, alpha, SWR_LINE_ALIGN_CENTER);
+        swrDrawLine(renderer, x1, y1, x3, y3, 1, color1cvt, color3cvt, alpha, SWR_LINE_ALIGN_CENTER);
+        swrDrawLine(renderer, x2, y2, x3, y3, 1, color3cvt, color3cvt, alpha, SWR_LINE_ALIGN_CENTER);
     }
     else
     {
@@ -393,7 +402,8 @@ static void SWRenderer_drawTriangle(Renderer* renderer,
 static void SWRenderer_drawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2,
                                      float width, uint32_t color1, uint32_t color2, float alpha)
 {
-    swrDrawLine(renderer, x1, y1, x2, y2, width, swrConvertPixel(color1), swrConvertPixel(color2), alpha);
+    logDebug("SWRenderer_drawLineColor width: %f\n", width);
+    swrDrawLine(renderer, x1, y1, x2, y2, width, swrConvertPixel(color1), swrConvertPixel(color2), alpha, SWR_LINE_ALIGN_CENTER);
 }
 
 static void SWRenderer_drawText(Renderer* renderer, const char* text, float x, float y,
@@ -1424,6 +1434,28 @@ static void SWRenderer_drawVertexBuffer(Renderer* renderer, VertexBuffer* buffer
     (void) count;
     
     UNIMP();
+}
+
+static void SWRenderer_drawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2,
+                                     uint32_t color, float alpha, bool outline);
+
+static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2, float y2,
+                                float width, uint32_t color, float alpha);
+
+static void SWRenderer_drawTriangle(Renderer* renderer,
+                                    float x1, float y1, float x2, float y2, float x3, float y3,
+                                    uint32_t color1, uint32_t color2, uint32_t color3,
+                                    float alpha, bool outline);
+
+static void swrDebug(Renderer* renderer)
+{
+    SWRenderer_drawRectangle(renderer, 50, 50, 200, 200, 0xFF00FF, 1.0f, true);
+    SWRenderer_drawLine(renderer, 250, 50, 300, 200, 1.0f, 0x00FF00, 1.0f);
+    SWRenderer_drawLine(renderer, 300, 50, 350, 200, 2.0f, 0x00FF00, 1.0f);
+    SWRenderer_drawLine(renderer, 350, 50, 400, 200, 5.0f, 0x00FF00, 1.0f);
+    SWRenderer_drawLine(renderer, 400, 50, 450, 200, 10.0f, 0x00FF00, 1.0f);
+    SWRenderer_drawTriangle(renderer, 450, 50, 500, 50, 450, 200, 0xFF0000, 0xFF0000, 0xFF0000, 1.0f, false);
+    SWRenderer_drawTriangle(renderer, 500, 50, 550, 50, 500, 200, 0x0000FF, 0x0000FF, 0x0000FF, 1.0f, true);
 }
 
 Renderer* SWRenderer_create(void)
