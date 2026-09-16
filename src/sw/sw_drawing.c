@@ -153,18 +153,8 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
     int blendmode = swr->blendMode;
     
     uintpixel_t color = color1;
-#if PIXEL_SIZE == 32
-    Pixel32ARGB clr1, clr2;
-    clr1.l = color1;
-    clr2.l = color2;
-    
-    uint32_t rinit = clr1.p.r << 20;
-    uint32_t ginit = clr1.p.g << 20;
-    uint32_t binit = clr1.p.b << 20;
-    int32_t rstep = ((int)clr2.p.r - clr1.p.r) << 20;
-    int32_t gstep = ((int)clr2.p.g - clr1.p.g) << 20;
-    int32_t bstep = ((int)clr2.p.b - clr1.p.b) << 20;
-#endif
+    uint32_t inc = (65536U << 14);
+    uint32_t weightfp = 0;
     
     if (dy1 <= dx1)
     {
@@ -177,15 +167,11 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
             x = x2, y = y2, xe = x1;
         }
         
-#if PIXEL_SIZE == 32
         if (dx1 > 0) {
-            rstep /= dx1;
-            gstep /= dx1;
-            bstep /= dx1;
+            inc /= dx1;
         } else {
-            rstep = gstep = bstep = 0;
+            inc = 0;
         }
-#endif
         
         swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         
@@ -201,18 +187,13 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
                 if ((dx < 0 && dy < 0) || (dx > 0 && dy > 0)) y++; else y--;
                 px += 2 * (dy1 - dx1);
             }
-            
-#if PIXEL_SIZE == 32
-            Pixel32ARGB resultPixel;
-            resultPixel.p.r = rinit >> 20;
-            resultPixel.p.g = ginit >> 20;
-            resultPixel.p.b = binit >> 20;
-            rinit += rstep;
-            ginit += gstep;
-            binit += bstep;
-            color = resultPixel.l;
-#endif
-            
+
+            uint32_t weight2 = (weightfp >> 14);
+            if (weight2 > 65535) weight2 = 65535;
+            uint32_t weight1 = 65535 - weight2;
+            weightfp += inc;
+            color = swrTwoWayBlend(color1, color2, (uint16_t) weight1, (uint16_t) weight2);
+
             swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         }
     }
@@ -227,15 +208,11 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
             x = x2, y = y2, ye = y1;
         }
         
-#if PIXEL_SIZE == 32
         if (dy1 > 0) {
-            rstep /= dy1;
-            gstep /= dy1;
-            bstep /= dy1;
+            inc /= dy1;
         } else {
-            rstep = gstep = bstep = 0;
+            inc = 0;
         }
-#endif
         
         swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         
@@ -251,18 +228,13 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
                 if ((dx < 0 && dy < 0) || (dx > 0 && dy > 0)) x++; else x--;
                 py += 2 * (dx1 - dy1);
             }
-            
-#if PIXEL_SIZE == 32
-            Pixel32ARGB resultPixel;
-            resultPixel.p.r = rinit >> 20;
-            resultPixel.p.g = ginit >> 20;
-            resultPixel.p.b = binit >> 20;
-            rinit += rstep;
-            ginit += gstep;
-            binit += bstep;
-            color = resultPixel.l;
-#endif
-            
+
+            uint32_t weight2 = (weightfp >> 14);
+            if (weight2 > 65535) weight2 = 65535;
+            uint32_t weight1 = 65535 - weight2;
+            weightfp += inc;
+            color = swrTwoWayBlend(color1, color2, (uint16_t) weight1, (uint16_t) weight2);
+
             swrPlotPixel_(renderer, x, y, color, blendmode, srcalpha, invalpha);
         }
     }
@@ -868,10 +840,7 @@ void swrFillRectangleColor(Renderer* renderer, float x1, float y1, float x2, flo
     if (yd < 0) { y1i = y2i; yd = -yd; }
     if (xd <= 0 || yd <= 0) return;
     
-    // TODO: blending vertically
-    (void) pxcolor3;
-    (void) pxcolor4;
-    
+#ifndef SW_DITHERED_BLENDING
     uint32_t inc = (65536U << 14) / yd;
     uint32_t weightfp = 0;
     for (int y = 0; y <= yd; y++, weightfp += inc)
@@ -886,6 +855,46 @@ void swrFillRectangleColor(Renderer* renderer, float x1, float y1, float x2, flo
         
         swrDrawHLineInt(renderer, x1i, y1i + y, xd, intcolor1, intcolor2, alphaInt);
     }
+#else
+    // Dithered blending CANNOT use the above code because of its inherent randomness.
+    // It chooses either one color or the other based on the alpha / probability.
+    // As such, we need a slightly more complex four-way operation.
+    int srcalpha = swrCalcSrcAlpha(swr, alphaInt);
+    int invalpha = swrCalcDstAlpha(swr, alphaInt);
+    int blendmode = swr->blendMode;
+    
+    uint32_t incx = (65536U << 14) / xd;
+    uint32_t incy = (65536U << 14) / yd;
+    uint32_t weightfpy = 0;
+    for (int y = 0, ay = y1i; y <= yd; y++, ay++, weightfpy += incy)
+    {
+        uint32_t weightD = (uint32_t)(weightfpy >> 14);
+        if (weightD > 65535) weightD = 65535;
+        uint32_t weightU = 65535 - weightD;
+        
+        uintpixel_t *line = &swr->fb[ay * swr->fbPitch + x1i];
+        uint32_t weightfpx = 0;
+        for (int x = 0; x <= xd; x++, weightfpx += incx)
+        {
+            if (UNLIKELY(srcalpha < 250)) {
+                if ((swrFastRng() & 0xFF) >= srcalpha)
+                    continue;
+            }
+            
+            uint32_t weightR = (uint32_t)(weightfpx >> 14);
+            if (weightR > 65535) weightR = 65535;
+            uint32_t weightL = 65535 - weightR;
+            
+            uint16_t weight1 = (uint16_t)((weightL * weightU) >> 16);
+            uint16_t weight2 = (uint16_t)((weightR * weightU) >> 16);
+            uint16_t weight3 = (uint16_t)((weightR * weightD) >> 16);
+            uint16_t weight4 = (uint16_t)((weightL * weightD) >> 16);
+            
+            uintpixel_t result = swrFourWayBlend(pxcolor1, pxcolor2, pxcolor3, pxcolor4, weight1, weight2, weight3, weight4);
+            alphaBlend(&line[x], result, blendmode, 256, 0);
+        }
+    }
+#endif
 }
 
 void swrDrawSprite(
