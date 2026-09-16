@@ -161,23 +161,27 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
     if (UNLIKELY(width > 1))
     {
         // HACK: Just draw two triangles instead.
-        int xd = swrAbs(x1 - x2), yd = swrAbs(y1 - y2);
-        int line_length_sqr = xd * yd + yd * yd;
+        int xd = x2 - x1, yd = y2 - y1;
+        int line_length_sqr = xd * xd + yd * yd;
         if (line_length_sqr <= 0)
             return;
         
         float line_length = sqrtf(line_length_sqr);
-        float xds = (float)xd * width / line_length;
-        float yds = (float)yd * width / line_length;
+        float xds = (float)-yd * (width * 0.5f) / line_length;
+        float yds = (float)+xd * (width * 0.5f) / line_length;
         
-        float x1l = x1 - yds, y1l = y1 + xds;
-        float x1r = x1 + yds, y1r = y1 - xds;
-        float x2l = x2 - yds, y2l = y2 + xds;
-        float x2r = x2 + yds, y2r = y2 - xds;
+        float x1l = x1 - xds, y1l = y1 - yds;
+        float x1r = x1 + xds, y1r = y1 + yds;
+        float x2l = x2 - xds, y2l = y2 - yds;
+        float x2r = x2 + xds, y2r = y2 + yds;
         
         logDebug("swrDrawLineInt  N/A: width: %d, xds: %f, yds: %f\n", width, xds, yds);
         swrDrawTriangleTransformed(renderer, x1l, y1l, x1r, y1r, x2l, y2l, color1, color1, color2, alpha);
         swrDrawTriangleTransformed(renderer, x2r, y2r, x1r, y1r, x2l, y2l, color2, color1, color2, alpha);
+        swrPlotPixel_(renderer, x1l, y1l, 0xFF00FF, bm_normal, 256, 0);
+        swrPlotPixel_(renderer, x2l, y2l, 0xFF00FF, bm_normal, 256, 0);
+        swrPlotPixel_(renderer, x1r, y1r, 0xFF00FF, bm_normal, 256, 0);
+        swrPlotPixel_(renderer, x2r, y2r, 0xFF00FF, bm_normal, 256, 0);
         return;
     }
     
