@@ -17,6 +17,10 @@
 // It might be a good bit faster than doing blending the proper way.
 //#define SW_DITHERED_BLENDING
 
+// For dithered blending mode, if we want to use the slightly slower,
+// but more random-looking RNG
+//#define SW_USE_XORSHIFT32_FOR_DITHERING
+
 // Define if you want tinting to be implemented inaccurately
 //#define SW_INACCURATE_TINTING
 

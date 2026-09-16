@@ -297,7 +297,7 @@ void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, in
         nextFb = NULL;
     }
     
-    int rmask, gmask, bmask, amask;
+    int rmask, gmask, bmask;
     if (bpp == 32) {
         rmask = 0x00ff0000;
         gmask = 0x0000ff00;
