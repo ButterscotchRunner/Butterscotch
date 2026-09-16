@@ -98,8 +98,6 @@ static void SWRenderer_endFrameInit(Renderer* renderer)
     //this is kinda useless to do twice isn't it?
 }
 
-static void swrDebug(Renderer* renderer);
-
 static void SWRenderer_endFrameEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
@@ -110,9 +108,7 @@ static void SWRenderer_endFrameEnd(Renderer* renderer)
 #endif
     
     platformSetNextFramebuffer(swr->fb, swr->width, swr->height, PIXEL_SIZE);
-    
-    swrDebug(renderer);
-    
+
     swr->primitiveOverflow = false;
 }
 
@@ -1434,28 +1430,6 @@ static void SWRenderer_drawVertexBuffer(Renderer* renderer, VertexBuffer* buffer
     (void) count;
     
     UNIMP();
-}
-
-static void SWRenderer_drawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2,
-                                     uint32_t color, float alpha, bool outline);
-
-static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2, float y2,
-                                float width, uint32_t color, float alpha);
-
-static void SWRenderer_drawTriangle(Renderer* renderer,
-                                    float x1, float y1, float x2, float y2, float x3, float y3,
-                                    uint32_t color1, uint32_t color2, uint32_t color3,
-                                    float alpha, bool outline);
-
-static void swrDebug(Renderer* renderer)
-{
-    SWRenderer_drawRectangle(renderer, 50, 50, 200, 200, 0xFF00FF, 1.0f, true);
-    SWRenderer_drawLine(renderer, 250, 50, 300, 200, 1.0f, 0x00FF00, 1.0f);
-    SWRenderer_drawLine(renderer, 300, 50, 350, 200, 2.0f, 0x00FF00, 1.0f);
-    SWRenderer_drawLine(renderer, 350, 50, 400, 200, 5.0f, 0x00FF00, 1.0f);
-    SWRenderer_drawLine(renderer, 400, 50, 450, 200, 10.0f, 0x00FF00, 1.0f);
-    SWRenderer_drawTriangle(renderer, 450, 50, 500, 50, 450, 200, 0xFF0000, 0xFF0000, 0xFF0000, 1.0f, false);
-    SWRenderer_drawTriangle(renderer, 500, 50, 550, 50, 500, 200, 0x0000FF, 0x0000FF, 0x0000FF, 1.0f, true);
 }
 
 Renderer* SWRenderer_create(void)
