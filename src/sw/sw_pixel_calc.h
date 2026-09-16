@@ -294,6 +294,7 @@ FORCE_INLINE uintpixel_t swrTwoWayBlend(uintpixel_t color1, uintpixel_t color2, 
 #if defined SW_DITHERED_BLENDING
     int rng = fastRandomIsh() & 0xFFFF;
     if (rng < frac1) return color1;
+    (void) frac2;
     return color2;
 #elif PIXEL_SIZE == 32
     Pixel32ARGB x1, x2, out;

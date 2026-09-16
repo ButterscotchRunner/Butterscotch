@@ -31,45 +31,26 @@ static void swrDrawHLineInt(Renderer* renderer, int dx, int dy, int dw, uintpixe
     int invalpha = swrCalcDstAlpha(swr, alpha);
     int blendmode = swr->blendMode;
     
-#if PIXEL_SIZE == 32
     if (color == color2)
-#endif
     {
         uintpixel_t *line = &swr->fb[dy * swr->fbPitch + dx];
         for (int i = 0; i < dw; i++)
             alphaBlend(&line[i], color, blendmode, srcalpha, invalpha);
     }
-#if PIXEL_SIZE == 32
     else
     {
-        Pixel32ARGB clr1, clr2;
-        clr1.l = color;
-        clr2.l = color2;
-        
-        uint32_t rinit = clr1.p.r << 20;
-        uint32_t ginit = clr1.p.g << 20;
-        uint32_t binit = clr1.p.b << 20;
-        int32_t rstep = ((int)clr2.p.r - clr1.p.r) << 20;
-        int32_t gstep = ((int)clr2.p.g - clr1.p.g) << 20;
-        int32_t bstep = ((int)clr2.p.b - clr1.p.b) << 20;
-        rstep /= dw;
-        gstep /= dw;
-        bstep /= dw;
-        
         uintpixel_t *line = &swr->fb[dy * swr->fbPitch + dx];
-        for (int i = 0; i < dw; i++)
+        uint32_t inc = (65536U << 14) / dw;
+        uint32_t weightfp = 0;
+        for (int i = 0; i < dw; i++, weightfp += inc)
         {
-            Pixel32ARGB resultPixel;
-            resultPixel.p.r = rinit >> 20;
-            resultPixel.p.g = ginit >> 20;
-            resultPixel.p.b = binit >> 20;
-            rinit += rstep;
-            ginit += gstep;
-            binit += bstep;
-            alphaBlend(&line[i], resultPixel.l, blendmode, srcalpha, invalpha);
+            uint32_t weight2 = (weightfp >> 14);
+            if (weight2 > 65535) weight2 = 65535;
+            uint32_t weight1 = 65535 - weight2;
+            uintpixel_t result = swrTwoWayBlend(color, color2, (uint16_t) weight1, (uint16_t) weight2);
+            alphaBlend(&line[i], result, blendmode, srcalpha, invalpha);
         }
     }
-#endif
 }
 
 static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixel_t color, UNUSED uintpixel_t color2, int alpha)
@@ -86,9 +67,7 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
     int invalpha = swrCalcDstAlpha(swr, alpha);
     int blendmode = swr->blendMode;
     
-#if PIXEL_SIZE == 32
     if (color == color2)
-#endif
     {
         for (int i = 0; i < dh; i++)
         {
@@ -96,37 +75,20 @@ static void swrDrawVLineInt(Renderer* renderer, int dx, int dy, int dh, uintpixe
             alphaBlend(&line[0], color, blendmode, srcalpha, invalpha);
         }
     }
-#if PIXEL_SIZE == 32
     else
     {
-        Pixel32ARGB clr1, clr2;
-        clr1.l = color;
-        clr2.l = color2;
-        
-        uint32_t rinit = clr1.p.r << 20;
-        uint32_t ginit = clr1.p.g << 20;
-        uint32_t binit = clr1.p.b << 20;
-        int32_t rstep = ((int)clr2.p.r - clr1.p.r) << 20;
-        int32_t gstep = ((int)clr2.p.g - clr1.p.g) << 20;
-        int32_t bstep = ((int)clr2.p.b - clr1.p.b) << 20;
-        rstep /= dh;
-        gstep /= dh;
-        bstep /= dh;
-        
-        for (int i = 0; i < dh; i++)
+        uint32_t inc = (65536U << 14) / dh;
+        uint32_t weightfp = 0;
+        for (int i = 0; i < dh; i++, weightfp += inc)
         {
+            uint32_t weight2 = (weightfp >> 14);
+            if (weight2 > 65535) weight2 = 65535;
+            uint32_t weight1 = 65535 - weight2;
+            uintpixel_t result = swrTwoWayBlend(color, color2, (uint16_t) weight1, (uint16_t) weight2);
             uintpixel_t *line = &swr->fb[(dy + i) * swr->fbPitch + dx];
-            Pixel32ARGB resultPixel;
-            resultPixel.p.r = rinit >> 20;
-            resultPixel.p.g = ginit >> 20;
-            resultPixel.p.b = binit >> 20;
-            rinit += rstep;
-            ginit += gstep;
-            binit += bstep;
-            alphaBlend(&line[0], resultPixel.l, blendmode, srcalpha, invalpha);
+            alphaBlend(&line[0], result, blendmode, srcalpha, invalpha);
         }
     }
-#endif
 }
 
 static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, int width, uintpixel_t color1, uintpixel_t color2, int alpha, int alignment)
@@ -910,18 +872,17 @@ void swrFillRectangleColor(Renderer* renderer, float x1, float y1, float x2, flo
     (void) pxcolor3;
     (void) pxcolor4;
     
-    uint64_t inc = (65536ULL << 16) / yd;
-    uint64_t weightfp = 0;
-    
+    uint32_t inc = (65536U << 14) / yd;
+    uint32_t weightfp = 0;
     for (int y = 0; y <= yd; y++, weightfp += inc)
     {
-        uint16_t weight = (uint16_t)(weightfp >> 16);
-        if (weight > 65535) weight = 65535;
-        uint16_t weightOther = 65535 - weight;
+        uint32_t weight2 = (uint32_t)(weightfp >> 14);
+        if (weight2 > 65535) weight2 = 65535;
+        uint32_t weight1 = 65535 - weight2;
         
         uintpixel_t intcolor1, intcolor2;
-        intcolor1 = swrTwoWayBlend(pxcolor1, pxcolor4, weightOther, weight);
-        intcolor2 = swrTwoWayBlend(pxcolor2, pxcolor3, weightOther, weight);
+        intcolor1 = swrTwoWayBlend(pxcolor1, pxcolor4, (uint16_t) weight1, (uint16_t) weight2);
+        intcolor2 = swrTwoWayBlend(pxcolor2, pxcolor3, (uint16_t) weight1, (uint16_t) weight2);
         
         swrDrawHLineInt(renderer, x1i, y1i + y, xd, intcolor1, intcolor2, alphaInt);
     }
