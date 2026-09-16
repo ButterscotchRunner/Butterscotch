@@ -76,7 +76,7 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
     fun handleKeyEvent(event: KeyEvent): Boolean {
         val slot = ensureSlot(event.deviceId, event.device)
         if (slot < 0) return false
-        val button = keyCodeToButton(event.keyCode)
+        val button = keyCodeToButton(event.keyCode, runner)
         if (button < 0) return false
         when (event.action) {
             // GML uses an edge model, so key-repeat (repeatCount > 0) is ignored: the button is
@@ -227,7 +227,7 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
         }
 
         // Android KeyEvent keycode -> canonical button index, or -1 to leave the event alone.
-        private fun keyCodeToButton(keyCode: Int): Int = when (keyCode) {
+        private fun keyCodeToButton(keyCode: Int, runner: ButterscotchDroidRunner): Int = when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> Gamepad.Button.FACE1.index
             KeyEvent.KEYCODE_BUTTON_B -> Gamepad.Button.FACE2.index
             KeyEvent.KEYCODE_BUTTON_X -> Gamepad.Button.FACE3.index
@@ -240,10 +240,10 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
             KeyEvent.KEYCODE_BUTTON_START -> Gamepad.Button.START.index
             KeyEvent.KEYCODE_BUTTON_THUMBL -> Gamepad.Button.STICK_L.index
             KeyEvent.KEYCODE_BUTTON_THUMBR -> Gamepad.Button.STICK_R.index
-            KeyEvent.KEYCODE_DPAD_UP -> Gamepad.Button.DPAD_UP.index
-            KeyEvent.KEYCODE_DPAD_DOWN -> Gamepad.Button.DPAD_DOWN.index
-            KeyEvent.KEYCODE_DPAD_LEFT -> Gamepad.Button.DPAD_LEFT.index
-            KeyEvent.KEYCODE_DPAD_RIGHT -> Gamepad.Button.DPAD_RIGHT.index
+            KeyEvent.KEYCODE_DPAD_UP if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_UP.index
+            KeyEvent.KEYCODE_DPAD_DOWN if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_DOWN.index
+            KeyEvent.KEYCODE_DPAD_LEFT if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_LEFT.index
+            KeyEvent.KEYCODE_DPAD_RIGHT if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_RIGHT.index
             KeyEvent.KEYCODE_BUTTON_MODE -> Gamepad.Button.HOME.index
             else -> -1
         }
