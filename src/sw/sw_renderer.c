@@ -333,10 +333,42 @@ static void SWRenderer_drawSpritePos(Renderer* renderer, int32_t tpagIndex,
                                      float x1, float y1, float x2, float y2,
                                      float x3, float y3, float x4, float y4, float alpha)
 {
-    (void)renderer; (void)tpagIndex;
-    (void)x1; (void)y1; (void)x2; (void)y2;
-    (void)x3; (void)y3; (void)x4; (void)y4; (void)alpha;
+    // TODO: Implement this properly.  (I won't in this PR)
+    //
+    // You basically have to implement full texture UV mapping which I won't be
+    // bothering with.  Somebody else can get on it.
+    
+    SWRenderer* swr = (SWRenderer*) renderer;
+    DataWin* dwin = renderer->dataWin;
+
+    if (tpagIndex < 0 || (uint32_t) tpagIndex >= dwin->tpag.count) {
+        logError("%s: tpagIndex of %d is invalid\n", __func__, tpagIndex);
+        return;
+    }
+
+    TexturePageItem* tpag = &dwin->tpag.items[tpagIndex];
+    int16_t pageId = tpag->texturePageId;
+    if (0 > pageId || swr->totalTextureCount <= (uint32_t) pageId) {
+        logError("%s: tpagIndex of %d is invalid, as pageId of %d is invalid\n", __func__, tpagIndex, pageId);
+        return;
+    }
+    if (!swrEnsureTextureIsLoaded(swr, (uint32_t) pageId)) {
+        logError("%s: could not ensure texture is loaded, tpagIndex: %d, pageId: %d\n", __func__, tpagIndex, pageId);
+        return;
+    }
+    
+    int tw = tpag->targetWidth;
+    int th = tpag->targetHeight;
+
+    float ascalex = (x2 - x1) / tw;
+    float ascaley = (y4 - y1) / th;
+    
+    (void) x3; (void) y3;
+    (void) y2; (void) x4;
+
     UNIMP();
+    
+    SWRenderer_drawSprite(renderer, tpagIndex, x1, y1, 0.0f, 0.0f, ascalex, ascaley, 0.0f, renderer->drawColor, alpha);
 }
 
 static void SWRenderer_drawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2,
@@ -926,6 +958,7 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
     
     SWTexture temp1, temp2;
     SWTexture *dstSurf, *srcSurf;
+    bool freeSrcSurf = false;
     
     if (DestSurfaceID == APPLICATION_SURFACE_ID) {
         dstSurf = &temp1;
@@ -942,10 +975,17 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
     }
     
     if (SrcSurfaceID == APPLICATION_SURFACE_ID) {
-        srcSurf = &temp2;
+        // TODO: resizing might be expensive
         temp2.width = swr->mainWidth;
         temp2.height = swr->mainHeight;
         temp2.buffer = swr->mainFb;
+        if (swr->mainWidth == swr->portW && swr->mainHeight == swr->portH) {
+            srcSurf = &temp2;
+        }
+        else {
+            srcSurf = swrCropSectionFromTexture(&temp2, swr->gameW, swr->gameH, swr->portX, swr->portY, swr->maxX, swr->maxY);
+            freeSrcSurf = true;
+        }
     }
     else if (SrcSurfaceID < 0 || (size_t) SrcSurfaceID >= swr->surfaceCount || swr->surfaces[SrcSurfaceID] == NULL) {
         logError("swr: Cannot resize surface id %d, it's invalid (src in surfaceCopy)\n", SrcSurfaceID);
@@ -993,7 +1033,8 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
         }
     }
     
-    UNIMP();
+    if (freeSrcSurf)
+        swrFreeTexture(srcSurf);
 }
 
 static bool SWRenderer_surfaceGetPixels(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA)
