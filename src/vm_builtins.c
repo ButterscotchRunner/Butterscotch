@@ -4908,6 +4908,35 @@ static RValue builtin_ds_list_delete(VMContext* ctx, RValue* args, int32_t argCo
     return RValue_makeUndefined();
 }
 
+static int arraySortCompareAsc(const void* a, const void* b) {
+    const RValue* ra = (const RValue*) a;
+    const RValue* rb = (const RValue*) b;
+    if (ra->type == RVALUE_STRING && rb->type == RVALUE_STRING) {
+        return strcmp(ra->string != nullptr ? ra->string : "", rb->string != nullptr ? rb->string : "");
+    }
+    GMLReal da = RValue_toReal(*ra);
+    GMLReal db = RValue_toReal(*rb);
+    if (da < db) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+static int arraySortCompareDesc(const void* a, const void* b) {
+    return arraySortCompareAsc(b, a);
+}
+
+static RValue builtin_ds_list_sort(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = (Runner*) ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    bool ascending = RValue_toBool(args[1]);
+    DsList* list = dsListGet(runner, id);
+    if (list == nullptr) return RValue_makeUndefined();
+    int len = arrlen(list->items);
+    if (len < 2) return RValue_makeUndefined();
+    qsort(list->items, len, sizeof(RValue), ascending ? arraySortCompareAsc : arraySortCompareDesc);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_ds_list_empty(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = (Runner*) ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
@@ -6690,6 +6719,107 @@ static RValue builtin_array_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
         dst->modern.data[dstIndex + i] = temp[i];
     }
     free(temp);
+    return RValue_makeUndefined();
+}
+
+static VMContext* g_arraySortCtx;
+static int32_t g_arraySortCodeIndex;
+static BuiltinFunc g_arraySortBuiltin;
+
+static int arraySortCompareCustom(const void* a, const void* b) {
+    RValue callArgs[2];
+    callArgs[0] = RValue_makeIndependent(*(const RValue*) a);
+    callArgs[1] = RValue_makeIndependent(*(const RValue*) b);
+    RValue result;
+    if (g_arraySortCodeIndex >= 0) {
+        result = VM_callCodeIndex(g_arraySortCtx, g_arraySortCodeIndex, callArgs, 2);
+    } else {
+        result = g_arraySortBuiltin(g_arraySortCtx, callArgs, 2);
+    }
+    RValue_free(&callArgs[0]);
+    RValue_free(&callArgs[1]);
+    int32_t cmp = RValue_toInt32(result);
+    RValue_free(&result);
+    return cmp;
+}
+
+// array_sort, tried to get this accurate to GameMaker
+static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("array_sort", 2, RValue_makeUndefined());
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) return RValue_makeUndefined();
+    GMLArray* arr = args[0].array;
+    require(arr->type == GML_MODERN_ARRAY);
+    int32_t len = arr->modern.length;
+    if (len < 2) return RValue_makeUndefined();
+    RValue* data = arr->modern.data;
+
+    int (*compare)(const void*, const void*) = nullptr;
+    bool useCallback = false;
+
+    if (args[1].type == RVALUE_BOOL) {
+        compare = RValue_toBool(args[1]) ? arraySortCompareAsc : arraySortCompareDesc;
+    }
+#if IS_WAD17_OR_HIGHER_ENABLED
+    else if (args[1].type == RVALUE_METHOD && args[1].method != nullptr) {
+        useCallback = true;
+        g_arraySortCodeIndex = args[1].method->codeIndex;
+        g_arraySortBuiltin = (BuiltinFunc) args[1].method->builtin;
+        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
+            logWarn("[array_sort] Invalid method reference\n");
+            return RValue_makeUndefined();
+        }
+        if (args[1].method->boundInstanceId >= 0) {
+            Instance* bound = hmget(ctx->runner->instancesById, args[1].method->boundInstanceId);
+            if (bound != nullptr) ctx->currentInstance = bound;
+        }
+    }
+#endif
+    else if (args[1].type == RVALUE_INT32 || args[1].type == RVALUE_INT64 || args[1].type == RVALUE_REAL) {
+        useCallback = true;
+        int32_t rawArg = RValue_toInt32(args[1]);
+        g_arraySortCodeIndex = -1;
+        g_arraySortBuiltin = nullptr;
+        if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+            const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+            if (funcName != nullptr) {
+                ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+                if (idx >= 0) {
+                    g_arraySortCodeIndex = ctx->codeIndexByName[idx].value;
+                } else {
+                    ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                    if (bidx >= 0) g_arraySortBuiltin = ctx->builtinMap[bidx].value;
+                }
+            }
+        }
+        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
+            if (rawArg >= 0 && ctx->dataWin->scpt.count > (uint32_t) rawArg) {
+                g_arraySortCodeIndex = ctx->dataWin->scpt.scripts[rawArg].codeId;
+            }
+        }
+        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
+            logWarn("[array_sort] Invalid script index %d\n", rawArg);
+            return RValue_makeUndefined();
+        }
+    } else {
+        logWarn("[array_sort] Expected bool, method, or script index as second argument\n");
+        return RValue_makeUndefined();
+    }
+
+    RValue* tmp = (RValue*) safeMalloc((size_t) len * sizeof(RValue));
+    repeat(len, i) { tmp[i] = data[i]; tmp[i].ownsReference = false; }
+
+    if (useCallback) {
+        g_arraySortCtx = ctx;
+        qsort(tmp, (size_t) len, sizeof(RValue), arraySortCompareCustom);
+        g_arraySortCtx = nullptr;
+    } else {
+        qsort(tmp, (size_t) len, sizeof(RValue), compare);
+    }
+
+    {
+        repeat(len, i) { RValue_copyIntoSlot(&data[i], tmp[i]); }
+    }
+    free(tmp);
     return RValue_makeUndefined();
 }
 
@@ -21413,6 +21543,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_add", builtin_ds_list_add);
     VM_registerBuiltin(ctx, "ds_list_insert", builtin_ds_list_insert);
     VM_registerBuiltin(ctx, "ds_list_delete", builtin_ds_list_delete);
+    VM_registerBuiltin(ctx, "ds_list_sort", builtin_ds_list_sort);
     VM_registerBuiltin(ctx, "ds_list_empty", builtin_ds_list_empty);
     VM_registerBuiltin(ctx, "ds_list_size", builtin_ds_list_size);
     VM_registerBuiltin(ctx, "ds_list_find_index", builtin_ds_list_find_index);
@@ -21497,6 +21628,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_insert", builtin_array_insert);
     VM_registerBuiltin(ctx, "array_create", builtin_array_create);
     VM_registerBuiltin(ctx, "array_copy", builtin_array_copy);
+    VM_registerBuiltin(ctx, "array_sort", builtin_array_sort);
 
     // Steam stubs
     VM_registerBuiltin(ctx, "steam_initialised", builtin_steam_initialised);
