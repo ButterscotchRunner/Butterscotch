@@ -83,6 +83,10 @@ static void SWRenderer_beginFrame(Renderer* renderer, int32_t gameW, int32_t gam
         swr->fbPitch = windowW;
         swr->width = windowW;
         swr->height = windowH;
+        
+        swr->mainFb = swr->fb;
+        swr->mainWidth = swr->width;
+        swr->mainHeight = swr->height;
     }
     
 #ifdef SW_DEBUG_FRAME_DRAW_BOUNDS
