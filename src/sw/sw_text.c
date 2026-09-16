@@ -118,8 +118,8 @@ static void swrDrawDebugFontChar(SWRenderer* swr, char chr, int ax, int ay, uint
         chr = '?';
     
     int alpha = swrIntAlpha(alphaf);
-    int srcalpha = swrCalcSrcAlpha(swr, alpha);
-    int dstalpha = swrCalcDstAlpha(swr, alpha);
+    int srcalpha = swrCalcSrcAlpha(swr->blendMode, alpha);
+    int dstalpha = swrCalcDstAlpha(swr->blendMode, alpha);
     int blendmode = swr->blendMode;
     
     uintpixel_t actualColor = swrConvertPixel(color);

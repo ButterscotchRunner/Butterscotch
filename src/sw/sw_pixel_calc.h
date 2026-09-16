@@ -26,14 +26,40 @@ FORCE_INLINE int swrFastRng()
 //
 // Later, this should be changed to perform full alpha-blending
 // (at least in 32-bit pixel mode)
-FORCE_INLINE bool opaque(uintpixel_t color)
+FORCE_INLINE bool swrIsOpaque(uintpixel_t color)
 {
 #if PIXEL_SIZE == 8
     return (color != PXL_TRANSPARENT);
 #else
+#ifndef SW_NO_SEMI_TRANSPARENT_TEXTURE_SUPPORT
+    return (color & TRANSPARENT_MASK) == TRANSPARENT_MASK;
+#else
     return (color & TRANSPARENT_MASK) != 0;
 #endif
+#endif
 }
+
+#ifndef SW_NO_SEMI_TRANSPARENT_TEXTURE_SUPPORT
+
+// NOTE: These only work properly for 32-bit color.
+// (But you shouldn't have meddled with the #error I put in in sw_config.h...)
+FORCE_INLINE bool swrIsFullyTransparent(uintpixel_t color)
+{
+    return (color & TRANSPARENT_MASK) == 0;
+}
+
+FORCE_INLINE uint8_t swrGetAlphaU8(uintpixel_t color)
+{
+    return color >> 24;
+}
+
+// Turns the specified color (including alpha channel) into 
+FORCE_INLINE uintpixel_t swrAlphaToColor(uint8_t alpha)
+{
+    return alpha | (alpha << 8) | (alpha << 16);
+}
+
+#endif
 
 // Multiplies a color value (`color`) by another color value (`tintColor`).
 FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
@@ -258,24 +284,24 @@ FORCE_INLINE int swrIntAlpha(float alphaf)
 }
 
 // Calculates the source alpha for a pixel based on the current blend mode.
-FORCE_INLINE int swrCalcSrcAlpha(SWRenderer* swr, int alpha)
+FORCE_INLINE int swrCalcSrcAlpha(int blendMode, int alpha)
 {
-    // Here you would depend on swr->blendMode, but all
+    // Here you would depend on blendMode, but all
     // of them return the same value right now.
-    (void) swr;
+    (void) blendMode;
     return alpha;
 }
 
 // Calculates the destination alpha for a pixel based on the current blend mode.
-FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
+FORCE_INLINE int swrCalcDstAlpha(int blendMode, int alpha)
 {
 #ifdef SW_DITHERED_BLENDING
     /* Dithered blending does not use the dstalpha member */
-    (void) swr;
+    (void) blendMode;
     (void) alpha;
     return 0;
 #else
-    switch (swr->blendMode)
+    switch (blendMode)
     {
         default:
             return 256 - alpha;

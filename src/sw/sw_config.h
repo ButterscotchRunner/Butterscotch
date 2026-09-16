@@ -13,6 +13,10 @@
 // 16-bit: 0b0RRRRRGGGGGBBBBB
 // 8-bit:  0bBBGGGRRR
 
+// Define if you want to disable support for semi-transparent sprites.
+// It should be a little bit faster in scenes with heavy use of semi-transparent pixels.
+//#define SW_NO_SEMI_TRANSPARENT_TEXTURE_SUPPORT
+
 // Define if you want dithered alpha blending and triangle color blending.
 // It might be a good bit faster than doing blending the proper way.
 //#define SW_DITHERED_BLENDING
@@ -59,5 +63,15 @@
 #endif
 
 #endif // PIXEL_SIZE == 8
+
+#if PIXEL_SIZE != 32
+
+// forcefully define this.  16-bit and 8-bit color modes CANNOT work with
+// semi-transparent textures.
+#ifndef SW_NO_SEMI_TRANSPARENT_TEXTURE_SUPPORT
+#define SW_NO_SEMI_TRANSPARENT_TEXTURE_SUPPORT
+#endif
+
+#endif // PIXEL_SIZE != 32
 
 #endif // __SW_CONFIG_H
