@@ -952,8 +952,6 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
                                    int32_t SrcSurfaceID, int32_t SrcX, int32_t SrcY,
                                    int32_t SrcW, int32_t SrcH, bool part)
 {
-    (void) part; // TODO: figure out the meaning of this parameter
-
     SWRenderer* swr = (SWRenderer*) renderer;
     
     SWTexture temp1, temp2;
@@ -994,6 +992,14 @@ static void SWRenderer_surfaceCopy(Renderer* renderer,
     else {
         swrCommitShadowWritesToSurfaceIfNeeded(swr, swr->surfaces[SrcSurfaceID]);
         srcSurf = swr->surfaces[SrcSurfaceID]->texture;
+    }
+
+    if (!part)
+    {
+        // Not "part" means copy the whole source texture.
+        SrcX = SrcY = 0;
+        SrcW = srcSurf->width;
+        SrcH = srcSurf->height;
     }
     
     if (SrcX + SrcW < 0) return;
