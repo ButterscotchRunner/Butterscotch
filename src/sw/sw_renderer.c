@@ -98,6 +98,11 @@ static void SWRenderer_endFrameInit(Renderer* renderer)
     //this is kinda useless to do twice isn't it?
 }
 
+
+static void SWRenderer_drawRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2,
+                                          uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4,
+                                          float alpha, bool outline);
+
 static void SWRenderer_endFrameEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;

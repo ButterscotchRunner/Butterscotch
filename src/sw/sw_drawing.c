@@ -889,6 +889,11 @@ void swrFillRectangle(Renderer* renderer, float x1, float y1, float x2, float y2
 
 void swrFillRectangleColor(Renderer* renderer, float x1, float y1, float x2, float y2, uintpixel_t pxcolor1, uintpixel_t pxcolor2, uintpixel_t pxcolor3, uintpixel_t pxcolor4, float alpha)
 {
+    if (pxcolor1 == pxcolor2 && pxcolor2 == pxcolor3 && pxcolor3 == pxcolor4) {
+        swrFillRectangle(renderer, x1, y1, x2, y2, pxcolor1, alpha);
+        return;
+    }
+    
     SWRenderer* swr = (SWRenderer*) renderer;
     swrTransformPosIfNeeded(swr, &x1, &y1);
     swrTransformPosIfNeeded(swr, &x2, &y2);
@@ -905,8 +910,20 @@ void swrFillRectangleColor(Renderer* renderer, float x1, float y1, float x2, flo
     (void) pxcolor3;
     (void) pxcolor4;
     
-    for (int y = 0; y <= yd; y++) {
-        swrDrawHLineInt(renderer, x1i, y1i + y, xd, pxcolor1, pxcolor2, alphaInt);
+    uint64_t inc = (65536ULL << 16) / yd;
+    uint64_t weightfp = 0;
+    
+    for (int y = 0; y <= yd; y++, weightfp += inc)
+    {
+        uint16_t weight = (uint16_t)(weightfp >> 16);
+        if (weight > 65535) weight = 65535;
+        uint16_t weightOther = 65535 - weight;
+        
+        uintpixel_t intcolor1, intcolor2;
+        intcolor1 = swrTwoWayBlend(pxcolor1, pxcolor4, weightOther, weight);
+        intcolor2 = swrTwoWayBlend(pxcolor2, pxcolor3, weightOther, weight);
+        
+        swrDrawHLineInt(renderer, x1i, y1i + y, xd, intcolor1, intcolor2, alphaInt);
     }
 }
 

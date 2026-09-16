@@ -287,6 +287,34 @@ FORCE_INLINE int swrCalcDstAlpha(SWRenderer* swr, int alpha)
 #endif
 }
 
+// Blends a pixel between two colors.
+// frac means 0-65535 where 65535 means one.  And frac1 + frac2 MUST be equal to 65535.
+FORCE_INLINE uintpixel_t swrTwoWayBlend(uintpixel_t color1, uintpixel_t color2, uint16_t frac1, uint16_t frac2)
+{
+#if defined SW_DITHERED_BLENDING
+    int rng = fastRandomIsh() & 0xFFFF;
+    if (rng < frac1) return color1;
+    return color2;
+#elif PIXEL_SIZE == 32
+    Pixel32ARGB x1, x2, out;
+    x1.l = color1;
+    x2.l = color2;
+    out.p.r = (x1.p.r * frac1 + x2.p.r * frac2) >> 16;
+    out.p.g = (x1.p.g * frac1 + x2.p.g * frac2) >> 16;
+    out.p.b = (x1.p.b * frac1 + x2.p.b * frac2) >> 16;
+    out.p.a = x1.p.a;
+    return out.l;
+#elif PIXEL_SIZE == 16
+    int c1b = color1 & 0x1F, c1g = (color1 >> 5) & 0x1F, c1r = (color1 >> 10) & 0x1F;
+    int c2b = color2 & 0x1F, c2g = (color2 >> 5) & 0x1F, c2r = (color2 >> 10) & 0x1F;
+    int ca = color1 & 0x8000;
+    int cr = (c1r * frac1 + c2r * frac2) >> 16;
+    int cg = (c1g * frac1 + c2g * frac2) >> 16;
+    int cb = (c1b * frac1 + c2b * frac2) >> 16;
+    return ca | cb | (cg << 5) | (cr << 10);
+#endif
+}
+
 // Blends a pixel between three colors.
 // frac means 0-65535 where 65535 means one.  And frac1 + frac2 + frac3 MUST be equal to 65535.
 FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, uint16_t frac1, uint16_t frac2, uint16_t frac3)
