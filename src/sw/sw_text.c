@@ -108,7 +108,7 @@ static bool swrResolveGlyph(
 
 #ifdef SW_ENABLE_DEBUG_FONT
 
-extern const uint8_t swrDebugFont1bpp[];
+#include "sw_debug_font.h"
 
 static void swrDrawDebugFontChar(SWRenderer* swr, char chr, int ax, int ay, uint32_t color, float alphaf)
 {
