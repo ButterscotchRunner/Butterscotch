@@ -374,7 +374,7 @@ static void swrDrawSpriteInternal(
                 srcline = &texture->buffer[(sy + (int)(ys2 >> fp_prec)) * texture->width + sx];
             
             fixedp_t xs2 = ixs2;
-            for (int x = 0, xs = ixs; x < dw; x++, xs += oxs, xs2 += oxs2)
+            for (int x = 0; x < dw; x++, xs2 += oxs2)
             {
                 uintpixel_t pixel = srcline[(int)(xs2 >> fp_prec)];
                 if (opaque(pixel))
