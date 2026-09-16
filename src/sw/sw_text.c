@@ -21,14 +21,14 @@ SwrFontState;
 
 // ==== Internal functions ====
 
-FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int blendmode, int srcalpha, int dstalpha)
+FORCE_INLINE void swrPlotPixel_(Renderer* renderer, int x, int y, uintpixel_t color, int blendmode, int alpha)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
     if (x < swr->portX || y < swr->portY) return;
     if (x >= swr->maxX || y >= swr->maxY) return;
     
-    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, blendmode, srcalpha, dstalpha);
+    alphaBlend(&swr->fb[y * swr->fbPitch + x], color, blendmode, alpha);
 }
 
 static bool swrResolveFontState(SWRenderer* swr, DataWin* dw, Font* font, SwrFontState* state)
@@ -118,8 +118,6 @@ static void swrDrawDebugFontChar(SWRenderer* swr, char chr, int ax, int ay, uint
         chr = '?';
     
     int alpha = swrIntAlpha(alphaf);
-    int srcalpha = swrCalcSrcAlpha(swr->blendMode, alpha);
-    int dstalpha = swrCalcDstAlpha(swr->blendMode, alpha);
     int blendmode = swr->blendMode;
     
     uintpixel_t actualColor = swrConvertPixel(color);
@@ -130,7 +128,7 @@ static void swrDrawDebugFontChar(SWRenderer* swr, char chr, int ax, int ay, uint
             uint8_t row = swrDebugFont1bpp[chr * SWR_DEBUG_FONT_LINE_HEIGHT + y];
             
             if (row & (1 << (SWR_DEBUG_FONT_CHAR_WIDTH - 1 - x)))
-                swrPlotPixel_(&swr->base, ax + x, ay + y, actualColor, blendmode, srcalpha, dstalpha);
+                swrPlotPixel_(&swr->base, ax + x, ay + y, actualColor, blendmode, alpha);
         }
     }
 }

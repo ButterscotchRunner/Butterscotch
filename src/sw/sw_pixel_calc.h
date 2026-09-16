@@ -117,13 +117,8 @@ FORCE_INLINE uintpixel_t tint(uintpixel_t tintColor, uintpixel_t color)
 //
 // Another note: Wow, it' become a huge mess of ifdef's...
 FORCE_INLINE
-void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srcalpha, int dstalpha)
+void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srcalpha)
 {
-#ifdef SW_DITHERED_BLENDING
-    /* Dithered blending does not use the dstalpha member */
-    (void) dstalpha;
-#endif
-
     /* If we didn't disable subtract support and are in dithered blending mode */
 #if defined SW_DITHERED_BLENDING
 #ifdef SW_NO_SUBTRACT_SUPPORT
@@ -159,6 +154,9 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
 #endif // !SW_NO_SUBTRACT_SUPPORT
 #endif // defined SW_DITHERED_BLENDING
 
+    int dstalpha = 256;
+
+// TODO: figure out why we aren't doing this for 8-bit?
 #if PIXEL_SIZE == 32 || PIXEL_SIZE == 16
 
     /* Check extremely common cases in 32- and 16-bit modes */
@@ -175,6 +173,8 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
         // it's so insignificant here nobody will notice if we just don't...
         if (UNLIKELY(srcalpha < 4))
             return;
+        
+        dstalpha -= srcalpha;
     }
 
 #endif // PIXEL_SIZE == 32 || PIXEL_SIZE == 16
@@ -197,7 +197,7 @@ void alphaBlend(uintpixel_t* dcolor, uintpixel_t scolor, int blendmode, int srca
 
     *dcolor = scolor;
 
-#else
+#else // SW_DITHERED_BLENDING
 
     /* Extract pixel channels */
 #if PIXEL_SIZE == 32
@@ -283,36 +283,6 @@ FORCE_INLINE int swrIntAlpha(float alphaf)
     return (int)(alphaf * 256);
 }
 
-// Calculates the source alpha for a pixel based on the current blend mode.
-FORCE_INLINE int swrCalcSrcAlpha(int blendMode, int alpha)
-{
-    // Here you would depend on blendMode, but all
-    // of them return the same value right now.
-    (void) blendMode;
-    return alpha;
-}
-
-// Calculates the destination alpha for a pixel based on the current blend mode.
-FORCE_INLINE int swrCalcDstAlpha(int blendMode, int alpha)
-{
-#ifdef SW_DITHERED_BLENDING
-    /* Dithered blending does not use the dstalpha member */
-    (void) blendMode;
-    (void) alpha;
-    return 0;
-#else
-    switch (blendMode)
-    {
-        default:
-            return 256 - alpha;
-        case bm_add:
-            return 256;
-        case bm_subtract:
-            return 256;
-    }
-#endif
-}
-
 // Blends a pixel between two colors.
 // frac means 0-65535 where 65535 means one.  And frac1 + frac2 MUST be equal to 65535.
 FORCE_INLINE uintpixel_t swrTwoWayBlend(uintpixel_t color1, uintpixel_t color2, uint16_t frac1, uint16_t frac2)
@@ -329,7 +299,7 @@ FORCE_INLINE uintpixel_t swrTwoWayBlend(uintpixel_t color1, uintpixel_t color2, 
     out.p.r = (x1.p.r * frac1 + x2.p.r * frac2) >> 16;
     out.p.g = (x1.p.g * frac1 + x2.p.g * frac2) >> 16;
     out.p.b = (x1.p.b * frac1 + x2.p.b * frac2) >> 16;
-    out.p.a = x1.p.a;
+    out.p.a = (x1.p.a * frac1 + x2.p.a * frac2) >> 16;
     return out.l;
 #elif PIXEL_SIZE == 16
     int c1b = color1 & 0x1F, c1g = (color1 >> 5) & 0x1F, c1r = (color1 >> 10) & 0x1F;
@@ -360,7 +330,7 @@ FORCE_INLINE uintpixel_t swrThreeWayBlend(uintpixel_t color1, uintpixel_t color2
     out.p.r = (x1.p.r * frac1 + x2.p.r * frac2 + x3.p.r * frac3) >> 16;
     out.p.g = (x1.p.g * frac1 + x2.p.g * frac2 + x3.p.g * frac3) >> 16;
     out.p.b = (x1.p.b * frac1 + x2.p.b * frac2 + x3.p.b * frac3) >> 16;
-    out.p.a = x1.p.a;
+    out.p.a = (x1.p.a * frac1 + x2.p.a * frac2 + x3.p.a * frac3) >> 16;
     return out.l;
 #elif PIXEL_SIZE == 16
     int c1b = color1 & 0x1F, c1g = (color1 >> 5) & 0x1F, c1r = (color1 >> 10) & 0x1F;
@@ -394,7 +364,7 @@ FORCE_INLINE uintpixel_t swrFourWayBlend(uintpixel_t color1, uintpixel_t color2,
     out.p.r = (x1.p.r * frac1 + x2.p.r * frac2 + x3.p.r * frac3 + x4.p.r * frac4) >> 16;
     out.p.g = (x1.p.g * frac1 + x2.p.g * frac2 + x3.p.g * frac3 + x4.p.g * frac4) >> 16;
     out.p.b = (x1.p.b * frac1 + x2.p.b * frac2 + x3.p.b * frac3 + x4.p.b * frac4) >> 16;
-    out.p.a = x1.p.a;
+    out.p.a = (x1.p.a * frac1 + x2.p.a * frac2 + x3.p.a * frac3 + x4.p.a * frac4) >> 16;
     return out.l;
 #elif PIXEL_SIZE == 16
     int c1b = color1 & 0x1F, c1g = (color1 >> 5) & 0x1F, c1r = (color1 >> 10) & 0x1F;
