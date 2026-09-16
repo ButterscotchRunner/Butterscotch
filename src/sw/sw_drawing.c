@@ -138,7 +138,6 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
         else if (alignment == SWR_LINE_ALIGN_M1)
             x1 -= width;
         
-        logDebug("swrDrawLineInt  V: width: %d\n", width);
         for (int i = 0; i < width; i++) {
             swrDrawVLineInt(renderer, x1 + i, swrMin(y1, y2), swrAbs(y1 - y2), color1, color2, alpha);
         }
@@ -151,7 +150,6 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
         else if (alignment == SWR_LINE_ALIGN_M1)
             y1 -= width;
         
-        logDebug("swrDrawLineInt  H: width: %d\n", width);
         for (int i = 0; i < width; i++) {
             swrDrawHLineInt(renderer, swrMin(x1, x2), y1 + i, swrAbs(x1 - x2), color1, color2, alpha);
         }
@@ -175,7 +173,6 @@ static void swrDrawLineInt(Renderer* renderer, int x1, int y1, int x2, int y2, i
         float x2l = x2 - xds, y2l = y2 - yds;
         float x2r = x2 + xds, y2r = y2 + yds;
         
-        logDebug("swrDrawLineInt  N/A: width: %d, xds: %f, yds: %f\n", width, xds, yds);
         swrDrawTriangleTransformed(renderer, x1l, y1l, x1r, y1r, x2l, y2l, color1, color1, color2, alpha);
         swrDrawTriangleTransformed(renderer, x2r, y2r, x1r, y1r, x2l, y2l, color2, color1, color2, alpha);
         swrPlotPixel_(renderer, x1l, y1l, 0xFF00FF, bm_normal, 256, 0);
@@ -549,8 +546,6 @@ static void swrDrawSpriteRotatedInternal(
 
 static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft, int yleft, int xright, int yright, uintpixel_t color1, uintpixel_t color2, uintpixel_t color3, int alpha)
 {
-    logDebug("swrDrawTriangleInternal:  Coords: (%d,%d) (%d,%d) (%d,%d)\n", xup, yup, xleft, yleft, xright, yright);
-    
     int srcalpha = swrCalcSrcAlpha(swr, alpha);
     int invalpha = swrCalcDstAlpha(swr, alpha);
     int blendmode = swr->blendMode;
@@ -624,7 +619,7 @@ static void swrDrawTriangleInternal(SWRenderer* swr, int xup, int yup, int xleft
     
     int area = (xleft - xup) * (yright - yup) - (yleft - yup) * (xright - xup);
     if (area == 0) {
-        logDebug("SWR: Area is 0, returning early. Coords: (%d,%d) (%d,%d) (%d,%d)\n", xup, yup, xleft, yleft, xright, yright);
+        //logDebug("SWR: Area is 0, returning early. Coords: (%d,%d) (%d,%d) (%d,%d)\n", xup, yup, xleft, yleft, xright, yright);
         return;
     }
     
@@ -756,7 +751,7 @@ bool swrSwitchToSurface(Renderer* renderer, int32_t targetSurfaceId, bool restor
             return true;
         
         // restore the original framebuffer
-        logDebug("swr: back to original framebuffer (%d)\n", targetSurfaceId);
+        //logDebug("swr: back to original framebuffer (%d)\n", targetSurfaceId);
         swr->drawingToSurface = false;
         swr->fb = swr->mainFb;
         swr->width = swr->mainWidth;
@@ -850,10 +845,8 @@ void swrDrawLine(Renderer* renderer, float x1, float y1, float x2, float y2, flo
     SWRenderer* swr = (SWRenderer*) renderer;
     swrTransformPosIfNeeded(swr, &x1, &y1);
     swrTransformPosIfNeeded(swr, &x2, &y2);
-    logDebug("swrDrawLine BEFORE width: %f\n", width);
     swrTransformSizeIfNeeded(swr, &width, NULL);
     int iwidth = swrRound(width);
-    logDebug("swrDrawLine AFTER  width: %f intwidth: %d\n", width, iwidth);
     swrDrawLineInt(renderer, swrFloor(x1), swrFloor(y1), swrFloor(x2), swrFloor(y2), iwidth, color, color2, swrIntAlpha(alpha), alignment);
 }
 

@@ -371,7 +371,6 @@ static void SWRenderer_drawLine(Renderer* renderer, float x1, float y1, float x2
 #ifdef TRANSPARENT_MASK
     colorCvt |= TRANSPARENT_MASK;
 #endif
-    logDebug("SWRenderer_drawLine width: %f\n", width);
     swrDrawLine(renderer, x1, y1, x2, y2, width, colorCvt, colorCvt, alpha, SWR_LINE_ALIGN_CENTER);
 }
 
@@ -398,7 +397,6 @@ static void SWRenderer_drawTriangle(Renderer* renderer,
 static void SWRenderer_drawLineColor(Renderer* renderer, float x1, float y1, float x2, float y2,
                                      float width, uint32_t color1, uint32_t color2, float alpha)
 {
-    logDebug("SWRenderer_drawLineColor width: %f\n", width);
     swrDrawLine(renderer, x1, y1, x2, y2, width, swrConvertPixel(color1), swrConvertPixel(color2), alpha, SWR_LINE_ALIGN_CENTER);
 }
 
@@ -637,7 +635,7 @@ static void SWRenderer_gpuSetBlendMode(Renderer* renderer, int32_t mode)
     SWRenderer* swr = (SWRenderer*) renderer;
     swr->blendMode = mode;
     
-    logDebug("swr: switching to blend mode %d\n", mode);
+    //logDebug("swr: switching to blend mode %d\n", mode);
     
     if (swr->usingAlphaBlendState)
     {
@@ -1293,7 +1291,7 @@ static void SWRenderer_primitiveBegin(Renderer* renderer, int32_t primitiveType)
     swr->primitiveType = primitiveType;
     swr->vertexCount = 0;
     swr->primitiveBegun = true;
-    logDebug("swr: primitiveBegin(%d)\n", primitiveType);
+    //logDebug("swr: primitiveBegin(%d)\n", primitiveType);
 }
 
 static void SWRenderer_primitiveBeginTexture(Renderer* renderer, int32_t primitiveType, int32_t texture)
@@ -1326,7 +1324,7 @@ static void SWRenderer_primitiveEnd(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
     
-    logWarn("SWR: Ending with %d vertices, primitive type %d\n", swr->vertexCount, swr->primitiveType);
+    //logWarn("SWR: Ending with %d vertices, primitive type %d\n", swr->vertexCount, swr->primitiveType);
     switch (swr->primitiveType)
     {
         case PRIMITIVE_POINTS:
@@ -1410,7 +1408,7 @@ static void SWRenderer_drawVertex(Renderer* renderer, float x, float y, float z,
     pVertex->x = x;
     pVertex->y = y;
     
-    logDebug("swr:      drawVertex(%f, %f)\n", x, y);
+    //logDebug("swr:      drawVertex(%f, %f)\n", x, y);
     
     // Texture mapping and the third dimension are not supported.
     (void) z;
