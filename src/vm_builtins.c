@@ -6710,8 +6710,9 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
     if (args[1].type == RVALUE_BOOL) {
         compare = RValue_toBool(args[1]) ? arraySortCompareAsc : arraySortCompareDesc;
+    }
 #if IS_WAD17_OR_HIGHER_ENABLED
-    } else if (args[1].type == RVALUE_METHOD && args[1].method != nullptr) {
+    else if (args[1].type == RVALUE_METHOD && args[1].method != nullptr) {
         useCallback = true;
         g_arraySortCodeIndex = args[1].method->codeIndex;
         g_arraySortBuiltin = (BuiltinFunc) args[1].method->builtin;
@@ -6723,9 +6724,9 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
             Instance* bound = hmget(ctx->runner->instancesById, args[1].method->boundInstanceId);
             if (bound != nullptr) ctx->currentInstance = bound;
         }
-    } else
+    }
 #endif
-    if (args[1].type == RVALUE_INT32 || args[1].type == RVALUE_INT64 || args[1].type == RVALUE_REAL) {
+    else if (args[1].type == RVALUE_INT32 || args[1].type == RVALUE_INT64 || args[1].type == RVALUE_REAL) {
         useCallback = true;
         int32_t rawArg = RValue_toInt32(args[1]);
         g_arraySortCodeIndex = -1;
