@@ -446,7 +446,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
             set(ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs")
             if (EXISTS "${ROMFS_DIR}" AND IS_DIRECTORY "${ROMFS_DIR}")
-                message(STATUS "Adding files from ROMFS: ${ROMFS_DIR}")
                 nx_create_nro(butterscotch NACP Butterscotch.nacp ROMFS "${ROMFS_DIR}")
             else()
                 nx_create_nro(butterscotch NACP Butterscotch.nacp)
