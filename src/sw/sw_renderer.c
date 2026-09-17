@@ -60,10 +60,34 @@ static void SWRenderer_init(Renderer* renderer, DataWin* dataWin)
 static void SWRenderer_destroy(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
+
+    swr->primitiveBegun = false;
+    swr->primitiveOverflow = false;
+    swr->primitiveType = -1;
+    swr->vertexCount = 0;
     
-    // TODO: why didn't I implement this.
-    (void) swr;
+    for (size_t i = 0; i < swr->surfaceCount; i++)
+    {
+        swrFreeSurface(swr->surfaces[i]);
+    }
+    free(swr->surfaces);
+    swr->surfaceCount = 0;
+    {
+    for (size_t i = 0; i < swr->totalTextureCount; i++)
+    {
+        swrFreeTexture(swr->textures[i]);
+    }
+    }
+    free(swr->textures);
+    swr->textureCount = 0;
+    swr->totalTextureCount = 0;
+    free(swr->textureIndexLRU);
+    free(swr->vertexData);
     
+    free(swr->mainFb);
+    swr->fb = swr->mainFb = NULL;
+    
+    free(swr);
     logInfo("SWRenderer destroyed.\n");
 }
 
