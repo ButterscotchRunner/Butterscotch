@@ -8,6 +8,9 @@
 #include "platformdefs.h"
 #include "gettime.h"
 #include "runner_mouse.h"
+#ifdef ENABLE_SDL_RENDERER
+#include "sdl_renderer.h"
+#endif
 #ifdef PLATFORM_SWITCH
 #include <switch.h>
 #include "switch_input.h"
@@ -19,7 +22,7 @@ static SDL_Window *window;
 static SDL_GameController* openControllers[MAX_GAMEPADS];
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
-    if (gfx == SOFTWARE) {
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) {
         return SDL_CreateWindow(
             title,
             SDL_WINDOWPOS_UNDEFINED,
@@ -102,10 +105,17 @@ void platformSetWindowTitle(const char* title) {
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
-    if (gfx == SOFTWARE) {
-        if (scr->w <= 0 || scr->h <= 0) return false;
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE) {
+        if (scr == NULL || scr->w <= 0 || scr->h <= 0) return false;
         *outW = scr->w;
         *outH = scr->h;
+    } else if (gfx == SDL_HARDWARE) {
+        int w = 0;
+        int h = 0;
+        SDL_GetWindowSize(window, &w, &h);
+        if (w <= 0 || h <= 0) return false;
+        *outW = w;
+        *outH = h;
     } else {
         int w = 0;
         int h = 0;
@@ -134,10 +144,16 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 
 static float platformGetWindowScale(void) {
     int32_t draw_w = 0, draw_h = 0;
-    int logical_w, logical_h;
+    int logical_w = 0, logical_h = 0;
+
     platformGetWindowSize(&draw_w, &draw_h);
     SDL_GetWindowSize(window, &logical_w, &logical_h);
-    return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
+
+    if (draw_w <= 0 || draw_h <= 0 || logical_w <= 0 || logical_h <= 0) {
+        return 1.0f;
+    }
+
+    return (float)draw_w / (float)logical_w;
 }
 
 void platformSetWindowSize(int32_t width, int32_t height) {
@@ -149,10 +165,12 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     height = (operationMode == AppletOperationMode_Console) ? 1080 : 720;
 #endif
 
-    float scale = platformGetWindowScale();
-    SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
+    // The logical window size is already the target size for the game; re-dividing by the
+    // current HiDPI scale on a reused window causes game_change to shrink the window to a
+    // quarter-sized top-left region on Retina/HiDPI displays.
+    SDL_SetWindowSize(window, width, height);
 
-    if (gfx == SOFTWARE)
+    if (gfx == SOFTWARE || gfx == SDL_SOFTWARE)
         scr = SDL_GetWindowSurface(window);
 }
 
@@ -181,7 +199,7 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 
     Uint32 flags = 0;
-    if (gfx != SOFTWARE)
+    if (gfx != SOFTWARE && gfx != SDL_HARDWARE)
         flags |= SDL_WINDOW_OPENGL;
     if (headless)
         flags |= SDL_WINDOW_HIDDEN;
@@ -193,12 +211,12 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
 
     window = tryOpenWindow(reqW, reqH, title, flags);
 
-    if (!window && gfx != SOFTWARE) {
+    if (!window && gfx != SOFTWARE && gfx != SDL_SOFTWARE && gfx != SDL_HARDWARE) {
         logError("Fatal: Could not open window: %s\n", SDL_GetError());
         return false;
     }
 
-    if (!window && gfx == SOFTWARE) {
+    if (!window && (gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE)) {
         SDL_DisplayMode mode;
         if (SDL_GetDisplayMode(0, 0, &mode) == 0) {
             logWarn("%dx%d unavailable, falling back to %dx%d: %s\n",
@@ -218,11 +236,11 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
         logError("Fatal: Could not set any video mode: %s\n", SDL_GetError());
         return false;
     }
-    if (gfx != SOFTWARE) {
+    if (gfx != SOFTWARE && gfx != SDL_SOFTWARE && gfx != SDL_HARDWARE) {
 #ifndef PLATFORM_VITA
         SDL_GL_SetSwapInterval(0); // disable vsync
 #endif
-    } else {
+    } else if (gfx == SOFTWARE || gfx == SDL_SOFTWARE) {
         scr = SDL_GetWindowSurface(window);
     }
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
@@ -313,6 +331,12 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 #endif
 
 void platformSwapBuffers(void) {
+#ifdef ENABLE_SDL_RENDERER
+    if ((gfx == SOFTWARE || gfx == SDL_SOFTWARE || gfx == SDL_HARDWARE) && SDLRenderer_getCurrent() != NULL) {
+        SDLRenderer_presentCurrentFrame(window);
+        return;
+    }
+#endif
 #ifdef ENABLE_SW_RENDERER
     if(gfx == SOFTWARE) {
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
