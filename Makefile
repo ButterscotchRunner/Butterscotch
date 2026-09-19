@@ -134,6 +134,15 @@ DISABLE_MODERN_GL := 1
 DEFINES += $(DEFINE)USE_NOOP
 endif
 
+# FFmpeg (video playback)
+FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
+FFMPEG_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
+ifneq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
+SYSCFLAGS += $(FFMPEG_CFLAGS)
+LIBS += $(FFMPEG_LIBS)
+DEFINES += $(DEFINE)BUTTERSCOTCH_FFMPEG
+endif
+
 # Noop renderer is exclusive to noop backend; GL renderers exclusive to non-noop backends
 ifneq ($(BACKEND),noop)
 # GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
