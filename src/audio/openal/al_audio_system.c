@@ -80,6 +80,10 @@ static void releaseInstance(SoundInstance* inst) {
             stb_vorbis_close((stb_vorbis*) inst->vorbis);
             inst->vorbis = nullptr;
         }
+        if (inst->wavFile != nullptr) {
+            fclose(inst->wavFile);
+            inst->wavFile = nullptr;
+        }
         free(inst->decodeScratch);
         inst->decodeScratch = nullptr;
         inst->streaming = false;
@@ -95,6 +99,34 @@ static void releaseInstance(SoundInstance* inst) {
 // Wraps around on EOF if inst->loop is set.
 // Returns false when no more samples are available (decoder exhausted and not looping, or read failed).
 static bool streamFillBuffer(SoundInstance* inst, ALuint buf) {
+    if (inst->wavFile != nullptr) {
+        uint32_t frameBytes = (uint32_t)inst->streamChannels * (uint32_t)sizeof(int16_t);
+        int32_t wantedBytes = AL_STREAM_BUFFER_SAMPLES * (int32_t)frameBytes;
+        uint32_t bytesRead = 0;
+        while (bytesRead < (uint32_t)wantedBytes) {
+            uint32_t avail = inst->wavSampleBytesRemaining;
+            if (avail > (uint32_t)wantedBytes - bytesRead) avail = (uint32_t)wantedBytes - bytesRead;
+            if (avail == 0) {
+                if (!inst->loop) break;
+                fseek(inst->wavFile, inst->wavDataStart, SEEK_SET);
+                inst->wavSampleBytesRemaining = inst->wavDataBytes;
+                if (inst->wavSampleBytesRemaining == 0) break;
+                continue;
+            }
+            uint32_t got = (uint32_t)fread((uint8_t*)inst->decodeScratch + bytesRead, 1, avail, inst->wavFile);
+            inst->wavSampleBytesRemaining -= got;
+            bytesRead += got;
+            if (got < avail) {
+                if (!inst->loop) break;
+                fseek(inst->wavFile, inst->wavDataStart, SEEK_SET);
+                inst->wavSampleBytesRemaining = inst->wavDataBytes;
+            }
+        }
+        uint32_t aligned = bytesRead - (bytesRead % frameBytes);
+        if (aligned < frameBytes) return false;
+        alBufferData(buf, inst->streamFormat, inst->decodeScratch, (ALsizei)aligned, inst->streamSampleRate);
+        return true;
+    }
     stb_vorbis* v = (stb_vorbis*) inst->vorbis;
     int samples = stb_vorbis_get_samples_short_interleaved(v, inst->streamChannels, inst->decodeScratch, AL_STREAM_BUFFER_SAMPLES * inst->streamChannels);
     if (0 >= samples) {
@@ -341,6 +373,59 @@ static bool parseWavHeader(const uint8_t* data, uint32_t dataSize,
         && *outChannels > 0 && *outSampleRate > 0 && *outBitsPerSample > 0;
 }
 
+static FILE* openWavStream(const char* path, int32_t* outChannels, int32_t* outSampleRate,
+                           int64_t* outDataStart, uint32_t* outDataBytes) {
+    FILE* f = fopen(path, "rb");
+    if (f == nullptr) return nullptr;
+    uint8_t magic[12];
+    if (fread(magic, 1, 12, f) != 12 || memcmp(magic, "RIFF", 4) != 0 || memcmp(magic + 8, "WAVE", 4) != 0) {
+        fclose(f);
+        return nullptr;
+    }
+    int32_t channels = 0;
+    int32_t sampleRate = 0;
+    int32_t bitsPerSample = 0;
+    int32_t audioFormat = 0;
+    int64_t dataStart = -1;
+    uint32_t dataBytes = 0;
+    bool foundFmt = false;
+    bool foundData = false;
+    for (;;) {
+        uint8_t hdr[8];
+        if (fread(hdr, 1, 8, f) != 8) break;
+        uint32_t chunkLen = (uint32_t)hdr[4] | ((uint32_t)hdr[5] << 8) | ((uint32_t)hdr[6] << 16) | ((uint32_t)hdr[7] << 24);
+        if (memcmp(hdr, "fmt ", 4) == 0 && chunkLen >= 16) {
+            uint8_t fmt[16];
+            if (fread(fmt, 1, 16, f) != 16) break;
+            audioFormat = fmt[0] | (fmt[1] << 8);
+            channels = fmt[2] | (fmt[3] << 8);
+            sampleRate = fmt[4] | (fmt[5] << 8) | (fmt[6] << 16) | (fmt[7] << 24);
+            bitsPerSample = fmt[14] | (fmt[15] << 8);
+            foundFmt = true;
+            if (chunkLen > 16) fseek(f, (long)(chunkLen - 16), SEEK_CUR);
+        } else if (memcmp(hdr, "data", 4) == 0) {
+            dataStart = ftell(f);
+            dataBytes = chunkLen;
+            foundData = true;
+            break;
+        } else {
+            fseek(f, (long)chunkLen, SEEK_CUR);
+        }
+        if (chunkLen & 1) fseek(f, 1, SEEK_CUR);
+    }
+    if (!foundFmt || !foundData || audioFormat != 1 || bitsPerSample != 16 ||
+        (channels != 1 && channels != 2) || sampleRate <= 0 || dataStart < 0) {
+        fclose(f);
+        return nullptr;
+    }
+    fseek(f, dataStart, SEEK_SET);
+    *outChannels = channels;
+    *outSampleRate = sampleRate;
+    *outDataStart = dataStart;
+    *outDataBytes = dataBytes;
+    return f;
+}
+
 static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t priority, bool loop) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
@@ -378,6 +463,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     slot->streaming = false;
     slot->vorbis = nullptr;
+    slot->wavFile = nullptr;
     slot->decodeScratch = nullptr;
     slot->streamEnded = false;
     slot->playedSamples = 0;
@@ -385,28 +471,55 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     if (isStream) {
         // Streaming path: open the decoder, queue a few small buffers, and let maUpdate() top them up.
         // This avoids the multi-hundred-millisecond hang of decoding a whole song into PCM on the main thread.
-        int err = 0;
-        stb_vorbis* v = stb_vorbis_open_filename(streamPath, &err, nullptr);
-        if (v == nullptr) {
-            logWarn("Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
-            return -1;
+        int32_t wavChannels = 0;
+        int32_t wavSampleRate = 0;
+        int64_t wavDataStart = 0;
+        uint32_t wavDataBytes = 0;
+        FILE* wavFile = openWavStream(streamPath, &wavChannels, &wavSampleRate, &wavDataStart, &wavDataBytes);
+
+        stb_vorbis* v = nullptr;
+        if (wavFile == nullptr) {
+            int err = 0;
+            v = stb_vorbis_open_filename(streamPath, &err, nullptr);
+            if (v == nullptr) {
+                logWarn("Audio: Failed to open stream '%s' (stb_vorbis err %d)\n", streamPath, err);
+                return -1;
+            }
         }
-        stb_vorbis_info info = stb_vorbis_get_info(v);
 
         slot->streaming = true;
         slot->loop = loop;
-        slot->vorbis = v;
-        slot->streamChannels = info.channels;
-        slot->streamSampleRate = (int) info.sample_rate;
-        slot->streamFormat = (info.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-        slot->streamLengthSeconds = stb_vorbis_stream_length_in_seconds(v);
-        slot->decodeScratch = (int16_t *)safeMalloc(AL_STREAM_BUFFER_SAMPLES * info.channels * sizeof(int16_t));
+        slot->wavFile = wavFile;
+        slot->wavDataStart = wavDataStart;
+        slot->wavDataBytes = wavDataBytes;
+        slot->wavSampleBytesRemaining = wavDataBytes;
+
+        if (wavFile != nullptr) {
+            slot->streamChannels = wavChannels;
+            slot->streamSampleRate = wavSampleRate;
+            slot->streamFormat = (wavChannels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+            slot->streamLengthSeconds =
+                (float)wavDataBytes / (float)(wavChannels * (int32_t)sizeof(int16_t)) / (float)wavSampleRate;
+        } else {
+            stb_vorbis_info info = stb_vorbis_get_info(v);
+            slot->vorbis = v;
+            slot->streamChannels = info.channels;
+            slot->streamSampleRate = (int) info.sample_rate;
+            slot->streamFormat = (info.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
+            slot->streamLengthSeconds = stb_vorbis_stream_length_in_seconds(v);
+        }
+        slot->decodeScratch = (int16_t*)safeMalloc(AL_STREAM_BUFFER_SAMPLES * slot->streamChannels * sizeof(int16_t));
 
         alGenSources(1, &slot->alSource);
         alGenBuffers(AL_STREAM_BUFFER_COUNT, slot->streamBuffers);
         if (alGetError() != AL_NO_ERROR) {
             logWarn("Audio: alGenSources/alGenBuffers failed for stream\n");
-            stb_vorbis_close(v);
+            if (wavFile != nullptr) {
+                fclose(wavFile);
+                slot->wavFile = nullptr;
+            } else {
+                stb_vorbis_close(v);
+            }
             free(slot->decodeScratch);
             slot->streaming = false;
             slot->vorbis = nullptr;
@@ -425,7 +538,12 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             // Empty file or decode failure: tear everything down cleanly.
             alDeleteSources(1, &slot->alSource);
             alDeleteBuffers(AL_STREAM_BUFFER_COUNT, slot->streamBuffers);
-            stb_vorbis_close(v);
+            if (wavFile != nullptr) {
+                fclose(wavFile);
+                slot->wavFile = nullptr;
+            } else {
+                stb_vorbis_close(v);
+            }
             free(slot->decodeScratch);
             slot->streaming = false;
             slot->vorbis = nullptr;

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "audio_system.h"
+#include <stdio.h>
 #ifdef __APPLE__
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
@@ -40,6 +41,10 @@ typedef struct {
     bool loop;
     bool streamEnded; // decoder produced no more samples; waiting for queue to drain
     struct stb_vorbis* vorbis;
+    FILE* wavFile;
+    int64_t wavDataStart;
+    uint32_t wavDataBytes;
+    uint32_t wavSampleBytesRemaining;
     ALuint streamBuffers[AL_STREAM_BUFFER_COUNT];
     int16_t* decodeScratch; // sized for AL_STREAM_BUFFER_SAMPLES * streamChannels shorts
     int streamChannels;
