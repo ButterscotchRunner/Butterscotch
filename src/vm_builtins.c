@@ -11764,7 +11764,7 @@ static void dispatchVideoAsync(Runner* runner, const char* type) {
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 
-//allows file paths like "sdmc:/..." or "ux0:/..." work with ffmpeg
+//fixes sdmc:/ (switch and vita)
 static char* ffmpegFileUrl(const char* path) {
     if (path == nullptr) return nullptr;
     if (strncmp(path, "file:", 5) == 0) return safeStrdup(path);
@@ -12146,7 +12146,7 @@ static void videoAudioAppendConverted(VideoWavWriter* w, struct SwrContext* swrC
     if (outSamples <= 0) return;
     int32_t bytes = outSamples * VIDEO_AUDIO_CHANNELS * (int32_t)sizeof(int16_t);
     uint8_t* tmp = (uint8_t*)safeMalloc((size_t)bytes);
-    int32_t converted = swr_convert(swrCtx, &tmp, outSamples, (const uint8_t* const*)frame->data, frame->nb_samples);
+    int32_t converted = swr_convert(swrCtx, &tmp, outSamples, (const uint8_t**)frame->data, frame->nb_samples);
     if (converted > 0) {
         uint32_t convBytes = (uint32_t)converted * VIDEO_AUDIO_CHANNELS * (uint32_t)sizeof(int16_t);
         videoWavWriterPush(w, tmp, convBytes);
