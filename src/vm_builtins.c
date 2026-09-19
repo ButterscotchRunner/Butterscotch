@@ -11840,7 +11840,7 @@ static int32_t ffmpegVideoDecoderConvertFrame(FfmpegVideoDecoder* d, AVFrame* fr
     if (d->swsCtx == nullptr || d->drawPixels == nullptr) return -1;
     uint8_t* dst[1] = {d->drawPixels};
     int32_t dstStride[1] = {d->drawLineSize};
-    sws_scale(d->swsCtx, (const uint8_t* const*)frame->data, frame->linesize, 0, d->height, dst, dstStride);
+    sws_scale(d->swsCtx, (const uint8_t**)frame->data, frame->linesize, 0, d->height, dst, dstStride);
     if (frame->pts != AV_NOPTS_VALUE) d->lastPts = frame->pts;
     return 0;
 }
