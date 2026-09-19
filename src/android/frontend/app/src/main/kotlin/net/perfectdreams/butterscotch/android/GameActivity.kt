@@ -135,6 +135,7 @@ class GameActivity : ComponentActivity() {
             logsFile,
             entry.runnerOs.nativeValue,
             entry.enablePhysicalControllers,
+            entry.physicalControllerSideways,
             entry.enablePhysicalKeyboard,
             entry.enableWidescreenHack,
             entry.postProcessing,
