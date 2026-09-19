@@ -11715,6 +11715,9 @@ static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
 #ifndef OTHER_ASYNC_SOCIAL
 #define OTHER_ASYNC_SOCIAL 70
 #endif
+#ifndef SOUND_INSTANCE_ID_BASE
+#define SOUND_INSTANCE_ID_BASE 100000
+#endif
 // From Cinnamon
 // https://github.com/Project-Sunshine-Native/cinnamon/blob/DELTARUNE-3DS/src/vm_builtins.c#L4428
 static void cleanupAsyncMap(Runner* runner, int32_t mapId) {
@@ -11791,6 +11794,7 @@ int videoSurfId = 0;
 bool videoRunnin = false;
 
 static int32_t videoAudioStreamIndex = -1;
+static int32_t videoAudioInstanceId = -1;
 static char* videoAudioWavPath = nullptr;
 
 #define VIDEO_AUDIO_CHANNELS 2
@@ -12205,7 +12209,7 @@ static bool videoAudioStart(Runner* runner, const char* url) {
     if (streamIndex < 0) return false;
     videoAudioStreamIndex = streamIndex;
     videoAudioWavPath = safeStrdup(wavPath);
-    audio->vtable->playSound(audio, streamIndex, 0, false);
+    videoAudioInstanceId = audio->vtable->playSound(audio, streamIndex, 0, false);
     return true;
 }
 
@@ -12213,7 +12217,9 @@ static void videoAudioDiscard(Runner* runner) {
     if (videoAudioWavPath != nullptr) {
         if (runner != nullptr && runner->fileSystem != nullptr) {
             if (videoAudioStreamIndex >= 0 && runner->audioSystem != nullptr) {
-                runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioStreamIndex);
+                if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE) {
+                    runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioInstanceId);
+                }
                 runner->audioSystem->vtable->destroyStream(runner->audioSystem, videoAudioStreamIndex);
             }
             runner->fileSystem->vtable->deleteFile(runner->fileSystem, videoAudioWavPath);
@@ -12222,6 +12228,7 @@ static void videoAudioDiscard(Runner* runner) {
         videoAudioWavPath = nullptr;
     }
     videoAudioStreamIndex = -1;
+    videoAudioInstanceId = -1;
 }
 
 static void video_cleanup(Runner* runner) {
@@ -12245,8 +12252,8 @@ static void video_process(Runner* runner) {
     if (videoDecoder == nullptr) return;
     if (!videoDecoder->vtable->isRunning(videoDecoder) && videoRunnin) {
         videoRunnin = false;
-        if (videoAudioStreamIndex >= 0 && runner->audioSystem != nullptr) {
-            runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioStreamIndex);
+        if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && runner->audioSystem != nullptr) {
+            runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioInstanceId);
         }
         dispatchVideoAsync(runner, "video_end");
         return;
@@ -12307,8 +12314,8 @@ static RValue builtin_video_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int3
 static RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (videoDecoder != nullptr && videoRunnin) {
         videoDecoder->vtable->pause(videoDecoder);
-        if (videoAudioStreamIndex >= 0 && ctx->runner->audioSystem != nullptr) {
-            ctx->runner->audioSystem->vtable->pauseSound(ctx->runner->audioSystem, videoAudioStreamIndex);
+        if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && ctx->runner->audioSystem != nullptr) {
+            ctx->runner->audioSystem->vtable->pauseSound(ctx->runner->audioSystem, videoAudioInstanceId);
         }
     }
     return RValue_makeUndefined();
@@ -12317,8 +12324,8 @@ static RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int
 static RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (videoDecoder != nullptr && videoRunnin) {
         videoDecoder->vtable->resume(videoDecoder);
-        if (videoAudioStreamIndex >= 0 && ctx->runner->audioSystem != nullptr) {
-            ctx->runner->audioSystem->vtable->resumeSound(ctx->runner->audioSystem, videoAudioStreamIndex);
+        if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && ctx->runner->audioSystem != nullptr) {
+            ctx->runner->audioSystem->vtable->resumeSound(ctx->runner->audioSystem, videoAudioInstanceId);
         }
     }
     return RValue_makeUndefined();
