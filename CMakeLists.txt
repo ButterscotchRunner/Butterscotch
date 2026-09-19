@@ -499,16 +499,32 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(BUTTERSCOTCH_CONSOLE_LIBS ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
     endif()
 
-    # Console SDKs link pre-built static archives (incl. FFmpeg's private
-    # closure) alongside the platform libraries. Deduplicate the combined list
-    # so each archive is passed once: without this, LTO + duplicated libpthread
-    # resolves the same archive member twice and fails with a multiple
-    # definition error.
-    list(APPEND BUTTERSCOTCH_CONSOLE_LIBS ${BUTTERSCOTCH_FFMPEG_STATIC_LIBS})
+    # Console SDKs link pre-built static archives alongside the platform
+    # libraries. Deduplicate the combined list so each archive is passed once:
+    # without this, LTO + duplicated libpthread resolves the same archive
+    # member twice and fails with a multiple definition error.
     if (BUTTERSCOTCH_CONSOLE_LIBS)
         list(REMOVE_DUPLICATES BUTTERSCOTCH_CONSOLE_LIBS)
     endif()
     target_link_libraries(butterscotch PRIVATE ${BUTTERSCOTCH_CONSOLE_LIBS})
+
+    # FFmpeg's pkg-config files list external codecs as raw -l flags, so the
+    # transitive dependencies of those codecs (e.g. libmp3lame -> libmpg123)
+    # are not expanded by --static. Add the known gap and rescan the whole
+    # closure through a linker group so static ordering/cycles resolve no
+    # matter where each archive appears.
+    if (BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
+        find_library(BUTTERSCOTCH_MPG123_LIBRARY NAMES mpg123 libmpg123)
+        if (BUTTERSCOTCH_MPG123_LIBRARY)
+            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS mpg123)
+        endif()
+        list(REMOVE_DUPLICATES BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
+        target_link_libraries(butterscotch PRIVATE
+            "-Wl,--start-group"
+            ${BUTTERSCOTCH_FFMPEG_STATIC_LIBS}
+            "-Wl,--end-group"
+        )
+    endif()
 
     # Duplicate system archives pulled in by both the platform and FFmpeg
     # pkg-config closures are harmless but rejected by the LTO plugin.
