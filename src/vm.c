@@ -3044,7 +3044,25 @@ static RValue executeLoop(VMContext* ctx) {
             }
             case OP_PUSHGLB: {
                 uint32_t varRef = resolveVarOperand(extraData);
-                // TODO: Re-add fast-path here!
+                uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
+                if (varType == VARTYPE_NORMAL) {
+                    Variable* varDef = resolveVarDef(ctx, varRef);                                                                           
+                    if (varDef->varID >= 0) {
+                        Instance* inst = ctx->globalScopeInstance;
+                        if (inst != nullptr) {
+                            RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
+                            if (slot != nullptr) {
+                                RValue val = *slot;
+                                val.ownsReference = false;
+                                stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+#ifdef ENABLE_VM_TRACING
+                                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
+#endif
+                                break;
+                            }
+                        }
+                    }
+                }
                 RValue val = resolveVariableRead(ctx, INSTANCE_GLOBAL, varRef);
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
                 break;
