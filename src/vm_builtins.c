@@ -11764,6 +11764,21 @@ static void dispatchVideoAsync(Runner* runner, const char* type) {
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 
+//fixes sdmc:/ (switch and vita)
+static char* ffmpegFileUrl(const char* path) {
+    if (path == nullptr) return nullptr;
+    if (strncmp(path, "file:", 5) == 0) return safeStrdup(path);
+    const char* colon = strchr(path, ':');
+    if (colon != nullptr && colon[1] == '/' && colon[2] == '/') {
+        return safeStrdup(path);
+    }
+    size_t len = strlen(path);
+    char* out = (char*)safeMalloc(len + 6);
+    memcpy(out, "file:", 5);
+    memcpy(out + 5, path, len + 1);
+    return out;
+}
+
 typedef struct VideoDecoder VideoDecoder;
 
 typedef struct {
@@ -11948,7 +11963,10 @@ static void ffmpegVideoDecoderClose(VideoDecoder* decoder) {
 
 static bool ffmpegVideoDecoderOpen(VideoDecoder* decoder, const char* url) {
     FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
-    if (avformat_open_input(&d->formatCtx, url, nullptr, nullptr) != 0) return false;
+    char* ffmpegUrl = ffmpegFileUrl(url);
+    int openResult = avformat_open_input(&d->formatCtx, ffmpegUrl, nullptr, nullptr);
+    free(ffmpegUrl);
+    if (openResult != 0) return false;
     if (avformat_find_stream_info(d->formatCtx, nullptr) < 0) {
         avformat_close_input(&d->formatCtx);
         d->formatCtx = nullptr;
@@ -12138,7 +12156,10 @@ static void videoAudioAppendConverted(VideoWavWriter* w, struct SwrContext* swrC
 
 static bool videoAudioExtract(VideoWavWriter* w, const char* url) {
     AVFormatContext* fmtCtx = nullptr;
-    if (avformat_open_input(&fmtCtx, url, nullptr, nullptr) != 0) return false;
+    char* ffmpegUrl = ffmpegFileUrl(url);
+    int openResult = avformat_open_input(&fmtCtx, ffmpegUrl, nullptr, nullptr);
+    free(ffmpegUrl);
+    if (openResult != 0) return false;
     if (avformat_find_stream_info(fmtCtx, nullptr) < 0) {
         avformat_close_input(&fmtCtx);
         return false;
