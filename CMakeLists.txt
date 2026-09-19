@@ -183,10 +183,11 @@ else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
 
-# FFmpeg (video playback)
-option(ENABLE_FFMPEG "Enable FFmpeg-based video playback" ON)
+# Video playback backend
+option(VIDEO_BACKEND "Video playback backend (ffmpeg or none)" "ffmpeg")
 set(BUTTERSCOTCH_FFMPEG_STATIC_LIBS "")
-if(ENABLE_FFMPEG)
+
+if(VIDEO_BACKEND STREQUAL "ffmpeg")
     find_package(PkgConfig)
     if(PKG_CONFIG_FOUND)
         if(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
@@ -223,6 +224,7 @@ if(ENABLE_FFMPEG)
                 target_compile_options(butterscotch PRIVATE ${_ffmpeg_static_cflags})
             else()
                 message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
             endif()
         else()
             pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
@@ -231,11 +233,16 @@ if(ENABLE_FFMPEG)
                 target_link_libraries(butterscotch PRIVATE PkgConfig::FFMPEG)
             else()
                 message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
             endif()
         endif()
     else()
         message(WARNING "pkg-config not found - video playback will be disabled")
+        add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
     endif()
+else()
+    # VIDEO_BACKEND=none
+    add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
 endif()
 
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -302,6 +309,13 @@ add_library(bzip2 STATIC
 )
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
+
+# Video playback source
+if(DEFINED BUTTERSCOTCH_FFMPEG)
+    target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
+elseif(DEFINED BUTTERSCOTCH_VIDEO_NULL)
+    target_sources(butterscotch PRIVATE src/video/null_video.c)
+endif()
 
 # Spatial grid logs
 option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
