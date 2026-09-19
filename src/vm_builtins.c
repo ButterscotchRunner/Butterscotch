@@ -11764,7 +11764,7 @@ static void dispatchVideoAsync(Runner* runner, const char* type) {
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 
-//fixes sdmc:/ (switch and vita)
+//allows file paths like "sdmc:/..." or "ux0:/..." work with ffmpeg
 static char* ffmpegFileUrl(const char* path) {
     if (path == nullptr) return nullptr;
     if (strncmp(path, "file:", 5) == 0) return safeStrdup(path);
