@@ -18,6 +18,7 @@
 #include "math_compat.h"
 #include <ctype.h>
 #include <time.h>
+#include <stdio.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -11710,6 +11711,644 @@ static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
     return RValue_makeReal((GMLReal) Color_lerp(col1, col2, amount));
 }
 
+#if defined(BUTTERSCOTCH_FFMPEG) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+#ifndef OTHER_ASYNC_SOCIAL
+#define OTHER_ASYNC_SOCIAL 70
+#endif
+// From Cinnamon
+// https://github.com/Project-Sunshine-Native/cinnamon/blob/DELTARUNE-3DS/src/vm_builtins.c#L4428
+static void cleanupAsyncMap(Runner* runner, int32_t mapId) {
+    if (mapId < 0 || (int32_t)arrlen(runner->dsMapPool) <= mapId) return;
+    DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+    if (*mapPtr != nullptr) {
+        repeat(shlen(*mapPtr), i) {
+            free((*mapPtr)[i].key);
+            RValue_free(&(*mapPtr)[i].value);
+        }
+        shfree(*mapPtr);
+        *mapPtr = nullptr;
+    }
+}
+
+// From Cinnamon
+// https://github.com/Project-Sunshine-Native/cinnamon/blob/DELTARUNE-3DS/src/vm_builtins.c#L4441
+static void dispatchVideoAsync(Runner* runner, const char* type) {
+    int32_t mapId = dsMapCreate(runner);
+    DsMapEntry** mapPtr = dsMapGet(runner, mapId);
+    if (mapPtr == nullptr) return;
+
+    shput(*mapPtr, safeStrdup("type"), RValue_makeOwnedString(safeStrdup(type)));
+    shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup(type)));
+    shput(*mapPtr, safeStrdup("status"), RValue_makeReal(0));
+
+    int32_t previousAsyncLoad = runner->asyncLoadMapId;
+    runner->asyncLoadMapId = mapId;
+    Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ASYNC_SOCIAL);
+    runner->asyncLoadMapId = previousAsyncLoad;
+
+    cleanupAsyncMap(runner, mapId);
+}
+
+#include "gl/gl_renderer.h"
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/rational.h>
+#include <libavutil/samplefmt.h>
+#include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
+
+typedef struct VideoDecoder VideoDecoder;
+
+typedef struct {
+    bool (*init)(void);
+    void (*quit)(VideoDecoder* decoder);
+    bool (*open)(VideoDecoder* decoder, const char* url);
+    void (*close)(VideoDecoder* decoder);
+    bool (*isRunning)(VideoDecoder* decoder);
+    bool (*isPaused)(VideoDecoder* decoder);
+    void (*pause)(VideoDecoder* decoder);
+    void (*resume)(VideoDecoder* decoder);
+    int32_t (*update)(VideoDecoder* decoder);
+    void (*draw)(VideoDecoder* decoder, Runner* runner, int32_t surfaceId);
+    double (*duration)(VideoDecoder* decoder);
+    double (*position)(VideoDecoder* decoder);
+    int32_t (*width)(VideoDecoder* decoder);
+    int32_t (*height)(VideoDecoder* decoder);
+} VideoDecoderVtable;
+
+struct VideoDecoder {
+    VideoDecoderVtable* vtable;
+    void* impl;
+};
+
+static VideoDecoder* videoDecoder = nullptr;
+int video_w = 0, video_h = 0;
+int videoSurfId = 0;
+bool videoRunnin = false;
+
+static int32_t videoAudioStreamIndex = -1;
+static char* videoAudioWavPath = nullptr;
+
+#define VIDEO_AUDIO_CHANNELS 2
+#define VIDEO_AUDIO_SAMPLE_RATE 48000
+
+typedef struct {
+    AVFormatContext* formatCtx;
+    int32_t videoStreamIndex;
+    AVStream* videoStream;
+    AVCodecContext* videoCodecCtx;
+    AVFrame* videoFrame;
+    struct SwsContext* swsCtx;
+    uint8_t* drawPixels;
+    int32_t drawLineSize;
+    int32_t width;
+    int32_t height;
+    int64_t lastPts;
+    int64_t startPts;
+
+    double durationSeconds;
+    bool hasVideo;
+    bool eof;
+    bool finished;
+    bool paused;
+} FfmpegVideoDecoder;
+
+static int32_t ffmpegVideoDecoderConvertFrame(FfmpegVideoDecoder* d, AVFrame* frame) {
+    if (d->swsCtx == nullptr || d->drawPixels == nullptr) return -1;
+    uint8_t* dst[1] = {d->drawPixels};
+    int32_t dstStride[1] = {d->drawLineSize};
+    sws_scale(d->swsCtx, (const uint8_t* const*)frame->data, frame->linesize, 0, d->height, dst, dstStride);
+    if (frame->pts != AV_NOPTS_VALUE) d->lastPts = frame->pts;
+    return 0;
+}
+
+static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr || d->formatCtx == nullptr || !d->hasVideo) return 1;
+    if (d->paused) return 0;
+    if (d->finished) return 1;
+    bool gotFrame = false;
+    while (!gotFrame) {
+        if (d->eof) {
+            while (avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) {
+                if (ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
+                av_frame_unref(d->videoFrame);
+            }
+            if (!gotFrame) d->finished = true;
+            break;
+        }
+        AVPacket packet = {0};
+        if (av_read_frame(d->formatCtx, &packet) < 0) {
+            av_packet_unref(&packet);
+            d->eof = true;
+            avcodec_send_packet(d->videoCodecCtx, nullptr);
+            continue;
+        }
+        if (packet.stream_index == d->videoStreamIndex) {
+            if (avcodec_send_packet(d->videoCodecCtx, &packet) == 0) {
+                while (avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) {
+                    if (ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
+                    av_frame_unref(d->videoFrame);
+                }
+            }
+        }
+        av_packet_unref(&packet);
+    }
+    return gotFrame ? 0 : 1;
+}
+
+static void ffmpegVideoDecoderDraw(VideoDecoder* decoder, Runner* runner, int32_t surfaceId) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr || d->drawPixels == nullptr || runner->renderer == nullptr) return;
+    GLRenderer* gl = (GLRenderer*)runner->renderer;
+    if (gl->surfaceTexture == nullptr || surfaceId < 0 || (int32_t)gl->surfaceCount <= surfaceId) return;
+    if (gl->surfaceTexture[surfaceId] == 0) return;
+    glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, d->width, d->height, GL_RGBA, GL_UNSIGNED_BYTE, d->drawPixels);
+}
+
+static bool ffmpegVideoDecoderIsRunning(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    return d != nullptr && d->hasVideo && !d->finished;
+}
+
+static bool ffmpegVideoDecoderIsPaused(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    return d != nullptr && d->paused;
+}
+
+static void ffmpegVideoDecoderPause(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d != nullptr) d->paused = true;
+}
+
+static void ffmpegVideoDecoderResume(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d != nullptr) d->paused = false;
+}
+
+static double ffmpegVideoDecoderDuration(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr) return 0;
+    return d->durationSeconds;
+}
+
+static double ffmpegVideoDecoderPosition(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr || d->videoStream == nullptr || d->lastPts == AV_NOPTS_VALUE) return 0;
+    return (double)(d->lastPts - d->startPts) * av_q2d(d->videoStream->time_base);
+}
+
+static int32_t ffmpegVideoDecoderWidth(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    return d == nullptr ? 0 : d->width;
+}
+
+static int32_t ffmpegVideoDecoderHeight(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    return d == nullptr ? 0 : d->height;
+}
+
+static bool ffmpegVideoDecoderInit(void) {
+    return true;
+}
+
+static void ffmpegVideoDecoderQuit(VideoDecoder* decoder) {
+}
+
+static void ffmpegVideoDecoderClose(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr) return;
+    if (d->swsCtx != nullptr) { sws_freeContext(d->swsCtx); d->swsCtx = nullptr; }
+    if (d->drawPixels != nullptr) { av_freep(&d->drawPixels); d->drawPixels = nullptr; }
+    if (d->videoFrame != nullptr) { av_frame_free(&d->videoFrame); d->videoFrame = nullptr; }
+    if (d->videoCodecCtx != nullptr) { avcodec_free_context(&d->videoCodecCtx); d->videoCodecCtx = nullptr; }
+    if (d->formatCtx != nullptr) { avformat_close_input(&d->formatCtx); d->formatCtx = nullptr; }
+    d->videoStream = nullptr;
+    d->drawLineSize = 0;
+    d->videoStreamIndex = -1;
+    d->width = 0;
+    d->height = 0;
+    d->lastPts = AV_NOPTS_VALUE;
+    d->startPts = 0;
+    d->durationSeconds = 0;
+    d->hasVideo = false;
+    d->eof = false;
+    d->finished = false;
+    d->paused = false;
+}
+
+static bool ffmpegVideoDecoderOpen(VideoDecoder* decoder, const char* url) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (avformat_open_input(&d->formatCtx, url, nullptr, nullptr) != 0) return false;
+    if (avformat_find_stream_info(d->formatCtx, nullptr) < 0) {
+        avformat_close_input(&d->formatCtx);
+        d->formatCtx = nullptr;
+        return false;
+    }
+    d->durationSeconds = d->formatCtx->duration > 0 ? (double)d->formatCtx->duration / (double)AV_TIME_BASE : 0;
+
+    const AVCodec* videoCodec = nullptr;
+    d->videoStreamIndex = av_find_best_stream(d->formatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &videoCodec, 0);
+    if (d->videoStreamIndex >= 0 && videoCodec != nullptr) {
+        d->videoStream = d->formatCtx->streams[d->videoStreamIndex];
+        d->videoCodecCtx = avcodec_alloc_context3(videoCodec);
+        if (d->videoCodecCtx != nullptr) {
+            if (avcodec_parameters_to_context(d->videoCodecCtx, d->videoStream->codecpar) == 0) {
+                d->videoCodecCtx->thread_count = 1;
+                if (avcodec_open2(d->videoCodecCtx, videoCodec, nullptr) == 0) d->hasVideo = true;
+            }
+            if (!d->hasVideo) {
+                avcodec_free_context(&d->videoCodecCtx);
+                d->videoCodecCtx = nullptr;
+                d->videoStream = nullptr;
+                d->videoStreamIndex = -1;
+            }
+        }
+    }
+
+    if (!d->hasVideo) {
+        ffmpegVideoDecoderClose(decoder);
+        return false;
+    }
+
+    d->width = d->videoCodecCtx->width;
+    d->height = d->videoCodecCtx->height;
+    d->startPts = d->videoStream->start_time == AV_NOPTS_VALUE ? 0 : d->videoStream->start_time;
+    if (d->durationSeconds <= 0 && d->videoStream->duration > 0) {
+        d->durationSeconds = (double)d->videoStream->duration * av_q2d(d->videoStream->time_base);
+    }
+
+    d->videoFrame = av_frame_alloc();
+    if (d->videoFrame == nullptr) {
+        ffmpegVideoDecoderClose(decoder);
+        return false;
+    }
+    d->swsCtx = sws_getContext(d->width, d->height, d->videoCodecCtx->pix_fmt,
+                               d->width, d->height, AV_PIX_FMT_RGBA,
+                               SWS_BILINEAR, nullptr, nullptr, nullptr);
+    int drawLinesizes[4] = {0};
+    uint8_t* drawPixels[4] = {nullptr};
+    if (d->swsCtx == nullptr || av_image_alloc(drawPixels, drawLinesizes, d->width, d->height, AV_PIX_FMT_RGBA, 1) < 0) {
+        ffmpegVideoDecoderClose(decoder);
+        return false;
+    }
+    d->drawPixels = drawPixels[0];
+    d->drawLineSize = drawLinesizes[0];
+
+    d->eof = false;
+    d->finished = false;
+    d->paused = false;
+    d->lastPts = AV_NOPTS_VALUE;
+    return true;
+}
+
+static VideoDecoderVtable ffmpegVideoDecoderVtable = {
+    .init = ffmpegVideoDecoderInit,
+    .quit = ffmpegVideoDecoderQuit,
+    .open = ffmpegVideoDecoderOpen,
+    .close = ffmpegVideoDecoderClose,
+    .isRunning = ffmpegVideoDecoderIsRunning,
+    .isPaused = ffmpegVideoDecoderIsPaused,
+    .pause = ffmpegVideoDecoderPause,
+    .resume = ffmpegVideoDecoderResume,
+    .update = ffmpegVideoDecoderUpdate,
+    .draw = ffmpegVideoDecoderDraw,
+    .duration = ffmpegVideoDecoderDuration,
+    .position = ffmpegVideoDecoderPosition,
+    .width = ffmpegVideoDecoderWidth,
+    .height = ffmpegVideoDecoderHeight,
+};
+
+static VideoDecoder* videoDecoderCreate(void) {
+    VideoDecoder* decoder = (VideoDecoder*)safeCalloc(1, sizeof(VideoDecoder));
+    FfmpegVideoDecoder* impl = (FfmpegVideoDecoder*)safeCalloc(1, sizeof(FfmpegVideoDecoder));
+    impl->videoStreamIndex = -1;
+    impl->lastPts = AV_NOPTS_VALUE;
+    decoder->vtable = &ffmpegVideoDecoderVtable;
+    decoder->impl = impl;
+    return decoder;
+}
+
+typedef struct VideoWavWriter {
+    FILE* file;
+    uint8_t* pcm;
+    uint32_t pcmSize;
+    uint32_t pcmCapacity;
+    int32_t channels;
+    int32_t sampleRate;
+} VideoWavWriter;
+
+static void videoAudioWriteWavHeader(uint8_t* wav, uint32_t dataSize, int32_t channels, int32_t sampleRate) {
+    memcpy(wav, "RIFF", 4);
+    uint32_t riffSize = 36 + dataSize;
+    memcpy(wav + 4, &riffSize, 4);
+    memcpy(wav + 8, "WAVE", 4);
+    memcpy(wav + 12, "fmt ", 4);
+    uint32_t fmtSize = 16;
+    memcpy(wav + 16, &fmtSize, 4);
+    uint16_t audioFormat = 1;
+    memcpy(wav + 20, &audioFormat, 2);
+    uint16_t numChannels = (uint16_t)channels;
+    memcpy(wav + 22, &numChannels, 2);
+    memcpy(wav + 24, &sampleRate, 4);
+    uint32_t byteRate = (uint32_t)(sampleRate * channels * 2);
+    memcpy(wav + 28, &byteRate, 4);
+    uint16_t blockAlign = (uint16_t)(channels * 2);
+    memcpy(wav + 32, &blockAlign, 2);
+    uint16_t bitsPerSample = 16;
+    memcpy(wav + 34, &bitsPerSample, 2);
+    memcpy(wav + 36, "data", 4);
+    memcpy(wav + 40, &dataSize, 4);
+}
+
+static void videoWavWriterOpen(VideoWavWriter* w, const char* absPath, int32_t channels, int32_t sampleRate) {
+    w->file = (absPath != nullptr) ? fopen(absPath, "wb") : nullptr;
+    w->pcm = nullptr;
+    w->pcmSize = 0;
+    w->pcmCapacity = 0;
+    w->channels = channels;
+    w->sampleRate = sampleRate;
+    if (w->file != nullptr) {
+        uint8_t header[44];
+        videoAudioWriteWavHeader(header, 0, channels, sampleRate);
+        fwrite(header, 1, 44, w->file);
+    }
+}
+
+static void videoWavWriterPush(VideoWavWriter* w, const uint8_t* data, uint32_t size) {
+    if (w->file != nullptr) {
+        fwrite(data, 1, size, w->file);
+        return;
+    }
+    if (w->pcmSize + size > w->pcmCapacity) {
+        w->pcmCapacity = w->pcmSize + size + 65536;
+        w->pcm = (uint8_t*)safeRealloc(w->pcm, w->pcmCapacity);
+    }
+    memcpy(w->pcm + w->pcmSize, data, size);
+    w->pcmSize += size;
+}
+
+static bool videoWavWriterFinish(VideoWavWriter* w, const char* wavPath, FileSystem* fs) {
+    if (w->file != nullptr) {
+        long pos = ftell(w->file);
+        if (pos > 44) {
+            uint32_t dataSize = (uint32_t)(pos - 44);
+            uint32_t riffSize = 36 + dataSize;
+            if (fseek(w->file, 4, SEEK_SET) == 0) fwrite(&riffSize, 1, 4, w->file);
+            if (fseek(w->file, 40, SEEK_SET) == 0) fwrite(&dataSize, 1, 4, w->file);
+        }
+        fclose(w->file);
+        w->file = nullptr;
+        return pos > 44;
+    }
+    if (w->pcm != nullptr && w->pcmSize > 0 && fs != nullptr) {
+        uint32_t wavSize = 44 + w->pcmSize;
+        uint8_t* wav = (uint8_t*)safeMalloc(wavSize);
+        videoAudioWriteWavHeader(wav, w->pcmSize, w->channels, w->sampleRate);
+        memcpy(wav + 44, w->pcm, w->pcmSize);
+        bool wrote = fs->vtable->writeFileBinary(fs, wavPath, wav, (int32_t)wavSize);
+        free(wav);
+        return wrote;
+    }
+    return false;
+}
+
+static void videoAudioAppendConverted(VideoWavWriter* w, struct SwrContext* swrCtx, AVFrame* frame) {
+    if (swrCtx == nullptr || frame->nb_samples <= 0) return;
+    int32_t outSamples = swr_get_out_samples(swrCtx, frame->nb_samples);
+    if (outSamples <= 0) return;
+    int32_t bytes = outSamples * VIDEO_AUDIO_CHANNELS * (int32_t)sizeof(int16_t);
+    uint8_t* tmp = (uint8_t*)safeMalloc((size_t)bytes);
+    int32_t converted = swr_convert(swrCtx, &tmp, outSamples, (const uint8_t* const*)frame->data, frame->nb_samples);
+    if (converted > 0) {
+        uint32_t convBytes = (uint32_t)converted * VIDEO_AUDIO_CHANNELS * (uint32_t)sizeof(int16_t);
+        videoWavWriterPush(w, tmp, convBytes);
+    }
+    free(tmp);
+}
+
+static bool videoAudioExtract(VideoWavWriter* w, const char* url) {
+    AVFormatContext* fmtCtx = nullptr;
+    if (avformat_open_input(&fmtCtx, url, nullptr, nullptr) != 0) return false;
+    if (avformat_find_stream_info(fmtCtx, nullptr) < 0) {
+        avformat_close_input(&fmtCtx);
+        return false;
+    }
+    const AVCodec* audioCodec = nullptr;
+    int32_t audioIndex = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &audioCodec, 0);
+    if (audioIndex < 0 || audioCodec == nullptr) {
+        avformat_close_input(&fmtCtx);
+        return false;
+    }
+    AVCodecContext* audioCodecCtx = avcodec_alloc_context3(audioCodec);
+    if (audioCodecCtx == nullptr) {
+        avformat_close_input(&fmtCtx);
+        return false;
+    }
+    bool ok = false;
+    if (avcodec_parameters_to_context(audioCodecCtx, fmtCtx->streams[audioIndex]->codecpar) == 0 &&
+        avcodec_open2(audioCodecCtx, audioCodec, nullptr) == 0) {
+        AVChannelLayout outLayout = AV_CHANNEL_LAYOUT_STEREO;
+        struct SwrContext* swrCtx = nullptr;
+        swr_alloc_set_opts2(&swrCtx, &outLayout, AV_SAMPLE_FMT_S16, VIDEO_AUDIO_SAMPLE_RATE,
+                            &audioCodecCtx->ch_layout, audioCodecCtx->sample_fmt, audioCodecCtx->sample_rate, 0, nullptr);
+        if (swrCtx != nullptr) swr_init(swrCtx);
+        AVFrame* frame = av_frame_alloc();
+        if (frame != nullptr) {
+            AVPacket packet = {0};
+            while (av_read_frame(fmtCtx, &packet) >= 0) {
+                if (packet.stream_index == audioIndex) {
+                    if (avcodec_send_packet(audioCodecCtx, &packet) == 0) {
+                        while (avcodec_receive_frame(audioCodecCtx, frame) == 0) {
+                            videoAudioAppendConverted(w, swrCtx, frame);
+                            av_frame_unref(frame);
+                        }
+                    }
+                }
+                av_packet_unref(&packet);
+            }
+            avcodec_send_packet(audioCodecCtx, nullptr);
+            while (avcodec_receive_frame(audioCodecCtx, frame) == 0) {
+                videoAudioAppendConverted(w, swrCtx, frame);
+                av_frame_unref(frame);
+            }
+            ok = true;
+            av_frame_free(&frame);
+        }
+        if (swrCtx != nullptr) swr_free(&swrCtx);
+    }
+    avcodec_free_context(&audioCodecCtx);
+    avformat_close_input(&fmtCtx);
+    return ok;
+}
+
+static void videoAudioDiscard(Runner* runner);
+
+static bool videoAudioStart(Runner* runner, const char* url) {
+    videoAudioDiscard(runner);
+    if (runner == nullptr || runner->fileSystem == nullptr || runner->audioSystem == nullptr) return false;
+    const char* wavPath = "butterscotch_video_extract.wav";
+    char* absPath = runner->fileSystem->vtable->resolvePath(runner->fileSystem, wavPath);
+    VideoWavWriter writer;
+    videoWavWriterOpen(&writer, absPath, VIDEO_AUDIO_CHANNELS, VIDEO_AUDIO_SAMPLE_RATE);
+    bool extracted = videoAudioExtract(&writer, url);
+    bool finished = videoWavWriterFinish(&writer, wavPath, runner->fileSystem);
+    free(absPath);
+    if (!extracted || !finished) return false;
+    AudioSystem* audio = runner->audioSystem;
+    int32_t streamIndex = audio->vtable->createStream(audio, wavPath);
+    if (streamIndex < 0) return false;
+    videoAudioStreamIndex = streamIndex;
+    videoAudioWavPath = safeStrdup(wavPath);
+    audio->vtable->playSound(audio, streamIndex, 0, false);
+    return true;
+}
+
+static void videoAudioDiscard(Runner* runner) {
+    if (videoAudioWavPath != nullptr) {
+        if (runner != nullptr && runner->fileSystem != nullptr) {
+            if (videoAudioStreamIndex >= 0 && runner->audioSystem != nullptr) {
+                runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioStreamIndex);
+                runner->audioSystem->vtable->destroyStream(runner->audioSystem, videoAudioStreamIndex);
+            }
+            runner->fileSystem->vtable->deleteFile(runner->fileSystem, videoAudioWavPath);
+        }
+        free(videoAudioWavPath);
+        videoAudioWavPath = nullptr;
+    }
+    videoAudioStreamIndex = -1;
+}
+
+static void video_cleanup(Runner* runner) {
+    if (videoDecoder != nullptr) {
+        videoDecoder->vtable->close(videoDecoder);
+        videoDecoder->vtable->quit(videoDecoder);
+        free(videoDecoder->impl);
+        free(videoDecoder);
+        videoDecoder = nullptr;
+    }
+    videoAudioDiscard(runner);
+    videoSurfId = 0;
+    video_w = 0;
+    video_h = 0;
+    videoRunnin = false;
+}
+
+static void video_process(Runner* runner) {
+    //Renderer* rend = runner->renderer;
+    if (!videoRunnin) return;
+    if (videoDecoder == nullptr) return;
+    if (!videoDecoder->vtable->isRunning(videoDecoder) && videoRunnin) {
+        videoRunnin = false;
+        if (videoAudioStreamIndex >= 0 && runner->audioSystem != nullptr) {
+            runner->audioSystem->vtable->stopSound(runner->audioSystem, videoAudioStreamIndex);
+        }
+        dispatchVideoAsync(runner, "video_end");
+        return;
+    }
+    if (videoSurfId != 0 && videoDecoder->vtable->update(videoDecoder) == 0) {
+        videoDecoder->vtable->draw(videoDecoder, runner, videoSurfId);
+        //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
+    }
+}
+
+static RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+
+    char* filePath = RValue_toString(args[0], ctx->dataWin);
+    char* url = fs->vtable->resolvePath(fs, filePath);
+    if (videoDecoder == nullptr) {
+        videoDecoder = videoDecoderCreate();
+        videoDecoder->vtable->init();
+    } else {
+        videoDecoder->vtable->close(videoDecoder);
+    }
+    videoSurfId = 0;
+    video_w = 0;
+    video_h = 0;
+    printf("%s\n", url);
+    if (!videoDecoder->vtable->open(videoDecoder, url)) {
+        fprintf(stderr, "Unable to open video: %s\n", url);
+        free(filePath);
+        free(url);
+        return RValue_makeUndefined();
+    }
+    video_w = videoDecoder->vtable->width(videoDecoder);
+    video_h = videoDecoder->vtable->height(videoDecoder);
+    videoAudioStart(runner, url);
+    free(filePath);
+    free(url);
+
+    videoRunnin = true;
+    videoDecoder->vtable->resume(videoDecoder);
+    dispatchVideoAsync(runner, "video_start");
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_video_close(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    video_cleanup(ctx->runner);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_video_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoSurfId == 0 && videoRunnin) videoSurfId = Renderer_createSurface(ctx->runner->renderer, video_w, video_h);
+    if (videoSurfId != 0 && videoRunnin) video_process(ctx->runner);
+    GMLArray* out = GMLArray_create(ctx->dataWin, 2);
+    *GMLArray_slot(out, 1) = RValue_makeReal(videoSurfId);
+    return RValue_makeArray(out);
+}
+
+static RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder != nullptr && videoRunnin) {
+        videoDecoder->vtable->pause(videoDecoder);
+        if (videoAudioStreamIndex >= 0 && ctx->runner->audioSystem != nullptr) {
+            ctx->runner->audioSystem->vtable->pauseSound(ctx->runner->audioSystem, videoAudioStreamIndex);
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder != nullptr && videoRunnin) {
+        videoDecoder->vtable->resume(videoDecoder);
+        if (videoAudioStreamIndex >= 0 && ctx->runner->audioSystem != nullptr) {
+            ctx->runner->audioSystem->vtable->resumeSound(ctx->runner->audioSystem, videoAudioStreamIndex);
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_video_get_format(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(0);
+}
+
+static RValue builtin_video_get_status(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder == nullptr) return RValue_makeReal(1);
+    bool playing = videoRunnin && videoDecoder->vtable->isRunning(videoDecoder) && !videoDecoder->vtable->isPaused(videoDecoder);
+    return RValue_makeReal(!playing);
+}
+
+static RValue builtin_video_get_duration(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder != nullptr && videoRunnin) {
+        return RValue_makeReal((GMLReal)(videoDecoder->vtable->duration(videoDecoder) * 1000));
+    }
+    return RValue_makeReal(0);
+}
+
+static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder != nullptr && videoRunnin) {
+        return RValue_makeReal((GMLReal)(videoDecoder->vtable->position(videoDecoder) * 1000));
+    }
+    return RValue_makeReal(0);
+}
+#endif
+
 static RValue builtin_surface_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t width = (int32_t) RValue_toReal(args[0]);
     int32_t height = (int32_t) RValue_toReal(args[1]);
@@ -22558,4 +23197,15 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "texture_get_uvs", builtin_texture_get_uvs);
     VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
     VM_registerBuiltin(ctx, "sprite_get_info", builtin_sprite_get_info);
+#if defined(BUTTERSCOTCH_FFMPEG) && (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL))
+    VM_registerBuiltin(ctx, "video_open", builtin_video_open);
+    VM_registerBuiltin(ctx, "video_close", builtin_video_close);
+    VM_registerBuiltin(ctx, "video_draw", builtin_video_draw);
+    VM_registerBuiltin(ctx, "video_pause", builtin_video_pause);
+    VM_registerBuiltin(ctx, "video_resume", builtin_video_resume);
+    VM_registerBuiltin(ctx, "video_get_format", builtin_video_get_format);
+    VM_registerBuiltin(ctx, "video_get_status", builtin_video_get_status);
+    VM_registerBuiltin(ctx, "video_get_duration", builtin_video_get_duration);
+    VM_registerBuiltin(ctx, "video_get_position", builtin_video_get_position);
+#endif
 }
