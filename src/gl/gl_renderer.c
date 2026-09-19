@@ -579,12 +579,12 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     modernGl->isGL3 = (ver.major >= 3);
     modernGl->isGLES = ver.isGLES;
 
+    GLCommon_init(renderer);
+
     if (!hasFBO()) {
         logError("GL: The modern-gl renderer requires FBO support\n");
         abort();
     }
-
-    GLCommon_init(renderer);
     
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
 

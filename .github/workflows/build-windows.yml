@@ -127,6 +127,7 @@ jobs:
           - arch: i486
             backend: sdl1
             libs: SDL1_LIBS='-lmingw32 -lSDLmain -lSDL -lm -luser32 -lgdi32 -lwinmm -ldxguid'
+            cflags: -mtune=i686
     steps:
       - uses: actions/checkout@v7
 
@@ -151,7 +152,7 @@ jobs:
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
-              CFLAGS='-O3 -DNDEBUG -flto -ffast-math -fno-finite-math-only -fomit-frame-pointer' \
+              CFLAGS='-O3 -DNDEBUG -flto -ffast-math -fno-finite-math-only -fomit-frame-pointer ${{ matrix.cflags }}' \
               BACKEND=${{ matrix.backend }} \
               EXTRALIBS='-latomic' \
               ${{ matrix.libs }}

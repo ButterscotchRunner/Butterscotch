@@ -15,6 +15,7 @@ jobs:
             ar: ppc-ar
             ranlib: ppc-ranlib
             deps: libgmp-dev libmpc-dev libmpfr-dev
+            cflags: -mcpu=750 # todo: does our binary work on OS X 10.2? XPostFacto can just about run it on powerpc 603/604. for now, let's set the baseline at a G3
           - arch: i386
             triple: i386-apple-darwin8
             ar: llvm-ar-22

@@ -19,6 +19,14 @@ int main(int argc, char* argv[]) {
 
     fsdevMountSdmc();
 
+    bool hasDataWinInRomfs = false;
+    Result rc = romfsInit();
+    bool usingRomfs = R_SUCCEEDED(rc);
+    if (usingRomfs) {
+        struct stat romfsStat;
+        hasDataWinInRomfs = (stat("romfs:/data.win", &romfsStat) == 0);
+    }
+
     CommandLineArgs args = {0};
 
     args.exitAtFrame = -1;
@@ -35,10 +43,12 @@ int main(int argc, char* argv[]) {
 #else
     args.renderer = SOFTWARE;
 #endif
-    args.dataWinPath = "sdmc:/switch/butterscotch/data.win";
+    args.dataWinPath = hasDataWinInRomfs ? "romfs:/data.win" : "sdmc:/switch/butterscotch/data.win";
     args.saveFolder = "sdmc:/switch/butterscotch";
 
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
+    if (usingRomfs) romfsExit();
+    fsdevUnmountAll();
     return ret;
 }

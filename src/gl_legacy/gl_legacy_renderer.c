@@ -117,12 +117,12 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) renderer;
     renderer->dataWin = dataWin;
 
+    GLCommon_init(renderer);
+
     if (!hasFBO()) {
         logError("GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
-
-    GLCommon_init(renderer);
 
     // GL 2.0+ has NPOT textures as core; older GL (1.x) may or may not have
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
