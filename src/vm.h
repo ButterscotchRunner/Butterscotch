@@ -227,6 +227,7 @@ struct VMContext {
     RValue* scriptArgs;       // Arguments passed to current script (nullptr for non-script code)
     int32_t scriptArgCount;   // Number of arguments passed
     bool scriptArgsOnHeap;
+    RValue scriptArgsInline[VM_MAX_STACK_ARGS]; // Stack buffer for ≤16 script args, falls back to heap for more
     int32_t selfId;
     int32_t otherId;
     // Current event context (set by Runner_executeEvent, -1 when not in an event)

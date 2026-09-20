@@ -645,15 +645,22 @@ static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
     if (writeIndex < 0) return false;
     if (writeIndex < ctx->scriptArgCount) return true;
 
+    if (!ctx->scriptArgsOnHeap && writeIndex < VM_MAX_STACK_ARGS) {
+        ctx->scriptArgCount = writeIndex + 1;
+        return true;
+    }
+
+    // fall back to heap allocation
     RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
 
     if (ctx->scriptArgCount > 0) {
         memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-        free(ctx->scriptArgs);
+        if (ctx->scriptArgsOnHeap) free(ctx->scriptArgs);
     }
 
     ctx->scriptArgs = newScriptArgs;
     ctx->scriptArgCount = writeIndex + 1;
+    ctx->scriptArgsOnHeap = true;
     return true;
 }
 
@@ -3864,10 +3871,9 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
     // the caller's original args remain valid and owner-tracked by the caller.
     RValue* scriptArgs = nullptr;
-    RValue scriptArgsInline[VM_MAX_STACK_ARGS];
     if (argCount > 0 && args != nullptr) {
         if (argCount <= VM_MAX_STACK_ARGS) {
-            scriptArgs = scriptArgsInline;
+            scriptArgs = ctx->scriptArgsInline;
             ctx->scriptArgsOnHeap = false;
         } else {
             scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));
