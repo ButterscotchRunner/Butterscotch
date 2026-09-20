@@ -77,6 +77,14 @@
     #define YIELD() ((void)0)
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+    #define LIKELY(x)       __builtin_expect(!!(x), 1)
+    #define UNLIKELY(x)     __builtin_expect(!!(x), 0)
+#else
+    #define LIKELY(x)       (x)
+    #define UNLIKELY(x)     (x)
+#endif
+
 #ifdef _MSC_VER
 #define longlong __int64
 #else
