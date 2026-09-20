@@ -1,0 +1,1 @@
+This is a public domain base64 implementation written by WEI Zhicheng.

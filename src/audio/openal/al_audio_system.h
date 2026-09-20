@@ -52,6 +52,8 @@ typedef struct {
 typedef struct {
     bool active;
     char* filePath; // resolved file path (owned, freed on destroy)
+    float initialGain;
+    float initialPitch;
 } AudioStreamEntry;
 
 typedef struct {

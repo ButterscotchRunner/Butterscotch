@@ -274,7 +274,9 @@ struct VMContext {
     // Cross-reference map for disassembler: targetCodeIndex -> stb_ds array of callerCodeIndex
     CrossRefMapEntry* crossRefMap;
     bool alwaysLogUnknownFunctions;
+#ifdef ENABLE_VM_STUB_LOGS
     bool alwaysLogStubbedFunctions;
+#endif
 #ifdef ENABLE_VM_TRACING
     StringBooleanEntry* varReadsToBeTraced;
     StringBooleanEntry* varWritesToBeTraced;
@@ -338,6 +340,9 @@ RValue VM_structGetVariableByVarName(VMContext* ctx, Instance* structInst, const
 void VM_structSet(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
 void VM_structSetAndFreeVal(VMContext* ctx, Instance* structInst, const char* name, RValue val, int32_t arrayIndex);
 
+// Create or reuse the shared static struct for a constructor code entry.
+Instance* VM_getOrCreateStaticStruct(VMContext* ctx, int32_t codeIndex);
+
 // @@CopyStatic@@: chain the current constructor's static struct to a parent constructor's static struct (static inheritance).
 void VM_copyStatic(VMContext* ctx, RValue* parentRef);
 
@@ -347,6 +352,7 @@ int32_t VM_getOrAllocateVarID(VMContext* ctx, const char* name);
 // Writes to the VMContext's scriptArgs, resizing the underlying array if needed
 // The "val" will be RValue_makeIndependent(val), it won't be freed
 void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val);
+void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val);
 
 static inline const char* VM_getCallerName(VMContext* ctx) {
     return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
@@ -421,7 +427,7 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
     char instanceIdBuf[28] = "";
     if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
-    fprintf(stderr, "VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }
 #endif

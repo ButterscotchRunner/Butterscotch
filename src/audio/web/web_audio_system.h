@@ -29,6 +29,8 @@ typedef struct {
 typedef struct {
     bool active;
     char* filePath;
+    float initialGain;
+    float initialPitch;
 } WebAudioStreamEntry;
 
 typedef struct {

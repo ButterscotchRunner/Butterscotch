@@ -107,7 +107,7 @@ static JsonValue* parseString(JsonParser* parser) {
                     break;
                 }
                 default:
-                    fprintf(stderr, "JsonReader: unknown escape sequence '\\%c'\n", escaped);
+                    logWarn("JsonReader: unknown escape sequence '\\%c'\n", escaped);
                     free(buffer);
                     return nullptr;
             }
@@ -122,7 +122,7 @@ static JsonValue* parseString(JsonParser* parser) {
     }
 
     // Unterminated string
-    fprintf(stderr, "JsonReader: unterminated string\n");
+    logWarn("JsonReader: unterminated string\n");
     free(buffer);
     return nullptr;
 }
@@ -132,7 +132,7 @@ static JsonValue* parseNumber(JsonParser* parser) {
     char* end = nullptr;
     double number = strtod(start, &end);
     if (end == start) {
-        fprintf(stderr, "JsonReader: invalid number\n");
+        logWarn("JsonReader: invalid number\n");
         return nullptr;
     }
     parser->position += (size_t) (end - start);
@@ -183,7 +183,7 @@ static JsonValue* parseArray(JsonParser* parser) {
             advance(parser);
             return value;
         } else {
-            fprintf(stderr, "JsonReader: expected ',' or ']' in array\n");
+            logWarn("JsonReader: expected ',' or ']' in array\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -209,7 +209,7 @@ static JsonValue* parseObject(JsonParser* parser) {
     while (true) {
         skipWhitespace(parser);
         if (peek(parser) != '"') {
-            fprintf(stderr, "JsonReader: expected string key in object\n");
+            logWarn("JsonReader: expected string key in object\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -225,7 +225,7 @@ static JsonValue* parseObject(JsonParser* parser) {
 
         skipWhitespace(parser);
         if (peek(parser) != ':') {
-            fprintf(stderr, "JsonReader: expected ':' after object key\n");
+            logWarn("JsonReader: expected ':' after object key\n");
             free(key);
             JsonReader_free(value);
             return nullptr;
@@ -260,7 +260,7 @@ static JsonValue* parseObject(JsonParser* parser) {
             advance(parser);
             return value;
         } else {
-            fprintf(stderr, "JsonReader: expected ',' or '}' in object\n");
+            logWarn("JsonReader: expected ',' or '}' in object\n");
             JsonReader_free(value);
             return nullptr;
         }
@@ -292,7 +292,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 't': {
             JsonValue* value = parseLiteral(parser, "true", 4);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             value->type = JSON_BOOL;
@@ -302,7 +302,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 'f': {
             JsonValue* value = parseLiteral(parser, "false", 5);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             value->type = JSON_BOOL;
@@ -312,7 +312,7 @@ static JsonValue* parseValue(JsonParser* parser) {
         case 'n': {
             JsonValue* value = parseLiteral(parser, "null", 4);
             if (value == nullptr) {
-                fprintf(stderr, "JsonReader: invalid literal\n");
+                logWarn("JsonReader: invalid literal\n");
                 return nullptr;
             }
             return value;
@@ -321,7 +321,7 @@ static JsonValue* parseValue(JsonParser* parser) {
             if (c == '-' || (c >= '0' && c <= '9')) {
                 return parseNumber(parser);
             }
-            fprintf(stderr, "JsonReader: unexpected character '%c' at position %zu\n", c, parser->position);
+            logWarn("JsonReader: unexpected character '%c' at position %zu\n", c, parser->position);
             return nullptr;
     }
 }
@@ -348,7 +348,7 @@ JsonValue* JsonReader_parse(const char* json) {
     if (result != nullptr) {
         skipWhitespace(&parser);
         if (parser.position < parser.length) {
-            fprintf(stderr, "JsonReader: trailing content after JSON value at position %zu\n", parser.position);
+            logWarn("JsonReader: trailing content after JSON value at position %zu\n", parser.position);
             JsonReader_free(result);
             return nullptr;
         }

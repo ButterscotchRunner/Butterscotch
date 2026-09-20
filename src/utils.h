@@ -12,8 +12,20 @@
 
 #include "real_type.h"
 
+#include "log.h"
+
 #ifdef PLATFORM_PS2
 #include <malloc.h>
+#endif
+
+#ifndef _WIN32
+#include <unistd.h>
+#if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
+#include <sys/mman.h>
+#endif
+#else
+#include <windows.h>
+typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, size_t);
 #endif
 
 #ifdef _MSC_VER
@@ -45,34 +57,34 @@
 #define require(condition) \
     do { \
         if (!(condition)) { \
-        fprintf(stderr, "Requirement failed at %s:%d\n", __FILE__, __LINE__); \
+        logError("Requirement failed at %s:%d\n", __FILE__, __LINE__); \
         abort(); \
     } \
 } while (0)
 
 #define requireMessage(condition, message) \
-do { \
-if (!(condition)) { \
-fprintf(stderr, "Requirement failed at %s:%d: %s\n", __FILE__, __LINE__, message); \
-abort(); \
-} \
+    do { \
+        if (!(condition)) { \
+        logError("Requirement failed at %s:%d: %s\n", __FILE__, __LINE__, message); \
+        abort(); \
+	} \
 } while (0)
 
 static inline void requireMessageFormatted(const char *file, int line, bool condition, const char *fmt, ...) {
     if (condition)
         return;
     va_list args;
-    fprintf(stderr, "Requirement failed at %s:%d: ", file, line);
+    logError("Requirement failed at %s:%d: ", file, line);
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vLogError(fmt, args);
     va_end(args);
-    fputc('\n', stderr);
+    logError("\n");
     abort();
 }
 
 static inline void* requireNotNullFunction(void* ptr, const char* file, int line, const char* name) {
     if (!ptr) {
-        fprintf(stderr, "%s:%d: requireNotNull failed: '%s'\n", file, line, name);
+        logError("%s:%d: requireNotNull failed: '%s'\n", file, line, name);
         abort();
     }
     return ptr;
@@ -86,7 +98,7 @@ static inline void *safeMallocFunction(size_t size, const char *file, int line) 
         return nullptr;
     void *ret = malloc(size);
     if (!ret) {
-        fprintf(stderr, "FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
+        logError("FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
         abort();
     }
     return ret;
@@ -98,7 +110,7 @@ static inline void *safeCallocFunction(size_t count, size_t size, const char *fi
         return nullptr;
     void *ret = calloc(count, size);
     if (!ret) {
-        fprintf(stderr, "FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
+        logError("FATAL: calloc(%zu, %zu) failed at %s:%d\n", count, size, file, line);
         abort();
     }
     return ret;
@@ -112,7 +124,7 @@ static inline void *safeReallocFunction(void *ptr, size_t size, const char *file
     }
     void *ret = realloc(ptr, size);
     if (!ret) {
-        fprintf(stderr, "FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
+        logError("FATAL: realloc(%zu) failed at %s:%d\n", size, file, line);
         abort();
     }
     return ret;
@@ -126,7 +138,7 @@ static inline void *safeMemalignFunction(size_t alignment, size_t size, const ch
         return nullptr;
     void *ret = memalign(alignment, size);
     if (!ret) {
-        fprintf(stderr, "FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);
+        logError("FATAL: memalign(%zu, %zu) failed at %s:%d\n", alignment, size, file, line);
         abort();
     }
     return ret;
@@ -138,7 +150,7 @@ static inline void *safeMemalignFunction(size_t alignment, size_t size, const ch
 // Reads exactly n bytes or aborts with the "pathForError" that caused the error.
 static inline void safeFreadFunction(void *dst, size_t n, FILE *read_file, const char *pathForError, const char *file, int line) {
     if (fread(dst, 1, n, read_file) != n) {
-        fprintf(stderr, "FATAL: failed to read %zu bytes from %s at %s:%d\n", n, pathForError, file, line);
+        logError("FATAL: failed to read %zu bytes from %s at %s:%d\n", n, pathForError, file, line);
         abort();
     }
 }
@@ -147,7 +159,7 @@ static inline void safeFreadFunction(void *dst, size_t n, FILE *read_file, const
 static inline char *safeStrdupFunction(const char *str, const char *file, int line) {
     char *ret = strdup(str);
     if (!ret) {
-        fprintf(stderr, "FATAL: strdup() failed at %s:%d\n", file, line);
+        logError("FATAL: strdup() failed at %s:%d\n", file, line);
         abort();
     }
     return ret;
@@ -171,10 +183,56 @@ static inline int32_t Color_lerp(int32_t color1, int32_t color2, float blending)
     int32_t r1 = BGR_R(color1), g1 = BGR_G(color1), b1 = BGR_B(color1);
     int32_t r2 = BGR_R(color2), g2 = BGR_G(color2), b2 = BGR_B(color2);
     float inv = 1.0f - blending;
-    int32_t r = (int32_t)((float) r2 * blending + (float) r1 * inv) & 0xFF;
-    int32_t g = (int32_t)((float) g2 * blending + (float) g1 * inv) & 0xFF;
-    int32_t b = (int32_t)((float) b2 * blending + (float) b1 * inv) & 0xFF;
+    // Rounded, not truncated: merge_color(c_black, c_white, 0.5) is 0x808080 in GameMaker, while
+    // truncation gave 0x7F7F7F -- every half-and-half blend came out one step dark per channel.
+    // (Not to be confused with vertex alpha in floatToUnormByte, where the runtime does truncate.)
+    int32_t r = (int32_t)((float) r2 * blending + (float) r1 * inv + 0.5f) & 0xFF;
+    int32_t g = (int32_t)((float) g2 * blending + (float) g1 * inv + 0.5f) & 0xFF;
+    int32_t b = (int32_t)((float) b2 * blending + (float) b1 * inv + 0.5f) & 0xFF;
     return r | (g << 8) | (b << 16);
+}
+
+static inline void bsGetDirname(char* path) {
+    if (!path || *path == '\0') {
+        return;
+    }
+    
+    char* lastSlash = strrchr(path, '/');
+#ifdef _WIN32
+    char* lastBackslash = strrchr(path, '\\');
+#endif
+    char* target = nullptr;
+    if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
+        target = lastSlash;
+#ifdef _WIN32
+    if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
+        target = lastBackslash;
+#endif
+
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+    if (target == nullptr)
+        target = strrchr(path, ':');
+#endif
+
+    if (target) {
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+        if (target[0] == ':') {
+            target[1] = '\0';
+        } else
+#endif
+        if (target == path
+#if defined(_WIN32) || defined(PLATFORM_VITA)
+            || target[0] == ':'
+#endif
+            ) {
+            target[1] = '\0';
+        } else {
+            target[0] = '\0';
+        }
+    } else {
+        path[0] = '.';
+        path[1] = '\0';
+    }
 }
 
 #define shcopyFromTo(src, dst)                        \
@@ -188,5 +246,30 @@ typedef struct {
     char* key;
     bool value;
 } StringBooleanEntry;
+
+static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
+    if (!base || len == 0) return;
+#if defined(_WIN32)
+    static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
+    static int checked = 0;
+    if (!checked) {
+        HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (hKernel32) pDiscardVirtualMemory = (DiscardVirtualMemory_t)(void*)GetProcAddress(hKernel32, "DiscardVirtualMemory");
+        checked = 1;
+    }
+    if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
+#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
+    static long ps = 0;
+    if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
+    if (ps <= 0) return;
+    uintptr_t s = (uintptr_t)(base + off);
+    uintptr_t e = s + len;
+    uintptr_t as = (s + ps-1) & ~(uintptr_t)(ps-1); // round start UP
+    uintptr_t ae = e & ~(uintptr_t)(ps-1);          // round end DOWN
+    if (ae > as) madvise((void*)as, ae-as, MADV_DONTNEED);
+#else
+    (void)base; (void)off; (void)len;
+#endif
+}
 
 #endif /* _BS_UTILS_H_ */

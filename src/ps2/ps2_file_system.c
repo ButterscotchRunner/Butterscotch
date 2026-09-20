@@ -184,9 +184,9 @@ static void copyIconIcoIfMissing(const char* dirPath) {
     // Copy from boot device
     char* srcPath = PS2Utils_createDevicePath("ICON.ICO");
     if (copyFile(srcPath, dstPath)) {
-        fprintf(stderr, "Ps2FileSystem: Copied ICON.ICO to %s\n", dirPath);
+        logInfo("Ps2FileSystem: Copied ICON.ICO to %s\n", dirPath);
     } else {
-        fprintf(stderr, "Ps2FileSystem: Failed to copy ICON.ICO from %s to %s\n", srcPath, dstPath);
+        logWarn("Ps2FileSystem: Failed to copy ICON.ICO from %s to %s\n", srcPath, dstPath);
     }
 
     free(srcPath);
@@ -217,9 +217,9 @@ static void writeIconSysIfMissing(const char* dirPath, const char* gameTitle, co
     if (f != nullptr) {
         fwrite(buffer, 1, ICON_SYS_SIZE, f);
         fclose(f);
-        fprintf(stderr, "Ps2FileSystem: Created icon.sys in %s\n", dirPath);
+        logInfo("Ps2FileSystem: Created icon.sys in %s\n", dirPath);
     } else {
-        fprintf(stderr, "Ps2FileSystem: Failed to create icon.sys in %s\n", dirPath);
+        logWarn("Ps2FileSystem: Failed to create icon.sys in %s\n", dirPath);
     }
 
     free(iconSysPath);
@@ -612,13 +612,13 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
             const char* rawPath = JsonReader_getString(pathElement);
             char* resolved = expandBootPrefix(rawPath);
             arrput(resolvedPaths, resolved);
-            fprintf(stderr, "Ps2FileSystem: '%s' -> '%s'\n", gameFileName, resolved);
+            logInfo("Ps2FileSystem: '%s' -> '%s'\n", gameFileName, resolved);
         }
 
         shput(pfs->mappings, gameFileName, resolvedPaths);
     }
 
-    fprintf(stderr, "Ps2FileSystem: Loaded %d file mappings\n", (int) shlen(pfs->mappings));
+    logInfo("Ps2FileSystem: Loaded %d file mappings\n", (int) shlen(pfs->mappings));
     return (FileSystem*) pfs;
 }
 

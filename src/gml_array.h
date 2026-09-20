@@ -48,7 +48,7 @@ struct GMLArray {
 };
 
 // Creates a GMLArray filled with "initialLength" RValue_makeReal(0.0).
-GMLArray* GMLArray_create(int32_t wadVersion, int32_t initialLength);
+GMLArray* GMLArray_create(DataWin *dw, int32_t initialLength);
 void GMLArray_incRef(GMLArray* arr);
 // Decrement refCount. If it reaches 0, free all inner RValues + row buffers + struct. Safe on nullptr.
 void GMLArray_decRef(GMLArray* arr);
@@ -156,5 +156,7 @@ static inline void GMLArray_addOnArrayRef(RValue* arrayRef, RValue val) {
     require(arrayRef != nullptr && arrayRef->type == RVALUE_ARRAY && arrayRef->array != nullptr);
     GMLArray_add(arrayRef->array, val);
 }
+
+char* GMLArray_toString(const GMLArray* arr, DataWin* dataWin);
 
 #endif /* _BS_GML_ARRAY_H_ */
