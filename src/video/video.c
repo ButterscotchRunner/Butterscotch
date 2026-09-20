@@ -118,6 +118,19 @@ static void videoAudioDiscard(Runner* runner) {
     videoAudioInstanceId = -1;
 }
 
+static void videoAudioReplay(Runner* runner) {
+    if (videoAudioStreamIndex < 0 || runner == nullptr || runner->audioSystem == nullptr) return;
+    AudioSystem* audio = runner->audioSystem;
+    if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE) {
+        audio->vtable->stopSound(audio, videoAudioInstanceId);
+        videoAudioInstanceId = -1;
+    }
+    videoAudioInstanceId = audio->vtable->playSound(audio, videoAudioStreamIndex, 0, false);
+    if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE) {
+        audio->vtable->setSoundGain(audio, videoAudioInstanceId, videoVolume, 0);
+    }
+}
+
 static void video_cleanup(Runner* runner) {
     if (videoDecoder != nullptr) {
         videoDecoder->vtable->close(videoDecoder);
@@ -146,9 +159,13 @@ static void video_process(Runner* runner) {
         dispatchVideoAsync(runner, "video_end");
         return;
     }
-    if (videoSurfId != 0 && videoDecoder->vtable->update(videoDecoder) == 0) {
-        videoDecoder->vtable->draw(videoDecoder, runner, videoSurfId);
-        //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
+    if (videoSurfId != 0) {
+        int32_t updateResult = videoDecoder->vtable->update(videoDecoder);
+        if (updateResult == 2) videoAudioReplay(runner);
+        if (updateResult == 0 || updateResult == 2) {
+            videoDecoder->vtable->draw(videoDecoder, runner, videoSurfId);
+            //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
+        }
     }
 }
 
@@ -201,13 +218,18 @@ RValue builtin_video_start(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t ar
 }
 
 RValue builtin_video_enable_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (videoDecoder != nullptr) {
+        videoDecoder->vtable->setLoop(videoDecoder, RValue_toBool(args[0]));
+    }
     return RValue_makeUndefined();
 }
 
 RValue builtin_video_set_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
-    videoVolume = RValue_toReal(args[0]);
-    if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && ctx->runner->audioSystem != nullptr) {
-        ctx->runner->audioSystem->vtable->setSoundGain(ctx->runner->audioSystem, videoAudioInstanceId, (float)videoVolume, 0);
+    if (videoDecoder != nullptr) {
+        videoVolume = RValue_toReal(args[0]);
+        if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && ctx->runner->audioSystem != nullptr) {
+            ctx->runner->audioSystem->vtable->setSoundGain(ctx->runner->audioSystem, videoAudioInstanceId, (float)videoVolume, 0);
+        }
     }
     return RValue_makeUndefined();
 }

@@ -16,6 +16,7 @@ typedef struct {
     bool (*isPaused)(VideoDecoder* decoder);
     void (*pause)(VideoDecoder* decoder);
     void (*resume)(VideoDecoder* decoder);
+    void (*setLoop)(VideoDecoder* decoder, bool loop);
     int32_t (*update)(VideoDecoder* decoder);
     void (*draw)(VideoDecoder* decoder, Runner* runner, int32_t surfaceId);
     double (*duration)(VideoDecoder* decoder);

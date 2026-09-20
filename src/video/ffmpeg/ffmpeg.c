@@ -55,6 +55,7 @@ typedef struct {
     bool eof;
     bool finished;
     bool paused;
+    bool loop;
 } FfmpegVideoDecoder;
 
 static int32_t ffmpegVideoDecoderConvertFrame(FfmpegVideoDecoder* d, AVFrame* frame) {
@@ -72,13 +73,28 @@ static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
     if (d->paused) return 0;
     if (d->finished) return 1;
     bool gotFrame = false;
+    bool wrapped = false;
     while (!gotFrame) {
         if (d->eof) {
             while (avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) {
                 if (ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
                 av_frame_unref(d->videoFrame);
             }
-            if (!gotFrame) d->finished = true;
+            if (!gotFrame) {
+                if (!d->loop) {
+                    d->finished = true;
+                    break;
+                }
+                avcodec_flush_buffers(d->videoCodecCtx);
+                if (avformat_seek_file(d->formatCtx, d->videoStreamIndex, INT64_MIN, d->startPts, INT64_MAX, 0) < 0) {
+                    d->finished = true;
+                    break;
+                }
+                d->eof = false;
+                d->lastPts = AV_NOPTS_VALUE;
+                wrapped = true;
+                continue;
+            }
             break;
         }
         AVPacket packet = {0};
@@ -98,7 +114,7 @@ static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
         }
         av_packet_unref(&packet);
     }
-    return gotFrame ? 0 : 1;
+    return gotFrame ? (wrapped ? 2 : 0) : 1;
 }
 
 static void ffmpegVideoDecoderDraw(VideoDecoder* decoder, Runner* runner, int32_t surfaceId) {
@@ -126,6 +142,11 @@ static void ffmpegVideoDecoderPause(VideoDecoder* decoder) {
 static void ffmpegVideoDecoderResume(VideoDecoder* decoder) {
     FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
     if (d != nullptr) d->paused = false;
+}
+
+static void ffmpegVideoDecoderSetLoop(VideoDecoder* decoder, bool loop) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d != nullptr) d->loop = loop;
 }
 
 static double ffmpegVideoDecoderDuration(VideoDecoder* decoder) {
@@ -177,6 +198,7 @@ static void ffmpegVideoDecoderClose(VideoDecoder* decoder) {
     d->eof = false;
     d->finished = false;
     d->paused = false;
+    d->loop = false;
 }
 
 static bool ffmpegVideoDecoderOpen(VideoDecoder* decoder, const char* url) {
@@ -243,6 +265,7 @@ static bool ffmpegVideoDecoderOpen(VideoDecoder* decoder, const char* url) {
     d->eof = false;
     d->finished = false;
     d->paused = false;
+    d->loop = false;
     d->lastPts = AV_NOPTS_VALUE;
     return true;
 }
@@ -431,6 +454,7 @@ VideoDecoder* VideoDecoder_createBackend(void) {
     ffmpegVideoDecoderVtable.isPaused = ffmpegVideoDecoderIsPaused;
     ffmpegVideoDecoderVtable.pause = ffmpegVideoDecoderPause;
     ffmpegVideoDecoderVtable.resume = ffmpegVideoDecoderResume;
+    ffmpegVideoDecoderVtable.setLoop = ffmpegVideoDecoderSetLoop;
     ffmpegVideoDecoderVtable.update = ffmpegVideoDecoderUpdate;
     ffmpegVideoDecoderVtable.draw = ffmpegVideoDecoderDraw;
     ffmpegVideoDecoderVtable.duration = ffmpegVideoDecoderDuration;
