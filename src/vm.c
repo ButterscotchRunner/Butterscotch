@@ -97,7 +97,7 @@ static RValue stackPop(VMContext* ctx) {
 #endif
 }
 
-// Helper function that calls stackPop and returns the result as an int32_t
+// Helper function that pops from the stack and casts the result to an int32_t
 static inline int32_t stackPopInt32(VMContext* ctx) {
     assert(ctx->stack.top > 0);
     RValue rvalue = ctx->stack.slots[--ctx->stack.top];
