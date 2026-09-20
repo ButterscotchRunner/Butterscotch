@@ -3047,7 +3047,6 @@ static void gsSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     );
 }
 static bool gsSurfaceGetPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t* outRGBA) { return false; }
-static void gsSurfaceUploadPixels(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t w, MAYBE_UNUSED int32_t h, MAYBE_UNUSED const uint8_t* rgba) {}
 
 // ===[ Vtable ]===
 
@@ -3200,7 +3199,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.surfaceFree = gsSurfaceFree;
     gsVtable.surfaceCopy = gsSurfaceCopy;
     gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
-    gsVtable.surfaceUploadPixels = gsSurfaceUploadPixels;
+    gsVtable.surfaceUploadPixels = nullptr;
     gsVtable.spriteGetTexture = gsSpriteGetTexture;
     gsVtable.surfaceGetTexture = gsSurfaceGetTexture;
     gsVtable.textureGetTexelWidth = gsTextureGetTexelWidth;

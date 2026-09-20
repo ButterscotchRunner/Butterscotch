@@ -323,7 +323,6 @@ target_compile_options(bzip2 PRIVATE -w)
 
 # Video playback source
 if(NOT PLATFORM STREQUAL "web-meta")
-    target_sources(butterscotch PRIVATE src/video/video.c)
     if(BUTTERSCOTCH_FFMPEG)
         target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
     elseif(BUTTERSCOTCH_VIDEO_NULL)

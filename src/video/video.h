@@ -32,19 +32,6 @@ struct VideoDecoder {
 
 VideoDecoder* VideoDecoder_createBackend(void);
 
-RValue builtin_video_open(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_start(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_close(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_draw(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_pause(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_resume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_enable_loop(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_set_volume(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_get_format(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_get_status(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_get_duration(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount);
-
 void Video_executePendingAsyncEvents(Runner* runner);
 
 #endif /* _BS_VIDEO_H_ */

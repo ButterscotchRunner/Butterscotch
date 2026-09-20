@@ -216,7 +216,6 @@ static void noopSurfaceCopy(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_
 static bool noopSurfaceGetPixels(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t *outRGBA) {
     return false;
 }
-static void noopSurfaceUploadPixels(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t w, MAYBE_UNUSED int32_t h, MAYBE_UNUSED const uint8_t *rgba) {}
 static void noopDrawTiledPart(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcX, MAYBE_UNUSED int32_t srcY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float dstX, MAYBE_UNUSED float dstY, MAYBE_UNUSED float dstW, MAYBE_UNUSED float dstH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
 
 static void noopGpuSetShader(Renderer *renderer, int32_t shaderIndex) {
@@ -318,7 +317,6 @@ Renderer* NoopRenderer_create(void) {
     noopVtable.surfaceFree = noopSurfaceFree;
     noopVtable.surfaceCopy = noopSurfaceCopy;
     noopVtable.surfaceGetPixels = noopSurfaceGetPixels;
-    noopVtable.surfaceUploadPixels = noopSurfaceUploadPixels;
     noopVtable.drawTiledPart = noopDrawTiledPart;
     noopVtable.gpuSetShader = noopGpuSetShader;
     noopVtable.gpuResetShader = noopGpuResetShader;

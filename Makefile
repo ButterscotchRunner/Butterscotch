@@ -143,7 +143,7 @@ ifneq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
 SYSCFLAGS += $(FFMPEG_CFLAGS)
 LIBS += $(FFMPEG_LIBS)
 DEFINES += $(DEFINE)BUTTERSCOTCH_FFMPEG
-SRCS += src/video/video.c src/video/ffmpeg/ffmpeg.c
+SRCS += src/video/ffmpeg/ffmpeg.c
 INCLUDES += $(INC)src/video
 HEADERS += $(wildcard src/video/*.h)
 else
@@ -153,7 +153,7 @@ endif
 
 ifeq ($(VIDEO_BACKEND),none)
 DEFINES += $(DEFINE)BUTTERSCOTCH_VIDEO_NULL
-SRCS += src/video/video.c src/video/null_video.c
+SRCS += src/video/null_video.c
 INCLUDES += $(INC)src/video
 HEADERS += $(wildcard src/video/*.h)
 endif
