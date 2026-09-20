@@ -386,6 +386,14 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     return true;
 }
 
+void GLCommon_surfaceUploadPixels(Renderer* renderer, int32_t surfaceId, int32_t w, int32_t h, const uint8_t* rgba) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    if (gl->surfaceTexture == nullptr || surfaceId < 0 || (uint32_t)surfaceId >= gl->surfaceCount) return;
+    if (gl->surfaceTexture[surfaceId] == 0) return;
+    glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+}
+
 #ifndef PLATFORM_PS3
 
 // ===[ GL version queries ]===

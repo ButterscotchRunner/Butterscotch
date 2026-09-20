@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "json_writer.h"
 #include "collision.h"
+#include "video.h"
 
 #include <stdint.h>
 #include "stdio_compat.h"
@@ -4223,6 +4224,8 @@ void Runner_step(Runner* runner) {
         }
         arrfree(pending);
     }
+
+    Video_executePendingAsyncEvents(runner);
 
     // Dispatch collision events
     dispatchCollisionEvents(runner);

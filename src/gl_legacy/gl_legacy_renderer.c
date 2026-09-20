@@ -2196,6 +2196,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.surfaceFree = glLegacySurfaceFree;
     glVtable.surfaceCopy = glLegacySurfaceCopy;
     glVtable.surfaceGetPixels = glLegacySurfaceGetPixels;
+    glVtable.surfaceUploadPixels = GLCommon_surfaceUploadPixels;
     glVtable.spriteGetTexture = glSpriteGetTexture;
     glVtable.surfaceGetTexture = glSurfaceGetTexture;
     glVtable.textureGetTexelWidth = glTextureGetTexelWidth;
