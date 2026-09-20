@@ -3228,7 +3228,22 @@ static RValue executeLoop(VMContext* ctx) {
                 slot->gmlStackType = instrType1(instr);
                 break;
             }
-            case OP_NOT: handleNot(ctx, instr); break;
+            case OP_NOT: {
+                RValue* slot = &ctx->stack.slots[ctx->stack.top - 1];
+                uint8_t resultType = instrType1(instr);                
+                if (slot->type == RVALUE_INT32) {
+                    if (resultType == GML_TYPE_BOOL) {
+                        slot->int32 = (slot->int32 == 0) ? 1 : 0;
+                        slot->type = RVALUE_BOOL;
+                    } else {
+                        slot->int32 = ~slot->int32;
+                    }
+                    slot->gmlStackType = resultType;
+                } else {
+                    handleNot(ctx, instr);
+                }
+                break;
+            }
 
             // Type conversion
             case OP_CONV: {
