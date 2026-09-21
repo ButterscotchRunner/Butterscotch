@@ -70,7 +70,7 @@ lock() {
 
 unlock() {
     [ -z "$NOTHREADS" ] && return 0
-    rm -r tmp/lock 2>/dev/null || true
+    rm -rf tmp/lock
 }
 
 check() {
