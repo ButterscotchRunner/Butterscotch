@@ -14,10 +14,11 @@ export MSYS2_ARG_CONV_EXCL='*'
 cd "$scriptroot"
 
 : > config.mk
+rm -r tmp/lock
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
-    rmdir tmp/lock 2>/dev/null || true
+    rm -r tmp/lock 2>/dev/null || true
 }
 
 config() {
@@ -69,7 +70,7 @@ lock() {
 
 unlock() {
     [ -z "$NOTHREADS" ] && return 0
-    rmdir tmp/lock 2>/dev/null || true
+    rm -r tmp/lock 2>/dev/null || true
 }
 
 check() {
