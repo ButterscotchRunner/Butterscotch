@@ -77,6 +77,14 @@
     #define YIELD() ((void)0)
 #endif
 
+#if defined (__GNUC__) || defined(__clang__) || defined(__TINYC__)
+    #define RESTRICT __restrict__
+#elif defined(_MSC_VER) && _MSC_VER >= 1400
+    #define RESTRICT __restrict
+#else
+    #define RESTRICT
+#endif
+
 #ifdef _MSC_VER
 #define longlong __int64
 #else

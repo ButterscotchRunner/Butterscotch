@@ -2851,6 +2851,8 @@ static RValue executeLoop(VMContext* ctx) {
     // The ip is mutable, so we need to use VM_SYNC_IP and VM_RELOAD_IP every time an opcode handler may access it or write to it
     uint32_t ip = ctx->ip;
 
+    RValue* RESTRICT slots = ctx->stack.slots;
+
     // Some opcodes have their handler or parts of their handler inlined
     // Those are opcodes that during real gameplay (using "--profile-opcodes") shown that, with inlining and keeping only the frequently called handle parts, we could squeeze MORE performance from the interpreter!
     while (codeEnd > ip) {
@@ -2944,13 +2946,13 @@ static RValue executeLoop(VMContext* ctx) {
                 case OP_ADD: case OP_SUB: case OP_AND: case OP_OR:
                 case OP_XOR: case OP_SHL: case OP_SHR: case OP_CMP:
                     if (ctx->stack.top >= 2) {
-                        rvTypeA = ctx->stack.slots[ctx->stack.top - 2].type;
-                        rvTypeB = ctx->stack.slots[ctx->stack.top - 1].type;
+                        rvTypeA = slots[ctx->stack.top - 2].type;
+                        rvTypeB = slots[ctx->stack.top - 1].type;
                     }
                     break;
                 case OP_NEG: case OP_NOT: case OP_CONV:
                     if (ctx->stack.top >= 1) {
-                        rvTypeA = ctx->stack.slots[ctx->stack.top - 1].type;
+                        rvTypeA = slots[ctx->stack.top - 1].type;
                     }
                     break;
             }
@@ -3103,8 +3105,8 @@ static RValue executeLoop(VMContext* ctx) {
             // Arithmetic
             // We keep the number + number operations inlined in executeLoop, keeping only the slow path for string concat/repetition
             case OP_ADD: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3142,8 +3144,8 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
             }
             case OP_SUB: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3175,8 +3177,8 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
             }
             case OP_MUL: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3231,7 +3233,7 @@ static RValue executeLoop(VMContext* ctx) {
                 uint8_t srcType = instrType1(instr);
                 uint8_t dstType = instrType2(instr);
                 uint8_t convKey = (uint8_t) ((dstType << 4) | srcType);
-                RValue* top = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* top = &slots[ctx->stack.top - 1];
                 bool fastHit = false;
 
                 // Inline fast paths for the four conversions that account for ~93% of all Conv opcodes in real workloads
@@ -3290,8 +3292,8 @@ static RValue executeLoop(VMContext* ctx) {
 
             // Comparison
             case OP_CMP: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
 
                 // Inline fast path for INT32/INT32
                 if (slotA->type == RVALUE_INT32 && slotB->type == RVALUE_INT32) {
