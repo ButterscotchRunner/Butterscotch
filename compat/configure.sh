@@ -14,11 +14,11 @@ export MSYS2_ARG_CONV_EXCL='*'
 cd "$scriptroot"
 
 : > config.mk
-rm -r tmp/lock
+rm -rf tmp/lock
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
-    rm -r tmp/lock 2>/dev/null || true
+    rm -rf tmp/lock
 }
 
 config() {
