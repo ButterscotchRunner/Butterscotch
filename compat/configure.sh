@@ -17,6 +17,7 @@ cd "$scriptroot"
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
+    rmdir tmp/lock 2>/dev/null || true
 }
 
 config() {
@@ -59,6 +60,16 @@ include() {
     config "INCLUDES += \$(INC)$1"
 }
 
+lock() {
+    while ! mkdir tmp/lock 2>/dev/null; do
+        sleep 0.1 2>/dev/null || sleep 1
+    done
+}
+
+unlock() {
+    rmdir tmp/lock 2>/dev/null || true
+}
+
 check() {
     checklog "$1"
     srcname=$2
@@ -67,12 +78,18 @@ check() {
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
+    if [ -n "$NOTHREADS" ]; then
+        lock
+    fi
     if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${outname}.out" 2>&1; then
         printyes
         ret=0
     else
         printno
         ret=1
+    fi
+    if [ -n "$NOTHREADS" ]; then
+        unlock
     fi
     [ -s "tmp/${outname}.out" ] || rm -f "tmp/${outname}.out"
     return "$ret"
