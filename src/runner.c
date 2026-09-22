@@ -2861,6 +2861,26 @@ static FlattenedCollisionEvent* findSymmetricCollisionEvent(Runner* runner, Inst
     return nullptr;
 }
 
+static int32_t mostSpecificCollisionTarget(Runner* runner, Instance* self, Instance* other) {
+    DataWin* dataWin = runner->dataWin;
+    FlattenedCollisionEventList* list = &runner->flattenedCollisionEvents[self->objectIndex];
+    int32_t partnerObj = other->objectIndex;
+    int32_t depth = 0;
+    while (partnerObj >= 0 && dataWin->objt.count > (uint32_t) partnerObj && 32 > depth) {
+        repeat(list->eventCount, e) {
+            FlattenedCollisionEvent* evt = &list->events[e];
+            if ((int32_t) evt->targetObjectIndex == partnerObj) {
+                if (0 > evt->codeId)
+                    return -1;
+                return partnerObj;
+            }
+        }
+        partnerObj = dataWin->objt.objects[partnerObj].parentId;
+        depth++;
+    }
+    return -1;
+}
+
 static void executeCollisionEvent(Runner* runner, Instance* self, Instance* other, int32_t targetObjectIndex, int32_t codeId, int32_t ownerObjectIndex) {
     if (isEventBlockedByPendingRoom(runner, self, EVENT_COLLISION))
         return;
@@ -3341,6 +3361,9 @@ static void dispatchCollisionEvents(Runner* runner) {
                     Instance* other = runner->instanceSnapshots[snapIdx];
                     if (!other->active) continue;
                     if (other == self) continue;
+
+                    if (mostSpecificCollisionTarget(runner, self, other) != targetObjIndex)
+                        continue;
 
                     // Compute bboxes
                     if (selfDirty) {
