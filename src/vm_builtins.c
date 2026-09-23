@@ -4843,6 +4843,22 @@ static RValue builtin_ds_map_copy(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_map_keys_to_array(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_keys_to_array", 1, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    DsMapEntry** map = dsMapGet(runner, id);
+    if (map == nullptr || *map == nullptr) return RValue_makeUndefined();
+    bool inPlace = argCount >= 2;
+    GMLArray* arr = inPlace ? args[1].array : GMLArray_create(ctx->dataWin, (int32_t) shlen(*map));
+
+    for (int32_t i = 0; i < shlen(*map); i++) {
+        *GMLArray_slot(arr, i) = RValue_makeOwnedString(safeStrdup((*map)[i].key));
+    }
+
+    return inPlace ? RValue_makeArrayWeak(arr) : RValue_makeArray(arr);
+}
+
 // ===[ DS_LIST FUNCTIONS ]===
 
 static RValue builtin_ds_list_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -4858,6 +4874,20 @@ static RValue builtin_ds_list_add(VMContext* ctx, RValue* args, int32_t argCount
     // ds_list_add can take multiple values after the list id
     repeat(argCount - 1, i) {
         arrput(list->items, RValue_makeIndependent(args[i + 1]));
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_ds_list_set(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_list_set", 1, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_MOST("ds_list_set", 2, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    int32_t pos = RValue_toInt32(args[1]);
+    DsList* list = dsListGet(runner, id);
+    if (list == nullptr) return RValue_makeUndefined();
+    if (pos >= 0 && pos < arrlen(list->items)) {
+        list->items[pos] = RValue_makeIndependent(args[2]);
     }
     return RValue_makeUndefined();
 }
@@ -11702,6 +11732,23 @@ static RValue builtin_motion_add(VMContext* ctx, RValue* args, int32_t argCount)
     return RValue_makeUndefined();
 }
 
+static RValue builtin_motion_set(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("motion_set", 2, RValue_makeUndefined());
+
+    Instance* inst = ctx->currentInstance;
+    if (inst == nullptr) return RValue_makeUndefined();
+
+    GMLReal dir = RValue_toReal(args[0]);
+    GMLReal spd = RValue_toReal(args[1]);
+    GMLReal rad = dir * (M_PI / 180.0);
+
+    inst->hspeed = (float)(GMLReal_cos(rad) * spd);
+    inst->vspeed = (float)(-GMLReal_sin(rad) * spd);
+    Instance_computeSpeedFromComponents(inst);
+
+    return RValue_makeUndefined();
+}
+
 // merge_color(col1, col2, amount) - lerps between two colors
 static RValue builtin_merge_color(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t col1 = (int32_t) RValue_toColour(args[0]);
@@ -12115,6 +12162,19 @@ static RValue builtin_sprite_set_bbox_mode(VMContext* ctx, RValue* args, int32_t
         }
     }
 
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_sprite_set_bbox(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("sprite_set_bbox", 5, RValue_makeUndefined());
+    int32_t spriteIndex = (int32_t) RValue_toReal(args[0]);
+    
+    if (0 <= spriteIndex && (uint32_t) spriteIndex < ctx->dataWin->sprt.count) {
+        ctx->dataWin->sprt.sprites[spriteIndex].marginLeft = (int32_t) RValue_toReal(args[1]);
+        ctx->dataWin->sprt.sprites[spriteIndex].marginTop = (int32_t) RValue_toReal(args[2]);
+        ctx->dataWin->sprt.sprites[spriteIndex].marginRight = (int32_t) RValue_toReal(args[3]);
+        ctx->dataWin->sprt.sprites[spriteIndex].marginBottom = (int32_t) RValue_toReal(args[4]);
+    }
     return RValue_makeUndefined();
 }
 
@@ -15233,6 +15293,39 @@ static bool isValidLayerSpriteElement(RuntimeLayerElement* element) {
     return true;
 }
 
+static RValue builtin_layer_sprite_create(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sprite_create", 4, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t layerId = resolveLayerIdArg(runner, args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    int32_t spriteIndex = RValue_toInt32(args[3]);
+    
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, layerId);
+    if (runtimeLayer == nullptr) return RValue_makeReal(-1.0);
+    
+    RuntimeSpriteElement* spr = (RuntimeSpriteElement *)safeMalloc(sizeof(RuntimeSpriteElement));
+    spr->spriteIndex = spriteIndex;
+    spr->x = x;
+    spr->y = y;
+    spr->scaleX = 1.0f;
+    spr->scaleY = 1.0f;
+    spr->color = 0xFFFFFFFFu;
+    spr->animationSpeed = 1.0f;
+    spr->animationSpeedType = 0;
+    spr->frameIndex = 0.0f;
+    spr->rotation = 0.0f;
+    RuntimeLayerElement el = {0};
+    el.id = Runner_getNextLayerId(runner);
+    el.type = RuntimeLayerElementType_Sprite;
+    el.visible = true;
+    el.alpha = 1.0f;
+    el.blend = 0xFFFFFFu;
+    el.spriteElement = spr;
+    arrput(runtimeLayer->elements, el);
+    return RValue_makeReal((GMLReal) el.id);
+}
+
 static RValue builtin_layer_sprite_exists(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
     int32_t elementId = RValue_toInt32(args[1]);
@@ -15449,6 +15542,17 @@ static RValue builtin_layer_sprite_index(VMContext* ctx, RValue* args, MAYBE_UNU
     RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
     if (isValidLayerSpriteElement(el))
         el->spriteElement->frameIndex = (float) index;
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_sprite_change(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sprite_change", 2, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[0]);
+    
+    RuntimeLayerElement* el = Runner_findLayerElementById(runner, id, nullptr);
+    if (isValidLayerSpriteElement(el))
+        el->spriteElement->spriteIndex = RValue_toInt32(args[1]);
     return RValue_makeUndefined();
 }
 
@@ -21540,7 +21644,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_find_next", builtin_ds_map_find_next);
     VM_registerBuiltin(ctx, "ds_map_size", builtin_ds_map_size);
     VM_registerBuiltin(ctx, "ds_map_destroy", builtin_ds_map_destroy);
-    VM_registerBuiltin(ctx, "ds_map_copy", builtin_ds_map_copy);    
+    VM_registerBuiltin(ctx, "ds_map_copy", builtin_ds_map_copy);
+    VM_registerBuiltin(ctx, "ds_map_keys_to_array", builtin_ds_map_keys_to_array);
     VM_registerBuiltin(ctx, "ds_map_read", builtin_ds_map_read);
     VM_registerBuiltin(ctx, "ds_map_write", builtin_ds_map_write);
 
@@ -21548,6 +21653,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_list_create", builtin_ds_list_create);
     VM_registerBuiltin(ctx, "ds_list_destroy", builtin_ds_list_destroy);
     VM_registerBuiltin(ctx, "ds_list_add", builtin_ds_list_add);
+    VM_registerBuiltin(ctx, "ds_list_set", builtin_ds_list_set);
     VM_registerBuiltin(ctx, "ds_list_insert", builtin_ds_list_insert);
     VM_registerBuiltin(ctx, "ds_list_delete", builtin_ds_list_delete);
     VM_registerBuiltin(ctx, "ds_list_sort", builtin_ds_list_sort);
@@ -22005,6 +22111,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
+    VM_registerBuiltin(ctx, "motion_set", builtin_motion_set);
 
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtin_merge_color);
@@ -22038,6 +22145,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "sprite_get_bbox_top", builtin_sprite_get_bbox_top);
     VM_registerBuiltin(ctx, "sprite_get_bbox_bottom", builtin_sprite_get_bbox_bottom);
     VM_registerBuiltin(ctx, "sprite_set_bbox_mode", builtin_sprite_set_bbox_mode);
+    VM_registerBuiltin(ctx, "sprite_set_bbox", builtin_sprite_set_bbox);
     VM_registerBuiltin(ctx, "sprite_set_offset", builtin_sprite_set_offset);
     VM_registerBuiltin(ctx, "sprite_create_from_surface", builtin_sprite_create_from_surface);
     VM_registerBuiltin(ctx, "sprite_delete", builtin_sprite_delete);
@@ -22153,6 +22261,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 #endif
     VM_registerBuiltin(ctx, "layer_get_element_type", builtin_layer_get_element_type);
     VM_registerBuiltin(ctx, "layer_get_element_layer", builtin_layer_get_element_layer);
+    VM_registerBuiltin(ctx, "layer_sprite_create", builtin_layer_sprite_create);
     VM_registerBuiltin(ctx, "layer_sprite_exists", builtin_layer_sprite_exists);
     VM_registerBuiltin(ctx, "layer_sprite_get_id", builtin_layer_sprite_get_id);
     VM_registerBuiltin(ctx, "layer_sprite_get_sprite", builtin_layer_sprite_get_sprite);
@@ -22171,6 +22280,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_sprite_yscale", builtin_layer_sprite_yscale);
     VM_registerBuiltin(ctx, "layer_sprite_speed", builtin_layer_sprite_speed);
     VM_registerBuiltin(ctx, "layer_sprite_index", builtin_layer_sprite_index);
+    VM_registerBuiltin(ctx, "layer_sprite_change", builtin_layer_sprite_change);
     VM_registerBuiltin(ctx, "layer_sprite_angle", builtin_layer_sprite_angle);
     VM_registerBuiltin(ctx, "layer_sprite_alpha", builtin_layer_sprite_alpha);
     VM_registerBuiltin(ctx, "layer_sprite_blend", builtin_layer_sprite_blend);

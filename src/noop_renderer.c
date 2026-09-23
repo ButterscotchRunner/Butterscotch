@@ -155,15 +155,6 @@ static void noopDrawSpriteTiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED in
 
 static int32_t noopCreateSurface(Renderer *renderer, int32_t width, int32_t height) {
     NoopRenderer *noop = (NoopRenderer *)renderer;
-    // Find free slot
-    for (uint32_t i = 0; i < noop->surfaceCount; i++) {
-        if (!noop->surfaceExistsFlag[i]) {
-            noop->surfaceWidths[i] = width;
-            noop->surfaceHeights[i] = height;
-            noop->surfaceExistsFlag[i] = true;
-            return (int32_t)i;
-        }
-    }
     uint32_t id = noop->surfaceCount;
     noopEnsureSurfaceCapacity(noop, id + 1);
     noop->surfaceWidths[id] = width;

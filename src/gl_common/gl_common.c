@@ -288,12 +288,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 
 // ===[ Surface arrays ]===
 
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count) {
-    repeat(*count, i) {
-        if ((*surfaces)[i] == 0)
-            return i;
-    }
-
+uint32_t GLCommon_allocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count) {
     uint32_t newIndex = *count;
     (*count)++;
     *surfaces = (GLuint *)safeRealloc(*surfaces, *count * sizeof(GLuint));

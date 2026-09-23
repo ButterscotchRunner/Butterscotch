@@ -14,9 +14,11 @@ export MSYS2_ARG_CONV_EXCL='*'
 cd "$scriptroot"
 
 : > config.mk
+rm -rf tmp/lock
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
+    rm -rf tmp/lock
 }
 
 config() {
@@ -59,6 +61,18 @@ include() {
     config "INCLUDES += \$(INC)$1"
 }
 
+lock() {
+    [ -z "$NOTHREADS" ] && return 0
+    while ! mkdir tmp/lock 2>/dev/null; do
+        sleep 0.1 2>/dev/null || sleep 1
+    done
+}
+
+unlock() {
+    [ -z "$NOTHREADS" ] && return 0
+    rm -rf tmp/lock
+}
+
 check() {
     checklog "$1"
     srcname=$2
@@ -67,6 +81,7 @@ check() {
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
+    lock
     if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${outname}.out" 2>&1; then
         printyes
         ret=0
@@ -74,6 +89,7 @@ check() {
         printno
         ret=1
     fi
+    unlock
     [ -s "tmp/${outname}.out" ] || rm -f "tmp/${outname}.out"
     return "$ret"
 }

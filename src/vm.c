@@ -15,6 +15,8 @@
 
 #include "stb_ds.h"
 
+#include <assert.h>
+
 // ===[ Stack Operations ]===
 
 #ifdef ENABLE_VM_TRACING
@@ -58,7 +60,7 @@ static int gmlTypeNativeSize(uint8_t gmlType) {
 }
 
 static void stackPush(VMContext* ctx, RValue val) {
-    require(VM_STACK_SIZE > ctx->stack.top);
+    assert(VM_STACK_SIZE > ctx->stack.top);
 #ifdef ENABLE_VM_TRACING
     if (shouldTraceStack(ctx)) {
         char* valStr = RValue_toStringTyped(val);
@@ -79,9 +81,9 @@ static void stackPushTyped(VMContext* ctx, RValue val, uint8_t gmlStackType) {
 }
 
 static RValue stackPop(VMContext* ctx) {
-    require(ctx->stack.top > 0);
-    RValue val = ctx->stack.slots[--ctx->stack.top];
+    assert(ctx->stack.top > 0);
 #ifdef ENABLE_VM_TRACING
+    RValue val = ctx->stack.slots[--ctx->stack.top];
     if (shouldTraceStack(ctx)) {
         char* valStr = RValue_toStringTyped(val);
         char* stackBuf = formatStackContents(ctx);
@@ -89,22 +91,23 @@ static RValue stackPop(VMContext* ctx) {
         free(stackBuf);
         free(valStr);
     }
-#endif
     return val;
+#else
+    return ctx->stack.slots[--ctx->stack.top];
+#endif
 }
 
-// Helper function that calls stackPop and returns the result as an int32_t
-static int32_t stackPopInt32(VMContext* ctx) {
-    RValue rvalue = stackPop(ctx);
-    int32_t value = RValue_toInt32(rvalue);
-    RValue_free(&rvalue);
-    return value;
+// Helper function that pops from the stack and casts the result to an int32_t
+static inline int32_t stackPopInt32(VMContext* ctx) {
+    assert(ctx->stack.top > 0);
+    RValue rvalue = ctx->stack.slots[--ctx->stack.top];
+    return RValue_toInt32(rvalue);
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
 
 static RValue* stackPeek(VMContext* ctx) {
-    require(ctx->stack.top > 0);
+    assert(ctx->stack.top > 0);
     return &ctx->stack.slots[ctx->stack.top - 1];
 }
 
@@ -2848,6 +2851,8 @@ static RValue executeLoop(VMContext* ctx) {
     // The ip is mutable, so we need to use VM_SYNC_IP and VM_RELOAD_IP every time an opcode handler may access it or write to it
     uint32_t ip = ctx->ip;
 
+    RValue* restrict slots = ctx->stack.slots;
+
     // Some opcodes have their handler or parts of their handler inlined
     // Those are opcodes that during real gameplay (using "--profile-opcodes") shown that, with inlining and keeping only the frequently called handle parts, we could squeeze MORE performance from the interpreter!
     while (codeEnd > ip) {
@@ -2941,13 +2946,13 @@ static RValue executeLoop(VMContext* ctx) {
                 case OP_ADD: case OP_SUB: case OP_AND: case OP_OR:
                 case OP_XOR: case OP_SHL: case OP_SHR: case OP_CMP:
                     if (ctx->stack.top >= 2) {
-                        rvTypeA = ctx->stack.slots[ctx->stack.top - 2].type;
-                        rvTypeB = ctx->stack.slots[ctx->stack.top - 1].type;
+                        rvTypeA = slots[ctx->stack.top - 2].type;
+                        rvTypeB = slots[ctx->stack.top - 1].type;
                     }
                     break;
                 case OP_NEG: case OP_NOT: case OP_CONV:
                     if (ctx->stack.top >= 1) {
-                        rvTypeA = ctx->stack.slots[ctx->stack.top - 1].type;
+                        rvTypeA = slots[ctx->stack.top - 1].type;
                     }
                     break;
             }
@@ -3044,7 +3049,25 @@ static RValue executeLoop(VMContext* ctx) {
             }
             case OP_PUSHGLB: {
                 uint32_t varRef = resolveVarOperand(extraData);
-                // TODO: Re-add fast-path here!
+                uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
+                if (varType == VARTYPE_NORMAL) {
+                    Variable* varDef = resolveVarDef(ctx, varRef);                                                                           
+                    if (varDef->varID >= 0) {
+                        Instance* inst = ctx->globalScopeInstance;
+                        if (inst != nullptr) {
+                            RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
+                            if (slot != nullptr) {
+                                RValue val = *slot;
+                                val.ownsReference = false;
+                                stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+#ifdef ENABLE_VM_TRACING
+                                VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
+#endif
+                                break;
+                            }
+                        }
+                    }
+                }
                 RValue val = resolveVariableRead(ctx, INSTANCE_GLOBAL, varRef);
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
                 break;
@@ -3082,8 +3105,8 @@ static RValue executeLoop(VMContext* ctx) {
             // Arithmetic
             // We keep the number + number operations inlined in executeLoop, keeping only the slow path for string concat/repetition
             case OP_ADD: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3121,8 +3144,8 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
             }
             case OP_SUB: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3154,8 +3177,8 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
             }
             case OP_MUL: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
                 uint8_t aType = slotA->type;
                 uint8_t bType = slotB->type;
                 if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
@@ -3210,7 +3233,7 @@ static RValue executeLoop(VMContext* ctx) {
                 uint8_t srcType = instrType1(instr);
                 uint8_t dstType = instrType2(instr);
                 uint8_t convKey = (uint8_t) ((dstType << 4) | srcType);
-                RValue* top = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* top = &slots[ctx->stack.top - 1];
                 bool fastHit = false;
 
                 // Inline fast paths for the four conversions that account for ~93% of all Conv opcodes in real workloads
@@ -3269,21 +3292,25 @@ static RValue executeLoop(VMContext* ctx) {
 
             // Comparison
             case OP_CMP: {
-                RValue* slotA = &ctx->stack.slots[ctx->stack.top - 2];
-                RValue* slotB = &ctx->stack.slots[ctx->stack.top - 1];
+                RValue* slotA = &slots[ctx->stack.top - 2];
+                RValue* slotB = &slots[ctx->stack.top - 1];
+                uint8_t aType = slotA->type;
+                uint8_t bType = slotB->type;
 
-                // Inline fast path for INT32/INT32
-                if (slotA->type == RVALUE_INT32 && slotB->type == RVALUE_INT32) {
-                    int32_t a = slotA->int32;
-                    int32_t b = slotB->int32;
+                // Inline fast path for INT32|REAL/INT32|REAL
+                if ((aType == RVALUE_INT32 || aType == RVALUE_REAL) && (bType == RVALUE_INT32 || bType == RVALUE_REAL)) {
+                    GMLReal a = aType == RVALUE_INT32 ? (GMLReal)slotA->int32 : slotA->real;
+                    GMLReal b = bType == RVALUE_INT32 ? (GMLReal)slotB->int32 : slotB->real;
+                    GMLReal diff = a - b;
+                    int cmp = (GMLReal_fabs(diff) <= GML_MATH_EPSILON) ? 0 : (diff < 0) ? -1 : 1;
                     bool result;
                     switch (instrCmpKind(instr)) {
-                        case CMP_LT:  result = b > a;  break;
-                        case CMP_LTE: result = b >= a; break;
-                        case CMP_EQ:  result = a == b; break;
-                        case CMP_NEQ: result = a != b; break;
-                        case CMP_GTE: result = a >= b; break;
-                        case CMP_GT:  result = a > b;  break;
+                        case CMP_LT:  result = cmp < 0;  break;
+                        case CMP_LTE: result = cmp <= 0; break;
+                        case CMP_EQ:  result = cmp == 0; break;
+                        case CMP_NEQ: result = cmp != 0; break;
+                        case CMP_GTE: result = cmp >= 0; break;
+                        case CMP_GT:  result = cmp > 0;  break;
                         default:      result = false;  break;
                     }
                     slotA->int32 = result ? 1 : 0;

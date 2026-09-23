@@ -2680,17 +2680,9 @@ static int32_t gsCreateSurface(Renderer* renderer, int32_t width, int32_t height
     uint32_t paddedWidth = (uint32_t) tbw * 64;
     uint32_t bytes = gsKit_texture_size(paddedWidth, height, GS_PSM_CT16);
 
-    // Reuse a freed row if possible so the table doesn't grow unbounded.
-    int32_t row = -1;
-    uint32_t rowCount = (uint32_t) arrlen(gs->surfaces);
-    for (uint32_t i = 0; rowCount > i; i++) {
-        if (!gs->surfaces[i].inUse) { row = (int32_t) i; break; }
-    }
-    if (0 > row) {
-        Surface zero = {0};
-        arrput(gs->surfaces, zero);
-        row = (int32_t) (arrlen(gs->surfaces) - 1);
-    }
+    Surface zero = {0};
+    arrput(gs->surfaces, zero);
+    int32_t row = (int32_t) (arrlen(gs->surfaces) - 1);
 
     // When we aren't able to allocate this, we return a "phantom" row
     int chunksNeeded = (int) ((bytes + VRAM_CHUNK_SIZE - 1) / VRAM_CHUNK_SIZE);
