@@ -166,7 +166,7 @@ jobs:
   build-vita:
     name: Build (PS Vita)
     runs-on: ubuntu-24.04
-    container: vitasdk/vitasdk:2026.08-minimal-20260919
+    container: vitasdk/vitasdk:2026.08-20260919
     steps:
       - uses: actions/checkout@v7
 
