@@ -201,7 +201,7 @@ jobs:
         with:
           repository: Rinnegatamante/vitaGL
           path: vendor/vitaGL
-          ref: eccee6d767ad5f632812414a6b8251031fe62f0b
+          ref: 2bdbe895ddc6a7e410a9ea55a8f53d8173c61ad8
 
       - name: Build vitaGL with speedhacks
         run: |
