@@ -22112,6 +22112,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // Motion
     VM_registerBuiltin(ctx, "motion_add", builtin_motion_add);
     VM_registerBuiltin(ctx, "motion_set", builtin_motion_set);
+    VM_registerBuiltin(ctx, "action_set_motion", builtin_motion_set); // GMS1 D&D thingie
 
     // Color
     VM_registerBuiltin(ctx, "merge_color", builtin_merge_color);
