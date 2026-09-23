@@ -345,6 +345,19 @@ static bool deleteFile(FileSystem* fs, const char* relativePath) {
     return remove(paths[0]) == 0;
 }
 
+static bool renameFile(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath) {
+    Ps2FileSystem* pfs = (Ps2FileSystem*) fs;
+    ptrdiff_t idx = shgeti(pfs->mappings, oldRelativePath);
+    if (0 > idx)
+        return false;
+
+    char** paths = pfs->mappings[idx].value;
+    if (arrlen(paths) == 0)
+        return false;
+
+    return rename(paths[0], newRelativePath) == 0;
+}
+
 static bool ps2ReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t** outData, int32_t* outSize) {
     Ps2FileSystem* pfs = (Ps2FileSystem*) fs;
     ptrdiff_t idx = shgeti(pfs->mappings, relativePath);
@@ -577,6 +590,7 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
     ps2FileSystemVtable.readFileText = readFileText;
     ps2FileSystemVtable.writeFileText = writeFileText;
     ps2FileSystemVtable.deleteFile = deleteFile;
+    ps2FileSystemVtable.renameFile = renameFile;
     ps2FileSystemVtable.readFileBinary = ps2ReadFileBinary;
     ps2FileSystemVtable.writeFileBinary = ps2WriteFileBinary;
     ps2FileSystemVtable.binaryOpen = ps2BinaryOpen;

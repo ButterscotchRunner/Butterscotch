@@ -8223,6 +8223,15 @@ static RValue builtin_file_delete(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeUndefined();
 }
 
+static RValue builtin_file_rename(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("file_rename", 2, RValue_makeBool(false));
+    const char* oldPath = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* newPath = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    Runner* runner = ctx->runner;
+    FileSystem* fs = runner->fileSystem;
+    return RValue_makeBool(fs->vtable->renameFile(fs, oldPath, newPath));
+}
+
 // ===[ File Find Functions ]===
 
 // Case-sensitive `*` / `?` wildcard match:
@@ -21847,6 +21856,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_text_write_real", builtin_file_text_write_real);
     VM_registerBuiltin(ctx, "file_text_eof", builtin_file_text_eof);
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
+    VM_registerBuiltin(ctx, "file_rename", builtin_file_rename);
     VM_registerBuiltin(ctx, "file_find_first", builtin_file_find_first);
     VM_registerBuiltin(ctx, "file_find_next", builtin_file_find_next);
     VM_registerBuiltin(ctx, "file_find_close", builtin_file_find_close);
