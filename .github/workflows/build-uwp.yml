@@ -1,0 +1,230 @@
+name: UWP builds
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+      - main
+    paths:
+      - CMakeLists.txt
+      - cmake/**
+      - src/**
+      - vendor/**
+      - .github/workflows/build-uwp.yml
+  pull_request:
+    paths:
+      - CMakeLists.txt
+      - cmake/**
+      - src/**
+      - vendor/**
+      - .github/workflows/build-uwp.yml
+
+jobs:
+  build-uwp:
+    name: Build UWP (${{ matrix.arch }})
+    runs-on: windows-2022
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            cmake_arch: x64
+            triplet: x64-uwp
+          - arch: arm64
+            cmake_arch: ARM64
+            triplet: arm64-uwp
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout SDL2
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/sdl2
+
+      - name: Build and install SDL2 for UWP
+        shell: pwsh
+        run: |
+          $sdlRoot = Join-Path $env:GITHUB_WORKSPACE 'sdl2-uwp'
+          $sdlBuild = Join-Path $env:GITHUB_WORKSPACE 'vendor\sdl2\build'
+
+          if (Test-Path $sdlRoot) {
+            Remove-Item $sdlRoot -Recurse -Force
+          }
+
+          cmake -S "$env:GITHUB_WORKSPACE\vendor\sdl2" -B $sdlBuild `
+            -G "Visual Studio 17 2022" `
+            -A ${{ matrix.cmake_arch }} `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX="$sdlRoot" `
+            -DSDL_SHARED=OFF `
+            -DSDL_STATIC=ON `
+            -DSDL_TESTS=OFF `
+            -DSDL_STATIC_PIC=OFF
+
+          cmake --build $sdlBuild --config Release --parallel
+          cmake --install $sdlBuild --config Release
+
+      - name: Configure UWP build
+        shell: pwsh
+        run: |
+          $sdkRoot = "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Enterprise"
+          if (-not (Test-Path $sdkRoot)) {
+            $sdkRoot = "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\BuildTools"
+          }
+          if (-not (Test-Path $sdkRoot)) {
+            $sdkRoot = "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Community"
+          }
+
+          $sdlRoot = Join-Path $env:GITHUB_WORKSPACE 'sdl2-uwp'
+
+          cmake -S . -B build-uwp `
+            -G "Visual Studio 17 2022" `
+            -A ${{ matrix.cmake_arch }} `
+            -DCMAKE_SYSTEM_NAME=WindowsStore `
+            -DCMAKE_SYSTEM_VERSION=10.0 `
+            -DCMAKE_PREFIX_PATH="$sdlRoot" `
+            -DPLATFORM=uwp `
+            -DBACKEND=sdl2 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DWERROR=ON
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build-uwp --config Release --parallel
+
+      - name: Package Appx
+        shell: pwsh
+        run: |
+          $appRoot = Join-Path $env:GITHUB_WORKSPACE "build-uwp\package-${{ matrix.arch }}"
+          $assetsDir = Join-Path $appRoot 'Assets'
+          $packagePath = Join-Path $env:GITHUB_WORKSPACE "butterscotch-uwp-${{ matrix.arch }}.appx"
+          $manifestPath = Join-Path $appRoot 'AppxManifest.xml'
+          $exePath = Join-Path $env:GITHUB_WORKSPACE "build-uwp\Release\butterscotch.exe"
+          $sdlDll = Join-Path $env:GITHUB_WORKSPACE "sdl2-uwp\bin\SDL2.dll"
+
+          New-Item -ItemType Directory -Force -Path $appRoot, $assetsDir | Out-Null
+
+          Copy-Item $exePath (Join-Path $appRoot 'butterscotch.exe') -Force
+          if (Test-Path $sdlDll) {
+            Copy-Item $sdlDll (Join-Path $appRoot 'SDL2.dll') -Force
+          } else {
+            Write-Host 'No SDL2 DLL found in the install tree; assuming static linkage.'
+          }
+          Copy-Item "$env:GITHUB_WORKSPACE\vendor\gamecontrollerdb.txt" (Join-Path $appRoot 'gamecontrollerdb.txt') -Force
+
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\data.win")) {
+            New-Item -ItemType File -Force -Path (Join-Path $appRoot 'data.win') | Out-Null
+          } else {
+            Copy-Item "$env:GITHUB_WORKSPACE\data.win" (Join-Path $appRoot 'data.win') -Force
+          }
+
+          Add-Type -AssemblyName System.Drawing
+          foreach ($spec in @(
+            @{ Name = 'Square150x150Logo.png'; Width = 150; Height = 150 },
+            @{ Name = 'Square44x44Logo.png'; Width = 44; Height = 44 },
+            @{ Name = 'StoreLogo.png'; Width = 50; Height = 50 }
+          )) {
+            $bmp = New-Object System.Drawing.Bitmap($spec.Width, $spec.Height)
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(255, 33, 33, 33))
+            $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 255, 255, 255)), 2
+            $g.DrawRectangle($pen, 1, 1, $spec.Width - 3, $spec.Height - 3)
+            $g.DrawLine($pen, 0, 0, $spec.Width, $spec.Height)
+            $g.DrawLine($pen, $spec.Width, 0, 0, $spec.Height)
+            $g.Dispose()
+            $bmp.Save((Join-Path $assetsDir $spec.Name), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+          }
+
+          $manifest = @'
+            <?xml version="1.0" encoding="utf-8"?>
+            <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+                     IgnorableNamespaces="uap rescap">
+              <Identity Name="Butterscotch.UWP" Publisher="CN=ButterscotchDev" Version="1.0.0.0" />
+              <Properties>
+                <DisplayName>Butterscotch</DisplayName>
+                <PublisherDisplayName>Butterscotch</PublisherDisplayName>
+                <Logo>Assets\StoreLogo.png</Logo>
+              </Properties>
+              <Dependencies>
+                <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+              </Dependencies>
+              <Resources>
+                <Resource Language="en-US" />
+              </Resources>
+              <Capabilities>
+                <rescap:Capability Name="runFullTrust" />
+              </Capabilities>
+              <Applications>
+                <Application Id="App" Executable="butterscotch.exe" EntryPoint="Windows.FullTrustApplication">
+                  <uap:VisualElements
+                    DisplayName="Butterscotch"
+                    Description="Butterscotch"
+                    Square150x150Logo="Assets\Square150x150Logo.png"
+                    Square44x44Logo="Assets\Square44x44Logo.png"
+                    BackgroundColor="transparent" />
+                </Application>
+              </Applications>
+            </Package>
+            '@
+          $manifest | Set-Content -Path $manifestPath -Encoding UTF8
+
+          $makeAppx = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter makeappx.exe -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $makeAppx) {
+            throw 'makeappx.exe not found in the Windows SDK.'
+          }
+
+          if (Test-Path $packagePath) {
+            Remove-Item $packagePath -Force
+          }
+
+          & $makeAppx.FullName pack /d $appRoot /p $packagePath /nc /o
+          if ($LASTEXITCODE -ne 0) {
+            throw 'makeappx failed.'
+          }
+
+          $cert = New-SelfSignedCertificate -CertStoreLocation Cert:\CurrentUser\My -Type Custom `
+            -Subject 'CN=ButterscotchDev' -KeySpec Signature -KeyExportPolicy Exportable `
+            -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
+            -Provider 'Microsoft Enhanced RSA and AES Cryptographic Provider'
+
+          $pfxPath = Join-Path $env:GITHUB_WORKSPACE "butterscotch-uwp-${{ matrix.arch }}.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password (ConvertTo-SecureString -String 'Butterscotch123!' -Force -AsPlainText) | Out-Null
+
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) {
+            throw 'signtool.exe not found in the Windows SDK.'
+          }
+
+          & $signtool.FullName sign /fd SHA256 /f $pfxPath /p 'Butterscotch123!' $packagePath
+          if ($LASTEXITCODE -ne 0) {
+            throw 'signtool failed.'
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-uwp-${{ matrix.arch }}
+          path: |
+            butterscotch-uwp-${{ matrix.arch }}.appx
+            butterscotch-uwp-${{ matrix.arch }}.pfx
+            build-uwp/Release/butterscotch.exe
+            build-uwp/Release/butterscotch.pdb
