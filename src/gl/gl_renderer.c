@@ -22,6 +22,7 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
+#include "gl_state.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -587,6 +588,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
     
     GMLShader* defaultShader = (GMLShader*)safeCalloc(1, sizeof(GMLShader));
+
+    GLState_init();
 
     char vertSrc[1024];
     char fragSrc[1024];
