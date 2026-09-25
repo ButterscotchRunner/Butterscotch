@@ -1213,18 +1213,13 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
     int32_t texW, texH;
     if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return;
 
-    // Compute normalized UVs from TPAG source rect
-    float u0 = (float) tpag->sourceX / (float) texW;
-    float v0 = (float) tpag->sourceY / (float) texH;
-    float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
-    float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpriteUVs(tpag, texW, texH, &u0, &v0, &u1, &v1);
 
     // Use targetWidth/Height (draw size in bounding rect), not sourceWidth/Height (texture sample size).
     // They differ when the texture was auto-downscaled by GMS to fit a texture page.
-    float localX0 = (float) tpag->targetX - originX;
-    float localY0 = (float) tpag->targetY - originY;
-    float localX1 = localX0 + (float) tpag->targetWidth;
-    float localY1 = localY0 + (float) tpag->targetHeight;
+    float localX0 = 0.0f, localY0 = 0.0f, localX1 = 0.0f, localY1 = 0.0f;
+    Renderer_computeSpriteLocalRect(tpag, originX, originY, &localX0, &localY0, &localX1, &localY1);
 
     drawTexture(
         gl,
@@ -1271,23 +1266,8 @@ static void drawTiled(
 ) {
     if (0 >= tileW || 0 >= tileH) return;
 
-    float startX, endX, startY, endY;
-    if (tileX) {
-        startX = fmodf(gridX, tileW);
-        if (startX > 0) startX -= tileW;
-        endX = roomW;
-    } else {
-        startX = gridX;
-        endX = startX + tileW;
-    }
-    if (tileY) {
-        startY = fmodf(gridY, tileH);
-        if (startY > 0) startY -= tileH;
-        endY = roomH;
-    } else {
-        startY = gridY;
-        endY = startY + tileH;
-    }
+    float startX = 0.0f, endX = 0.0f, startY = 0.0f, endY = 0.0f;
+    Renderer_computeTiledGrid(gridX, gridY, 0.0f, 0.0f, 1.0f, 1.0f, tileW, tileH, tileX, tileY, roomW, roomH, &startX, &startY, &endX, &endY, nullptr, nullptr);
 
     // Optimization for 2D affine projects: Clip the tiled extent to the world-space AABB of what the active projection can see.
     const Matrix4f* projection = &gl->base.gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
@@ -1317,7 +1297,8 @@ static void drawTiled(
     }
     if (startX >= endX || startY >= endY) return;
 
-    uint8_t r = (uint8_t) BGR_R(color), g = (uint8_t) BGR_G(color), b = (uint8_t) BGR_B(color);
+    uint8_t r = 0, g = 0, b = 0;
+    Renderer_splitBGRColor(color, &r, &g, &b);
 
     // Integer tile counts avoid FP-comparison drift; the inner break handles overshoot at the boundary
     int32_t tilesX = (int32_t) ((endX - startX) / tileW) + 1;
@@ -1327,13 +1308,11 @@ static void drawTiled(
     repeat(tilesY, iy) {
         float dy = startY + (float) iy * tileH;
         if (dy >= endY) break;
-        float vy0 = dy + quadOffsetY0;
-        float vy1 = vy0 + quadH;
         repeat(tilesX, ix) {
+            float vx0 = 0.0f, vy0 = 0.0f, vx1 = 0.0f, vy1 = 0.0f;
             float dx = startX + (float) ix * tileW;
             if (dx >= endX) break;
-            float vx0 = dx + quadOffsetX0;
-            float vx1 = vx0 + quadW;
+            Renderer_computeTiledCellQuad(startX, startY, tileW, tileH, quadOffsetX0, quadOffsetY0, quadW, quadH, ix, iy, &vx0, &vy0, &vx1, &vy1);
             emitTexturedQuad(gl, texId, vx0, vy0, vx1, vy0, vx1, vy1, vx0, vy1, u0, v0, u1, v1, r, g, b, r, g, b, r, g, b, r, g, b, alpha);
         }
     }
@@ -1351,20 +1330,13 @@ static void glDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float origi
     float tileW = (float) tpag->boundingWidth * axScale;
     float tileH = (float) tpag->boundingHeight * ayScale;
 
-    float u0 = (float) tpag->sourceX / (float) texW;
-    float v0 = (float) tpag->sourceY / (float) texH;
-    float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
-    float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpriteUVs(tpag, texW, texH, &u0, &v0, &u1, &v1);
 
     // Use targetWidth/Height (draw size in bounding rect), not sourceWidth/Height (texture sample size).
     // They differ when the texture was auto-downscaled by GMS to fit a texture page.
-    float localX0 = (float) tpag->targetX - originX;
-    float localY0 = (float) tpag->targetY - originY;
-    // Per-tile quad origin = grid cell (dx) + originX*axScale (cancels the grid anchor) + xscale*localX0
-    float quadOffX0 = originX * axScale + xscale * localX0;
-    float quadOffY0 = originY * ayScale + yscale * localY0;
-    float quadW = xscale * (float) tpag->targetWidth;
-    float quadH = yscale * (float) tpag->targetHeight;
+    float quadOffX0 = 0.0f, quadOffY0 = 0.0f, quadW = 0.0f, quadH = 0.0f;
+    Renderer_computeTiledQuadOffsets(tpag, originX, originY, xscale, yscale, &quadOffX0, &quadOffY0, &quadW, &quadH);
 
     drawTiled(
         gl,
@@ -1405,11 +1377,9 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     int32_t texW = gl->textureWidths[pageId];
     int32_t texH = gl->textureHeights[pageId];
 
-    // Compute UVs for the sub-region within the atlas
-    float u0 = (float) (tpag->sourceX + srcOffX) / (float) texW;
-    float v0 = (float) (tpag->sourceY + srcOffY) / (float) texH;
-    float u1 = (float) (tpag->sourceX + srcOffX + srcW) / (float) texW;
-    float v1 = (float) (tpag->sourceY + srcOffY + srcH) / (float) texH;
+    // Compute UVs for the sub-region within the atlas using the shared helper logic.
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpritePartUVs(tpag, srcOffX, srcOffY, srcW, srcH, texW, texH, &u0, &v0, &u1, &v1);
 
     // Convert BGR colors to RGB bytes
     uint8_t r1 = (uint8_t) BGR_R(color1), g1 = (uint8_t) BGR_G(color1), b1 = (uint8_t) BGR_B(color1);
@@ -1418,26 +1388,8 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     uint8_t r4 = (uint8_t) BGR_R(color4), g4 = (uint8_t) BGR_G(color4), b4 = (uint8_t) BGR_B(color4);
 
     // Quad corners (no origin offset - draw_sprite_part ignores sprite origin)
-    float cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3;
-    if (angleDeg == 0.0f) {
-        cx0 = x;                         cy0 = y;
-        cx1 = x + (float) srcW * xscale; cy1 = y;
-        cx2 = x + (float) srcW * xscale; cy2 = y + (float) srcH * yscale;
-        cx3 = x;                         cy3 = y + (float) srcH * yscale;
-    } else {
-        float angleRad = -angleDeg * ((float) M_PI / 180.0f);
-        float cosA = cosf(angleRad);
-        float sinA = sinf(angleRad);
-        float qx0 = x,                         qy0 = y;
-        float qx1 = x + (float) srcW * xscale, qy1 = y;
-        float qx2 = x + (float) srcW * xscale, qy2 = y + (float) srcH * yscale;
-        float qx3 = x,                         qy3 = y + (float) srcH * yscale;
-        float dx, dy;
-        dx = qx0 - pivotX; dy = qy0 - pivotY; cx0 = cosA * dx - sinA * dy + pivotX; cy0 = sinA * dx + cosA * dy + pivotY;
-        dx = qx1 - pivotX; dy = qy1 - pivotY; cx1 = cosA * dx - sinA * dy + pivotX; cy1 = sinA * dx + cosA * dy + pivotY;
-        dx = qx2 - pivotX; dy = qy2 - pivotY; cx2 = cosA * dx - sinA * dy + pivotX; cy2 = sinA * dx + cosA * dy + pivotY;
-        dx = qx3 - pivotX; dy = qy3 - pivotY; cx3 = cosA * dx - sinA * dy + pivotX; cy3 = sinA * dx + cosA * dy + pivotY;
-    }
+    float cx0 = 0.0f, cy0 = 0.0f, cx1 = 0.0f, cy1 = 0.0f, cx2 = 0.0f, cy2 = 0.0f, cx3 = 0.0f, cy3 = 0.0f;
+    Renderer_computeSpritePartQuad(srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, &cx0, &cy0, &cx1, &cy1, &cx2, &cy2, &cx3, &cy3);
 
     emitTexturedQuad(gl, texId, cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3, u0, v0, u1, v1, r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4, alpha);
 }
@@ -1453,10 +1405,8 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     int32_t texW, texH;
     if (!resolveSpriteTexture(gl, tpagIndex, &tpag, &texId, &texW, &texH)) return;
 
-    float u0 = (float) tpag->sourceX / (float) texW;
-    float v0 = (float) tpag->sourceY / (float) texH;
-    float u1 = (float) (tpag->sourceX + tpag->sourceWidth) / (float) texW;
-    float v1 = (float) (tpag->sourceY + tpag->sourceHeight) / (float) texH;
+    float u0 = 0.0f, v0 = 0.0f, u1 = 0.0f, v1 = 0.0f;
+    Renderer_computeSpriteUVs(tpag, texW, texH, &u0, &v0, &u1, &v1);
 
     emitTexturedQuad(gl, texId, x1, y1, x2, y2, x3, y3, x4, y4, u0, v0, u1, v1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, alpha);
 }

@@ -165,6 +165,13 @@ HEADERS += $(wildcard src/gl/*.h)
 endif
 endif
 
+ifndef DISABLE_SDL_RENDERER
+DEFINES += $(DEFINE)ENABLE_SDL_RENDERER
+SRCS += $(wildcard src/sdl/*.c)
+INCLUDES += $(INC)src/sdl
+HEADERS += $(wildcard src/sdl/*.h)
+endif
+
 ifeq ($(BACKEND),noop)
 ifndef DISABLE_NOOP_RENDERER
 DEFINES += $(DEFINE)ENABLE_NOOP_RENDERER

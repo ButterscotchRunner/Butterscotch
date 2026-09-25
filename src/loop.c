@@ -49,6 +49,9 @@
 #ifdef ENABLE_SW_RENDERER
 #include "sw_renderer.h"
 #endif
+#ifdef ENABLE_SDL_RENDERER
+#include "sdl_renderer.h"
+#endif
 #ifdef ENABLE_NOOP_RENDERER
 #include "noop_renderer.h"
 #endif
@@ -830,7 +833,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             return 0;
         }
 #endif
-#ifndef ENABLE_SW_RENDERER
+#if !defined(ENABLE_SW_RENDERER) && !defined(ENABLE_SDL_RENDERER)
         if (gfx == SOFTWARE) {
             logError("The software renderer is not available in this build!\n");
             return 0;
@@ -897,6 +900,12 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_SW_RENDERER
         if (gfx == SOFTWARE)
             renderer = SWRenderer_create();
+#endif
+#ifdef ENABLE_SDL_RENDERER
+        if (gfx == SDL_SOFTWARE)
+            renderer = SDLRenderer_createSoftware();
+        else if (gfx == SDL_HARDWARE)
+            renderer = SDLRenderer_createHardware();
 #endif
 #ifdef ENABLE_NOOP_RENDERER
         if (gfx == NOOP) {
