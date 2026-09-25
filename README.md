@@ -23,7 +23,7 @@ And that's where Butterscotch comes in! Butterscotch is an open source re-implem
 
 ## Game Compatibility
 
-Butterscotch's goal is to be able to have all bytecode compiled games playable. The majority of GameMaker: Studio games already get in game and some are even playable from start to finish! For a more complete list of working games, check the [compatability list.](https://github.com/ButterscotchRunner/CompatibilityList)
+Butterscotch's goal is to be able to have all bytecode compiled games playable. The majority of GameMaker: Studio games already get in game and some are even playable from start to finish! For a more complete list of working games, check the [Compatibility List.](https://github.com/ButterscotchRunner/CompatibilityList)
 
 Butterscotch supports the following WAD versions:
 
