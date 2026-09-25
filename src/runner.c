@@ -687,7 +687,10 @@ static int compareDrawKeys(const DrawKey* a, const DrawKey* b) {
     if (a->type == DRAWABLE_TILE)
         return (a->order > b->order) - (a->order < b->order); // tiles: higher index later
 
-    return (a->order < b->order) - (a->order > b->order); // instance/layer: higher first
+    if (a->type == DRAWABLE_INSTANCE)
+        return (a->order > b->order) - (a->order < b->order); // instances: newer (higher id) on top
+
+    return (a->order < b->order) - (a->order > b->order); // layer/particle: higher first
 }
 
 static int compareDrawables(const void* a, const void* b) {
