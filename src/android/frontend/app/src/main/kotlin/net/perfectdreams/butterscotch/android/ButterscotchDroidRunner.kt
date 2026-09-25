@@ -38,6 +38,7 @@ class ButterscotchDroidRunner(
     val logFile: File,
     val osType: Int,
     val enablePhysicalControllers: Boolean,
+    val physicalControllerSideways: Boolean,
     val enablePhysicalKeyboard: Boolean,
     var enableWidescreenHack: Boolean,
     var postProcessing: GameEntry.PostProcessingSettings,
