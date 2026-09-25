@@ -14633,6 +14633,30 @@ static RValue builtin_layer_set_visible(VMContext* ctx, RValue* args, MAYBE_UNUS
     return RValue_makeUndefined();
 }
 
+// layer_shader
+static RValue builtin_layer_shader(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = resolveLayerIdArg(runner, args[0]);
+    int32_t shaderIndex = RValue_toInt32(args[1]);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, id);
+    if (runtimeLayer != nullptr)
+        runtimeLayer->shaderIndex = shaderIndex;
+
+    return RValue_makeUndefined();
+}
+
+// layer_get_shader
+static RValue builtin_layer_get_shader(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t id = resolveLayerIdArg(runner, args[0]);
+
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, id);
+    if (runtimeLayer == nullptr) return RValue_makeReal(-1.0);
+
+    return RValue_makeReal((GMLReal) runtimeLayer->shaderIndex);
+}
+
 static RValue builtin_layer_get_x(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = resolveLayerIdArg(runner, args[0]);
@@ -14733,6 +14757,7 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
     runtimeLayer.dynamicName = name, // ownership transferred
     runtimeLayer.beginScript = -1;
     runtimeLayer.endScript = -1;
+    runtimeLayer.shaderIndex = -1;
     arrput(runner->runtimeLayers, runtimeLayer);
     runner->drawableListStructureDirty = true;
     return RValue_makeReal((GMLReal) id);
@@ -22246,6 +22271,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_depth", builtin_layer_depth);
     VM_registerBuiltin(ctx, "layer_get_visible", builtin_layer_get_visible);
     VM_registerBuiltin(ctx, "layer_set_visible", builtin_layer_set_visible);
+    VM_registerBuiltin(ctx, "layer_shader", builtin_layer_shader);
+    VM_registerBuiltin(ctx, "layer_get_shader", builtin_layer_get_shader);
     VM_registerBuiltin(ctx, "layer_get_x", builtin_layer_get_x);
     VM_registerBuiltin(ctx, "layer_x", builtin_layer_x);
     VM_registerBuiltin(ctx, "layer_get_y", builtin_layer_get_y);

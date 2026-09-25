@@ -259,6 +259,7 @@ typedef struct {
     char* dynamicName; // owned
     int32_t beginScript;
     int32_t endScript;
+    int32_t shaderIndex;
     RuntimeLayerElement* elements; // stb_ds array
 } RuntimeLayer;
 

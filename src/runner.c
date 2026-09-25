@@ -699,6 +699,29 @@ static int compareDrawables(const void* a, const void* b) {
     return compareDrawKeys(&drawKeyA, &drawKeyB);
 }
 
+static int32_t Runner_pushLayerShader(Runner* runner, int32_t layerId) {
+    Renderer* renderer = runner->renderer;
+    if (renderer == nullptr) return -1;
+    RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, layerId);
+    if (runtimeLayer == nullptr || runtimeLayer->shaderIndex == -1) return -1;
+
+    int32_t previousShader = renderer->currentShader;
+    if (previousShader != runtimeLayer->shaderIndex)
+        renderer->vtable->gpuSetShader(renderer, runtimeLayer->shaderIndex);
+    return previousShader;
+}
+
+static void Runner_popLayerShader(Runner* runner, int32_t previousShader) {
+    Renderer* renderer = runner->renderer;
+    if (renderer == nullptr || previousShader == -1) return;
+    if (renderer->currentShader == previousShader) return;
+
+    if (previousShader == -1)
+        renderer->vtable->gpuResetShader(renderer);
+    else
+        renderer->vtable->gpuSetShader(renderer, previousShader);
+}
+
 static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawableCount, int32_t subtype) {
     int32_t slot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_DRAW, subtype);
     if (slot == -1) return;
@@ -715,7 +738,9 @@ static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawabl
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
+        int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
         Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, subtype, codeId, ownerObjectIndex);
+        Runner_popLayerShader(runner, previousShader);
     }
 }
 
@@ -992,6 +1017,7 @@ void Runner_draw(Runner* runner) {
             // Filter inactive/invisible instances at draw time so the cache doesn't need invalidation when those flags toggle.
             if (!inst->active || !inst->visible) continue;
 
+            int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
             int32_t ownerObjectIndex = -1;
             int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
             if (codeId >= 0) {
@@ -999,6 +1025,7 @@ void Runner_draw(Runner* runner) {
             } else if (runner->renderer != nullptr) {
                 Renderer_drawSelf(runner->renderer, inst);
             }
+            Runner_popLayerShader(runner, previousShader);
         } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
             // Filtered at draw time, like instance visibility: part_system_automatic_draw can be
             // toggled from a Draw event that already ran this frame.
@@ -1009,6 +1036,7 @@ void Runner_draw(Runner* runner) {
             // Re-resolve every iteration: a previous instance's Draw event may have called layer_create/layer_destroy and reallocated runner->runtimeLayers.
             RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
+            int32_t previousShader = Runner_pushLayerShader(runner, (int32_t) runtimeLayer->id);
             VMContext* ctx = runner->vmContext;
             Instance* savedInstance = ctx->currentInstance;
             int32_t savedEventType = ctx->currentEventType;
@@ -1047,7 +1075,10 @@ void Runner_draw(Runner* runner) {
 
             // Everything after this point is static/parsed layers from the Room itself
             RoomLayer* parsedLayer = Runner_findRoomLayerById(runner->currentRoom, (int32_t) runtimeLayer->id);
-            if (parsedLayer == nullptr) continue;
+            if (parsedLayer == nullptr) {
+                Runner_popLayerShader(runner, previousShader);
+                continue;
+            }
             if (parsedLayer->type == RoomLayerType_Assets) {
                 RoomLayerAssetsData* data = parsedLayer->assetsData;
                 size_t tileElementCount = arrlenu(runtimeLayer->elements);
@@ -1143,6 +1174,7 @@ void Runner_draw(Runner* runner) {
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
+            Runner_popLayerShader(runner, previousShader);
         }
     }
 
@@ -1632,6 +1664,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         runtimeLayer.dynamic = false;
         runtimeLayer.beginScript = -1;
         runtimeLayer.endScript = -1;
+        runtimeLayer.shaderIndex = -1;
         arrput(runner->runtimeLayers, runtimeLayer);
         if (layerSource->id > maxLayerId) maxLayerId = layerSource->id;
     }
@@ -1787,6 +1820,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 runtimeLayer.dynamicName = safeStrdup(oldLayerName);
                 runtimeLayer.beginScript = -1;
                 runtimeLayer.endScript = -1;
+                runtimeLayer.shaderIndex = -1;
                 arrput(runner->runtimeLayers, runtimeLayer);
                 newLayerId = (int32_t) runtimeLayer.id;
                 newLayerDepth = runtimeLayer.depth;
