@@ -169,6 +169,35 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
+#if !defined(PLATFORM_SWITCH) && !defined(PLATFORM_VITA)
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!window || !outX || !outY) return false;
+    SDL_GetWindowPosition(window, outX, outY);
+    return true;
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (window) SDL_SetWindowPosition(window, x, y);
+}
+
+static void platformCenterWindow(void) {
+    if (!window || (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN)) return;
+    int display = SDL_GetWindowDisplayIndex(window);
+    if (display < 0) return;
+    int position = SDL_WINDOWPOS_CENTERED_DISPLAY(display);
+    SDL_SetWindowPosition(window, position, position);
+}
+
+static bool platformGetWindowFullscreen(void) {
+    return window && (SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    if (window) SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+    if (window && gfx == SOFTWARE) scr = SDL_GetWindowSurface(window);
+}
+#endif
+
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
@@ -282,6 +311,13 @@ static void platformSetCursor(int32_t cursorType) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
+#if !defined(PLATFORM_SWITCH) && !defined(PLATFORM_VITA)
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
+    runner->centerWindow = platformCenterWindow;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
+#endif
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_DEFAULT;

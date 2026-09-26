@@ -333,6 +333,35 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     [window setFrame:newFrame display:YES animate:NO];
 }
 
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!window || !outX || !outY) return false;
+    NSRect frame = [window frame];
+    NSScreen* primary = [[NSScreen screens] firstObject];
+    if (!primary) return false;
+    *outX = (int32_t)frame.origin.x;
+    *outY = (int32_t)(NSMaxY([primary frame]) - NSMaxY(frame));
+    return true;
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    NSScreen* primary = [[NSScreen screens] firstObject];
+    if (!primary) return;
+    [window setFrameTopLeftPoint:NSMakePoint(x, NSMaxY([primary frame]) - y)];
+}
+
+static void platformCenterWindow(void) {
+    if (window && !([window styleMask] & NSWindowStyleMaskFullScreen)) [window center];
+}
+
+static bool platformGetWindowFullscreen(void) {
+    return window && ([window styleMask] & NSWindowStyleMaskFullScreen) != 0;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    if (window && fullscreen != platformGetWindowFullscreen()) [window toggleFullScreen:nil];
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     NSPoint mouseLocation = [window mouseLocationOutsideOfEventStream];
     *xPos = mouseLocation.x;
@@ -639,6 +668,11 @@ static bool windowIsFocused(void) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
+    runner->centerWindow = platformCenterWindow;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->windowHasFocus = windowIsFocused;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_ARROW;

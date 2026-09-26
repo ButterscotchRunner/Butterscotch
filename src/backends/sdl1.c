@@ -222,7 +222,18 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
     fbWidth = width;
     fbHeight = height;
-    scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
+    scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE | (scr && (scr->flags & SDL_FULLSCREEN) ? SDL_FULLSCREEN : 0));
+}
+
+static bool platformGetWindowFullscreen(void) {
+    return scr && (scr->flags & SDL_FULLSCREEN) != 0;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    if (!scr || fullscreen == platformGetWindowFullscreen()) return;
+    Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE | (fullscreen ? SDL_FULLSCREEN : 0);
+    SDL_Surface* newSurface = SDL_SetVideoMode(fbWidth, fbHeight, 0, flags);
+    if (newSurface) scr = newSurface;
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -308,6 +319,8 @@ static void platformSetCursor(int32_t cursorType) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_DEFAULT;

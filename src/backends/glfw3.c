@@ -20,6 +20,7 @@
 
 static GLFWwindow *window;
 static Runner *g_runner;
+static int windowedX, windowedY, windowedW, windowedH;
 
 // Butterscotch expects framebuffer pixels, but GLFW3 expects logical pixels.
 // We round the logical size UP (ceil) so the resulting framebuffer is never SMALLER than requested.
@@ -124,6 +125,87 @@ void platformGetMousePos(double *xPos, double *yPos) {
 
 static bool platformGetWindowFocus(void) {
     return glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
+}
+
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!window || !outX || !outY) return false;
+    glfwGetWindowPos(window, outX, outY);
+    return true;
+}
+
+static bool platformIsWayland(void) {
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    return glfwGetPlatform() == GLFW_PLATFORM_WAYLAND;
+#else
+    return getenv("WAYLAND_DISPLAY") != NULL;
+#endif
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (window && !platformIsWayland()) glfwSetWindowPos(window, x, y);
+}
+
+static void platformCenterWindow(void) {
+    if (!window || platformIsWayland() || glfwGetWindowMonitor(window)) return;
+
+    int wx, wy, width, height;
+    glfwGetWindowPos(window, &wx, &wy);
+    glfwGetWindowSize(window, &width, &height);
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    int count = 0;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    for (int i = 0; i < count; i++) {
+        int mx, my;
+        glfwGetMonitorPos(monitors[i], &mx, &my);
+        const GLFWvidmode* mode = glfwGetVideoMode(monitors[i]);
+        if (mode && wx + width / 2 >= mx && wx + width / 2 < mx + mode->width &&
+            wy + height / 2 >= my && wy + height / 2 < my + mode->height) {
+            monitor = monitors[i];
+            break;
+        }
+    }
+    if (!monitor) return;
+
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    if (!mode) return;
+    int mx, my;
+    glfwGetMonitorPos(monitor, &mx, &my);
+    int left, top, right, bottom;
+    glfwGetWindowFrameSize(window, &left, &top, &right, &bottom);
+    platformSetWindowPosition(mx + (mode->width - width - left - right) / 2 + left,
+                              my + (mode->height - height - top - bottom) / 2 + top);
+}
+
+static bool platformGetWindowFullscreen(void) {
+    return window && glfwGetWindowMonitor(window) != NULL;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    if (!window || fullscreen == platformGetWindowFullscreen()) return;
+    if (fullscreen) {
+        glfwGetWindowPos(window, &windowedX, &windowedY);
+        glfwGetWindowSize(window, &windowedW, &windowedH);
+        GLFWmonitor* monitor = glfwGetWindowMonitor(window);
+        if (!monitor) monitor = glfwGetPrimaryMonitor();
+        int count = 0;
+        GLFWmonitor** monitors = glfwGetMonitors(&count);
+        int wx = windowedX + windowedW / 2;
+        int wy = windowedY + windowedH / 2;
+        for (int i = 0; i < count; i++) {
+            int mx, my;
+            glfwGetMonitorPos(monitors[i], &mx, &my);
+            const GLFWvidmode* mode = glfwGetVideoMode(monitors[i]);
+            if (mode && wx >= mx && wx < mx + mode->width && wy >= my && wy < my + mode->height) {
+                monitor = monitors[i];
+                break;
+            }
+        }
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (mode) glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    } else {
+        glfwSetWindowMonitor(window, NULL, windowedX, windowedY, windowedW, windowedH, GLFW_DONT_CARE);
+    }
 }
 
 static void glfwErrorCallback(int code, const char* description) {
@@ -315,6 +397,11 @@ static void platformSetCursor(int32_t cursorType) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
+    runner->centerWindow = platformCenterWindow;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_DEFAULT;
