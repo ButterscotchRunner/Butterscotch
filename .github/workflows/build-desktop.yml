@@ -119,14 +119,14 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vendor/ffmpeg/install
-          key: ffmpeg-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-n7.1-aac-h264-rev1
+          key: ffmpeg-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-n9.0.2-aac-h264-rev1
 
       - name: Checkout FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
-          ref: n7.1
+          ref: n9.0.2
           path: vendor/ffmpeg
 
       - name: Build FFmpeg from source
