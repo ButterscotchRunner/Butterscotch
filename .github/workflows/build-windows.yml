@@ -198,7 +198,10 @@ jobs:
 
       - name: Build
         run: |
-          PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH" make \
+          export PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          export PKG_CONFIG_PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.arch }}-w64-mingw32/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.arch }}-w64-mingw32/lib/pkgconfig"
+          make \
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \
