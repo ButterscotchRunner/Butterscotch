@@ -241,7 +241,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     if (isStream) {
         // Stream audio: load from file path stored in stream entry
-        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
+        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_STREAM, &ma->listenerGroups[0], nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
             logWarn("Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
@@ -328,7 +328,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         // Stop specific instance
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
@@ -374,7 +374,7 @@ static void maStopAll(AudioSystem* audio) {
 static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         return inst != nullptr && ma_sound_is_playing(&inst->maSound);
     } else {
@@ -392,7 +392,7 @@ static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
 static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_stop(&inst->maSound);
@@ -410,7 +410,7 @@ static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
 static void maResumeSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_start(&inst->maSound);
@@ -606,7 +606,7 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
 static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             float cursor;
@@ -629,7 +629,7 @@ static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
 static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, float positionSeconds) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_seek_to_pcm_frame(&inst->maSound, (ma_uint64) (positionSeconds * 44100.0f));
@@ -644,13 +644,34 @@ static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, floa
     }
 }
 
-// Total length of a loaded sound. Works on both SOND index and active instance ids.
-// Uses miniaudio's ma_sound_get_length_in_seconds, which reads the decoded duration from the underlying data source (works for fully-decoded sounds AND streaming sounds).
+static float maGetStreamLength(MaAudioSystem* ma, int32_t streamIndex) {
+    int32_t slotIndex = streamIndex - AUDIO_STREAM_INDEX_BASE;
+    if (slotIndex < 0 || slotIndex >= MAX_AUDIO_STREAMS || !ma->streams[slotIndex].active)
+        return 0.0f;
+
+    AudioStreamEntry* stream = &ma->streams[slotIndex];
+    if (stream->lengthSeconds >= 0.0f) return stream->lengthSeconds;
+
+    stream->lengthSeconds = 0.0f;
+    ma_decoder decoder;
+    ma_decoder_config config = ma_decoder_config_init_default();
+    if (ma_decoder_init_file(stream->filePath, &config, &decoder) == MA_SUCCESS) {
+        ma_uint64 frames = 0;
+        if (ma_decoder_get_length_in_pcm_frames(&decoder, &frames) == MA_SUCCESS && decoder.outputSampleRate > 0)
+            stream->lengthSeconds = (float) frames / (float) decoder.outputSampleRate;
+        ma_decoder_uninit(&decoder);
+    }
+    return stream->lengthSeconds;
+}
+
 static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
+    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+        return maGetStreamLength(ma, soundOrInstance);
+
     SoundInstance* match = nullptr;
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         match = findInstanceById(ma, soundOrInstance);
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
@@ -662,13 +683,15 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
         }
     }
     if (match != nullptr) {
+        if (match->soundIndex >= AUDIO_STREAM_INDEX_BASE)
+            return maGetStreamLength(ma, match->soundIndex);
         float seconds = 0.0f;
         if (ma_sound_get_length_in_seconds(&match->maSound, &seconds) != MA_SUCCESS) return 0.0f;
         return seconds;
     }
 
     // No active instance: GMS audio_sound_length(soundIndex) must still return the asset's duration.
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE || soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE)
         return 0.0f;
 
     DataWin* dw = ma->base.audioGroups[0];
@@ -797,6 +820,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
     ma->streams[freeSlot].initialGain = 1.0f;
     ma->streams[freeSlot].initialPitch = 1.0f;
+    ma->streams[freeSlot].lengthSeconds = -1.0f;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
     logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);

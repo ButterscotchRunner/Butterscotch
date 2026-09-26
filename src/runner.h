@@ -809,6 +809,7 @@ struct Runner {
     GMLReal mpPotStep;
     GMLReal mpPotAhead;
     bool mpPotOnSpot;
+    bool dateTimeLocal;
 
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;
