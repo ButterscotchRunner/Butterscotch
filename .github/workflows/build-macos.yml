@@ -191,8 +191,6 @@ jobs:
             --target-os=darwin \
             --arch=$ffmpeg_arch \
             --cc="ccache clang" \
-            --ar="llvm-ar" \
-            --ranlib="llvm-ranlib" \
             --extra-cflags="-flto" \
             --extra-ldflags="-flto" \
             --enable-static \
