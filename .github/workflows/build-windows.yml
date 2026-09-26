@@ -106,7 +106,8 @@ jobs:
             --disable-iconv \
             --disable-asm
 
-          sudo make install -j$(nproc)
+          make -j$(nproc)
+          sudo make install
 
       - name: Cache SDL2
         id: cache-sdl2
