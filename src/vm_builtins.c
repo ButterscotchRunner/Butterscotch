@@ -2519,10 +2519,11 @@ static RValue builtin_string_char_at(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     char* str = RValue_toString(args[0], ctx->runner->dataWin);
     int32_t pos = RValue_toInt32(args[1]) - 1; // 1-based
     int32_t strLen = (int32_t) strlen(str);
-    if (0 > pos || pos >= strLen) {
+    if (pos >= strLen) {
         free(str);
         return RValue_makeOwnedString(safeStrdup(""));
     }
+    if (pos < 0) pos = 0;
     int32_t byteStart = TextUtils_utf8AdvanceCodepoints(str, strLen, pos);
     if (byteStart >= strLen) {
         free(str);
