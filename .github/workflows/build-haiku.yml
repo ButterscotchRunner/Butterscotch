@@ -57,7 +57,7 @@ jobs:
 
       - name: Checkout and build ffmpeg
         run: |
-          git clone --depth 1 -b n7.1 https://github.com/FFmpeg/FFmpeg.git ${{ github.workspace }}/vendor/ffmpeg
+          git clone --no-template --depth 1 -b n7.1 https://github.com/FFmpeg/FFmpeg.git ${{ github.workspace }}/vendor/ffmpeg
           cd ${{ github.workspace }}/vendor/ffmpeg
           ./configure \
             --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
