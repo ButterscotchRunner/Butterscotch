@@ -174,7 +174,7 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -fomit-frame-pointer" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             --enable-lto \
             --enable-static \
