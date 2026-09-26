@@ -242,7 +242,7 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
-            -DCMAKE_PREFIX_PATH="~/build-deps" \
+            -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
           cmake --build build
