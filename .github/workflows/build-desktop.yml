@@ -149,13 +149,16 @@ jobs:
             *)       target_os="unknown" ;;
           esac
 
+          lto_flag="--enable-lto"
+
           case '${{ matrix.arch }}' in
             amd64)       target_cpu="x86_64"; asmflags="--x86asmexe=nasm" ;;
             i486)        
               target_cpu="i486"
               asmflags="--x86asmexe=nasm"
               if [ ${{ matrix.os_config.name }} = "OpenBSD" ]; then
-                sed -i 's/#define HAVE_6REGS (ARCH_X86_64 || (HAVE_EBX_AVAILABLE || HAVE_EBP_AVAILABLE))/#define HAVE_6REGS 0/' libavutil/x86/asm.h
+                echo "Disabling LTO on OpenBSD"
+                lto_flag=""
               fi
               ;;
             aarch64)     target_cpu="aarch64" ;;
@@ -176,7 +179,7 @@ jobs:
             --ranlib="${{ env.RANLIB }}" \
             --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
-            --enable-lto \
+            $lto_flag \
             --enable-static \
             --disable-shared \
             --disable-programs \
