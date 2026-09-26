@@ -45,7 +45,7 @@ jobs:
           
           ls /boot/system/packages/ > baseline_packages.txt
           
-          pkgman install -y cmake make ccache gcc libsdl2_devel openal_devel gcc_syslibs_devel
+          pkgman install -y git cmake make ccache gcc libsdl2_devel openal_devel gcc_syslibs_devel
           ls /boot/system/packages/ > current_packages.txt
           
           comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
@@ -55,6 +55,34 @@ jobs:
             fi
           done
 
+      - name: Checkout and build ffmpeg
+        run: |
+          git clone --depth 1 -b n7.1 https://github.com/FFmpeg/FFmpeg.git ${{ github.workspace }}/vendor/ffmpeg
+          cd ${{ github.workspace }}/vendor/ffmpeg
+          ./configure \
+            --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
+            --enable-cross-compile \
+            --target-os="x86_64" \
+            --extra-cflags="-flto" \
+            --extra-ldflags="-flto" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            --disable-asm
+
       - name: Configure and build Butterscotch
         run: |
           mkdir -p "$PWD/${{ env.CCACHE_DIR }}"
@@ -63,6 +91,8 @@ jobs:
           export CCACHE_BASEDIR="$PWD"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
+          export PKG_CONFIG_PATH="${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="${{ github.workspace }}/vendor/ffmpeg/install/lib"
 
           cmake -B build \
             -DBACKEND=sdl2 \
