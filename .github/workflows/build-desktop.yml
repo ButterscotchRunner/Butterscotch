@@ -160,8 +160,8 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto $libavcodec_extra_cflags" \
-            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto $libavcodec_extra_cflags" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
             --enable-static \
             --disable-shared \
             --disable-programs \
