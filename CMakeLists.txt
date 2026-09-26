@@ -193,20 +193,10 @@ endif()
 
 if(VIDEO_BACKEND STREQUAL "ffmpeg")
     if(ANDROID)
-        find_package(libavformat REQUIRED CONFIG)
-        find_package(libavcodec REQUIRED CONFIG)
-        find_package(libswscale REQUIRED CONFIG)
-        find_package(libswresample REQUIRED CONFIG)
-        find_package(libavutil REQUIRED CONFIG)
+        find_package(ffmpeg REQUIRED CONFIG)
         add_compile_definitions(BUTTERSCOTCH_FFMPEG)
         set(BUTTERSCOTCH_FFMPEG 1)
-        target_link_libraries(butterscotch PRIVATE
-            libavformat::libavformat
-            libavcodec::libavcodec
-            libswscale::libswscale
-            libswresample::libswresample
-            libavutil::libavutil
-        )
+        target_link_libraries(butterscotch PRIVATE ffmpeg::ffmpeg)
     else()
         find_package(PkgConfig)
         if(PKG_CONFIG_FOUND)
