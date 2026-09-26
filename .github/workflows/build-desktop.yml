@@ -177,10 +177,9 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
-            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -fPIC" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -fPIC" \
             $lto_flag \
-            --enable-pic \
             --enable-static \
             --disable-shared \
             --disable-programs \
@@ -241,11 +240,6 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
-          
-          if [ "${{ matrix.arch }}" = "i486" ] && [ "${{ matrix.os_config.name }}" = "OpenBSD" ]; then
-            export CFLAGS="-fPIC"
-          fi
-          
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
