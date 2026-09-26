@@ -208,9 +208,8 @@ jobs:
             --enable-muxer=mp4,aac,m4v \
             --enable-protocol=file \
             --disable-autodetect \
-            --disable-iconv \
-            --disable-asm
-
+            --disable-iconv
+            
           make -j$(nproc)
           sudo make install
 
