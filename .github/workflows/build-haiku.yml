@@ -65,7 +65,8 @@ jobs:
           cd /tmp/ffmpeg_source
           ./configure \
             --prefix="/tmp/ffmpeg_build" \
-            --extra-cflags="-O3" \
+            --extra-cflags="-flto -fPIC" \
+            --extra-ldflags="-flto -fPIC" \
             --enable-static \
             --disable-shared \
             --disable-programs \
@@ -80,6 +81,7 @@ jobs:
             --enable-demuxer=mov,aac,h264 \
             --enable-muxer=mp4,aac,m4v \
             --enable-protocol=file \
+            --enable-pic \
             --disable-autodetect \
             --disable-iconv
             
