@@ -287,9 +287,10 @@ jobs:
           restore-keys: |
             switch-ccache-
 
-      - name: Install ccache
+      - name: Install dependencies
         run: |
           apt-get update && apt-get install -y --no-install-recommends ccache
+          dkp-pacman -Sy switch-ffmpeg --noconfirm
 
       - name: Configure and build
         run: |
