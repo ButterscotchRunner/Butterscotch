@@ -192,62 +192,69 @@ if(NOT VIDEO_BACKEND STREQUAL "ffmpeg" AND NOT VIDEO_BACKEND STREQUAL "none")
 endif()
 
 if(VIDEO_BACKEND STREQUAL "ffmpeg")
-    find_package(PkgConfig)
-    if(PKG_CONFIG_FOUND)
-        if(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
-            # Console SDKs only ship static FFmpeg archives, and the private
-            # dependency closure (mpg123, lame, zlib, ...) is not exposed by a
-            # plain --libs query. Ask for the static closure and link it as a
-            # single, normalised list so each archive is passed exactly once.
-            execute_process(
-                COMMAND ${PKG_CONFIG_EXECUTABLE} --static --libs libavformat libavcodec libavutil libswscale libswresample
-                OUTPUT_VARIABLE _ffmpeg_static_libs
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                RESULT_VARIABLE _ffmpeg_static_rc)
-            execute_process(
-                COMMAND ${PKG_CONFIG_EXECUTABLE} --static --cflags libavformat libavcodec libavutil libswscale libswresample
-                OUTPUT_VARIABLE _ffmpeg_static_cflags
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                RESULT_VARIABLE _ffmpeg_static_cflags_rc)
-            if(_ffmpeg_static_rc EQUAL 0 AND NOT _ffmpeg_static_libs STREQUAL "")
-                add_compile_definitions(BUTTERSCOTCH_FFMPEG)
-                set(BUTTERSCOTCH_FFMPEG 1)
-                separate_arguments(_ffmpeg_static_libs UNIX_COMMAND "${_ffmpeg_static_libs}")
-                foreach(_lib IN LISTS _ffmpeg_static_libs)
-                    if(_lib MATCHES "^-l(.+)$")
-                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${CMAKE_MATCH_1}")
-                    elseif(_lib STREQUAL "-pthread")
-                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS pthread)
-                    else()
-                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${_lib}")
+    if(ANDROID)
+        find_package(ffmpeg REQUIRED CONFIG)
+        add_compile_definitions(BUTTERSCOTCH_FFMPEG)
+        set(BUTTERSCOTCH_FFMPEG 1)
+        target_link_libraries(butterscotch PRIVATE ffmpeg::ffmpeg)
+    else()
+        find_package(PkgConfig)
+        if(PKG_CONFIG_FOUND)
+            if(PLATFORM STREQUAL "vita")
+                # Console SDKs only ship static FFmpeg archives, and the private
+                # dependency closure (mpg123, lame, zlib, ...) is not exposed by a
+                # plain --libs query. Ask for the static closure and link it as a
+                # single, normalised list so each archive is passed exactly once.
+                execute_process(
+                    COMMAND ${PKG_CONFIG_EXECUTABLE} --static --libs libavformat libavcodec libavutil libswscale libswresample
+                    OUTPUT_VARIABLE _ffmpeg_static_libs
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    RESULT_VARIABLE _ffmpeg_static_rc)
+                execute_process(
+                    COMMAND ${PKG_CONFIG_EXECUTABLE} --static --cflags libavformat libavcodec libavutil libswscale libswresample
+                    OUTPUT_VARIABLE _ffmpeg_static_cflags
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    RESULT_VARIABLE _ffmpeg_static_cflags_rc)
+                if(_ffmpeg_static_rc EQUAL 0 AND NOT _ffmpeg_static_libs STREQUAL "")
+                    add_compile_definitions(BUTTERSCOTCH_FFMPEG)
+                    set(BUTTERSCOTCH_FFMPEG 1)
+                    separate_arguments(_ffmpeg_static_libs UNIX_COMMAND "${_ffmpeg_static_libs}")
+                    foreach(_lib IN LISTS _ffmpeg_static_libs)
+                        if(_lib MATCHES "^-l(.+)$")
+                            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${CMAKE_MATCH_1}")
+                        elseif(_lib STREQUAL "-pthread")
+                            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS pthread)
+                        else()
+                            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${_lib}")
+                        endif()
+                    endforeach()
+                    if(NOT _ffmpeg_static_cflags_rc EQUAL 0)
+                        set(_ffmpeg_static_cflags "")
                     endif()
-                endforeach()
-                if(NOT _ffmpeg_static_cflags_rc EQUAL 0)
-                    set(_ffmpeg_static_cflags "")
+                    separate_arguments(_ffmpeg_static_cflags UNIX_COMMAND "${_ffmpeg_static_cflags}")
+                    target_compile_options(butterscotch PRIVATE ${_ffmpeg_static_cflags})
+                else()
+                    message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                    add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+                    set(BUTTERSCOTCH_VIDEO_NULL 1)
                 endif()
-                separate_arguments(_ffmpeg_static_cflags UNIX_COMMAND "${_ffmpeg_static_cflags}")
-                target_compile_options(butterscotch PRIVATE ${_ffmpeg_static_cflags})
             else()
-                message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
-                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
-                set(BUTTERSCOTCH_VIDEO_NULL 1)
+                pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
+                if(FFMPEG_FOUND)
+                    add_compile_definitions(BUTTERSCOTCH_FFMPEG)
+                    set(BUTTERSCOTCH_FFMPEG 1)
+                    target_link_libraries(butterscotch PRIVATE PkgConfig::FFMPEG)
+                else()
+                    message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                    add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+                    set(BUTTERSCOTCH_VIDEO_NULL 1)
+                endif()
             endif()
         else()
-            pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
-            if(FFMPEG_FOUND)
-                add_compile_definitions(BUTTERSCOTCH_FFMPEG)
-                set(BUTTERSCOTCH_FFMPEG 1)
-                target_link_libraries(butterscotch PRIVATE PkgConfig::FFMPEG)
-            else()
-                message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
-                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
-                set(BUTTERSCOTCH_VIDEO_NULL 1)
-            endif()
+            message(WARNING "pkg-config not found - video playback will be disabled")
+            add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+            set(BUTTERSCOTCH_VIDEO_NULL 1)
         endif()
-    else()
-        message(WARNING "pkg-config not found - video playback will be disabled")
-        add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
-        set(BUTTERSCOTCH_VIDEO_NULL 1)
     endif()
 else()
     # VIDEO_BACKEND=none
