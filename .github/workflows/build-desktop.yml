@@ -167,7 +167,7 @@ jobs:
             riscv)       
               target_cpu="riscv64"
               if [ ${{ matrix.os_config.name }} = "Linux" ]; then
-                extraflags="$extraflags --disable-runtime-cpudetect"
+                sed -i 's/#define HAVE_SYS_HWPROBE_H 1/#define HAVE_SYS_HWPROBE_H 0/' config.h
               fi
             ;;
             loongarch64) target_cpu="loongarch64" ;;
