@@ -150,23 +150,29 @@ jobs:
           esac
 
           lto_flag="--enable-lto"
+          extraflags=""
 
           case '${{ matrix.arch }}' in
-            amd64)       target_cpu="x86_64"; asmflags="--x86asmexe=nasm" ;;
+            amd64)       target_cpu="x86_64"; extraflags="$extraflags --x86asmexe=nasm" ;;
             i486)        
               target_cpu="i486"
-              asmflags="--x86asmexe=nasm"
+              extraflags="$extraflags --x86asmexe=nasm"
               if [ ${{ matrix.os_config.name }} = "OpenBSD" ]; then
                 echo "Disabling asm on OpenBSD"
-                asmflags="--disable-asm"
+                extraflags="$extraflags --disable-asm"
               fi
               ;;
             aarch64)     target_cpu="aarch64" ;;
             arm)         target_cpu="arm" ;;
-            riscv)       target_cpu="riscv64" ;;
+            riscv)       
+              target_cpu="riscv64"
+              if [ ${{ matrix.os_config.name }} = "Linux" ]; then
+                extraflags="$extraflags --disable-runtime-cpudetect" 
+              fi
+            ;;
             loongarch64) target_cpu="loongarch64" ;;
             powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
-            mips*)       target_cpu="mips"; lto_flag=""; bswapdsp="--enable-bswapdsp" ;; # mips builds don't play nice with LTO
+            mips*)       target_cpu="mips"; lto_flag=""; extraflags="$extraflags --enable-bswapdsp" ;; # mips builds don't play nice with LTO
           esac
 
           ./configure \
@@ -196,8 +202,7 @@ jobs:
             --enable-protocol=file \
             --disable-autodetect \
             --disable-iconv \
-            $asmflags \
-            $bswapdsp
+            $extraflags
 
           # what's a sysctl?
           [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
