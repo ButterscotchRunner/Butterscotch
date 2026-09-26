@@ -65,6 +65,8 @@ jobs:
             arch: mips64el
     env:
       ZIG_VERSION: 0.16.0
+      SDL2_VERSION: release-2.32.10
+      FFMPEG_VERSION: n9.0.2
       CC: zig cc
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
@@ -115,28 +117,30 @@ jobs:
           cache-key: zigcc-${{ env.TARGET_TRIPLE }}
 
       - name: Install nasm
-        if: matrix.arch == 'x86_64' || matrix.arch == 'i486'
+        if: matrix.arch == 'amd64' || matrix.arch == 'i486'
         run: sudo apt-get install -y nasm
 
-      - name: Cache FFmpeg build
-        id: cache-ffmpeg
+      - name: Cache build deps
+        id: cache-build-deps
         uses: actions/cache@v6
         with:
-          path: ${{ github.workspace }}/vendor/ffmpeg/install
-          key: ffmpeg-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-n9.0.2-aac-h264-rev1
+          path: ~/build-deps
+          key: build-deps-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-sdl2-${{ env.SDL2_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}
 
       - name: Checkout FFmpeg
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
-          ref: n9.0.2
+          ref: ${{ env.FFMPEG_VERSION }}
           path: vendor/ffmpeg
 
       - name: Build FFmpeg from source
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         working-directory: vendor/ffmpeg
         run: |
+          mkdir -p ~/build-deps
+          
           case '${{ matrix.os_config.name }}' in
             Linux)   target_os="linux" ;;
             FreeBSD) target_os="freebsd" ;;
@@ -157,7 +161,7 @@ jobs:
           esac
 
           ./configure \
-            --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
+            --prefix="$HOME/build-deps" \
             --enable-cross-compile \
             --target-os="$target_os" \
             --arch="$target_cpu" \
@@ -190,15 +194,8 @@ jobs:
 
           make install -j$(nproc)
 
-      - name: Cache SDL2 build
-        id: cache-sdl2
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev14
-
       - name: Checkout SDL2
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -206,12 +203,12 @@ jobs:
           path: vendor/SDL2
 
       - name: Build SDL2 from source
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_INSTALL_PREFIX="$HOME/build-deps" \
             -DCMAKE_AR="${{ env.AR }}" \
             -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
@@ -229,8 +226,8 @@ jobs:
 
       - name: Configure and build Butterscotch
         env:
-          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig:${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
-          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig:${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
+          PKG_CONFIG_PATH: "~/build-deps/lib/pkgconfig"
+          PKG_CONFIG_LIBDIR: "~/build-deps/lib/pkgconfig"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
@@ -245,7 +242,7 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install;${{ github.workspace }}/vendor/ffmpeg/install" \
+            -DCMAKE_PREFIX_PATH="~/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
           cmake --build build
