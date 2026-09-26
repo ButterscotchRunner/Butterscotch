@@ -210,7 +210,7 @@ jobs:
           if [ "$target_os" = "linux" ]; then
             sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
             if [ "${{ matrix.arch }}" == "mips" ] || [ "${{ matrix.arch }}" == "mips64" ]; then
-              sed -i 's/#define HAVE_BSWAPDSP 0/#define HAVE_BSWAPDSP 1/' config.h
+              sed -i 's/#define CONFIG_BSWAPDSP 0/#define CONFIG_BSWAPDSP 1/' config.h
             fi
           fi
 
