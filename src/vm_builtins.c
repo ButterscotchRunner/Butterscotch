@@ -21569,9 +21569,17 @@ static void video_process(Runner* runner) {
         return;
     }
     if (videoSurfId != 0) {
+        if (videoDecoder->vtable->setMasterClock != nullptr) {
+            double audioPosition = -1;
+            if (videoAudioInstanceId >= SOUND_INSTANCE_ID_BASE && runner->audioSystem != nullptr
+                && runner->audioSystem->vtable->isPlaying(runner->audioSystem, videoAudioInstanceId)) {
+                audioPosition = runner->audioSystem->vtable->getTrackPosition(runner->audioSystem, videoAudioInstanceId);
+            }
+            videoDecoder->vtable->setMasterClock(videoDecoder, audioPosition);
+        }
         int32_t updateResult = videoDecoder->vtable->update(videoDecoder);
-        if (updateResult == 2) videoAudioReplay(runner);
-        if (updateResult == 0 || updateResult == 2) {
+        if (updateResult == VIDEO_FRAME_LOOPED) videoAudioReplay(runner);
+        if (updateResult == VIDEO_FRAME_READY || updateResult == VIDEO_FRAME_LOOPED) {
             videoDecoder->vtable->draw(videoDecoder, runner, videoSurfId);
             //stbi_write_png("pinge.png", video_w, video_h, 4, data[0], line_size[0]);
         }
