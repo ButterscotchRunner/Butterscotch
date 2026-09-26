@@ -151,7 +151,13 @@ jobs:
 
           case '${{ matrix.arch }}' in
             amd64)       target_cpu="x86_64"; asmflags="--x86asmexe=nasm" ;;
-            i486)        target_cpu="i486"; asmflags="--x86asmexe=nasm" ;;
+            i486)        
+              target_cpu="i486"
+              asmflags="--x86asmexe=nasm"
+              if [ ${{ matrix.os_config.name }} = "OpenBSD" ]; then
+                sed -i 's/#define HAVE_6REGS (ARCH_X86_64 || (HAVE_EBX_AVAILABLE || HAVE_EBP_AVAILABLE))/#define HAVE_6REGS 0/' libavutil/x86/asm.h
+              fi
+              ;;
             aarch64)     target_cpu="aarch64" ;;
             arm)         target_cpu="arm" ;;
             riscv)       target_cpu="riscv64" ;;
@@ -168,7 +174,7 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -fomit-frame-pointer -Wno-pass-failed -fno-plt -mllvm -exhaustive-register-search" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -fomit-frame-pointer" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             --enable-lto \
             --enable-static \
