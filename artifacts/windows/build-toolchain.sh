@@ -44,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=5
+toolchainver=6
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -191,7 +191,8 @@ cd "FFmpeg-$ffmpeg_version"
 case $arch in
     i?86)
         extra_cflags="-mtune=i686"
-    ;;
+        patch -p1 < "$platformdir/ffmpeg-crtdll.patch"
+        ;;
     x86_64)
         extra_cflags=""
     ;;
