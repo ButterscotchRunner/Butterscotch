@@ -66,8 +66,6 @@ jobs:
           cd /tmp/ffmpeg_source
           ./configure \
             --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
-            --enable-cross-compile \
-            --target-os="x86_64" \
             --extra-cflags="-flto" \
             --extra-ldflags="-flto" \
             --enable-static \
