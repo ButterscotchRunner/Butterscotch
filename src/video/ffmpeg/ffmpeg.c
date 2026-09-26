@@ -1,5 +1,6 @@
 #include "video.h"
 
+#include "gettime.h"
 #include "stdio_compat.h"
 #include "string_compat.h"
 
@@ -36,6 +37,12 @@ static char* ffmpegFileUrl(const char* path) {
 #define VIDEO_AUDIO_CHANNELS 2
 #define VIDEO_AUDIO_SAMPLE_RATE 48000
 
+#define VIDEO_FALLBACK_FPS 30.0
+#define VIDEO_MIN_FPS 1.0
+#define VIDEO_MAX_FPS 1000.0
+#define VIDEO_MAX_CATCHUP_FRAMES 120
+#define VIDEO_MASTER_JUMP_SECONDS 0.25
+
 typedef struct {
     AVFormatContext* formatCtx;
     int32_t videoStreamIndex;
@@ -47,8 +54,21 @@ typedef struct {
     int32_t drawLineSize;
     int32_t width;
     int32_t height;
-    int64_t lastPts;
     int64_t startPts;
+
+    double frameDurationSeconds; // Nominal frame period of the source video.
+    double presentedSeconds;     // Video time of the frame currently sitting in drawPixels.
+    double nextDueSeconds;       // Video time at which the next frame slot opens.
+    uint64_t startNanos;         // Monotonic timestamp the playback clock was started at.
+    bool clockStarted;
+    bool hasFrame; // A decoded frame is loaded and ready to be drawn.
+
+    double masterClock;           // Latest position reported by the audio track, in seconds.
+    double masterAnchorClock;     // Audio position that masterAnchorVideoTime corresponds to.
+    double masterAnchorVideoTime; // Video time the master clock is anchored to.
+    double lastMasterClock;       // Previous master clock value, used to spot restarts.
+    bool hasMasterSample;
+    bool masterClockValid; // The audio track is currently driving playback.
 
     double durationSeconds;
     bool hasVideo;
@@ -58,45 +78,60 @@ typedef struct {
     bool loop;
 } FfmpegVideoDecoder;
 
+static double ffmpegVideoDecoderPtsSeconds(FfmpegVideoDecoder* d, int64_t pts) {
+    if (d->videoStream == nullptr || pts == AV_NOPTS_VALUE) return -1;
+    return (double)(pts - d->startPts) * av_q2d(d->videoStream->time_base);
+}
+
+static bool ffmpegVideoDecoderMasterClockJumped(FfmpegVideoDecoder* d, double positionSeconds) {
+    return d->hasMasterSample && positionSeconds < d->lastMasterClock - VIDEO_MASTER_JUMP_SECONDS;
+}
+
+static double ffmpegVideoDecoderTargetSeconds(FfmpegVideoDecoder* d, uint64_t now) {
+    if (d->masterClockValid) {
+        if (!d->hasMasterSample || ffmpegVideoDecoderMasterClockJumped(d, d->masterClock)) {
+            d->masterAnchorClock = d->masterClock;
+            d->masterAnchorVideoTime = d->hasFrame ? d->presentedSeconds : 0;
+            d->hasMasterSample = true;
+        }
+        return d->masterAnchorVideoTime + (d->masterClock - d->masterAnchorClock);
+    }
+    if (!d->clockStarted) {
+        d->startNanos = now;
+        d->clockStarted = true;
+    }
+    return (double)(now - d->startNanos) / 1000000000.0;
+}
+
+static int32_t ffmpegVideoDecoderFramesDue(FfmpegVideoDecoder* d, double targetSeconds) {
+    double behind = targetSeconds - d->nextDueSeconds;
+    if (behind < 0) return 0;
+    int32_t due = 1 + (int32_t)(behind / d->frameDurationSeconds);
+    if (due <= VIDEO_MAX_CATCHUP_FRAMES) return due;
+
+    d->nextDueSeconds = targetSeconds;
+    return 1;
+}
+
 static int32_t ffmpegVideoDecoderConvertFrame(FfmpegVideoDecoder* d, AVFrame* frame) {
     if (d->swsCtx == nullptr || d->drawPixels == nullptr) return -1;
     uint8_t* dst[1] = {d->drawPixels};
     int32_t dstStride[1] = {d->drawLineSize};
     sws_scale(d->swsCtx, (const uint8_t**)frame->data, frame->linesize, 0, d->height, dst, dstStride);
-    if (frame->pts != AV_NOPTS_VALUE) d->lastPts = frame->pts;
+    double ptsSeconds = ffmpegVideoDecoderPtsSeconds(d, frame->pts);
+    if (ptsSeconds >= 0) {
+        d->presentedSeconds = ptsSeconds;
+    } else {
+        d->presentedSeconds = d->hasFrame ? d->presentedSeconds + d->frameDurationSeconds : 0;
+    }
+    d->hasFrame = true;
     return 0;
 }
 
-static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
-    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
-    if (d == nullptr || d->formatCtx == nullptr || !d->hasVideo) return 1;
-    if (d->paused) return 0;
-    if (d->finished) return 1;
-    bool gotFrame = false;
-    bool wrapped = false;
-    while (!gotFrame) {
-        if (d->eof) {
-            while (avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) {
-                if (ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
-                av_frame_unref(d->videoFrame);
-            }
-            if (!gotFrame) {
-                if (!d->loop) {
-                    d->finished = true;
-                    break;
-                }
-                avcodec_flush_buffers(d->videoCodecCtx);
-                if (avformat_seek_file(d->formatCtx, d->videoStreamIndex, INT64_MIN, d->startPts, INT64_MAX, 0) < 0) {
-                    d->finished = true;
-                    break;
-                }
-                d->eof = false;
-                d->lastPts = AV_NOPTS_VALUE;
-                wrapped = true;
-                continue;
-            }
-            break;
-        }
+static bool ffmpegVideoDecoderPullFrame(FfmpegVideoDecoder* d) {
+    while (true) {
+        if (d->eof) return avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0;
+
         AVPacket packet = {0};
         if (av_read_frame(d->formatCtx, &packet) < 0) {
             av_packet_unref(&packet);
@@ -104,17 +139,76 @@ static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
             avcodec_send_packet(d->videoCodecCtx, nullptr);
             continue;
         }
-        if (packet.stream_index == d->videoStreamIndex) {
-            if (avcodec_send_packet(d->videoCodecCtx, &packet) == 0) {
-                while (avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) {
-                    if (ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
-                    av_frame_unref(d->videoFrame);
-                }
-            }
-        }
+        bool sent = packet.stream_index == d->videoStreamIndex
+                    && avcodec_send_packet(d->videoCodecCtx, &packet) == 0;
         av_packet_unref(&packet);
+        if (sent && avcodec_receive_frame(d->videoCodecCtx, d->videoFrame) == 0) return true;
     }
-    return gotFrame ? (wrapped ? 2 : 0) : 1;
+}
+
+static bool ffmpegVideoDecoderRewind(FfmpegVideoDecoder* d) {
+    avcodec_flush_buffers(d->videoCodecCtx);
+    if (avformat_seek_file(d->formatCtx, d->videoStreamIndex, INT64_MIN, d->startPts, INT64_MAX, 0) < 0) {
+        return false;
+    }
+    d->eof = false;
+    d->presentedSeconds = 0;
+    d->hasFrame = false;
+    return true;
+}
+
+static void ffmpegVideoDecoderSetMasterClock(VideoDecoder* decoder, double positionSeconds) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr) return;
+    d->masterClock = positionSeconds;
+    d->lastMasterClock = positionSeconds;
+    d->hasMasterSample = positionSeconds >= 0;
+    d->masterClockValid = positionSeconds >= 0;
+}
+
+static int32_t ffmpegVideoDecoderUpdate(VideoDecoder* decoder) {
+    FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
+    if (d == nullptr || d->formatCtx == nullptr || !d->hasVideo) return VIDEO_FRAME_NONE;
+    if (d->finished) return VIDEO_FRAME_NONE;
+
+    uint64_t now = nowNanos();
+    double targetSeconds = ffmpegVideoDecoderTargetSeconds(d, now);
+
+    int32_t framesToDecode;
+    if (d->hasFrame && d->paused) {
+        return VIDEO_FRAME_HELD;
+    } else {
+        framesToDecode = ffmpegVideoDecoderFramesDue(d, targetSeconds);
+        if (framesToDecode <= 0) return VIDEO_FRAME_HELD;
+    }
+
+    bool gotFrame = false;
+    bool wrapped = false;
+    for (int32_t i = 0; i < framesToDecode; i++) {
+        bool keep = (i == framesToDecode - 1);
+        while (true) {
+            if (ffmpegVideoDecoderPullFrame(d)) {
+                if (keep && ffmpegVideoDecoderConvertFrame(d, d->videoFrame) == 0) gotFrame = true;
+                av_frame_unref(d->videoFrame);
+                break;
+            }
+            if (!d->loop) {
+                d->finished = true;
+                break;
+            }
+            if (!ffmpegVideoDecoderRewind(d)) {
+                d->finished = true;
+                break;
+            }
+            wrapped = true;
+        }
+        if (d->finished) break;
+    }
+
+    d->nextDueSeconds += framesToDecode * d->frameDurationSeconds;
+
+    if (!gotFrame) return VIDEO_FRAME_NONE;
+    return wrapped ? VIDEO_FRAME_LOOPED : VIDEO_FRAME_READY;
 }
 
 static void ffmpegVideoDecoderDraw(VideoDecoder* decoder, Runner* runner, int32_t surfaceId) {
@@ -141,7 +235,10 @@ static void ffmpegVideoDecoderPause(VideoDecoder* decoder) {
 
 static void ffmpegVideoDecoderResume(VideoDecoder* decoder) {
     FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
-    if (d != nullptr) d->paused = false;
+    if (d == nullptr) return;
+    d->paused = false;
+    d->clockStarted = false;
+    d->hasMasterSample = false;
 }
 
 static void ffmpegVideoDecoderSetLoop(VideoDecoder* decoder, bool loop) {
@@ -157,8 +254,8 @@ static double ffmpegVideoDecoderDuration(VideoDecoder* decoder) {
 
 static double ffmpegVideoDecoderPosition(VideoDecoder* decoder) {
     FfmpegVideoDecoder* d = (FfmpegVideoDecoder*)decoder->impl;
-    if (d == nullptr || d->videoStream == nullptr || d->lastPts == AV_NOPTS_VALUE) return 0;
-    return (double)(d->lastPts - d->startPts) * av_q2d(d->videoStream->time_base);
+    if (d == nullptr || !d->hasFrame) return 0;
+    return d->presentedSeconds;
 }
 
 static int32_t ffmpegVideoDecoderWidth(VideoDecoder* decoder) {
@@ -191,8 +288,19 @@ static void ffmpegVideoDecoderClose(VideoDecoder* decoder) {
     d->videoStreamIndex = -1;
     d->width = 0;
     d->height = 0;
-    d->lastPts = AV_NOPTS_VALUE;
     d->startPts = 0;
+    d->frameDurationSeconds = 1.0 / VIDEO_FALLBACK_FPS;
+    d->presentedSeconds = 0;
+    d->nextDueSeconds = 0;
+    d->startNanos = 0;
+    d->clockStarted = false;
+    d->hasFrame = false;
+    d->masterClock = 0;
+    d->masterAnchorClock = 0;
+    d->masterAnchorVideoTime = 0;
+    d->lastMasterClock = 0;
+    d->hasMasterSample = false;
+    d->masterClockValid = false;
     d->durationSeconds = 0;
     d->hasVideo = false;
     d->eof = false;
@@ -262,11 +370,27 @@ static bool ffmpegVideoDecoderOpen(VideoDecoder* decoder, const char* url) {
     d->drawPixels = drawPixels[0];
     d->drawLineSize = drawLinesizes[0];
 
+    AVRational frameRate = d->videoStream->avg_frame_rate;
+    if (frameRate.num <= 0 || frameRate.den <= 0) frameRate = d->videoStream->r_frame_rate;
+    double fps = (frameRate.num > 0 && frameRate.den > 0) ? av_q2d(frameRate) : 0.0;
+    if (fps < VIDEO_MIN_FPS || fps > VIDEO_MAX_FPS) fps = VIDEO_FALLBACK_FPS;
+    d->frameDurationSeconds = 1.0 / fps;
+
     d->eof = false;
     d->finished = false;
     d->paused = false;
     d->loop = false;
-    d->lastPts = AV_NOPTS_VALUE;
+    d->presentedSeconds = 0;
+    d->nextDueSeconds = 0;
+    d->startNanos = 0;
+    d->clockStarted = false;
+    d->hasFrame = false;
+    d->masterClock = 0;
+    d->masterAnchorClock = 0;
+    d->masterAnchorVideoTime = 0;
+    d->lastMasterClock = 0;
+    d->hasMasterSample = false;
+    d->masterClockValid = false;
     return true;
 }
 
@@ -444,7 +568,6 @@ VideoDecoder* VideoDecoder_createBackend(void) {
     VideoDecoder* decoder = (VideoDecoder*)safeCalloc(1, sizeof(VideoDecoder));
     FfmpegVideoDecoder* impl = (FfmpegVideoDecoder*)safeCalloc(1, sizeof(FfmpegVideoDecoder));
     impl->videoStreamIndex = -1;
-    impl->lastPts = AV_NOPTS_VALUE;
     ffmpegVideoDecoderVtable.init = ffmpegVideoDecoderInit;
     ffmpegVideoDecoderVtable.quit = ffmpegVideoDecoderQuit;
     ffmpegVideoDecoderVtable.open = ffmpegVideoDecoderOpen;
@@ -455,6 +578,7 @@ VideoDecoder* VideoDecoder_createBackend(void) {
     ffmpegVideoDecoderVtable.pause = ffmpegVideoDecoderPause;
     ffmpegVideoDecoderVtable.resume = ffmpegVideoDecoderResume;
     ffmpegVideoDecoderVtable.setLoop = ffmpegVideoDecoderSetLoop;
+    ffmpegVideoDecoderVtable.setMasterClock = ffmpegVideoDecoderSetMasterClock;
     ffmpegVideoDecoderVtable.update = ffmpegVideoDecoderUpdate;
     ffmpegVideoDecoderVtable.draw = ffmpegVideoDecoderDraw;
     ffmpegVideoDecoderVtable.duration = ffmpegVideoDecoderDuration;
