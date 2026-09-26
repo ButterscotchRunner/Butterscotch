@@ -120,6 +120,7 @@ jobs:
 
       - name: Configure
         run: |
+          export PKG_CONFIG_PATH="$HOME/sdl/lib/pkgconfig:$HOME/ffmpeg/lib/pkgconfig:$PKG_CONFIG_PATH"
           export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           cmake -B build -G Ninja \
             -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
