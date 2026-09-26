@@ -226,8 +226,8 @@ jobs:
 
       - name: Configure and build Butterscotch
         env:
-          PKG_CONFIG_PATH: "~/build-deps/lib/pkgconfig"
-          PKG_CONFIG_LIBDIR: "~/build-deps/lib/pkgconfig"
+          PKG_CONFIG_PATH: "~/build-deps/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
+          PKG_CONFIG_LIBDIR: "~/build-deps/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
