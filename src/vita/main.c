@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
     vglSetupGarbageCollector(127, 0x20000);
     vglUseTripleBuffering(GL_FALSE);
     vglSetCircularPoolSize(128 * 1024 * 1024);
-    vglSetupDisplayRenderTarget(2);
+    vglSetupRenderTargetScenesNum(2, 1);
     vglSetParamBufferSize(6 * 1024 * 1024);
     vglSetShaderCachePath("ux0:data/butterscotch/shader_cache");
     vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);

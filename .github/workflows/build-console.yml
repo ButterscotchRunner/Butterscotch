@@ -166,7 +166,7 @@ jobs:
   build-vita:
     name: Build (PS Vita)
     runs-on: ubuntu-24.04
-    container: vitasdk/vitasdk@sha256:69c7f73b94e6671429762dabf27caa012326836fd835b8996f9a512a351c8de2
+    container: vitasdk/vitasdk:2026.08-20260919
     steps:
       - uses: actions/checkout@v7
 
@@ -180,7 +180,7 @@ jobs:
           key: ccache-vita-${{ github.sha }}
           restore-keys: |
             ccache-vita-
-
+            
       - name: Build FFmpeg with H.264 (Vita)
         run: |
           set -eux
@@ -218,19 +218,30 @@ jobs:
           make install
           "${VITASDK}/bin/arm-vita-eabi-nm" "${PREFIX}/lib/libavcodec.a" | grep -q ff_h264_decoder
 
+      - name: Checkout vitaShaRK
+        uses: actions/checkout@v7
+        with:
+          repository: Rinnegatamante/vitaShaRK
+          path: vendor/vitaShaRK
+          ref: df24065e65098b2d1ac533760109ad4367573f28
+
+      - name: Build vitaShaRK
+        run: |
+          mkdir -p /tmp/ccache-symlinks
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-gcc
+          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-g++
+          export PATH=/tmp/ccache-symlinks:$PATH
+          make -C vendor/vitaShaRK install
+
       - name: Checkout vitaGL
         uses: actions/checkout@v7
         with:
           repository: Rinnegatamante/vitaGL
           path: vendor/vitaGL
-          ref: f4b23b61c84e8ba59de542832f8e507b3660f994
+          ref: 2bdbe895ddc6a7e410a9ea55a8f53d8173c61ad8
 
       - name: Build vitaGL with speedhacks
         run: |
-          mkdir -p /tmp/ccache-symlinks
-          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-gcc
-          ln -sf /usr/bin/ccache /tmp/ccache-symlinks/arm-vita-eabi-g++
-
           export PATH=/tmp/ccache-symlinks:$PATH
           make -C vendor/vitaGL \
             install \
