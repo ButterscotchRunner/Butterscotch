@@ -2208,6 +2208,7 @@ void Runner_reset(Runner* runner) {
     runner->mpPotStep = 10.0;
     runner->mpPotAhead = 3.0;
     runner->mpPotOnSpot = true;
+    runner->dateTimeLocal = true;
     runner->lastMusicInstance = -1;
 
     arrsetlen(runner->cachedDrawables, 0);
