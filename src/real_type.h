@@ -10,6 +10,14 @@
 #define INFINITY ((float)1e39)
 #endif
 
+#ifndef NAN
+static inline float fallbackNan(void) {
+    volatile float zero = 0.0f;
+    return zero / zero;
+}
+#define NAN (fallbackNan())
+#endif
+
 #ifdef NO_ISNAN
 #define isnan(x) (x != x)
 #endif

@@ -508,6 +508,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             slot->streamFormat = (info.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
             slot->streamLengthSeconds = stb_vorbis_stream_length_in_seconds(v);
         }
+        ma->streams[soundIndex - AUDIO_STREAM_INDEX_BASE].lengthSeconds = slot->streamLengthSeconds;
         slot->decodeScratch = (int16_t*)safeMalloc(AL_STREAM_BUFFER_SAMPLES * slot->streamChannels * sizeof(int16_t));
 
         alGenSources(1, &slot->alSource);
@@ -701,7 +702,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         // Stop specific instance
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) releaseInstance(inst);
@@ -727,7 +728,7 @@ static void maStopAll(AudioSystem* audio) {
 static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst == nullptr)
             return false;
@@ -752,7 +753,7 @@ static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
 static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             alSourcePause(inst->alSource);
@@ -770,7 +771,7 @@ static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
 static void maResumeSound(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             alSourcePlay(inst->alSource);
@@ -959,7 +960,7 @@ static float streamCursorSeconds(SoundInstance* inst) {
 static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             if (inst->streaming) return streamCursorSeconds(inst);
@@ -984,7 +985,7 @@ static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
 static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, float positionSeconds) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             alSourcef(inst->alSource, AL_SEC_OFFSET, positionSeconds);
@@ -999,12 +1000,41 @@ static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, floa
     }
 }
 
-// Total length of a loaded sound. Works on both SOND index and active instance ids.
+static float maGetStreamLength(AlAudioSystem* ma, int32_t streamIndex) {
+    int32_t slotIndex = streamIndex - AUDIO_STREAM_INDEX_BASE;
+    if (slotIndex < 0 || slotIndex >= MAX_AUDIO_STREAMS || !ma->streams[slotIndex].active)
+        return 0.0f;
+
+    AudioStreamEntry* stream = &ma->streams[slotIndex];
+    if (stream->lengthSeconds >= 0.0f) return stream->lengthSeconds;
+
+    int32_t channels = 0;
+    int32_t sampleRate = 0;
+    int64_t dataStart = 0;
+    uint32_t dataBytes = 0;
+    FILE* wav = openWavStream(stream->filePath, &channels, &sampleRate, &dataStart, &dataBytes);
+    if (wav != nullptr) {
+        stream->lengthSeconds = (float)dataBytes / (float)(channels * (int32_t)sizeof(int16_t)) / (float)sampleRate;
+        fclose(wav);
+        return stream->lengthSeconds;
+    }
+
+    int error = 0;
+    stb_vorbis* vorbis = stb_vorbis_open_filename(stream->filePath, &error, nullptr);
+    if (vorbis == nullptr) return 0.0f;
+    stream->lengthSeconds = stb_vorbis_stream_length_in_seconds(vorbis);
+    stb_vorbis_close(vorbis);
+    return stream->lengthSeconds;
+}
+
 static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     AlAudioSystem* ma = (AlAudioSystem*) audio;
 
+    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+        return maGetStreamLength(ma, soundOrInstance);
+
     SoundInstance* match = nullptr;
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         match = findInstanceById(ma, soundOrInstance);
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
@@ -1023,7 +1053,7 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     }
 
     // No active instance: GMS audio_sound_length(soundIndex) must still return the asset's duration.
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE || soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE)
         return 0.0f;
 
     DataWin* dw = ma->base.audioGroups[0];
@@ -1138,6 +1168,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
     ma->streams[freeSlot].initialGain = 1.0f;
     ma->streams[freeSlot].initialPitch = 1.0f;
+    ma->streams[freeSlot].lengthSeconds = -1.0f;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
     logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
