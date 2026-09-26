@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /usr/${{ matrix.triplet }}/ffmpeg
-          key: ffmpeg-windows-${{ matrix.triplet }}-${{ github.sha }}-n7.1-aac-h264
+          key: ffmpeg-windows-${{ matrix.triplet }}-${{ github.sha }}-n7.1-aac-h264-rev1
 
       - name: Checkout FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
@@ -97,7 +97,6 @@ jobs:
             --enable-swresample \
             --enable-swscale \
             --enable-decoder=h264,aac \
-            --enable-encoder=aac \
             --enable-parser=h264,aac \
             --enable-demuxer=mov,aac,h264 \
             --enable-muxer=mp4,aac,m4v \
