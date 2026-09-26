@@ -134,7 +134,7 @@ jobs:
         working-directory: vendor/ffmpeg
         run: |
           case '${{ matrix.os_config.name }}' in
-            Linux)   target_os="linux"; libavcodec_extra_cflags="-DHAVE_SYSCTL=0" ;;
+            Linux)   target_os="linux" ;;
             FreeBSD) target_os="freebsd" ;;
             OpenBSD) target_os="openbsd" ;;
             NetBSD)  target_os="netbsd" ;;
