@@ -181,7 +181,8 @@ jobs:
             --enable-muxer=mp4,aac,m4v \
             --enable-protocol=file \
             --disable-autodetect \
-            --disable-iconv
+            --disable-iconv \
+            --x86asmexe=nasm
 
           # what's a sysctl?
           [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
