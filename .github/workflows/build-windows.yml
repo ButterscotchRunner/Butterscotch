@@ -82,12 +82,11 @@ jobs:
             --enable-cross-compile \
             --target-os=mingw32 \
             --arch=${{ matrix.arch }} \
-            --cc="ccache clang" \
-            --as="clang" \
+            --cc="ccache ${{ matrix.triplet }}-clang" \
             --ar="llvm-ar" \
             --ranlib="llvm-ranlib" \
-            --extra-cflags="-target ${{ matrix.target }} -flto" \
-            --extra-ldflags="-target ${{ matrix.target }} -flto -fuse-ld=lld" \
+            --extra-cflags="-flto" \
+            --extra-ldflags="-flto -fuse-ld=lld" \
             --enable-static \
             --disable-shared \
             --disable-programs \
