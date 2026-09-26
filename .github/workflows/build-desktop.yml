@@ -180,6 +180,7 @@ jobs:
             --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             $lto_flag \
+            --enable-pic \
             --enable-static \
             --disable-shared \
             --disable-programs \
