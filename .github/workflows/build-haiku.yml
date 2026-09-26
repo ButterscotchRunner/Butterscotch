@@ -87,9 +87,9 @@ jobs:
             --disable-autodetect \
             --disable-iconv \
             --disable-asm
-
-        make -j$(nproc)
-        make install
+            
+          make -j$(nproc)
+          make install
 
       - name: Configure and build Butterscotch
         run: |
