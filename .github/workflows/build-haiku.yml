@@ -98,8 +98,8 @@ jobs:
           export CCACHE_BASEDIR="$PWD"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
-          export PKG_CONFIG_PATH="/tmp/ffmpeg_build/lib/pkgconfig"
-          export PKG_CONFIG_LIBDIR="/tmp/ffmpeg_build/lib/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/ffmpeg_build/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_LIBDIR="/tmp/ffmpeg_build/lib/pkgconfig:$PKG_CONFIG_LIBDIR"
 
           cmake -B build \
             -DBACKEND=sdl2 \
