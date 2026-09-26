@@ -59,15 +59,16 @@ jobs:
         run: |
           mkdir -p /tmp/ffmpeg_source
           mkdir -p /tmp/ffmpeg_build
-          mkdir -p ${{ github.workspace }}/vendor/ffmpeg/install
           
           wget -O- https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz | tar -xz -C /tmp/ffmpeg_source --strip-components=1
           
           cd /tmp/ffmpeg_source
           ./configure \
-            --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
+            --prefix="/tmp/ffmpeg_build" \
             --extra-cflags="-flto" \
             --extra-ldflags="-flto" \
+            --ar="gcc-ar" \
+            --ranlib="gcc-ranlib" \
             --enable-static \
             --disable-shared \
             --disable-programs \
@@ -97,8 +98,8 @@ jobs:
           export CCACHE_BASEDIR="$PWD"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
-          export PKG_CONFIG_PATH="${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
-          export PKG_CONFIG_LIBDIR="${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
+          export PKG_CONFIG_PATH="/tmp/ffmpeg_build/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="/tmp/ffmpeg_build/lib/pkgconfig"
 
           cmake -B build \
             -DBACKEND=sdl2 \
