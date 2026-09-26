@@ -6,6 +6,13 @@
 
 typedef struct VideoDecoder VideoDecoder;
 
+typedef enum {
+    VIDEO_FRAME_NONE = 0,
+    VIDEO_FRAME_READY = 1,
+    VIDEO_FRAME_LOOPED = 2,
+    VIDEO_FRAME_HELD = 3,
+} VideoFrameResult;
+
 typedef struct {
     bool (*init)(void);
     void (*quit)(VideoDecoder* decoder);
@@ -17,6 +24,7 @@ typedef struct {
     void (*pause)(VideoDecoder* decoder);
     void (*resume)(VideoDecoder* decoder);
     void (*setLoop)(VideoDecoder* decoder, bool loop);
+    void (*setMasterClock)(VideoDecoder* decoder, double positionSeconds);
     int32_t (*update)(VideoDecoder* decoder);
     void (*draw)(VideoDecoder* decoder, Runner* runner, int32_t surfaceId);
     double (*duration)(VideoDecoder* decoder);
