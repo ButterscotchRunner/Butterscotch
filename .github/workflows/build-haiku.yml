@@ -92,7 +92,7 @@ jobs:
           export CCACHE_COMPILERCHECK=content
           export CCACHE_NOHASHDIR=true
           export PKG_CONFIG_PATH="${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
-          export PKG_CONFIG_LIBDIR="${{ github.workspace }}/vendor/ffmpeg/install/lib"
+          export PKG_CONFIG_LIBDIR="${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
 
           cmake -B build \
             -DBACKEND=sdl2 \
