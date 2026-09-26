@@ -42,7 +42,7 @@ Other modding tools, such as UndertaleModTool, calls it "bytecode version" inste
 
 However, that doesn't mean that a game that uses a compatible version WILL run! The bytecode support is still a WIP, and Butterscotch may have quirks that the original GameMaker: Studio runner may not have.
 
-Of course, some games wont run! Some games arent VM compiled, such as:
+Of course, some games won't run! Some games aren't VM compiled, such as:
 
 * Games compiled with YYC, because they use native code instead of bytecode. (Ex: Forager, Rivals of Aether)
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
