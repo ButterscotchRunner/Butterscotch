@@ -172,7 +172,12 @@ jobs:
             ;;
             loongarch64) target_cpu="loongarch64" ;;
             powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
-            mips*)       target_cpu="mips"; lto_flag=""; extraflags="$extraflags --enable-bswapdsp" ;; # mips builds don't play nice with LTO
+            mips*)       
+              target_cpu="mips"; lto_flag="" # mips builds don't play nice with LTO
+              if [ "${{ matrix.arch }}" != "mipsel" ] && [ "${{ matrix.arch }}" != "mips64el" ]; then
+                extraflags="$extraflags --enable-bswapdsp"
+              fi
+            ;; 
           esac
 
           ./configure \
