@@ -177,7 +177,7 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -fPIC" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -Wno-error=incompatible-function-pointer-types -fPIC" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -fPIC" \
             $lto_flag \
             --enable-static \
