@@ -11,7 +11,7 @@
 #endif
 
 #ifndef NAN
-#define NAN (0.0 / 0.0)
+#define NAN (0.0f / 0.0f)
 #endif
 
 #ifdef NO_ISNAN
