@@ -76,14 +76,56 @@ jobs:
           make -j$(nproc) install
           cd ..
 
+      - name: Checkout FFmpeg
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: n7.1
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg
+        working-directory: vendor/ffmpeg
+        run: |
+          [ "${{ matrix.arch }}" = "ppc" ] && ffmpeg_arch=powerpc || ffmpeg_arch=i386
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          ./configure \
+            --prefix="$HOME/ffmpeg" \
+            --enable-cross-compile \
+            --target-os=darwin \
+            --arch=$ffmpeg_arch \
+            --cc="ccache ${{ matrix.triple }}-gcc" \
+            --ar="${{ matrix.ar }}" \
+            --ranlib="${{ matrix.ranlib }}" \
+            --extra-cflags="${{ matrix.cflags }}" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            --disable-asm
+
+          make -j$(nproc)
+          sudo make install
+
       - name: Configure
         run: |
           export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           cmake -B build -G Ninja \
             -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
             -DCMAKE_SYSTEM_NAME=Darwin \
-            -DCMAKE_C_FLAGS="-I$HOME/sdl/include -fno-stack-protector ${{ matrix.cflags }}" \
-            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl" \
+            -DCMAKE_C_FLAGS="-I$HOME/sdl/include -I$HOME/ffmpeg/include -fno-stack-protector ${{ matrix.cflags }}" \
+            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl;$HOME/ffmpeg" \
             -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
             -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
             -DCMAKE_RANLIB="$(command -v ${{ matrix.ranlib }})" \
