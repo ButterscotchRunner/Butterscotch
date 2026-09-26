@@ -181,6 +181,9 @@ jobs:
             --disable-iconv \
             --disable-asm
 
+          # what's a sysctl?
+          [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
+
           make install -j$(nproc)
 
       - name: Cache SDL2 build
