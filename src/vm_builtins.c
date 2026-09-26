@@ -13684,8 +13684,8 @@ static RValue builtin_get_timer(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
 
 static bool dateGetParts(VMContext* ctx, RValue datetime, struct tm* parts) {
     double days = RValue_toReal(datetime);
-    double milliseconds = (days < 25569.0 ? days : days - 25569.0) * 86400000.0;
-    if (isnan(milliseconds) || isinf(milliseconds) || milliseconds < -8640000000000000.0 || milliseconds > 8640000000000000.0) return false;
+    double milliseconds = (days < (double) 25569 ? days : days - (double) 25569) * (double) 86400000;
+    if (isnan(milliseconds) || isinf(milliseconds) || milliseconds < (double) -8640000000000000LL || milliseconds > (double) 8640000000000000LL) return false;
 
     int64_t wholeMilliseconds = (int64_t) milliseconds;
     int64_t wholeSeconds = wholeMilliseconds / 1000;
@@ -13700,7 +13700,7 @@ static bool dateGetParts(VMContext* ctx, RValue datetime, struct tm* parts) {
 }
 
 static RValue builtin_date_current_datetime(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
-    return RValue_makeReal((double) time(NULL) / 86400.0 + 25569.0);
+    return RValue_makeReal((double) time(NULL) / (double) 86400 + (double) 25569);
 }
 
 static RValue builtin_date_get_year(VMContext* ctx, RValue* args, int32_t argCount) {

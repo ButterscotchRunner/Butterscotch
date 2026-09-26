@@ -11,7 +11,11 @@
 #endif
 
 #ifndef NAN
-#define NAN (0.0f / 0.0f)
+static inline float fallbackNan(void) {
+    volatile float zero = 0.0f;
+    return zero / zero;
+}
+#define NAN (fallbackNan())
 #endif
 
 #ifdef NO_ISNAN
