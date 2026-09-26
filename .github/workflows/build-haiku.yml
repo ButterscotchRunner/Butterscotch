@@ -57,9 +57,13 @@ jobs:
 
       - name: Checkout and build ffmpeg
         run: |
-          mkdir -p ${{ github.workspace }}/vendor/ffmpeg
-          wget -O- https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz | tar -xz -C ${{ github.workspace }}/vendor/ffmpeg --strip-components=1
-          cd ${{ github.workspace }}/vendor/ffmpeg
+          mkdir -p /tmp/ffmpeg_source
+          mkdir -p /tmp/ffmpeg_build
+          mkdir -p ${{ github.workspace }}/vendor/ffmpeg/install
+          
+          wget -O- https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz | tar -xz -C /tmp/ffmpeg_source --strip-components=1
+          
+          cd /tmp/ffmpeg_source
           ./configure \
             --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
             --enable-cross-compile \
@@ -83,6 +87,9 @@ jobs:
             --disable-autodetect \
             --disable-iconv \
             --disable-asm
+
+        make -j$(nproc)
+        make install
 
       - name: Configure and build Butterscotch
         run: |
