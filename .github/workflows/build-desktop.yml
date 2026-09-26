@@ -146,8 +146,8 @@ jobs:
           esac
 
           case '${{ matrix.arch }}' in
-            amd64)       target_cpu="x86_64" ;;
-            i486)        target_cpu="i486" ;;
+            amd64)       target_cpu="x86_64"; asmflags="--x86asmexe=nasm" ;;
+            i486)        target_cpu="i486"; asmflags="--x86asmexe=nasm" ;;
             aarch64)     target_cpu="aarch64" ;;
             arm)         target_cpu="arm" ;;
             riscv)       target_cpu="riscv64" ;;
@@ -183,7 +183,7 @@ jobs:
             --enable-protocol=file \
             --disable-autodetect \
             --disable-iconv \
-            --x86asmexe=nasm
+            $asmflags
 
           # what's a sysctl?
           [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
