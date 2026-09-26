@@ -114,6 +114,10 @@ jobs:
           version: ${{ env.ZIG_VERSION }}
           cache-key: zigcc-${{ env.TARGET_TRIPLE }}
 
+      - name: Install nasm
+        if: matrix.arch == 'x86_64' || matrix.arch == 'i486'
+        run: sudo apt-get install -y nasm
+
       - name: Cache FFmpeg build
         id: cache-ffmpeg
         uses: actions/cache@v6
@@ -160,8 +164,8 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
-            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto -fPIC" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto -fPIC" \
             --enable-static \
             --disable-shared \
             --disable-programs \
@@ -177,8 +181,7 @@ jobs:
             --enable-muxer=mp4,aac,m4v \
             --enable-protocol=file \
             --disable-autodetect \
-            --disable-iconv \
-            --disable-asm
+            --disable-iconv
 
           # what's a sysctl?
           [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
