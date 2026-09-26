@@ -65,10 +65,7 @@ jobs:
           cd /tmp/ffmpeg_source
           ./configure \
             --prefix="/tmp/ffmpeg_build" \
-            --extra-cflags="-flto" \
-            --extra-ldflags="-flto" \
-            --ar="gcc-ar" \
-            --ranlib="gcc-ranlib" \
+            --extra-cflags="-O3" \
             --enable-static \
             --disable-shared \
             --disable-programs \
