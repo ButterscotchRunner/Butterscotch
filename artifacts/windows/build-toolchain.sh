@@ -44,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=7
+toolchainver=8
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -223,8 +223,7 @@ esac
   --enable-muxer=mp4,aac,m4v \
   --enable-protocol=file \
   --disable-autodetect \
-  --disable-iconv \
-  --disable-asm
+  --disable-iconv
 make -j"$ncpus"
 make -j"$ncpus" install
 cd ..
