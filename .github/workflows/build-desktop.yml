@@ -253,7 +253,7 @@ jobs:
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
+            -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto -fPIC"
           cmake --build build
           llvm-strip build/butterscotch
 
