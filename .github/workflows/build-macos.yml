@@ -96,7 +96,7 @@ jobs:
             --cc="ccache ${{ matrix.triple }}-gcc" \
             --ar="${{ matrix.ar }}" \
             --ranlib="${{ matrix.ranlib }}" \
-            --extra-cflags="${{ matrix.cflags }}" \
+            --extra-cflags="${{ matrix.cflags }} -std=gnu11 -Dstatic_assert=_Static_assert" \
             --enable-static \
             --disable-shared \
             --disable-programs \
