@@ -87,7 +87,7 @@ jobs:
         working-directory: vendor/ffmpeg
         run: |
           [ "${{ matrix.arch }}" = "ppc" ] && ffmpeg_arch=powerpc || ffmpeg_arch=i386
-          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          export PATH="${{ github.workspace }}/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           ./configure \
             --prefix="$HOME/ffmpeg" \
             --enable-cross-compile \
