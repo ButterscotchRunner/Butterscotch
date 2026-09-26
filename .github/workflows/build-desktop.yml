@@ -167,7 +167,7 @@ jobs:
             riscv)       
               target_cpu="riscv64"
               if [ ${{ matrix.os_config.name }} = "Linux" ]; then
-                extraflags="$extraflags --disable-runtime-cpudetect" 
+                extraflags="$extraflags --disable-runtime-cpudetect"
               fi
             ;;
             loongarch64) target_cpu="loongarch64" ;;
@@ -177,7 +177,7 @@ jobs:
               if [ "${{ matrix.arch }}" != "mipsel" ] && [ "${{ matrix.arch }}" != "mips64el" ]; then
                 extraflags="$extraflags --enable-bswapdsp"
               fi
-            ;; 
+            ;;
           esac
 
           ./configure \
