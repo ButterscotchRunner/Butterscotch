@@ -45,7 +45,7 @@ jobs:
           
           ls /boot/system/packages/ > baseline_packages.txt
           
-          pkgman install -y git cmake make ccache gcc libsdl2_devel openal_devel gcc_syslibs_devel
+          pkgman install -y nasm cmake make ccache gcc libsdl2_devel openal_devel gcc_syslibs_devel
           ls /boot/system/packages/ > current_packages.txt
           
           comm -13 baseline_packages.txt current_packages.txt | while read -r pkg; do
@@ -84,8 +84,7 @@ jobs:
             --enable-muxer=mp4,aac,m4v \
             --enable-protocol=file \
             --disable-autodetect \
-            --disable-iconv \
-            --disable-asm
+            --disable-iconv
             
           make -j$(nproc)
           make install
