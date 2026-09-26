@@ -165,7 +165,7 @@ jobs:
             arm)         target_cpu="arm" ;;
             riscv)       target_cpu="riscv64" ;;
             loongarch64) target_cpu="loongarch64" ;;
-            powerpc*)    target_cpu="powerpc" ;;
+            powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
             mips*)       target_cpu="mips"; lto_flag="" ;; # mips builds don't play nice with LTO
           esac
 
@@ -177,7 +177,7 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -Wno-error=incompatible-function-pointer-types" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} $arch_cflags -Wno-error=incompatible-function-pointer-types" \
             --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             $lto_flag \
             --enable-static \
