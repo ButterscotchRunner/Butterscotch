@@ -46,6 +46,7 @@ android {
             cmake {
                 arguments += listOf(
                     "-DPLATFORM=android",
+                    "-DVIDEO_BACKEND=ffmpeg",
                     "-DENABLE_MODERN_GL=ON",
                     "-DENABLE_LEGACY_GL=OFF",
                     "-DAUDIO_BACKEND=miniaudio"
@@ -98,7 +99,7 @@ android {
             buildConfigField("String", "API_VERSION", "\"v1\"")
 
             ndk {
-                abiFilters += listOf("arm64-v8a")
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
             }
         }
     }
@@ -109,6 +110,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        prefab = true
     }
 
     externalNativeBuild {
@@ -172,7 +174,7 @@ androidComponents {
 dependencies {
     implementation(project(":common"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-
+    implementation("io.github.yearsyan:ffmpeg-mini:7.1.5-r2")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
