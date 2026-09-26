@@ -175,6 +175,7 @@ typedef struct {
     void (*gpuSetBlendMode)(Renderer* renderer, int32_t mode);
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha);
     void (*gpuSetBlendEnable)(Renderer* renderer, bool enable);
+    void (*gpuSetTexFilter)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     bool (*gpuGetAlphaTestEnable)(Renderer* renderer);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
@@ -254,6 +255,7 @@ struct Renderer {
     Runner* runner;
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
+    bool texFilter;
     BlendFactors blendFactors;
     int32_t cameraCurrent;
 };

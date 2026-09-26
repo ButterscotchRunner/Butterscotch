@@ -2353,6 +2353,7 @@ static void validateRendererVtable(Renderer* renderer) {
     requireNotNullFunction(gpuSetBlendMode);
     requireNotNullFunction(gpuSetBlendModeExt);
     requireNotNullFunction(gpuSetBlendEnable);
+    requireNotNullFunction(gpuSetTexFilter);
     requireNotNullFunction(gpuGetBlendEnable);
     requireNotNullFunction(gpuSetAlphaTestEnable);
     requireNotNullFunction(gpuSetAlphaTestRef);
@@ -2543,6 +2544,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     // Link runner to VM context
     vm->runner = (struct Runner*) runner;
 
+    renderer->texFilter = (dataWin->optn.info & 0x2) != 0;
     renderer->vtable->init(renderer, dataWin);
     audioSystem->vtable->init(audioSystem, dataWin, fileSystem);
 

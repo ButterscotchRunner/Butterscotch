@@ -18381,6 +18381,16 @@ static RValue builtin_gpu_get_blendenable(VMContext* ctx, RValue* args, int32_t 
     return RValue_makeBool(ctx->runner->renderer->vtable->gpuGetBlendEnable(ctx->runner->renderer));
 }
 
+static RValue builtin_gpu_set_texfilter(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("gpu_set_texfilter", 1, RValue_makeUndefined());
+    ctx->runner->renderer->vtable->gpuSetTexFilter(ctx->runner->renderer, RValue_toBool(args[0]));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_gpu_get_texfilter(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeReal(ctx->runner->renderer->texFilter ? 1.0 : 0.0);
+}
+
 static RValue builtin_gpu_set_alphatestenable(VMContext* ctx, RValue* args, int32_t argCount) {
     bool enable = RValue_toBool(args[0]);
     ctx->runner->renderer->vtable->gpuSetAlphaTestEnable(ctx->runner->renderer, enable);
@@ -22946,6 +22956,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendmode_ext_sepalpha", builtin_gpu_set_blendmode_ext_sepalpha);
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
+    VM_registerBuiltin(ctx,"gpu_set_texfilter", builtin_gpu_set_texfilter);
+    VM_registerBuiltin(ctx,"gpu_get_texfilter", builtin_gpu_get_texfilter);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_get_alphatestenable", builtin_gpu_get_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_set_alphatestref", builtin_gpu_set_alphatestref);
