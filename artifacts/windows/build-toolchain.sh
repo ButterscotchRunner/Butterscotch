@@ -44,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=4
+toolchainver=5
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -183,6 +183,51 @@ case $arch in
         rm -rf "SDL-release-$sdl2_version" &
     ;;
 esac
+
+ffmpeg_version=n7.1
+wget -O- "https://github.com/FFmpeg/FFmpeg/archive/$ffmpeg_version.tar.gz" | tar -xz
+cd "FFmpeg-$ffmpeg_version"
+
+case $arch in
+    i?86)
+        extra_cflags="-mtune=i686"
+    ;;
+    x86_64)
+        extra_cflags=""
+    ;;
+esac
+
+./configure \
+  --prefix="$workdir/toolchain-$arch/$target" \
+  --enable-cross-compile \
+  --target-os=mingw32 \
+  --arch="$ffmpeg_arch" \
+  --cc="$target-gcc" \
+  --ar="$target-ar" \
+  --ranlib="$target-ranlib" \
+  --extra-cflags="-O3 -DNDEBUG -fomit-frame-pointer $extra_cflags" \
+  --extra-ldflags="-O3 -DNDEBUG -fomit-frame-pointer $extra_cflags" \
+  --enable-static \
+  --disable-shared \
+  --disable-programs \
+  --disable-doc \
+  --disable-everything \
+  --enable-avcodec \
+  --enable-avformat \
+  --enable-swresample \
+  --enable-swscale \
+  --enable-decoder=h264,aac \
+  --enable-parser=h264,aac \
+  --enable-demuxer=mov,aac,h264 \
+  --enable-muxer=mp4,aac,m4v \
+  --enable-protocol=file \
+  --disable-autodetect \
+  --disable-iconv \
+  --disable-asm
+make -j"$ncpus"
+make -j"$ncpus" install
+cd ..
+rm -rf "FFmpeg-$ffmpeg_version" &
 
 printf '%s' "$toolchainver" > "toolchain-$arch/toolchainver"
 wait
