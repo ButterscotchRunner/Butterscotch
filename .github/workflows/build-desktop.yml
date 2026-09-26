@@ -164,12 +164,7 @@ jobs:
             ;;
             aarch64)     target_cpu="aarch64" ;;
             arm)         target_cpu="arm" ;;
-            riscv)       
-              target_cpu="riscv64"
-              if [ ${{ matrix.os_config.name }} = "Linux" ]; then
-                sed -i 's/#define HAVE_SYS_HWPROBE_H 1/#define HAVE_SYS_HWPROBE_H 0/' config.h
-              fi
-            ;;
+            riscv)       target_cpu="riscv64" ;;
             loongarch64) target_cpu="loongarch64" ;;
             powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
             mips*)
@@ -211,6 +206,9 @@ jobs:
             sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
             if [ "${{ matrix.arch }}" == "mips" ] || [ "${{ matrix.arch }}" == "mips64" ]; then
               sed -i 's/#define CONFIG_BSWAPDSP 0/#define CONFIG_BSWAPDSP 1/' config.h
+            fi
+            if [ ${{ matrix.arch }} = "riscv" ]; then
+              sed -i 's/#define HAVE_SYS_HWPROBE_H 1/#define HAVE_SYS_HWPROBE_H 0/' config.h
             fi
           fi
 
