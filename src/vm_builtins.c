@@ -13685,7 +13685,8 @@ static RValue builtin_get_timer(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
 static bool dateGetParts(VMContext* ctx, RValue datetime, struct tm* parts) {
     double days = RValue_toReal(datetime);
     double milliseconds = (days < (double) 25569 ? days : days - (double) 25569) * (double) 86400000;
-    if (isnan(milliseconds) || isinf(milliseconds) || milliseconds < (double) -8640000000000000LL || milliseconds > (double) 8640000000000000LL) return false;
+    const double maxMilliseconds = (double) 8640000 * (double) 1000000000;
+    if (isnan(milliseconds) || isinf(milliseconds) || milliseconds < -maxMilliseconds || milliseconds > maxMilliseconds) return false;
 
     int64_t wholeMilliseconds = (int64_t) milliseconds;
     int64_t wholeSeconds = wholeMilliseconds / 1000;
