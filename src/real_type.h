@@ -10,6 +10,10 @@
 #define INFINITY ((float)1e39)
 #endif
 
+#ifndef NAN
+#define NAN (0.0 / 0.0)
+#endif
+
 #ifdef NO_ISNAN
 #define isnan(x) (x != x)
 #endif
