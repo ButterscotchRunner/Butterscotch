@@ -175,7 +175,7 @@ jobs:
             mips*)       
               target_cpu="mips"; lto_flag="" # mips builds don't play nice with LTO
               if [ "${{ matrix.arch }}" != "mipsel" ] && [ "${{ matrix.arch }}" != "mips64el" ]; then
-                extraflags="$extraflags --enable-bswapdsp"
+                extraflags="$extraflags --enable-decoder=exr"
               fi
             ;; 
           esac
