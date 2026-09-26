@@ -116,7 +116,7 @@ jobs:
             --disable-asm
 
           make -j$(nproc)
-          sudo make install
+          make install
 
       - name: Configure
         run: |
