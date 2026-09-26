@@ -134,7 +134,7 @@ jobs:
         working-directory: vendor/ffmpeg
         run: |
           case '${{ matrix.os_config.name }}' in
-            Linux)   target_os="linux" ;;
+            Linux)   target_os="linux"; libavcodec_extra_cflags="-DHAVE_SYSCTL=0" ;;
             FreeBSD) target_os="freebsd" ;;
             OpenBSD) target_os="openbsd" ;;
             NetBSD)  target_os="netbsd" ;;
@@ -160,8 +160,8 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
-            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto $libavcodec_extra_cflags" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto $libavcodec_extra_cflags" \
             --enable-static \
             --disable-shared \
             --disable-programs \
