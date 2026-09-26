@@ -166,7 +166,7 @@ jobs:
             riscv)       target_cpu="riscv64" ;;
             loongarch64) target_cpu="loongarch64" ;;
             powerpc*)    target_cpu="powerpc" ;;
-            mips*)       target_cpu="mips" ;;
+            mips*)       target_cpu="mips"; lto_flag="" ;; # mips builds don't play nice with LTO
           esac
 
           ./configure \
