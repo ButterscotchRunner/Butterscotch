@@ -166,7 +166,7 @@ jobs:
             riscv)       target_cpu="riscv64" ;;
             loongarch64) target_cpu="loongarch64" ;;
             powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
-            mips*)       target_cpu="mips"; lto_flag="" ;; # mips builds don't play nice with LTO
+            mips*)       target_cpu="mips"; lto_flag=""; bswapdsp="--enable-bswapdsp" ;; # mips builds don't play nice with LTO
           esac
 
           ./configure \
@@ -196,7 +196,8 @@ jobs:
             --enable-protocol=file \
             --disable-autodetect \
             --disable-iconv \
-            $asmflags
+            $asmflags \
+            $bswapdsp
 
           # what's a sysctl?
           [ "$target_os" = "linux" ] && sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
