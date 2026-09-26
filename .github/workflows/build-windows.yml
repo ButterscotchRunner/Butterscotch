@@ -58,6 +58,57 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v6
+        with:
+          path: /usr/${{ matrix.triplet }}/ffmpeg
+          key: ffmpeg-windows-${{ matrix.triplet }}-${{ github.sha }}-n7.1-aac-h264
+
+      - name: Checkout FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: n7.1
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg for MinGW ARM
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        working-directory: vendor/ffmpeg
+        run: |
+          ./configure \
+            --prefix=/usr/${{ matrix.triplet }}/ffmpeg \
+            --enable-cross-compile \
+            --target-os=mingw32 \
+            --arch=${{ matrix.arch }} \
+            --cc="ccache clang" \
+            --as="clang" \
+            --ar="llvm-ar" \
+            --ranlib="llvm-ranlib" \
+            --extra-cflags="-target ${{ matrix.target }} -flto" \
+            --extra-ldflags="-target ${{ matrix.target }} -flto -fuse-ld=lld" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-encoder=aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            --disable-asm
+
+          sudo make install -j$(nproc)
+
       - name: Cache SDL2
         id: cache-sdl2
         uses: actions/cache@v6
@@ -89,8 +140,8 @@ jobs:
 
       - name: Configure
         env:
-          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
+          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig:/usr/${{ matrix.triplet }}/ffmpeg/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig:/usr/${{ matrix.triplet }}/ffmpeg/lib/pkgconfig
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
