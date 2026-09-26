@@ -954,6 +954,8 @@ uint32_t DataWin_allocSpriteSlot(DataWin* dw, uint32_t startIndex);
 //
 // Mirrors UndertaleModTool's IsVersionAtLeast.
 bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
+// IDK if this fucntion in UTMT but here it is.
+bool DataWin_isVersionOlder(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 // Raises the detected effective version to at least (major, minor, release, build). No-op if the detected version is already >= the target.
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 void GamePath_computeInternal(GamePath* path);

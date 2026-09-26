@@ -25,6 +25,8 @@ typedef struct GLRenderer GLRenderer;
 void GLCommon_beginFrame(GLRenderer* gl, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
 void GLCommon_init(Renderer* renderer);
 void GLCommon_destroy(Renderer* renderer);
+void GLCommon_setTexFilter(Renderer* renderer, bool enable);
+void GLCommon_applyTexFilter(bool enable);
 void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH);
 typedef void (*GLApplyProjectionFunc)(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix);
 void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
@@ -63,6 +65,8 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
 // Returns false on invalid surfaceId.
 // Saves/restores GL_FRAMEBUFFER_BINDING and GL_PACK_ALIGNMENT around the read.
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA);
+
+void GLCommon_surfaceUploadPixels(Renderer* renderer, int32_t surfaceId, int32_t w, int32_t h, const uint8_t* rgba);
 
 // ===[ Blend mode translation ]===
 

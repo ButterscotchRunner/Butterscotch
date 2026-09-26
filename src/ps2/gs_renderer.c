@@ -869,7 +869,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
         tex->TBW = chunk->tbw;
         tex->Vram = gs->textureVramBase + (uint32_t) chunk->firstChunk * VRAM_CHUNK_SIZE;
         tex->PSM = GS_PSM_CT16;
-        tex->Filter = GS_FILTER_NEAREST;
+        tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
         return true;
     }
 
@@ -895,7 +895,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
     tex->Height = pageHeight;
     tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
-    tex->Filter = GS_FILTER_NEAREST;
+    tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
     if (pageBpp == 4) {
@@ -957,7 +957,7 @@ static bool setupTextureForTile(GsRenderer* gs, GSTEXTURE* tex, AtlasTileEntry* 
     tex->Height = pageHeight;
     tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
-    tex->Filter = GS_FILTER_NEAREST;
+    tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
     if (pageBpp == 4) {
@@ -2477,6 +2477,10 @@ static void gsGpuSetBlendEnable(Renderer* renderer, bool enable) {
     gsApplySurfaceWriteMode(gs);
 }
 
+static void gsGpuSetTexFilter(Renderer* renderer, bool enable) {
+    renderer->texFilter = enable;
+}
+
 static bool gsGpuGetBlendEnable(Renderer* renderer) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
@@ -2914,7 +2918,7 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     tex.TBW = srcTbw;
     tex.Vram = srcVram;
     tex.PSM = GS_PSM_CT16;
-    tex.Filter = GS_FILTER_NEAREST;
+    tex.Filter = renderer->texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
 
     uint8_t r = BGR_R(color) >> 1;
     uint8_t g = BGR_G(color) >> 1;
@@ -3169,6 +3173,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
     gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
+    gsVtable.gpuSetTexFilter = gsGpuSetTexFilter;
     gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
     gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
     gsVtable.gpuGetAlphaTestEnable = gsGpuGetAlphaTestEnable;
@@ -3191,6 +3196,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.surfaceFree = gsSurfaceFree;
     gsVtable.surfaceCopy = gsSurfaceCopy;
     gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
+    gsVtable.surfaceUploadPixels = nullptr;
     gsVtable.spriteGetTexture = gsSpriteGetTexture;
     gsVtable.surfaceGetTexture = gsSurfaceGetTexture;
     gsVtable.textureGetTexelWidth = gsTextureGetTexelWidth;
