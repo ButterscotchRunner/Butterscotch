@@ -157,8 +157,8 @@ jobs:
               target_cpu="i486"
               asmflags="--x86asmexe=nasm"
               if [ ${{ matrix.os_config.name }} = "OpenBSD" ]; then
-                echo "Disabling LTO on OpenBSD"
-                lto_flag=""
+                echo "Disabling asm on OpenBSD"
+                asmflags="--disable-asm"
               fi
               ;;
             aarch64)     target_cpu="aarch64" ;;
@@ -177,8 +177,8 @@ jobs:
             --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
             --ar="${{ env.AR }}" \
             --ranlib="${{ env.RANLIB }}" \
-            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -Wno-error=incompatible-function-pointer-types -fPIC" \
-            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -fPIC" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -Wno-error=incompatible-function-pointer-types" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
             $lto_flag \
             --enable-static \
             --disable-shared \
@@ -253,7 +253,7 @@ jobs:
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto -fPIC"
+            -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
           cmake --build build
           llvm-strip build/butterscotch
 
