@@ -114,6 +114,75 @@ jobs:
           version: ${{ env.ZIG_VERSION }}
           cache-key: zigcc-${{ env.TARGET_TRIPLE }}
 
+      - name: Cache FFmpeg build
+        id: cache-ffmpeg
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/vendor/ffmpeg/install
+          key: ffmpeg-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-n7.1-aac-h264
+
+      - name: Checkout FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: n7.1
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg from source
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        working-directory: vendor/ffmpeg
+        run: |
+          case '${{ matrix.os_config.name }}' in
+            Linux)   target_os="linux" ;;
+            FreeBSD) target_os="freebsd" ;;
+            OpenBSD) target_os="openbsd" ;;
+            NetBSD)  target_os="netbsd" ;;
+            *)       target_os="unknown" ;;
+          esac
+
+          case '${{ matrix.arch }}' in
+            amd64)       target_cpu="x86_64" ;;
+            i486)        target_cpu="i486" ;;
+            aarch64)     target_cpu="aarch64" ;;
+            arm)         target_cpu="arm" ;;
+            riscv)       target_cpu="riscv64" ;;
+            loongarch64) target_cpu="loongarch64" ;;
+            powerpc*)    target_cpu="powerpc" ;;
+            mips*)       target_cpu="mips" ;;
+          esac
+
+          ./configure \
+            --prefix="${{ github.workspace }}/vendor/ffmpeg/install" \
+            --enable-cross-compile \
+            --target-os="$target_os" \
+            --arch="$target_cpu" \
+            --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
+            --ar="${{ env.AR }}" \
+            --ranlib="${{ env.RANLIB }}" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }} -flto" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-encoder=aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            --disable-asm
+
+          make install -j$(nproc)
+
       - name: Cache SDL2 build
         id: cache-sdl2
         uses: actions/cache@v6
@@ -153,9 +222,8 @@ jobs:
 
       - name: Configure and build Butterscotch
         env:
-          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
-          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
-          PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
+          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig:${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
+          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig:${{ github.workspace }}/vendor/ffmpeg/install/lib/pkgconfig"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
@@ -170,7 +238,7 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install;${{ github.workspace }}/vendor/ffmpeg/install" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
           cmake --build build
