@@ -115,8 +115,10 @@ void platformSetWindowTitle(const char* title) {
 }
 
 bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
-    if (!window || !outW || !outH) return false;
-    return SDL_GetWindowSizeInPixels(window, outW, outH);
+    if (!outW || !outH) return false;
+    *outW = fbWidth;
+    *outH = fbHeight;
+    return true;
 }
 
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
@@ -142,31 +144,6 @@ void platformGetMousePos(double *xPos, double *yPos) {
 
 static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
-}
-
-static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
-    return window && outX && outY && SDL_GetWindowPosition(window, outX, outY);
-}
-
-static void platformSetWindowPosition(int32_t x, int32_t y) {
-    if (window) SDL_SetWindowPosition(window, x, y);
-}
-
-static void platformCenterWindow(void) {
-    if (!window || (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN)) return;
-    SDL_DisplayID display = SDL_GetDisplayForWindow(window);
-    if (!display) return;
-    int position = SDL_WINDOWPOS_CENTERED_DISPLAY(display);
-    SDL_SetWindowPosition(window, position, position);
-}
-
-static bool platformGetWindowFullscreen(void) {
-    return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
-}
-
-static void platformSetWindowFullscreen(bool fullscreen) {
-    if (window) SDL_SetWindowFullscreen(window, fullscreen);
-    if (window && gfx == SOFTWARE) scr = SDL_GetWindowSurface(window);
 }
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
@@ -251,11 +228,6 @@ static void platformSetCursor(int32_t cursorType) {
 
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
-    runner->getWindowPosition = platformGetWindowPosition;
-    runner->setWindowPosition = platformSetWindowPosition;
-    runner->centerWindow = platformCenterWindow;
-    runner->getWindowFullscreen = platformGetWindowFullscreen;
-    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
     runner->currentCursor = GML_CR_DEFAULT;
