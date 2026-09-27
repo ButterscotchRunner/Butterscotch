@@ -787,6 +787,12 @@ static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, i
     }
 }
 
+static void SWRenderer_gpuSetTexFilter(Renderer* renderer, bool enable)
+{
+    (void)enable;
+    UNIMP();
+}
+
 static void SWRenderer_flush(Renderer* renderer)
 {
     SWRenderer* swr = (SWRenderer*) renderer;
@@ -1542,6 +1548,7 @@ Renderer* SWRenderer_create(void)
     swrVtable.gpuGetColorWriteEnable   = SWRenderer_gpuGetColorWriteEnable;
     swrVtable.gpuGetBlendEnable        = SWRenderer_gpuGetBlendEnable;
     swrVtable.gpuGetBlendMode          = SWRenderer_gpuGetBlendMode;
+    swrVtable.gpuSetTexFilter          = SWRenderer_gpuSetTexFilter;
     swrVtable.gpuSetFog                = SWRenderer_gpuSetFog;
     swrVtable.drawSpriteTiled          = SWRenderer_drawSpriteTiled;
     swrVtable.drawSurfaceTiled         = SWRenderer_drawSurfaceTiled;
