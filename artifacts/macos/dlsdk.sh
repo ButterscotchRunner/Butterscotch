@@ -12,7 +12,7 @@ mkdir -p "$sdk"
 
 # Increase this if we ever make a change to the SDK, for example
 # using a newer SDK version, and we need to invalidate the cache.
-sdkver=2
+sdkver=3
 if ! [ -d "$sdk" ] || [ "$(cat "$sdk/sdkver" 2>/dev/null)" != "$sdkver" ]; then
     printf '\nDownloading macOS SDK...\n\n'
     (

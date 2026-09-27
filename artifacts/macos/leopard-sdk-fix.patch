@@ -35,10 +35,12 @@
  #endif
 --- a/usr/include/stdlib.h
 +++ b/usr/include/stdlib.h
-@@ -322,4 +322,33 @@
- #include <xlocale/_stdlib.h>
- #endif /* _USE_EXTENDED_LOCALES_ */
- 
+@@ -322,4 +322,35 @@
+#include <xlocale/_stdlib.h>
+#endif /* _USE_EXTENDED_LOCALES_ */
+
++#include <dlfcn.h>
++
 +static int posix_memalign(void **memptr, size_t align, size_t size) {
 +  static bool init = false;
 +  static int (*func)(void **, size_t, size_t);
@@ -68,4 +70,4 @@
 +  }
 +}
 +
- #endif /* _STDLIB_H_ */
+#endif /* _STDLIB_H_ */
