@@ -89,8 +89,8 @@ jobs:
             --cc="ccache ${{ matrix.triplet }}-clang" \
             --ar="llvm-ar" \
             --ranlib="llvm-ranlib" \
-            --extra-cflags="-flto" \
-            --extra-ldflags="-flto -fuse-ld=lld" \
+            --enable-lto \
+            --extra-ldflags="-fuse-ld=lld" \
             --enable-static \
             --disable-shared \
             --disable-programs \

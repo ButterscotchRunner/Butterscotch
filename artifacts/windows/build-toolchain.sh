@@ -206,8 +206,9 @@ esac
   --cc="$target-gcc" \
   --ar="$target-gcc-ar" \
   --ranlib="$target-gcc-ranlib" \
-  --extra-cflags="-O3 -DNDEBUG -fomit-frame-pointer -flto $extra_cflags" \
-  --extra-ldflags="-O3 -DNDEBUG -fomit-frame-pointer -flto $extra_cflags" \
+  --extra-cflags="-O3 -DNDEBUG -fomit-frame-pointer $extra_cflags" \
+  --extra-ldflags="-O3 -DNDEBUG -fomit-frame-pointer $extra_cflags" \
+  --enable-lto \
   --enable-static \
   --disable-shared \
   --disable-programs \
