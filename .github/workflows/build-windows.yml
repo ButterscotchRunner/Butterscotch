@@ -67,7 +67,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/build-deps
-          key: windows-${{ matrix.triplet }}-${{ github.sha }}-sdl2-${{ env.SDL_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}-rev1
+          key: windows-${{ matrix.triplet }}-sdl2-${{ env.SDL_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}-rev1
 
       - name: Checkout FFmpeg
         if: steps.cache-build-deps.outputs.cache-hit != 'true'
