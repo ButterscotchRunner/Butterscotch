@@ -7298,6 +7298,31 @@ static RValue builtin_audio_channel_num(VMContext* ctx, RValue* args, MAYBE_UNUS
     return RValue_makeUndefined();
 }
 
+static RValue builtin_audio_emitter_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->audioSystem == nullptr) return RValue_makeUndefined();
+
+    AudioEmitter emitter = {
+        .active = true,
+        .z = 0.01,
+        .falloffRef = 100.0,
+        .falloffMax = 100000.0,
+        .falloffFactor = 1.0,
+        .gain = 1.0,
+        .pitch = 1.0,
+    };
+
+    repeat(arrlen(runner->audioEmitters), i) {
+        if (runner->audioEmitters[i].active) continue;
+        runner->audioEmitters[i] = emitter;
+        return RValue_makeReal((GMLReal) i);
+    }
+
+    int32_t id = (int32_t) arrlen(runner->audioEmitters);
+    arrput(runner->audioEmitters, emitter);
+    return RValue_makeReal((GMLReal) id);
+}
+
 // Old version of builtin_audio_play_sound, the GMS2 compatibility script sets the priority to 10 for... some reason
 static RValue builtin_sound_play(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     AudioSystem* audio = ctx->runner->audioSystem;
@@ -22237,6 +22262,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
     VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
+    VM_registerBuiltin(ctx, "audio_emitter_create", builtin_audio_emitter_create);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
     VM_registerBuiltin(ctx, "audio_stop_all", builtin_audio_stop_all);

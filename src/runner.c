@@ -1966,6 +1966,8 @@ static void cleanupState(Runner* runner) {
     runner->savedRoomStates = nullptr;
 
     Particles_freeAll(runner);
+    arrfree(runner->audioEmitters);
+    runner->audioEmitters = nullptr;
 
     // Drain ds_map/ds_list pools BEFORE bulk-freeing struct instances. Their RValue entries may hold RVALUE_STRUCT refs to structs in runner->structInstances, and RValue_free would deref freed memory if the structs are gone.
     {
