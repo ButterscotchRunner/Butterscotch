@@ -2619,37 +2619,17 @@ void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
 }
 
-static void Runner_clearStaleInstanceReferencesToInstance(Runner* runner, Instance* destroyedInst) {
-    if (runner == nullptr || destroyedInst == nullptr) return;
-
-    // A destroyed instance can still be referenced by another instance's per-instance state
-    // as an integer id (e.g. linked-list pointers, owner ids, chain heads, etc.). Rewrite any
-    // stale id equal to the dying instance back to -4.
-
-    // This is probably not very optimal as it loops through every single instance and every single
-    // selfVar slot, but it doesn't happen too often so maybe it should be okay?
-    // Another option would be to keep a reverse lookup table of instance ids to instances that reference them,
-    // but that would be more memory and complexity overhead.
-
-    int32_t destroyedInstanceId = destroyedInst->instanceId;
-    int32_t count = (int32_t) arrlen(runner->instances);
-    for (int32_t i = 0; i < count; i++) {
+static void clearDestroyedInstanceReferences(Runner* runner, Instance* destroyedInst) {
+    repeat(arrlen(runner->instances), i) {
         Instance* inst = runner->instances[i];
-        if (inst == nullptr || !inst->active || inst->destroyed || inst->objectIndex < 0) continue;
+        if (inst == nullptr || !inst->active || inst->destroyed) continue;
         repeat(inst->selfVars.capacity, slotIndex) {
             IntRValueEntry* entry = &inst->selfVars.entries[slotIndex];
             if (entry->key == INT_RVALUE_HASHMAP_EMPTY_KEY) continue;
-
-            uint8_t vtype = entry->value.type;
-            if (
-                (vtype == RVALUE_INT32 && entry->value.int32 == destroyedInstanceId) ||
-#ifndef NO_RVALUE_INT64
-                (vtype == RVALUE_INT64 && entry->value.int64 == destroyedInstanceId) ||
-#endif
-                (vtype == RVALUE_REAL && entry->value.real == (GMLReal) destroyedInstanceId)
-            ) {
-                entry->value = RValue_makeInt32(INSTANCE_NOONE);
-            }
+            RValue* value = &entry->value;
+            if (value->type == RVALUE_INT32 && value->assetRefType == ASSET_TYPE_INSTANCE &&
+                (uint32_t)value->int32 == destroyedInst->instanceId)
+                *value = RValue_makeInt32(INSTANCE_NOONE);
         }
     }
 }
@@ -2666,9 +2646,7 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
 
-    // Any selfVars that still hold the destroyed instance's id must be invalidated back to
-    // noone (-4) before the instance is fully reclaimed.
-    Runner_clearStaleInstanceReferencesToInstance(runner, inst);
+    clearDestroyedInstanceReferences(runner, inst);
 
 #ifdef ENABLE_VM_TRACING
     GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];

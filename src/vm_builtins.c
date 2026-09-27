@@ -16197,7 +16197,7 @@ static RValue builtin_array_create(VMContext* ctx, RValue* args, int32_t argCoun
 // Emitted by the GMS2 compiler for expressions like `self` when used as a value.
 static RValue builtin_This(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* instance = (Instance *)requireNotNullMessage(ctx->currentInstance, "Called @@This@@ while there isn't a current instance on the context!");
-    return RValue_makeInt32((int32_t) instance->instanceId);
+    return RValue_makeInstanceRef((int32_t) instance->instanceId);
 }
 
 // @@Global@@ - GMS2 internal function returning the "global" instance's ID.
@@ -16209,10 +16209,10 @@ static RValue builtin_Global(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* a
 // Falls back to the current instance when there is no other (matches GML semantics outside with/collision).
 static RValue builtin_Other(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* other = ctx->otherInstance;
-    if (other != nullptr) return RValue_makeInt32((int32_t) other->instanceId);
+    if (other != nullptr) return RValue_makeInstanceRef((int32_t) other->instanceId);
     Instance* inst = ctx->currentInstance;
     if (inst == nullptr) return RValue_makeInt32(INSTANCE_SELF);
-    return RValue_makeInt32((int32_t) inst->instanceId);
+    return RValue_makeInstanceRef((int32_t) inst->instanceId);
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
