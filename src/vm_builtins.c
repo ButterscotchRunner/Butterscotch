@@ -15,6 +15,7 @@
 
 #include "stdio_compat.h"
 #include <stdlib.h>
+#include <float.h>
 #include "string_compat.h"
 #include "math_compat.h"
 #include <ctype.h>
@@ -7262,6 +7263,14 @@ STUB_RETURN_ZERO(steam_get_persona_name)
 
 // ===[ Audio Built-in Functions ]===
 
+static GMLReal audioPositiveMinimum(void) {
+#ifdef USE_FLOAT_REALS
+    return FLT_MIN;
+#else
+    return DBL_MIN;
+#endif
+}
+
 static RValue builtin_audio_system_is_available(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     logSemiStubbedFunction(ctx, "audio_system_is_available");
     return RValue_makeBool(true);
@@ -7346,7 +7355,7 @@ static RValue builtin_audio_emitter_falloff(VMContext* ctx, RValue* args, int32_
     if (emitter == nullptr) return RValue_makeUndefined();
 
     emitter->falloffRef = GMLReal_fmax(0, RValue_toReal(args[1]));
-    emitter->falloffMax = GMLReal_fmax(GMLReal_nextafter(0, 1), RValue_toReal(args[2]));
+    emitter->falloffMax = GMLReal_fmax(audioPositiveMinimum(), RValue_toReal(args[2]));
     emitter->falloffFactor = GMLReal_fmax(0, RValue_toReal(args[3]));
     audioEmitterUpdateVoices(ctx->runner, emitter);
     return RValue_makeUndefined();
@@ -7421,7 +7430,7 @@ static RValue builtin_audio_play_sound_on(VMContext* ctx, RValue* args, int32_t 
         audio->vtable->setTrackPosition(audio, instanceId, offset);
     }
     if (argCount > 6 && args[6].type != RVALUE_UNDEFINED) {
-        float pitch = (float)GMLReal_fmax(GMLReal_nextafter(0, 1), RValue_toReal(args[6]));
+        float pitch = (float)GMLReal_fmax((GMLReal)FLT_MIN, RValue_toReal(args[6]));
         audio->vtable->setSoundPitch(audio, instanceId, audio->vtable->getSoundPitch(audio, instanceId) * pitch);
     }
     return RValue_makeReal((GMLReal)instanceId);
