@@ -789,7 +789,8 @@ static void SWRenderer_gpuSetBlendModeExt(Renderer* renderer, int32_t sfactor, i
 
 static void SWRenderer_gpuSetTexFilter(Renderer* renderer, bool enable)
 {
-    (void)enable;
+    (void) renderer;
+    (void) enable;
     UNIMP();
 }
 
