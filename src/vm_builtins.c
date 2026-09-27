@@ -2269,6 +2269,46 @@ static RValue builtin_string_lower(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     return RValue_makeOwnedString(result);
 }
 
+static bool stringTrimWhitespace(uint16_t ch) {
+    return (ch >= 0x0009 && ch <= 0x000D) || ch == 0x0020 || ch == 0x00A0 ||
+           ch == 0x1680 || (ch >= 0x2000 && ch <= 0x200A) || ch == 0x2028 ||
+           ch == 0x2029 || ch == 0x202F || ch == 0x205F || ch == 0x3000 || ch == 0xFEFF;
+}
+
+static RValue builtin_string_trim_start(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_trim_start", 1, RValue_makeOwnedString(safeStrdup("")));
+    char* result = RValue_toString(args[0], ctx->runner->dataWin);
+    char* start = result;
+
+    if (argCount == 1) {
+        while (*start) {
+            int32_t pos = 0;
+            uint16_t ch = TextUtils_decodeUtf8(start, (int32_t)strlen(start), &pos);
+            if (!stringTrimWhitespace(ch)) break;
+            start += pos;
+        }
+    } else if (args[1].type == RVALUE_ARRAY && args[1].array != nullptr) {
+        GMLArray* substrings = args[1].array;
+        bool matched;
+        do {
+            matched = false;
+            repeat(GMLArray_length1D(substrings), i) {
+                RValue substring = GMLArray_get(substrings, i);
+                if (substring.type != RVALUE_STRING || substring.string == nullptr) continue;
+                size_t length = strlen(substring.string);
+                if (length > 0 && strncmp(start, substring.string, length) == 0) {
+                    start += length;
+                    matched = true;
+                    break;
+                }
+            }
+        } while (matched);
+    }
+
+    if (start != result) memmove(result, start, strlen(start) + 1);
+    return RValue_makeOwnedString(result);
+}
+
 static RValue builtin_string_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("string_copy", 3, RValue_makeOwnedString(safeStrdup("")));
     int32_t len = RValue_toInt32(args[2]);
@@ -21803,6 +21843,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
+    VM_registerBuiltin(ctx, "string_trim_start", builtin_string_trim_start);
     VM_registerBuiltin(ctx, "string_copy", builtin_string_copy);
     VM_registerBuiltin(ctx, "string_pos", builtin_string_pos);
     VM_registerBuiltin(ctx, "string_char_at", builtin_string_char_at);
