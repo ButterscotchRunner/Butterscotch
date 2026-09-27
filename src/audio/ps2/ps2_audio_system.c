@@ -394,8 +394,8 @@ static void mixAudio(Ps2AudioSystem* ps2, int16_t* outBuf, int32_t samplePairs) 
         bool loop = inst->loop;
         float gain = inst->currentGain * inst->sondVolume * ps2->masterGain *
             spatialGain(&ps2->base, inst->spatial, inst->spatialX, inst->spatialY, inst->spatialZ,
-                        inst->falloffRef, inst->falloffMax, inst->falloffFactor);
-                     AudioSystem_soundGroupGain(&ps2->base, inst->soundIndex);
+                        inst->falloffRef, inst->falloffMax, inst->falloffFactor) *
+            AudioSystem_soundGroupGain(&ps2->base, inst->soundIndex);
         int32_t gainQ15 = (int32_t) (gain * 32768.0f);
         Ps2AudoEntry* audo = &ps2->audoEntries[inst->audoIndex];
         float stepRate = inst->pitch * inst->sondPitch * ((float) audo->sampleRate / (float) AUDSRV_OUTPUT_FREQ);
@@ -467,8 +467,8 @@ static void mixAudio(Ps2AudioSystem* ps2, int16_t* outBuf, int32_t samplePairs) 
         // Hoist per-stream constants (pitch/sampleRate don't change mid-mix)
         float gain = stream->currentGain * stream->sondVolume * ps2->masterGain *
             spatialGain(&ps2->base, stream->spatial, stream->spatialX, stream->spatialY, stream->spatialZ,
-                        stream->falloffRef, stream->falloffMax, stream->falloffFactor);
-                     AudioSystem_soundGroupGain(&ps2->base, stream->soundIndex);
+                        stream->falloffRef, stream->falloffMax, stream->falloffFactor) *
+            AudioSystem_soundGroupGain(&ps2->base, stream->soundIndex);
         int32_t gainQ15 = (int32_t) (gain * 32768.0f);
         uint16_t streamSampleRate = getMusicStreamSampleRate(ps2, stream);
         float stepRate = stream->pitch * stream->sondPitch * ((float) streamSampleRate / (float) AUDSRV_OUTPUT_FREQ);

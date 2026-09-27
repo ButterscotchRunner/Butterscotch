@@ -674,7 +674,6 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
     alSourcei(slot->alSource, AL_SOURCE_RELATIVE, AL_TRUE);
-    alSourcef(slot->alSource, AL_GAIN, volume);
     alSourcef(slot->alSource, AL_GAIN, volume * AudioSystem_soundGroupGain(audio, soundIndex));
 
     if (pitch != 1.0f) {
