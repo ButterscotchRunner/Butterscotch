@@ -126,6 +126,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
 
     repeat(MAX_LISTENERS, i) {
         ma_sound_group_init(&ma->engine, 0, NULL, &ma->listenerGroups[i]);
+        ma_sound_group_set_spatialization_enabled(&ma->listenerGroups[i], MA_FALSE);
         ma_sound_group_set_volume(&ma->listenerGroups[i], 1.0f);
         ma->listenerGains[i] = 1.0f;
     }
@@ -298,6 +299,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     }
 
     // Apply properties
+    ma_sound_set_spatialization_enabled(&slot->maSound, MA_FALSE);
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
     ma_sound_set_volume(&slot->maSound, volume);
@@ -323,6 +325,21 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     ma_sound_start(&slot->maSound);
 
     return slot->instanceId;
+}
+
+static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+    SoundInstance* inst = findInstanceById((MaAudioSystem*)audio, instanceId);
+    if (inst == nullptr) return;
+    ma_sound_set_position(&inst->maSound, x, y, z);
+    ma_sound_set_attenuation_model(&inst->maSound, ma_attenuation_model_inverse);
+    ma_sound_set_min_distance(&inst->maSound, ref > 0 ? ref : 0.0001f);
+    ma_sound_set_max_distance(&inst->maSound, max > 0 ? max : 0.0001f);
+    ma_sound_set_rolloff(&inst->maSound, factor);
+    ma_sound_set_spatialization_enabled(&inst->maSound, MA_TRUE);
+}
+
+static void maSetListenerPosition(AudioSystem* audio, float x, float y, float z) {
+    ma_engine_listener_set_position(&((MaAudioSystem*)audio)->engine, 0, x, y, z);
 }
 
 static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
@@ -872,6 +889,8 @@ MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
     maAudioSystemVtable.destroy = maDestroy;
     maAudioSystemVtable.update = maUpdate;
     maAudioSystemVtable.playSound = maPlaySound;
+    maAudioSystemVtable.setSoundSpatial = maSetSoundSpatial;
+    maAudioSystemVtable.setListenerPosition = maSetListenerPosition;
     maAudioSystemVtable.stopSound = maStopSound;
     maAudioSystemVtable.stopAll = maStopAll;
     maAudioSystemVtable.isPlaying = maIsPlaying;

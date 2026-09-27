@@ -229,6 +229,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
 
     memset(ma->instances, 0, sizeof(ma->instances));
     ma->nextInstanceCounter = 0;
+    alDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
 
     logInfo("Audio: OpenAL engine initialized\n");
 }
@@ -667,6 +668,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     // Apply properties
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
+    alSourcei(slot->alSource, AL_SOURCE_RELATIVE, AL_TRUE);
     alSourcef(slot->alSource, AL_GAIN, volume);
 
     if (pitch != 1.0f) {
@@ -697,6 +699,20 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     }
 
     return slot->instanceId;
+}
+
+static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+    SoundInstance* inst = findInstanceById((AlAudioSystem*)audio, instanceId);
+    if (inst == nullptr) return;
+    alSourcei(inst->alSource, AL_SOURCE_RELATIVE, AL_FALSE);
+    alSource3f(inst->alSource, AL_POSITION, x, y, z);
+    alSourcef(inst->alSource, AL_REFERENCE_DISTANCE, ref > 0 ? ref : 0.0001f);
+    alSourcef(inst->alSource, AL_MAX_DISTANCE, max > 0 ? max : 0.0001f);
+    alSourcef(inst->alSource, AL_ROLLOFF_FACTOR, factor);
+}
+
+static void maSetListenerPosition(AudioSystem* audio, float x, float y, float z) {
+    if (((AlAudioSystem*)audio)->alContext != nullptr) alListener3f(AL_POSITION, x, y, z);
 }
 
 static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
@@ -1214,6 +1230,8 @@ AlAudioSystem* AlAudioSystem_create(void) {
     AlAudioSystemVtable.destroy = maDestroy;
     AlAudioSystemVtable.update = maUpdate;
     AlAudioSystemVtable.playSound = maPlaySound;
+    AlAudioSystemVtable.setSoundSpatial = maSetSoundSpatial;
+    AlAudioSystemVtable.setListenerPosition = maSetListenerPosition;
     AlAudioSystemVtable.stopSound = maStopSound;
     AlAudioSystemVtable.stopAll = maStopAll;
     AlAudioSystemVtable.isPlaying = maIsPlaying;

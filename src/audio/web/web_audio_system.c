@@ -252,6 +252,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
         }
     }
 
+    ma_sound_set_spatialization_enabled(&slot->maSound, MA_FALSE);
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
     ma_sound_set_volume(&slot->maSound, volume);
@@ -275,6 +276,24 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
     ma_sound_start(&slot->maSound);
 
     return slot->instanceId;
+}
+
+static void webSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+    WebAudioSystem* ma = (WebAudioSystem*)audio;
+    if (!ma->engineReady) return;
+    WebSoundInstance* inst = findInstanceById(ma, instanceId);
+    if (inst == nullptr) return;
+    ma_sound_set_position(&inst->maSound, x, y, z);
+    ma_sound_set_attenuation_model(&inst->maSound, ma_attenuation_model_inverse);
+    ma_sound_set_min_distance(&inst->maSound, ref > 0 ? ref : 0.0001f);
+    ma_sound_set_max_distance(&inst->maSound, max > 0 ? max : 0.0001f);
+    ma_sound_set_rolloff(&inst->maSound, factor);
+    ma_sound_set_spatialization_enabled(&inst->maSound, MA_TRUE);
+}
+
+static void webSetListenerPosition(AudioSystem* audio, float x, float y, float z) {
+    WebAudioSystem* ma = (WebAudioSystem*)audio;
+    if (ma->engineReady) ma_engine_listener_set_position(&ma->engine, 0, x, y, z);
 }
 
 static void webStopSound(AudioSystem* audio, int32_t soundOrInstance) {
@@ -741,6 +760,8 @@ WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate) {
     webAudioSystemVtable.destroy = webDestroy;
     webAudioSystemVtable.update = webUpdate;
     webAudioSystemVtable.playSound = webPlaySound;
+    webAudioSystemVtable.setSoundSpatial = webSetSoundSpatial;
+    webAudioSystemVtable.setListenerPosition = webSetListenerPosition;
     webAudioSystemVtable.stopSound = webStopSound;
     webAudioSystemVtable.stopAll = webStopAll;
     webAudioSystemVtable.isPlaying = webIsPlaying;

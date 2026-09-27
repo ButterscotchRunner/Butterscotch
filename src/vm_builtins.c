@@ -7314,6 +7314,7 @@ static RValue builtin_audio_emitter_create(VMContext* ctx, MAYBE_UNUSED RValue* 
 
     repeat(arrlen(runner->audioEmitters), i) {
         if (runner->audioEmitters[i].active) continue;
+        arrfree(runner->audioEmitters[i].voices);
         runner->audioEmitters[i] = emitter;
         return RValue_makeReal((GMLReal) i);
     }
@@ -7321,6 +7322,109 @@ static RValue builtin_audio_emitter_create(VMContext* ctx, MAYBE_UNUSED RValue* 
     int32_t id = (int32_t) arrlen(runner->audioEmitters);
     arrput(runner->audioEmitters, emitter);
     return RValue_makeReal((GMLReal) id);
+}
+
+static AudioEmitter* audioEmitterGet(Runner* runner, int32_t id) {
+    if (id < 0 || id >= (int32_t) arrlen(runner->audioEmitters)) return nullptr;
+    AudioEmitter* emitter = &runner->audioEmitters[id];
+    return emitter->active ? emitter : nullptr;
+}
+
+static void audioEmitterUpdateVoices(Runner* runner, AudioEmitter* emitter) {
+    AudioSystem* audio = runner->audioSystem;
+    if (audio == nullptr) return;
+    repeat(arrlen(emitter->voices), i) {
+        audio->vtable->setSoundSpatial(audio, emitter->voices[i], (float)emitter->x, (float)emitter->y, (float)emitter->z,
+                                        (float)emitter->falloffRef, (float)emitter->falloffMax, (float)emitter->falloffFactor);
+    }
+}
+
+static RValue builtin_audio_emitter_falloff(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_falloff", 4, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+
+    emitter->falloffRef = GMLReal_fmax(0, RValue_toReal(args[1]));
+    emitter->falloffMax = GMLReal_fmax(GMLReal_nextafter(0, 1), RValue_toReal(args[2]));
+    emitter->falloffFactor = GMLReal_fmax(0, RValue_toReal(args[3]));
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_position(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_position", 4, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->x = RValue_toReal(args[1]);
+    emitter->y = RValue_toReal(args[2]);
+    emitter->z = RValue_toReal(args[3]);
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_listener_position(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_listener_position", 3, RValue_makeUndefined());
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio != nullptr) {
+        audio->listenerX = (float)RValue_toReal(args[0]);
+        audio->listenerY = (float)RValue_toReal(args[1]);
+        audio->listenerZ = (float)RValue_toReal(args[2]);
+        audio->vtable->setListenerPosition(audio, audio->listenerX, audio->listenerY, audio->listenerZ);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_exists", 1, RValue_makeBool(false));
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeBool(false);
+    return RValue_makeBool(audioEmitterGet(ctx->runner, RValue_toInt32(args[0])) != nullptr);
+}
+
+static RValue builtin_audio_emitter_free(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_free", 1, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio != nullptr) {
+        repeat(arrlen(emitter->voices), i) {
+            audio->vtable->stopSound(audio, emitter->voices[i]);
+        }
+    }
+    arrfree(emitter->voices);
+    ZERO_STRUCT(*emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_play_sound_on(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_play_sound_on", 4, RValue_makeReal(-1));
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeReal(-1);
+    AudioSystem* audio = ctx->runner->audioSystem;
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (audio == nullptr || emitter == nullptr || args[1].type == RVALUE_UNDEFINED) return RValue_makeReal(-1);
+
+    int32_t soundIndex = RValue_toInt32(args[1]);
+    int32_t instanceId = audio->vtable->playSound(audio, soundIndex, RValue_toInt32(args[3]), RValue_toBool(args[2]));
+    if (instanceId < 0) return RValue_makeReal(-1);
+
+    arrput(emitter->voices, instanceId);
+    audio->vtable->setSoundSpatial(audio, instanceId, (float)emitter->x, (float)emitter->y, (float)emitter->z,
+                                    (float)emitter->falloffRef, (float)emitter->falloffMax, (float)emitter->falloffFactor);
+    if (argCount > 4 && args[4].type != RVALUE_UNDEFINED) {
+        float gain = (float)GMLReal_fmax(0, RValue_toReal(args[4]));
+        audio->vtable->setSoundGain(audio, instanceId, audio->vtable->getSoundGain(audio, instanceId) * gain, 0);
+    }
+    if (argCount > 5 && args[5].type != RVALUE_UNDEFINED) {
+        float offset = (float)GMLReal_fmax(0, RValue_toReal(args[5]));
+        audio->vtable->setTrackPosition(audio, instanceId, offset);
+    }
+    if (argCount > 6 && args[6].type != RVALUE_UNDEFINED) {
+        float pitch = (float)GMLReal_fmax(GMLReal_nextafter(0, 1), RValue_toReal(args[6]));
+        audio->vtable->setSoundPitch(audio, instanceId, audio->vtable->getSoundPitch(audio, instanceId) * pitch);
+    }
+    return RValue_makeReal((GMLReal)instanceId);
 }
 
 // Old version of builtin_audio_play_sound, the GMS2 compatibility script sets the priority to 10 for... some reason
@@ -22263,6 +22367,12 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_emitter_create", builtin_audio_emitter_create);
+    VM_registerBuiltin(ctx, "audio_emitter_falloff", builtin_audio_emitter_falloff);
+    VM_registerBuiltin(ctx, "audio_emitter_position", builtin_audio_emitter_position);
+    VM_registerBuiltin(ctx, "audio_listener_position", builtin_audio_listener_position);
+    VM_registerBuiltin(ctx, "audio_play_sound_on", builtin_audio_play_sound_on);
+    VM_registerBuiltin(ctx, "audio_emitter_exists", builtin_audio_emitter_exists);
+    VM_registerBuiltin(ctx, "audio_emitter_free", builtin_audio_emitter_free);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
     VM_registerBuiltin(ctx, "audio_stop_all", builtin_audio_stop_all);

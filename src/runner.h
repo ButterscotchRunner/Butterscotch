@@ -496,6 +496,14 @@ typedef struct {
 } ParticleEmitter;
 
 typedef struct {
+    bool active;
+    GMLReal x, y, z;
+    GMLReal falloffRef, falloffMax, falloffFactor;
+    GMLReal gain, pitch;
+    int32_t* voices; // sound-instance IDs played on this emitter
+} AudioEmitter;
+
+typedef struct {
     bool used;
     bool automaticUpdate; // step the system at the end of every frame (on by default, as in GML)
     bool automaticDraw;   // draw the system from the depth list (on by default, as in GML)
@@ -803,6 +811,7 @@ struct Runner {
     // any system's emitters. Both pools reuse destroyed slots, matching the ds_* id behaviour.
     ParticleSystem* particleSystemPool; // stb_ds array of ParticleSystem
     ParticleType* particleTypePool; // stb_ds array of ParticleType
+    AudioEmitter* audioEmitters; // stb_ds array, index = audio emitter id
 
     // Motion planning potential field settings
     GMLReal mpPotMaxrot;

@@ -1966,6 +1966,9 @@ static void cleanupState(Runner* runner) {
     runner->savedRoomStates = nullptr;
 
     Particles_freeAll(runner);
+    repeat(arrlen(runner->audioEmitters), i) {
+        arrfree(runner->audioEmitters[i].voices);
+    }
     arrfree(runner->audioEmitters);
     runner->audioEmitters = nullptr;
 
