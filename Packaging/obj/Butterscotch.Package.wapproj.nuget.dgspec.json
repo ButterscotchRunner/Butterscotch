@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "restore": {
+    "\\\\Mac\\Home\\Library\\Mobile Documents\\com~apple~CloudDocs\\git\\Butterscotch\\Packaging\\Butterscotch.Package.wapproj": {}
+  },
+  "projects": {
+    "\\\\Mac\\Home\\Library\\Mobile Documents\\com~apple~CloudDocs\\git\\Butterscotch\\Packaging\\Butterscotch.Package.wapproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "\\\\Mac\\Home\\Library\\Mobile Documents\\com~apple~CloudDocs\\git\\Butterscotch\\Packaging\\Butterscotch.Package.wapproj",
+        "projectName": "Butterscotch.Package",
+        "projectPath": "\\\\Mac\\Home\\Library\\Mobile Documents\\com~apple~CloudDocs\\git\\Butterscotch\\Packaging\\Butterscotch.Package.wapproj",
+        "packagesPath": "C:\\Users\\emma\\.nuget\\packages\\",
+        "outputPath": "\\\\Mac\\Home\\Library\\Mobile Documents\\com~apple~CloudDocs\\git\\Butterscotch\\Packaging\\obj\\",
+        "projectStyle": "PackageReference",
+        "UsingMicrosoftNETSdk": false,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\emma\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net451"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net451": {
+            "framework": "uap10.0.19041",
+            "targetAlias": "net451",
+            "projectReferences": {}
+          }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.400"
+      },
+      "frameworks": {
+        "net451": {
+          "framework": "uap10.0.19041",
+          "targetAlias": "net451",
+          "imports": [
+            "netcoreapp3.1",
+            "netcoreapp3.0",
+            "netcoreapp2.0",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481",
+            "net11.0-windows10.0.26100",
+            "net461"
+          ],
+          "assetTargetFallback": true,
+          "warn": true
+        }
+      },
+      "runtimes": {
+        "win10-arm": {
+          "#import": []
+        },
+        "win10-arm-aot": {
+          "#import": []
+        },
+        "win10-arm64-aot": {
+          "#import": []
+        },
+        "win10-x64": {
+          "#import": []
+        },
+        "win10-x64-aot": {
+          "#import": []
+        },
+        "win10-x86": {
+          "#import": []
+        },
+        "win10-x86-aot": {
+          "#import": []
+        }
+      }
+    }
+  }
+}
