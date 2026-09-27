@@ -35,9 +35,7 @@
  #endif
 --- a/usr/include/stdlib.h
 +++ b/usr/include/stdlib.h
-@@ -322,4 +322,35 @@
-#include <xlocale/_stdlib.h>
-#endif /* _USE_EXTENDED_LOCALES_ */
+@@ -322,2 +322,33 @@
 
 +#include <dlfcn.h>
 +
