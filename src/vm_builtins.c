@@ -7302,15 +7302,15 @@ static RValue builtin_audio_emitter_create(VMContext* ctx, MAYBE_UNUSED RValue* 
     Runner* runner = ctx->runner;
     if (runner->audioSystem == nullptr) return RValue_makeUndefined();
 
-    AudioEmitter emitter = {
-        .active = true,
-        .z = 0.01,
-        .falloffRef = 100.0,
-        .falloffMax = 100000.0,
-        .falloffFactor = 1.0,
-        .gain = 1.0,
-        .pitch = 1.0,
-    };
+    AudioEmitter emitter;
+    ZERO_STRUCT(emitter);
+    emitter.active = true;
+    emitter.z = 0.01;
+    emitter.falloffRef = 100.0;
+    emitter.falloffMax = 100000.0;
+    emitter.falloffFactor = 1.0;
+    emitter.gain = 1.0;
+    emitter.pitch = 1.0;
 
     repeat(arrlen(runner->audioEmitters), i) {
         if (runner->audioEmitters[i].active) continue;
