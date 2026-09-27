@@ -2269,6 +2269,46 @@ static RValue builtin_string_lower(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     return RValue_makeOwnedString(result);
 }
 
+static bool stringTrimWhitespace(uint16_t ch) {
+    return (ch >= 0x0009 && ch <= 0x000D) || ch == 0x0020 || ch == 0x00A0 ||
+           ch == 0x1680 || (ch >= 0x2000 && ch <= 0x200A) || ch == 0x2028 ||
+           ch == 0x2029 || ch == 0x202F || ch == 0x205F || ch == 0x3000 || ch == 0xFEFF;
+}
+
+static RValue builtin_string_trim_start(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_trim_start", 1, RValue_makeOwnedString(safeStrdup("")));
+    char* result = RValue_toString(args[0], ctx->runner->dataWin);
+    char* start = result;
+
+    if (argCount == 1) {
+        while (*start) {
+            int32_t pos = 0;
+            uint16_t ch = TextUtils_decodeUtf8(start, (int32_t)strlen(start), &pos);
+            if (!stringTrimWhitespace(ch)) break;
+            start += pos;
+        }
+    } else if (args[1].type == RVALUE_ARRAY && args[1].array != nullptr) {
+        GMLArray* substrings = args[1].array;
+        bool matched;
+        do {
+            matched = false;
+            repeat(GMLArray_length1D(substrings), i) {
+                RValue substring = GMLArray_get(substrings, i);
+                if (substring.type != RVALUE_STRING || substring.string == nullptr) continue;
+                size_t length = strlen(substring.string);
+                if (length > 0 && strncmp(start, substring.string, length) == 0) {
+                    start += length;
+                    matched = true;
+                    break;
+                }
+            }
+        } while (matched);
+    }
+
+    if (start != result) memmove(result, start, strlen(start) + 1);
+    return RValue_makeOwnedString(result);
+}
+
 static RValue builtin_string_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("string_copy", 3, RValue_makeOwnedString(safeStrdup("")));
     int32_t len = RValue_toInt32(args[2]);
@@ -4042,6 +4082,10 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
     snprintf(additional, sizeof(additional), " (%s)", originBuiltin);
     VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, true, -1, target->instanceId, additional);
 #endif
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        VM_structSet(ctx, target, name, val, -1);
+        return;
+    }
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         VMBuiltins_setVariable(ctx, target, builtinId, name, val, -1);
@@ -4060,6 +4104,8 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
 }
 
 static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char* name, MAYBE_UNUSED const char* originBuiltin) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX)
+        return RValue_makeIndependent(VM_structGetVariableByVarName(ctx, target, name, -1));
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         RValue val = VMBuiltins_getVariable(ctx, target, builtinId, name, -1);
@@ -4090,6 +4136,10 @@ static inline bool variableScopedMatches(Instance* inst, bool structOnly) {
 }
 
 static bool variableInstanceExistsOn(VMContext* ctx, Instance* target, const char* name) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
+        return slot >= 0 && IntRValueHashMap_contains(&target->selfVars, ctx->varNameMap[slot].value);
+    }
     if (VMBuiltins_resolveBuiltinVarId(name) != BUILTIN_VAR_UNKNOWN) return true;
     ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
     if (0 > slot) return false;
@@ -8244,6 +8294,29 @@ static RValue builtin_file_rename(VMContext* ctx, RValue* args, int32_t argCount
     Runner* runner = ctx->runner;
     FileSystem* fs = runner->fileSystem;
     return RValue_makeBool(fs->vtable->renameFile(fs, oldPath, newPath));
+}
+
+static RValue builtin_file_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("file_copy", 2, RValue_makeBool(false));
+    const char* source = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* destination = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    if (!*source || !*destination) return RValue_makeBool(false);
+
+    FileSystem* fs = ctx->runner->fileSystem;
+    uint8_t* data = nullptr;
+    int32_t size = 0;
+    if (fs->vtable->readFileBinary(fs, source, &data, &size)) {
+        bool copied = fs->vtable->writeFileBinary(fs, destination, data, size);
+        free(data);
+        return RValue_makeBool(copied);
+    }
+
+    // In-memory file systems may store text files separately from binary files.
+    char* text = fs->vtable->readFileText(fs, source);
+    if (text == nullptr) return RValue_makeBool(false);
+    bool copied = fs->vtable->writeFileText(fs, destination, text);
+    free(text);
+    return RValue_makeBool(copied);
 }
 
 // ===[ File Find Functions ]===
@@ -16079,6 +16152,14 @@ static RValue builtin_tile_get_index(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     return RValue_makeReal((GMLReal) (RValue_toInt32(args[0]) & TILEINDEX_SHIFTEDMASK));
 }
 
+static RValue builtin_tile_set_index(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("tile_set_index", 2, RValue_makeReal(-1.0));
+    uint32_t cell = (uint32_t) RValue_toInt32(args[0]);
+    uint32_t index = (uint32_t) RValue_toInt32(args[1]);
+    cell = (cell & ~TILEINDEX_MASK) | (index << TILEINDEX_SHIFT);
+    return RValue_makeReal((GMLReal) (int32_t) cell);
+}
+
 // tile_get_mirror(tiledata): returns whether the horizontal-mirror bit is set on a raw tile cell value.
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -16208,7 +16289,7 @@ static RValue builtin_array_create(VMContext* ctx, RValue* args, int32_t argCoun
 // Emitted by the GMS2 compiler for expressions like `self` when used as a value.
 static RValue builtin_This(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* instance = (Instance *)requireNotNullMessage(ctx->currentInstance, "Called @@This@@ while there isn't a current instance on the context!");
-    return RValue_makeInt32((int32_t) instance->instanceId);
+    return RValue_makeInstanceRef((int32_t) instance->instanceId);
 }
 
 // @@Global@@ - GMS2 internal function returning the "global" instance's ID.
@@ -16220,10 +16301,10 @@ static RValue builtin_Global(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* a
 // Falls back to the current instance when there is no other (matches GML semantics outside with/collision).
 static RValue builtin_Other(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* other = ctx->otherInstance;
-    if (other != nullptr) return RValue_makeInt32((int32_t) other->instanceId);
+    if (other != nullptr) return RValue_makeInstanceRef((int32_t) other->instanceId);
     Instance* inst = ctx->currentInstance;
     if (inst == nullptr) return RValue_makeInt32(INSTANCE_SELF);
-    return RValue_makeInt32((int32_t) inst->instanceId);
+    return RValue_makeInstanceRef((int32_t) inst->instanceId);
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -21814,6 +21895,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
+    VM_registerBuiltin(ctx, "string_trim_start", builtin_string_trim_start);
     VM_registerBuiltin(ctx, "string_copy", builtin_string_copy);
     VM_registerBuiltin(ctx, "string_pos", builtin_string_pos);
     VM_registerBuiltin(ctx, "string_char_at", builtin_string_char_at);
@@ -22259,6 +22341,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_text_eof", builtin_file_text_eof);
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
     VM_registerBuiltin(ctx, "file_rename", builtin_file_rename);
+    VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
     VM_registerBuiltin(ctx, "file_find_first", builtin_file_find_first);
     VM_registerBuiltin(ctx, "file_find_next", builtin_file_find_next);
     VM_registerBuiltin(ctx, "file_find_close", builtin_file_find_close);
@@ -22720,6 +22803,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tilemap_get_at_pixel", builtin_tilemap_get_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get_tileset", builtin_tilemap_get_tileset);
     VM_registerBuiltin(ctx, "tile_get_index", builtin_tile_get_index);
+    VM_registerBuiltin(ctx, "tile_set_index", builtin_tile_set_index);
     VM_registerBuiltin(ctx, "tile_get_mirror", builtin_tile_get_mirror);
     VM_registerBuiltin(ctx, "tile_get_flip", builtin_tile_get_flip);
     VM_registerBuiltin(ctx, "tile_get_rotate", builtin_tile_get_rotate);
