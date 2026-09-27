@@ -4025,6 +4025,29 @@ void Runner_step(Runner* runner) {
         RuntimeLayer* rl = &runner->runtimeLayers[i];
         rl->xOffset += rl->hSpeed;
         rl->yOffset += rl->vSpeed;
+
+        repeat(arrlenu(rl->elements), j) {
+            RuntimeLayerElement* element = &rl->elements[j];
+            if (element->type != RuntimeLayerElementType_Sprite || element->spriteElement == nullptr) continue;
+            RuntimeSpriteElement* layerSprite = element->spriteElement;
+            if (layerSprite->spriteIndex < 0 || (uint32_t)layerSprite->spriteIndex >= runner->dataWin->sprt.count) continue;
+            Sprite* sprite = &runner->dataWin->sprt.sprites[layerSprite->spriteIndex];
+            if (sprite->textureCount == 0) continue;
+
+            float advance = layerSprite->animationSpeed;
+            if (sprite->specialType) {
+                advance *= sprite->gms2PlaybackSpeed;
+                if (sprite->gms2PlaybackSpeedType == 0) {
+                    uint32_t fps = runner->currentRoom->speed;
+                    advance /= fps > 0 ? (float)fps : 60.0f;
+                }
+            }
+            layerSprite->frameIndex += advance;
+            if (layerSprite->frameIndex >= sprite->textureCount || layerSprite->frameIndex < 0.0f) {
+                layerSprite->frameIndex = fmodf(layerSprite->frameIndex, (float)sprite->textureCount);
+                if (layerSprite->frameIndex < 0.0f) layerSprite->frameIndex += sprite->textureCount;
+            }
+        }
     }
     }
 
