@@ -181,7 +181,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
-          ref: n7.1
+          ref: n9.0.2
           path: vendor/ffmpeg
 
       - name: Build FFmpeg
@@ -193,8 +193,7 @@ jobs:
             --target-os=darwin \
             --arch=$ffmpeg_arch \
             --cc="ccache clang" \
-            --extra-cflags="-flto" \
-            --extra-ldflags="-flto" \
+            --enable-lto \
             --enable-static \
             --disable-shared \
             --disable-programs \
