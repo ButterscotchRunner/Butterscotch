@@ -99,6 +99,8 @@ static void webInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem
 static void webDestroy(AudioSystem* audio) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
 
+    free(audio->groupGains);
+
     if (ma->engineReady) {
         repeat(WEB_MAX_SOUND_INSTANCES, i) {
             if (ma->instances[i].active) {
@@ -133,12 +135,14 @@ static void webDestroy(AudioSystem* audio) {
 static void webUpdate(AudioSystem* audio, float deltaTime) {
     WebAudioSystem* ma = (WebAudioSystem*) audio;
     if (!ma->engineReady) return;
+    bool groupChanged = AudioSystem_updateGroupGains(audio, deltaTime);
 
     repeat(WEB_MAX_SOUND_INSTANCES, i) {
         WebSoundInstance* inst = &ma->instances[i];
         if (!inst->active) continue;
 
-        if (inst->fadeTimeRemaining > 0.0f) {
+        bool soundFading = inst->fadeTimeRemaining > 0.0f;
+        if (soundFading) {
             inst->fadeTimeRemaining -= deltaTime;
             if (0.0f >= inst->fadeTimeRemaining) {
                 inst->fadeTimeRemaining = 0.0f;
@@ -147,8 +151,9 @@ static void webUpdate(AudioSystem* audio, float deltaTime) {
                 float t = 1.0f - (inst->fadeTimeRemaining / inst->fadeTotalTime);
                 inst->currentGain = inst->startGain + (inst->targetGain - inst->startGain) * t;
             }
-            ma_sound_set_volume(&inst->maSound, inst->currentGain);
         }
+        if (soundFading || groupChanged)
+            ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
 
         if (ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound)) {
             ma_sound_uninit(&inst->maSound);
@@ -254,7 +259,7 @@ static int32_t webPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prio
 
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
-    ma_sound_set_volume(&slot->maSound, volume);
+    ma_sound_set_volume(&slot->maSound, volume * AudioSystem_soundGroupGain(audio, soundIndex));
     if (pitch != 1.0f) {
         ma_sound_set_pitch(&slot->maSound, pitch);
     }
@@ -417,7 +422,7 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
                 inst->currentGain = gain;
                 inst->targetGain = gain;
                 inst->fadeTimeRemaining = 0.0f;
-                ma_sound_set_volume(&inst->maSound, gain);
+                ma_sound_set_volume(&inst->maSound, gain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
             } else {
                 inst->startGain = inst->currentGain;
                 inst->targetGain = gain;
@@ -440,7 +445,7 @@ static void webSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
                         inst->currentGain = gain;
                         inst->targetGain = gain;
                         inst->fadeTimeRemaining = 0.0f;
-                        ma_sound_set_volume(&inst->maSound, gain);
+                        ma_sound_set_volume(&inst->maSound, gain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
                     } else {
                         inst->startGain = inst->currentGain;
                         inst->targetGain = gain;
@@ -631,6 +636,17 @@ static void webSetMasterGainForListener(AudioSystem* audio, float gain, int32_t 
 
 static void webSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
+static void webSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    WebAudioSystem* ma = (WebAudioSystem*) audio;
+    AudioSystem_setGroupGain(audio, groupIndex, gain, timeMs);
+    if (!ma->engineReady) return;
+    repeat(WEB_MAX_SOUND_INSTANCES, i) {
+        WebSoundInstance* inst = &ma->instances[i];
+        if (inst->active && AudioSystem_soundGroup(audio, inst->soundIndex) == groupIndex)
+            ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
+    }
+}
+
 static void webGroupLoad(AudioSystem* audio, int32_t groupIndex) {
     if (groupIndex > 0 && audio->dw->agrp.count > (uint32_t) groupIndex) {
         AudioGroup* audioGroupEntry = &audio->dw->agrp.audioGroups[groupIndex];
@@ -760,6 +776,7 @@ WebAudioSystem* WebAudioSystem_create(DataWin* dataWin, int32_t sampleRate) {
     webAudioSystemVtable.setMasterGain = webSetMasterGain;
     webAudioSystemVtable.setMasterGainForListener = webSetMasterGainForListener;
     webAudioSystemVtable.setChannelCount = webSetChannelCount;
+    webAudioSystemVtable.setGroupGain = webSetGroupGain;
     webAudioSystemVtable.groupLoad = webGroupLoad;
     webAudioSystemVtable.groupIsLoaded = webGroupIsLoaded;
     webAudioSystemVtable.createStream = webCreateStream;
