@@ -115,6 +115,7 @@ jobs:
             --enable-protocol=file \
             --disable-autodetect \
             --disable-iconv \
+            --disable-asm \
             $extraflags
             
           make -j$(nproc)
