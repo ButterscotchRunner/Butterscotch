@@ -212,7 +212,7 @@ jobs:
             --disable-autodetect \
             --disable-iconv
             
-          make -j$(nproc)
+          make -j2
           sudo make install
 
       - name: Configure
