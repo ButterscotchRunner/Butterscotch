@@ -86,6 +86,7 @@ jobs:
       - name: Build FFmpeg
         working-directory: vendor/ffmpeg
         run: |
+          patch -p1 < ../../artifacts/macos/ffmpeg-posix-memalign.patch
           extraflags=""
           [ "${{ matrix.arch }}" = "ppc" ] && ffmpeg_arch=powerpc || ffmpeg_arch=i386
           [ "${{ matrix.arch }}" = "i386" ] && extraflags="$extraflags --enable-lto" # i'm told the ppc toolchain really doesn't play nice with LTO - keep it on i386
