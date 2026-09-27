@@ -10503,6 +10503,29 @@ static RValue builtin_buffer_get_surface(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeBool(ok);
 }
 
+// buffer_set_surface(buffer, surface, offset) -> bool
+// Restores RGBA8 pixels saved by buffer_get_surface to an existing surface.
+static RValue builtin_buffer_set_surface(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("buffer_set_surface", 3, RValue_makeBool(false));
+    Runner* runner = ctx->runner;
+    int32_t bufId = RValue_toInt32(args[0]);
+    int32_t surfaceId = RValue_toInt32(args[1]);
+    int32_t offset = RValue_toInt32(args[2]);
+    GmlBuffer* buf = gmlBufferGet(runner, bufId);
+    Renderer* renderer = runner->renderer;
+    if (buf == nullptr || renderer == nullptr || renderer->vtable->surfaceSetPixels == nullptr ||
+        !Renderer_surfaceExists(renderer, surfaceId)) return RValue_makeBool(false);
+
+    int32_t w = (int32_t)Renderer_getSurfaceWidth(renderer, surfaceId);
+    int32_t h = (int32_t)Renderer_getSurfaceHeight(renderer, surfaceId);
+    if (w <= 0 || h <= 0 || offset < 0 || (size_t)w > ((size_t)-1) / 4 / (size_t)h) return RValue_makeBool(false);
+
+    size_t bytes = (size_t)w * (size_t)h * 4;
+    size_t available = (size_t)(buf->type == GML_BUFFER_GROW ? buf->usedSize : buf->size);
+    if ((size_t)offset > available || bytes > available - (size_t)offset || buf->data == nullptr) return RValue_makeBool(false);
+    return RValue_makeBool(renderer->vtable->surfaceSetPixels(renderer, surfaceId, buf->data + offset));
+}
+
 // PSN stubs
 STUB_RETURN_UNDEFINED(psn_init)
 STUB_RETURN_UNDEFINED(psn_init_np_libs)
@@ -22473,6 +22496,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "buffer_md5", builtin_buffer_md5);
     VM_registerBuiltin(ctx, "buffer_sha1", builtin_buffer_sha1);
     VM_registerBuiltin(ctx, "buffer_get_surface", builtin_buffer_get_surface);
+    VM_registerBuiltin(ctx, "buffer_set_surface", builtin_buffer_set_surface);
     VM_registerBuiltin(ctx, "sha1_file", builtin_sha1_file);
     VM_registerBuiltin(ctx, "md5_file", builtin_md5_file);
 
@@ -22936,7 +22960,6 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_format_add_position", builtin_vertex_format_add_position);
     VM_registerBuiltin(ctx, "vertex_format_add_position_3d", builtin_vertex_format_add_position_3d);
     VM_registerBuiltin(ctx, "vertex_format_add_textcoord", builtin_vertex_format_add_textcoord);
-    VM_registerBuiltin(ctx, "vertex_format_add_texcoord", builtin_vertex_format_add_textcoord);
     VM_registerBuiltin(ctx, "vertex_format_add_normal", builtin_vertex_format_add_normal);
     VM_registerBuiltin(ctx, "vertex_format_add_custom", builtin_vertex_format_add_custom);
     VM_registerBuiltin(ctx, "vertex_format_end", builtin_vertex_format_end);
