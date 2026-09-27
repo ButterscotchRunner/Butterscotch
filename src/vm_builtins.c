@@ -8235,6 +8235,29 @@ static RValue builtin_file_rename(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeBool(fs->vtable->renameFile(fs, oldPath, newPath));
 }
 
+static RValue builtin_file_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("file_copy", 2, RValue_makeBool(false));
+    const char* source = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* destination = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    if (!*source || !*destination) return RValue_makeBool(false);
+
+    FileSystem* fs = ctx->runner->fileSystem;
+    uint8_t* data = nullptr;
+    int32_t size = 0;
+    if (fs->vtable->readFileBinary(fs, source, &data, &size)) {
+        bool copied = fs->vtable->writeFileBinary(fs, destination, data, size);
+        free(data);
+        return RValue_makeBool(copied);
+    }
+
+    // In-memory file systems may store text files separately from binary files.
+    char* text = fs->vtable->readFileText(fs, source);
+    if (text == nullptr) return RValue_makeBool(false);
+    bool copied = fs->vtable->writeFileText(fs, destination, text);
+    free(text);
+    return RValue_makeBool(copied);
+}
+
 // ===[ File Find Functions ]===
 
 // Case-sensitive `*` / `?` wildcard match:
@@ -22247,6 +22270,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_text_eof", builtin_file_text_eof);
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
     VM_registerBuiltin(ctx, "file_rename", builtin_file_rename);
+    VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
     VM_registerBuiltin(ctx, "file_find_first", builtin_file_find_first);
     VM_registerBuiltin(ctx, "file_find_next", builtin_file_find_next);
     VM_registerBuiltin(ctx, "file_find_close", builtin_file_find_close);
