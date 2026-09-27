@@ -4042,6 +4042,10 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
     snprintf(additional, sizeof(additional), " (%s)", originBuiltin);
     VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, true, -1, target->instanceId, additional);
 #endif
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        VM_structSet(ctx, target, name, val, -1);
+        return;
+    }
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         VMBuiltins_setVariable(ctx, target, builtinId, name, val, -1);
@@ -4060,6 +4064,8 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
 }
 
 static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char* name, MAYBE_UNUSED const char* originBuiltin) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX)
+        return RValue_makeIndependent(VM_structGetVariableByVarName(ctx, target, name, -1));
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         RValue val = VMBuiltins_getVariable(ctx, target, builtinId, name, -1);
@@ -4090,6 +4096,10 @@ static inline bool variableScopedMatches(Instance* inst, bool structOnly) {
 }
 
 static bool variableInstanceExistsOn(VMContext* ctx, Instance* target, const char* name) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
+        return slot >= 0 && IntRValueHashMap_contains(&target->selfVars, ctx->varNameMap[slot].value);
+    }
     if (VMBuiltins_resolveBuiltinVarId(name) != BUILTIN_VAR_UNKNOWN) return true;
     ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
     if (0 > slot) return false;
