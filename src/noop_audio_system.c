@@ -5,14 +5,19 @@
 #include <stdlib.h>
 
 static void noopInit(AudioSystem* audio, DataWin* dataWin, MAYBE_UNUSED FileSystem* fileSystem) {
+    audio->dw = dataWin;
     arrput(audio->audioGroups, dataWin);
 }
 
 static void noopDestroy(AudioSystem* audio) {
+    free(audio->groupGains);
+    arrfree(audio->audioGroups);
     free(audio);
 }
 
-static void noopUpdate(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED float deltaTime) {}
+static void noopUpdate(AudioSystem* audio, float deltaTime) {
+    AudioSystem_updateGroupGains(audio, deltaTime);
+}
 
 static int32_t noopPlaySound(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t soundIndex, MAYBE_UNUSED int32_t priority, MAYBE_UNUSED bool loop) {
     return -1;
@@ -67,6 +72,10 @@ static void noopSetMasterGainForListener(MAYBE_UNUSED AudioSystem* audio, MAYBE_
 
 static void noopSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {}
 
+static void noopSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    AudioSystem_setGroupGain(audio, groupIndex, gain, timeMs);
+}
+
 static void noopGroupLoad(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex) {}
 
 static bool noopGroupIsLoaded(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t groupIndex) {
@@ -110,6 +119,7 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.setMasterGain = noopSetMasterGain,
     noopVtable.setMasterGainForListener = noopSetMasterGainForListener,
     noopVtable.setChannelCount = noopSetChannelCount,
+    noopVtable.setGroupGain = noopSetGroupGain,
     noopVtable.groupLoad = noopGroupLoad,
     noopVtable.groupIsLoaded = noopGroupIsLoaded,
     noopVtable.createStream = noopCreateStream,

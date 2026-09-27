@@ -1,41 +1,39 @@
 cmake_minimum_required(VERSION 3.21)
 
 if(PLATFORM STREQUAL "ps3")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
+    set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
 endif()
 
 if(PLATFORM STREQUAL "vita")
-
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-  if(DEFINED ENV{VITASDK})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
-  else()
-    message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
-  endif()
-endif()
-
-set(BACKEND "sdl2")
-
-elseif(PLATFORM STREQUAL "switch")
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    if(NOT DEFINED ENV{DEVKITPRO})
-        message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+      if(DEFINED ENV{VITASDK})
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+      else()
+        message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
+      endif()
     endif()
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
-endif()
 
-set(BACKEND "sdl2")
+    set(BACKEND "sdl2")
 
+    elseif(PLATFORM STREQUAL "switch")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+        if(NOT DEFINED ENV{DEVKITPRO})
+            message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+        endif()
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
+    endif()
+
+    set(BACKEND "sdl2")
 endif()
 
 project(butterscotch C)
 
 if (PLATFORM STREQUAL "vita")
-include("${VITASDK}/share/vita.cmake" REQUIRED)
-set(VITA_APP_NAME "Butterscotch")
-set(VITA_TITLEID  "BUTTRSTCH")
-set(VITA_VERSION  "01.00")
-set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
+    include("${VITASDK}/share/vita.cmake" REQUIRED)
+    set(VITA_APP_NAME "Butterscotch")
+    set(VITA_TITLEID  "BUTTRSTCH")
+    set(VITA_VERSION  "01.00")
+    set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 endif()
 
 set(CMAKE_C_STANDARD 99)

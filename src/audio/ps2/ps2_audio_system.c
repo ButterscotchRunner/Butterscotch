@@ -395,6 +395,7 @@ static void mixAudio(Ps2AudioSystem* ps2, int16_t* outBuf, int32_t samplePairs) 
         float gain = inst->currentGain * inst->sondVolume * ps2->masterGain *
             spatialGain(&ps2->base, inst->spatial, inst->spatialX, inst->spatialY, inst->spatialZ,
                         inst->falloffRef, inst->falloffMax, inst->falloffFactor);
+                     AudioSystem_soundGroupGain(&ps2->base, inst->soundIndex);
         int32_t gainQ15 = (int32_t) (gain * 32768.0f);
         Ps2AudoEntry* audo = &ps2->audoEntries[inst->audoIndex];
         float stepRate = inst->pitch * inst->sondPitch * ((float) audo->sampleRate / (float) AUDSRV_OUTPUT_FREQ);
@@ -467,6 +468,7 @@ static void mixAudio(Ps2AudioSystem* ps2, int16_t* outBuf, int32_t samplePairs) 
         float gain = stream->currentGain * stream->sondVolume * ps2->masterGain *
             spatialGain(&ps2->base, stream->spatial, stream->spatialX, stream->spatialY, stream->spatialZ,
                         stream->falloffRef, stream->falloffMax, stream->falloffFactor);
+                     AudioSystem_soundGroupGain(&ps2->base, stream->soundIndex);
         int32_t gainQ15 = (int32_t) (gain * 32768.0f);
         uint16_t streamSampleRate = getMusicStreamSampleRate(ps2, stream);
         float stepRate = stream->pitch * stream->sondPitch * ((float) streamSampleRate / (float) AUDSRV_OUTPUT_FREQ);
@@ -547,6 +549,7 @@ static void mixAudio(Ps2AudioSystem* ps2, int16_t* outBuf, int32_t samplePairs) 
 
 static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNUSED FileSystem* fileSystem) {
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
+    audio->dw = dataWin;
 
     // Parse sound bank index
     parseSoundBank(ps2);
@@ -601,6 +604,7 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
 
 static void ps2Destroy(AudioSystem* audio) {
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
+    free(audio->groupGains);
 
     if (ps2->initialized) {
         audsrv_stop_audio();
@@ -636,6 +640,7 @@ static void ps2Update(AudioSystem* audio, float deltaTime) {
 
     // Cap deltaTime to prevent large fades on lag spikes
     if (deltaTime > 0.1f) deltaTime = 0.1f;
+    AudioSystem_updateGroupGains(audio, deltaTime);
 
     // Update gain fading on SFX instances
     repeat(MAX_PS2_SOUND_INSTANCES, i) {
@@ -1096,6 +1101,10 @@ static void ps2SetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float g
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionSetGain, &params);
 }
 
+static void ps2SetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    AudioSystem_setGroupGain(audio, groupIndex, gain, timeMs);
+}
+
 static float ps2GetSoundGain(AudioSystem* audio, int32_t soundOrInstance) {
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     if (soundOrInstance >= PS2_AUDIO_STREAM_INDEX_BASE) {
@@ -1387,6 +1396,7 @@ Ps2AudioSystem* Ps2AudioSystem_create(void) {
     ps2AudioSystemVtable.setMasterGain = ps2SetMasterGain;
     ps2AudioSystemVtable.setMasterGainForListener = ps2SetMasterGainForListener;
     ps2AudioSystemVtable.setChannelCount = ps2SetChannelCount;
+    ps2AudioSystemVtable.setGroupGain = ps2SetGroupGain;
     ps2AudioSystemVtable.groupLoad = ps2GroupLoad;
     ps2AudioSystemVtable.groupIsLoaded = ps2GroupIsLoaded;
     ps2AudioSystemVtable.createStream = ps2CreateStream;
