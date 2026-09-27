@@ -1079,11 +1079,7 @@ void Runner_draw(Runner* runner) {
 
             // Everything after this point is static/parsed layers from the Room itself
             RoomLayer* parsedLayer = Runner_findRoomLayerById(runner->currentRoom, (int32_t) runtimeLayer->id);
-            if (parsedLayer == nullptr) {
-                Runner_popLayerShader(runner, previousShader);
-                continue;
-            }
-            if (parsedLayer->type == RoomLayerType_Assets) {
+            if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Assets) {
                 RoomLayerAssetsData* data = parsedLayer->assetsData;
                 size_t tileElementCount = arrlenu(runtimeLayer->elements);
                 repeat(data->legacyTileCount, j) {
@@ -1140,33 +1136,31 @@ void Runner_draw(Runner* runner) {
                     }
                 }
 
-                // Sprite elements are rendered from the runtime element list (not the parsed data) so that layer_sprite_destroy can remove them at runtime.
-                size_t elementCount = arrlenu(runtimeLayer->elements);
-                {
-                repeat(elementCount, j) {
-                    if (runner->renderer == nullptr) break;
+            } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Tiles) {
+                if (runner->renderer != nullptr)
+                    Runner_drawTileLayer(runner, parsedLayer->tilesData, layerOffsetX, layerOffsetY);
+            } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Background) {
+                // Nothing to render here: handled above
+            } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Instances) {
+                // Nothing to render here: handled above on the DRAWABLE_INSTANCE path
+            } else if (parsedLayer != nullptr && (parsedLayer->type == RoomLayerType_Path || parsedLayer->type == RoomLayerType_Path2)) {
+                // Nothing to render: not used for rendering purposes
+            } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Effect) {
+                // TODO: Implement post-processing effect layers!
+            }
+
+            // Sprite elements can be moved from parsed layers to dynamic layers at runtime.
+            if (runner->renderer != nullptr) {
+                repeat(arrlenu(runtimeLayer->elements), j) {
                     RuntimeLayerElement* el = &runtimeLayer->elements[j];
-                    if (el->type != RuntimeLayerElementType_Sprite || el->spriteElement == nullptr) continue;
+                    if (!el->visible || el->type != RuntimeLayerElementType_Sprite || el->spriteElement == nullptr) continue;
                     RuntimeSpriteElement* spr = el->spriteElement;
                     if (0 > spr->spriteIndex) continue;
                     Renderer_drawSpriteExt(
                         runner->renderer, spr->spriteIndex, (int32_t) spr->frameIndex,
                         (float) spr->x + layerOffsetX, (float) spr->y + layerOffsetY, spr->scaleX,
-                        spr->scaleY, spr->rotation, el->blend,
-                        el->alpha);
+                        spr->scaleY, spr->rotation, el->blend, el->alpha);
                 }
-                }
-            } else if (parsedLayer->type == RoomLayerType_Tiles) {
-                if (runner->renderer == nullptr) continue;
-                Runner_drawTileLayer(runner, parsedLayer->tilesData, layerOffsetX, layerOffsetY);
-            } else if (parsedLayer->type == RoomLayerType_Background) {
-                // Nothing to render here: handled above
-            } else if (parsedLayer->type == RoomLayerType_Instances) {
-                // Nothing to render here: handled above on the DRAWABLE_INSTANCE path
-            } else if (parsedLayer->type == RoomLayerType_Path || parsedLayer->type == RoomLayerType_Path2) {
-                // Nothing to render: not used for rendering purposes
-            } else if (parsedLayer->type == RoomLayerType_Effect) {
-                // TODO: Implement post-processing effect layers!
             }
             ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
