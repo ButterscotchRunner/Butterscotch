@@ -62,15 +62,15 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
-      - name: Cache FFmpeg
-        id: cache-ffmpeg
+      - name: Cache build deps
+        id: cache-build-deps
         uses: actions/cache@v6
         with:
-          path: /usr/${{ matrix.triplet }}/ffmpeg
-          key: ffmpeg-windows-${{ matrix.triplet }}-${{ github.sha }}-${{ env.FFMPEG_VERSION }}-rev1
+          path: ~/build-deps
+          key: windows-${{ matrix.triplet }}-${{ github.sha }}-sdl2-${{ env.SDL_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}-rev1
 
       - name: Checkout FFmpeg
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
@@ -78,11 +78,11 @@ jobs:
           path: vendor/ffmpeg
 
       - name: Build FFmpeg for MinGW ARM
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         working-directory: vendor/ffmpeg
         run: |
           ./configure \
-            --prefix=/usr/${{ matrix.triplet }}/ffmpeg \
+            --prefix="$HOME/build-deps" \
             --enable-cross-compile \
             --target-os=mingw32 \
             --arch=${{ matrix.arch }} \
@@ -111,15 +111,8 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Cache SDL2
-        id: cache-sdl2
-        uses: actions/cache@v6
-        with:
-          path: /usr/${{ matrix.triplet }}/sdl2
-          key: sdl2-windows-${{ matrix.triplet }}-${{ github.sha }}-${{ env.SDL_VERSION }}-rev2
-
       - name: Checkout SDL2
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -127,14 +120,14 @@ jobs:
           path: vendor/sdl2
 
       - name: Build SDL2 for MinGW
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         run: |
           cmake -B vendor/sdl2/build -S vendor/sdl2 -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }}/sdl2 \
+            -DCMAKE_INSTALL_PREFIX="$HOME/build-deps" \
             -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF
 
           cmake --build vendor/sdl2/build
@@ -142,12 +135,11 @@ jobs:
 
       - name: Configure
         env:
-          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig:/usr/${{ matrix.triplet }}/ffmpeg/lib/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig:/usr/${{ matrix.triplet }}/ffmpeg/lib/pkgconfig
+          PKG_CONFIG_PATH: ~/build-deps/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: ~/build-deps/lib/pkgconfig
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
