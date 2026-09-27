@@ -25,6 +25,8 @@ typedef struct GLRenderer GLRenderer;
 void GLCommon_beginFrame(GLRenderer* gl, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
 void GLCommon_init(Renderer* renderer);
 void GLCommon_destroy(Renderer* renderer);
+void GLCommon_setTexFilter(Renderer* renderer, bool enable);
+void GLCommon_applyTexFilter(bool enable);
 void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH);
 typedef void (*GLApplyProjectionFunc)(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix);
 void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
@@ -51,9 +53,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 // Encoded as (GL_SURFACE_TEXTURE_FLAG | surfaceID); tpag counts never approach this, so the two can't collide.
 #define GL_SURFACE_TEXTURE_FLAG 0x40000000u
 
-// Returns a free slot index, growing the surfaces arrays if all slots are in use.
-// The newly returned slot has surfaces[i] == 0 and all dimensions zeroed.
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);
+uint32_t GLCommon_allocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);
 
 // Blits a region between two surface FBOs.
 // If part == false, ignores src{X,Y,W,H} and copies the whole source to a matching-size box at (dstX, dstY) on the destination.
@@ -65,6 +65,8 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
 // Returns false on invalid surfaceId.
 // Saves/restores GL_FRAMEBUFFER_BINDING and GL_PACK_ALIGNMENT around the read.
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA);
+
+void GLCommon_surfaceUploadPixels(Renderer* renderer, int32_t surfaceId, int32_t w, int32_t h, const uint8_t* rgba);
 
 // ===[ Blend mode translation ]===
 

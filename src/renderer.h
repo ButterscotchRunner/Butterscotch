@@ -175,6 +175,7 @@ typedef struct {
     void (*gpuSetBlendMode)(Renderer* renderer, int32_t mode);
     void (*gpuSetBlendModeExt)(Renderer* renderer, int32_t sfactor, int32_t dfactor, int32_t sfactor_alpha, int32_t dfactor_alpha);
     void (*gpuSetBlendEnable)(Renderer* renderer, bool enable);
+    void (*gpuSetTexFilter)(Renderer* renderer, bool enable);
     void (*gpuSetAlphaTestEnable)(Renderer* renderer, bool enable);
     bool (*gpuGetAlphaTestEnable)(Renderer* renderer);
     void (*gpuSetAlphaTestRef)(Renderer* renderer, uint8_t ref);
@@ -208,6 +209,7 @@ typedef struct {
     void (*surfaceFree)(Renderer* renderer, int32_t surfaceID);
     void (*surfaceCopy)(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part);
     bool (*surfaceGetPixels)(Renderer* renderer, int32_t surfaceID, uint8_t* outRGBA);
+    void (*surfaceUploadPixels)(Renderer* renderer, int32_t surfaceID, int32_t w, int32_t h, const uint8_t* rgba);
     // Optional: tile a source sub-rect (in tpag source-page space) across a dest rect, for nine-slice Repeat/BlankRepeat at angle 0.
     // srcX/srcY are post tpag->targetX/Y. nullptr = per-tile drawSpritePart fallback (also used for Mirror and non-zero angle).
     void (*drawTiledPart)(Renderer* renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha);
@@ -253,6 +255,7 @@ struct Renderer {
     Runner* runner;
     Matrix4f gmlMatrices[MATRICES_MAX];
     int32_t currentShader;
+    bool texFilter;
     BlendFactors blendFactors;
     int32_t cameraCurrent;
 };

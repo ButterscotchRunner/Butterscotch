@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import net.perfectdreams.butterscotch.android.BuildConfig
 import net.perfectdreams.butterscotch.android.R
 import net.perfectdreams.butterscotch.android.Route
 import net.perfectdreams.butterscotch.android.components.ButterscotchBackButton
@@ -64,6 +65,10 @@ fun AboutScreen(nav: NavHostController) {
             ButterscotchBobImage(R.drawable.butterscotch_logo, "Butterscotch logo")
 
             Text("Butterscotch", style = MaterialTheme.typography.headlineMedium)
+
+            Spacer(Modifier.height(4.dp))
+
+            Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.bodyLarge)
 
             Spacer(Modifier.height(4.dp))
 

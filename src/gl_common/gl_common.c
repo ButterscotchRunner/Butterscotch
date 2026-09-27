@@ -89,6 +89,7 @@ void GLCommon_init(Renderer* renderer) {
     // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl->blendEnable = true;
 
     // Save original counts so we know which slots are from data.win vs dynamic
     gl->originalTexturePageCount = gl->textureCount;
@@ -133,6 +134,35 @@ void GLCommon_destroy(Renderer* renderer) {
 #endif
 
     free(gl);
+}
+
+void GLCommon_applyTexFilter(bool enable) {
+    GLint filter = enable ? GL_LINEAR : GL_NEAREST;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+}
+
+void GLCommon_setTexFilter(Renderer* renderer, bool enable) {
+    if (renderer->texFilter == enable) return;
+    GLRenderer* gl = (GLRenderer*) renderer;
+    renderer->texFilter = enable;
+
+    GLint previousBinding;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousBinding);
+    for (uint32_t i = 0; i < gl->textureCount; i++) {
+#ifdef PLATFORM_PS3
+        if (i < gl->originalTexturePageCount) continue;
+#endif
+        if (!gl->textureLoaded[i] || !gl->glTextures[i]) continue;
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[i]);
+        GLCommon_applyTexFilter(enable);
+    }
+    for (uint32_t i = 0; i < gl->surfaceCount; i++) {
+        if (!gl->surfaceTexture[i]) continue;
+        glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[i]);
+        GLCommon_applyTexFilter(enable);
+    }
+    glBindTexture(GL_TEXTURE_2D, (GLuint) previousBinding);
 }
 
 void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH) {
@@ -288,12 +318,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 
 // ===[ Surface arrays ]===
 
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count) {
-    repeat(*count, i) {
-        if ((*surfaces)[i] == 0)
-            return i;
-    }
-
+uint32_t GLCommon_allocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count) {
     uint32_t newIndex = *count;
     (*count)++;
     *surfaces = (GLuint *)safeRealloc(*surfaces, *count * sizeof(GLuint));
@@ -384,6 +409,14 @@ bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t*
     glPixelStorei(GL_PACK_ALIGNMENT, prevPackAlign);
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevFbo);
     return true;
+}
+
+void GLCommon_surfaceUploadPixels(Renderer* renderer, int32_t surfaceId, int32_t w, int32_t h, const uint8_t* rgba) {
+    GLRenderer* gl = (GLRenderer*)renderer;
+    if (gl->surfaceTexture == nullptr || surfaceId < 0 || (uint32_t)surfaceId >= gl->surfaceCount) return;
+    if (gl->surfaceTexture[surfaceId] == 0) return;
+    glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
 
 #ifndef PLATFORM_PS3

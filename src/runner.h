@@ -259,6 +259,7 @@ typedef struct {
     char* dynamicName; // owned
     int32_t beginScript;
     int32_t endScript;
+    int32_t shaderIndex;
     RuntimeLayerElement* elements; // stb_ds array
 } RuntimeLayer;
 
@@ -808,6 +809,7 @@ struct Runner {
     GMLReal mpPotStep;
     GMLReal mpPotAhead;
     bool mpPotOnSpot;
+    bool dateTimeLocal;
 
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;

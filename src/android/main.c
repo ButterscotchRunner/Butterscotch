@@ -38,26 +38,6 @@ static float gNormalizedCursorY = 0.0f;
 // We don't need to worry about game changes because the profiler will be automatically disabled then
 static int32_t gProfilerStartedAtFrame = 0;
 
-void platformLog(const logType type, const char *format, va_list va) {
-    int prio;
-    switch (type) {
-        case LOG_TYPE_NORMAL:
-            prio = ANDROID_LOG_INFO;
-            break;
-        case LOG_TYPE_WARNING:
-            prio = ANDROID_LOG_WARN;
-            break;
-        case LOG_TYPE_ERROR:
-            prio = ANDROID_LOG_ERROR;
-            break;
-        case LOG_TYPE_DEBUG:
-            prio = ANDROID_LOG_DEBUG;
-            break;
-    }
-
-    __android_log_vprint(prio, LOG_TAG, format, va);
-}
-
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host
 // passes into stepAndDraw and expose it through the getWindowSize hook below.
 static int32_t gWindowW = 0;
@@ -77,12 +57,42 @@ static JavaVM* gJvm = nullptr;
 static jclass gNativeClass = nullptr;
 static jmethodID gOnTitleChangedMethod = nullptr;
 static jmethodID gOnGameSizeChangedMethod = nullptr;
+static jmethodID gOnButterscotchLogMethod = nullptr;
 
 static JNIEnv* getEnvNoAttach(void) {
     if (gJvm == nullptr) return nullptr;
     JNIEnv* env = nullptr;
     if ((*gJvm)->GetEnv(gJvm, (void**) &env, JNI_VERSION_1_6) != JNI_OK) return nullptr;
     return env;
+}
+
+void platformLog(const logType type, const char *format, va_list va) {
+    int prio;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            prio = ANDROID_LOG_INFO;
+            break;
+        case LOG_TYPE_WARNING:
+            prio = ANDROID_LOG_WARN;
+            break;
+        case LOG_TYPE_ERROR:
+            prio = ANDROID_LOG_ERROR;
+            break;
+        case LOG_TYPE_DEBUG:
+            prio = ANDROID_LOG_DEBUG;
+            break;
+    }
+
+    __android_log_vprint(prio, LOG_TAG, format, va);
+
+    char string[1024];
+    vsnprintf(string, sizeof(string), format, va);
+
+    JNIEnv* env = getEnvNoAttach();
+    if (env == nullptr || gNativeClass == nullptr) return;
+    jstring jString = (*env)->NewStringUTF(env, string);
+    (*env)->CallStaticVoidMethod(env, gNativeClass, gOnButterscotchLogMethod, jString);
+    (*env)->DeleteLocalRef(env, jString);
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
@@ -100,7 +110,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
 
     gOnTitleChangedMethod = (*env)->GetStaticMethodID(env, gNativeClass, "onTitleChanged", "(Ljava/lang/String;)V");
     gOnGameSizeChangedMethod = (*env)->GetStaticMethodID(env, gNativeClass, "onGameSizeChanged", "(II)V");
-    if (gOnTitleChangedMethod == nullptr || gOnGameSizeChangedMethod == nullptr) {
+    gOnButterscotchLogMethod = (*env)->GetStaticMethodID(env, gNativeClass, "onButterscotchLog", "(Ljava/lang/String;)V");
+    if (gOnTitleChangedMethod == nullptr || gOnGameSizeChangedMethod == nullptr || gOnButterscotchLogMethod == nullptr) {
         logError("JNI_OnLoad: GetStaticMethodID failed");
         return JNI_ERR;
     }
@@ -109,7 +120,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
 
 static void setWindowTitle(const char* title) {
     if (title == nullptr) title = "";
-    logInfo("Window title: %s", title);
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Window title: %s", title);
     JNIEnv* env = getEnvNoAttach();
     if (env == nullptr || gNativeClass == nullptr) return;
     jstring jTitle = (*env)->NewStringUTF(env, title);
@@ -125,7 +136,7 @@ JNIEXPORT void JNICALL JNI_FN(init)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclas
     // Set stdout and stderr to not be buffered
     setvbuf(stdout, nullptr, _IOLBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
-    logInfo("Butterscotch native init");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Butterscotch native init");
 }
 
 JNIEXPORT jint JNICALL JNI_FN(getTargetFrameHz)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
@@ -389,7 +400,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
     gReportedOs = jOsType;
 
     gRunner = runner;
-    logInfo("Runner started OK");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Runner started OK");
     return true;
 }
 
@@ -808,7 +819,7 @@ JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED
     if (gRunner == nullptr)
         return;
 
-    logInfo("Stopping runner");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Stopping runner");
 
     teardownRunner();
 

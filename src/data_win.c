@@ -3371,6 +3371,14 @@ bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor,
     return f->build >= build;
 }
 
+bool DataWin_isVersionOlder(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build) {
+    const DetectedFormat* f = &dw->detectedFormat;
+    if (f->major != major) return f->major < major;
+    if (f->minor != minor) return f->minor < minor;
+    if (f->release != release) return f->release < release;
+    return f->build < build;
+}
+
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build) {
     if (DataWin_isVersionAtLeast(dw, major, minor, release, build)) return;
     dw->detectedFormat.major = major;

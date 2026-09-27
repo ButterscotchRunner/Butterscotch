@@ -80,6 +80,16 @@ static bool noopDeleteFile(FileSystem* fs, const char* relativePath) {
     return true;
 }
 
+static bool noopRenameFile(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath) {
+    NoopFileSystem* nfs = (NoopFileSystem*) fs;
+    ptrdiff_t idx = shgeti(nfs->files, oldRelativePath);
+    if (0 > idx)
+        return false;
+
+    nfs->files[idx].key = safeStrdup(newRelativePath);
+    return true;
+}
+
 static bool noopReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t** outData, int32_t* outSize) {
     NoopFileSystem* nfs = (NoopFileSystem*) fs;
     ptrdiff_t idx = shgeti(nfs->binaryFiles, relativePath);
@@ -346,6 +356,7 @@ FileSystem* NoopFileSystem_create(void) {
     noopFileSystemVtable.readFileText = noopReadFileText;
     noopFileSystemVtable.writeFileText = noopWriteFileText;
     noopFileSystemVtable.deleteFile = noopDeleteFile;
+    noopFileSystemVtable.renameFile = noopRenameFile;
     noopFileSystemVtable.readFileBinary = noopReadFileBinary;
     noopFileSystemVtable.writeFileBinary = noopWriteFileBinary;
     noopFileSystemVtable.binaryOpen = noopBinaryOpen;
