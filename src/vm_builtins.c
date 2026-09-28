@@ -2003,6 +2003,81 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result);
 }
 
+// Value equality shared by ds_priority and array_contains, mirroring the HTML5 runner:
+// - When both values are numbers (any GML numeric type; they are all plain JS numbers there),
+//   they match when |a - b| <= GML_MATH_EPSILON.
+// - Otherwise values must be equal by content (strings) or identity (the rest).
+static bool rValuesLooselyEqual(RValue a, RValue b) {
+    bool aNumeric = a.type == RVALUE_REAL || a.type == RVALUE_INT32 || a.type == RVALUE_INT64 || a.type == RVALUE_BOOL || a.type == RVALUE_ASSETREF;
+    bool bNumeric = b.type == RVALUE_REAL || b.type == RVALUE_INT32 || b.type == RVALUE_INT64 || b.type == RVALUE_BOOL || b.type == RVALUE_ASSETREF;
+    if (aNumeric && bNumeric) {
+        return GML_MATH_EPSILON >= GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
+    }
+    switch (a.type) {
+        case RVALUE_STRING:
+            return b.type == RVALUE_STRING && a.string != nullptr && b.string != nullptr && strcmp(a.string, b.string) == 0;
+        case RVALUE_ARRAY:
+            return b.type == RVALUE_ARRAY && a.array == b.array;
+#if IS_WAD17_OR_HIGHER_ENABLED
+        case RVALUE_METHOD:
+            return b.type == RVALUE_METHOD && a.method == b.method;
+#endif
+        case RVALUE_STRUCT:
+            return b.type == RVALUE_STRUCT && a.structInst == b.structInst;
+        case RVALUE_UNDEFINED:
+            return b.type == RVALUE_UNDEFINED;
+        default:
+            return false;
+    }
+}
+
+static void computeArrayIterationValues(int32_t maxLength, GMLReal rawOffset, GMLReal rawLength,
+                                        int32_t* outOffset, int32_t* outLoops, int32_t* outStep) {
+    GMLReal offset = rawOffset;
+    if (offset < (GMLReal) -maxLength) offset = -(GMLReal) maxLength;
+    if (offset > (GMLReal) (maxLength - 1)) offset = (GMLReal) (maxLength - 1);
+    if (offset < 0) offset += (GMLReal) maxLength;
+
+    int32_t step;
+    int32_t loops;
+    if (rawLength < 0) {
+        step = -1;
+        GMLReal wanted = -rawLength;
+        if (wanted > (GMLReal) (offset + 1)) wanted = (GMLReal) (offset + 1);
+        loops = (int32_t) wanted;
+    } else {
+        step = 1;
+        GMLReal end = offset + rawLength;
+        if (end > (GMLReal) maxLength) end = (GMLReal) maxLength;
+        loops = (int32_t) end - (int32_t) offset;
+    }
+    *outOffset = (int32_t) offset;
+    *outLoops = loops;
+    *outStep = step;
+}
+
+// array_contains
+static RValue builtin_array_contains(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("array_contains", 2, RValue_makeBool(false));
+    if (args[0].type != RVALUE_ARRAY || args[0].array == nullptr) {
+        logWarn("[array_contains] argument 0 is not an array\n");
+        return RValue_makeBool(false);
+    }
+    int32_t maxLength = GMLArray_length1D(args[0].array);
+    GMLReal rawOffset = argCount >= 3 ? RValue_toReal(args[2]) : 0;
+    GMLReal rawLength = argCount >= 4 ? RValue_toReal(args[3]) : (GMLReal) maxLength;
+
+    int32_t offset, loops, step;
+    computeArrayIterationValues(maxLength, rawOffset, rawLength, &offset, &loops, &step);
+    while (loops > 0) {
+        if (offset >= 0 && offset < maxLength && rValuesLooselyEqual(GMLArray_get(args[0].array, offset), args[1]))
+            return RValue_makeBool(true);
+        offset += step;
+        loops--;
+    }
+    return RValue_makeBool(false);
+}
+
 // bool
 static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
@@ -6250,34 +6325,6 @@ static DsPriority* dsPriorityGet(Runner* runner, int32_t id) {
     return &runner->dsPriorityPool[id];
 }
 
-// Value equality used by ds_priority, mirroring the HTML5 runner's ds_priority.js:
-// - When both values are numbers (any GML numeric type; they are all plain JS numbers there),
-//   they match when |a - b| < GML_MATH_EPSILON.
-// - Otherwise values must be equal by content (strings) or identity (the rest).
-static bool dsPriorityValuesEqual(RValue a, RValue b) {
-    bool aNumeric = a.type == RVALUE_REAL || a.type == RVALUE_INT32 || a.type == RVALUE_INT64 || a.type == RVALUE_BOOL || a.type == RVALUE_ASSETREF;
-    bool bNumeric = b.type == RVALUE_REAL || b.type == RVALUE_INT32 || b.type == RVALUE_INT64 || b.type == RVALUE_BOOL || b.type == RVALUE_ASSETREF;
-    if (aNumeric && bNumeric) {
-        return GML_MATH_EPSILON > GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
-    }
-    switch (a.type) {
-        case RVALUE_STRING:
-            return b.type == RVALUE_STRING && a.string != nullptr && b.string != nullptr && strcmp(a.string, b.string) == 0;
-        case RVALUE_ARRAY:
-            return b.type == RVALUE_ARRAY && a.array == b.array;
-#if IS_WAD17_OR_HIGHER_ENABLED
-        case RVALUE_METHOD:
-            return b.type == RVALUE_METHOD && a.method == b.method;
-#endif
-        case RVALUE_STRUCT:
-            return b.type == RVALUE_STRUCT && a.structInst == b.structInst;
-        case RVALUE_UNDEFINED:
-            return b.type == RVALUE_UNDEFINED;
-        default:
-            return false;
-    }
-}
-
 static RValue builtin_ds_priority_create(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     return RValue_makeReal((GMLReal) dsPriorityCreate(ctx->runner));
 }
@@ -6367,7 +6414,7 @@ static RValue builtin_ds_priority_change_priority(MAYBE_UNUSED VMContext* ctx, R
     if (pQueue == nullptr) return RValue_makeUndefined();
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (dsPriorityValuesEqual(item->item, val)) {
+        if (rValuesLooselyEqual(item->item, val)) {
             DsPriorityItem moved = *item;
             arrdel(pQueue->items, i);
             moved.depth = prio;
@@ -6385,7 +6432,7 @@ static RValue builtin_ds_priority_find_priority(VMContext* ctx, RValue* args, MA
     RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (dsPriorityValuesEqual(item->item, value)) {
+        if (rValuesLooselyEqual(item->item, value)) {
             return RValue_makeReal(item->depth);
         }
     }
@@ -6399,7 +6446,7 @@ static RValue builtin_ds_priority_delete_value(VMContext* ctx, RValue* args, MAY
     RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (dsPriorityValuesEqual(item->item, value)) {
+        if (rValuesLooselyEqual(item->item, value)) {
             arrdel(pQueue->items, i);
             return RValue_makeUndefined();
         }
@@ -22090,6 +22137,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
+    VM_registerBuiltin(ctx, "array_contains", builtin_array_contains);
     VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
