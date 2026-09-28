@@ -4338,6 +4338,54 @@ static RValue builtin_variable_struct_exists(VMContext* ctx, RValue* args, int32
     return RValue_makeBool(variableScopedExists(ctx, RValue_toInt32(args[0]), args[1].string, true));
 }
 
+// variable_get_hash
+static RValue builtin_variable_get_hash(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("variable_get_hash", 1, RValue_makeUndefined());
+    if (args[0].type != RVALUE_STRING) return RValue_makeUndefined();
+    return RValue_makeInt32(VM_getOrAllocateVarID(ctx, args[0].string));
+}
+
+static int32_t structHashArgToVarId(VMContext* ctx, RValue hash) {
+    if (hash.type == RVALUE_STRING) return hash.string != nullptr ? VM_getOrAllocateVarID(ctx, hash.string) : -1;
+    return RValue_toInt32(hash);
+}
+
+// struct_get_from_hash
+static RValue builtin_struct_get_from_hash(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("struct_get_from_hash", 2, RValue_makeUndefined());
+    if (args[0].type != RVALUE_STRUCT || args[0].structInst == nullptr) return RValue_makeUndefined();
+    int32_t varId = structHashArgToVarId(ctx, args[1]);
+    if (varId < 0) return RValue_makeUndefined();
+    return RValue_makeIndependent(VM_structGetVariableByVarId(args[0].structInst, varId, -1));
+}
+
+// struct_set_from_hash
+static RValue builtin_struct_set_from_hash(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("struct_set_from_hash", 3, RValue_makeUndefined());
+    if (args[0].type != RVALUE_STRUCT || args[0].structInst == nullptr) return RValue_makeUndefined();
+    int32_t varId = structHashArgToVarId(ctx, args[1]);
+    if (varId < 0) return RValue_makeUndefined();
+    VM_structSet(ctx, args[0].structInst, VM_getVariableNameByVarId(ctx, varId), args[2], -1);
+    return RValue_makeUndefined();
+}
+
+// struct_exists_from_hash
+static RValue builtin_struct_exists_from_hash(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("struct_exists_from_hash", 2, RValue_makeBool(false));
+    if (args[0].type != RVALUE_STRUCT || args[0].structInst == nullptr) return RValue_makeBool(false);
+    int32_t varId = structHashArgToVarId(ctx, args[1]);
+    if (varId < 0) return RValue_makeBool(false);
+    return RValue_makeBool(IntRValueHashMap_findSlot(&args[0].structInst->selfVars, varId) != nullptr);
+}
+
+// struct_exists
+static RValue builtin_struct_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("struct_exists", 2, RValue_makeBool(false));
+    if (args[0].type != RVALUE_STRUCT || args[0].structInst == nullptr || args[1].type != RVALUE_STRING)
+        return RValue_makeBool(false);
+    return RValue_makeBool(variableInstanceExistsOn(ctx, args[0].structInst, args[1].string));
+}
+
 static RValue builtin_struct_get_names(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("struct_get_names", 1, RValue_makeUndefined());
 
@@ -22280,6 +22328,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "variable_struct_set", builtin_variable_struct_set);
     VM_registerBuiltin(ctx, "variable_struct_get", builtin_variable_struct_get);
     VM_registerBuiltin(ctx, "variable_struct_exists", builtin_variable_struct_exists);
+    VM_registerBuiltin(ctx, "variable_get_hash", builtin_variable_get_hash);
+    VM_registerBuiltin(ctx, "struct_get_from_hash", builtin_struct_get_from_hash);
+    VM_registerBuiltin(ctx, "struct_set_from_hash", builtin_struct_set_from_hash);
+    VM_registerBuiltin(ctx, "struct_exists_from_hash", builtin_struct_exists_from_hash);
+    VM_registerBuiltin(ctx, "struct_exists", builtin_struct_exists);
     VM_registerBuiltin(ctx, "struct_get_names", builtin_struct_get_names);
     VM_registerBuiltin(ctx, "variable_instance_get_names", builtin_struct_get_names); // I couldn't find any noticeable different behavior when testing this
     VM_registerBuiltin(ctx, "variable_struct_get_names", builtin_struct_get_names); // Deprecated variant of struct_get_names (https://github.com/YoYoGames/GameMaker-Bugs/issues/6105)
