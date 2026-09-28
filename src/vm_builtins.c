@@ -4939,14 +4939,26 @@ static RValue builtin_ds_map_keys_to_array(VMContext* ctx, RValue* args, int32_t
     int32_t id = RValue_toInt32(args[0]);
     DsMapEntry** map = dsMapGet(runner, id);
     if (map == nullptr || *map == nullptr) return RValue_makeUndefined();
-    bool inPlace = argCount >= 2;
-    GMLArray* arr = inPlace ? args[1].array : GMLArray_create(ctx->dataWin, (int32_t) shlen(*map));
+    bool inPlace = argCount >= 2 && args[1].type == RVALUE_ARRAY && args[1].array != nullptr;
+    GMLArray* arr = inPlace ? args[1].array : GMLArray_create(ctx->dataWin, 0);
 
-    for (int32_t i = 0; i < shlen(*map); i++) {
-        *GMLArray_slot(arr, i) = RValue_makeOwnedString(safeStrdup((*map)[i].key));
-    }
+    for (int32_t i = 0; i < shlen(*map); i++)
+        GMLArray_add(arr, RValue_makeOwnedString(safeStrdup((*map)[i].key)));
 
     return inPlace ? RValue_makeArrayWeak(arr) : RValue_makeArray(arr);
+}
+
+// ds_map_values_to_array
+static RValue builtin_ds_map_values_to_array(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_map_values_to_array", 1, RValue_makeUndefined());
+    DsMapEntry** map = dsMapGet(ctx->runner, RValue_toInt32(args[0]));
+    if (map == nullptr) return RValue_makeUndefined();
+    bool inPlace = argCount >= 2 && args[1].type == RVALUE_ARRAY && args[1].array != nullptr;
+    GMLArray* array = inPlace ? args[1].array : GMLArray_create(ctx->dataWin, 0);
+    int32_t count = (int32_t) shlen(*map);
+    for (int32_t i = 0; i < count; i++)
+        GMLArray_add(array, (*map)[i].value);
+    return inPlace ? RValue_makeArrayWeak(array) : RValue_makeArray(array);
 }
 
 // ===[ DS_LIST FUNCTIONS ]===
@@ -22336,6 +22348,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_map_destroy", builtin_ds_map_destroy);
     VM_registerBuiltin(ctx, "ds_map_copy", builtin_ds_map_copy);
     VM_registerBuiltin(ctx, "ds_map_keys_to_array", builtin_ds_map_keys_to_array);
+    VM_registerBuiltin(ctx, "ds_map_values_to_array", builtin_ds_map_values_to_array);
     VM_registerBuiltin(ctx, "ds_map_read", builtin_ds_map_read);
     VM_registerBuiltin(ctx, "ds_map_write", builtin_ds_map_write);
 
