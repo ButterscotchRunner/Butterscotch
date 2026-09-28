@@ -177,6 +177,7 @@ enum GlMode {
 struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
+    bool lowVram; // low VRAM mode: uploads textures and creates surfaces as 16bpp instead of 32bpp
 
     GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
     GlPrimitive currentPrimitive;
