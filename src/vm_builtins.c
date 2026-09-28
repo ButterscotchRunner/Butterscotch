@@ -4321,12 +4321,18 @@ static RValue builtin_variable_instance_exists(VMContext* ctx, RValue* args, int
 static RValue builtin_variable_struct_get(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("variable_struct_get", 2, RValue_makeUndefined());
     if (args[1].type != RVALUE_STRING) return RValue_makeUndefined();
+    if (args[0].type == RVALUE_STRUCT && args[0].structInst != nullptr)
+        return variableInstanceGetOn(ctx, args[0].structInst, args[1].string, "variable_struct_get");
     return variableScopedGet(ctx, RValue_toInt32(args[0]), args[1].string, true, "variable_struct_get");
 }
 
 static RValue builtin_variable_struct_set(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("variable_struct_set", 3, RValue_makeUndefined());
     if (args[1].type != RVALUE_STRING) return RValue_makeUndefined();
+    if (args[0].type == RVALUE_STRUCT && args[0].structInst != nullptr) {
+        variableInstanceSetOn(ctx, args[0].structInst, args[1].string, args[2], "variable_struct_set");
+        return RValue_makeUndefined();
+    }
     // We can't use VM_structSetAndFreeVal directly here because we DO NOT resolve builtin variables from VM_structSetAndFreeVal
     variableScopedSet(ctx, RValue_toInt32(args[0]), args[1].string, args[2], true, "variable_struct_set");
     return RValue_makeUndefined();
@@ -4335,6 +4341,8 @@ static RValue builtin_variable_struct_set(VMContext* ctx, RValue* args, int32_t 
 static RValue builtin_variable_struct_exists(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("variable_struct_exists", 2, RValue_makeBool(false));
     if (args[1].type != RVALUE_STRING) return RValue_makeBool(false);
+    if (args[0].type == RVALUE_STRUCT && args[0].structInst != nullptr)
+        return RValue_makeBool(variableInstanceExistsOn(ctx, args[0].structInst, args[1].string));
     return RValue_makeBool(variableScopedExists(ctx, RValue_toInt32(args[0]), args[1].string, true));
 }
 
