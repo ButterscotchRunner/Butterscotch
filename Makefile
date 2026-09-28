@@ -48,10 +48,11 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
-		    $(INC)vendor/bzip2
+		    $(INC)vendor/bzip2 \
+		    $(INC)vendor/miniz
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c vendor/miniz/miniz.c
 
 PLATFORM := cli
 BACKEND := glfw3
@@ -79,6 +80,8 @@ endif
 ifndef DISABLE_WAD17
 DEFINES += $(DEFINE)ENABLE_WAD17
 endif
+
+DEFINES += $(DEFINE)MINIZ_NO_ARCHIVE_APIS $(DEFINE)MINIZ_NO_STDIO
 
 SRCS += $(wildcard src/$(PLATFORM)/*.c)
 SRCS += $(wildcard src/backends/$(BACKEND).*)

@@ -318,6 +318,14 @@ target_sources(butterscotch PRIVATE
 )
 target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniz)
 target_compile_definitions(butterscotch PRIVATE MINIZ_NO_ARCHIVE_APIS MINIZ_NO_STDIO)
+if(NOT MSVC)
+    set_source_files_properties(
+        vendor/miniz/miniz.c
+        vendor/miniz/miniz_tdef.c
+        vendor/miniz/miniz_tinfl.c
+        PROPERTIES COMPILE_OPTIONS "-w"
+    )
+endif()
 
 # Video playback source
 if(BUTTERSCOTCH_FFMPEG)
