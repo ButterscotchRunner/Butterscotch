@@ -906,6 +906,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
+            ((GLRenderer*)renderer)->lowVram = args.use16bppTextures;
             static GLuint hostfb = 0;
             hostFramebuffer = &hostfb;
         }
@@ -913,6 +914,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
+            ((GLRenderer*)renderer)->lowVram = args.use16bppTextures;
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif

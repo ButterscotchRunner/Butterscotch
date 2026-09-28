@@ -572,7 +572,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer *modernGl = (GLModernRenderer*) renderer;
     renderer->dataWin = dataWin;
-    gl->lowVram = false; // todo: wire this up to a command line arg or something
 
     GLVer ver = GLCommon_getGLVersion();
     if (ver.major < 2) {

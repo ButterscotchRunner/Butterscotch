@@ -118,7 +118,6 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) renderer;
     renderer->dataWin = dataWin;
-    gl->lowVram = false; // todo: wire this up to a command line arg or something
 
     GLCommon_init(renderer);
 

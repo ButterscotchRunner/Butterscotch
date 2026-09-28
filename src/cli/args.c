@@ -82,6 +82,9 @@ static void printUsage(const char *argv0) {
         "    --save-folder <directory>              - Set the directory will save files will be stored\n"
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+        "    --use-16bpp-textures                   - Load textures and create surfaces in 16 bits per pixel. Reduces VRAM usage with the OpenGL renderers.\n"
+#endif
         "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
         "    --disable-log-colours                  - Disable colours for warning, error, and debug logs\n"
@@ -152,6 +155,7 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"save-folder", required_argument, nullptr, 'B'},
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
+        {"use-16bpp-textures", no_argument, nullptr, 'v'},
         {"lazy-audio", no_argument, nullptr, 'K'},
         {"load-type", required_argument, nullptr, 999},
         {"disable-log-colours", no_argument, nullptr, 1003},
@@ -248,6 +252,9 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                 break;
             case 'K':
                 args->lazyAudio = true;
+                break;
+            case 'v':
+                args->use16bppTextures = true;
                 break;
 #ifdef ENABLE_VM_TRACING
             case 'R':
