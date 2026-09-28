@@ -308,9 +308,13 @@ target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
 
 # miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
-# All files vendored byte-for-byte from that tag except miniz_export.h, which upstream
-# generates during its own CMake configure; this static build just leaves MINIZ_EXPORT
-# and MINIZ_NO_EXPORT empty since archive/stdio APIs are disabled above.
+# All files vendored byte-for-byte from that tag except:
+#  - miniz_export.h, which upstream generates during its own CMake configure; this
+#    static build just leaves MINIZ_EXPORT and MINIZ_NO_EXPORT empty since the
+#    archive/stdio APIs are disabled above.
+#  - miniz.h's MZ_FORCEINLINE for _MSC_VER, changed from __forceinline to __inline
+#    because the zlib-compat layer writes "static MZ_FORCEINLINE" and older MSVC C
+#    rejects "static __forceinline".
 target_sources(butterscotch PRIVATE
     vendor/miniz/miniz.c
     vendor/miniz/miniz_tdef.c

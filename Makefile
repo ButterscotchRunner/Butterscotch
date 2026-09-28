@@ -52,7 +52,7 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/miniz
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c vendor/miniz/miniz.c
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c vendor/miniz/miniz.c vendor/miniz/miniz_tdef.c vendor/miniz/miniz_tinfl.c
 
 PLATFORM := cli
 BACKEND := glfw3
