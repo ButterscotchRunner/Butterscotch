@@ -2003,6 +2003,13 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result);
 }
 
+// @@array_get@@
+static RValue builtin_internal_array_get(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("@@array_get@@", 2, RValue_makeUndefined());
+    if (args[0].type != RVALUE_ARRAY) return RValue_makeUndefined();
+    return RValue_makeIndependent(GMLArray_get(args[0].array, RValue_toInt32(args[1])));
+}
+
 // bool
 static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
@@ -22090,6 +22097,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
+    VM_registerBuiltin(ctx, "@@array_get@@", builtin_internal_array_get);
     VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
