@@ -4408,6 +4408,14 @@ static RValue builtin_method(VMContext* ctx, MAYBE_UNUSED RValue* args, int32_t 
         return RValue_makeMethodFromCodeIndexAndInstanceId(codeIndex, instanceToBeBound);
     }
 }
+
+// method_get_self
+static RValue builtin_method_get_self(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("method_get_self", 1, RValue_makeInt32(INSTANCE_NOONE));
+    if (args[0].type != RVALUE_METHOD || args[0].method == nullptr)
+        return RValue_makeInt32(INSTANCE_NOONE);
+    return RValue_makeInstanceRef(args[0].method->boundInstanceId);
+}
 #endif
 
 // ===[ SCRIPT EXECUTE ]===
@@ -22288,6 +22296,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "script_execute", builtin_script_execute);
 #if IS_WAD17_OR_HIGHER_ENABLED
     VM_registerBuiltin(ctx, "method", builtin_method);
+    VM_registerBuiltin(ctx, "method_get_self", builtin_method_get_self);
 #endif
 
     // Time sources
