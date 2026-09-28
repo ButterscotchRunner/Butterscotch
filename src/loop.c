@@ -532,7 +532,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
-    bool showDebugOverlay = false;
+    bool showDebugOverlay = args.debug;
     while (true) {
         logInfo("Loading %s...\n", args.dataWinPath);
 
