@@ -153,7 +153,7 @@ typedef struct {
 void GLCommon_initDebugUIFont(GLDebugUIFont* ui);
 
 // Uploads the atlas texture if not yet uploaded. Returns false on failure.
-bool GLCommon_ensureDebugFontTexture(GLDebugUIFont* ui);
+bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui);
 
 // Deletes the atlas texture if uploaded (safe to call when texture == 0).
 void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui);

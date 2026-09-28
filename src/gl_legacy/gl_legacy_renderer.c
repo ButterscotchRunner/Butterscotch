@@ -1450,7 +1450,7 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     GLRenderer* gl = (GLRenderer*) renderer;
 
     GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
 
     GlFontState fs;
     fs.font = &gl->debugUI.font;
