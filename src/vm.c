@@ -1900,7 +1900,11 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
         slots++;
         require(stackPos >= slots);
         uint8_t slotGmlType = ctx->stack.slots[stackPos - slots].gmlStackType;
-        remaining -= gmlTypeNativeSize(slotGmlType);
+        int32_t slotSize = gmlTypeNativeSize(slotGmlType);
+        if (slotGmlType == GML_TYPE_VARIABLE && remaining > 0 && remaining < slotSize)
+            remaining = 0;
+        else
+            remaining -= slotSize;
     }
     require(remaining == 0); // Byte count must align exactly to slot boundaries
     return slots;
