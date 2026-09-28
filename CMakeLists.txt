@@ -307,6 +307,18 @@ add_library(bzip2 STATIC
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
 
+# miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
+# All files vendored byte-for-byte from that tag except miniz_export.h, which upstream
+# generates during its own CMake configure; this static build just leaves MINIZ_EXPORT
+# and MINIZ_NO_EXPORT empty since archive/stdio APIs are disabled above.
+target_sources(butterscotch PRIVATE
+    vendor/miniz/miniz.c
+    vendor/miniz/miniz_tdef.c
+    vendor/miniz/miniz_tinfl.c
+)
+target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniz)
+target_compile_definitions(butterscotch PRIVATE MINIZ_NO_ARCHIVE_APIS MINIZ_NO_STDIO)
+
 # Video playback source
 if(BUTTERSCOTCH_FFMPEG)
     target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
