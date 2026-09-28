@@ -2035,6 +2035,18 @@ static RValue builtin_interpolated_string(VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result.buffer);
 }
 
+// string_byte_at
+static RValue builtin_string_byte_at(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_byte_at", 2, RValue_makeInt32(0));
+    if (args[0].type != RVALUE_STRING || args[0].string == nullptr) return RValue_makeInt32(0);
+    int32_t length = (int32_t) strlen(args[0].string);
+    if (length == 0) return RValue_makeInt32(0);
+    int32_t index = RValue_toInt32(args[1]) - 1;
+    if (index < 0) index = 0;
+    if (index >= length) index = length - 1;
+    return RValue_makeInt32((unsigned char) args[0].string[index]);
+}
+
 // bool
 static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
@@ -22123,6 +22135,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "@@string@@", builtin_interpolated_string);
+    VM_registerBuiltin(ctx, "string_byte_at", builtin_string_byte_at);
     VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
