@@ -174,7 +174,7 @@ static bool platformInitGlad(void) {
 }
 #endif
 
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA)
+#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_WEB)
 #define USE_OPENGL_DEBUG
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
@@ -861,6 +861,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                 return 1;
             }
 
+            // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
+            platformSetWindowTitle(gen8->displayName);
 #ifdef USE_GLAD
 #if defined(USE_GLFW3) || defined(USE_GLFW2)
             if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
@@ -885,8 +887,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 
             platformInitialized = true;
         } else {
-            // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
-            platformSetWindowTitle(gen8->displayName);
             platformSetWindowSize(windowW, windowH);
         }
 

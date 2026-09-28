@@ -720,6 +720,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // Create VAO/VBO/EBO
     if (hasVAO()) {
         glGenVertexArrays(1, &modernGl->vao);
+        glGenVertexArrays(1, &modernGl->vertexBufferVao);
         glBindVertexArray(modernGl->vao);
     }
     glGenBuffers(1, &modernGl->vbo);
@@ -878,7 +879,10 @@ static void glDestroy(Renderer* renderer) {
     free(modernGl->gmlShaders);
     freeShader(modernGl->defaultShaderProgram);
     free(modernGl->defaultShaderProgram);
-    if (hasVAO()) glDeleteVertexArrays(1, &modernGl->vao);
+    if (hasVAO()) {
+        glDeleteVertexArrays(1, &modernGl->vao);
+        glDeleteVertexArrays(1, &modernGl->vertexBufferVao);
+    }
     glDeleteBuffers(1, &modernGl->vbo);
     glDeleteBuffers(1, &modernGl->ebo);
 
@@ -1800,6 +1804,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         return;
 
     GLRenderer* gl = (GLRenderer*) renderer;
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
     flushBatch(gl);
 
     typedef struct {
@@ -1816,8 +1821,13 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     GLenum mode = primitiveTypeToGL(primitive);
 
+    if (hasVAO()) {
+        glBindVertexArray(modernGl->vertexBufferVao);
+    }
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
+
+    for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
 
     bool hasColor = false;
     bool hasTexcoord = false;
@@ -1913,10 +1923,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     int vertexCount = buffer->size / buffer->format->stride;
     if (vertexCount <= 0) {
-        for (int i = 0; i < buffer->format->numElements; i++) {
-            glDisableVertexAttribArray(i);
-        }
-
+        if (hasVAO()) glBindVertexArray(modernGl->vao);
+        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1934,10 +1942,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     }
 
     if (number <= 0) {
-        for (int i = 0; i < buffer->format->numElements; i++) {
-            glDisableVertexAttribArray(i);
-        }
-
+        if (hasVAO()) glBindVertexArray(modernGl->vao);
+        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1948,10 +1954,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         number
     );
 
-    for (int i = 0; i < buffer->format->numElements; i++) {
-        glDisableVertexAttribArray(i);
-    }
-
+    if (hasVAO()) glBindVertexArray(modernGl->vao);
+    else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -3282,6 +3286,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.ensureApplicationSurface = glEnsureApplicationSurface;
     glVtable.surfaceCopy = glSurfaceCopy;
     glVtable.surfaceGetPixels = glSurfaceGetPixels;
+    glVtable.surfaceSetPixels = GLCommon_surfaceSetPixels;
     glVtable.surfaceUploadPixels = GLCommon_surfaceUploadPixels;
     glVtable.getSurfaceWidth = glGetSurfaceWidth;
     glVtable.getSurfaceHeight = glGetSurfaceHeight;

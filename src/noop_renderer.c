@@ -249,6 +249,7 @@ static bool noopShadersSupported(void) {
 static void noopSetMatrix(Renderer *renderer, int32_t matrixType, Matrix4f matrix) {
     if (matrixType >= 0 && matrixType < MATRICES_MAX) renderer->gmlMatrices[matrixType] = matrix;
 }
+static void noopGpuSetTexFilter(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED bool enable) {}
 
 static RendererVtable noopVtable;
 
@@ -292,6 +293,7 @@ Renderer* NoopRenderer_create(void) {
     noopVtable.gpuSetColorWriteEnable = noopGpuSetColorWriteEnable;
     noopVtable.gpuGetColorWriteEnable = noopGpuGetColorWriteEnable;
     noopVtable.gpuGetBlendEnable = noopGpuGetBlendEnable;
+    noopVtable.gpuSetTexFilter = noopGpuSetTexFilter;
     noopVtable.gpuSetFog = noopGpuSetFog;
     noopVtable.drawTile = noopDrawTile;
     noopVtable.drawSpriteTiled = noopDrawSpriteTiled;

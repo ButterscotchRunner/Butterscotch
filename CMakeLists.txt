@@ -1,41 +1,39 @@
 cmake_minimum_required(VERSION 3.21)
 
 if(PLATFORM STREQUAL "ps3")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
+    set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
 endif()
 
 if(PLATFORM STREQUAL "vita")
-
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-  if(DEFINED ENV{VITASDK})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
-  else()
-    message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
-  endif()
-endif()
-
-set(BACKEND "sdl2")
-
-elseif(PLATFORM STREQUAL "switch")
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    if(NOT DEFINED ENV{DEVKITPRO})
-        message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+      if(DEFINED ENV{VITASDK})
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+      else()
+        message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
+      endif()
     endif()
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
-endif()
 
-set(BACKEND "sdl2")
+    set(BACKEND "sdl2")
 
+    elseif(PLATFORM STREQUAL "switch")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+        if(NOT DEFINED ENV{DEVKITPRO})
+            message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+        endif()
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
+    endif()
+
+    set(BACKEND "sdl2")
 endif()
 
 project(butterscotch C)
 
 if (PLATFORM STREQUAL "vita")
-include("${VITASDK}/share/vita.cmake" REQUIRED)
-set(VITA_APP_NAME "Butterscotch")
-set(VITA_TITLEID  "BUTTRSTCH")
-set(VITA_VERSION  "01.00")
-set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
+    include("${VITASDK}/share/vita.cmake" REQUIRED)
+    set(VITA_APP_NAME "Butterscotch")
+    set(VITA_TITLEID  "BUTTRSTCH")
+    set(VITA_VERSION  "01.00")
+    set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 endif()
 
 set(CMAKE_C_STANDARD 99)
@@ -85,11 +83,7 @@ add_compile_definitions(
 
 # Audio backend defaults
 if(AUDIO_BACKEND STREQUAL "")
-    if(PLATFORM STREQUAL "web")
-        set(AUDIO_BACKEND "web")
-    elseif(PLATFORM STREQUAL "web-meta")
-        set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+    if(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -121,7 +115,7 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -158,22 +152,14 @@ if(ENABLE_NOOP_RENDERER)
     add_compile_definitions(ENABLE_NOOP_RENDERER)
 endif()
 
-if(PLATFORM STREQUAL "web-meta")
-    # Metadata-only build: just the data.win parser and its direct deps. No VM, no runner, no I/O subsystems.
-    set(SOURCES
-        src/data_win.c
-        src/binary_reader.c
-		src/log.c
-		src/stb_ds.c
-    )
-else()
-    file(GLOB SOURCES src/*.c)
-    # These platforms haven't been converted to the refactored system yet.
-    # This list should NEVER grow, all new platforms should use the new system.
-    if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")
-        list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
-    endif()
+file(GLOB SOURCES src/*.c)
+
+# These platforms haven't been converted to the refactored system yet.
+# This list should NEVER grow, all new platforms should use the new system.
+if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "android")
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
 endif()
+
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
@@ -322,12 +308,10 @@ target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
 
 # Video playback source
-if(NOT PLATFORM STREQUAL "web-meta")
-    if(BUTTERSCOTCH_FFMPEG)
-        target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
-    elseif(BUTTERSCOTCH_VIDEO_NULL)
-        target_sources(butterscotch PRIVATE src/video/null_video.c)
-    endif()
+if(BUTTERSCOTCH_FFMPEG)
+    target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
+elseif(BUTTERSCOTCH_VIDEO_NULL)
+    target_sources(butterscotch PRIVATE src/video/null_video.c)
 endif()
 
 # Spatial grid logs
@@ -342,7 +326,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
     if(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -361,6 +345,9 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "web")
+        add_compile_definitions(PLATFORM_WEB)
+        target_sources(butterscotch PRIVATE src/cli/args.c)
     else()
         set(VM_GML_PROFILER_DEFAULT ON)
         set(VM_TRACING_DEFAULT ON)
@@ -573,6 +560,35 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         else()
             nx_create_nro(butterscotch NACP Butterscotch.nacp)
         endif()
+    elseif (PLATFORM STREQUAL "web")
+        set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
+
+        target_link_options(
+                butterscotch
+                PRIVATE
+                "-sMODULARIZE=1"
+                "-sEXPORT_ES6=1"
+                "-sENVIRONMENT=web"
+                "-sWASMFS=1"
+                "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString', 'stringToNewUTF8', 'setValue', 'FS']"
+                "-sEXPORTED_FUNCTIONS=['_malloc', '_free', '_startRunner', '_mountOpfs', '_parseDataWin', '_getGameName', '_getGameDisplayName', '_freeDataWin', '_onKeyDown', '_onKeyUp', '_requestRunnerExit']"
+                "-sMIN_WEBGL_VERSION=2"
+                "-sMAX_WEBGL_VERSION=2"
+                "-sFULL_ES3=1"
+                "-sALLOW_MEMORY_GROWTH"
+                "-sINVOKE_RUN=0"
+                "-sJSPI"
+                "-sJSPI_EXPORTS=['startRunner', 'parseDataWin', 'mountOpfs']"
+                # Useful to know when a stack overflow (that is, the WASM stack) happens
+                "-sSTACK_OVERFLOW_CHECK=2"
+                # Increases the stack size, needed because for some reason MiniAudio causes a stack overflow in DELTARUNE
+                # "Aborted(stack overflow (Attempt to set SP to 0xfffff640, with stack limits [0x00000000 - 0x00010000]). If you require more stack space build with -sSTACK_SIZE=<bytes>)"
+                "-sSTACK_SIZE=1MB"
+                # We need this if we want to access "FS" from JavaScript (Module.FS.writeFile)
+                "-sFORCE_FILESYSTEM=1"
+                # "explicitSwapControl" and "renderViaOffscreenBackBuffer", see the web.c file
+                "-sOFFSCREEN_FRAMEBUFFER=1"
+        )
     endif()
     if(BACKEND STREQUAL "appkit")
         target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
@@ -597,64 +613,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
             $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-    )
-elseif(PLATFORM STREQUAL "web")
-    if (NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "Web requires modern gl!")
-    endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis)
-
-    set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=worker"
-            "-sWASMFS=1"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_mountOpfs', '_startRunner', '_stopRunner', '_malloc', '_free', '_getKeyDownPtr', '_getKeyUpPtr', '_getKeyCount', '_setAudioSampleRate', '_pullAudioFrames']"
-            "-sOFFSCREENCANVAS_SUPPORT=1"
-            "-sOFFSCREEN_FRAMEBUFFER=1"
-            "-sMIN_WEBGL_VERSION=2"
-            "-sMAX_WEBGL_VERSION=2"
-            "-sFULL_ES3=1"
-            "-sALLOW_MEMORY_GROWTH"
-            "-sSHARED_MEMORY=1"
-            "-sPTHREAD_POOL_SIZE=4"
-            "-pthread"
-    )
-
-    target_compile_options(butterscotch PRIVATE "-pthread")
-elseif(PLATFORM STREQUAL "web-meta")
-    set_target_properties(butterscotch PROPERTIES
-        SUFFIX ".mjs"
-        OUTPUT_NAME "butterscotch-meta"
-    )
-
-    target_link_libraries(butterscotch PRIVATE stb_ds)
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=web"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAPU8', 'ccall', 'cwrap', 'UTF8ToString', 'FS']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_parseDataWin', '_freeDataWin', '_getGameName', '_getGameDisplayName', '_getMajorVersion', '_getMinorVersion', '_getRelease', '_getBuild', '_getDefaultWindowWidth', '_getDefaultWindowHeight', '_malloc', '_free']"
-            "-sALLOW_MEMORY_GROWTH=1"
-            "-sFORCE_FILESYSTEM=1"
     )
 elseif(PLATFORM STREQUAL "android")
     if (NOT ENABLE_MODERN_GL)

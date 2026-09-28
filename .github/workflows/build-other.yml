@@ -15,10 +15,6 @@ jobs:
             platform: web
             artifact: butterscotch-web
             output_glob: build/butterscotch.*
-          - label: " [Meta]"
-            platform: web-meta
-            artifact: butterscotch-web-meta
-            output_glob: build/butterscotch-meta.*
     steps:
       - uses: actions/checkout@v7
 
@@ -44,7 +40,7 @@ jobs:
             ccache-web-${{ matrix.platform }}-
 
       - name: Configure
-        run: emcmake cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: emcmake cmake -B build -G Ninja -DWERROR=ON -DPLATFORM=${{ matrix.platform }} -DBACKEND=web -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
