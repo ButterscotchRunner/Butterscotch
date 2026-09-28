@@ -83,7 +83,7 @@ static void printUsage(const char *argv0) {
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
 #if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
-        "    --use-16bpp-textures                   - Load textures and create surfaces in 16 bits per pixel. Reduces VRAM usage with the OpenGL renderers.\n"
+        "    --use-16bpp-textures                   - Load textures and create surfaces in 16 bits per pixel to reduce VRAM usage. May cause banding artifacts.\n"
 #endif
         "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
