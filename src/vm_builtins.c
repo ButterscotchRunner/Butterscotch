@@ -2003,6 +2003,42 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result);
 }
 
+// bool
+static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
+    switch (args[0].type) {
+        case RVALUE_STRING: {
+            const char* str = args[0].string;
+            if (str == nullptr) return RValue_makeBool(false);
+            if (strcmp(str, "true") == 0) return RValue_makeBool(true);
+            if (strcmp(str, "false") == 0) return RValue_makeBool(false);
+            char* end = nullptr;
+            GMLReal value = (GMLReal) strtod(str, &end);
+            if (end == str) {
+                logWarn("[bool] unable to convert string %s to bool\n", str);
+                return RValue_makeBool(false);
+            }
+            return RValue_makeBool(value > 0.5);
+        }
+        case RVALUE_ARRAY:
+            logWarn("[bool] argument is an array\n");
+            return RValue_makeBool(false);
+        case RVALUE_UNDEFINED:
+            return RValue_makeBool(false);
+        case RVALUE_BOOL:
+            return RValue_makeBool(args[0].int32 != 0);
+        case RVALUE_REAL:
+        case RVALUE_INT32:
+        case RVALUE_ASSETREF:
+#ifndef NO_RVALUE_INT64
+        case RVALUE_INT64:
+#endif
+            return RValue_makeBool(RValue_toReal(args[0]) > 0.5);
+        default:
+            return RValue_makeBool(RValue_toBool(args[0]));
+    }
+}
+
 static RValue builtin_floor(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("floor", 1, RValue_makeReal(0.0));
     return RValue_makeReal(GMLReal_floor(RValue_toReal(args[0])));
@@ -22054,6 +22090,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
+    VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
     VM_registerBuiltin(ctx, "string_trim_start", builtin_string_trim_start);
