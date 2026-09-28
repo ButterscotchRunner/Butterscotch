@@ -4586,6 +4586,8 @@ static inline ptrdiff_t getValueIndexInMap(DsMapEntry** mapPtr, RValue keyRvalue
         // Fast path: No need to convert the RValue to a string if it is already a string
         idx = shgeti(*mapPtr, keyRvalue.string);
     } else {
+        if (keyRvalue.type == RVALUE_ASSETREF)
+            keyRvalue = RValue_makeInt32(RValue_toInt32(keyRvalue));
         char* key = RValue_toString(keyRvalue, dataWin);
         idx = shgeti(*mapPtr, key);
         free(key);
