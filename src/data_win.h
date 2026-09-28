@@ -862,6 +862,7 @@ typedef struct {
     uint32_t blobOffset; // absolute file offset to PNG data
     uint32_t blobSize; // computed size of blob data
     uint8_t* blobData; // owned copy of PNG data
+    char* externalPath;
 } Texture;
 
 typedef struct {
@@ -926,6 +927,7 @@ struct DataWin {
     Func func;
     Strg strg;
     Txtr txtr;
+    uint32_t tginOffset;
     Audo audo;
 
     DetectedFormat detectedFormat;

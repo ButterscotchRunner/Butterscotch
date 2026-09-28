@@ -2577,6 +2577,35 @@ static void parseSTRG(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
+static void resolveExternalTextures(BinaryReader* reader, DataWin* dw) {
+    if (!dw->tginOffset || !dw->txtr.textures) return;
+    BinaryReader_seek(reader, dw->tginOffset);
+    uint32_t version = BinaryReader_readUint32(reader);
+    if (version != 1) return;
+    uint32_t count = 0;
+    uint32_t* groups = readPointerTable(reader, &count);
+    repeat(count, i) {
+        BinaryReader_seek(reader, groups[i]);
+        const char* name = readStringPtr(reader, dw);
+        const char* directory = readStringPtr(reader, dw);
+        BinaryReader_readUint32(reader);
+        BinaryReader_readUint32(reader);
+        uint32_t pageList = BinaryReader_readUint32(reader);
+        if (!name || !directory || !pageList) continue;
+        BinaryReader_seek(reader, pageList);
+        uint32_t pageCount = BinaryReader_readUint32(reader);
+        repeat(pageCount, j) {
+            uint32_t page = BinaryReader_readUint32(reader);
+            if (page >= dw->txtr.count || dw->txtr.textures[page].blobOffset != 0) continue;
+            size_t length = strlen(directory) + strlen(name) + 32;
+            char* path = (char*)safeMalloc(length);
+            snprintf(path, length, "%s/%s_%u.yytex", directory, name, (unsigned int)j);
+            dw->txtr.textures[page].externalPath = path;
+        }
+    }
+    free(groups);
+}
+
 static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool loadTextureDataLazily) {
     Txtr* t = &dw->txtr;
 
@@ -2638,6 +2667,8 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool l
         t->textures[i].blobData = nullptr;
     }
     free(ptrs);
+
+    resolveExternalTextures(reader, dw);
 
     // Compute blob sizes from successive offsets
     {
@@ -2961,7 +2992,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (memcmp(chunkName, "EMBI", 4) == 0) {
             // Embedded Images chunk
         } else if (memcmp(chunkName, "TGIN", 4) == 0) {
-            // Texture Group Info chunk (wadVersion >= 17)
+            dw->tginOffset = (uint32_t)chunkDataStart;
         } else if (memcmp(chunkName, "ACRV", 4) == 0) {
             // Animation Curves chunk (GMS 2.3+)
             DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
@@ -3256,6 +3287,7 @@ void DataWin_free(DataWin* dw) {
         repeat(dw->txtr.count, i) {
             if (!dw->txtr.textures[i].mapped)
                 free(dw->txtr.textures[i].blobData);
+            free(dw->txtr.textures[i].externalPath);
         }
         free(dw->txtr.textures);
     }
