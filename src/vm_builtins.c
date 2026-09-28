@@ -2078,6 +2078,57 @@ static RValue builtin_array_contains(VMContext* ctx, RValue* args, int32_t argCo
     return RValue_makeBool(false);
 }
 
+// @@array_get@@
+static RValue builtin_internal_array_get(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("@@array_get@@", 2, RValue_makeUndefined());
+    if (args[0].type != RVALUE_ARRAY) return RValue_makeUndefined();
+    return RValue_makeIndependent(GMLArray_get(args[0].array, RValue_toInt32(args[1])));
+}
+
+// @@string@@
+static RValue builtin_interpolated_string(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("@@string@@", 1, RValue_makeOwnedString(safeStrdup("")));
+    char* format = RValue_toString(args[0], ctx->runner->dataWin);
+    if (argCount <= 1) return RValue_makeOwnedString(format);
+    StringBuilder result = StringBuilder_create(strlen(format) + 1);
+
+    for (size_t i = 0; format[i] != '\0';) {
+        if (format[i] == '{' && format[i + 1] >= '0' && format[i + 1] <= '9') {
+            size_t j = i + 1;
+            size_t index = 0;
+            while (format[j] >= '0' && format[j] <= '9') {
+                if (index < (size_t)argCount) index = index * 10 + (size_t)(format[j] - '0');
+                j++;
+            }
+            if (format[j] == '}' && index < (size_t)(argCount - 1)) {
+                char* value = RValue_toString(args[index + 1], ctx->runner->dataWin);
+                StringBuilder_append(&result, value);
+                free(value);
+                i = j + 1;
+            } else {
+                StringBuilder_appendChar(&result, format[i++]);
+            }
+        } else {
+            StringBuilder_appendChar(&result, format[i++]);
+        }
+    }
+
+    free(format);
+    return RValue_makeOwnedString(result.buffer);
+}
+
+// string_byte_at
+static RValue builtin_string_byte_at(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_byte_at", 2, RValue_makeInt32(0));
+    if (args[0].type != RVALUE_STRING || args[0].string == nullptr) return RValue_makeInt32(0);
+    int32_t length = (int32_t) strlen(args[0].string);
+    if (length == 0) return RValue_makeInt32(0);
+    int32_t index = RValue_toInt32(args[1]) - 1;
+    if (index < 0) index = 0;
+    if (index >= length) index = length - 1;
+    return RValue_makeInt32((unsigned char) args[0].string[index]);
+}
+
 // bool
 static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
@@ -22138,6 +22189,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "array_contains", builtin_array_contains);
+    VM_registerBuiltin(ctx, "@@array_get@@", builtin_internal_array_get);
+    VM_registerBuiltin(ctx, "@@string@@", builtin_interpolated_string);
+    VM_registerBuiltin(ctx, "string_byte_at", builtin_string_byte_at);
     VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
