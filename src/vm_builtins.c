@@ -36,6 +36,7 @@
 #include "sha1.h"
 #include "base64.h"
 #include "gettime.h"
+#include "miniz.h"
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -9975,6 +9976,125 @@ static RValue builtin_buffer_delete(MAYBE_UNUSED VMContext* ctx, RValue* args, M
         buf->isValid = false;
     }
     return RValue_makeUndefined();
+}
+
+// buffer_copy
+static RValue builtin_buffer_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("buffer_copy", 5, RValue_makeUndefined());
+    GmlBuffer* src = gmlBufferGet(ctx->runner, RValue_toInt32(args[0]));
+    GmlBuffer* dst = gmlBufferGet(ctx->runner, RValue_toInt32(args[3]));
+    if (src == nullptr || dst == nullptr) return RValue_makeUndefined();
+    if (src->size <= 0) return RValue_makeUndefined();
+
+    int32_t srcOffset = RValue_toInt32(args[1]);
+    int32_t size = RValue_toInt32(args[2]);
+    int32_t dstOffset = RValue_toInt32(args[4]);
+    if (size < 0) size = src->size;
+
+    if (src->type == GML_BUFFER_WRAP) {
+        while (srcOffset < 0) srcOffset += src->size;
+        while (srcOffset >= src->size) srcOffset -= src->size;
+        if (size > src->size - srcOffset) size = src->size - srcOffset;
+    } else {
+        if (srcOffset < 0) srcOffset = 0;
+        if (srcOffset >= src->size) srcOffset = src->size - 1;
+        if (size > src->size - srcOffset) size = src->size - srcOffset;
+    }
+
+    int32_t destSize = size;
+    if (dst->type == GML_BUFFER_GROW) {
+        if (dstOffset < 0) dstOffset = 0;
+        if (dstOffset > INT32_MAX - destSize) return RValue_makeUndefined();
+        gmlBufferEnsureSize(dst, dstOffset + destSize);
+    }
+    if (dst->type != GML_BUFFER_WRAP) {
+        if (dst->size <= 0) return RValue_makeUndefined();
+        if (dstOffset < 0) dstOffset = 0;
+        if (dstOffset >= dst->size) dstOffset = dst->size - 1;
+        if (destSize > dst->size - dstOffset) destSize = dst->size - dstOffset;
+    } else {
+        while (dstOffset < 0) dstOffset += dst->size;
+        while (dstOffset >= dst->size) dstOffset -= dst->size;
+    }
+    if (destSize <= 0) return RValue_makeUndefined();
+
+    int32_t end = dstOffset;
+    if (dst->type == GML_BUFFER_WRAP) {
+        int32_t remaining = destSize;
+        int32_t srcCursor = srcOffset;
+        int32_t dstCursor = dstOffset;
+        while (remaining > 0) {
+            int32_t chunk = dst->size - dstCursor;
+            if (chunk > remaining) chunk = remaining;
+            if (chunk > src->size - srcCursor) chunk = src->size - srcCursor;
+            memmove(dst->data + dstCursor, src->data + srcCursor, (size_t) chunk);
+            srcCursor = (srcCursor + chunk) % src->size;
+            dstCursor += chunk;
+            end = dstCursor;
+            dstCursor %= dst->size;
+            remaining -= chunk;
+        }
+    } else {
+        memmove(dst->data + dstOffset, src->data + srcOffset, (size_t) destSize);
+        end = dstOffset + destSize;
+    }
+
+    if (end > dst->usedSize) dst->usedSize = end;
+    if (dst->usedSize > dst->size) dst->usedSize = dst->size;
+    return RValue_makeUndefined();
+}
+
+// buffer_compress
+static RValue builtin_buffer_compress(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("buffer_compress", 1, RValue_makeInt32(-1));
+    GmlBuffer* source = gmlBufferGet(ctx->runner, RValue_toInt32(args[0]));
+    if (source == nullptr || source->size == 0) return RValue_makeInt32(-1);
+
+    int32_t start = argCount >= 2 ? RValue_toInt32(args[1]) : 0;
+    int32_t length = argCount >= 3 ? RValue_toInt32(args[2]) : -1;
+    if (length < 0) length = source->size;
+    if (start < 0) start = 0;
+    if (start > source->size - 1) start = source->size - 1;
+    if (length < 0) length = 0;
+    if (length > source->size - start) length = source->size - start;
+    if (length <= 0) return RValue_makeInt32(-1);
+
+    mz_ulong bound = mz_compressBound((mz_ulong) length);
+    if (bound == 0 || bound > INT32_MAX) return RValue_makeInt32(-1);
+    int32_t id = gmlBufferCreate(ctx->runner, (int32_t) bound, GML_BUFFER_FIXED, 1);
+    GmlBuffer* output = gmlBufferGet(ctx->runner, id);
+    mz_ulong outLength = bound;
+    if (mz_compress2(output->data, &outLength, source->data + start, (mz_ulong) length, MZ_DEFAULT_COMPRESSION) != MZ_OK ||
+        outLength == 0) {
+        output->isValid = false;
+        free(output->data);
+        output->data = nullptr;
+        return RValue_makeInt32(-1);
+    }
+    output->data = (uint8_t *) safeRealloc(output->data, (size_t) outLength);
+    output->size = (int32_t) outLength;
+    output->usedSize = (int32_t) outLength;
+    return RValue_makeInt32(id);
+}
+
+// buffer_decompress
+static RValue builtin_buffer_decompress(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("buffer_decompress", 1, RValue_makeInt32(-1));
+    GmlBuffer* source = gmlBufferGet(ctx->runner, RValue_toInt32(args[0]));
+    if (source == nullptr) return RValue_makeInt32(-1);
+    if (source->usedSize <= 0) return RValue_makeInt32(-1);
+    size_t length = 0;
+    void* decompressed = tinfl_decompress_mem_to_heap(source->data, (size_t) source->usedSize, &length,
+                                                      TINFL_FLAG_PARSE_ZLIB_HEADER);
+    if (decompressed == nullptr || length == 0 || length > INT32_MAX) {
+        free(decompressed);
+        return RValue_makeInt32(-1);
+    }
+    int32_t id = gmlBufferCreate(ctx->runner, (int32_t) length, GML_BUFFER_FIXED, 1);
+    GmlBuffer* output = gmlBufferGet(ctx->runner, id);
+    memcpy(output->data, decompressed, length);
+    free(decompressed);
+    return RValue_makeInt32(id);
 }
 
 static RValue builtin_buffer_write(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -22672,6 +22792,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "buffer_exists", builtin_buffer_exists);
     VM_registerBuiltin(ctx, "buffer_delete", builtin_buffer_delete);
     VM_registerBuiltin(ctx, "buffer_write", builtin_buffer_write);
+    VM_registerBuiltin(ctx, "buffer_copy", builtin_buffer_copy);
+    VM_registerBuiltin(ctx, "buffer_compress", builtin_buffer_compress);
+    VM_registerBuiltin(ctx, "buffer_decompress", builtin_buffer_decompress);
     VM_registerBuiltin(ctx, "buffer_read", builtin_buffer_read);
     VM_registerBuiltin(ctx, "buffer_seek", builtin_buffer_seek);
     VM_registerBuiltin(ctx, "buffer_tell", builtin_buffer_tell);
