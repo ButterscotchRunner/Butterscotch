@@ -253,9 +253,11 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
             case 'K':
                 args->lazyAudio = true;
                 break;
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
             case 'v':
                 args->use16bppTextures = true;
                 break;
+#endif
 #ifdef ENABLE_VM_TRACING
             case 'R':
                 shput(args->varReadsToBeTraced, optarg, true);

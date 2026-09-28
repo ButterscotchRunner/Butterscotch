@@ -121,7 +121,9 @@ typedef struct {
     bool opcodeProfiler;
 #endif
     bool disableLogColours;
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
     bool use16bppTextures;
+#endif
 } CommandLineArgs;
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless);
