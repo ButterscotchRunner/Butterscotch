@@ -2003,6 +2003,18 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result);
 }
 
+// string_byte_at
+static RValue builtin_string_byte_at(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_byte_at", 2, RValue_makeInt32(0));
+    if (args[0].type != RVALUE_STRING || args[0].string == nullptr) return RValue_makeInt32(0);
+    int32_t length = (int32_t) strlen(args[0].string);
+    if (length == 0) return RValue_makeInt32(0);
+    int32_t index = RValue_toInt32(args[1]) - 1;
+    if (index < 0) index = 0;
+    if (index >= length) index = length - 1;
+    return RValue_makeInt32((unsigned char) args[0].string[index]);
+}
+
 static RValue builtin_floor(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("floor", 1, RValue_makeReal(0.0));
     return RValue_makeReal(GMLReal_floor(RValue_toReal(args[0])));
@@ -22054,6 +22066,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
+    VM_registerBuiltin(ctx, "string_byte_at", builtin_string_byte_at);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
     VM_registerBuiltin(ctx, "string_trim_start", builtin_string_trim_start);
