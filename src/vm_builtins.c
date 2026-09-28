@@ -15,6 +15,7 @@
 
 #include "stdio_compat.h"
 #include <stdlib.h>
+#include <float.h>
 #include "string_compat.h"
 #include "math_compat.h"
 #include <ctype.h>
@@ -2002,6 +2003,42 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
     return RValue_makeOwnedString(result);
 }
 
+// bool
+static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
+    switch (args[0].type) {
+        case RVALUE_STRING: {
+            const char* str = args[0].string;
+            if (str == nullptr) return RValue_makeBool(false);
+            if (strcmp(str, "true") == 0) return RValue_makeBool(true);
+            if (strcmp(str, "false") == 0) return RValue_makeBool(false);
+            char* end = nullptr;
+            GMLReal value = (GMLReal) strtod(str, &end);
+            if (end == str) {
+                logWarn("[bool] unable to convert string %s to bool\n", str);
+                return RValue_makeBool(false);
+            }
+            return RValue_makeBool(value > 0.5);
+        }
+        case RVALUE_ARRAY:
+            logWarn("[bool] argument is an array\n");
+            return RValue_makeBool(false);
+        case RVALUE_UNDEFINED:
+            return RValue_makeBool(false);
+        case RVALUE_BOOL:
+            return RValue_makeBool(args[0].int32 != 0);
+        case RVALUE_REAL:
+        case RVALUE_INT32:
+        case RVALUE_ASSETREF:
+#ifndef NO_RVALUE_INT64
+        case RVALUE_INT64:
+#endif
+            return RValue_makeBool(RValue_toReal(args[0]) > 0.5);
+        default:
+            return RValue_makeBool(RValue_toBool(args[0]));
+    }
+}
+
 static RValue builtin_floor(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("floor", 1, RValue_makeReal(0.0));
     return RValue_makeReal(GMLReal_floor(RValue_toReal(args[0])));
@@ -2266,6 +2303,46 @@ static RValue builtin_string_lower(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     REQUIRE_ARGC_AT_LEAST("string_lower", 1, RValue_makeOwnedString(safeStrdup("")));
     char* result = RValue_toString(args[0], ctx->runner->dataWin);
     for (char* p = result; *p; p++) *p = (char) tolower((unsigned char) *p);
+    return RValue_makeOwnedString(result);
+}
+
+static bool stringTrimWhitespace(uint16_t ch) {
+    return (ch >= 0x0009 && ch <= 0x000D) || ch == 0x0020 || ch == 0x00A0 ||
+           ch == 0x1680 || (ch >= 0x2000 && ch <= 0x200A) || ch == 0x2028 ||
+           ch == 0x2029 || ch == 0x202F || ch == 0x205F || ch == 0x3000 || ch == 0xFEFF;
+}
+
+static RValue builtin_string_trim_start(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_trim_start", 1, RValue_makeOwnedString(safeStrdup("")));
+    char* result = RValue_toString(args[0], ctx->runner->dataWin);
+    char* start = result;
+
+    if (argCount == 1) {
+        while (*start) {
+            int32_t pos = 0;
+            uint16_t ch = TextUtils_decodeUtf8(start, (int32_t)strlen(start), &pos);
+            if (!stringTrimWhitespace(ch)) break;
+            start += pos;
+        }
+    } else if (args[1].type == RVALUE_ARRAY && args[1].array != nullptr) {
+        GMLArray* substrings = args[1].array;
+        bool matched;
+        do {
+            matched = false;
+            repeat(GMLArray_length1D(substrings), i) {
+                RValue substring = GMLArray_get(substrings, i);
+                if (substring.type != RVALUE_STRING || substring.string == nullptr) continue;
+                size_t length = strlen(substring.string);
+                if (length > 0 && strncmp(start, substring.string, length) == 0) {
+                    start += length;
+                    matched = true;
+                    break;
+                }
+            }
+        } while (matched);
+    }
+
+    if (start != result) memmove(result, start, strlen(start) + 1);
     return RValue_makeOwnedString(result);
 }
 
@@ -4042,6 +4119,10 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
     snprintf(additional, sizeof(additional), " (%s)", originBuiltin);
     VM_checkIfVariableShouldBeTracedAndLog(ctx, variableTraceObjectName(ctx, target), "self", name, val, true, -1, target->instanceId, additional);
 #endif
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        VM_structSet(ctx, target, name, val, -1);
+        return;
+    }
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         VMBuiltins_setVariable(ctx, target, builtinId, name, val, -1);
@@ -4060,6 +4141,8 @@ static void variableInstanceSetOn(VMContext* ctx, Instance* target, const char* 
 }
 
 static RValue variableInstanceGetOn(VMContext* ctx, Instance* target, const char* name, MAYBE_UNUSED const char* originBuiltin) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX)
+        return RValue_makeIndependent(VM_structGetVariableByVarName(ctx, target, name, -1));
     int16_t builtinId = VMBuiltins_resolveBuiltinVarId(name);
     if (builtinId != BUILTIN_VAR_UNKNOWN) {
         RValue val = VMBuiltins_getVariable(ctx, target, builtinId, name, -1);
@@ -4090,6 +4173,10 @@ static inline bool variableScopedMatches(Instance* inst, bool structOnly) {
 }
 
 static bool variableInstanceExistsOn(VMContext* ctx, Instance* target, const char* name) {
+    if (target->objectIndex == STRUCT_OBJECT_INDEX) {
+        ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
+        return slot >= 0 && IntRValueHashMap_contains(&target->selfVars, ctx->varNameMap[slot].value);
+    }
     if (VMBuiltins_resolveBuiltinVarId(name) != BUILTIN_VAR_UNKNOWN) return true;
     ptrdiff_t slot = shgeti(ctx->varNameMap, (char*) name);
     if (0 > slot) return false;
@@ -7212,6 +7299,14 @@ STUB_RETURN_ZERO(steam_get_persona_name)
 
 // ===[ Audio Built-in Functions ]===
 
+static GMLReal audioPositiveMinimum(void) {
+#ifdef USE_FLOAT_REALS
+    return FLT_MIN;
+#else
+    return DBL_MIN;
+#endif
+}
+
 static RValue builtin_audio_system_is_available(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     logSemiStubbedFunction(ctx, "audio_system_is_available");
     return RValue_makeBool(true);
@@ -7246,6 +7341,135 @@ static RValue builtin_audio_channel_num(VMContext* ctx, RValue* args, MAYBE_UNUS
     int32_t count = RValue_toInt32(args[0]);
     audio->vtable->setChannelCount(audio, count);
     return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner->audioSystem == nullptr) return RValue_makeUndefined();
+
+    AudioEmitter emitter;
+    ZERO_STRUCT(emitter);
+    emitter.active = true;
+    emitter.z = 0.01;
+    emitter.falloffRef = 100.0;
+    emitter.falloffMax = 100000.0;
+    emitter.falloffFactor = 1.0;
+    emitter.gain = 1.0;
+    emitter.pitch = 1.0;
+
+    repeat(arrlen(runner->audioEmitters), i) {
+        if (runner->audioEmitters[i].active) continue;
+        arrfree(runner->audioEmitters[i].voices);
+        runner->audioEmitters[i] = emitter;
+        return RValue_makeReal((GMLReal) i);
+    }
+
+    int32_t id = (int32_t) arrlen(runner->audioEmitters);
+    arrput(runner->audioEmitters, emitter);
+    return RValue_makeReal((GMLReal) id);
+}
+
+static AudioEmitter* audioEmitterGet(Runner* runner, int32_t id) {
+    if (id < 0 || id >= (int32_t) arrlen(runner->audioEmitters)) return nullptr;
+    AudioEmitter* emitter = &runner->audioEmitters[id];
+    return emitter->active ? emitter : nullptr;
+}
+
+static void audioEmitterUpdateVoices(Runner* runner, AudioEmitter* emitter) {
+    AudioSystem* audio = runner->audioSystem;
+    if (audio == nullptr) return;
+    repeat(arrlen(emitter->voices), i) {
+        audio->vtable->setSoundSpatial(audio, emitter->voices[i], (float)emitter->x, (float)emitter->y, (float)emitter->z,
+                                        (float)emitter->falloffRef, (float)emitter->falloffMax, (float)emitter->falloffFactor);
+    }
+}
+
+static RValue builtin_audio_emitter_falloff(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_falloff", 4, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+
+    emitter->falloffRef = GMLReal_fmax(0, RValue_toReal(args[1]));
+    emitter->falloffMax = GMLReal_fmax(audioPositiveMinimum(), RValue_toReal(args[2]));
+    emitter->falloffFactor = GMLReal_fmax(0, RValue_toReal(args[3]));
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_position(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_position", 4, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->x = RValue_toReal(args[1]);
+    emitter->y = RValue_toReal(args[2]);
+    emitter->z = RValue_toReal(args[3]);
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_listener_position(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_listener_position", 3, RValue_makeUndefined());
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio != nullptr) {
+        audio->listenerX = (float)RValue_toReal(args[0]);
+        audio->listenerY = (float)RValue_toReal(args[1]);
+        audio->listenerZ = (float)RValue_toReal(args[2]);
+        audio->vtable->setListenerPosition(audio, audio->listenerX, audio->listenerY, audio->listenerZ);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_exists", 1, RValue_makeBool(false));
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeBool(false);
+    return RValue_makeBool(audioEmitterGet(ctx->runner, RValue_toInt32(args[0])) != nullptr);
+}
+
+static RValue builtin_audio_emitter_free(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_free", 1, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio != nullptr) {
+        repeat(arrlen(emitter->voices), i) {
+            audio->vtable->stopSound(audio, emitter->voices[i]);
+        }
+    }
+    arrfree(emitter->voices);
+    ZERO_STRUCT(*emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_play_sound_on(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_play_sound_on", 4, RValue_makeReal(-1));
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeReal(-1);
+    AudioSystem* audio = ctx->runner->audioSystem;
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (audio == nullptr || emitter == nullptr || args[1].type == RVALUE_UNDEFINED) return RValue_makeReal(-1);
+
+    int32_t soundIndex = RValue_toInt32(args[1]);
+    int32_t instanceId = audio->vtable->playSound(audio, soundIndex, RValue_toInt32(args[3]), RValue_toBool(args[2]));
+    if (instanceId < 0) return RValue_makeReal(-1);
+
+    arrput(emitter->voices, instanceId);
+    audio->vtable->setSoundSpatial(audio, instanceId, (float)emitter->x, (float)emitter->y, (float)emitter->z,
+                                    (float)emitter->falloffRef, (float)emitter->falloffMax, (float)emitter->falloffFactor);
+    if (argCount > 4 && args[4].type != RVALUE_UNDEFINED) {
+        float gain = (float)GMLReal_fmax(0, RValue_toReal(args[4]));
+        audio->vtable->setSoundGain(audio, instanceId, audio->vtable->getSoundGain(audio, instanceId) * gain, 0);
+    }
+    if (argCount > 5 && args[5].type != RVALUE_UNDEFINED) {
+        float offset = (float)GMLReal_fmax(0, RValue_toReal(args[5]));
+        audio->vtable->setTrackPosition(audio, instanceId, offset);
+    }
+    if (argCount > 6 && args[6].type != RVALUE_UNDEFINED) {
+        float pitch = (float)GMLReal_fmax((GMLReal)FLT_MIN, RValue_toReal(args[6]));
+        audio->vtable->setSoundPitch(audio, instanceId, audio->vtable->getSoundPitch(audio, instanceId) * pitch);
+    }
+    return RValue_makeReal((GMLReal)instanceId);
 }
 
 // Old version of builtin_audio_play_sound, the GMS2 compatibility script sets the priority to 10 for... some reason
@@ -7438,6 +7662,17 @@ static RValue builtin_audio_group_load(VMContext* ctx, RValue* args, MAYBE_UNUSE
     if (audio == nullptr) return RValue_makeUndefined();
     int32_t groupIndex = RValue_toInt32(args[0]);
     audio->vtable->groupLoad(audio, groupIndex);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_group_set_gain(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_group_set_gain", 3, RValue_makeUndefined());
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeUndefined();
+    int32_t groupIndex = RValue_toInt32(args[0]);
+    float gain = (float) RValue_toReal(args[1]);
+    int32_t timeMs = RValue_toInt32(args[2]);
+    audio->vtable->setGroupGain(audio, groupIndex, gain, (uint32_t)(timeMs > 0 ? timeMs : 0));
     return RValue_makeUndefined();
 }
 
@@ -8235,6 +8470,29 @@ static RValue builtin_file_rename(VMContext* ctx, RValue* args, int32_t argCount
     return RValue_makeBool(fs->vtable->renameFile(fs, oldPath, newPath));
 }
 
+static RValue builtin_file_copy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("file_copy", 2, RValue_makeBool(false));
+    const char* source = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* destination = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    if (!*source || !*destination) return RValue_makeBool(false);
+
+    FileSystem* fs = ctx->runner->fileSystem;
+    uint8_t* data = nullptr;
+    int32_t size = 0;
+    if (fs->vtable->readFileBinary(fs, source, &data, &size)) {
+        bool copied = fs->vtable->writeFileBinary(fs, destination, data, size);
+        free(data);
+        return RValue_makeBool(copied);
+    }
+
+    // In-memory file systems may store text files separately from binary files.
+    char* text = fs->vtable->readFileText(fs, source);
+    if (text == nullptr) return RValue_makeBool(false);
+    bool copied = fs->vtable->writeFileText(fs, destination, text);
+    free(text);
+    return RValue_makeBool(copied);
+}
+
 // ===[ File Find Functions ]===
 
 // Case-sensitive `*` / `?` wildcard match:
@@ -8683,6 +8941,7 @@ static RValue builtin_joystick_axes(VMContext* ctx, RValue* args, MAYBE_UNUSED i
 // Window stubs
 STUB_RETURN_ZERO(window_get_fullscreen)
 STUB_RETURN_UNDEFINED(window_set_fullscreen)
+
 static RValue builtin_window_get_width(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner != nullptr && runner->getWindowSize != nullptr) {
@@ -10427,6 +10686,29 @@ static RValue builtin_buffer_get_surface(VMContext* ctx, RValue* args, MAYBE_UNU
     bool ok = runner->renderer->vtable->surfaceGetPixels(runner->renderer, surfaceId, buf->data + offset);
     if (ok && buf->type == GML_BUFFER_GROW && offset + bytes > buf->usedSize) buf->usedSize = offset + bytes;
     return RValue_makeBool(ok);
+}
+
+// buffer_set_surface(buffer, surface, offset) -> bool
+// Restores RGBA8 pixels saved by buffer_get_surface to an existing surface.
+static RValue builtin_buffer_set_surface(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("buffer_set_surface", 3, RValue_makeBool(false));
+    Runner* runner = ctx->runner;
+    int32_t bufId = RValue_toInt32(args[0]);
+    int32_t surfaceId = RValue_toInt32(args[1]);
+    int32_t offset = RValue_toInt32(args[2]);
+    GmlBuffer* buf = gmlBufferGet(runner, bufId);
+    Renderer* renderer = runner->renderer;
+    if (buf == nullptr || renderer == nullptr || renderer->vtable->surfaceSetPixels == nullptr ||
+        !Renderer_surfaceExists(renderer, surfaceId)) return RValue_makeBool(false);
+
+    int32_t w = (int32_t)Renderer_getSurfaceWidth(renderer, surfaceId);
+    int32_t h = (int32_t)Renderer_getSurfaceHeight(renderer, surfaceId);
+    if (w <= 0 || h <= 0 || offset < 0 || (size_t)w > ((size_t)-1) / 4 / (size_t)h) return RValue_makeBool(false);
+
+    size_t bytes = (size_t)w * (size_t)h * 4;
+    size_t available = (size_t)(buf->type == GML_BUFFER_GROW ? buf->usedSize : buf->size);
+    if ((size_t)offset > available || bytes > available - (size_t)offset || buf->data == nullptr) return RValue_makeBool(false);
+    return RValue_makeBool(renderer->vtable->surfaceSetPixels(renderer, surfaceId, buf->data + offset));
 }
 
 // PSN stubs
@@ -16067,6 +16349,14 @@ static RValue builtin_tile_get_index(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     return RValue_makeReal((GMLReal) (RValue_toInt32(args[0]) & TILEINDEX_SHIFTEDMASK));
 }
 
+static RValue builtin_tile_set_index(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("tile_set_index", 2, RValue_makeReal(-1.0));
+    uint32_t cell = (uint32_t) RValue_toInt32(args[0]);
+    uint32_t index = (uint32_t) RValue_toInt32(args[1]);
+    cell = (cell & ~TILEINDEX_MASK) | (index << TILEINDEX_SHIFT);
+    return RValue_makeReal((GMLReal) (int32_t) cell);
+}
+
 // tile_get_mirror(tiledata): returns whether the horizontal-mirror bit is set on a raw tile cell value.
 // (see GameMaker-HTML5 Function_Layers.js)
 static RValue builtin_tile_get_mirror(MAYBE_UNUSED VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -16196,7 +16486,7 @@ static RValue builtin_array_create(VMContext* ctx, RValue* args, int32_t argCoun
 // Emitted by the GMS2 compiler for expressions like `self` when used as a value.
 static RValue builtin_This(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* instance = (Instance *)requireNotNullMessage(ctx->currentInstance, "Called @@This@@ while there isn't a current instance on the context!");
-    return RValue_makeInt32((int32_t) instance->instanceId);
+    return RValue_makeInstanceRef((int32_t) instance->instanceId);
 }
 
 // @@Global@@ - GMS2 internal function returning the "global" instance's ID.
@@ -16208,10 +16498,10 @@ static RValue builtin_Global(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* a
 // Falls back to the current instance when there is no other (matches GML semantics outside with/collision).
 static RValue builtin_Other(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Instance* other = ctx->otherInstance;
-    if (other != nullptr) return RValue_makeInt32((int32_t) other->instanceId);
+    if (other != nullptr) return RValue_makeInstanceRef((int32_t) other->instanceId);
     Instance* inst = ctx->currentInstance;
     if (inst == nullptr) return RValue_makeInt32(INSTANCE_SELF);
-    return RValue_makeInt32((int32_t) inst->instanceId);
+    return RValue_makeInstanceRef((int32_t) inst->instanceId);
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -20932,8 +21222,6 @@ static bool vertexBufferGetWritablePtr(Buffer_Vertex* buffer, int32_t* outOffset
         return false;
     }
 
-    printf("[%s] Obtained writable pointer for vertex buffer at offset %d\n", functionName, *outOffset);
-
     *outPtr = buffer->buffer.pBuffer8 + *outOffset;
     return true;
 }
@@ -21036,15 +21324,6 @@ static RValue builtin_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* args, in
     } else {
         finalColor = (color & 0xffffffu) | ((uint32_t) alphaInt << 24);
     }
-
-        printf("[vertex_color] Writing color 0x%08X to vertex buffer %d at offset %d (bytes: %02X %02X %02X %02X)\n",
-            finalColor,
-            bufferIndex,
-            dataOffset,
-            (unsigned int) (finalColor & 0xFFu),
-            (unsigned int) ((finalColor >> 8) & 0xFFu),
-            (unsigned int) ((finalColor >> 16) & 0xFFu),
-            (unsigned int) ((finalColor >> 24) & 0xFFu));
 
     *(uint32_t*) (buffer->buffer.pBuffer8 + dataOffset) = finalColor;
     return RValue_makeUndefined();
@@ -21811,8 +22090,10 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string", builtin_string);
+    VM_registerBuiltin(ctx, "bool", builtin_bool);
     VM_registerBuiltin(ctx, "string_upper", builtin_string_upper);
     VM_registerBuiltin(ctx, "string_lower", builtin_string_lower);
+    VM_registerBuiltin(ctx, "string_trim_start", builtin_string_trim_start);
     VM_registerBuiltin(ctx, "string_copy", builtin_string_copy);
     VM_registerBuiltin(ctx, "string_pos", builtin_string_pos);
     VM_registerBuiltin(ctx, "string_char_at", builtin_string_char_at);
@@ -22165,6 +22446,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_exists", builtin_audio_exists);
     VM_registerBuiltin(ctx, "audio_get_name", builtin_audio_get_name);
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
+    VM_registerBuiltin(ctx, "audio_emitter_create", builtin_audio_emitter_create);
+    VM_registerBuiltin(ctx, "audio_emitter_falloff", builtin_audio_emitter_falloff);
+    VM_registerBuiltin(ctx, "audio_emitter_position", builtin_audio_emitter_position);
+    VM_registerBuiltin(ctx, "audio_listener_position", builtin_audio_listener_position);
+    VM_registerBuiltin(ctx, "audio_play_sound_on", builtin_audio_play_sound_on);
+    VM_registerBuiltin(ctx, "audio_emitter_exists", builtin_audio_emitter_exists);
+    VM_registerBuiltin(ctx, "audio_emitter_free", builtin_audio_emitter_free);
     VM_registerBuiltin(ctx, "audio_play_sound", builtin_audio_play_sound);
     VM_registerBuiltin(ctx, "audio_stop_sound", builtin_audio_stop_sound);
     VM_registerBuiltin(ctx, "audio_stop_all", builtin_audio_stop_all);
@@ -22178,6 +22466,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_master_gain", builtin_audio_master_gain);
     VM_registerBuiltin(ctx, "audio_set_master_gain", builtin_audio_set_master_gain);
     VM_registerBuiltin(ctx, "audio_group_load", builtin_audio_group_load);
+    VM_registerBuiltin(ctx, "audio_group_set_gain", builtin_audio_group_set_gain);
     VM_registerBuiltin(ctx, "audio_group_is_loaded", builtin_audio_group_is_loaded);
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "audio_play_music", builtin_audio_play_music);
@@ -22257,6 +22546,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "file_text_eof", builtin_file_text_eof);
     VM_registerBuiltin(ctx, "file_delete", builtin_file_delete);
     VM_registerBuiltin(ctx, "file_rename", builtin_file_rename);
+    VM_registerBuiltin(ctx, "file_copy", builtin_file_copy);
     VM_registerBuiltin(ctx, "file_find_first", builtin_file_find_first);
     VM_registerBuiltin(ctx, "file_find_next", builtin_file_find_next);
     VM_registerBuiltin(ctx, "file_find_close", builtin_file_find_close);
@@ -22400,6 +22690,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "buffer_md5", builtin_buffer_md5);
     VM_registerBuiltin(ctx, "buffer_sha1", builtin_buffer_sha1);
     VM_registerBuiltin(ctx, "buffer_get_surface", builtin_buffer_get_surface);
+    VM_registerBuiltin(ctx, "buffer_set_surface", builtin_buffer_set_surface);
     VM_registerBuiltin(ctx, "sha1_file", builtin_sha1_file);
     VM_registerBuiltin(ctx, "md5_file", builtin_md5_file);
 
@@ -22718,6 +23009,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "tilemap_get_at_pixel", builtin_tilemap_get_at_pixel);
     VM_registerBuiltin(ctx, "tilemap_get_tileset", builtin_tilemap_get_tileset);
     VM_registerBuiltin(ctx, "tile_get_index", builtin_tile_get_index);
+    VM_registerBuiltin(ctx, "tile_set_index", builtin_tile_set_index);
     VM_registerBuiltin(ctx, "tile_get_mirror", builtin_tile_get_mirror);
     VM_registerBuiltin(ctx, "tile_get_flip", builtin_tile_get_flip);
     VM_registerBuiltin(ctx, "tile_get_rotate", builtin_tile_get_rotate);
@@ -22862,6 +23154,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "vertex_format_add_position", builtin_vertex_format_add_position);
     VM_registerBuiltin(ctx, "vertex_format_add_position_3d", builtin_vertex_format_add_position_3d);
     VM_registerBuiltin(ctx, "vertex_format_add_textcoord", builtin_vertex_format_add_textcoord);
+    VM_registerBuiltin(ctx, "vertex_format_add_texcoord", builtin_vertex_format_add_textcoord);
     VM_registerBuiltin(ctx, "vertex_format_add_normal", builtin_vertex_format_add_normal);
     VM_registerBuiltin(ctx, "vertex_format_add_custom", builtin_vertex_format_add_custom);
     VM_registerBuiltin(ctx, "vertex_format_end", builtin_vertex_format_end);
@@ -23049,6 +23342,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx,"gpu_set_blendenable", builtin_gpu_set_blendenable);
     VM_registerBuiltin(ctx,"gpu_get_blendenable", builtin_gpu_get_blendenable);
     VM_registerBuiltin(ctx,"gpu_set_texfilter", builtin_gpu_set_texfilter);
+    VM_registerBuiltin(ctx,"gpu_set_tex_filter", builtin_gpu_set_texfilter);
     VM_registerBuiltin(ctx,"gpu_get_texfilter", builtin_gpu_get_texfilter);
     VM_registerBuiltin(ctx,"gpu_set_alphatestenable", builtin_gpu_set_alphatestenable);
     VM_registerBuiltin(ctx,"gpu_get_alphatestenable", builtin_gpu_get_alphatestenable);
