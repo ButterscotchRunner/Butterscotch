@@ -6851,6 +6851,38 @@ static RValue builtin_array_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
 static VMContext* g_arraySortCtx;
 static int32_t g_arraySortCodeIndex;
+static bool resolveFunctionRef(VMContext* ctx, RValue funcRef, int32_t* outCodeIndex, BuiltinFunc* outBuiltin) {
+    *outCodeIndex = -1;
+    *outBuiltin = nullptr;
+#if IS_WAD17_OR_HIGHER_ENABLED
+    if (funcRef.type == RVALUE_METHOD && funcRef.method != nullptr) {
+        *outCodeIndex = funcRef.method->codeIndex;
+        *outBuiltin = (BuiltinFunc) funcRef.method->builtin;
+        return *outCodeIndex >= 0 || *outBuiltin != nullptr;
+    }
+#endif
+    if (funcRef.type != RVALUE_INT32 && funcRef.type != RVALUE_INT64 && funcRef.type != RVALUE_REAL) return false;
+    int32_t rawArg = RValue_toInt32(funcRef);
+    if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
+        const char* funcName = ctx->dataWin->func.functions[rawArg].name;
+        if (funcName != nullptr) {
+            ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
+            if (idx >= 0) {
+                *outCodeIndex = ctx->codeIndexByName[idx].value;
+            } else {
+                ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
+                if (bidx >= 0) *outBuiltin = ctx->builtinMap[bidx].value;
+            }
+        }
+    }
+    if (*outCodeIndex < 0 && *outBuiltin == nullptr) {
+        if (rawArg >= 0 && ctx->dataWin->scpt.count > (uint32_t) rawArg) {
+            *outCodeIndex = ctx->dataWin->scpt.scripts[rawArg].codeId;
+        }
+    }
+    return *outCodeIndex >= 0 || *outBuiltin != nullptr;
+}
+
 static BuiltinFunc g_arraySortBuiltin;
 
 static int arraySortCompareCustom(const void* a, const void* b) {
@@ -6889,9 +6921,7 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 #if IS_WAD17_OR_HIGHER_ENABLED
     else if (args[1].type == RVALUE_METHOD && args[1].method != nullptr) {
         useCallback = true;
-        g_arraySortCodeIndex = args[1].method->codeIndex;
-        g_arraySortBuiltin = (BuiltinFunc) args[1].method->builtin;
-        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
+        if (!resolveFunctionRef(ctx, args[1], &g_arraySortCodeIndex, &g_arraySortBuiltin)) {
             logWarn("[array_sort] Invalid method reference\n");
             return RValue_makeUndefined();
         }
@@ -6903,28 +6933,8 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 #endif
     else if (args[1].type == RVALUE_INT32 || args[1].type == RVALUE_INT64 || args[1].type == RVALUE_REAL) {
         useCallback = true;
-        int32_t rawArg = RValue_toInt32(args[1]);
-        g_arraySortCodeIndex = -1;
-        g_arraySortBuiltin = nullptr;
-        if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
-            const char* funcName = ctx->dataWin->func.functions[rawArg].name;
-            if (funcName != nullptr) {
-                ptrdiff_t idx = shgeti(ctx->codeIndexByName, (char*) funcName);
-                if (idx >= 0) {
-                    g_arraySortCodeIndex = ctx->codeIndexByName[idx].value;
-                } else {
-                    ptrdiff_t bidx = shgeti(ctx->builtinMap, (char*) funcName);
-                    if (bidx >= 0) g_arraySortBuiltin = ctx->builtinMap[bidx].value;
-                }
-            }
-        }
-        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
-            if (rawArg >= 0 && ctx->dataWin->scpt.count > (uint32_t) rawArg) {
-                g_arraySortCodeIndex = ctx->dataWin->scpt.scripts[rawArg].codeId;
-            }
-        }
-        if (g_arraySortCodeIndex < 0 && g_arraySortBuiltin == nullptr) {
-            logWarn("[array_sort] Invalid script index %d\n", rawArg);
+        if (!resolveFunctionRef(ctx, args[1], &g_arraySortCodeIndex, &g_arraySortBuiltin)) {
+            logWarn("[array_sort] Invalid script index %d\n", RValue_toInt32(args[1]));
             return RValue_makeUndefined();
         }
     } else {
@@ -18206,6 +18216,108 @@ static RValue jsonDecodeValue(VMContext* ctx, JsonValue* json) {
     }
 }
 
+typedef struct {
+    VMContext* ctx;
+    int32_t codeIndex;
+    BuiltinFunc builtin;
+    Instance* boundInstance;
+} JsonReviver;
+
+static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue value) {
+    RValue callArgs[2];
+    callArgs[0] = RValue_makeOwnedString(safeStrdup(key != nullptr ? key : ""));
+    callArgs[1] = RValue_makeIndependent(value);
+    Instance* savedInstance = reviver->ctx->currentInstance;
+    if (reviver->boundInstance != nullptr) reviver->ctx->currentInstance = reviver->boundInstance;
+    RValue result;
+    if (reviver->codeIndex >= 0) {
+        result = VM_callCodeIndex(reviver->ctx, reviver->codeIndex, callArgs, 2);
+    } else {
+        result = reviver->builtin(reviver->ctx, callArgs, 2);
+    }
+    reviver->ctx->currentInstance = savedInstance;
+    RValue_free(&callArgs[0]);
+    RValue_free(&callArgs[1]);
+    return result;
+}
+
+static RValue jsonParseValue(JsonReviver* reviver, JsonValue* json, const char* key) {
+    VMContext* ctx = reviver->ctx;
+    RValue value;
+    if (json == nullptr) {
+        value = RValue_makeUndefined();
+    } else {
+        switch (json->type) {
+            case JSON_NULL: value = RValue_makeUndefined(); break;
+            case JSON_BOOL: value = RValue_makeBool(json->boolValue); break;
+            case JSON_NUMBER: value = RValue_makeReal((GMLReal)json->numberValue); break;
+            case JSON_STRING: value = RValue_makeOwnedString(safeStrdup(json->stringValue)); break;
+            case JSON_ARRAY: {
+                int count = JsonReader_arrayLength(json);
+                GMLArray* array = GMLArray_create(ctx->dataWin, count);
+                for (int i = 0; i < count; i++) {
+                    char indexKey[16];
+                    snprintf(indexKey, sizeof(indexKey), "%d", i);
+                    RValue element = jsonParseValue(reviver, JsonReader_getArrayElement(json, i), indexKey);
+                    RValue* slot = GMLArray_slot(array, i);
+                    if (slot != nullptr) *slot = element;
+                    else RValue_free(&element);
+                }
+                value = RValue_makeArray(array);
+                break;
+            }
+            case JSON_OBJECT: {
+                Instance* object = Runner_createStruct(ctx->runner);
+                int count = JsonReader_objectLength(json);
+                for (int i = 0; i < count; i++) {
+                    const char* memberKey = JsonReader_getJsonKeyByIndex(json, i);
+                    RValue member = jsonParseValue(reviver, JsonReader_getJsonValueByIndex(json, i), memberKey);
+                    if (member.type == RVALUE_UNDEFINED) {
+                        RValue_free(&member);
+                    } else {
+                        VM_structSetAndFreeVal(ctx, object, memberKey, member, -1);
+                    }
+                }
+                value = RValue_makeStructAndIncRef(object);
+                break;
+            }
+            default: value = RValue_makeUndefined(); break;
+        }
+    }
+    if (reviver->codeIndex < 0 && reviver->builtin == nullptr) return value;
+    RValue revived = jsonReviverCall(reviver, key, value);
+    RValue_free(&value);
+    return revived;
+}
+
+// json_parse
+static RValue builtin_json_parse(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("json_parse", 1, RValue_makeUndefined());
+    if (args[0].type != RVALUE_STRING || args[0].string == nullptr) return RValue_makeUndefined();
+    JsonValue* json = JsonReader_parse(args[0].string);
+    if (json == nullptr) return RValue_makeUndefined();
+
+    JsonReviver reviver = {0};
+    reviver.ctx = ctx;
+    reviver.codeIndex = -1;
+    if (argCount >= 2 && args[1].type != RVALUE_UNDEFINED) {
+        if (!resolveFunctionRef(ctx, args[1], &reviver.codeIndex, &reviver.builtin)) {
+            logWarn("[json_parse] Invalid reviver function reference\n");
+            reviver.codeIndex = -1;
+            reviver.builtin = nullptr;
+        }
+#if IS_WAD17_OR_HIGHER_ENABLED
+        else if (args[1].type == RVALUE_METHOD && args[1].method != nullptr && args[1].method->boundInstanceId >= 0) {
+            reviver.boundInstance = hmget(ctx->runner->instancesById, args[1].method->boundInstanceId);
+        }
+#endif
+    }
+
+    RValue result = jsonParseValue(&reviver, json, "");
+    JsonReader_free(json);
+    return result;
+}
+
 static RValue builtin_json_decode(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("json_decode", 1, RValue_makeUndefined());
 
@@ -23303,6 +23415,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "alarm_get", builtin_alarm_get);
     VM_registerBuiltin(ctx, "string_hash_to_newline", builtin_string_hash_to_newline);
     VM_registerBuiltin(ctx, "json_decode", builtin_json_decode);
+    VM_registerBuiltin(ctx, "json_parse", builtin_json_parse);
     VM_registerBuiltin(ctx, "json_encode", builtin_json_encode);
     VM_registerBuiltin(ctx, "font_add_sprite", builtin_font_add_sprite);
     VM_registerBuiltin(ctx, "font_add_sprite_ext", builtin_font_add_sprite_ext);
