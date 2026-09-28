@@ -2033,6 +2033,8 @@ static RValue builtin_interpolated_string(VMContext* ctx, RValue* args, int32_t 
 
     free(format);
     return RValue_makeOwnedString(result.buffer);
+}
+
 // bool
 static RValue builtin_bool(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("bool", 1, RValue_makeBool(false));
