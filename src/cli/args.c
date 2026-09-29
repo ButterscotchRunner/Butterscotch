@@ -83,8 +83,8 @@ static void printUsage(const char *argv0) {
         "    --game-args <args>                     - Arguments to pass to the game\n"
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
 #if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
-        "    --use-16bpp-textures                   - Load textures and create surfaces in 16 bits per pixel to reduce VRAM usage. May cause banding artifacts.\n"
-        "    --use-compressed-textures              - Compress textures before VRAM upload. Driver dependent, slow to load and artifacts are noticeable, use only when VRAM is critical.\n"
+        "    --texture-format <format>              - Specify the texture format to use (default: 32bpp)\n"
+        "    --surface-format <format>              - Specify the surface (FBO) format to use: 16bpp or 32bpp (default: follow --texture-format)\n"
 #endif
         "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
@@ -157,8 +157,8 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
 #if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
-        {"use-compressed-textures", no_argument, nullptr, '%'},
-        {"use-16bpp-textures", no_argument, nullptr, 'v'},
+        {"texture-format", required_argument, nullptr, 'v'},
+        {"surface-format", required_argument, nullptr, 1004},
 #endif
         {"lazy-audio", no_argument, nullptr, 'K'},
         {"load-type", required_argument, nullptr, 999},
@@ -259,10 +259,24 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                 break;
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
             case 'v':
-                args->glUse16bppTextures = true;
+                if (strcmp(optarg, "16bpp") == 0) {
+                    args->glTextureFormat = 1;
+                } else if (strcmp(optarg, "32bpp") == 0) {
+                    args->glTextureFormat = 2;
+                } else {
+#if !(defined(PLATFORM_ANDROID) || defined(PLATFORM_VITA) || defined(PLATFORM_SWITCH) || defined(PLATFORM_WEB))
+                    if (strcmp(optarg, "compressed") == 0) {
+                        args->glTextureFormat = 3;
+                    }
+#endif
+                }
                 break;
-            case '%':
-                args->glUseCompressedTextures = true;
+            case 1004:
+                if (strcmp(optarg, "16bpp") == 0) {
+                    args->glSurfaceFormat = 1;
+                } else if (strcmp(optarg, "32bpp") == 0) {
+                    args->glSurfaceFormat = 2;
+                }
                 break;
 #endif
 #ifdef ENABLE_VM_TRACING

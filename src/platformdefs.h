@@ -122,8 +122,8 @@ typedef struct {
 #endif
     bool disableLogColours;
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    bool glUse16bppTextures;
-    bool glUseCompressedTextures;
+    int glTextureFormat;
+    int glSurfaceFormat;
 #endif
 } CommandLineArgs;
 

@@ -82,8 +82,7 @@ void GLCommon_init(Renderer* renderer) {
     glGenTextures(1, &gl->whiteTexture);
     glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
     uint8_t whitePixel[4] = {255, 255, 255, 255};
-    GLint internalFormat = gl->lowVram ? GL_RGBA4 : GL_RGBA;
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -653,8 +652,7 @@ bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui) {
     }
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
-    GLint internalFormat = gl->useCompressedTextures ? GL_COMPRESSED_RGBA : (gl->lowVram ? GL_RGBA4 : GL_RGBA);
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

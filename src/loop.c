@@ -906,8 +906,29 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
-            ((GLRenderer*)renderer)->lowVram = args.glUse16bppTextures;
-            ((GLRenderer*)renderer)->useCompressedTextures = args.glUseCompressedTextures;
+            switch (args.glTextureFormat) {
+                case 1:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                    break;
+                case 2:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                    break;
+                case 3:
+                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                    break;
+                default:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+            }
+            switch (args.glSurfaceFormat) {
+                case 1:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                    break;
+                case 2:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                    break;
+                default:
+                    ((GLRenderer*)renderer)->surfaceFormat = 0;
+            }
             static GLuint hostfb = 0;
             hostFramebuffer = &hostfb;
         }
@@ -915,8 +936,29 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            ((GLRenderer*)renderer)->lowVram = args.glUse16bppTextures;
-            ((GLRenderer*)renderer)->useCompressedTextures = args.glUseCompressedTextures;
+            switch (args.glTextureFormat) {
+                case 1:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                    break;
+                case 2:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                    break;
+                case 3:
+                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                    break;
+                default:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+            }
+            switch (args.glSurfaceFormat) {
+                case 1:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                    break;
+                case 2:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                    break;
+                default:
+                    ((GLRenderer*)renderer)->surfaceFormat = 0;
+            }
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif

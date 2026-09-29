@@ -177,8 +177,8 @@ enum GlMode {
 struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
-    bool lowVram; // low VRAM mode: uploads textures and creates surfaces as 16bpp instead of 32bpp
-    bool useCompressedTextures; // compresses textures before VRAM upload. Driver dependent, slow to load and artifacts are noticeable. Use on systems where VRAM is critical.
+    GLint textureFormat;
+    GLint surfaceFormat; // 0 = unset, derive from textureFormat (compressed falls back to GL_RGBA)
 
     GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
     GlPrimitive currentPrimitive;
@@ -223,6 +223,11 @@ struct GLRenderer {
 
     bool alphaTestEnable;
     float alphaTestRef;
+};
+
+static inline GLint GLCommon_surfaceInternalFormat(const GLRenderer* gl) {
+    if (gl->surfaceFormat != 0) return gl->surfaceFormat;
+    return (gl->textureFormat == GL_COMPRESSED_RGBA) ? GL_RGBA : gl->textureFormat;
 };
 
 #endif /* _BS_GL_COMMON_H_ */
