@@ -13,8 +13,8 @@ export MSYS2_ARG_CONV_EXCL='*'
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
 
-[ -z "$THREADS" ] && THREADS=$(nproc 2>/dev/null)
-[ -z "$THREADS" ] && THREADS=$(sysctl -n hw.ncpu 2>/dev/null)
+[ -z "$THREADS" ] && THREADS=$(nproc 2>/dev/null) || true
+[ -z "$THREADS" ] && THREADS=$(sysctl -n hw.ncpu 2>/dev/null) || true
 [ -z "$THREADS" ] && THREADS=1
 
 : > config.mk
