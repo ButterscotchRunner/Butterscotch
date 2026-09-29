@@ -67,41 +67,42 @@ MACRO USE_FLOAT_REALS
 MACRO MINIZ_NO_ARCHIVE_APIS
 MACRO MINIZ_NO_STDIO
 
-USERINCLUDE ../src
-USERINCLUDE ../src/debug_font
-USERINCLUDE ../src/gl
-USERINCLUDE ../src/gl_common
-USERINCLUDE ../src/image
-USERINCLUDE ../src/video
-USERINCLUDE ../vendor/base64
-USERINCLUDE ../vendor/bzip2
-USERINCLUDE ../vendor/md5
-USERINCLUDE ../vendor/sha1
-USERINCLUDE ../vendor/stb/ds
-USERINCLUDE ../vendor/stb/image
-USERINCLUDE ../vendor/miniz
+USERINCLUDE ../../src
+USERINCLUDE ../../src/debug_font
+USERINCLUDE ../../src/gl
+USERINCLUDE ../../src/gl_common
+USERINCLUDE ../../src/gl_legacy
+USERINCLUDE ../../src/image
+USERINCLUDE ../../src/video
+USERINCLUDE ../../vendor/base64
+USERINCLUDE ../../vendor/bzip2
+USERINCLUDE ../../vendor/md5
+USERINCLUDE ../../vendor/sha1
+USERINCLUDE ../../vendor/stb/ds
+USERINCLUDE ../../vendor/stb/image
+USERINCLUDE ../../vendor/miniz
 
-SOURCEPATH ../src
+SOURCEPATH ../../src
 SOURCE binary_reader.c data_win.c data_win_print.c debug_overlay.c event_table.c gml_array.c gml_method.c ini.c input_recording.c instance.c int_int_hashmap.c int_rvalue_hashmap.c json_reader.c json_writer.c log.c loop.c noop_audio_system.c overlay_file_system.c profiler.c random.c runner.c runner_gamepad.c runner_keyboard.c runner_mouse.c spatial_grid.c stb_ds.c string_builder.c vm.c vm_builtins.c
-SOURCEPATH ../src/video
+SOURCEPATH ../../src/video
 SOURCE null_video.c
-SOURCEPATH ../src/debug_font
+SOURCEPATH ../../src/debug_font
 SOURCE debug_font.c debug_font_4bpp.c
-SOURCEPATH ../src/gl_common
+SOURCEPATH ../../src/gl_common
 SOURCE gl_common.c
-SOURCEPATH ../src/gl
-SOURCE gl_renderer.c
-SOURCEPATH ../src/image
+SOURCEPATH ../../src/image
 SOURCE image_decoder.c
-SOURCEPATH ../vendor/base64
+SOURCEPATH ../../vendor/base64
 SOURCE base64.c
-SOURCEPATH ../vendor/bzip2
+SOURCEPATH ../../vendor/bzip2
 SOURCE bz_internal_error.c bzlib.c crctable.c decompress.c huffman.c randtable.c
-SOURCEPATH ../vendor/md5
+SOURCEPATH ../../vendor/md5
 SOURCE md5.c
-SOURCEPATH ../vendor/sha1
+SOURCEPATH ../../vendor/sha1
 SOURCE sha1.c
-SOURCEPATH ../vendor/miniz
+SOURCEPATH ../../vendor/miniz
 SOURCE miniz.c miniz_tdef.c miniz_tinfl.c
-SOURCEPATH ../src/symbian
+SOURCEPATH ../../src/symbian
 SOURCE stb_impl.c symbian.cpp
+SOURCEPATH ../../src/gl
+SOURCE gl_renderer.c
