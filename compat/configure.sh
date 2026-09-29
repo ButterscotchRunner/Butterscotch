@@ -13,12 +13,16 @@ export MSYS2_ARG_CONV_EXCL='*'
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
 
+if [ -z "$THREADS" ]; then
+    THREADS=$(nproc 2>/dev/null) || THREADS=$(sysctl -n hw.ncpu 2>/dev/null) || THREADS=1
+fi
+
 : > config.mk
-rm -rf tmp/lock
+rm -rf tmp/lock*
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
-    rm -rf tmp/lock
+    rm -rf tmp/lock*
 }
 
 config() {
@@ -62,15 +66,24 @@ include() {
 }
 
 lock() {
-    [ -z "$NOTHREADS" ] && return 0
-    while ! mkdir tmp/lock 2>/dev/null; do
-        sleep 0.1 2>/dev/null || sleep 1
+    while :; do
+        i=1
+        while [ "$i" -le "$THREADS" ]; do
+            if mkdir "tmp/lock.$i" 2>/dev/null; then
+                lockslot=$i
+                return 0
+            fi
+            i=$((i + 1))
+        done
+        sleep 0.01 2>/dev/null || true
     done
 }
 
 unlock() {
-    [ -z "$NOTHREADS" ] && return 0
-    rm -rf tmp/lock
+    if [ -n "$lockslot" ]; then
+        rm -rf "tmp/lock.$lockslot"
+        lockslot=
+    fi
 }
 
 check() {
