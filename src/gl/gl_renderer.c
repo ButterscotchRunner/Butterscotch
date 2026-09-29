@@ -1068,7 +1068,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     free(pixels);
 
@@ -2280,7 +2280,7 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
     GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
 
     GlFontState fs;
     fs.font = &gl->debugUI.font;
@@ -2358,7 +2358,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
 
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     bool isPOT = (width & (width - 1)) == 0 && (height & (height - 1)) == 0;
     GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
 
@@ -2430,7 +2430,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
 
     glGenTextures(1, &gl->surfaceTexture[surfaceID]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceID]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2752,7 +2752,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     GLuint newTexId;
     glGenTextures(1, &newTexId);
     glBindTexture(GL_TEXTURE_2D, newTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
