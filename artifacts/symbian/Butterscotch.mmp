@@ -20,6 +20,8 @@ LIBRARY libglesv2.lib
 LIBRARY libegl.lib
 LIBRARY libc.lib
 LIBRARY libm.lib
+LIBRARY libpthread.lib
+LIBRARY mediaclientaudiostream.lib
 
 OPTION ARMCC -Otime
 OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296
@@ -58,7 +60,7 @@ END
 
 MACRO SYMBIAN_OE_POSIX_SIGNALS
 MACRO ENABLE_MODERN_GL
-//MACRO ENABLE_NOOP_RENDERER
+MACRO USE_MINIAUDIO
 MACRO ENABLE_WAD14
 MACRO ENABLE_WAD16
 MACRO ENABLE_WAD17
@@ -74,13 +76,16 @@ USERINCLUDE ../../src/gl_common
 USERINCLUDE ../../src/gl_legacy
 USERINCLUDE ../../src/image
 USERINCLUDE ../../src/video
+USERINCLUDE ../../src/audio/miniaudio
 USERINCLUDE ../../vendor/base64
 USERINCLUDE ../../vendor/bzip2
 USERINCLUDE ../../vendor/md5
 USERINCLUDE ../../vendor/sha1
 USERINCLUDE ../../vendor/stb/ds
 USERINCLUDE ../../vendor/stb/image
+USERINCLUDE ../../vendor/stb/vorbis
 USERINCLUDE ../../vendor/miniz
+USERINCLUDE ../../vendor/miniaudio
 
 SOURCEPATH ../../src
 SOURCE binary_reader.c data_win.c data_win_print.c debug_overlay.c event_table.c gml_array.c gml_method.c ini.c input_recording.c instance.c int_int_hashmap.c int_rvalue_hashmap.c json_reader.c json_writer.c log.c loop.c noop_audio_system.c overlay_file_system.c profiler.c random.c runner.c runner_gamepad.c runner_keyboard.c runner_mouse.c spatial_grid.c stb_ds.c string_builder.c vm.c vm_builtins.c
@@ -103,6 +108,8 @@ SOURCE sha1.c
 SOURCEPATH ../../vendor/miniz
 SOURCE miniz.c miniz_tdef.c miniz_tinfl.c
 SOURCEPATH ../../src/symbian
-SOURCE stb_impl.c symbian.cpp
+SOURCE stb_impl.c symbian.cpp symbian_audio.cpp symbian_atomics.c
 SOURCEPATH ../../src/gl
 SOURCE gl_renderer.c
+SOURCEPATH ../../src/audio/miniaudio
+SOURCE ma_audio_system.c
