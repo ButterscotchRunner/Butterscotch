@@ -84,6 +84,7 @@ static void printUsage(const char *argv0) {
         "    --lazy-textures                        - Load textures into VRAM on first use, improving startup times\n"
 #if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
         "    --use-16bpp-textures                   - Load textures and create surfaces in 16 bits per pixel to reduce VRAM usage. May cause banding artifacts.\n"
+        "    --use-compressed-textures              - Compress textures before VRAM upload. Driver dependent, slow to load and artifacts are noticeable, use only when VRAM is critical.\n"
 #endif
         "    --lazy-audio                           - Load audio into RAM on first use, reducing memory usage\n"
         "    --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once\n"
@@ -155,7 +156,10 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"save-folder", required_argument, nullptr, 'B'},
         {"game-args", required_argument, nullptr, 'N'},
         {"lazy-textures", no_argument, nullptr, 'L'},
+#if defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)
+        {"use-compressed-textures", no_argument, nullptr, '%'},
         {"use-16bpp-textures", no_argument, nullptr, 'v'},
+#endif
         {"lazy-audio", no_argument, nullptr, 'K'},
         {"load-type", required_argument, nullptr, 999},
         {"disable-log-colours", no_argument, nullptr, 1003},
@@ -255,7 +259,10 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                 break;
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
             case 'v':
-                args->use16bppTextures = true;
+                args->glUse16bppTextures = true;
+                break;
+            case '%':
+                args->glUseCompressedTextures = true;
                 break;
 #endif
 #ifdef ENABLE_VM_TRACING

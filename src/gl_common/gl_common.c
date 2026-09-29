@@ -653,7 +653,7 @@ bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui) {
     }
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
-    GLint internalFormat = gl->lowVram ? GL_RGBA4 : GL_RGBA;
+    GLint internalFormat = gl->useCompressedTextures ? GL_COMPRESSED_RGBA : (gl->lowVram ? GL_RGBA4 : GL_RGBA);
     glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

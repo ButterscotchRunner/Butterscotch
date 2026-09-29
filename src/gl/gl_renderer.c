@@ -1067,7 +1067,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
 
-    GLint internalFormat = gl->lowVram ? GL_RGBA4 : GL_RGBA;
+    GLint internalFormat = gl->useCompressedTextures ? GL_COMPRESSED_RGBA : (gl->lowVram ? GL_RGBA4 : GL_RGBA);
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 

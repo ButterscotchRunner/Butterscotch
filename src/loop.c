@@ -906,7 +906,8 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
-            ((GLRenderer*)renderer)->lowVram = args.use16bppTextures;
+            ((GLRenderer*)renderer)->lowVram = args.glUse16bppTextures;
+            ((GLRenderer*)renderer)->useCompressedTextures = args.glUseCompressedTextures;
             static GLuint hostfb = 0;
             hostFramebuffer = &hostfb;
         }
@@ -914,7 +915,8 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            ((GLRenderer*)renderer)->lowVram = args.use16bppTextures;
+            ((GLRenderer*)renderer)->lowVram = args.glUse16bppTextures;
+            ((GLRenderer*)renderer)->useCompressedTextures = args.glUseCompressedTextures;
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif

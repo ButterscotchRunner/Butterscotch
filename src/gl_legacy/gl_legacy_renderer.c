@@ -1824,7 +1824,7 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     glGenTextures(1, &gl->surfaceTexture[surfaceId]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
-    GLint internalFormat = gl->lowVram ? GL_RGBA4 : GL_RGBA;
+    GLint internalFormat = gl->useCompressedTextures ? GL_COMPRESSED_RGBA : (gl->lowVram ? GL_RGBA4 : GL_RGBA);
     glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

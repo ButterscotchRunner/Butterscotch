@@ -178,6 +178,7 @@ struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
     bool lowVram; // low VRAM mode: uploads textures and creates surfaces as 16bpp instead of 32bpp
+    bool useCompressedTextures; // compresses textures before VRAM upload. Driver dependent, slow to load and artifacts are noticeable. Use on systems where VRAM is critical.
 
     GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
     GlPrimitive currentPrimitive;
