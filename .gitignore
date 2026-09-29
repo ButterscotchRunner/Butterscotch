@@ -6,3 +6,7 @@ CMakeUserPresets.json
 compat/config.mk
 /.vs
 *.log
+.project
+.cproject
+*.sis
+*.d

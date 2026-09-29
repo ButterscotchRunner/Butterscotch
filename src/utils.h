@@ -18,7 +18,7 @@
 #include <malloc.h>
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(__WINSCW__)
 #include <unistd.h>
 #if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
 #include <sys/mman.h>
@@ -198,30 +198,30 @@ static inline void bsGetDirname(char* path) {
     }
     
     char* lastSlash = strrchr(path, '/');
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__SYMBIAN32__)
     char* lastBackslash = strrchr(path, '\\');
 #endif
     char* target = nullptr;
     if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
         target = lastSlash;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__SYMBIAN32__)
     if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
         target = lastBackslash;
 #endif
 
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
     if (target == nullptr)
         target = strrchr(path, ':');
 #endif
 
     if (target) {
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
         if (target[0] == ':') {
             target[1] = '\0';
         } else
 #endif
         if (target == path
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
             || target[0] == ':'
 #endif
             ) {
@@ -249,7 +249,7 @@ typedef struct {
 
 static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
     if (!base || len == 0) return;
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__WINSCW__)
     static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
     static int checked = 0;
     if (!checked) {

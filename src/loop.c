@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include "string_compat.h"
 #include <time.h>
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__WINSCW__)
 #include <windows.h>
 #include <mmsystem.h>
 #include <io.h>
@@ -28,6 +28,9 @@
 #ifndef __wasi__
 #include <signal.h>
 #endif
+#ifdef __SYMBIAN32__
+typedef int sig_atomic_t;
+#endif
 
 #include "runner_keyboard.h"
 #include "runner.h"
@@ -35,7 +38,7 @@
 #include "debug_overlay.h"
 #include "debug_font/debug_font.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
-    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__SYMBIAN32__)
 #define USE_GLAD
 #include <glad/glad.h>
 #endif
@@ -76,7 +79,7 @@ enum GraphicsAPI gfx;
 const GLuint *hostFramebuffer;
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(__WINSCW__)
 #include <fcntl.h>
 #include <unistd.h>
 #else
@@ -130,6 +133,8 @@ static size_t get_used_memory(void) {
     if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
         return info.resident_size;
     }
+#elif defined(__SYMBIAN32__)
+    // TODO
 #elif defined(_WIN32)
     typedef BOOL (WINAPI *GetProcessMemoryInfo_t)(HANDLE, BS_PROCESS_MEMORY_COUNTERS*, DWORD);
     static GetProcessMemoryInfo_t func = NULL;
@@ -174,7 +179,7 @@ static bool platformInitGlad(void) {
 }
 #endif
 
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_WEB)
+#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_WEB) && !defined(__SYMBIAN32__)
 #define USE_OPENGL_DEBUG
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
@@ -463,7 +468,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__) && !defined(__SYMBIAN32__)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
@@ -516,24 +521,67 @@ static void PreProcessedStuff_free(void) {
 
 // ===[ MAIN ]===
 int loop(CommandLineArgs args, const char *argv0) {
-#ifdef _WIN32
+    int res;
+    while (true) {
+        res = loop_init(args, argv0);
+        if (res != -1) break;
+
+        while (true) {
+            res = loop_step();
+            if (res != -1) break;
+        }
+
+        res = loop_exit();
+        if (res != -1) break;
+    }
+    return res;
+}
+
+static CommandLineArgs args;
+static char* currentDataWinPath;
+static char** currentGameArgs;
+
+static bool platformInitialized = false;
+static int32_t inputFrameCount = 0;
+
+static bool fastForwardActive = false;
+static bool fastForwardTabPrev = false;
+static bool showDebugOverlay = false;
+
+static DataWin* dataWin;
+static Gen8* gen8;
+static VMContext* vm;
+static Renderer* renderer = nullptr;
+static Runner* runner;
+
+static char* dataWinDir;
+static OverlayFileSystem* overlayFs;
+
+static bool debugShowCollisionMasks = false;
+static size_t overlayCachedMemBytes = 0;
+static uint64_t overlayLastMemCheck = 0;
+static bool freeCamActive = false;
+static bool actuallyShuttingDown = false;
+static bool wasPaused = false;
+static uint64_t lastFrameTime;
+static uint64_t lastFrameStartTime;
+static bool shouldWindowClose = false;
+
+int loop_init(CommandLineArgs aArgs, const char *argv0) {
+#if defined(_WIN32) && !defined(__WINSCW__)
     timeBeginPeriod(1);
 #endif
-    char* currentDataWinPath = safeStrdup(args.dataWinPath);
-    char** currentGameArgs = args.gameArgs;
+    args = aArgs;
+    currentDataWinPath = safeStrdup(args.dataWinPath);
+    currentGameArgs = args.gameArgs;
     repeat(arrlen(args.gameArgs), i) {
         arrput(currentGameArgs, args.gameArgs[i]);
     }
     // The first argument will ALWAYS be the argv[0]
     arrins(currentGameArgs, 0, safeStrdup(argv0 != nullptr ? argv0 : ""));
 
-    bool platformInitialized = false;
-    int32_t inputFrameCount = 0;
-
-    bool fastForwardActive = false;
-    bool fastForwardTabPrev = false;
-    bool showDebugOverlay = args.debug;
-    while (true) {
+    showDebugOverlay = args.debug;
+    {
         logInfo("Loading %s...\n", args.dataWinPath);
 
         DataWinParserOptions options = {0};
@@ -595,9 +643,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.lazyLoadTextures = args.lazyTextures;
         options.lazyLoadAudio = args.lazyAudio;
         options.eagerlyLoadedRooms = args.eagerRooms;
-        DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
+        dataWin = DataWin_parse(currentDataWinPath, options);
 
-        Gen8* gen8 = &dataWin->gen8;
+        gen8 = &dataWin->gen8;
         logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
 
 #ifdef HAVE_MALLINFO2
@@ -612,7 +660,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         snprintf(windowTitle, sizeof(windowTitle), "Butterscotch - %s", gen8->displayName);
 
         // Initialize VM
-        VMContext* vm = VM_create(dataWin);
+        vm = VM_create(dataWin);
 
         Profiler_setEnabled(&vm->profiler, args.profilerFramesBetween > 0);
 #ifdef ENABLE_VM_OPCODE_PROFILER
@@ -810,10 +858,10 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the file system
-        char* dataWinDir = safeStrdup(args.dataWinPath);
+        dataWinDir = safeStrdup(args.dataWinPath);
         bsGetDirname(dataWinDir);
         const char* savePath = args.saveFolder != nullptr ? args.saveFolder : dataWinDir;
-        OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
+        overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
         free(dataWinDir);
 
         gfx = args.renderer;
@@ -893,7 +941,6 @@ int loop(CommandLineArgs args, const char *argv0) {
         // Initialize the renderer
         // NOTE: headless mode keeps rendering active (hidden window + normal renderer).
         // NOOP is a separate renderer that stubs all draw calls.
-        Renderer* renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
         if (gfx == SOFTWARE)
             renderer = SWRenderer_create();
@@ -939,7 +986,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the runner
-        Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
+        runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
 
         if (!args.lazyTextures) {
             repeat(runner->dataWin->txtr.count, i) {
@@ -1013,25 +1060,23 @@ int loop(CommandLineArgs args, const char *argv0) {
         // Initialize the first room and fire Game Start / Room Start events
         Runner_initFirstRoom(runner);
 
-        // Main loop
-        bool debugShowCollisionMasks = false;
-        size_t overlayCachedMemBytes = 0;
-        uint64_t overlayLastMemCheck = 0;
-        bool freeCamActive = false;
-        bool actuallyShuttingDown = false;
-        bool wasPaused = false;
-        uint64_t lastFrameTime = nowNanos();
-        uint64_t lastFrameStartTime = lastFrameTime; // for delta_time
-        bool shouldWindowClose = false;
-        while (true) {
+        lastFrameTime = nowNanos();
+        lastFrameStartTime = lastFrameTime; // for delta_time
+    }
+    return -1;
+}
+
+int loop_step(void) {
+    {
+        {
             if (runner->shouldExit || shouldWindowClose) {
                 actuallyShuttingDown = true;
-                break;
+                return 0;
             }
 
             if (runner->pendingWorkingDirectory != nullptr && runner->pendingLaunchParameters != nullptr) {
                 // Break from the game loop, we'll handle this later
-                break;
+                return 0;
             }
 
             uint64_t frameStartNow = nowNanos();
@@ -1044,7 +1089,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             RunnerMouse_beginFrame(runner->mouse);
             if (platformHandleEvents()) {
                 shouldWindowClose = true;
-                continue;
+                return -1;
             }
             
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F8)) {
@@ -1446,7 +1491,12 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             lastFrameTime = nowNanos();
         }
+    }
+    return -1;
+}
 
+int loop_exit(void) {
+    {
         saveInputRecording();
 
         // Snapshot any pending game_change request before we tear the runner down
@@ -1482,7 +1532,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             arrfree(currentGameArgs);
             logInfo("Bye! :3\n");
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__WINSCW__)
             timeEndPeriod(1);
 #endif
             return 0;
@@ -1581,6 +1631,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             arrfree(newArguments);
         }
     }
+    return -1;
 }
 
 void freeCommandLineArgs(CommandLineArgs* args) {

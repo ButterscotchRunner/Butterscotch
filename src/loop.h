@@ -5,6 +5,9 @@
 
 char** extractRunnerArguments(char* rawArguments);
 int loop(CommandLineArgs args, const char *argv0);
+int loop_init(CommandLineArgs args, const char *argv0);
+int loop_step(void);
+int loop_exit(void);
 void freeCommandLineArgs(CommandLineArgs* args);
 
 #endif

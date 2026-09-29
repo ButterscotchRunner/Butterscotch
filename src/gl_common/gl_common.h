@@ -18,6 +18,9 @@ typedef struct GLRenderer GLRenderer;
 #include "rsxutil.h"
 #elif PLATFORM_VITA
 #include <vitaGL.h>
+#elif defined(__SYMBIAN32__)
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif

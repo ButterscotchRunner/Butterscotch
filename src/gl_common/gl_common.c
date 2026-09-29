@@ -39,7 +39,7 @@ void GLCommon_init(Renderer* renderer) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3) && !defined(__SYMBIAN32__)
     gl_init_wrappers();
 #endif
 
@@ -297,6 +297,7 @@ void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, in
     *outEndY = startY + effH;
 }
 
+#ifndef __SYMBIAN32__
 void GLCommon_beginLetterboxBlit(GLuint fbo, GLuint hostFbo) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, hostFbo);
@@ -315,6 +316,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
     glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, hostFbo);
 }
+#endif
 
 // ===[ Surface arrays ]===
 
@@ -342,6 +344,7 @@ static bool resolveSurfaceFBO(GLuint* surfaces, int32_t* surfaceWidth, int32_t* 
     return true;
 }
 
+#ifndef __SYMBIAN32__
 void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t dstId, int32_t dstX, int32_t dstY, int32_t srcId, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLuint srcFbo, dstFbo;
     int32_t srcFboW, srcFboH;
@@ -375,6 +378,7 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, originalFramebufferBinding);
     if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
+#endif
 
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA) {
     if (0 > surfaceId || (uint32_t) surfaceId >= count)
@@ -498,7 +502,11 @@ GLenum GLCommon_blendModeToEquation(int mode) {
         case bm_add:              return GL_FUNC_ADD;
         case bm_subtract:         return GL_FUNC_ADD;
         case bm_reverse_subtract: return GL_FUNC_REVERSE_SUBTRACT;
+#if defined(__SYMBIAN32__)
+        case bm_min:              return GL_FUNC_ADD;
+#else
         case bm_min:              return GL_MIN;
+#endif
         case bm_max:              return GL_FUNC_ADD;
     }
 }

@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__WINSCW__)
 #include <direct.h>
 #include <windows.h>
 #define overlayMkdir(path) _mkdir(path)
@@ -345,7 +345,7 @@ static void dirListPush(FileSystemDirEntry** list, const char* name, bool isDire
 
 // Enumerates a single on-disk directory, appending its entries to the list. Missing directories are silently skipped.
 static void listSingleDir(FileSystemDirEntry** list, const char* fullDir) {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__WINSCW__)
     // FindFirstFileA wants a "<dir>/*" search pattern.
     size_t dirLen = strlen(fullDir);
     char* search = (char *)safeMalloc(dirLen + 3);

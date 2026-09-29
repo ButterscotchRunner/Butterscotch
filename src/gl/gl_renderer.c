@@ -9,6 +9,9 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #include "vita_textures.h"
+#elif defined(__SYMBIAN32__)
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -58,7 +61,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__) && !defined(__SYMBIAN32__)
     return glGenFramebuffers;
 #else
     return true;
@@ -66,7 +69,9 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if defined(__SYMBIAN32__)
+	return false;
+#elif !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
     return glGenVertexArrays;
 #else
     return true;
@@ -304,9 +309,12 @@ static void flushBatch(GLRenderer* gl) {
 #endif
 
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vao);
-    } else {
+    } else
+#endif
+    {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
 
         int32_t stride = sizeof(GlVertex);
@@ -437,9 +445,12 @@ static void glPrimitiveEnd(Renderer* renderer) {
         GL_DYNAMIC_DRAW
     );
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vao);
-    } else {
+    } else
+#endif
+    {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
 
         int32_t stride = sizeof(GlVertex);
@@ -595,6 +606,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* vertHeader = "";
     const char* fragHeader = "";
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         if (modernGl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
@@ -621,7 +633,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s",
             fragHeader, baseFragmentShader);
-    } else {
+    } else
+#endif
+    {
         if (modernGl->isGLES) {
             vertHeader = "#version 100\nprecision highp float;\n";
             fragHeader = "#version 100\nprecision mediump float;\n";
@@ -720,11 +734,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     free(uFogColor);
 
     // Create VAO/VBO/EBO
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glGenVertexArrays(1, &modernGl->vao);
         glGenVertexArrays(1, &modernGl->vertexBufferVao);
         glBindVertexArray(modernGl->vao);
     }
+#endif
     glGenBuffers(1, &modernGl->vbo);
     glGenBuffers(1, &modernGl->ebo);
 
@@ -746,6 +762,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
     free(indices);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
         int32_t stride = sizeof(GlVertex);
@@ -757,6 +774,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         glEnableVertexAttribArray(2);
         glBindVertexArray(0);
     }
+#endif
 
     // Allocate CPU-side vertex buffer
 #if PLATFORM_VITA
@@ -881,10 +899,12 @@ static void glDestroy(Renderer* renderer) {
     free(modernGl->gmlShaders);
     freeShader(modernGl->defaultShaderProgram);
     free(modernGl->defaultShaderProgram);
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glDeleteVertexArrays(1, &modernGl->vao);
         glDeleteVertexArrays(1, &modernGl->vertexBufferVao);
     }
+#endif
     glDeleteBuffers(1, &modernGl->vbo);
     glDeleteBuffers(1, &modernGl->ebo);
 
@@ -914,7 +934,9 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
 
     GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1, glApplyProjection);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(modernGl->vao);
+#endif
 }
 
 static void glEndView(Renderer* renderer) {
@@ -934,7 +956,9 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
         guiW, guiH, portX, portY, portW, portH
     );
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(modernGl->vao);
+#endif
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
@@ -954,8 +978,10 @@ static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(0);
-
+#endif
+    
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
         return;
@@ -971,10 +997,13 @@ static void glEndFrameEnd(Renderer* renderer) {
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         GLCommon_beginLetterboxBlit(gl->surfaces[appId], modernGl->hostFramebuffer);
         GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, modernGl->hostFramebuffer);
-    } else {
+    } else
+#endif
+    {
         glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
         GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
         if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
@@ -1830,9 +1859,11 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     GLenum mode = primitiveTypeToGL(primitive);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vertexBufferVao);
     }
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
 
@@ -1932,8 +1963,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     int vertexCount = buffer->size / buffer->format->stride;
     if (vertexCount <= 0) {
-        if (hasVAO()) glBindVertexArray(modernGl->vao);
-        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+        if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+        for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1951,8 +1984,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     }
 
     if (number <= 0) {
-        if (hasVAO()) glBindVertexArray(modernGl->vao);
-        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+        if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+        for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1963,8 +1998,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         number
     );
 
-    if (hasVAO()) glBindVertexArray(modernGl->vao);
-    else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+    if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+    for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -2537,9 +2574,12 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     if (0 > srcSurfaceID || (uint32_t) srcSurfaceID >= gl->surfaceCount || gl->surfaces[srcSurfaceID] == 0) return;
     if (0 > destSurfaceID || (uint32_t) destSurfaceID >= gl->surfaceCount || gl->surfaces[destSurfaceID] == 0) return;
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
-    } else {
+    } else
+#endif
+    {
         GLint prevBinding = 0;
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
         Matrix4f prevProj = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
