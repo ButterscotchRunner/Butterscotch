@@ -906,32 +906,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_LEGACY_GL
         if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
-            switch (args.glTextureFormat) {
-                case GL_TEXTURE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
-                    break;
-                case GL_TEXTURE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
-                    break;
-#ifdef GL_COMPRESSED_RGBA
-                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
-                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
-                    break;
-#endif
-                default:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
-            }
-            switch (args.glSurfaceFormat) {
-                case GL_SURFACE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
-                    break;
-                case GL_SURFACE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
-                    break;
-                default:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
-                    break;
-            }
             static GLuint hostfb = 0;
             hostFramebuffer = &hostfb;
         }
@@ -939,31 +913,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            switch (args.glTextureFormat) {
-                case GL_TEXTURE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
-                    break;
-                case GL_TEXTURE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
-                    break;
-#ifdef GL_COMPRESSED_RGBA
-                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
-                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
-                    break;
-#endif
-                default:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
-            }
-            switch (args.glSurfaceFormat) {
-                case GL_SURFACE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
-                    break;
-                case GL_SURFACE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
-                    break;
-                default:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
-            }
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif
@@ -973,6 +922,37 @@ int loop(CommandLineArgs args, const char *argv0) {
             DataWin_free(dataWin);
             PreProcessedStuff_free();
             return 1;
+        }
+        switch (args.glTextureFormat) {
+            case GL_TEXTURE_FORMAT_RGBA4:
+                ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                break;
+            case GL_TEXTURE_FORMAT_RGBA:
+                ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                break;
+            case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
+#ifdef GL_COMPRESSED_RGBA
+                ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                break;
+#else
+                logError("Compressed textures are unavailable in this build\n");
+                platformExit();
+                DataWin_free(dataWin);
+                PreProcessedStuff_free();
+                return 1;
+#endif
+            default:
+                abort();
+        }
+        switch (args.glSurfaceFormat) {
+            case GL_SURFACE_FORMAT_RGBA4:
+                ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                break;
+            case GL_SURFACE_FORMAT_RGBA:
+                ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                break;
+            default:
+                abort();
         }
 
         // Initialize the audio system
