@@ -82,7 +82,7 @@ void GLCommon_init(Renderer* renderer) {
     glGenTextures(1, &gl->whiteTexture);
     glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
     uint8_t whitePixel[4] = {255, 255, 255, 255};
-    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -660,7 +660,23 @@ bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui) {
     }
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
+#ifdef __SYMBIAN32__
+    if (gl->textureFormat == GL_RGBA4) {
+        uint16_t* rgba4444 = (uint16_t*)safeMalloc(DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * sizeof(uint16_t));
+        for (int i = 0; i < DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H; i++) {
+            rgba4444[i] = (((uint16_t)debugFontPixels[i * 4] >> 4) << 12) | 
+                            (((uint16_t)debugFontPixels[i * 4 + 1] >> 4) << 8) | 
+                            (((uint16_t)debugFontPixels[i * 4 + 2] >> 4) << 4) | 
+                            ((uint16_t)debugFontPixels[i * 4 + 3] >> 4);
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
+        free(rgba4444);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+#endif
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
