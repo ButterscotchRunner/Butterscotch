@@ -46,14 +46,14 @@ enum GraphicsAPI {
 };
 
 enum GlTextureFormat {
-    GL_TEXTURE_FORMAT_RGBA4,
     GL_TEXTURE_FORMAT_RGBA,
+    GL_TEXTURE_FORMAT_RGBA4,
     GL_TEXTURE_FORMAT_COMPRESSED_RGBA,
 };
 
 enum GlSurfaceFormat {
-    GL_SURFACE_FORMAT_RGBA4,
     GL_SURFACE_FORMAT_RGBA,
+    GL_SURFACE_FORMAT_RGBA4,
 };
 
 extern enum GraphicsAPI gfx;
