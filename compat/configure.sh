@@ -14,7 +14,13 @@ export MSYS2_ARG_CONV_EXCL='*'
 cd "$scriptroot"
 
 if [ -z "$THREADS" ]; then
-    THREADS=$(nproc 2>/dev/null) || THREADS=$(sysctl -n hw.ncpu 2>/dev/null) || THREADS=1
+    if command -v nproc > /dev/null; then
+        THREADS=$(nproc 2>/dev/null || echo 1)
+    elif command -v sysctl; then
+        THREADS=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+    else
+        THREADS=1
+    fi
 fi
 
 : > config.mk
