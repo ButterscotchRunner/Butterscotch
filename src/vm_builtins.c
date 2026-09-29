@@ -8375,6 +8375,16 @@ static RValue builtin_ini_section_exists(VMContext* ctx, RValue* args, int32_t a
     return RValue_makeBool(Ini_hasSection(runner->currentIni, section));
 }
 
+static RValue builtin_ini_key_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    REQUIRE_ARGC_AT_LEAST("ini_key_exists", 2, RValue_makeBool(false));
+    if (runner->currentIni == nullptr) return RValue_makeBool(false);
+    
+    const char* section = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* key = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    return RValue_makeBool(Ini_hasKey(runner->currentIni, section, key));
+}
+
 // ===[ Text File Functions ]===
 
 static int32_t findFreeTextFileSlot(Runner* runner) {
@@ -22948,6 +22958,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ini_read_string", builtin_ini_read_string);
     VM_registerBuiltin(ctx, "ini_read_real", builtin_ini_read_real);
     VM_registerBuiltin(ctx, "ini_section_exists", builtin_ini_section_exists);
+    VM_registerBuiltin(ctx, "ini_key_exists", builtin_ini_key_exists);
 
     // Directory
     VM_registerBuiltin(ctx, "directory_exists", builtin_directory_exists);
