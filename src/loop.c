@@ -913,9 +913,11 @@ int loop(CommandLineArgs args, const char *argv0) {
                 case 2:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
                     break;
+#ifdef GL_COMPRESSED_RGBA
                 case 3:
                     ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
                     break;
+#endif
                 default:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
             }
@@ -927,7 +929,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
                     break;
                 default:
-                    ((GLRenderer*)renderer)->surfaceFormat = 0;
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                    break;
             }
             static GLuint hostfb = 0;
             hostFramebuffer = &hostfb;
@@ -943,9 +946,11 @@ int loop(CommandLineArgs args, const char *argv0) {
                 case 2:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
                     break;
+#ifdef GL_COMPRESSED_RGBA
                 case 3:
                     ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
                     break;
+#endif
                 default:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
             }
@@ -957,7 +962,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
                     break;
                 default:
-                    ((GLRenderer*)renderer)->surfaceFormat = 0;
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
             }
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }

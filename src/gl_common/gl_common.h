@@ -227,7 +227,11 @@ struct GLRenderer {
 
 static inline GLint GLCommon_surfaceInternalFormat(const GLRenderer* gl) {
     if (gl->surfaceFormat != 0) return gl->surfaceFormat;
+#ifdef GL_COMPRESSED_RGBA
     return (gl->textureFormat == GL_COMPRESSED_RGBA) ? GL_RGBA : gl->textureFormat;
+#else
+    return gl->textureFormat;
+#endif
 };
 
 #endif /* _BS_GL_COMMON_H_ */
