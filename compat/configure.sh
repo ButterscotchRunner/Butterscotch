@@ -13,15 +13,9 @@ export MSYS2_ARG_CONV_EXCL='*'
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
 
-if [ -z "$THREADS" ]; then
-    if command -v nproc > /dev/null; then
-        THREADS=$(nproc 2>/dev/null || echo 1)
-    elif command -v sysctl; then
-        THREADS=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
-    else
-        THREADS=1
-    fi
-fi
+[ -z "$THREADS" ] && THREADS=$(nproc 2>/dev/null)
+[ -z "$THREADS" ] && THREADS=$(sysctl -n hw.ncpu 2>/dev/null)
+[ -z "$THREADS" ] && THREADS=1
 
 : > config.mk
 rm -rf tmp/lock*
