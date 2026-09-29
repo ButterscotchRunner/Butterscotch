@@ -70,6 +70,111 @@ extern "C" uint64_t nowNanos(void) {
 	return (uint64_t)(time.Int64() * 1000);
 }
 
+const uint8_t key_map[] = {
+	EStdKeyBackspace, VK_BACKSPACE,
+	EStdKeyTab, VK_TAB,
+	EStdKeyEnter, VK_ENTER,
+	EStdKeyEscape, VK_ESCAPE,
+	EStdKeySpace, VK_SPACE,
+	EStdKeyHome, VK_HOME,
+	EStdKeyEnd, VK_END,
+	EStdKeyPageUp, VK_PAGEUP,
+	EStdKeyPageDown, VK_PAGEDOWN,
+	EStdKeyInsert, VK_INSERT,
+	EStdKeyDelete, VK_DELETE,
+	EStdKeyLeftShift, VK_SHIFT,
+	EStdKeyRightShift, VK_SHIFT,
+	EStdKeyLeftAlt, VK_ALT,
+	EStdKeyRightAlt, VK_ALT,
+	EStdKeyLeftCtrl, VK_CONTROL,
+	EStdKeyRightCtrl, VK_CONTROL,
+	EStdKeyLeftFunc, VK_ALT,
+	EStdKeyRightFunc, VK_ALT,
+
+	EStdKeyComma, ',',
+	EStdKeyFullStop, '.',
+	EStdKeyForwardSlash, '/',
+	EStdKeyBackSlash, '\\',
+	EStdKeySemiColon, ';',
+	EStdKeySingleQuote, '\'',
+	EStdKeyHash, '#',
+	EStdKeySquareBracketLeft, '[',
+	EStdKeySquareBracketRight, ']',
+	EStdKeyMinus, '-',
+	EStdKeyEquals, '+',
+
+	EStdKeyNkpForwardSlash, '/',
+	EStdKeyNkpAsterisk, '*',
+	EStdKeyNkpMinus, '-',
+	EStdKeyNkpPlus, '+',
+	EStdKeyNkpEnter, VK_ENTER,
+	EStdKeyNkp1, '1',
+	EStdKeyNkp2, '2',
+	EStdKeyNkp3, '3',
+	EStdKeyNkp4, '4',
+	EStdKeyNkp5, '5',
+	EStdKeyNkp6, '6',
+	EStdKeyNkp7, '7',
+	EStdKeyNkp8, '8',
+	EStdKeyNkp9, '9',
+	EStdKeyNkp0, '0',
+	EStdKeyNkpFullStop, '.',
+
+	EStdKeyDevice0, VK_F1,
+	EStdKeyDevice1, VK_ESCAPE,
+	EStdKeyDevice3, VK_ENTER,
+};
+
+static int MapScanCode(TInt aScanCode, TInt aModifiers) {
+	if (aScanCode == EStdKeyLeftArrow) {
+		if (aModifiers & EModifierRotateBy90) return VK_UP;
+		if (aModifiers & EModifierRotateBy180) return VK_RIGHT;
+		if (aModifiers & EModifierRotateBy270) return VK_DOWN;
+		return VK_LEFT;
+	}
+	if (aScanCode == EStdKeyRightArrow) {
+		if (aModifiers & EModifierRotateBy90) return VK_DOWN;
+		if (aModifiers & EModifierRotateBy180) return VK_LEFT;
+		if (aModifiers & EModifierRotateBy270) return VK_UP;
+		return VK_RIGHT;
+	}
+	if (aScanCode == EStdKeyUpArrow) {
+		if (aModifiers & EModifierRotateBy90) return VK_RIGHT;
+		if (aModifiers & EModifierRotateBy180) return VK_DOWN;
+		if (aModifiers & EModifierRotateBy270) return VK_LEFT;
+		return VK_UP;
+	}
+	if (aScanCode == EStdKeyDownArrow) {
+		if (aModifiers & EModifierRotateBy90) return VK_LEFT;
+		if (aModifiers & EModifierRotateBy180) return VK_UP;
+		if (aModifiers & EModifierRotateBy270) return VK_RIGHT;
+		return VK_DOWN;
+	}
+	if (aScanCode >= 'a' && aScanCode <= 'z') return toupper(aScanCode);
+	if (aScanCode >= '0' && aScanCode <= '9') return aScanCode;
+	
+	for (size_t i = 0; i < sizeof(key_map); i += 2) {
+		if (key_map[i] == aScanCode) {
+			return key_map[i + 1];
+		}
+	}
+
+	return aScanCode < 256 ? aScanCode : -1;
+}
+
+enum KeyEventType {
+    KEY_EVENT_DOWN,
+    KEY_EVENT_UP,
+    KEY_EVENT_CHAR
+};
+
+struct KeyEvent {
+    KeyEventType type;
+    int value;
+};
+
+static RArray<KeyEvent> keyEvents;
+
 class ButterscotchContainer : public CCoeControl, MAknWsEventObserver {
 public:
 	CAknAppUi* iAppUi;
@@ -180,10 +285,27 @@ public:
 
 	void HandleWsEventL(const TWsEvent &aEvent, CCoeControl *aDestination) {
 		if (!foreground || iAppUi->IsDisplayingDialog()) return;
+		
 		switch (aEvent.Type()) {
 		case EEventKeyDown:
 		case EEventKeyUp: {
-			//  TODO
+			int key = MapScanCode(aEvent.Key()->iScanCode, aEvent.Key()->iModifiers);
+			if (key != -1) {
+	            KeyEvent e;
+	            e.type = (aEvent.Type() == EEventKeyDown) ? KEY_EVENT_DOWN : KEY_EVENT_UP;
+				e.value = key;
+				keyEvents.Append(e);
+			}
+			break;
+		}
+		case EEventKey: {
+			int code = aEvent.Key()->iCode;
+			if (code < ENonCharacterKeyBase || code > ENonCharacterKeyBase + ENonCharacterKeyCount) {
+				KeyEvent e;
+				e.type = KEY_EVENT_CHAR;
+				e.value = code;
+				keyEvents.Append(e);
+			}
 			break;
 		}
 		default:
@@ -341,18 +463,32 @@ extern "C" void *platformGetProcAddress(const char *name) {
 }
 
 extern "C" bool platformHandleEvents(void) {
-    return shouldExit;
+	const TInt count = keyEvents.Count();
+	for (TInt i = 0; i < count; ++i) {
+		const KeyEvent &e = keyEvents[i];
+		switch (e.type) {
+		case KEY_EVENT_DOWN:
+			RunnerKeyboard_onKeyDown(g_runner->keyboard, e.value);
+			break;
+		case KEY_EVENT_UP:
+			RunnerKeyboard_onKeyUp(g_runner->keyboard, e.value);
+			break;
+		case KEY_EVENT_CHAR:
+			RunnerKeyboard_onCharacter(g_runner->keyboard, e.value);
+			break;
+		}
+	}
+	keyEvents.Reset();
+
+	return shouldExit;
 }
 
 extern "C" void platformSleepUntil(uint64_t time) {
-    int64_t remaining = (int64_t)time - (int64_t)nowNanos();
-    if (remaining > 2000000) {
-        remaining -= 1000000;
-        struct timespec ts;
-        ts.tv_sec = 0;
-        ts.tv_nsec = remaining;
-        nanosleep(&ts, NULL);
-    }
+	int64_t remaining = (int64_t)time - (int64_t)nowNanos();
+	if (remaining > 5000000) {
+		int64_t micros = (remaining - 3000000) / 1000;
+		if (micros > 0) User::AfterHighRes(micros);
+	}
     while (nowNanos() < time) {
         YIELD();
     }
