@@ -970,6 +970,41 @@ int loop_init(CommandLineArgs aArgs, const char *argv0) {
             PreProcessedStuff_free();
             return 1;
         }
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+        if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+            switch (args.glTextureFormat) {
+                case GL_TEXTURE_FORMAT_RGBA4:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                    break;
+                case GL_TEXTURE_FORMAT_RGBA:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                    break;
+                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
+#ifdef GL_COMPRESSED_RGBA
+                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                    break;
+#else
+                    logError("Compressed textures are unavailable in this build\n");
+                    platformExit();
+                    DataWin_free(dataWin);
+                    PreProcessedStuff_free();
+                    return 1;
+#endif
+                default:
+                    abort();
+            }
+            switch (args.glSurfaceFormat) {
+                case GL_SURFACE_FORMAT_RGBA4:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                    break;
+                case GL_SURFACE_FORMAT_RGBA:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                    break;
+                default:
+                    abort();
+            }
+        }
+#endif
 
         // Initialize the audio system
         AudioSystem* audioSystem = nullptr;

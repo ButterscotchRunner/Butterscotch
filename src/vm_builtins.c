@@ -3066,6 +3066,14 @@ static RValue builtin_point_distance(MAYBE_UNUSED VMContext* ctx, RValue* args, 
     return RValue_makeReal(GMLReal_sqrt(dx * dx + dy * dy));
 }
 
+static RValue builtin_point_distance_3d(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("point_distance_3d", 6, RValue_makeReal(0.0));
+    GMLReal dx = RValue_toReal(args[3]) - RValue_toReal(args[0]);
+    GMLReal dy = RValue_toReal(args[4]) - RValue_toReal(args[1]);
+    GMLReal dz = RValue_toReal(args[5]) - RValue_toReal(args[2]);
+    return RValue_makeReal(GMLReal_sqrt(dx * dx + dy * dy + dz * dz));
+}
+
 static RValue builtin_point_in_rectangle(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("point_in_rectangle", 6, RValue_makeBool(false));
     GMLReal px = RValue_toReal(args[0]);
@@ -8373,6 +8381,16 @@ static RValue builtin_ini_section_exists(VMContext* ctx, RValue* args, int32_t a
 
     const char* section = (args[0].type == RVALUE_STRING ? args[0].string : "");
     return RValue_makeBool(Ini_hasSection(runner->currentIni, section));
+}
+
+static RValue builtin_ini_key_exists(VMContext* ctx, RValue* args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    REQUIRE_ARGC_AT_LEAST("ini_key_exists", 2, RValue_makeBool(false));
+    if (runner->currentIni == nullptr) return RValue_makeBool(false);
+    
+    const char* section = (args[0].type == RVALUE_STRING ? args[0].string : "");
+    const char* key = (args[1].type == RVALUE_STRING ? args[1].string : "");
+    return RValue_makeBool(Ini_hasKey(runner->currentIni, section, key));
 }
 
 // ===[ Text File Functions ]===
@@ -22587,6 +22605,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "dot_product_3d_normalised", builtin_dot_product_3d_normalised);
     VM_registerBuiltin(ctx, "dot_product_normalised", builtin_dot_product_normalised);    
     VM_registerBuiltin(ctx, "point_distance", builtin_point_distance);
+    VM_registerBuiltin(ctx, "point_distance_3d", builtin_point_distance_3d);
     VM_registerBuiltin(ctx, "point_in_rectangle", builtin_point_in_rectangle);
     VM_registerBuiltin(ctx, "point_in_circle", builtin_point_in_circle);
     VM_registerBuiltin(ctx, "point_direction", builtin_point_direction);
@@ -22948,6 +22967,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ini_read_string", builtin_ini_read_string);
     VM_registerBuiltin(ctx, "ini_read_real", builtin_ini_read_real);
     VM_registerBuiltin(ctx, "ini_section_exists", builtin_ini_section_exists);
+    VM_registerBuiltin(ctx, "ini_key_exists", builtin_ini_key_exists);
 
     // Directory
     VM_registerBuiltin(ctx, "directory_exists", builtin_directory_exists);

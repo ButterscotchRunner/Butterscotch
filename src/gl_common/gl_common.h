@@ -156,7 +156,7 @@ typedef struct {
 void GLCommon_initDebugUIFont(GLDebugUIFont* ui);
 
 // Uploads the atlas texture if not yet uploaded. Returns false on failure.
-bool GLCommon_ensureDebugFontTexture(GLDebugUIFont* ui);
+bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui);
 
 // Deletes the atlas texture if uploaded (safe to call when texture == 0).
 void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui);
@@ -180,6 +180,8 @@ enum GlMode {
 struct GLRenderer {
     Renderer base; // Must be first field for struct embedding
     enum GlMode glMode;
+    GLint textureFormat;
+    GLint surfaceFormat; // 0 = unset, derive from textureFormat (compressed falls back to GL_RGBA)
 
     GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
     GlPrimitive currentPrimitive;
@@ -224,6 +226,15 @@ struct GLRenderer {
 
     bool alphaTestEnable;
     float alphaTestRef;
+};
+
+static inline GLint GLCommon_surfaceInternalFormat(const GLRenderer* gl) {
+    if (gl->surfaceFormat != 0) return gl->surfaceFormat;
+#ifdef GL_COMPRESSED_RGBA
+    return (gl->textureFormat == GL_COMPRESSED_RGBA) ? GL_RGBA : gl->textureFormat;
+#else
+    return gl->textureFormat;
+#endif
 };
 
 #endif /* _BS_GL_COMMON_H_ */
