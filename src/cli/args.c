@@ -260,22 +260,22 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
             case 'v':
                 if (strcmp(optarg, "16bpp") == 0) {
-                    args->glTextureFormat = 1;
+                    args->glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
                 } else if (strcmp(optarg, "32bpp") == 0) {
-                    args->glTextureFormat = 2;
+                    args->glTextureFormat = GL_TEXTURE_FORMAT_RGBA;
                 } else {
 #if !(defined(PLATFORM_ANDROID) || defined(PLATFORM_VITA) || defined(PLATFORM_SWITCH) || defined(PLATFORM_WEB))
                     if (strcmp(optarg, "compressed") == 0) {
-                        args->glTextureFormat = 3;
+                        args->glTextureFormat = GL_TEXTURE_FORMAT_COMPRESSED_RGBA;
                     }
 #endif
                 }
                 break;
             case 1004:
                 if (strcmp(optarg, "16bpp") == 0) {
-                    args->glSurfaceFormat = 1;
+                    args->glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
                 } else if (strcmp(optarg, "32bpp") == 0) {
-                    args->glSurfaceFormat = 2;
+                    args->glSurfaceFormat = GL_SURFACE_FORMAT_RGBA;
                 }
                 break;
 #endif

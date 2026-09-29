@@ -907,14 +907,14 @@ int loop(CommandLineArgs args, const char *argv0) {
         if (gfx == LEGACY_GL) {
             renderer = GLLegacyRenderer_create();
             switch (args.glTextureFormat) {
-                case 1:
+                case GL_TEXTURE_FORMAT_RGBA4:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
                     break;
-                case 2:
+                case GL_TEXTURE_FORMAT_RGBA:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
                     break;
 #ifdef GL_COMPRESSED_RGBA
-                case 3:
+                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
                     ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
                     break;
 #endif
@@ -922,10 +922,10 @@ int loop(CommandLineArgs args, const char *argv0) {
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
             }
             switch (args.glSurfaceFormat) {
-                case 1:
+                case GL_SURFACE_FORMAT_RGBA4:
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
                     break;
-                case 2:
+                case GL_SURFACE_FORMAT_RGBA:
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
                     break;
                 default:
@@ -940,14 +940,14 @@ int loop(CommandLineArgs args, const char *argv0) {
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
             switch (args.glTextureFormat) {
-                case 1:
+                case GL_TEXTURE_FORMAT_RGBA4:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
                     break;
-                case 2:
+                case GL_TEXTURE_FORMAT_RGBA:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
                     break;
 #ifdef GL_COMPRESSED_RGBA
-                case 3:
+                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
                     ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
                     break;
 #endif
@@ -955,10 +955,10 @@ int loop(CommandLineArgs args, const char *argv0) {
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
             }
             switch (args.glSurfaceFormat) {
-                case 1:
+                case GL_SURFACE_FORMAT_RGBA4:
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
                     break;
-                case 2:
+                case GL_SURFACE_FORMAT_RGBA:
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
                     break;
                 default:

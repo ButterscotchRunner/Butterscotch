@@ -45,6 +45,17 @@ enum GraphicsAPI {
     NOOP
 };
 
+enum GlTextureFormat {
+    GL_TEXTURE_FORMAT_RGBA4,
+    GL_TEXTURE_FORMAT_RGBA,
+    GL_TEXTURE_FORMAT_COMPRESSED_RGBA,
+};
+
+enum GlSurfaceFormat {
+    GL_SURFACE_FORMAT_RGBA4,
+    GL_SURFACE_FORMAT_RGBA,
+};
+
 extern enum GraphicsAPI gfx;
 
 typedef struct {
@@ -122,8 +133,8 @@ typedef struct {
 #endif
     bool disableLogColours;
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    int glTextureFormat;
-    int glSurfaceFormat;
+    enum GlTextureFormat glTextureFormat;
+    enum GlSurfaceFormat glSurfaceFormat;
 #endif
 } CommandLineArgs;
 
