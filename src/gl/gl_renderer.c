@@ -1047,6 +1047,7 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+#ifdef __SYMBIAN32__
 static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
     uint32_t res = UINT32_MAX;
     int min = INT32_MAX;
@@ -1069,6 +1070,7 @@ static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
     glFlush();
     return true;
 }
+#endif
 
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
