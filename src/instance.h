@@ -2,6 +2,7 @@
 #define _BS_INSTANCE_H_
 
 #include "common.h"
+#include "collision_types.h"
 #include <stdint.h>
 #include "rvalue.h"
 #include "gml_array.h"
@@ -71,6 +72,10 @@ struct Instance {
     int32_t pathEndAction;       // 0=stop, 1=restart, 2=continue, 3=reverse
     float pathXStart;             // origin for relative paths
     float pathYStart;
+
+    // AABB cache for fast path reuse
+    InstanceBBox cachedBBox;
+    bool         bboxCacheValid;
 
     int32_t alarm[GML_ALARM_COUNT];
 

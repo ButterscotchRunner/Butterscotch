@@ -19,11 +19,6 @@ static inline bool Collision_matchesTarget(DataWin* dataWin, Instance* inst, int
     return VM_isObjectOrDescendant(dataWin, inst->objectIndex, target);
 }
 
-typedef struct {
-    GMLReal left, right, top, bottom;
-    bool valid;
-} InstanceBBox;
-
 // Returns the collision sprite for an instance (mask sprite if set, else display sprite)
 static inline Sprite* Collision_getSprite(DataWin* dataWin, Instance* inst) {
     int32_t sprIdx = (inst->maskIndex >= 0) ? inst->maskIndex : inst->spriteIndex;
@@ -33,10 +28,13 @@ static inline Sprite* Collision_getSprite(DataWin* dataWin, Instance* inst) {
 
 // Computes the axis-aligned bounding box for an instance using its collision sprite
 static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst) {
+    if (inst->bboxCacheValid) return inst->cachedBBox;
     InstanceBBox ret;
     Sprite* spr = Collision_getSprite(runner->dataWin, inst);
     if (spr == nullptr) {
         ZERO_STRUCT(ret);
+        inst->cachedBBox = ret;
+        inst->bboxCacheValid = true;
         return ret;
     }
 
@@ -67,13 +65,10 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
         cx[2] = cs * lx0 + sn * ly1;  cy[2] = -sn * lx0 + cs * ly1;
         cx[3] = cs * lx1 + sn * ly1;  cy[3] = -sn * lx1 + cs * ly1;
 
-        GMLReal minX = cx[0], maxX = cx[0], minY = cy[0], maxY = cy[0];
-        for (int c = 1; 4 > c; c++) {
-            if (minX > cx[c]) minX = cx[c];
-            if (cx[c] > maxX) maxX = cx[c];
-            if (minY > cy[c]) minY = cy[c];
-            if (cy[c] > maxY) maxY = cy[c];
-        }
+        GMLReal minX = GMLReal_fmin(GMLReal_fmin(cx[0], cx[1]), GMLReal_fmin(cx[2], cx[3]));
+        GMLReal maxX = GMLReal_fmax(GMLReal_fmax(cx[0], cx[1]), GMLReal_fmax(cx[2], cx[3]));
+        GMLReal minY = GMLReal_fmin(GMLReal_fmin(cy[0], cy[1]), GMLReal_fmin(cy[2], cy[3]));
+        GMLReal maxY = GMLReal_fmax(GMLReal_fmax(cy[0], cy[1]), GMLReal_fmax(cy[2], cy[3]));
 
         left   = inst->x + minX;
         right  = inst->x + maxX;
@@ -87,8 +82,14 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
         bottom = inst->y + inst->imageYscale * (marginB - originY);
 
         // Normalize if negative scale
-        if (left > right) { GMLReal tmp = left; left = right; right = tmp; }
-        if (top > bottom) { GMLReal tmp = top; top = bottom; bottom = tmp; }
+        GMLReal tmp_left   = GMLReal_fmin(left, right);
+        GMLReal tmp_right  = GMLReal_fmax(left, right);
+        GMLReal tmp_top    = GMLReal_fmin(top, bottom);
+        GMLReal tmp_bottom = GMLReal_fmax(top, bottom);
+        left   = tmp_left;
+        right  = tmp_right;
+        top    = tmp_top;
+        bottom = tmp_bottom;
     }
 
     if (runner->collisionCompatibilityMode) {
@@ -103,6 +104,7 @@ static inline InstanceBBox Collision_computeBBox(Runner* runner, Instance* inst)
     ret.top = top;
     ret.bottom = bottom;
     ret.valid = true;
+    inst->cachedBBox = ret;
     return ret;
 }
 
