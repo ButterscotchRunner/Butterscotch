@@ -1514,6 +1514,7 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(int));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;

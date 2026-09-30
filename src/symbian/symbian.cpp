@@ -40,6 +40,7 @@ CommandLineArgs args;
 #define LOG_BUFFER_SIZE 1024
 
 extern "C" void platformLog(const logType type, const char *format, va_list va) {
+#ifdef _DEBUG
     const char* textPrefix = "";
     char buffer[LOG_BUFFER_SIZE];
     
@@ -65,6 +66,7 @@ extern "C" void platformLog(const logType type, const char *format, va_list va) 
     
     RDebug::Printf("%s", buffer);
 //    puts(buffer);
+#endif
 }
 
 extern "C" uint64_t nowNanos(void) {

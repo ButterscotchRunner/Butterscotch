@@ -74,6 +74,7 @@ typedef struct GLModernRenderer {
 } GLModernRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
+void GLRenderer_unloadTexture(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);
 
 #endif /* _BS_GL_RENDERER_H_ */

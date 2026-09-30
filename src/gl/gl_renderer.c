@@ -70,7 +70,7 @@ static bool hasFBO() {
 
 static bool hasVAO() {
 #if defined(__SYMBIAN32__)
-	return false;
+    return false;
 #elif !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
     return glGenVertexArrays;
 #else
@@ -1047,10 +1047,39 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
+    uint32_t res = UINT32_MAX;
+    int min = INT32_MAX;
+    
+    for (uint32_t i = 0; i < gl->textureCount; ++i) {
+        if (i == currentPageId || !gl->textureLoaded[i])
+            continue;
+        
+        int j = gl->textureLastUsed[i];
+        if (j >= min) continue;
+        
+        min = j;
+        res = i;
+    }
+    
+    if (res == UINT32_MAX) return false;
+    
+    flushBatch(gl);
+    GLRenderer_unloadTexture(gl, res);
+    glFlush();
+    return true;
+}
+
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
-    if (gl->textureLoaded[pageId]) return (gl->textureWidths[pageId] != 0);
+    if (gl->textureLoaded[pageId]) {
+        if (gl->textureWidths[pageId] != 0) {
+            gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
+            return true;
+        }
+        return false;
+    }
 
     gl->textureLoaded[pageId] = true;
 
@@ -1095,13 +1124,15 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
+    
+    if (gl->glTextures[pageId] == 0) {
+        glGenTextures(1, &gl->glTextures[pageId]);
+    }
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+    
 #ifdef __SYMBIAN32__
     if (gl->textureFormat == GL_RGBA4) {
-        GLint previousUnpackAlignment = 4;
-        glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
         uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
         for (int i = 0; i < w * h; i++) {
             rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
@@ -1109,11 +1140,34 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
                           (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
                           ((uint16_t)pixels[i * 4 + 3] >> 4);
         }
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
-        free(rgba4444);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
-    } else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        free(pixels);
+        pixels = (uint8_t*) rgba4444;
+    }
+    
+    while (true) {
+        while (glGetError() != GL_NO_ERROR);
+        
+        if (gl->textureFormat == GL_RGBA4) {
+            GLint previousUnpackAlignment = 4;
+            glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, pixels);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+        } else {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        }
+        
+        if (glGetError() != GL_OUT_OF_MEMORY) break;
+        logWarn("GL: Failed to upload TXTR page %u (%dx%d), retrying\n",
+            pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        
+        if (!unloadOldestTexture(gl, pageId)) {
+            logError("GL: Failed to free VRAM, aborting texture upload\n");
+            free(pixels);
+            return false;
+        }
+        
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     }
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -1130,6 +1184,21 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
+}
+
+void GLRenderer_unloadTexture(GLRenderer* gl, uint32_t pageId) {
+    if (!gl->textureLoaded[pageId]) return;
+    
+    if (gl->glTextures[pageId] != 0) {
+        glDeleteTextures(1, &gl->glTextures[pageId]);
+        gl->glTextures[pageId] = 0;
+    }
+    
+    gl->textureLoaded[pageId] = false;
+    gl->textureWidths[pageId] = 0;
+    gl->textureHeights[pageId] = 0;
+    
+    logInfo("GL: Unloaded TXTR page %u\n", pageId);
 }
 
 // Resolves a TPAG index to a loaded GL texture. Returns false if drawing should be skipped.
@@ -2229,8 +2298,8 @@ static void drawText(
                 uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
-				if (ch == ' ') {
-					drewSuccessfully = true;
+                if (ch == ' ') {
+                    drewSuccessfully = true;
                 } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
@@ -2381,6 +2450,7 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeRealloc(gl->textureLastUsed, gl->textureCount * sizeof(int));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -2414,6 +2484,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
 
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
+    
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
 #ifdef __SYMBIAN32__
     if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {

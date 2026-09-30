@@ -191,6 +191,7 @@ struct GLRenderer {
     int32_t* textureHeights;
     bool* textureLoaded;      // lazy loading: true once PNG decoded and uploaded
     uint32_t textureCount;
+    int* textureLastUsed;
 
     GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
 

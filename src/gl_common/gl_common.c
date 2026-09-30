@@ -67,6 +67,7 @@ void GLCommon_init(Renderer* renderer) {
     gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeMalloc(gl->textureCount * sizeof(int));
 
     glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
 
