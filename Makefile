@@ -1,296 +1,107 @@
-# Makefile build
-# meant to be extremely portable to weird unix-like systems
+# SPOOKY!! THIS MAKEFILE IS MADE BY AI WITH EDITS FROM ME
+# WILL/MAY REMAKE LATER!!! (when i actually learn makefiles smh)
 
-CC := cc
-PKG_CONFIG := pkg-config
+.SUFFIXES:
 
-empty :=
-space := $(empty) $(empty)
-
-ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
-
--include compat/config.mk
-
-ifndef DISABLE_MMD
-DEPFLAGS = -MMD -MP -MF $(@:.$(OBJ_EXT)=.d)
+ifeq ($(strip $(DEVKITARM)),)
+$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
 endif
 
-# trigger configure re-run if $(CC) changes
-_dummy := $(shell \
-	printf '$(CC)' > compat/tmp/cc-new; \
-	cmp -s compat/tmp/cc-new compat/tmp/cc || \
-	{ rm -f compat/tmp/cc; mv compat/tmp/cc-new compat/tmp/cc; }; \
-	rm -f compat/tmp/cc-new \
-)
+include $(DEVKITARM)/ds_rules
 
-endif
+#---------------------------------------------------------------------------------
+TARGET      := ButterscotchDS
+BUILD       := build_nds
+SOURCES     := src src/debug_font src/image src/video src/nds \
+               vendor/bzip2 vendor/miniz vendor/md5 vendor/sha1 vendor/base64
+INCLUDES    := . src src/image src/debug_font src/video src/nds \
+               vendor/stb/ds vendor/stb/image vendor/stb/vorbis \
+               vendor/md5 vendor/sha1 vendor/base64 vendor/bzip2 vendor/miniz
+DATA        :=
+NITRODATA   := nitrofs
 
-ifndef DISABLE_VM_GML_PROFILER
-DEFINES += $(DEFINE)ENABLE_VM_GML_PROFILER
-endif
-ifndef DISABLE_VM_OPCODE_PROFILER
-DEFINES += $(DEFINE)ENABLE_VM_OPCODE_PROFILER
-endif
-ifndef DISABLE_VM_STUB_LOGS
-DEFINES += $(DEFINE)ENABLE_VM_STUB_LOGS
-endif
-ifndef DISABLE_VM_TRACING
-DEFINES += $(DEFINE)ENABLE_VM_TRACING
-endif
+GAME_TITLE     := Butterscotch DS
+GAME_SUBTITLE1 := GML runner for DS
+GAME_SUBTITLE2 := built with devkitARM
 
-INCLUDES += $(INC). \
-		    $(INC)src \
-		    $(INC)src/image \
-		    $(INC)src/debug_font \
-		    $(INC)vendor/stb/ds \
-		    $(INC)vendor/stb/image \
-		    $(INC)vendor/stb/vorbis \
-		    $(INC)vendor/md5 \
-		    $(INC)vendor/sha1 \
-		    $(INC)vendor/base64 \
-		    $(INC)vendor/bzip2 \
-		    $(INC)vendor/miniz
+#---------------------------------------------------------------------------------
+# code generation
+#---------------------------------------------------------------------------------
+ARCH     := -march=armv5te -mtune=arm946e-s -mthumb
 
-HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+DEFINES  := -DARM9 -D__NDS__ \
+            -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
+            -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
+            -DENABLE_WAD14 -DENABLE_WAD16 -DENABLE_WAD17 \
+            -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_STDIO \
+            -DBUTTERSCOTCH_VIDEO_NULL \
+            -DUSE_NDS
+# Profiler/tracing/stub-log defines are left off (they're opt-out in the main Makefile)
 
-PLATFORM := cli
-BACKEND := glfw3
-AUDIO_BACKEND := miniaudio
+CFLAGS   := -g -Wall -O2 -std=gnu11 -ffunction-sections -fdata-sections $(ARCH)
+CFLAGS   += $(INCLUDE) $(DEFINES)
+CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
+ASFLAGS  := -g $(ARCH)
+LDFLAGS   = -specs=ds_arm9.specs -g $(ARCH) -Wl,--gc-sections -Wl,-Map,$(notdir $*.map)
 
-ifdef BUTTERSCOTCH_COMMIT_DATE
-DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
+LIBS     := -lfilesystem -lfat -lnds9 -lm
+LIBDIRS  := $(LIBNDS)
+
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+#---------------------------------------------------------------------------------
+
+export OUTPUT := $(CURDIR)/$(TARGET)
+export VPATH  := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+                 $(foreach dir,$(DATA),$(CURDIR)/$(dir))
+export DEPSDIR := $(CURDIR)/$(BUILD)
+
+CFILES   := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+SFILES   := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BINFILES := $(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+
+ifeq ($(strip $(CPPFILES)),)
+	export LD := $(CC)
 else
-DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"unknown\"
-endif
-ifdef BUTTERSCOTCH_COMMIT_HASH
-DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_HASH=\"$(BUTTERSCOTCH_COMMIT_HASH)\"
-else
-DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_HASH=\"unknown\"
+	export LD := $(CXX)
 endif
 
-ifndef DISABLE_WAD14
-DEFINES += $(DEFINE)ENABLE_WAD14
+export OFILES := $(addsuffix .o,$(BINFILES)) \
+                 $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+
+# -I instead of -iquote: the repo uses <angle> includes for vendor headers
+export INCLUDE := $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+                  $(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+                  -I$(CURDIR)/$(BUILD)
+
+export LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+ifneq ($(strip $(NITRODATA)),)
+	export NITRO_FILES := $(CURDIR)/$(NITRODATA)
 endif
 
-ifndef DISABLE_WAD16
-DEFINES += $(DEFINE)ENABLE_WAD16
-endif
+.PHONY: $(BUILD) clean
 
-ifndef DISABLE_WAD17
-DEFINES += $(DEFINE)ENABLE_WAD17
-endif
-
-DEFINES += $(DEFINE)MINIZ_NO_ARCHIVE_APIS $(DEFINE)MINIZ_NO_STDIO
-
-SRCS += $(wildcard src/$(PLATFORM)/*.c)
-SRCS += $(wildcard src/backends/$(BACKEND).*)
-INCLUDES += $(INC)src/$(PLATFORM)
-ifeq ($(OS),Windows)
-PKG_CONFIG_FLAGS := --static
-endif
-ifeq ($(BACKEND),glfw3)
-GLFW3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags glfw3)
-GLFW3_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs glfw3)
-SYSCFLAGS += $(GLFW3_CFLAGS)
-LIBS += $(GLFW3_LIBS)
-DEFINES += $(DEFINE)USE_GLFW3
-ENABLE_GLAD := 1
-endif
-ifeq ($(BACKEND),glfw2)
-GLFW2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libglfw)
-GLFW2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libglfw)
-SYSCFLAGS += $(GLFW2_CFLAGS)
-LIBS += $(GLFW2_LIBS)
-DEFINES += $(DEFINE)USE_GLFW2
-ENABLE_GLAD := 1
-endif
-ifeq ($(BACKEND),sdl1)
-SDL1_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl)
-SDL1_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl)
-SYSCFLAGS += $(SDL1_CFLAGS)
-LIBS += $(SDL1_LIBS)
-DEFINES += $(DEFINE)USE_SDL1
-endif
-ifeq ($(BACKEND),sdl2)
-SDL2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl2)
-SDL2_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl2)
-SYSCFLAGS += $(SDL2_CFLAGS)
-LIBS += $(SDL2_LIBS)
-DEFINES += $(DEFINE)USE_SDL2
-endif
-ifeq ($(BACKEND),sdl3)
-SDL3_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags sdl3)
-SDL3_LIBS += $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs sdl3)
-SYSCFLAGS += $(SDL3_CFLAGS)
-LIBS += $(SDL3_LIBS)
-DEFINES += $(DEFINE)USE_SDL3
-endif
-ifeq ($(BACKEND),appkit)
-LIBS += -framework Cocoa -framework GameController
-DEFINES += $(DEFINE)USE_APPKIT
-SYSCFLAGS += -Wno-deprecated-declarations
-endif
-ifeq ($(BACKEND),noop)
-DISABLE_LEGACY_GL := 1
-DISABLE_MODERN_GL := 1
-DEFINES += $(DEFINE)USE_NOOP
-endif
-
-VIDEO_BACKEND := ffmpeg
-
-ifeq ($(VIDEO_BACKEND),ffmpeg)
-FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
-FFMPEG_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
-ifneq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
-SYSCFLAGS += $(FFMPEG_CFLAGS)
-LIBS += $(FFMPEG_LIBS)
-DEFINES += $(DEFINE)BUTTERSCOTCH_FFMPEG
-SRCS += src/video/ffmpeg/ffmpeg.c
-INCLUDES += $(INC)src/video
-HEADERS += $(wildcard src/video/*.h)
-else
-VIDEO_BACKEND := none
-endif
-endif
-
-ifeq ($(VIDEO_BACKEND),none)
-DEFINES += $(DEFINE)BUTTERSCOTCH_VIDEO_NULL
-SRCS += src/video/null_video.c
-INCLUDES += $(INC)src/video
-HEADERS += $(wildcard src/video/*.h)
-endif
-
-# Noop renderer is exclusive to noop backend; GL renderers exclusive to non-noop backends
-ifneq ($(BACKEND),noop)
-# GNU make doesn't have a way to do OR in conditionals, stupid language for clowns
-ifndef DISABLE_LEGACY_GL
-ENABLE_GL := 1
-endif
-ifndef DISABLE_MODERN_GL
-ENABLE_GL := 1
-endif
-
-ifdef ENABLE_GL
-SRCS += $(wildcard src/gl_common/*.c)
-INCLUDES += $(INC)src/gl_common $(INC)src/gl
-HEADERS += $(wildcard src/gl_common/*.h)
-ENABLE_GLAD := 1
-endif
-
-ifndef DISABLE_LEGACY_GL
-DEFINES += $(DEFINE)ENABLE_LEGACY_GL
-SRCS += $(wildcard src/gl_legacy/*.c)
-INCLUDES += $(INC)src/gl_legacy
-HEADERS += $(wildcard src/gl_legacy/*.h) $(wildcard src/gl/*.h)
-endif
-
-ifndef DISABLE_MODERN_GL
-DEFINES += $(DEFINE)ENABLE_MODERN_GL
-SRCS += $(wildcard src/gl/*.c)
-HEADERS += $(wildcard src/gl/*.h)
-endif
-endif
-
-ifeq ($(BACKEND),noop)
-ifndef DISABLE_NOOP_RENDERER
-DEFINES += $(DEFINE)ENABLE_NOOP_RENDERER
-endif
-endif
-
-ifdef DISABLE_WAD14
-ifdef DISABLE_WAD16
-ifdef DISABLE_WAD17
-$(error must enable at least 1 bytecode version)
-endif
-endif
-endif
-
-ifeq ($(BACKEND),noop)
-ifdef DISABLE_NOOP_RENDERER
-$(error must enable at least 1 renderer)
-endif
-else
-ifdef DISABLE_LEGACY_GL
-ifdef DISABLE_MODERN_GL
-$(error must enable at least 1 renderer)
-endif
-endif
-endif
-
-ifeq ($(AUDIO_BACKEND),miniaudio)
-INCLUDES += $(INC)src/audio/miniaudio $(INC)vendor/miniaudio
-DEFINES += $(DEFINE)USE_MINIAUDIO
-SRCS += $(wildcard src/audio/miniaudio/*.c)
-HEADERS += $(wildcard src/audio/miniaudio/*.h)
-ifneq ($(OS),Windows)
-LIBS += -pthread
-endif
-endif
-ifeq ($(AUDIO_BACKEND),openal)
-INCLUDES += $(INC)src/audio/openal
-DEFINES += $(DEFINE)USE_OPENAL
-SRCS += $(wildcard src/audio/openal/*.c)
-HEADERS += $(wildcard src/audio/openal/*.h)
-ifeq ($(OS),Darwin)
-LIBS += -framework OpenAL
-else
-LIBS += -lopenal
-endif
-endif
-
-ifdef ENABLE_GLAD
-SRCS += vendor/glad/src/glad.c
-INCLUDES += $(INC)vendor/glad/include
-endif
-
-ifeq ($(OS),Windows)
-ifeq ($(SYNTAX),msvc)
-LIBS += winmm.lib
-DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS $(DEFINE)_CRT_SECURE_NO_DEPRECATE
-else
-LIBS += -static
-LIBS += -lwinmm
-endif
-DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
-else
-ifeq ($(OS),Darwin)
-LIBS += -lobjc
-else
-LIBS += -lm
-endif
-endif
-
-ifndef VERBOSE
-V := @
-endif
-
-OBJS := $(addprefix build/,$(SRCS))
-OBJS := $(OBJS:%=%.$(OBJ_EXT))
-
-all: build/butterscotch
-
--include $(OBJS:.$(OBJ_EXT)=.d)
-
-ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
-
-compat/config.mk: compat/configure.sh compat/tmp/cc
-	@CC="$(CC)" $(SHELL) compat/configure.sh
-
-endif
-
-build/butterscotch: $(OBJS)
-	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
-	@[ -f $@.exe ] && chmod +x $@.exe || true
-
-build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
-	@mkdir -p $(dir $@)
-	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;32mCC\033[0m $<\n" || printf " CC $<\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(SRCFLAG)$< $(OUTPUT_OBJ)$@
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:
-	rm -rf build
+	@echo clean ...
+	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds
 
-distclean: clean
-	rm -f compat/config.mk compat/tmp/cc
+#---------------------------------------------------------------------------------
+else
+#---------------------------------------------------------------------------------
+
+DEPENDS := $(OFILES:.o=.d)
+
+$(OUTPUT).nds : $(OUTPUT).elf
+$(OUTPUT).elf : $(OFILES)
+
+-include $(DEPENDS)
+
+#---------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------
