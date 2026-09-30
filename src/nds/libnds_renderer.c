@@ -88,28 +88,28 @@ static void libndsDestroy(Renderer *renderer) {
     free(libnds);
 }
 
-static void libndsBeginFrame(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t gameW, MAYBE_UNUSED int32_t gameH, MAYBE_UNUSED int32_t windowW, MAYBE_UNUSED int32_t windowH){
+static void libndsBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH){
     dmaFillHalfWords(RGB15(3, 3, 3) | BIT(15), backbuffer, SCREEN_W * SCREEN_H * sizeof(u16));
 }
 
-static void libndsEndFrameInit(MAYBE_UNUSED Renderer *renderer){}
-static void libndsEndFrameEnd(MAYBE_UNUSED Renderer *renderer){
+static void libndsEndFrameInit(Renderer *renderer){}
+static void libndsEndFrameEnd(Renderer *renderer){
     DC_FlushRange(backbuffer, SCREEN_W * SCREEN_H * sizeof(u16));
     dmaCopyHalfWords(3, backbuffer, framebuffer, SCREEN_W * SCREEN_H * sizeof(u16));
     swiWaitForVBlank();
 }
-static void libndsBeginView(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED float viewAngle) {}
-static void libndsEndView(MAYBE_UNUSED Renderer *renderer) {}
-static void libndsApplyProjection(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED const Matrix4f *viewMatrix, MAYBE_UNUSED const Matrix4f *projectionMatrix) {}
-static void libndsBeginGUI(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, MAYBE_UNUSED int32_t portX, MAYBE_UNUSED int32_t portY, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED int32_t targetSurfaceId) {}
-static void libndsSetGuiProjection(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t guiW, MAYBE_UNUSED int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {}
-static void libndsEndGUI(MAYBE_UNUSED Renderer *renderer) {}
+static void libndsBeginView(Renderer *renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {}
+static void libndsEndView(Renderer *renderer) {}
+static void libndsApplyProjection(Renderer *renderer, const Matrix4f *viewMatrix, const Matrix4f *projectionMatrix) {}
+static void libndsBeginGUI(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {}
+static void libndsSetGuiProjection(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {}
+static void libndsEndGUI(Renderer *renderer) {}
 
-static void libndsDrawSprite(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {
+static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
     if (alpha == 0) return;
     u16 c = RGB15(0 >> 3, 0 >> 3, 0 >> 3) | BIT(15);
 
-        int x0 = (int)x - 0, y0 = (int)y - y;
+        int x0 = (int)x - 0, y0 = (int)y - 0;
     int x1 = x0 + (int)30, y1 = y0 + (int)30;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -119,25 +119,32 @@ static void libndsDrawSprite(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32
     for (int yy = y0; yy < y1; yy++)
         for (int xx = x0; xx < x1; xx++)
             backbuffer[yy * SCREEN_W + xx] = c;
+
+    static int debugCounter = 0;
+
+    if (++debugCounter >= 60) {
+        printf("X: %.2f, Y: %.2f\n", x, y);
+        debugCounter = 0;
+    }
 }
 
-static void libndsDrawSpritePart(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcOffX, MAYBE_UNUSED int32_t srcOffY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
-static void libndsDrawSpritePartColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcOffX, MAYBE_UNUSED int32_t srcOffY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha) {}
-static void libndsDrawSpritePos(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float x3, MAYBE_UNUSED float y3, MAYBE_UNUSED float x4, MAYBE_UNUSED float y4, MAYBE_UNUSED float alpha) {}
-static void libndsDrawRectangle(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {}
-static void libndsDrawRectangleColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {}
-static void libndsDrawLine(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float width, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
-static void libndsDrawLineColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float width, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED float alpha) {}
-static void libndsDrawTriangle(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float x3, MAYBE_UNUSED float y3, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {}
-static void libndsDrawText(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED const char *text, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float lineSeparation) {}
-static void libndsDrawTextColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED const char *text, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED int32_t c1, MAYBE_UNUSED int32_t c2, MAYBE_UNUSED int32_t c3, MAYBE_UNUSED int32_t c4, MAYBE_UNUSED float alpha, MAYBE_UNUSED float lineSeparation) {}
-static void libndsFlush(MAYBE_UNUSED Renderer *renderer) {}
-static void libndsClearScreen(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void libndsDrawSpritePart(Renderer *renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {}
+static void libndsDrawSpritePartColor(Renderer *renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {}
+static void libndsDrawSpritePos(Renderer *renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha) {}
+static void libndsDrawRectangle(Renderer *renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline) {}
+static void libndsDrawRectangleColor(Renderer *renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline) {}
+static void libndsDrawLine(Renderer *renderer, float x1, float y1, float x2, float y2, float width, uint32_t color, float alpha) {}
+static void libndsDrawLineColor(Renderer *renderer, float x1, float y1, float x2, float y2, float width, uint32_t color1, uint32_t color2, float alpha) {}
+static void libndsDrawTriangle(Renderer *renderer, float x1, float y1, float x2, float y2, float x3, float y3, uint32_t color1, uint32_t color2, uint32_t color3, float alpha, bool outline) {}
+static void libndsDrawText(Renderer *renderer, const char *text, float x, float y, float xscale, float yscale, float angleDeg, float lineSeparation) {}
+static void libndsDrawTextColor(Renderer *renderer, const char *text, float x, float y, float xscale, float yscale, float angleDeg, int32_t c1, int32_t c2, int32_t c3, int32_t c4, float alpha, float lineSeparation) {}
+static void libndsFlush(Renderer *renderer) {}
+static void libndsClearScreen(Renderer *renderer, uint32_t color, float alpha) {}
 
-static int32_t libndsCreateSpriteFromSurface(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t x, MAYBE_UNUSED int32_t y, MAYBE_UNUSED int32_t w, MAYBE_UNUSED int32_t h, MAYBE_UNUSED bool removeback, MAYBE_UNUSED bool smooth, MAYBE_UNUSED int32_t xorig, MAYBE_UNUSED int32_t yorig) {
+static int32_t libndsCreateSpriteFromSurface(Renderer *renderer, int32_t surfaceID, int32_t x, int32_t y, int32_t w, int32_t h, bool removeback, bool smooth, int32_t xorig, int32_t yorig) {
     return -1;
 }
-static void libndsDeleteSprite(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t spriteIndex) {}
+static void libndsDeleteSprite(Renderer *renderer, int32_t spriteIndex) {}
 
 static BlendFactors libndsGpuGetBlendFactors(Renderer *renderer) {
     LibNDSRenderer *libnds = (LibNDSRenderer *)renderer;
@@ -192,8 +199,8 @@ static void libndsGpuSetFog(Renderer *renderer, bool enable, uint32_t color) {
     libnds->fogEnable = enable;
     libnds->fogColor = color;
 }
-static void libndsDrawTile(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED RoomTile *tile, MAYBE_UNUSED float offsetX, MAYBE_UNUSED float offsetY) {}
-static void libndsDrawSpriteTiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED bool tileX, MAYBE_UNUSED bool tileY, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void libndsDrawTile(Renderer *renderer, RoomTile *tile, float offsetX, float offsetY) {}
+static void libndsDrawSpriteTiled(Renderer *renderer, int32_t tpagIndex, float originX, float originY, float x, float y, float xscale, float yscale, bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {}
 
 static int32_t libndsCreateSurface(Renderer *renderer, int32_t width, int32_t height) {
     LibNDSRenderer *libnds = (LibNDSRenderer *)renderer;
@@ -209,11 +216,11 @@ static bool libndsSurfaceExists(Renderer *renderer, int32_t surfaceID) {
     if (surfaceID < 0 || (uint32_t)surfaceID >= libnds->surfaceCount) return false;
     return libnds->surfaceExistsFlag[surfaceID];
 }
-static bool libndsSetRenderTarget(MAYBE_UNUSED Renderer *renderer, int32_t surfaceID, MAYBE_UNUSED bool implicitApplicationSurface) {
+static bool libndsSetRenderTarget(Renderer *renderer, int32_t surfaceID, bool implicitApplicationSurface) {
     if (surfaceID == APPLICATION_SURFACE_ID || surfaceID == RENDER_TARGET_HOST_FRAMEBUFFER) return true;
     return libndsSurfaceExists(renderer, surfaceID);
 }
-static int32_t libndsEnsureApplicationSurface(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t width, MAYBE_UNUSED int32_t height) {
+static int32_t libndsEnsureApplicationSurface(Renderer *renderer, int32_t width, int32_t height) {
     return APPLICATION_SURFACE_ID;
 }
 static float libndsGetSurfaceWidth(Renderer *renderer, int32_t surfaceID) {
@@ -228,9 +235,9 @@ static float libndsGetSurfaceHeight(Renderer *renderer, int32_t surfaceID) {
     if (!libnds->surfaceExistsFlag[surfaceID]) return 0.0f;
     return (float)libnds->surfaceHeights[surfaceID];
 }
-static void libndsDrawSurface(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t srcLeft, MAYBE_UNUSED int32_t srcTop, MAYBE_UNUSED int32_t srcWidth, MAYBE_UNUSED int32_t srcHeight, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
-static void libndsDrawSurfaceColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED int32_t srcLeft, MAYBE_UNUSED int32_t srcTop, MAYBE_UNUSED int32_t srcWidth, MAYBE_UNUSED int32_t srcHeight, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha) {}
-static void libndsDrawSurfaceTiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void libndsDrawSurface(Renderer *renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {}
+static void libndsDrawSurfaceColor(Renderer *renderer, int32_t surfaceID, int32_t srcLeft, int32_t srcTop, int32_t srcWidth, int32_t srcHeight, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {}
+static void libndsDrawSurfaceTiled(Renderer *renderer, int32_t surfaceID, float x, float y, float xscale, float yscale, float roomW, float roomH, uint32_t color, float alpha) {}
 static void libndsSurfaceResize(Renderer *renderer, int32_t surfaceID, int32_t width, int32_t height) {
     LibNDSRenderer *libnds = (LibNDSRenderer *)renderer;
     if (surfaceID < 0 || (uint32_t)surfaceID >= libnds->surfaceCount) return;
@@ -245,11 +252,11 @@ static void libndsSurfaceFree(Renderer *renderer, int32_t surfaceID) {
     libnds->surfaceWidths[surfaceID] = 0;
     libnds->surfaceHeights[surfaceID] = 0;
 }
-static void libndsSurfaceCopy(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t destSurfaceID, MAYBE_UNUSED int32_t destX, MAYBE_UNUSED int32_t destY, MAYBE_UNUSED int32_t srcSurfaceID, MAYBE_UNUSED int32_t srcX, MAYBE_UNUSED int32_t srcY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED bool part) {}
-static bool libndsSurfaceGetPixels(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID, MAYBE_UNUSED uint8_t *outRGBA) {
+static void libndsSurfaceCopy(Renderer *renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {}
+static bool libndsSurfaceGetPixels(Renderer *renderer, int32_t surfaceID, uint8_t *outRGBA) {
     return false;
 }
-static void libndsDrawTiledPart(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcX, MAYBE_UNUSED int32_t srcY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float dstX, MAYBE_UNUSED float dstY, MAYBE_UNUSED float dstW, MAYBE_UNUSED float dstH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void libndsDrawTiledPart(Renderer *renderer, int32_t tpagIndex, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint32_t color, float alpha) {}
 
 static void libndsGpuSetShader(Renderer *renderer, int32_t shaderIndex) {
     renderer->currentShader = shaderIndex;
@@ -257,32 +264,32 @@ static void libndsGpuSetShader(Renderer *renderer, int32_t shaderIndex) {
 static void libndsGpuResetShader(Renderer *renderer) {
     renderer->currentShader = -1;
 }
-static int32_t libndsShaderGetUniform(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char *uniform) {
+static int32_t libndsShaderGetUniform(Renderer *renderer, int32_t shaderIndex, char *uniform) {
     return -1;
 }
-static int32_t libndsShaderGetSamplerIndex(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t shaderIndex, MAYBE_UNUSED char *uniform) {
+static int32_t libndsShaderGetSamplerIndex(Renderer *renderer, int32_t shaderIndex, char *uniform) {
     return -1;
 }
-static void libndsShaderSetUniformF(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED float v1, MAYBE_UNUSED float v2, MAYBE_UNUSED float v3, MAYBE_UNUSED float v4) {}
-static void libndsShaderSetUniformFArray(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED float *values, MAYBE_UNUSED uint32_t count) {}
-static void libndsShaderSetUniformI(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t handle, MAYBE_UNUSED int32_t count, MAYBE_UNUSED int32_t v1, MAYBE_UNUSED int32_t v2, MAYBE_UNUSED int32_t v3, MAYBE_UNUSED int32_t v4) {}
-static uint32_t libndsSpriteGetTexture(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex) {
+static void libndsShaderSetUniformF(Renderer *renderer, int32_t handle, int32_t count, float v1, float v2, float v3, float v4) {}
+static void libndsShaderSetUniformFArray(Renderer *renderer, int32_t handle, float *values, uint32_t count) {}
+static void libndsShaderSetUniformI(Renderer *renderer, int32_t handle, int32_t count, int32_t v1, int32_t v2, int32_t v3, int32_t v4) {}
+static uint32_t libndsSpriteGetTexture(Renderer *renderer, int32_t tpagIndex) {
     return 0;
 }
-static uint32_t libndsSurfaceGetTexture(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t surfaceID) {
+static uint32_t libndsSurfaceGetTexture(Renderer *renderer, int32_t surfaceID) {
     return 0;
 }
-static float libndsTextureGetTexelWidth(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED uint32_t texID) {
+static float libndsTextureGetTexelWidth(Renderer *renderer, uint32_t texID) {
     return 1.0f;
 }
-static float libndsTextureGetTexelHeight(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED uint32_t texID) {
+static float libndsTextureGetTexelHeight(Renderer *renderer, uint32_t texID) {
     return 1.0f;
 }
-static bool libndsTextureGetUVs(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED uint32_t texID, MAYBE_UNUSED float *outUVs) {
+static bool libndsTextureGetUVs(Renderer *renderer, uint32_t texID, float *outUVs) {
     return false;
 }
-static void libndsTextureSetStage(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t slot, MAYBE_UNUSED uint32_t texID) {}
-static bool libndsShaderIsCompiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t shader) {
+static void libndsTextureSetStage(Renderer *renderer, int32_t slot, uint32_t texID) {}
+static bool libndsShaderIsCompiled(Renderer *renderer, int32_t shader) {
     return false;
 }
 static bool libndsShadersSupported(void) {
@@ -291,7 +298,7 @@ static bool libndsShadersSupported(void) {
 static void libndsSetMatrix(Renderer *renderer, int32_t matrixType, Matrix4f matrix) {
     if (matrixType >= 0 && matrixType < MATRICES_MAX) renderer->gmlMatrices[matrixType] = matrix;
 }
-static void libndsGpuSetTexFilter(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED bool enable) {}
+static void libndsGpuSetTexFilter(Renderer *renderer, bool enable) {}
 
 static RendererVtable libndsVtable;
 
