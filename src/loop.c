@@ -52,6 +52,9 @@
 #ifdef ENABLE_NOOP_RENDERER
 #include "noop_renderer.h"
 #endif
+#ifdef ENABLE_LIBNDS_RENDERER
+#include "libnds_renderer.h"
+#endif
 #include "overlay_file_system.h"
 #if defined(USE_OPENAL)
 #include "al_audio_system.h"
@@ -899,6 +902,11 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_NOOP_RENDERER
         if (gfx == NOOP) {
             renderer = NoopRenderer_create();
+        }
+#endif
+#ifdef ENABLE_LIBNDS_RENDERER
+        if (gfx == LIBNDS) {
+            renderer = libndsRenderer_create();
         }
 #endif
 #ifdef ENABLE_LEGACY_GL

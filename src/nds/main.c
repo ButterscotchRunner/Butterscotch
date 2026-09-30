@@ -72,13 +72,12 @@ int main(int argc, char* argv[]){
     args.profilerFramesBetween = 0;
     args.dataWinPath = "nitro:/data.win";
     args.saveFolder = "";
-    args.headless = false;
     args.lazyTextures = true;
     args.lazyRooms = true;
     args.lazyAudio = true;
     args.eagerRooms = NULL;
     args.exitAtFrame = -1;
-    args.renderer = NOOP;
+    args.renderer = LIBNDS;
     args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
 
 

@@ -42,7 +42,8 @@ enum GraphicsAPI {
     SOFTWARE,
     MODERN_GL,
     LEGACY_GL,
-    NOOP
+    NOOP,
+    LIBNDS
 };
 
 enum GlTextureFormat {
