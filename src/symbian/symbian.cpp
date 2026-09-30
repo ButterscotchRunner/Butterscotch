@@ -8,12 +8,15 @@
 #include <coecntrl.h>
 #include <eikstart.h>
 #include <aknwseventobserver.h>
+
 #include <egl/egl.h>
 #include <locale.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <gles2/gl2.h>
+#include <string.h>
 
 extern "C" {
 #include "loop.h"
@@ -277,6 +280,11 @@ public:
 		args.renderer = MODERN_GL;
 		args.dataWinPath = "E:/butterscotch/data.win";
 		args.saveFolder = "E:/butterscotch/";
+		
+		if (strstr((const char*) glGetString(GL_RENDERER), "VideoCore III") != NULL) {
+			args.glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
+			args.glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
+		}
 		
 		args.debug = true;
 

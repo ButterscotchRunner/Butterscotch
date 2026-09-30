@@ -1099,6 +1099,9 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
 #ifdef __SYMBIAN32__
     if (gl->textureFormat == GL_RGBA4) {
+        GLint previousUnpackAlignment = 4;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
         uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
         for (int i = 0; i < w * h; i++) {
             rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
@@ -1108,6 +1111,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         }
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
         free(rgba4444);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
     } else {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     }
@@ -2826,6 +2830,9 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     glBindTexture(GL_TEXTURE_2D, newTexId);
 #ifdef __SYMBIAN32__
     if (gl->textureFormat == GL_RGBA4) {
+        GLint previousUnpackAlignment = 4;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
         uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
         for (int i = 0; i < w * h; i++) {
             rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
@@ -2835,6 +2842,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
         }
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
         free(rgba4444);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
     } else {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     }

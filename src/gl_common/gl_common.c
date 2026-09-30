@@ -502,10 +502,10 @@ GLenum GLCommon_blendModeToEquation(int mode) {
         case bm_add:              return GL_FUNC_ADD;
         case bm_subtract:         return GL_FUNC_ADD;
         case bm_reverse_subtract: return GL_FUNC_REVERSE_SUBTRACT;
-#if defined(__SYMBIAN32__)
-        case bm_min:              return GL_FUNC_ADD;
-#else
+#ifdef GL_MIN
         case bm_min:              return GL_MIN;
+#else
+        case bm_min:              return GL_FUNC_ADD;
 #endif
         case bm_max:              return GL_FUNC_ADD;
     }
@@ -661,19 +661,7 @@ bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui) {
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
 #ifdef __SYMBIAN32__
-    if (gl->textureFormat == GL_RGBA4) {
-        uint16_t* rgba4444 = (uint16_t*)safeMalloc(DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * sizeof(uint16_t));
-        for (int i = 0; i < DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H; i++) {
-            rgba4444[i] = (((uint16_t)debugFontPixels[i * 4] >> 4) << 12) | 
-                            (((uint16_t)debugFontPixels[i * 4 + 1] >> 4) << 8) | 
-                            (((uint16_t)debugFontPixels[i * 4 + 2] >> 4) << 4) | 
-                            ((uint16_t)debugFontPixels[i * 4 + 3] >> 4);
-        }
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
-        free(rgba4444);
-    } else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 #endif
