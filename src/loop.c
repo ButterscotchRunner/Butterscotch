@@ -463,7 +463,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__) && !defined(PLATFORM_NDS)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
@@ -535,7 +535,6 @@ int loop(CommandLineArgs args, const char *argv0) {
     bool showDebugOverlay = args.debug;
     while (true) {
         logInfo("Loading %s...\n", args.dataWinPath);
-
         DataWinParserOptions options = {0};
         options.parseGen8 = true;
         options.parseOptn = true;
@@ -599,7 +598,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 
         Gen8* gen8 = &dataWin->gen8;
         logInfo("Loaded \"%s\" (%d) successfully! [WAD Version %u / GameMaker version %u.%u.%u.%u]\n", gen8->name, gen8->gameID, gen8->wadVersion, dataWin->detectedFormat.major, dataWin->detectedFormat.minor, dataWin->detectedFormat.release, dataWin->detectedFormat.build);
-
 #ifdef HAVE_MALLINFO2
         {
             struct mallinfo2 mi = mallinfo2();

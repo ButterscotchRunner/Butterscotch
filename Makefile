@@ -30,12 +30,15 @@ GAME_SUBTITLE2 := built with devkitARM
 ARCH     := -march=armv5te -mtune=arm946e-s -mthumb
 
 DEFINES  := -DARM9 -D__NDS__ \
+            -DPLATFORM_NDS \
+            -DUSE_NDS \
             -DBUTTERSCOTCH_COMMIT_DATE=\"unknown\" \
             -DBUTTERSCOTCH_COMMIT_HASH=\"unknown\" \
             -DENABLE_WAD14 -DENABLE_WAD16 -DENABLE_WAD17 \
+            -DENABLE_NOOP_RENDERER \
             -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_STDIO \
-            -DBUTTERSCOTCH_VIDEO_NULL \
-            -DUSE_NDS
+            -DBUTTERSCOTCH_VIDEO_NULL
+            
 # Profiler/tracing/stub-log defines are left off (they're opt-out in the main Makefile)
 
 CFLAGS   := -g -Wall -O2 -std=gnu11 -ffunction-sections -fdata-sections $(ARCH)

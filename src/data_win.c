@@ -2802,13 +2802,14 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         fclose(file);
         exit(1);
     }
+    
     size_t fileSize = (size_t) fileSizeRaw;
 
     // Allocate and zero-initialize DataWin
     DataWin* dw = (DataWin *)safeCalloc(1, sizeof(DataWin));
 
     BinaryReader reader = BinaryReader_create(file, (size_t) fileSize);
-
+    
     // Some WAD files, such as ones made with https://github.com/AlexWaveDiver/TranslaTale (I think?) have pointers inside a chunk pointing to data in OTHER chunks
     // The original runner doesn't care because it loads the entire file in memory up front, so we do the same if asked
     // (we don't do that by default because some low end platforms would NOT be able to handle it)
@@ -2828,6 +2829,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         dw->mappedFile = wholeFileData;
     }
 
+    
     // Validate FORM header
     char formMagic[4];
     BinaryReader_readBytes(&reader, formMagic, 4);
@@ -2839,7 +2841,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
 
     uint32_t formLength = BinaryReader_readUint32(&reader);
     (void) formLength;
-
+    
     // Pass 1: Count total chunks and find STRG chunk offset.
     // All other chunks reference strings from STRG, so it must be loaded first.
     // We also check if the CODE chunk exists.
@@ -2888,7 +2890,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         BinaryReader_seek(&reader, chunkDataStart + chunkLength);
         totalChunks++;
     }
-
+    
     if (!codeExists && options.parseCode) {
         logError("CODE chunk does not exist or is empty! This usually means you're loading a YYC game.\n");
         fclose(file);
@@ -3040,7 +3042,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else {
             logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
         }
-
+        
         if (dw->mappedFile && chunkLength > 0) {
             bool keepMapped =
                 (memcmp(chunkName, "STRG", 4) == 0 && options.parseStrg) ||
@@ -3052,13 +3054,13 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
                 dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
             }
         }
-
+        
         // Free the chunk buffer and revert to FILE*-based reads for the next header
         if (chunkBuffer != nullptr) {
             BinaryReader_clearBuffer(&reader);
             free(chunkBuffer);
         }
-
+        
         // Seek to chunk end (skip any unread data or trailing padding)
         if (options.loadType != DATAWINLOADTYPE_LOAD_PER_CHUNK) {
             BinaryReader_seek(&reader, chunkEnd);
@@ -3066,8 +3068,9 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             fseek(reader.file, (long) chunkEnd, SEEK_SET);
         }
         chunkIndex++;
-    }
 
+    }
+    
     // GMS2: apply default FPS to rooms with speed=0
     if (dw->gen8.gms2FPS > 0) {
         repeat(dw->room.count, i) {
@@ -3076,7 +3079,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             }
         }
     }
-
+    
     // If lazy-loading rooms, keep the file handle open for DataWin_loadRoomPayload, otherwise close it now
     dw->lazyLoadRooms = options.lazyLoadRooms;
     dw->lazyLoadTextures = options.lazyLoadTextures;
