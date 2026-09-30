@@ -262,7 +262,7 @@ public:
 		
 		eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
 		
-		setlocale(LC_ALL, "");	
+		setlocale(LC_ALL, "");
 		setlocale(LC_CTYPE, "C");
 		setlocale(LC_COLLATE, "C");
 		setlocale(LC_NUMERIC, "C");

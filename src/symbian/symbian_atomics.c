@@ -1,3 +1,5 @@
+// shadows unimplemented compiler builtins for miniaudio to work
+
 #include <e32atomics.h>
 
 TUint32 __sync_fetch_and_add_4(volatile void* a, TUint32 v) {

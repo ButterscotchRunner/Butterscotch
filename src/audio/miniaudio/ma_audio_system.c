@@ -5,14 +5,7 @@
 #endif
 
 #ifdef __SYMBIAN32__
-// miniaudio hacks to make it work on symbian
-inline void ma_sleep(unsigned int milliseconds);
-void* CTrapCleanup_New(void);
-void* CActiveScheduler_Install(void);
-void maSymbianOnThreadExit(void* cleanup, void* scheduler);
-
-#define MA_ON_THREAD_ENTRY void* cleanup = CTrapCleanup_New(); void* scheduler = CActiveScheduler_Install();
-#define MA_ON_THREAD_EXIT maSymbianOnThreadExit(cleanup, scheduler);
+inline void ma_sleep(unsigned int milliseconds); // implemented in symbian_audio.cpp
 
 #ifdef _WIN32
 #undef _WIN32

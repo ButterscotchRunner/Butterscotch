@@ -1,6 +1,11 @@
+// miniaudio custom driver implementation for symbian
+
 #include <e32base.h>
 #include <MdaAudioOutputStream.h>
 #include <mda/common/audio.h>
+#include <remconcoreapitargetobserver.h>
+#include <remconinterfaceselector.h>
+#include <remconcoreapitarget.h>
 #include <string.h>
 #include "miniaudio.h"
 
@@ -8,15 +13,22 @@ extern "C" {
 #include "log.h"
 }
 
-#define SAMPLE_RATE 44100
 #define PERIOD_SIZE 2048
 #define BUFFER_SIZE (PERIOD_SIZE * 2 * sizeof(TInt16))
-#define VOLUME 50
+
+#define MAX_VOLUME 100
+#define DEFAULT_VOLUME 100
+#define VOLUME_STEP 10
 
 class CAudioStream;
 
 static ma_context context;
 static CAudioStream* stream;
+
+static int volume = DEFAULT_VOLUME;
+static bool volumeChanged;
+
+static void InitVolumeKeysListenerL();
 
 class CAudioStream: public CBase, public MMdaAudioOutputStreamCallback
 {
@@ -108,7 +120,7 @@ void CAudioStream::MaoscOpenComplete(TInt aError) {
 		return;
 	}
 	
-	iOutputStream->SetVolume((VOLUME * iOutputStream->MaxVolume()) / 100);
+	iOutputStream->SetVolume((volume * iOutputStream->MaxVolume()) / MAX_VOLUME);
 	if (iStarted) {
 		Request();
 	}
@@ -135,6 +147,11 @@ void CAudioStream::Request() {
 	TUint8* buffer = iBuffers[iCurrentBuffer ? 1 : 0];
 	if (ma_device_handle_backend_data_callback(iDevice, (ma_uint8*)buffer, NULL, PERIOD_SIZE) != MA_SUCCESS)
 		return;
+	
+	if (volumeChanged) {
+		volumeChanged = false;
+		iOutputStream->SetVolume((volume * iOutputStream->MaxVolume()) / 100);
+	}
 
 	iPtr.Set(buffer, BUFFER_SIZE);
 	TRAP_IGNORE(iOutputStream->WriteL(iPtr));
@@ -149,13 +166,15 @@ static ma_result onDeviceInit(ma_device* pDevice, const ma_device_config* pConfi
 
 	pDescriptorPlayback->format = ma_format_s16;
 	pDescriptorPlayback->channels = 2;
-	pDescriptorPlayback->sampleRate = SAMPLE_RATE;
+	pDescriptorPlayback->sampleRate = 44100;
 	pDescriptorPlayback->periodSizeInFrames = PERIOD_SIZE;
 	
 	TRAPD(err, stream = CAudioStream::NewL(pDevice));
 	if (err != KErrNone) {
 		return MA_FAILED_TO_INIT_BACKEND;
 	}
+	
+	TRAP_IGNORE(InitVolumeKeysListenerL());
 
 	return MA_SUCCESS;
 }
@@ -227,18 +246,65 @@ extern "C" void ma_sleep(unsigned int milliseconds) {
 	User::AfterHighRes(milliseconds * 1000);
 }
 
-extern "C" void* CTrapCleanup_New(void) {
-	return CTrapCleanup::New();
-}
+// volume keys listener
 
-extern "C" void* CActiveScheduler_Install(void) {
-	CActiveScheduler* scheduler = new (ELeave) CActiveScheduler();
-	CActiveScheduler::Install(scheduler);
-	return scheduler;
-}
+class CRemConObserver : public CBase, public MRemConCoreApiTargetObserver
+{
+public:
+	static CRemConObserver* NewL() {
+		CRemConObserver* self = new (ELeave) CRemConObserver();
+		CleanupStack::PushL(self);
+		self->ConstructL();
+		CleanupStack::Pop(self);
+		return self;
+	}
+	
+	~CRemConObserver() {
+//		if (iRemConTarget) {
+//			delete iRemConTarget;
+//		}
+		if (iRemConSelector) {
+			delete iRemConSelector;
+		}
+	}
 
-extern "C" void maSymbianOnThreadExit(void* cleanup, void* scheduler) {
-	CActiveScheduler::Install(NULL);
-	delete (CActiveScheduler*) scheduler;
-	delete (CTrapCleanup*) cleanup;
+private:
+	CRemConObserver() {}
+	
+	void ConstructL() {
+		iRemConSelector = CRemConInterfaceSelector::NewL();
+		iRemConTarget = CRemConCoreApiTarget::NewL(*iRemConSelector, *this);
+		iRemConSelector->OpenTargetL();
+	}
+
+	void MrccatoCommand(TRemConCoreApiOperationId aOperationId, TRemConCoreApiButtonAction aButtonAct) {
+		switch (aOperationId) {
+		case ERemConCoreApiVolumeUp: {
+			volume += VOLUME_STEP;
+			if (volume > MAX_VOLUME) volume = MAX_VOLUME;
+
+			volumeChanged = true;
+			break;
+		}
+		case ERemConCoreApiVolumeDown: {
+			volume -= VOLUME_STEP;
+			if (volume < 0) volume = 0;
+			
+			volumeChanged = true;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+private:
+	CRemConInterfaceSelector* iRemConSelector;
+	CRemConCoreApiTarget* iRemConTarget;
+};
+
+static CRemConObserver* observer = NULL;
+
+void InitVolumeKeysListenerL() {
+	if (!observer) observer = CRemConObserver::NewL();
 }

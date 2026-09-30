@@ -12,16 +12,23 @@ SYSTEMINCLUDE /epoc32/include/platform/app
 SYSTEMINCLUDE /epoc32/include/stdapis
 
 LIBRARY	euser.lib
+// ui
 LIBRARY cone.lib
 LIBRARY avkon.lib
 LIBRARY apparc.lib
 LIBRARY eikcore.lib
+// gl
 LIBRARY libglesv2.lib
 LIBRARY libegl.lib
+// pips
 LIBRARY libc.lib
 LIBRARY libm.lib
 LIBRARY libpthread.lib
+// audio
 LIBRARY mediaclientaudiostream.lib
+// volume keys
+LIBRARY remconinterfacebase.lib
+LIBRARY remconcoreapi.lib
 
 OPTION ARMCC -Otime
 OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296

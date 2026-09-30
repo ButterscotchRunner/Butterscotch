@@ -928,6 +928,7 @@ static int error(vorb *f, enum STBVorbisError e)
 #define array_size_required(count,size)  (count*(sizeof(void *)+(size)))
 
 #ifdef __SYMBIAN32__
+// workaround for missing alloca on symbian
 static char temp_mem[128 * 1024];
 static int temp_mem_offset = 0;
 
