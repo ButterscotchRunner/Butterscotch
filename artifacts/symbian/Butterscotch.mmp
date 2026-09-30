@@ -42,7 +42,7 @@ ALWAYS_BUILD_AS_ARM
 
 OPTION GCCE -std=gnu99
 
-OPTION CW -lang c99 -relax_pointers
+OPTION CW -lang c99 -undefine _WIN32 -relax_pointers
 
 CAPABILITY NetworkServices ReadUserData WriteUserData
 

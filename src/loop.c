@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include "string_compat.h"
 #include <time.h>
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
 #include <io.h>
@@ -79,7 +79,7 @@ enum GraphicsAPI gfx;
 const GLuint *hostFramebuffer;
 #endif
 
-#if !defined(_WIN32) || defined(__WINSCW__)
+#ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
 #else
@@ -568,7 +568,7 @@ static uint64_t lastFrameStartTime;
 static bool shouldWindowClose = false;
 
 int loop_init(CommandLineArgs aArgs, const char *argv0) {
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
     timeBeginPeriod(1);
 #endif
     args = aArgs;
@@ -1567,7 +1567,7 @@ int loop_exit(void) {
             }
             arrfree(currentGameArgs);
             logInfo("Bye! :3\n");
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
             timeEndPeriod(1);
 #endif
             return 0;

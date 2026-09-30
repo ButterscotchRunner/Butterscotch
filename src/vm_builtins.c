@@ -21,7 +21,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <stdio.h>
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
 #include <windows.h>
 #endif
 

@@ -84,7 +84,7 @@ void platformSleepUntil(uint64_t time) {
     int64_t remaining = (int64_t)time - (int64_t)nowNanos();
     if (remaining > 2000000) {
         remaining -= 1000000;
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
         Sleep(remaining / 1000000);
 #else
         struct timespec ts;

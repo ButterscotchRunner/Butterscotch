@@ -34,46 +34,40 @@ static bool quit;
 static bool shouldExit;
 static bool foreground = true;
 static int state = 0;
+static CommandLineArgs args;
 
-CommandLineArgs args;
+class ButterscotchDocument: public CAknDocument {
+public:
+	static ButterscotchDocument* NewL(CEikApplication& aApp);
+	virtual ~ButterscotchDocument();
+protected:
+	void ConstructL();
+public:
+	ButterscotchDocument(CEikApplication& aApp);
+private:
+	CEikAppUi* CreateAppUiL();
+};
 
-#define LOG_BUFFER_SIZE 1024
+class ButterscotchApp: public CAknApplication {
+private:
+	CApaDocument* CreateDocumentL() {
+		return ButterscotchDocument::NewL(*this);
+	}
+	TUid AppDllUid() const {
+		return TUid::Uid(0xEC93FBDE);
+	}
+};
 
-extern "C" void platformLog(const logType type, const char *format, va_list va) {
-#ifdef _DEBUG
-    const char* textPrefix = "";
-    char buffer[LOG_BUFFER_SIZE];
-    
-    switch (type) {
-        case LOG_TYPE_NORMAL:
-            break;
-        case LOG_TYPE_WARNING:
-            textPrefix = "Warning: ";
-            break;
-        case LOG_TYPE_ERROR:
-            textPrefix = "Error: ";
-            break;
-        case LOG_TYPE_DEBUG:
-            textPrefix = "Debug: ";
-            break;
-    }
-    int written = snprintf(buffer, sizeof(buffer), "%s", textPrefix);
-    
-    if (written >= 0 && written < (int)sizeof(buffer)) {
-        vsnprintf(buffer + written, (int)sizeof(buffer) - written, format, va);
-    }
-    buffer[sizeof(buffer) - 1] = '\0';
-    
-    RDebug::Printf("%s", buffer);
-//    puts(buffer);
-#endif
+static CApaApplication* NewApplication() {
+	return new ButterscotchApp;
 }
 
-extern "C" uint64_t nowNanos(void) {
-	TTime time;
-	time.HomeTime();
-	return (uint64_t)(time.Int64() * 1000);
+TInt E32Main() {
+	User::SetFloatingPointMode(EFpModeRunFast);
+	return EikStart::RunApplication(NewApplication);
 }
+
+// input mapping
 
 const uint8_t key_map[] = {
 	EStdKeyBackspace, VK_BACKSPACE,
@@ -179,6 +173,8 @@ struct KeyEvent {
 };
 
 static RArray<KeyEvent> keyEvents;
+
+// container impl
 
 class ButterscotchContainer : public CCoeControl, MAknWsEventObserver {
 public:
@@ -334,6 +330,8 @@ public:
 
 static ButterscotchContainer* container;
 
+// appui impl
+
 class ButterscotchAppUi : public CAknAppUi {
 	ButterscotchContainer* iContainer;
 public:
@@ -362,17 +360,7 @@ public:
 	}
 };
 
-class ButterscotchDocument: public CAknDocument {
-public:
-	static ButterscotchDocument* NewL(CEikApplication& aApp);
-	virtual ~ButterscotchDocument();
-protected:
-	void ConstructL();
-public:
-	ButterscotchDocument(CEikApplication& aApp);
-private:
-	CEikAppUi* CreateAppUiL();
-};
+// document impl
 
 ButterscotchDocument::ButterscotchDocument(CEikApplication& aApp) : CAknDocument(aApp) {}
 
@@ -392,41 +380,49 @@ CEikAppUi* ButterscotchDocument::CreateAppUiL() {
 	return new (ELeave) ButterscotchAppUi;
 }
 
-class ButterscotchApp: public CAknApplication {
-private:
-	CApaDocument* CreateDocumentL();
-	TUid AppDllUid() const;
-};
+// platform impl
 
-LOCAL_C CApaApplication* NewApplication();
-
-GLDEF_C TInt E32Main();
-
-TUid ButterscotchApp::AppDllUid() const {
-	return TUid::Uid(0xEC93FBDE);
+extern "C" void platformLog(const logType type, const char *format, va_list va) {
+#ifdef _DEBUG
+    const char* textPrefix = "";
+    char buffer[1024];
+    
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            break;
+        case LOG_TYPE_WARNING:
+            textPrefix = "Warning: ";
+            break;
+        case LOG_TYPE_ERROR:
+            textPrefix = "Error: ";
+            break;
+        case LOG_TYPE_DEBUG:
+            textPrefix = "Debug: ";
+            break;
+    }
+    int written = snprintf(buffer, sizeof(buffer), "%s", textPrefix);
+    
+    if (written >= 0 && written < (int)sizeof(buffer)) {
+        vsnprintf(buffer + written, (int)sizeof(buffer) - written, format, va);
+    }
+    buffer[sizeof(buffer) - 1] = '\0';
+    
+    RDebug::Printf("%s", buffer);
+//    puts(buffer);
+#endif
 }
 
-CApaDocument* ButterscotchApp::CreateDocumentL() {
-	return ButterscotchDocument::NewL(*this);
+extern "C" uint64_t nowNanos(void) {
+	TTime time;
+	time.HomeTime();
+	return (uint64_t)(time.Int64() * 1000);
 }
-
-CApaApplication* NewApplication() {
-	return new ButterscotchApp;
-}
-
-TInt E32Main() {
-	User::SetFloatingPointMode(EFpModeRunFast);
-	return EikStart::RunApplication(NewApplication);
-}
-
-
 
 extern "C" bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
 	return true;
 }
 
 extern "C" void platformExit(void) {
-//	quit = true;
 }
 
 static bool platformGetWindowFocus(void) {

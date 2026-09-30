@@ -1,15 +1,11 @@
 // On Windows, include windows.h first so its headers are processed before stb_vorbis
 // defines single-letter macros (L, C, R) that conflict with winnt.h struct field names.
-#if defined(_WIN32) && !defined(__WINSCW__)
+#ifdef _WIN32
 #include <windows.h>
 #endif
 
 #ifdef __SYMBIAN32__
 inline void ma_sleep(unsigned int milliseconds); // implemented in symbian_audio.cpp
-
-#ifdef _WIN32
-#undef _WIN32
-#endif
 
 #define MA_BSD
 #define MA_NO_RUNTIME_LINKING

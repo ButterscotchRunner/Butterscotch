@@ -18,7 +18,7 @@
 #include <malloc.h>
 #endif
 
-#if !defined(_WIN32) || defined(__WINSCW__)
+#ifndef _WIN32
 #include <unistd.h>
 #if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
 #include <sys/mman.h>
@@ -249,7 +249,7 @@ typedef struct {
 
 static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
     if (!base || len == 0) return;
-#if defined(_WIN32) && !defined(__WINSCW__)
+#if defined(_WIN32)
     static DiscardVirtualMemory_t pDiscardVirtualMemory = nullptr;
     static int checked = 0;
     if (!checked) {
