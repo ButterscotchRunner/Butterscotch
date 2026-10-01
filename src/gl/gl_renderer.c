@@ -2985,7 +2985,6 @@ static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t locati
 }
 
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1) return;
@@ -3012,7 +3011,6 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
 }
 
 static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
@@ -3033,7 +3031,6 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
 }
 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1) return;
@@ -3201,8 +3198,6 @@ static bool glShadersSupported(void) {
 }
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
     if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
 
     renderer->gmlMatrices[matrixType] = matrix;
