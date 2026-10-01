@@ -1,13 +1,10 @@
+#include "symbian.h"
 #include <e32base.h>
 #include <e32keys.h>
 #include <coemain.h>
 #include <w32std.h>
-#include <aknapp.h>
-#include <akndoc.h>
-#include <aknappui.h>
 #include <coecntrl.h>
 #include <eikstart.h>
-#include <aknwseventobserver.h>
 
 #include <egl/egl.h>
 #include <locale.h>
@@ -29,38 +26,77 @@ static EGLContext eglContext;
 static EGLSurface eglSurface;
 static EGLConfig eglConfig;
 
-static Runner *g_runner;
-static bool quit;
+static CommandLineArgs args;
+static Runner* g_runner;
 static bool shouldExit;
 static bool foreground = true;
-static int state = 0;
-static CommandLineArgs args;
+static State state = EStateInit;
 
-class ButterscotchDocument: public CAknDocument {
-public:
-	static ButterscotchDocument* NewL(CEikApplication& aApp);
-	virtual ~ButterscotchDocument();
-protected:
-	void ConstructL();
-public:
-	ButterscotchDocument(CEikApplication& aApp);
-private:
-	CEikAppUi* CreateAppUiL();
-};
+static ButterscotchContainer* container;
+static RArray<KeyEvent> keyEvents;
 
-class ButterscotchApp: public CAknApplication {
-private:
-	CApaDocument* CreateDocumentL() {
-		return ButterscotchDocument::NewL(*this);
+TUid ButterscotchApp::AppDllUid() const {
+	return TUid::Uid(0xEC93FBDE);
+}
+
+CApaDocument* ButterscotchApp::CreateDocumentL() {
+	return ButterscotchDocument::NewL(*this);
+}
+
+void ButterscotchAppUi::ConstructL() {
+	BaseConstructL(CAknAppUi::EAknEnableSkin);
+	iContainer = new (ELeave) ButterscotchContainer;
+	iContainer->SetMopParent(this);
+	iContainer->ConstructL(ClientRect(), this);
+	container = iContainer;
+	AddToStackL(iContainer);
+}
+void ButterscotchAppUi::HandleForegroundEventL(TBool aForeground) {
+	foreground = aForeground;
+}
+
+ButterscotchAppUi::~ButterscotchAppUi() {
+	if (iContainer) {
+		RemoveFromStack(iContainer);
+		delete iContainer;
 	}
-	TUid AppDllUid() const {
-		return TUid::Uid(0xEC93FBDE);
+}
+void ButterscotchAppUi::HandleCommandL(TInt aCommand) {
+	if (aCommand == EAknSoftkeyBack || aCommand == EEikCmdExit) {
+		shouldExit = true;
 	}
-};
+}
+
+ButterscotchDocument::ButterscotchDocument(CEikApplication& aApp) : CAknDocument(aApp) {}
+
+ButterscotchDocument::~ButterscotchDocument() {}
+
+void ButterscotchDocument::ConstructL() {}
+
+ButterscotchDocument* ButterscotchDocument::NewL(CEikApplication& aApp) {
+	ButterscotchDocument* self = new (ELeave) ButterscotchDocument(aApp);
+	CleanupStack::PushL(self);
+	self->ConstructL();
+	CleanupStack::Pop();
+	return self;
+}
+
+// debug builds don't launch without this here, idk why
+#if defined(__ARMCC__) && defined(_DEBUG)
+#pragma O1
+#endif
+
+CEikAppUi* ButterscotchDocument::CreateAppUiL() {
+	return new (ELeave) ButterscotchAppUi;
+}
 
 static CApaApplication* NewApplication() {
 	return new ButterscotchApp;
 }
+
+#if defined(__ARMCC__) && defined(_DEBUG)
+#pragma O0
+#endif
 
 TInt E32Main() {
 	User::SetFloatingPointMode(EFpModeRunFast);
@@ -161,223 +197,154 @@ static int MapScanCode(TInt aScanCode, TInt aModifiers) {
 	return aScanCode < 256 ? aScanCode : -1;
 }
 
-enum KeyEventType {
-    KEY_EVENT_DOWN,
-    KEY_EVENT_UP,
-    KEY_EVENT_CHAR
-};
-
-struct KeyEvent {
-    KeyEventType type;
-    int value;
-};
-
-static RArray<KeyEvent> keyEvents;
-
 // container impl
 
-class ButterscotchContainer : public CCoeControl, MAknWsEventObserver {
-public:
-	CAknAppUi* iAppUi;
-	CPeriodic* iPeriodic;
-	static TInt LoopCallBack(TAny* p) {
-		ButterscotchContainer* container = (ButterscotchContainer*) p;
-		if (quit) {
-			container->iAppUi->Exit();
-			return EFalse;
-		}
-		
-		if (state == 0) {
-			if (loop_init(args, nullptr) != -1) {
-				quit = true;
-			}
-			state = 1;
-			return ETrue;
-		} else if (state == 1) {
-			if (loop_step() != -1) {
-				state = 2;
-			}
-			return ETrue;
-		} else if (state == 2) {
-			if (loop_exit() != -1) {
-				quit = true;
-			}
-			state = 0;
+static TInt LoopCallBack(TAny* p) {
+	ButterscotchContainer* container = (ButterscotchContainer*) p;
+	if (state == EStateExit) {
+		container->iAppUi->Exit();
+		return EFalse;
+	}
+	
+	if (state == EStateInit) {
+		if (loop_init(args, nullptr) != -1) {
+			state = EStateExit;
 			return ETrue;
 		}
-
+		state = EStateTick;
+		return ETrue;
+	} else if (state == EStateTick) {
+		if (loop_step() != -1) {
+			state = EStatePreExit;
+		}
+		return ETrue;
+	} else if (state == EStatePreExit) {
+		if (loop_exit() != -1) {
+			state = EStateExit;
+			return ETrue;
+		}
+		state = EStateInit;
 		return ETrue;
 	}
 
-	void RestartTimerL(TInt aInterval) {
-		if (iPeriodic) iPeriodic->Cancel();
-		else iPeriodic = CPeriodic::NewL(CActive::EPriorityLow);
-		iPeriodic->Start(aInterval, aInterval, TCallBack(ButterscotchContainer::LoopCallBack, this));
-	}
-	
-	void ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
-		iAppUi = aAppUi;
-		
-		CAknWsEventMonitor* monitor = iAppUi->EventMonitor();
-		monitor->AddObserverL(this);
-		monitor->Enable();
-		
-		CreateWindowL();
-		iAppUi->SetOrientationL(CAknAppUiBase::EAppUiOrientationLandscape);
-		SetExtentToWholeScreen();
-
-		SetFocus(ETrue);
-
-//		Window().EnableAdvancedPointers();
-		EnableDragEvents();
-		ActivateL();
-
-		EGLint attribs[] = {
-			EGL_BUFFER_SIZE,       16,
-			EGL_DEPTH_SIZE,        16,
-			EGL_STENCIL_SIZE,      0,
-			EGL_SURFACE_TYPE,      EGL_WINDOW_BIT,
-			EGL_SAMPLES, 0,
-			EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
-			EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-			EGL_NONE
-		};
-
-		eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-		eglInitialize(eglDisplay, NULL, NULL);
-		eglBindAPI(EGL_OPENGL_ES_API);
-
-		EGLint numConfigs;
-		eglChooseConfig(eglDisplay, attribs, &eglConfig, 1, &numConfigs);
-
-		EGLint contextAttribs[ 3 ] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
-		eglContext = eglCreateContext(eglDisplay, eglConfig, EGL_NO_CONTEXT, contextAttribs);
-
-		RWindow& window = Window();
-		eglSurface = eglCreateWindowSurface(eglDisplay, eglConfig, &window, NULL);
-		
-		eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-		
-		setlocale(LC_ALL, "");
-		setlocale(LC_CTYPE, "C");
-		setlocale(LC_COLLATE, "C");
-		setlocale(LC_NUMERIC, "C");
-		
-		args.exitAtFrame = -1;
-#ifdef ENABLE_VM_TRACING
-		args.traceBytecodeAfterFrame = 0;
-#endif
-		args.speedMultiplier = 1.0;
-		args.fastForwardSpeed = 0.0;
-		args.osType = OS_WINDOWS;
-		args.profilerFramesBetween = 0;
-		args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
-		args.lazyRooms = true;
-		args.lazyTextures = true;
-		args.lazyAudio = true;
-		args.renderer = MODERN_GL;
-		args.dataWinPath = "E:/butterscotch/data.win";
-		args.saveFolder = "E:/butterscotch/";
-		
-		if (strstr((const char*) glGetString(GL_RENDERER), "VideoCore III") != NULL) {
-			args.glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
-			args.glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
-		}
-		
-		args.debug = true;
-
-		RestartTimerL(10000);
-	}
-
-	void HandleWsEventL(const TWsEvent &aEvent, CCoeControl *aDestination) {
-		if (!foreground || iAppUi->IsDisplayingDialog()) return;
-		
-		switch (aEvent.Type()) {
-		case EEventKeyDown:
-		case EEventKeyUp: {
-			int key = MapScanCode(aEvent.Key()->iScanCode, aEvent.Key()->iModifiers);
-			if (key != -1) {
-	            KeyEvent e;
-	            e.type = (aEvent.Type() == EEventKeyDown) ? KEY_EVENT_DOWN : KEY_EVENT_UP;
-				e.value = key;
-				keyEvents.Append(e);
-			}
-			break;
-		}
-		case EEventKey: {
-			int code = aEvent.Key()->iCode;
-			if (code < ENonCharacterKeyBase || code > ENonCharacterKeyBase + ENonCharacterKeyCount) {
-				KeyEvent e;
-				e.type = KEY_EVENT_CHAR;
-				e.value = code;
-				keyEvents.Append(e);
-			}
-			break;
-		}
-		default:
-			break;
-		}
-	}
-	
-	void HandleResourceChange(TInt aType) {
-		switch (aType) {
-		case KEikDynamicLayoutVariantSwitch:
-			SetExtentToWholeScreen();
-			break;
-		}
-	}
-};
-
-static ButterscotchContainer* container;
-
-// appui impl
-
-class ButterscotchAppUi : public CAknAppUi {
-	ButterscotchContainer* iContainer;
-public:
-	void ConstructL() {
-		BaseConstructL(CAknAppUi::EAknEnableSkin);
-		iContainer = new (ELeave) ButterscotchContainer;
-		iContainer->SetMopParent(this);
-		iContainer->ConstructL(ClientRect(), this);
-		container = iContainer;
-		AddToStackL(iContainer);
-	}
-	void HandleForegroundEventL(TBool aForeground) {
-		foreground = aForeground;
-	}
-
-	~ButterscotchAppUi() {
-		if (iContainer) {
-			RemoveFromStack(iContainer);
-			delete iContainer;
-		}
-	}
-	void HandleCommandL(TInt aCommand) {
-		if (aCommand == EAknSoftkeyBack || aCommand == EEikCmdExit) {
-			shouldExit = true;
-		}
-	}
-};
-
-// document impl
-
-ButterscotchDocument::ButterscotchDocument(CEikApplication& aApp) : CAknDocument(aApp) {}
-
-ButterscotchDocument::~ButterscotchDocument() {}
-
-void ButterscotchDocument::ConstructL() {}
-
-ButterscotchDocument* ButterscotchDocument::NewL(CEikApplication& aApp) {
-	ButterscotchDocument* self = new (ELeave) ButterscotchDocument(aApp);
-	CleanupStack::PushL(self);
-	self->ConstructL();
-	CleanupStack::Pop();
-	return self;
+	return ETrue;
 }
 
-CEikAppUi* ButterscotchDocument::CreateAppUiL() {
-	return new (ELeave) ButterscotchAppUi;
+void ButterscotchContainer::RestartTimerL(TInt aInterval) {
+	if (iPeriodic) iPeriodic->Cancel();
+	else iPeriodic = CPeriodic::NewL(CActive::EPriorityLow);
+	iPeriodic->Start(aInterval, aInterval, TCallBack(LoopCallBack, this));
+}
+
+void ButterscotchContainer::ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
+	iAppUi = aAppUi;
+	
+	CAknWsEventMonitor* monitor = iAppUi->EventMonitor();
+	monitor->AddObserverL(this);
+	monitor->Enable();
+	
+	CreateWindowL();
+	iAppUi->SetOrientationL(CAknAppUiBase::EAppUiOrientationLandscape);
+	SetExtentToWholeScreen();
+
+	SetFocus(ETrue);
+
+//	Window().EnableAdvancedPointers();
+	EnableDragEvents();
+	ActivateL();
+
+	EGLint attribs[] = {
+		EGL_BUFFER_SIZE,       16,
+		EGL_DEPTH_SIZE,        16,
+		EGL_STENCIL_SIZE,      0,
+		EGL_SURFACE_TYPE,      EGL_WINDOW_BIT,
+		EGL_SAMPLES, 0,
+		EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_NONE
+	};
+
+	eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	eglInitialize(eglDisplay, NULL, NULL);
+	eglBindAPI(EGL_OPENGL_ES_API);
+
+	EGLint numConfigs;
+	eglChooseConfig(eglDisplay, attribs, &eglConfig, 1, &numConfigs);
+
+	EGLint contextAttribs[ 3 ] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+	eglContext = eglCreateContext(eglDisplay, eglConfig, EGL_NO_CONTEXT, contextAttribs);
+
+	RWindow& window = Window();
+	eglSurface = eglCreateWindowSurface(eglDisplay, eglConfig, &window, NULL);
+	
+	eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+	
+	setlocale(LC_ALL, "");
+	setlocale(LC_CTYPE, "C");
+	setlocale(LC_COLLATE, "C");
+	setlocale(LC_NUMERIC, "C");
+	
+	args.exitAtFrame = -1;
+#ifdef ENABLE_VM_TRACING
+	args.traceBytecodeAfterFrame = 0;
+#endif
+	args.speedMultiplier = 1.0;
+	args.fastForwardSpeed = 0.0;
+	args.osType = OS_WINDOWS;
+	args.profilerFramesBetween = 0;
+	args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
+	args.lazyRooms = true;
+	args.lazyTextures = true;
+	args.lazyAudio = true;
+	args.renderer = MODERN_GL;
+	args.dataWinPath = "E:/butterscotch/data.win";
+	args.saveFolder = "E:/butterscotch/";
+	
+	if (strstr((const char*) glGetString(GL_RENDERER), "VideoCore III") != NULL) {
+		args.glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
+		args.glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
+	}
+	
+	args.debug = true;
+
+	RestartTimerL(10000);
+}
+
+void ButterscotchContainer::HandleWsEventL(const TWsEvent &aEvent, CCoeControl *aDestination) {
+	if (!foreground || iAppUi->IsDisplayingDialog()) return;
+	
+	KeyEvent e;
+	e.type = aEvent.Type();
+	
+	switch (aEvent.Type()) {
+	case EEventKeyDown:
+	case EEventKeyUp: {
+		int key = MapScanCode(aEvent.Key()->iScanCode, aEvent.Key()->iModifiers);
+		if (key != -1) {
+			e.value = key;
+			keyEvents.Append(e);
+		}
+		break;
+	}
+	case EEventKey: {
+		int code = aEvent.Key()->iCode;
+		if (code < ENonCharacterKeyBase || code > ENonCharacterKeyBase + ENonCharacterKeyCount) {
+			e.value = code;
+			keyEvents.Append(e);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void ButterscotchContainer::HandleResourceChange(TInt aType) {
+	switch (aType) {
+	case KEikDynamicLayoutVariantSwitch:
+		SetExtentToWholeScreen();
+		break;
+	}
 }
 
 // platform impl
@@ -431,9 +398,9 @@ static bool platformGetWindowFocus(void) {
 
 extern "C" void platformInitFunctions(Runner *runner) {
     g_runner = runner;
-    runner->setCursor = NULL;
-    runner->windowHasFocus = platformGetWindowFocus;
-    runner->currentCursor = GML_CR_DEFAULT;
+    g_runner->setCursor = NULL;
+    g_runner->windowHasFocus = platformGetWindowFocus;
+    g_runner->currentCursor = GML_CR_DEFAULT;
 }
 
 extern "C" bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
@@ -461,7 +428,10 @@ extern "C" void platformGetMousePos(double *xPos, double *yPos) {
 }
 
 extern "C" void platformSwapBuffers(void) {
-	eglSwapBuffers(eglDisplay, eglSurface);
+	if (!foreground) return;
+	if (eglSwapBuffers(eglDisplay, eglSurface) == EGL_FALSE) {
+		// TODO handle context loss
+	}
 }
 
 extern "C" void *platformGetProcAddress(const char *name) {
@@ -473,13 +443,13 @@ extern "C" bool platformHandleEvents(void) {
 	for (TInt i = 0; i < count; ++i) {
 		const KeyEvent &e = keyEvents[i];
 		switch (e.type) {
-		case KEY_EVENT_DOWN:
+		case EEventKeyDown:
 			RunnerKeyboard_onKeyDown(g_runner->keyboard, e.value);
 			break;
-		case KEY_EVENT_UP:
+		case EEventKeyUp:
 			RunnerKeyboard_onKeyUp(g_runner->keyboard, e.value);
 			break;
-		case KEY_EVENT_CHAR:
+		case EEventKey:
 			RunnerKeyboard_onCharacter(g_runner->keyboard, e.value);
 			break;
 		}

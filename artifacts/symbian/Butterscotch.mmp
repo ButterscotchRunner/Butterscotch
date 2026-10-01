@@ -84,6 +84,7 @@ USERINCLUDE ../../src/gl_legacy
 USERINCLUDE ../../src/image
 USERINCLUDE ../../src/video
 USERINCLUDE ../../src/audio/miniaudio
+USERINCLUDE ../../src/symbian
 USERINCLUDE ../../vendor/base64
 USERINCLUDE ../../vendor/bzip2
 USERINCLUDE ../../vendor/md5

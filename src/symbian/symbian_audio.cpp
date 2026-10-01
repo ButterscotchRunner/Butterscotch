@@ -17,7 +17,7 @@ extern "C" {
 #define BUFFER_SIZE (PERIOD_SIZE * 2 * sizeof(TInt16))
 
 #define MAX_VOLUME 100
-#define DEFAULT_VOLUME 100
+#define DEFAULT_VOLUME 50
 #define VOLUME_STEP 10
 
 class CAudioStream;
