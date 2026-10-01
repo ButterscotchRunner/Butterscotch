@@ -106,7 +106,7 @@ static void libndsSetGuiProjection(Renderer *renderer, int32_t guiW, int32_t gui
 static void libndsEndGUI(Renderer *renderer) {}
 
 static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
-    if (alpha == 0) return;
+    /*if (alpha == 0) return;
     u16 c = RGB15(0 >> 3, 0 >> 3, 0 >> 3) | BIT(15);
 
         int x0 = (int)x - 0, y0 = (int)y - 0;
@@ -118,14 +118,9 @@ static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, flo
 
     for (int yy = y0; yy < y1; yy++)
         for (int xx = x0; xx < x1; xx++)
-            backbuffer[yy * SCREEN_W + xx] = c;
+            backbuffer[yy * SCREEN_W + xx] = c;*/
 
-    static int debugCounter = 0;
-
-    if (++debugCounter >= 60) {
-        printf("X: %.2f, Y: %.2f\n", x, y);
-        debugCounter = 0;
-    }
+    logInfo("X: %.2f, Y: %.2f\n", x, y);
 }
 
 static void libndsDrawSpritePart(Renderer *renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {}
