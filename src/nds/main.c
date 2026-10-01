@@ -43,7 +43,7 @@ void platformLog(const logType type, const char *format, va_list va) {
 
     iprintf("%s%s%s", colourPrefix, buffer, ANSI_COLOUR_CODE_RESET);
 
-    if (logFile) {
+    if (logFile != NULL){
         fputs(buffer, logFile);
         fflush(logFile);
         fsync(fileno(logFile));
@@ -53,7 +53,11 @@ void platformLog(const logType type, const char *format, va_list va) {
 int main(int argc, char* argv[]){
     //Init DS stuff
     consoleDemoInit(); //Bottom screen log
-    fatInitDefault();
+    if (!fatInitDefault()){
+        exit(1);
+        printf("fatInitDefault failed!!");
+        while (true){};
+    }
     logFile = fopen("sd:/butterscotch_log.txt", "w");
 
     logInfo("Hello butterscotchDS!\n");
