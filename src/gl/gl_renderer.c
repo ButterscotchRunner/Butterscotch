@@ -1049,11 +1049,12 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
 
 #ifdef __SYMBIAN32__
 static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
     uint32_t res = UINT32_MAX;
     int min = INT32_MAX;
     
-    for (uint32_t i = 0; i < gl->textureCount; ++i) {
-        if (i == currentPageId || !gl->textureLoaded[i])
+    for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
+        if (i == currentPageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
             continue;
         
         int j = gl->textureLastUsed[i];
@@ -1070,6 +1071,28 @@ static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
     glFlush();
     return true;
 }
+
+#define UNLOAD_THRESHOLD 1000
+static void unloadUnusedTextures(GLRenderer* gl, uint32_t currentPageId) {
+	if (gl->base.runner->frameCount < UNLOAD_THRESHOLD) return;
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
+    bool flushed = false;
+    int threshold = gl->base.runner->frameCount - UNLOAD_THRESHOLD;
+    
+    for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
+        if (i == currentPageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
+            continue;
+        if (gl->textureLastUsed[i] > threshold)
+            continue;
+        
+        if (!flushed) {
+            flushBatch(gl);
+        	flushed = true;
+        }
+        GLRenderer_unloadTexture(gl, i);
+    }
+    if (flushed) glFlush();
+}
 #endif
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -1084,6 +1107,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     }
 
     gl->textureLoaded[pageId] = true;
+    gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
 
 #if defined(PLATFORM_VITA)
     if (VitaTextures_Active()) {
@@ -1130,10 +1154,11 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     if (gl->glTextures[pageId] == 0) {
         glGenTextures(1, &gl->glTextures[pageId]);
     }
-
-    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     
 #ifdef __SYMBIAN32__
+    unloadUnusedTextures(gl, pageId);
+    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+    
     if (gl->textureFormat == GL_RGBA4) {
         uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
         for (int i = 0; i < w * h; i++) {
@@ -1172,6 +1197,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     }
 #else
+    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 #endif
 
