@@ -1405,6 +1405,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             if (inst == nullptr) break;
             int32_t newDepth = RValue_toInt32(val);
             if (newDepth != inst->depth) {
+                Runner_moveInstanceToDepthLayer(runner, inst, newDepth);
                 inst->depth = newDepth;
                 ctx->runner->drawableListSortDirty = true;
             }
@@ -1418,6 +1419,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
                 if (inst->layer != layerId) {
                     Runner_removeInstanceLayerElement(runner, inst->instanceId);
                     Runner_addInstanceLayerElement(runner, layerId, inst->instanceId);
+                    runner->drawableListSortDirty = true;
                 }
                 inst->layer = layerId;
                 if (inst->depth != rl->depth) {
@@ -15298,6 +15300,7 @@ static RValue builtin_layer_depth(VMContext* ctx, RValue* args, MAYBE_UNUSED int
     RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(runner, id);
     if (runtimeLayer != nullptr && runtimeLayer->depth != depth) {
         runtimeLayer->depth = depth;
+        runtimeLayer->drawOrder = ++runner->nextLayerDrawOrder;
         runner->drawableListSortDirty = true;
     }
 
@@ -15445,6 +15448,7 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
     RuntimeLayer runtimeLayer = {0};
     runtimeLayer.id = id;
     runtimeLayer.depth = depth;
+    runtimeLayer.drawOrder = ++runner->nextLayerDrawOrder;
     runtimeLayer.visible = true;
     runtimeLayer.dynamic = true;
     runtimeLayer.dynamicName = name, // ownership transferred
