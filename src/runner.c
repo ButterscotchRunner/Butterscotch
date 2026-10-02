@@ -665,10 +665,12 @@ typedef struct {
     int32_t depth;
     int32_t type;
     int32_t order;
+    uint32_t layerOrder;
+    int32_t elementOrder;
 } DrawKey;
 
 static DrawKey drawableKey(const Drawable* d) {
-    DrawKey k = { d->depth, d->type, 0 };
+    DrawKey k = { d->depth, d->type, 0, d->layerOrder, d->elementOrder };
     switch (d->type) {
         case DRAWABLE_TILE: k.order = d->tileIndex; break;
         case DRAWABLE_INSTANCE: k.order = (int32_t) d->instance->instanceId;  break;
@@ -681,6 +683,13 @@ static DrawKey drawableKey(const Drawable* d) {
 static int compareDrawKeys(const DrawKey* a, const DrawKey* b) {
     if (a->depth != b->depth)
         return a->depth > b->depth ? -1 : 1; // higher depth first
+
+    if (a->layerOrder != 0 && b->layerOrder != 0) {
+        if (a->layerOrder != b->layerOrder)
+            return a->layerOrder > b->layerOrder ? -1 : 1;
+        if (a->elementOrder != b->elementOrder)
+            return a->elementOrder < b->elementOrder ? -1 : 1;
+    }
 
     if (a->type  != b->type)
         return a->type  < b->type  ? -1 : 1; // tiles before instances
@@ -720,10 +729,7 @@ static void Runner_popLayerShader(Runner* runner, int32_t previousShader) {
     if (renderer == nullptr || previousShader == -1) return;
     if (renderer->currentShader == previousShader) return;
 
-    if (previousShader == -1)
-        renderer->vtable->gpuResetShader(renderer);
-    else
-        renderer->vtable->gpuSetShader(renderer, previousShader);
+    renderer->vtable->gpuSetShader(renderer, previousShader);
 }
 
 static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawableCount, int32_t subtype) {
@@ -738,6 +744,10 @@ static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawabl
         Instance* inst = d->instance;
         if (!inst->active || !inst->visible)
             continue;
+        if (d->layerOrder != 0) {
+            RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, inst->layer);
+            if (layer == nullptr || !layer->visible) continue;
+        }
 
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
@@ -806,7 +816,6 @@ void Runner_drawTileLayer(Runner* runner, RoomLayerTilesData* data, float layerO
     }
 }
 
-// Returns true if "drawables" is already in compareDrawableDepth order. Used by the sort-dirty path to skip qsort when small depth perturbations didn't actually cross any neighbor.
 static bool isDrawableArraySorted(Drawable* drawables, int32_t count) {
     for (int32_t i = 1; count > i; i++) {
         DrawKey drawKey1 = drawableKey(&drawables[i - 1]);
@@ -817,7 +826,26 @@ static bool isDrawableArraySorted(Drawable* drawables, int32_t count) {
     return true;
 }
 
-// Refreshes each entry's cached .depth from the live instance/runtime-layer pointer. Tile entries never change depth mid-room so they're left alone.
+static void refreshDrawableLayerOrder(Runner* runner, Drawable* d) {
+    if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) return;
+    if (d->type != DRAWABLE_INSTANCE && d->type != DRAWABLE_LAYER) return;
+    int32_t layerId = d->type == DRAWABLE_INSTANCE ? d->instance->layer
+        : d->runtimeLayerId;
+    RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, layerId);
+    d->layerOrder = layer == nullptr ? 0 : layer->drawOrder;
+    if (layer == nullptr) return;
+    d->elementOrder = -1;
+    if (d->type == DRAWABLE_INSTANCE) {
+        repeat(arrlen(layer->elements), i) {
+            RuntimeLayerElement* el = &layer->elements[i];
+            if (el->type == RuntimeLayerElementType_Instance && (uint32_t) el->instanceId == d->instance->instanceId) {
+                d->elementOrder = (int32_t) i;
+                break;
+            }
+        }
+    }
+}
+
 static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t count) {
     for (int32_t i = 0; count > i; i++) {
         Drawable* d = &drawables[i];
@@ -830,6 +858,7 @@ static void refreshDrawableDepths(Runner* runner, Drawable* drawables, int32_t c
             ParticleSystem* ps = Particles_systemGet(runner, d->particleSystemId);
             if (ps != nullptr) d->depth = ps->depth;
         }
+        refreshDrawableLayerOrder(runner, d);
     }
 }
 
@@ -854,6 +883,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
             d.type = DRAWABLE_INSTANCE;
             d.depth = inst->depth;
             d.instance = inst;
+            refreshDrawableLayerOrder(runner, &d);
             arrput(runner->cachedDrawables, d);
         }
 
@@ -876,6 +906,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
                 d.type = DRAWABLE_LAYER;
                 d.depth = runtimeLayer->depth;
                 d.runtimeLayerId = (int32_t) runtimeLayer->id;
+                refreshDrawableLayerOrder(runner, &d);
                 arrput(runner->cachedDrawables, d);
             }
         }
@@ -912,6 +943,15 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
         }
         runner->drawableListSortDirty = false;
     }
+}
+
+static void drawInstanceNormally(Runner* runner, Instance* inst) {
+    int32_t ownerObjectIndex = -1;
+    int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
+    if (codeId >= 0)
+        Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
+    else if (runner->renderer != nullptr)
+        Renderer_drawSelf(runner->renderer, inst);
 }
 
 void Runner_draw(Runner* runner) {
@@ -1018,17 +1058,12 @@ void Runner_draw(Runner* runner) {
             }
         } else if (d->type == DRAWABLE_INSTANCE) {
             Instance* inst = d->instance;
+            if (d->layerOrder != 0) continue;
             // Filter inactive/invisible instances at draw time so the cache doesn't need invalidation when those flags toggle.
             if (!inst->active || !inst->visible) continue;
 
             int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
-            int32_t ownerObjectIndex = -1;
-            int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
-            if (codeId >= 0) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
-            } else if (runner->renderer != nullptr) {
-                Renderer_drawSelf(runner->renderer, inst);
-            }
+            drawInstanceNormally(runner, inst);
             Runner_popLayerShader(runner, previousShader);
         } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
             // Filtered at draw time, like instance visibility: part_system_automatic_draw can be
@@ -1056,8 +1091,29 @@ void Runner_draw(Runner* runner) {
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
+            runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+            if (runtimeLayer == nullptr) {
+                Runner_popLayerShader(runner, previousShader);
+                continue;
+            }
             float layerOffsetX = runtimeLayer->xOffset;
             float layerOffsetY = runtimeLayer->yOffset;
+
+            size_t instanceElementCount = arrlenu(runtimeLayer->elements);
+            repeat(instanceElementCount, j) {
+                runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+                if (runtimeLayer == nullptr || (size_t) j >= arrlenu(runtimeLayer->elements)) break;
+                RuntimeLayerElement* el = &runtimeLayer->elements[j];
+                if (el->type != RuntimeLayerElementType_Instance) continue;
+                Instance* inst = hmget(runner->instancesById, el->instanceId);
+                if (inst == nullptr || !inst->active || !inst->visible || inst->destroyed) continue;
+                drawInstanceNormally(runner, inst);
+            }
+            runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+            if (runtimeLayer == nullptr) {
+                Runner_popLayerShader(runner, previousShader);
+                continue;
+            }
 
             // Handle layer elements
             if (runner->renderer != nullptr) {
@@ -1141,8 +1197,6 @@ void Runner_draw(Runner* runner) {
                     Runner_drawTileLayer(runner, parsedLayer->tilesData, layerOffsetX, layerOffsetY);
             } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Background) {
                 // Nothing to render here: handled above
-            } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Instances) {
-                // Nothing to render here: handled above on the DRAWABLE_INSTANCE path
             } else if (parsedLayer != nullptr && (parsedLayer->type == RoomLayerType_Path || parsedLayer->type == RoomLayerType_Path2)) {
                 // Nothing to render: not used for rendering purposes
             } else if (parsedLayer != nullptr && parsedLayer->type == RoomLayerType_Effect) {
@@ -1609,6 +1663,11 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         freeRuntimeLayersArray(&runner->runtimeLayers);
         runner->runtimeLayers = savedState->runtimeLayers;
         savedState->runtimeLayers = nullptr;
+        runner->nextLayerDrawOrder = 0;
+        repeat(arrlen(runner->runtimeLayers), li) {
+            if (runner->runtimeLayers[li].drawOrder > runner->nextLayerDrawOrder)
+                runner->nextLayerDrawOrder = runner->runtimeLayers[li].drawOrder;
+        }
 
         Instance** carriedPersistent = takePersistentInstances(runner);
 
@@ -1645,8 +1704,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     runner->tileLayerMap = nullptr;
 
     // Populate runtime layers from parsed room layers (GMS2+ only; empty for GMS1.x).
-    // Dynamic layers created via layer_create are appended to this array later.
     freeRuntimeLayersArray(&runner->runtimeLayers);
+    runner->nextLayerDrawOrder = room->layerCount;
     uint32_t maxLayerId = 0;
     {
     repeat(room->layerCount, i) {
@@ -1654,6 +1713,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RuntimeLayer runtimeLayer = {0};
         runtimeLayer.id = layerSource->id;
         runtimeLayer.depth = layerSource->depth;
+        runtimeLayer.drawOrder = room->layerCount - i;
         runtimeLayer.visible = layerSource->visible;
         runtimeLayer.xOffset = layerSource->xOffset;
         runtimeLayer.yOffset = layerSource->yOffset;
@@ -1813,6 +1873,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 RuntimeLayer runtimeLayer = {0};
                 runtimeLayer.id = Runner_getNextLayerId(runner);
                 runtimeLayer.depth = inst->depth;
+                runtimeLayer.drawOrder = ++runner->nextLayerDrawOrder;
                 runtimeLayer.visible = true;
                 runtimeLayer.dynamic = true;
                 runtimeLayer.dynamicName = safeStrdup(oldLayerName);
@@ -1871,7 +1932,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             if (layer->type != RoomLayerType_Instances || layer->instancesData == nullptr) continue;
             RoomLayerInstancesData* layerData = layer->instancesData;
             repeat(layerData->instanceCount, ii) {
-                Instance* inst = hmget(runner->instancesById, layerData->instanceIds[ii]);
+                Instance* inst = hmget(runner->instancesById, layerData->instanceIds[layerData->instanceCount - 1 - ii]);
                 if (inst != nullptr) {
                     inst->depth = layer->depth;
                     inst->layer = (int32_t) layer->id;
@@ -1884,6 +1945,13 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Append persistent instances carried over from the previous room at the tail, so forward event iteration processes the new room's own instances first and the travelers last.
     // We NEED to do this here BEFORE firing the room object's events, to avoid code that relies on persistent instances failing (example: if a object uses instance_number to get the number of instances in the room).
     returnPersistentInstances(runner, carriedPersistent);
+    if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
+        repeat(arrlen(runner->instances), i) {
+            Instance* inst = runner->instances[i];
+            if (inst->layer == -1)
+                Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+        }
+    }
 
     // Pass 2: Fire events for newly created instances (in room definition order)
     {
@@ -2571,6 +2639,7 @@ Instance* Runner_createStruct(Runner* runner) {
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex) {
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
+    Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
     dispatchInstanceCreationEvents(runner, inst);
     return inst;
 }
@@ -2580,6 +2649,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
     inst->depth = depth;
+    Runner_moveInstanceToDepthLayer(runner, inst, depth);
     Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
     return inst;
 }
@@ -2605,6 +2675,15 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
 
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, source->objectIndex, source->x, source->y);
     Instance_copyFields(source, inst);
+    if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
+        RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, source->layer);
+        if (layer != nullptr && !layer->automaticDepth)
+            Runner_addInstanceLayerElement(runner, source->layer, inst->instanceId);
+        else {
+            inst->layer = -1;
+            Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+        }
+    }
     inst->createEventFired = true;
     if (performEvent) {
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
@@ -2660,7 +2739,7 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
 RuntimeLayer* Runner_findRuntimeLayerByName(Runner* runner, char* name) {
     size_t count = arrlenu(runner->runtimeLayers);
     repeat(count, i) {
-        if (strcmp(runner->runtimeLayers[i].dynamicName, name) == 0)
+        if (runner->runtimeLayers[i].dynamicName != nullptr && strcmp(runner->runtimeLayers[i].dynamicName, name) == 0)
             return &runner->runtimeLayers[i];
     }
     return nullptr;
@@ -2715,7 +2794,70 @@ void Runner_addInstanceLayerElement(Runner* runner, int32_t layerId, int32_t ins
     el.alpha = 1.0f;
     el.blend = 0xFFFFFF;
     el.instanceId = instanceId;
-    arrput(runtimeLayer->elements, el);
+    arrins(runtimeLayer->elements, 0, el);
+    runner->drawableListSortDirty = true;
+}
+
+void Runner_moveInstanceToDepthLayer(Runner* runner, Instance* inst, int32_t depth) {
+    if (!DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0) || runner->currentRoom == nullptr) return;
+    RuntimeLayer* previous = Runner_findRuntimeLayerById(runner, inst->layer);
+    if (previous != nullptr && previous->depth == depth) return;
+
+    if (previous != nullptr && previous->automaticDepth && arrlen(previous->elements) == 1) {
+        previous->depth = depth;
+        previous->drawOrder = ++runner->nextLayerDrawOrder;
+        repeat(arrlen(runner->runtimeLayers), i) {
+            RuntimeLayer* other = &runner->runtimeLayers[i];
+            if (other->id == previous->id || !other->automaticDepth || other->depth != depth) continue;
+            repeat(arrlen(other->elements), j) {
+                RuntimeLayerElement el = other->elements[j];
+                if (el.type == RuntimeLayerElementType_Instance) {
+                    Instance* member = hmget(runner->instancesById, el.instanceId);
+                    if (member != nullptr) member->layer = (int32_t) previous->id;
+                }
+                arrput(previous->elements, el);
+            }
+            arrsetlen(other->elements, 0);
+            Runner_freeRuntimeLayer(other);
+            arrdel(runner->runtimeLayers, i);
+            runner->drawableListStructureDirty = true;
+            break;
+        }
+        inst->depth = depth;
+        runner->drawableListSortDirty = true;
+        return;
+    }
+
+    if (previous != nullptr) Runner_removeInstanceLayerElement(runner, inst->instanceId);
+    RuntimeLayer* target = nullptr;
+    repeat(arrlen(runner->runtimeLayers), i) {
+        RuntimeLayer* candidate = &runner->runtimeLayers[i];
+        if (candidate->automaticDepth && candidate->depth == depth) {
+            target = candidate;
+            break;
+        }
+    }
+    if (target == nullptr) {
+        RuntimeLayer layer = {0};
+        layer.id = Runner_getNextLayerId(runner);
+        layer.depth = depth;
+        layer.drawOrder = ++runner->nextLayerDrawOrder;
+        layer.visible = true;
+        layer.dynamic = true;
+        layer.automaticDepth = true;
+        layer.beginScript = -1;
+        layer.endScript = -1;
+        layer.shaderIndex = -1;
+        char name[32];
+        snprintf(name, sizeof(name), "_layer_%x", layer.id);
+        layer.dynamicName = safeStrdup(name);
+        arrput(runner->runtimeLayers, layer);
+        target = &arrlast(runner->runtimeLayers);
+        runner->drawableListStructureDirty = true;
+    }
+    inst->layer = (int32_t) target->id;
+    inst->depth = depth;
+    Runner_addInstanceLayerElement(runner, inst->layer, inst->instanceId);
 }
 
 void Runner_removeInstanceLayerElement(Runner* runner, int32_t instanceId) {
