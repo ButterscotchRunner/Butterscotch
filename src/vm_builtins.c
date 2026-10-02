@@ -10265,10 +10265,11 @@ static RValue builtin_buffer_compress(VMContext* ctx, RValue* args, int32_t argC
 
     mz_ulong bound = mz_compressBound((mz_ulong) length);
     if (bound == 0 || bound > INT32_MAX) return RValue_makeInt32(-1);
+    const uint8_t* sourceData = source->data + start;
     int32_t id = gmlBufferCreate(ctx->runner, (int32_t) bound, GML_BUFFER_FIXED, 1);
     GmlBuffer* output = gmlBufferGet(ctx->runner, id);
     mz_ulong outLength = bound;
-    if (mz_compress2(output->data, &outLength, source->data + start, (mz_ulong) length, MZ_DEFAULT_COMPRESSION) != MZ_OK ||
+    if (mz_compress2(output->data, &outLength, sourceData, (mz_ulong) length, MZ_DEFAULT_COMPRESSION) != MZ_OK ||
         outLength == 0) {
         output->isValid = false;
         free(output->data);
@@ -16835,26 +16836,18 @@ static RValue builtin_NullObject(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValu
     return RValue_makeInt32(INSTANCE_NOONE);
 }
 
-// @@SetStatic@@() - GMS2.3+ internal function emitted at the top of constructor bodies.
-// Native GameMaker creates or reuses the shared static object for this constructor and marks
-// the static block as initialized so all later static reads/writes resolve against that object.
+// @@SetStatic@@
 static RValue builtin_SetStatic(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->staticStructs != nullptr) {
-        // Lazily create the shared static object for this constructor, matching the native runner's `Code_CreateStatic` path.
         (void) VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
-    }
-    if (ctx->staticInitialized != nullptr) {
-        ctx->staticInitialized[ctx->currentCodeIndex] = true;
     }
     return RValue_makeUndefined();
 }
 
-// @@NewGMLObject@@(methodRef, ...args) - GMS2 internal function that allocates a fresh struct instance, runs the constructor method against it, and returns the new instance ID.
-// We reuse Instance (with objectIndex = STRUCT_OBJECT_INDEX) the same way globalScopeInstance is used for GLOB scripts, instead of introducing a separate struct type.
+// @@NewGMLObject@@
 static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("@@NewGMLObject@@", 1, RValue_makeUndefined());
-
     Runner* runner = ctx->runner;
+    if (argCount == 0) return RValue_makeStructAndIncRef(Runner_createStruct(runner));
     int32_t codeIndex;
     if (args[0].type == RVALUE_METHOD && args[0].method != nullptr) {
         codeIndex = args[0].method->codeIndex;
@@ -19326,6 +19319,11 @@ static RValue builtin_shader_get_sampler_index(VMContext* ctx, MAYBE_UNUSED RVal
     int32_t ShaderID = (int32_t) RValue_toReal(args[0]);
     char* uniform = RValue_toString(args[1], ctx->runner->dataWin);
     return RValue_makeInt32(ctx->runner->renderer->vtable->shaderGetSamplerIndex(ctx->runner->renderer, ShaderID, uniform));
+}
+
+// texturegroup_get_status
+static RValue builtin_texturegroup_get_status(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    return RValue_makeInt32(3);
 }
 
 static RValue builtin_texture_set_stage(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -23827,6 +23825,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "texture_get_texel_width", builtin_texture_get_texel_width);
     VM_registerBuiltin(ctx, "texture_get_texel_height", builtin_texture_get_texel_height);
     VM_registerBuiltin(ctx, "texture_get_uvs", builtin_texture_get_uvs);
+    VM_registerBuiltin(ctx, "texturegroup_get_status", builtin_texturegroup_get_status);
     VM_registerBuiltin(ctx, "texture_set_stage", builtin_texture_set_stage);
     VM_registerBuiltin(ctx, "sprite_get_info", builtin_sprite_get_info);
     VM_registerBuiltin(ctx, "video_open", builtin_video_open);
