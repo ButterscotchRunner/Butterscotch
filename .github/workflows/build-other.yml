@@ -128,7 +128,8 @@ jobs:
           cmd /c "$SDK/epoc32/tools/makesis.exe Butterscotch.pkg Butterscotch.sis"
           
           
-      - uses: actions/upload-artifact@v7
+      - name: Upload SIS
+        uses: actions/upload-artifact@v7
         with:
           name: butterscotch-symbian
           path: artifacts/symbian/Butterscotch.sis

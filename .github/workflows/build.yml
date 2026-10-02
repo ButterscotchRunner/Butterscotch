@@ -29,6 +29,3 @@ jobs:
 
   Compilers:
     uses: ./.github/workflows/build-old-compilers.yml
-
-  Symbian:
-    uses: ./.github/workflows/build-symbian.yml
