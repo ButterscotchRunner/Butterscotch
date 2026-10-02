@@ -14237,7 +14237,7 @@ typedef int ma_atomic_memory_order;
                 #define MA_ATOMIC_LEGACY_MSVC_ASM
             #endif
         #endif
-    #elif (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))) || defined(__clang__)
+    #elif (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) && !defined(__SYMBIAN32__)) || defined(__clang__)
         #define MA_ATOMIC_MODERN_GCC
     #else
         #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1))

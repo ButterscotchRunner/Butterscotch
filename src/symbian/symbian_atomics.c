@@ -18,6 +18,14 @@ TUint32 __sync_fetch_and_or_4(volatile void* a, TUint32 v) {
     return __e32_atomic_ior_ord32((volatile TAny*)a, v);
 }
 
+TUint32 __sync_add_and_fetch_4(volatile void* a, TUint32 v) {
+    return __e32_atomic_add_ord32((volatile TAny*)a, v) + v;
+}
+
+TUint32 __sync_sub_and_fetch_4(volatile void* a, TUint32 v) {
+    return __e32_atomic_add_ord32((volatile TAny*)a, (TUint32)(0u - v)) - v;
+}
+
 void __sync_lock_release_4(volatile void* a) {
     __e32_atomic_store_rel32((volatile TAny*)a, 0);
 }

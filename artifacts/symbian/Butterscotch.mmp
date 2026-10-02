@@ -43,6 +43,11 @@ ALWAYS_BUILD_AS_ARM
 #endif
 
 OPTION GCCE -std=gnu99
+#if defined(GCCE_12) || defined(GCCE_15)
+OPTION GCCE -O3
+ARMFPU vfpv2
+ALWAYS_BUILD_AS_ARM
+#endif
 
 OPTION CW -lang c99 -undefine _WIN32 -relax_pointers
 
