@@ -65,6 +65,8 @@ jobs:
             arch: mips64el
     env:
       ZIG_VERSION: 0.16.0
+      SDL2_VERSION: release-2.32.10
+      FFMPEG_VERSION: n9.0.2
       CC: zig cc
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
@@ -114,15 +116,106 @@ jobs:
           version: ${{ env.ZIG_VERSION }}
           cache-key: zigcc-${{ env.TARGET_TRIPLE }}
 
-      - name: Cache SDL2 build
-        id: cache-sdl2
+      - name: Install nasm
+        if: matrix.arch == 'amd64' || matrix.arch == 'i486'
+        run: sudo apt-get install -y nasm
+
+      - name: Cache build deps
+        id: cache-build-deps
         uses: actions/cache@v6
         with:
-          path: ${{ github.workspace }}/vendor/SDL2/install
-          key: sdl2-install-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-release-2.32.10-rev14
+          path: ~/build-deps
+          key: build-deps-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-sdl2-${{ env.SDL2_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}
+
+      - name: Checkout FFmpeg
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: ${{ env.FFMPEG_VERSION }}
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg from source
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        working-directory: vendor/ffmpeg
+        run: |
+          mkdir -p ~/build-deps
+          
+          case '${{ matrix.os_config.name }}' in
+            Linux)   target_os="linux" ;;
+            FreeBSD) target_os="freebsd" ;;
+            OpenBSD) target_os="openbsd" ;;
+            NetBSD)  target_os="netbsd" ;;
+            *)       target_os="unknown" ;;
+          esac
+
+          lto_flag="--enable-lto"
+          extraflags=""
+
+          case '${{ matrix.arch }}' in
+            amd64)       target_cpu="x86_64"; extraflags="$extraflags --x86asmexe=nasm" ;;
+            i486)        
+              target_cpu="i486"
+              extraflags="$extraflags --x86asmexe=nasm"
+              if [ ${{ matrix.os_config.name }} = "OpenBSD" ]; then
+                echo "Disabling asm on OpenBSD"
+                extraflags="$extraflags --disable-asm"
+              fi
+            ;;
+            aarch64)     target_cpu="aarch64" ;;
+            arm)         target_cpu="arm" ;;
+            riscv)       target_cpu="riscv64" ;;
+            loongarch64) target_cpu="loongarch64" ;;
+            powerpc*)    target_cpu="powerpc"; arch_cflags="-mlong-double-64" ;;
+            mips*)
+              target_cpu="mips"; lto_flag="" # mips builds don't play nice with LTO
+            ;;
+          esac
+
+          ./configure \
+            --prefix="$HOME/build-deps" \
+            --enable-cross-compile \
+            --target-os="$target_os" \
+            --arch="$target_cpu" \
+            --cc="${{ env.CC }} --target=${{ env.TARGET_TRIPLE }}" \
+            --ar="${{ env.AR }}" \
+            --ranlib="${{ env.RANLIB }}" \
+            --extra-cflags="${{ steps.arch-vars.outputs.extra_cflags }} $arch_cflags -Wno-error=incompatible-function-pointer-types" \
+            --extra-ldflags="${{ steps.arch-vars.outputs.extra_cflags }}" \
+            $lto_flag \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            $extraflags
+
+          # what's a sysctl?
+          if [ "$target_os" = "linux" ]; then
+            sed -i 's/#define HAVE_SYSCTL 1/#define HAVE_SYSCTL 0/' config.h
+            if [ "${{ matrix.arch }}" == "mips" ] || [ "${{ matrix.arch }}" == "mips64" ]; then
+              sed -i 's/#define CONFIG_BSWAPDSP 0/#define CONFIG_BSWAPDSP 1/' config.h
+            fi
+            if [ ${{ matrix.arch }} = "riscv" ]; then
+              sed -i 's/#define HAVE_SYS_HWPROBE_H 1/#define HAVE_SYS_HWPROBE_H 0/' config.h
+            fi
+          fi
+
+          make install -j$(nproc)
 
       - name: Checkout SDL2
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
@@ -130,12 +223,12 @@ jobs:
           path: vendor/SDL2
 
       - name: Build SDL2 from source
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_INSTALL_PREFIX="$HOME/build-deps" \
             -DCMAKE_AR="${{ env.AR }}" \
             -DCMAKE_RANLIB="${{ env.RANLIB }}" \
             -DCMAKE_C_COMPILER_AR="${{ env.AR }}" \
@@ -153,9 +246,8 @@ jobs:
 
       - name: Configure and build Butterscotch
         env:
-          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
-          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
-          PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
+          PKG_CONFIG_PATH: "~/build-deps/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
+          PKG_CONFIG_LIBDIR: "~/build-deps/${{ matrix.os_config.lib_dir_name }}/pkgconfig"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
@@ -170,7 +262,7 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
           cmake --build build
