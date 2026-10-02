@@ -246,16 +246,17 @@ typedef struct {
 } RuntimeLayerElement;
 
 // Runtime-mutable state for a GMS2 room layer. Parsed layers are populated at room load from RoomLayer and share IDs with the parsed data.
-// Dynamic layers are created via layer_create and carry their own name + element list; they don't correspond to any RoomLayer.
 typedef struct {
     uint32_t id;
     int32_t depth;
+    uint32_t drawOrder;
+    bool automaticDepth;
     bool visible;
     float xOffset;
     float yOffset;
     float hSpeed;
     float vSpeed;
-    bool dynamic; // true = created at runtime via layer_create
+    bool dynamic;
     char* dynamicName; // owned
     int32_t beginScript;
     int32_t endScript;
@@ -276,6 +277,8 @@ typedef enum { DRAWABLE_TILE, DRAWABLE_INSTANCE, DRAWABLE_LAYER, DRAWABLE_PARTIC
 typedef struct {
     DrawableType type;
     int32_t depth;
+    uint32_t layerOrder;
+    int32_t elementOrder;
     union {
         Instance* instance;
         int32_t tileIndex;
@@ -751,6 +754,7 @@ struct Runner {
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
+    uint32_t nextLayerDrawOrder;
     SavedRoomState* savedRoomStates; // array of size dataWin->room.count, for persistent room support
     int32_t viewCurrent; // index of the view currently being drawn (for view_current)
     bool viewsEnabled;   // runtime-mutable global view system toggle (view_enabled); seeded from room->flags & 1 on room enter
@@ -986,6 +990,7 @@ RuntimeLayer* Runner_findRuntimeLayerById(Runner* runner, int32_t id);
 RoomLayer* Runner_findRoomLayerById(Room* room, int32_t id);
 RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t elementId, RuntimeLayer** outLayer);
 void Runner_addInstanceLayerElement(Runner* runner, int32_t layerId, int32_t instanceId);
+void Runner_moveInstanceToDepthLayer(Runner* runner, Instance* inst, int32_t depth);
 void Runner_removeInstanceLayerElement(Runner* runner, int32_t instanceId);
 uint32_t Runner_getNextLayerId(Runner* runner);
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer);

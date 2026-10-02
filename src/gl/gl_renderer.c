@@ -3180,11 +3180,9 @@ static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t locati
 }
 
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1) return;
-    flushBatch(gl);
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
@@ -3208,11 +3206,9 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
 }
 
 static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
-    flushBatch(gl);
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
@@ -3230,10 +3226,8 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
 }
 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
-    flushBatch(gl);
     if (handle == -1 || renderer->currentShader == -1) return;
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
@@ -3305,7 +3299,6 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
-    flushBatch(gl);
     if (slot < 0) {
         logWarn("GL: Invalid Texture Stage\n");
         return;
@@ -3400,11 +3393,8 @@ static bool glShadersSupported(void) {
 }
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
     if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
 
-    flushBatch(gl);
     renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
     //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
