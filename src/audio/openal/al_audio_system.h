@@ -51,6 +51,7 @@ typedef struct {
     int streamSampleRate;
     ALenum streamFormat;
     float streamLengthSeconds;
+    uint64_t streamLengthSamples;
     uint64_t playedSamples; // cumulative per-channel samples that have left the queue
 } SoundInstance;
 
