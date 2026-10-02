@@ -214,7 +214,7 @@ static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, flo
     int texH = 0;
     const u16* TexturePagePixels = GetPixelData(lbds, tpag->texturePageId, &texW, &texH);
 
-    //Draw all pixles on screen
+    //Draw all pixle data from GetPixelData on screen
 	for (int sy = sy0; sy < sy2; sy++)
 	{
         //Don't wrap on the y
@@ -237,52 +237,6 @@ static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, flo
 		}
 	}
     
-    /*
-    // The atlas entry has the actual sprite dimensions in the atlas (post-crop, post-resize).
-    // The screen rect covers cropW x cropH game-space pixels, positioned at (cropX, cropY)
-    // within the original bounding box. The GS hardware stretches the atlas texels to fill.
-
-    // UV coords within the 512x512 atlas (in texels for gsKit). Snapshot tpags cover their own dedicated CT16 VRAM region from (0,0) to (width,height).
-    float u0, v0, u1, v1;
-    int32_t snapshotIdx = tpagSnapshotIndex(gs, tpagIndex);
-    if (snapshotIdx >= 0) {
-        SnapshotChunk* chunk = &gs->snapshotChunks[snapshotIdx];
-        u0 = 0.0f; v0 = 0.0f;
-        u1 = (float) chunk->width;
-        v1 = (float) chunk->height;
-    } else {
-        AtlasTPAGEntry* atlasEntry = &gs->atlasTPAGEntries[tpagIndex];
-        u0 = (float) atlasEntry->atlasX;
-        v0 = (float) atlasEntry->atlasY;
-        u1 = u0 + (float) atlasEntry->width;
-        v1 = v0 + (float) atlasEntry->height;
-    }
-
-    // GS modulate mode: Output = Texture * Vertex / 128
-    // Scale vertex RGB from 0-255 to 0-128 so white (255) becomes 128 (1.0x multiplier)
-    uint8_t r = BGR_R(color) >> 1;
-    uint8_t g = BGR_G(color) >> 1;
-    uint8_t b = BGR_B(color) >> 1;
-    uint8_t a = alphaToGS(alpha);
-    u64 gsColor = GS_SETREG_RGBAQ(r, g, b, a, 0x00);
-    
-    /*if (hasRotation) {
-        // Tristrip Z-pattern: needs 4 vertices for rotated quads
-        gsKit_prim_quad_texture(
-            gs->gsGlobal,
-            &tex,
-            sx0, sy0, u0, v0, // top-left
-            sx1, sy1, u1, v0, // top-right
-            sx2, sy2, u0, v1, // bottom-left
-            sx3, sy3, u1, v1, // bottom-right
-            0,
-            gsColor
-        );
-    } else {*/
-        //gsKit_prim_sprite_texture(gs->gsGlobal, &tex, sx0, sy0, u0, v0, sx3, sy3, u1, v1, 0, gsColor);
-    //}
-
-    //*/
     //logInfo("X: %.2f, Y: %.2f\n", x, y);
 }
 
@@ -556,7 +510,5 @@ Renderer* libndsRenderer_create(void) {
     libnds->base.currentShader = -1;
     libnds->scaleX = 1.0f;
     libnds->scaleY = 1.0f;
-    libnds->offsetX = 0.0f;
-    libnds->offsetY = 0.0f;
     return (Renderer *)libnds;
 }
