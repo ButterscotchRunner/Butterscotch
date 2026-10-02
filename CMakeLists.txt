@@ -103,53 +103,109 @@ elseif(AUDIO_BACKEND STREQUAL "web")
     file(GLOB AUDIO_SOURCES src/audio/web/*.c src/audio/miniaudio/*.c)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
     file(GLOB AUDIO_SOURCES src/audio/ps2/*.c)
+elseif(AUDIO_BACKEND STREQUAL "fmod")
+    file(GLOB AUDIO_SOURCES src/audio/fmod/*.c)
 elseif(NOT AUDIO_BACKEND STREQUAL "none")
     message(FATAL_ERROR "Invalid AUDIO_BACKEND!")
 endif()
 
-# To avoid unused code in production builds that are only used for a single game (example: PlayStation 2 target), we can enable/disable specific features
-#
-# If only a single WAD version is enabled, the checks will be collapsed and removed by the compiler during build time, reducing code size and improving
-# performance on low end hardware!
-option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
-option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
-option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
-option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
-    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
-endif()
-option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
-option(ENABLE_NOOP_RENDERER "Enable the no-op renderer (headless stub, no drawing)" OFF)
-# Noop renderer is exclusive to the noop desktop backend (no window, no GL).
-# Auto-enable for BACKEND=noop and reject otherwise.
-if(BACKEND STREQUAL "noop")
-    set(ENABLE_NOOP_RENDERER ON CACHE BOOL "Enable the no-op renderer (headless stub, no drawing)" FORCE)
-    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
-    set(ENABLE_MODERN_GL OFF CACHE BOOL "Enable the modern OpenGL renderer" FORCE)
-endif()
-if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")
-    message(FATAL_ERROR "ENABLE_NOOP_RENDERER is exclusive to BACKEND=noop")
-endif()
-if(NOT ENABLE_WAD14 AND NOT ENABLE_WAD16 AND NOT ENABLE_WAD17)
-    message(FATAL_ERROR "You need to build Butterscotch with at least one WAD version enabled!")
-endif()
-if(ENABLE_WAD14)
-    add_compile_definitions(ENABLE_WAD14)
-endif()
-if(ENABLE_WAD16)
-    add_compile_definitions(ENABLE_WAD16)
-endif()
-if(ENABLE_WAD17)
-    add_compile_definitions(ENABLE_WAD17)
-endif()
-if(ENABLE_LEGACY_GL)
-    add_compile_definitions(ENABLE_LEGACY_GL)
-endif()
-if(ENABLE_MODERN_GL)
-    add_compile_definitions(ENABLE_MODERN_GL)
-endif()
-if(ENABLE_NOOP_RENDERER)
-    add_compile_definitions(ENABLE_NOOP_RENDERER)
+if(AUDIO_BACKEND STREQUAL "openal")
+    target_include_directories(butterscotch PUBLIC src/audio/openal)
+    add_compile_definitions(USE_OPENAL)
+    if(APPLE)
+        set(AUDIO_LIBRARIES "-framework OpenAL")
+    elseif(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+        set(AUDIO_LIBRARIES openal pthread)
+    elseif(NOT PLATFORM STREQUAL "ps3")
+        find_package(OpenAL REQUIRED)
+        target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
+        set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
+    endif()
+elseif(AUDIO_BACKEND STREQUAL "miniaudio")
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
+    add_compile_definitions(USE_MINIAUDIO)
+    if (NOT WIN32)
+        set(AUDIO_LIBRARIES pthread)
+    endif()
+elseif(AUDIO_BACKEND STREQUAL "web")
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch PUBLIC src/audio/web)
+    target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
+    add_compile_definitions(USE_WEB_AUDIO)
+elseif(AUDIO_BACKEND STREQUAL "ps2")
+    target_include_directories(butterscotch PUBLIC src/audio/ps2)
+    add_compile_definitions(USE_PS2_AUDIO)
+elseif(AUDIO_BACKEND STREQUAL "fmod")
+    target_include_directories(butterscotch PUBLIC src/audio/fmod)
+    add_compile_definitions(USE_FMOD)
+
+    if(PLATFORM STREQUAL "android")
+        set(FMOD_ROOT "$ENV{FMOD_DIR}" CACHE PATH "Path to the FMOD SDK root")
+        if(NOT FMOD_ROOT)
+            set(FMOD_ROOT "$ENV{FMOD_HOME}" CACHE PATH "Path to the FMOD SDK root" FORCE)
+        endif()
+
+        if(FMOD_ROOT)
+            find_library(FMOD_LIBRARY NAMES fmod
+                PATHS
+                    "${FMOD_ROOT}/api/lowlevel/lib/aarch64-android"
+                    "${FMOD_ROOT}/api/lowlevel/lib/arm64-v8a"
+                    "${FMOD_ROOT}/lib/android"
+                    "${FMOD_ROOT}/lib"
+                    "${FMOD_ROOT}"
+                NO_DEFAULT_PATH)
+            find_path(FMOD_INCLUDE_DIR NAMES fmod.h
+                PATHS
+                    "${FMOD_ROOT}/api/lowlevel/inc"
+                    "${FMOD_ROOT}/include"
+                    "${FMOD_ROOT}/inc"
+                    "${FMOD_ROOT}"
+                NO_DEFAULT_PATH)
+        endif()
+
+        if(FMOD_LIBRARY AND FMOD_INCLUDE_DIR)
+            target_include_directories(butterscotch SYSTEM PUBLIC "${FMOD_INCLUDE_DIR}")
+            set(AUDIO_LIBRARIES "${FMOD_LIBRARY}")
+            message(STATUS "Found FMOD for Android: ${FMOD_LIBRARY}")
+        else()
+            message(WARNING "FMOD SDK not found for Android; building stub FMOD backend")
+            add_compile_definitions(BUTTERSCOTCH_FMOD_STUB)
+            set(AUDIO_LIBRARIES "")
+        endif()
+    else()
+        set(FMOD_ROOT "$ENV{FMOD_DIR}" CACHE PATH "Path to the FMOD SDK root")
+        if(NOT FMOD_ROOT)
+            set(FMOD_ROOT "$ENV{FMOD_HOME}" CACHE PATH "Path to the FMOD SDK root" FORCE)
+        endif()
+
+        if(FMOD_ROOT)
+            find_library(FMOD_LIBRARY NAMES fmod fmodL
+                PATHS
+                    "${FMOD_ROOT}/lib"
+                    "${FMOD_ROOT}/api/lowlevel/lib/x86_64"
+                    "${FMOD_ROOT}/api/lowlevel/lib"
+                    "${FMOD_ROOT}"
+                NO_DEFAULT_PATH)
+            find_path(FMOD_INCLUDE_DIR NAMES fmod.h
+                PATHS
+                    "${FMOD_ROOT}/api/lowlevel/inc"
+                    "${FMOD_ROOT}/include"
+                    "${FMOD_ROOT}/inc"
+                    "${FMOD_ROOT}"
+                NO_DEFAULT_PATH)
+        endif()
+
+        if(FMOD_LIBRARY AND FMOD_INCLUDE_DIR)
+            target_include_directories(butterscotch SYSTEM PUBLIC "${FMOD_INCLUDE_DIR}")
+            set(AUDIO_LIBRARIES "${FMOD_LIBRARY}")
+            message(STATUS "Found FMOD: ${FMOD_LIBRARY}")
+        else()
+            message(WARNING "FMOD SDK not found; building stub FMOD backend")
+            add_compile_definitions(BUTTERSCOTCH_FMOD_STUB)
+            set(AUDIO_LIBRARIES "")
+        endif()
+    endif()
 endif()
 
 file(GLOB SOURCES src/*.c)
@@ -505,442 +561,19 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
     elseif(BACKEND STREQUAL "appkit")
         add_compile_definitions(USE_APPKIT)
-        target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)
-        set(BACKEND_LIBRARIES "-framework Cocoa" "-framework GameController")
+        target_sources(butterscotch PRIVATE src/backends/appkit.m)
+        target_link_options(butterscotch PRIVATE -objc)
+        set(BACKEND_LIBRARIES "-framework Cocoa -framework IOKit")
     elseif(BACKEND STREQUAL "noop")
-        if(NOT ENABLE_NOOP_RENDERER)
-            message(FATAL_ERROR "BACKEND=noop requires ENABLE_NOOP_RENDERER=ON")
-        endif()
         add_compile_definitions(USE_NOOP)
         set(BACKEND_LIBRARIES "")
-    endif()
-    if (PLATFORM STREQUAL "vita")
-        set(BUTTERSCOTCH_CONSOLE_LIBS
-            ${BACKEND_LIBRARIES}
-            ${AUDIO_LIBRARIES}
-            ${PLATFORM_LIBRARIES}
-            vitaGL
-            stdc++
-            SceShaccCgExt
-            taihen_stub
-            SceShaccCg_stub
-        )
-    elseif (PLATFORM STREQUAL "switch")
-        set(BUTTERSCOTCH_CONSOLE_LIBS
-            ${BACKEND_LIBRARIES}
-            ${AUDIO_LIBRARIES}
-            ${PLATFORM_LIBRARIES}
-            GLESv2
-            stdc++
-        )
     else()
-        set(BUTTERSCOTCH_CONSOLE_LIBS ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+        message(FATAL_ERROR "Invalid backend: ${BACKEND}")
     endif()
+endif()
 
-    # Console SDKs link pre-built static archives alongside the platform
-    # libraries. Deduplicate the combined list so each archive is passed once:
-    # without this, LTO + duplicated libpthread resolves the same archive
-    # member twice and fails with a multiple definition error.
-    if (BUTTERSCOTCH_CONSOLE_LIBS)
-        list(REMOVE_DUPLICATES BUTTERSCOTCH_CONSOLE_LIBS)
-    endif()
-    target_link_libraries(butterscotch PRIVATE ${BUTTERSCOTCH_CONSOLE_LIBS})
+target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${PLATFORM_LIBRARIES} ${AUDIO_LIBRARIES})
 
-    # FFmpeg's pkg-config files list external codecs as raw -l flags, so the
-    # transitive dependencies of those codecs (e.g. libmp3lame -> libmpg123)
-    # are not expanded by --static. Add the known gap and rescan the whole
-    # closure through a linker group so static ordering/cycles resolve no
-    # matter where each archive appears.
-    if (BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
-        find_library(BUTTERSCOTCH_MPG123_LIBRARY NAMES mpg123 libmpg123)
-        if (BUTTERSCOTCH_MPG123_LIBRARY)
-            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS mpg123)
-        endif()
-        list(REMOVE_DUPLICATES BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
-        target_link_libraries(butterscotch PRIVATE
-            "-Wl,--start-group"
-            ${BUTTERSCOTCH_FFMPEG_STATIC_LIBS}
-            "-Wl,--end-group"
-        )
-    endif()
-
-    # Duplicate system archives pulled in by both the platform and FFmpeg
-    # pkg-config closures are harmless but rejected by the LTO plugin.
-    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch"))
-        target_link_options(butterscotch PRIVATE "-Wl,--allow-multiple-definition")
-    endif()
-
-    if (PLATFORM STREQUAL "vita")
-        vita_create_self(eboot.bin butterscotch UNSAFE)
-        vita_create_vpk(Butterscotch.vpk ${VITA_TITLEID} eboot.bin
-            VERSION ${VITA_VERSION}
-            NAME ${VITA_APP_NAME}
-        )
-    elseif (PLATFORM STREQUAL "switch")
-        nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
-        set(ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs")
-        if (EXISTS "${ROMFS_DIR}" AND IS_DIRECTORY "${ROMFS_DIR}")
-            nx_create_nro(butterscotch NACP Butterscotch.nacp ROMFS "${ROMFS_DIR}")
-        else()
-            nx_create_nro(butterscotch NACP Butterscotch.nacp)
-        endif()
-    elseif (PLATFORM STREQUAL "web")
-        set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
-
-        target_link_options(
-                butterscotch
-                PRIVATE
-                "-sMODULARIZE=1"
-                "-sEXPORT_ES6=1"
-                "-sENVIRONMENT=web"
-                "-sWASMFS=1"
-                "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString', 'stringToNewUTF8', 'setValue', 'FS']"
-                "-sEXPORTED_FUNCTIONS=['_malloc', '_free', '_startRunner', '_mountOpfs', '_parseDataWin', '_getGameName', '_getGameDisplayName', '_freeDataWin', '_onKeyDown', '_onKeyUp', '_onMouseDown', '_onMouseUp', '_onMouseMove', '_requestRunnerExit']"
-                "-sMIN_WEBGL_VERSION=2"
-                "-sMAX_WEBGL_VERSION=2"
-                "-sFULL_ES3=1"
-                "-sALLOW_MEMORY_GROWTH"
-                "-sINVOKE_RUN=0"
-                "-sJSPI"
-                "-sJSPI_EXPORTS=['startRunner', 'parseDataWin', 'mountOpfs']"
-                # Useful to know when a stack overflow (that is, the WASM stack) happens
-                "-sSTACK_OVERFLOW_CHECK=2"
-                # Increases the stack size, needed because for some reason MiniAudio causes a stack overflow in DELTARUNE
-                # "Aborted(stack overflow (Attempt to set SP to 0xfffff640, with stack limits [0x00000000 - 0x00010000]). If you require more stack space build with -sSTACK_SIZE=<bytes>)"
-                "-sSTACK_SIZE=1MB"
-                # We need this if we want to access "FS" from JavaScript (Module.FS.writeFile)
-                "-sFORCE_FILESYSTEM=1"
-                # "explicitSwapControl" and "renderViaOffscreenBackBuffer", see the web.c file
-                "-sOFFSCREEN_FRAMEBUFFER=1"
-        )
-    endif()
-    if(BACKEND STREQUAL "appkit")
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
-    else()
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.c)
-    endif()
-
-    # Enable AddressSanitizer by default in Debug builds
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(ENABLE_ASAN_DEFAULT ON)
-    else()
-        set(ENABLE_ASAN_DEFAULT OFF)
-    endif()
-    set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-        target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-        target_link_options(butterscotch PRIVATE -fsanitize=address)
-    endif()
-
-    #gamecontrollerdb
-    add_custom_command(TARGET butterscotch POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
-            $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
-    )
-elseif(PLATFORM STREQUAL "android")
-    if (NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "Android requires modern gl!")
-    endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    add_compile_definitions(ENABLE_GLES PLATFORM_ANDROID)
-
-    # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
-    if(ENABLE_VM_GML_PROFILER)
-        add_compile_definitions(ENABLE_VM_GML_PROFILER)
-    endif()
-
-    # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
-    if(ENABLE_VM_TRACING)
-        add_compile_definitions(ENABLE_VM_TRACING)
-    endif()
-
-    # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
-    if(ENABLE_VM_OPCODE_PROFILER)
-        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
-    endif()
-
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
-    # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
-    if(ENABLE_VM_STUB_LOGS)
-        add_compile_definitions(ENABLE_VM_STUB_LOGS)
-    endif()
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-    # stb_vorbis (for miniaudio's OGG decoding)
-    target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
-    # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2)
-
-    # Android NDK system libraries:
-    # - log: __android_log_*
-    # - GLESv3: OpenGL ES 3.0 functions
-    # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
-    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
-elseif(PLATFORM STREQUAL "ps2")
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-
-    # The PS2 EE has a single-precision FPU only, so double is software-emulated
-    add_compile_definitions(USE_FLOAT_REALS)
-    # By disabling Int64 support, we can fit the entire RValue struct in 8 bytes, improving performance and memory usage
-    add_compile_definitions(NO_RVALUE_INT64)
-
-    # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
-    if(ENABLE_VM_GML_PROFILER)
-        add_compile_definitions(ENABLE_VM_GML_PROFILER)
-    endif()
-
-    # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
-    if(ENABLE_VM_TRACING)
-        add_compile_definitions(ENABLE_VM_TRACING)
-    endif()
-
-    # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
-    if(ENABLE_VM_OPCODE_PROFILER)
-        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
-    endif()
-
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
-    # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
-    if(ENABLE_VM_STUB_LOGS)
-        add_compile_definitions(ENABLE_VM_STUB_LOGS)
-    endif()
-
-    # Platform identifier for PS2-specific code paths (e.g., scratchpad allocation)
-    add_compile_definitions(PLATFORM_PS2)
-
-    # PS2 renderer hot path logs
-    option(ENABLE_PS2_RENDERER_LOGS "Enable hot path logs in the PS2 renderer" OFF)
-    if(ENABLE_PS2_RENDERER_LOGS)
-        add_compile_definitions(ENABLE_PS2_RENDERER_LOGS)
-    endif()
-
-    # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
-    # -Werror=double-promotion: Warn when something is being promoted to a double
-    # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -Wno-format)
-
-    if(PS2)
-        # Compiling on the Docker container
-        target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
-        target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
-
-        # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
-        # This avoids loading from rom0: which has compatibility issues between fat/slim PS2
-        set(IRX_DIR $ENV{PS2SDK}/iop/irx)
-        set(IRX_GEN_DIR ${CMAKE_BINARY_DIR}/generated/irx)
-        file(MAKE_DIRECTORY ${IRX_GEN_DIR})
-
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/freesio2_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/freesio2.irx ${IRX_GEN_DIR}/freesio2_irx.c freesio2_irx
-            DEPENDS ${IRX_DIR}/freesio2.irx
-            COMMENT "Embedding freesio2.irx"
-        )
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/mcman_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/mcman.irx ${IRX_GEN_DIR}/mcman_irx.c mcman_irx
-            DEPENDS ${IRX_DIR}/mcman.irx
-            COMMENT "Embedding mcman.irx"
-        )
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/mcserv_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/mcserv.irx ${IRX_GEN_DIR}/mcserv_irx.c mcserv_irx
-            DEPENDS ${IRX_DIR}/mcserv.irx
-            COMMENT "Embedding mcserv.irx"
-        )
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/freepad_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/freepad.irx ${IRX_GEN_DIR}/freepad_irx.c freepad_irx
-            DEPENDS ${IRX_DIR}/freepad.irx
-            COMMENT "Embedding freepad.irx"
-        )
-        # We need the USB mass storage IRX modules for writing gmon.out when not running from host: and for keyboard support
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/usbd_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/usbd.irx ${IRX_GEN_DIR}/usbd_irx.c usbd_irx
-            DEPENDS ${IRX_DIR}/usbd.irx
-            COMMENT "Embedding usbd.irx"
-        )
-        add_custom_command(
-            OUTPUT ${IRX_GEN_DIR}/ps2kbd_irx.c
-            COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/ps2kbd.irx ${IRX_GEN_DIR}/ps2kbd_irx.c ps2kbd_irx
-            DEPENDS ${IRX_DIR}/ps2kbd.irx
-            COMMENT "Embedding ps2kbd.irx"
-        )
-        if(AUDIO_BACKEND STREQUAL "ps2")
-            add_custom_command(
-                OUTPUT ${IRX_GEN_DIR}/freesd_irx.c
-                COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/freesd.irx ${IRX_GEN_DIR}/freesd_irx.c freesd_irx
-                DEPENDS ${IRX_DIR}/freesd.irx
-                COMMENT "Embedding freesd.irx"
-            )
-            add_custom_command(
-                OUTPUT ${IRX_GEN_DIR}/audsrv_irx.c
-                COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/audsrv.irx ${IRX_GEN_DIR}/audsrv_irx.c audsrv_irx
-                DEPENDS ${IRX_DIR}/audsrv.irx
-                COMMENT "Embedding audsrv.irx"
-            )
-        endif()
-
-        target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesio2_irx.c ${IRX_GEN_DIR}/mcman_irx.c ${IRX_GEN_DIR}/mcserv_irx.c ${IRX_GEN_DIR}/freepad_irx.c ${IRX_GEN_DIR}/usbd_irx.c ${IRX_GEN_DIR}/ps2kbd_irx.c)
-        if(AUDIO_BACKEND STREQUAL "ps2")
-            target_sources(butterscotch PRIVATE ${IRX_GEN_DIR}/freesd_irx.c ${IRX_GEN_DIR}/audsrv_irx.c)
-        endif()
-        target_include_directories(butterscotch PRIVATE ${IRX_GEN_DIR})
-
-        # ===[ gprof Profiling Support ]===
-        option(ENABLE_GPROF_PROFILING "Enable gprof profiling for PS2" OFF)
-        if(ENABLE_GPROF_PROFILING)
-            add_compile_definitions(GPROF_PROFILING)
-            target_compile_options(butterscotch PRIVATE -pg)
-            target_link_options(butterscotch PRIVATE -pg)
-
-            add_custom_command(
-                OUTPUT ${IRX_GEN_DIR}/bdm_irx.c
-                COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/bdm.irx ${IRX_GEN_DIR}/bdm_irx.c bdm_irx
-                DEPENDS ${IRX_DIR}/bdm.irx
-                COMMENT "Embedding bdm.irx (profiler)"
-            )
-            add_custom_command(
-                OUTPUT ${IRX_GEN_DIR}/bdmfs_fatfs_irx.c
-                COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/bdmfs_fatfs.irx ${IRX_GEN_DIR}/bdmfs_fatfs_irx.c bdmfs_fatfs_irx
-                DEPENDS ${IRX_DIR}/bdmfs_fatfs.irx
-                COMMENT "Embedding bdmfs_fatfs.irx (profiler)"
-            )
-            add_custom_command(
-                OUTPUT ${IRX_GEN_DIR}/usbmass_bd_irx.c
-                COMMAND $ENV{PS2SDK}/bin/bin2c ${IRX_DIR}/usbmass_bd.irx ${IRX_GEN_DIR}/usbmass_bd_irx.c usbmass_bd_irx
-                DEPENDS ${IRX_DIR}/usbmass_bd.irx
-                COMMENT "Embedding usbmass_bd.irx (profiler)"
-            )
-            target_sources(butterscotch PRIVATE
-                ${IRX_GEN_DIR}/bdm_irx.c
-                ${IRX_GEN_DIR}/bdmfs_fatfs_irx.c
-                ${IRX_GEN_DIR}/usbmass_bd_irx.c
-            )
-        endif()
-    else()
-        # This block is for when we are developing Butterscotch with CLion!
-        # ps2sdk and gsKit scatter headers across per-module subdirectories;
-        # the flat include/ layout only exists after building the SDK.
-        # We use file(GLOB) to discover all include dirs automatically.
-        file(GLOB PS2SDK_EE_INCLUDES ${CMAKE_SOURCE_DIR}/ps2sdk/ee/*/include)
-        file(GLOB PS2SDK_EE_RPC_INCLUDES ${CMAKE_SOURCE_DIR}/ps2sdk/ee/rpc/*/include)
-        file(GLOB PS2SDK_EE_NETWORK_INCLUDES ${CMAKE_SOURCE_DIR}/ps2sdk/ee/network/*/include)
-        file(GLOB GSKIT_INCLUDES ${CMAKE_SOURCE_DIR}/gsKit/ee/*/include)
-
-        # _EE is normally set by the PS2 toolchain; without it, tamtypes.h
-        # refuses to define u64/u32/etc. We set it so CLion can resolve them.
-        target_compile_definitions(butterscotch PRIVATE _EE)
-
-        target_include_directories(butterscotch PRIVATE
-                ${PS2SDK_EE_INCLUDES}
-                ${PS2SDK_EE_RPC_INCLUDES}
-                ${PS2SDK_EE_NETWORK_INCLUDES}
-                ${CMAKE_SOURCE_DIR}/ps2sdk/common/include
-                ${GSKIT_INCLUDES}
-                # Newlib and GCC built-in headers are build artifacts (not in any repo),
-                # so these are still extracted from Docker by setup.sh.
-                ${CMAKE_SOURCE_DIR}/ps2dev-headers/newlib-include
-                ${CMAKE_SOURCE_DIR}/ps2dev-headers/gcc-include
-        )
-    endif()
-elseif(PLATFORM STREQUAL "ps3")
-    if (NOT ENABLE_LEGACY_GL)
-        message(FATAL_ERROR "PS3 requires legacy gl!")
-    endif()
-    file(GLOB GL_SOURCES src/gl_common/*.c src/gl_legacy/*.c src/image/*.c)
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${DEBUG_FONT_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-
-    # ps3gl
-    file(GLOB PS3GL_SOURCES vendor/ps3gl/*.c)
-    add_library(ps3gl STATIC ${PS3GL_SOURCES})
-    target_include_directories(ps3gl SYSTEM PUBLIC vendor/ps3gl)
-    target_compile_options(ps3gl PRIVATE -w)
-
-    # mojoal
-    add_library(mojoal STATIC vendor/mojoal/mojoal.c)
-    target_include_directories(mojoal SYSTEM PUBLIC vendor/mojoal)
-    target_compile_definitions(mojoal PRIVATE AL_LIBTYPE_STATIC)
-    target_compile_options(mojoal PRIVATE -w)
-
-    # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" OFF)
-    if(ENABLE_VM_GML_PROFILER)
-        add_compile_definitions(ENABLE_VM_GML_PROFILER)
-    endif()
-
-    # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" OFF)
-    if(ENABLE_VM_TRACING)
-        add_compile_definitions(ENABLE_VM_TRACING)
-    endif()
-
-    # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" OFF)
-    if(ENABLE_VM_OPCODE_PROFILER)
-        add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
-    endif()
-
-    # Spatial grid logs
-    option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
-    if(ENABLE_SPATIAL_GRID_LOGS)
-        add_compile_definitions(ENABLE_SPATIAL_GRID_LOGS)
-    endif()
-
-    # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" OFF)
-    if(ENABLE_VM_STUB_LOGS)
-        add_compile_definitions(ENABLE_VM_STUB_LOGS)
-    endif()
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # Platform identifier for PS3-specific code paths
-    add_compile_definitions(PLATFORM_PS3)
-    add_compile_definitions(AL_LIBTYPE_STATIC)
-
-    set(CMAKE_EXE_LINKER_FLAGS "-mhard-float -fmodulo-sched -Wl,--gc-sections -L$ENV{PS3DEV}/ppu/lib -L$ENV{PS3DEV}/portlibs/ppu/lib")
-
-    find_package(SDL2 REQUIRED)
-    target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-    # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
-    target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
-    target_link_libraries(butterscotch PRIVATE bzip2 sha1 ps3gl mojoal ${SDL2_LIBRARIES} gcm_sys rsx sysutil io audio rt lv2 m stb_ds stb_vorbis)
-elseif(PLATFORM STREQUAL "vita")
-else()
-    message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
+if(PLATFORM STREQUAL "android")
+    target_link_libraries(butterscotch PRIVATE log)
 endif()
