@@ -121,7 +121,7 @@ static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, flo
         for (int xx = x0; xx < x1; xx++)
             backbuffer[yy * SCREEN_W + xx] = c;
 
-    logInfo("X: %.2f, Y: %.2f\n", x, y);
+    //logInfo("X: %.2f, Y: %.2f\n", x, y);
 }
 
 static void libndsDrawSpritePart(Renderer *renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {}

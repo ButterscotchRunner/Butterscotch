@@ -54,13 +54,12 @@ int main(int argc, char* argv[]){
     //Init DS stuff
     consoleDemoInit(); //Bottom screen log
     if (!fatInitDefault()){
-        exit(1);
-        printf("fatInitDefault failed!!");
-        while (true){};
+        printf("fatInitDefault failed!!\n");
     }
-    logFile = fopen("sd:/butterscotch_log.txt", "w");
+    else
+        logFile = fopen("sd:/butterscotch_log.txt", "w");
 
-    logInfo("Hello butterscotchDS!\n");
+    logInfo("Hello butterscotchDS!\n\n");
     if (!nitroFSInit(NULL)){
         logInfo("nitroFSInit failed!!\n");
     }

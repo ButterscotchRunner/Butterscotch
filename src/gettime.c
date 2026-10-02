@@ -1,6 +1,8 @@
 #include "gettime.h"
 
-#if defined(PLATFORM_PS2)
+#if defined(PLATFORM_NDS)
+#include <nds.h>
+#elif defined(PLATFORM_PS2)
 #include <timer.h>
 #elif defined(PLATFORM_PS3)
 #include <sys/systime.h>
@@ -16,7 +18,27 @@
 #endif
 
 uint64_t nowNanos(void) {
-#if defined(PLATFORM_PS2)
+#if defined(PLATFORM_NDS)
+    static bool started = false;
+    if (!started) {
+        TIMER_DATA(2) = 0;
+        TIMER_CR(2) = TIMER_ENABLE | TIMER_DIV_1024;
+        TIMER_DATA(3) = 0;
+        TIMER_CR(3) = TIMER_ENABLE | TIMER_CASCADE;
+        started = true;
+    }
+    uint16_t hi1, hi2, lo;
+    do {
+        hi1 = TIMER_DATA(3);
+        lo  = TIMER_DATA(2);
+        hi2 = TIMER_DATA(3);
+    } while (hi1 != hi2);
+    uint64_t busTicks = (((uint64_t)hi2 << 16) | lo) * 1024ULL;
+    const uint64_t clk = 33513982ULL;
+    uint64_t sec = busTicks / clk;
+    uint64_t rem = busTicks % clk;
+    return sec * 1000000000ULL + (rem * 1000000000ULL) / clk;
+#elif defined(PLATFORM_PS2)
     // kBUSCLK is bus clock ticks per second (~147 MHz).
     // Split to avoid u64 overflow in ticks * 1e9.
     uint64_t t = (uint64_t) GetTimerSystemTime();
