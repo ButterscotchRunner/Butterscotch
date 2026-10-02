@@ -18,7 +18,7 @@ jobs:
           key: symbian-sdk
 
       - name: Download SDK
-        if: steps.cache_sdk.outputs.cache-hit != 'true'
+        #if: steps.cache_sdk.outputs.cache-hit != 'true'
         run: Invoke-WebRequest https://nnproject.cc/dl/symbiansr1_gcce_workflow.zip -OutFile symbiansdk.zip
 
       - name: Cache SDK
