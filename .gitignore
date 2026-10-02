@@ -8,3 +8,4 @@ compat/config.mk
 *.log
 ButterscotchDS.nds
 ButterscotchDS.elf
+/nitrofs

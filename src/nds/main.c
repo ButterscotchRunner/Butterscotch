@@ -12,7 +12,7 @@
 static FILE* logFile = NULL;
 
 //nitro:/friend.png
-#define LOG_BUFFER_SIZE 1024
+#define LOG_BUFFER_SIZE 256
 void platformLog(const logType type, const char *format, va_list va) {
     const char* colourPrefix = ANSI_COLOUR_CODE_RESET;
     const char* textPrefix = "";
@@ -87,9 +87,4 @@ int main(int argc, char* argv[]){
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
     return ret;
-
-    logInfo("loop return: %d\n", ret);
-
-    while (true)
-        swiWaitForVBlank();
 }

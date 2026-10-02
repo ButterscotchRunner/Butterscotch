@@ -4,3 +4,10 @@ Theres a 80% chance this isn't getting finished, just doing this more so for fun
 ## How to compile (un-finished)
 This project use's makefiles because I HATE CMAKE WITH EVERY CELL OF MY BODY<br>
 just run make in the root and if you have devkitpro correctly setup, compile fine!
+
+## TO-DO (Highest to lowest priorty)
+- Get undertale booting (currently runs out of room parsing the CODE chunk)
+- Write/finish the full ndslib render backend
+- Create a pre-processer (currently you have to dump each texture page yourself via utmt)
+- Get deltarune booting (untested)
+- Write the full ndslib audio backend

@@ -98,8 +98,8 @@ static inline void *safeMallocFunction(size_t size, const char *file, int line) 
         return nullptr;
     void *ret = malloc(size);
     if (!ret) {
-        logError("FATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
-        abort();
+        logError("\n\nFATAL: malloc(%zu) failed at %s:%d\n", size, file, line);
+        //abort();
     }
     return ret;
 }
