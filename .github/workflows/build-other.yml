@@ -87,3 +87,48 @@ jobs:
         with:
           name: butterscotch-android
           path: src/android/frontend/app/build/outputs/apk/debug/app-debug.apk
+
+  build-symbian:
+    name: Build (Symbian)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache/restore@v5
+        name: Check SDK
+        id: cache_sdk
+        with:
+          path: symbiansdk.zip
+          key: symbian-sdk
+
+      - name: Download SDK
+        #if: steps.cache_sdk.outputs.cache-hit != 'true'
+        run: Invoke-WebRequest https://nnproject.cc/dl/symbiansr1_gcce_workflow.zip -OutFile symbiansdk.zip
+
+      - name: Cache SDK
+        if: steps.cache_sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: symbiansdk.zip
+          key: symbian-sdk
+
+      - name: Extract SDK
+        run: Expand-Archive symbiansdk.zip -DestinationPath .
+
+      - name: Compile
+        run: |
+          $SDK = "$pwd/SDK/"
+          $Env:EPOCROOT = "$SDK".Substring(2)
+          $Env:SBS_GCCE441BIN = "$pwd/GCCE/bin"
+          cmd /c "$SDK/epoc32/tools/sbs\bin\sbs.bat -b artifacts/symbian/bld.inf -c armv5_urel_gcce -f - -m $SDK/epoc32/build/Butterscotch/makefile -j 4"
+          
+          cd artifacts/symbian
+          (Get-Content Butterscotch.pkg).Replace('$(EPOCROOT)', "$SDK").Replace('$(PLATFORM)', 'armv5').Replace('$(TARGET)', 'urel') | Set-Content Butterscotch.pkg
+          cmd /c "$SDK/epoc32/tools/makesis.exe Butterscotch.pkg Butterscotch.sis"
+          
+          
+      - uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-symbian
+          path: artifacts/symbian/Butterscotch.sis
