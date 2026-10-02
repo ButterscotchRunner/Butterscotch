@@ -7,6 +7,10 @@ jobs:
   build-arm-windows:
     name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
+    env:
+      SDL_VERSION: release-2.32.10
+      FFMPEG_VERSION: n9.0.2
+      LLVM_MINGW_VERSION: 20260922
 
     strategy:
       fail-fast: false
@@ -48,7 +52,7 @@ jobs:
       - name: Install LLVM-MinGW
         run: |
           curl -L \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20260826/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/${{ env.LLVM_MINGW_VERSION }}/llvm-mingw-${{ env.LLVM_MINGW_VERSION }}-ucrt-ubuntu-22.04-x86_64.tar.xz \
             -o /tmp/llvm-mingw.tar.xz
 
           sudo mkdir -p /opt/llvm-mingw
@@ -58,30 +62,72 @@ jobs:
 
           echo "/opt/llvm-mingw/bin" >> "$GITHUB_PATH"
 
-      - name: Cache SDL2
-        id: cache-sdl2
+      - name: Cache build deps
+        id: cache-build-deps
         uses: actions/cache@v6
         with:
-          path: /usr/${{ matrix.triplet }}/sdl2
-          key: sdl2-windows-${{ matrix.triplet }}-${{ github.sha }}-2.32.10-rev2
+          path: ~/build-deps
+          key: windows-${{ matrix.triplet }}-sdl2-${{ env.SDL_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}-rev1
+
+      - name: Checkout FFmpeg
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: ${{ env.FFMPEG_VERSION }}
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg for MinGW ARM
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        working-directory: vendor/ffmpeg
+        run: |
+          ./configure \
+            --prefix="$HOME/build-deps" \
+            --enable-cross-compile \
+            --target-os=mingw32 \
+            --arch=${{ matrix.arch }} \
+            --cc="ccache ${{ matrix.triplet }}-clang" \
+            --ar="llvm-ar" \
+            --ranlib="llvm-ranlib" \
+            --enable-lto \
+            --extra-ldflags="-fuse-ld=lld" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv
+
+          make -j$(nproc)
+          sudo make install
 
       - name: Checkout SDL2
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
         with:
           repository: libsdl-org/SDL
-          ref: release-2.32.10
+          ref: ${{ env.SDL_VERSION }}
           path: vendor/sdl2
 
       - name: Build SDL2 for MinGW
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'
         run: |
           cmake -B vendor/sdl2/build -S vendor/sdl2 -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_INSTALL_PREFIX=/usr/${{ matrix.triplet }}/sdl2 \
+            -DCMAKE_INSTALL_PREFIX="$HOME/build-deps" \
             -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF
 
           cmake --build vendor/sdl2/build
@@ -89,12 +135,11 @@ jobs:
 
       - name: Configure
         env:
-          PKG_CONFIG_PATH: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/${{ matrix.triplet }}/sdl2/lib/pkgconfig
+          PKG_CONFIG_PATH: ~/build-deps/lib/pkgconfig
+          PKG_CONFIG_LIBDIR: ~/build-deps/lib/pkgconfig
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/llvm-mingw.cmake \
-            -DCMAKE_FIND_ROOT_PATH=/usr/${{ matrix.triplet }} \
             -DTARGET_TRIPLE=${{ matrix.target }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -143,12 +188,15 @@ jobs:
       - name: Install MinGW and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev llvm
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev llvm nasm
           ARCH=${{ matrix.arch }} ./artifacts/windows/build-toolchain.sh
 
       - name: Build
         run: |
-          PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH" make \
+          export PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          export PKG_CONFIG_PATH="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.arch }}-w64-mingw32/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PWD/artifacts/windows/build/toolchain-${{ matrix.arch }}/${{ matrix.arch }}-w64-mingw32/lib/pkgconfig"
+          make \
               NO_COLOR=1 \
               VERBOSE=1 \
               CC='ccache ${{ matrix.arch }}-w64-mingw32-gcc' \

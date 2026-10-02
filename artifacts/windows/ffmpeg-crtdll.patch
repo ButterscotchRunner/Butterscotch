@@ -1,0 +1,120 @@
+diff --git a/libavformat/os_support.h b/libavformat/os_support.h
+index 8479163..1392756 100644
+--- a/libavformat/os_support.h
++++ b/libavformat/os_support.h
+@@ -176,46 +176,12 @@ int ff_poll(struct pollfd *fds, nfds_t numfds, int timeout);
+ #include "libavutil/mem.h"
+ #include "libavutil/wchar_filename.h"
+ 
+-#define DEF_FS_FUNCTION(name, wfunc, afunc)               \
+-static inline int win32_##name(const char *filename_utf8) \
+-{                                                         \
+-    wchar_t *filename_w;                                  \
+-    int ret;                                              \
+-                                                          \
+-    if (get_extended_win32_path(filename_utf8, &filename_w)) \
+-        return -1;                                        \
+-    if (!filename_w)                                      \
+-        goto fallback;                                    \
+-                                                          \
+-    ret = wfunc(filename_w);                              \
+-    av_free(filename_w);                                  \
+-    return ret;                                           \
+-                                                          \
+-fallback:                                                 \
+-    /* filename may be be in CP_ACP */                    \
+-    return afunc(filename_utf8);                          \
+-}
+-
+-DEF_FS_FUNCTION(unlink, _wunlink, _unlink)
+-DEF_FS_FUNCTION(mkdir,  _wmkdir,  _mkdir)
+-DEF_FS_FUNCTION(rmdir,  _wrmdir , _rmdir)
+-
+-static inline int win32_access(const char *filename_utf8, int mode)
+-{
+-    wchar_t *filename_w;
+-    int ret;
+-    if (get_extended_win32_path(filename_utf8, &filename_w))
+-        return -1;
+-    if (!filename_w)
+-        goto fallback;
+-    ret = _waccess(filename_w, mode);
+-    av_free(filename_w);
+-    return ret;
+-fallback:
+-    return _access(filename_utf8, mode);
+-}
++static inline int win32_unlink(const char *f) { return _unlink(f); }
++static inline int win32_mkdir(const char *f)  { return _mkdir(f); }
++static inline int win32_rmdir(const char *f)  { return _rmdir(f); }
++static inline int win32_access(const char *f, int m) { return _access(f, m); }
+ 
+-static inline void copy_stat(struct _stat64 *crtstat, struct win32_stat *buf)
++static inline void copy_stat(struct _stat *crtstat, struct win32_stat *buf)
+ {
+     buf->st_dev   = crtstat->st_dev;
+     buf->st_ino   = crtstat->st_ino;
+@@ -232,18 +198,10 @@ static inline void copy_stat(struct _stat64 *crtstat, struct win32_stat *buf)
+ 
+ static inline int win32_stat(const char *filename_utf8, struct win32_stat *buf)
+ {
+-    struct _stat64 crtstat = { 0 };
+-    wchar_t *filename_w;
++    struct _stat crtstat = { 0 };
+     int ret;
+ 
+-    if (get_extended_win32_path(filename_utf8, &filename_w))
+-        return -1;
+-
+-    if (filename_w) {
+-        ret = _wstat64(filename_w, &crtstat);
+-        av_free(filename_w);
+-    } else
+-        ret = _stat64(filename_utf8, &crtstat);
++    ret = _stat(filename_utf8, &crtstat);
+ 
+     copy_stat(&crtstat, buf);
+ 
+@@ -252,10 +210,10 @@ static inline int win32_stat(const char *filename_utf8, struct win32_stat *buf)
+ 
+ static inline int win32_fstat(int fd, struct win32_stat *buf)
+ {
+-    struct _stat64 crtstat = { 0 };
++    struct _stat crtstat = { 0 };
+     int ret;
+ 
+-    ret = _fstat64(fd, &crtstat);
++    ret = _fstat(fd, &crtstat);
+ 
+     copy_stat(&crtstat, buf);
+ 
+diff --git a/libavutil/file_open.c b/libavutil/file_open.c
+index 4692035..9777334 100644
+--- a/libavutil/file_open.c
++++ b/libavutil/file_open.c
+@@ -42,24 +42,7 @@
+ 
+ static int win32_open(const char *filename_utf8, int oflag, int pmode)
+ {
+-    int fd;
+-    wchar_t *filename_w;
+-
+-    /* convert UTF-8 to wide chars */
+-    if (get_extended_win32_path(filename_utf8, &filename_w))
+-        return -1;
+-    if (!filename_w)
+-        goto fallback;
+-
+-    fd = _wsopen(filename_w, oflag, SH_DENYNO, pmode);
+-    av_freep(&filename_w);
+-
+-    if (fd != -1 || (oflag & O_CREAT))
+-        return fd;
+-
+-fallback:
+-    /* filename may be in CP_ACP */
+-    return _sopen(filename_utf8, oflag, SH_DENYNO, pmode);
++    return _sopen(filename_utf8, oflag, _SH_DENYNO, pmode);
+ }
+ #define open win32_open
+ #endif
