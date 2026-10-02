@@ -17,6 +17,7 @@ LIBRARY cone.lib
 LIBRARY avkon.lib
 LIBRARY apparc.lib
 LIBRARY eikcore.lib
+LIBRARY ws32.lib
 // gl
 LIBRARY libglesv2.lib
 LIBRARY libegl.lib
@@ -30,12 +31,13 @@ LIBRARY mediaclientaudiostream.lib
 LIBRARY remconinterfacebase.lib
 LIBRARY remconcoreapi.lib
 
+#ifdef ARMCC
 OPTION ARMCC -Otime
 OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296
 OPTION_REPLACE ARMCC --cpu 6
 OPTION_REPLACE ARMCC --fpu vfpv2 --fpmode fast
+OPTION_REPLACE ARMCC -O2 -O3
 
-#ifdef ARMCC
 ARMFPU vfpv2
 ALWAYS_BUILD_AS_ARM
 #endif
