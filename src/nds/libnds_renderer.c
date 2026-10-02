@@ -18,31 +18,8 @@
 static u16* framebuffer = NULL;   // VRAM
 static u16* backbuffer  = NULL;   // main RAM
 
-#define SCREEN_W 256
-#define SCREEN_H 192
-
-// ===[ LibNDSRenderer Struct ]===
-
-typedef struct {
-    Renderer base; // Must be first field for struct embedding
-
-    // Minimal surface bookkeeping so surface_exists / get_width etc. behave sanely
-    int32_t *surfaceWidths;
-    int32_t *surfaceHeights;
-    bool *surfaceExistsFlag;
-    uint32_t surfaceCount;
-    uint32_t surfaceCapacity;
-
-    // GPU state shadows (returned by getters, mutated by setters)
-    bool blendEnable;
-    int32_t blendMode;
-    BlendFactors blendFactors;
-    bool alphaTestEnable;
-    uint8_t alphaTestRef;
-    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
-    bool fogEnable;
-    uint32_t fogColor;
-} LibNDSRenderer;
+#define DS_SCREEN_WIDTH 256
+#define DS_SCREEN_HEIGHT 192
 
 // Helpers
 static void libndsEnsureSurfaceCapacity(LibNDSRenderer *libnds, uint32_t needed) {
@@ -89,38 +66,223 @@ static void libndsDestroy(Renderer *renderer) {
 }
 
 static void libndsBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH){
-    dmaFillHalfWords(RGB15(3, 3, 3) | BIT(15), backbuffer, SCREEN_W * SCREEN_H * sizeof(u16));
+    dmaFillHalfWords(RGB15(3, 3, 3) | BIT(15), backbuffer, DS_SCREEN_WIDTH * DS_SCREEN_HEIGHT * sizeof(u16));
 }
 
 static void libndsEndFrameInit(Renderer *renderer){}
 static void libndsEndFrameEnd(Renderer *renderer){
-    DC_FlushRange(backbuffer, SCREEN_W * SCREEN_H * sizeof(u16));
-    dmaCopyHalfWords(3, backbuffer, framebuffer, SCREEN_W * SCREEN_H * sizeof(u16));
+    DC_FlushRange(backbuffer, DS_SCREEN_WIDTH * DS_SCREEN_HEIGHT * sizeof(u16));
+    dmaCopyHalfWords(3, backbuffer, framebuffer, DS_SCREEN_WIDTH * DS_SCREEN_HEIGHT * sizeof(u16));
     swiWaitForVBlank();
 }
-static void libndsBeginView(Renderer *renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {}
+static void libndsBeginView(Renderer *renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle){
+    LibNDSRenderer* lbds = (LibNDSRenderer*)renderer;
+
+    //Set current viewport size
+    lbds->viewX = viewX;
+    lbds->viewY = viewY;
+}
+
 static void libndsEndView(Renderer *renderer) {}
 static void libndsApplyProjection(Renderer *renderer, const Matrix4f *viewMatrix, const Matrix4f *projectionMatrix) {}
 static void libndsBeginGUI(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {}
 static void libndsSetGuiProjection(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {}
 static void libndsEndGUI(Renderer *renderer) {}
 
+//Get a texture pages png data and load the pixel data
+static const u16* GetPixelData(LibNDSRenderer *lbds, int32_t texturePageId, int *outW, int *outH){
+    //Load into cache array if not there already
+    if (!lbds->texPixels[texturePageId]){
+        //Create path
+        char path[64];
+        snprintf(path, sizeof(path), "nitro:/pg_%d.png", texturePageId);
+        
+        uint16_t* PixelData;
+        int w = 0;
+        int h = 0;
+        nds_load_png_5551(path, &PixelData, &w, &h); //Load pixel data
+
+        //Add to cache
+        lbds->texPixels[texturePageId] = PixelData;
+        lbds->texW[texturePageId] = w;
+        lbds->texH[texturePageId] = h;
+    }
+
+    //Return array entry
+    *outW = lbds->texW[texturePageId]; //Set the outW set in arg to the textures width
+    *outH = lbds->texH[texturePageId]; //Set the outH set in arg to the textures height
+    return lbds->texPixels[texturePageId]; //Return pixel data
+}
+
 static void libndsDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
+    LibNDSRenderer* lbds = (LibNDSRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
-    if (alpha == 0) return;
-    u16 c = RGB15(0 >> 3, 0 >> 3, 0 >> 3) | BIT(15);
 
-        int x0 = (int)x - 0, y0 = (int)y - 0;
-    int x1 = x0 + (int)30, y1 = y0 + (int)30;
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > SCREEN_W) x1 = SCREEN_W;
-    if (y1 > SCREEN_H) y1 = SCREEN_H;
+    //The sprite requested is out of the texture page bounds
+    if (0 > tpagIndex || (uint32_t) tpagIndex >= dw->tpag.count)
+        return;
 
-    for (int yy = y0; yy < y1; yy++)
-        for (int xx = x0; xx < x1; xx++)
-            backbuffer[yy * SCREEN_W + xx] = c;
+    //Get which texture page index its at
+    TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
 
+    // Get crop region from atlas entry (falls back to full bounding box if unmapped)
+    float cropX = 0.0f, cropY = 0.0f;
+    float cropW = (float) tpag->boundingWidth;
+    float cropH = (float) tpag->boundingHeight;
+    if (lbds->atlasTPAGCount > (uint32_t) tpagIndex) {
+        AtlasTPAGEntry* entry = &lbds->atlasTPAGEntries[tpagIndex];
+
+        //The texture was invalid(?)
+        if (entry->atlasId != 0xFFFF) {
+            cropX = (float) entry->cropX;
+            cropY = (float) entry->cropY;
+            cropW = (float) entry->cropW;
+            cropH = (float) entry->cropH;
+        }
+    }
+
+    
+    // Compute 4 screen-space corners (tristrip Z-pattern: top-left, top-right, bottom-left, bottom-right)
+    // sx0/sy0 = top-left, sx1/sy1 = top-right, sx2/sy2 = bottom-left, sx3/sy3 = bottom-right
+    float sx0, sy0, sx1, sy1, sx2, sy2, sx3, sy3;
+    bool hasRotation = angleDeg != 0.0f;
+
+    /*
+    I'll worry about rotation later...
+    if (hasRotation) {
+        // Rotated: compute 4 transformed corners via matrix, same approach as the GLFW renderer
+        // Position the cropped region within the original bounding box
+        float localX0 = cropX - originX;
+        float localY0 = cropY - originY;
+        float localX1 = cropX + cropW - originX;
+        float localY1 = cropY + cropH - originY;
+
+        // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
+        // Negate angle because Y-down coordinate system
+        float angleRad = -angleDeg * ((float) M_PI / 180.0f);
+        Matrix4f transform;
+        Matrix4f_setTransform2D(&transform, x, y, xscale, yscale, angleRad);
+
+        float gx0, gy0, gx1, gy1, gx2, gy2, gx3, gy3;
+        Matrix4f_transformPoint(&transform, localX0, localY0, &gx0, &gy0); // top-left
+        Matrix4f_transformPoint(&transform, localX1, localY0, &gx1, &gy1); // top-right
+        Matrix4f_transformPoint(&transform, localX0, localY1, &gx2, &gy2); // bottom-left
+        Matrix4f_transformPoint(&transform, localX1, localY1, &gx3, &gy3); // bottom-right
+
+        // Apply view offset and scale
+        sx0 = (gx0 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
+        sy0 = (gy0 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
+        sx1 = (gx1 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
+        sy1 = (gy1 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
+        sx2 = (gx2 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
+        sy2 = (gy2 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
+        sx3 = (gx3 - (float) gs->viewX) * gs->scaleX + gs->offsetX;
+        sy3 = (gy3 - (float) gs->viewY) * gs->scaleY + gs->offsetY;
+    } else {*/
+        // Axis-aligned: simple rect math
+        // Position the cropped region within the original bounding box
+        float gameX1 = x + (cropX - originX) * xscale;
+        float gameY1 = y + (cropY - originY) * yscale;
+        float gameX2 = x + (cropX + cropW - originX) * xscale;
+        float gameY2 = y + (cropY + cropH - originY) * yscale;
+
+        // Apply view offset and scale
+        sx0 = (gameX1 - (float) lbds->viewX) * lbds->scaleX + lbds->offsetX;
+        sy0 = (gameY1 - (float) lbds->viewY) * lbds->scaleY + lbds->offsetY;
+        sx1 = (gameX2 - (float) lbds->viewX) * lbds->scaleX + lbds->offsetX;
+        sy1 = (gameY1 - (float) lbds->viewY) * lbds->scaleY + lbds->offsetY;
+        sx2 = (gameX1 - (float) lbds->viewX) * lbds->scaleX + lbds->offsetX;
+        sy2 = (gameY2 - (float) lbds->viewY) * lbds->scaleY + lbds->offsetY;
+        sx3 = (gameX2 - (float) lbds->viewX) * lbds->scaleX + lbds->offsetX;
+        sy3 = (gameY2 - (float) lbds->viewY) * lbds->scaleY + lbds->offsetY;
+    //}
+
+    
+
+    //Cull off screen sprites
+    float minSX = fminf(fminf(sx0, sx1), fminf(sx2, sx3));
+    float maxSX = fmaxf(fmaxf(sx0, sx1), fmaxf(sx2, sx3));
+    float minSY = fminf(fminf(sy0, sy1), fminf(sy2, sy3));
+    float maxSY = fmaxf(fmaxf(sy0, sy1), fmaxf(sy2, sy3));
+    if (maxSX < 0.0f || minSX > DS_SCREEN_WIDTH || maxSY < 0.0f || minSY > DS_SCREEN_HEIGHT)
+        return;
+    
+    
+    
+    //Get texture page pixel data
+    int texW = 0;
+    int texH = 0;
+    const u16* TexturePagePixels = GetPixelData(lbds, tpag->texturePageId, &texW, &texH);
+
+    //Draw all pixles on screen
+	for (int sy = sy0; sy < sy2; sy++)
+	{
+        //Don't wrap on the y
+        if (!(sy >= 0 && sy < DS_SCREEN_HEIGHT))
+            continue;
+
+        //logInfo("hi\n");
+		const u16* src = TexturePagePixels + (tpag->sourceY + (sy - (int)sy0)) * texW + tpag->sourceX;
+		u16* dst = backbuffer + sy * DS_SCREEN_WIDTH;
+
+		for (int sx = sx0; sx < sx1; sx++)
+		{
+            //Don't wrap on the x
+            if (!(sx >= 0 && sx < DS_SCREEN_WIDTH))
+                continue;
+
+            u16 c = src[sx - (int)sx0];
+            if (c & BIT(15))   // opaque
+                dst[sx] = c;
+		}
+	}
+    
+    /*
+    // The atlas entry has the actual sprite dimensions in the atlas (post-crop, post-resize).
+    // The screen rect covers cropW x cropH game-space pixels, positioned at (cropX, cropY)
+    // within the original bounding box. The GS hardware stretches the atlas texels to fill.
+
+    // UV coords within the 512x512 atlas (in texels for gsKit). Snapshot tpags cover their own dedicated CT16 VRAM region from (0,0) to (width,height).
+    float u0, v0, u1, v1;
+    int32_t snapshotIdx = tpagSnapshotIndex(gs, tpagIndex);
+    if (snapshotIdx >= 0) {
+        SnapshotChunk* chunk = &gs->snapshotChunks[snapshotIdx];
+        u0 = 0.0f; v0 = 0.0f;
+        u1 = (float) chunk->width;
+        v1 = (float) chunk->height;
+    } else {
+        AtlasTPAGEntry* atlasEntry = &gs->atlasTPAGEntries[tpagIndex];
+        u0 = (float) atlasEntry->atlasX;
+        v0 = (float) atlasEntry->atlasY;
+        u1 = u0 + (float) atlasEntry->width;
+        v1 = v0 + (float) atlasEntry->height;
+    }
+
+    // GS modulate mode: Output = Texture * Vertex / 128
+    // Scale vertex RGB from 0-255 to 0-128 so white (255) becomes 128 (1.0x multiplier)
+    uint8_t r = BGR_R(color) >> 1;
+    uint8_t g = BGR_G(color) >> 1;
+    uint8_t b = BGR_B(color) >> 1;
+    uint8_t a = alphaToGS(alpha);
+    u64 gsColor = GS_SETREG_RGBAQ(r, g, b, a, 0x00);
+    
+    /*if (hasRotation) {
+        // Tristrip Z-pattern: needs 4 vertices for rotated quads
+        gsKit_prim_quad_texture(
+            gs->gsGlobal,
+            &tex,
+            sx0, sy0, u0, v0, // top-left
+            sx1, sy1, u1, v0, // top-right
+            sx2, sy2, u0, v1, // bottom-left
+            sx3, sy3, u1, v1, // bottom-right
+            0,
+            gsColor
+        );
+    } else {*/
+        //gsKit_prim_sprite_texture(gs->gsGlobal, &tex, sx0, sy0, u0, v0, sx3, sy3, u1, v1, 0, gsColor);
+    //}
+
+    //*/
     //logInfo("X: %.2f, Y: %.2f\n", x, y);
 }
 
@@ -392,5 +554,9 @@ Renderer* libndsRenderer_create(void) {
     libnds->fogEnable = false;
     libnds->fogColor = 0;
     libnds->base.currentShader = -1;
+    libnds->scaleX = 1.0f;
+    libnds->scaleY = 1.0f;
+    libnds->offsetX = 0.0f;
+    libnds->offsetY = 0.0f;
     return (Renderer *)libnds;
 }
