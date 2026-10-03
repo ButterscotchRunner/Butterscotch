@@ -206,6 +206,9 @@ if ! nolink=1 check 'if the compiler supports mixed declarations and code' mixed
 fi
 
 config "_CC := $CC"
+if checkdefine '__cplusplus' > /dev/null; then
+    config 'CC_IS_CXX := 1'
+fi
 
 checklog 'the target OS'
 if checkdefine '_WIN32' > /dev/null; then

@@ -275,6 +275,24 @@ OBJS := $(OBJS:%=%.$(OBJ_EXT))
 
 all: build/butterscotch
 
+# Box2D stays C even when the runner uses its legacy C++ compiler mode.
+ifndef BOX2D_CC
+ifeq ($(CC_IS_CXX),1)
+ifeq ($(SYNTAX),msvc)
+BOX2D_CC := clang-cl --target=i686-pc-windows-msvc
+else
+BOX2D_CC := cc
+endif
+else
+BOX2D_CC := $(_CC)
+endif
+endif
+ifeq ($(SYNTAX),msvc)
+BOX2D_SRCFLAG := /Tc
+else
+BOX2D_SRCFLAG :=
+endif
+
 -include $(OBJS:.$(OBJ_EXT)=.d)
 
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
@@ -288,6 +306,10 @@ build/butterscotch: $(OBJS)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
+
+build/vendor/box2d/%.c.$(OBJ_EXT): vendor/box2d/%.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
+	@mkdir -p $(dir $@)
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(BOX2D_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(BOX2D_SRCFLAG)$< $(OUTPUT_OBJ)$@
 
 build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
