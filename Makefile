@@ -50,10 +50,24 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/base64 \
 		    $(INC)vendor/bzip2 \
 		    $(INC)vendor/miniz
+# Box2D only builds as C, so compilers that default to C++ mode (and toolchains too old to
+# compile it) get the stub engine instead. Pass DISABLE_PHYSICS=0/1 to force either way.
+ifneq ($(DISABLE_PHYSICS),0)
+ifeq ($(CC_IS_CXX),1)
+DISABLE_PHYSICS := 1
+endif
+endif
+
+SRCS += src/physics/physics.c
+ifeq ($(DISABLE_PHYSICS),1)
+SRCS += src/physics/disabled/physics_disabled.c
+else
+DEFINES += $(DEFINE)ENABLE_PHYSICS
 INCLUDES += $(INC)vendor/box2d/include
 SRCS += $(filter-out vendor/box2d/src/timer.c,$(wildcard vendor/box2d/src/*.c))
-SRCS += $(wildcard src/physics/*.c)
+SRCS += $(filter-out src/physics/physics.c,$(wildcard src/physics/*.c))
 DEFINES += $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
+endif
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
 HEADERS += $(wildcard src/physics/*.h)
@@ -275,34 +289,6 @@ OBJS := $(OBJS:%=%.$(OBJ_EXT))
 
 all: build/butterscotch
 
-# Box2D stays C even when the runner uses its legacy C++ compiler mode.
-ifndef BOX2D_CC
-ifeq ($(CC_IS_CXX),1)
-ifeq ($(SYNTAX),msvc)
-BOX2D_CC := clang-cl --target=i686-pc-windows-msvc
-else
-BOX2D_CC := cc
-endif
-else
-BOX2D_CC := $(_CC)
-endif
-endif
-ifeq ($(SYNTAX),msvc)
-BOX2D_SRCFLAG := /Tc
-else
-BOX2D_SRCFLAG :=
-endif
-LINK_CC := $(_CC)
-LINK_OUTPUT := $(OUTPUT_EXE)
-ifeq ($(SYNTAX),msvc)
-ifeq ($(CC_IS_CXX),1)
-BOX2D_CFLAGS := /GS-
-LINK_CC := lld-link /subsystem:console /safeseh:no
-LINK_OUTPUT := /out:
-LINK_SUFFIX := .exe
-endif
-endif
-
 -include $(OBJS:.$(OBJ_EXT)=.d)
 
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
@@ -314,21 +300,8 @@ endif
 
 build/butterscotch: $(OBJS)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(LINK_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(LINK_OUTPUT)$@$(LINK_SUFFIX)
+	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true
-
-build/vendor/box2d/%.c.$(OBJ_EXT): vendor/box2d/%.c compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
-	@mkdir -p $(dir $@)
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(BOX2D_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(BOX2D_CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(BOX2D_SRCFLAG)$< $(OUTPUT_OBJ)$@
-
-ifeq ($(SYNTAX),msvc)
-ifeq ($(CC_IS_CXX),1)
-PHYSICS_C_SRCS := src/physics/physics_engine.c src/physics/physics_joints.c src/physics/physics_particles.c
-$(addprefix build/,$(PHYSICS_C_SRCS:%=%.$(OBJ_EXT))): build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
-	@mkdir -p $(dir $@)
-	$(V)MSYS2_ARG_CONV_EXCL='*' $(BOX2D_CC) $(DEFINES) $(INCLUDES) $(SYSCFLAGS) $(CFLAGS) $(BOX2D_CFLAGS) $(DEPFLAGS) $(COMPILE_OBJ) $(BOX2D_SRCFLAG)$< $(OUTPUT_OBJ)$@
-endif
-endif
 
 build/%.$(OBJ_EXT): % compat/config.mk $(if $(DISABLE_MMD),$(HEADERS))
 	@mkdir -p $(dir $@)
