@@ -9,47 +9,17 @@ _Static_assert( sizeof( int32_t ) == sizeof( int ), "Box2D expects int32_t and i
 
 bool b2IsValidFloat( float a )
 {
-	if ( isnan( a ) )
-	{
-		return false;
-	}
-
-	if ( isinf( a ) )
-	{
-		return false;
-	}
-
-	return true;
+	return a >= -FLT_MAX && a <= FLT_MAX;
 }
 
 bool b2IsValidVec2( b2Vec2 v )
 {
-	if ( isnan( v.x ) || isnan( v.y ) )
-	{
-		return false;
-	}
-
-	if ( isinf( v.x ) || isinf( v.y ) )
-	{
-		return false;
-	}
-
-	return true;
+	return b2IsValidFloat( v.x ) && b2IsValidFloat( v.y );
 }
 
 bool b2IsValidRotation( b2Rot q )
 {
-	if ( isnan( q.s ) || isnan( q.c ) )
-	{
-		return false;
-	}
-
-	if ( isinf( q.s ) || isinf( q.c ) )
-	{
-		return false;
-	}
-
-	return b2IsNormalizedRot( q );
+	return b2IsValidFloat( q.s ) && b2IsValidFloat( q.c ) && b2IsNormalizedRot( q );
 }
 
 bool b2IsValidPlane( b2Plane a )

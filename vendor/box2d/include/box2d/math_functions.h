@@ -171,74 +171,74 @@ B2_INLINE float b2Cross( b2Vec2 a, b2Vec2 b )
 /// Perform the cross product on a vector and a scalar. In 2D this produces a vector.
 B2_INLINE b2Vec2 b2CrossVS( b2Vec2 v, float s )
 {
-	return B2_LITERAL( b2Vec2 ){ s * v.y, -s * v.x };
+	b2Vec2 result = { s * v.y, -s * v.x }; return result;
 }
 
 /// Perform the cross product on a scalar and a vector. In 2D this produces a vector.
 B2_INLINE b2Vec2 b2CrossSV( float s, b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ -s * v.y, s * v.x };
+	b2Vec2 result = { -s * v.y, s * v.x }; return result;
 }
 
 /// Get a left pointing perpendicular vector. Equivalent to b2CrossSV(1.0f, v)
 B2_INLINE b2Vec2 b2LeftPerp( b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ -v.y, v.x };
+	b2Vec2 result = { -v.y, v.x }; return result;
 }
 
 /// Get a right pointing perpendicular vector. Equivalent to b2CrossVS(v, 1.0f)
 B2_INLINE b2Vec2 b2RightPerp( b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ v.y, -v.x };
+	b2Vec2 result = { v.y, -v.x }; return result;
 }
 
 /// Vector addition
 B2_INLINE b2Vec2 b2Add( b2Vec2 a, b2Vec2 b )
 {
-	return B2_LITERAL( b2Vec2 ){ a.x + b.x, a.y + b.y };
+	b2Vec2 result = { a.x + b.x, a.y + b.y }; return result;
 }
 
 /// Vector subtraction
 B2_INLINE b2Vec2 b2Sub( b2Vec2 a, b2Vec2 b )
 {
-	return B2_LITERAL( b2Vec2 ){ a.x - b.x, a.y - b.y };
+	b2Vec2 result = { a.x - b.x, a.y - b.y }; return result;
 }
 
 /// Vector negation
 B2_INLINE b2Vec2 b2Neg( b2Vec2 a )
 {
-	return B2_LITERAL( b2Vec2 ){ -a.x, -a.y };
+	b2Vec2 result = { -a.x, -a.y }; return result;
 }
 
 /// Vector linear interpolation
 /// https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
 B2_INLINE b2Vec2 b2Lerp( b2Vec2 a, b2Vec2 b, float t )
 {
-	return B2_LITERAL( b2Vec2 ){ ( 1.0f - t ) * a.x + t * b.x, ( 1.0f - t ) * a.y + t * b.y };
+	b2Vec2 result = { ( 1.0f - t ) * a.x + t * b.x, ( 1.0f - t ) * a.y + t * b.y }; return result;
 }
 
 /// Component-wise multiplication
 B2_INLINE b2Vec2 b2Mul( b2Vec2 a, b2Vec2 b )
 {
-	return B2_LITERAL( b2Vec2 ){ a.x * b.x, a.y * b.y };
+	b2Vec2 result = { a.x * b.x, a.y * b.y }; return result;
 }
 
 /// Multiply a scalar and vector
 B2_INLINE b2Vec2 b2MulSV( float s, b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ s * v.x, s * v.y };
+	b2Vec2 result = { s * v.x, s * v.y }; return result;
 }
 
 /// a + s * b
 B2_INLINE b2Vec2 b2MulAdd( b2Vec2 a, float s, b2Vec2 b )
 {
-	return B2_LITERAL( b2Vec2 ){ a.x + s * b.x, a.y + s * b.y };
+	b2Vec2 result = { a.x + s * b.x, a.y + s * b.y }; return result;
 }
 
 /// a - s * b
 B2_INLINE b2Vec2 b2MulSub( b2Vec2 a, float s, b2Vec2 b )
 {
-	return B2_LITERAL( b2Vec2 ){ a.x - s * b.x, a.y - s * b.y };
+	b2Vec2 result = { a.x - s * b.x, a.y - s * b.y }; return result;
 }
 
 /// Component-wise absolute vector
@@ -298,7 +298,7 @@ B2_INLINE b2Vec2 b2Normalize( b2Vec2 v )
 	float length = sqrtf( v.x * v.x + v.y * v.y );
 	if ( length < FLT_EPSILON )
 	{
-		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
+		b2Vec2 result = { 0.0f, 0.0f }; return result;
 	}
 
 	float invLength = 1.0f / length;
@@ -320,7 +320,7 @@ B2_INLINE b2Vec2 b2GetLengthAndNormalize( float* length, b2Vec2 v )
 	*length = sqrtf( v.x * v.x + v.y * v.y );
 	if ( *length < FLT_EPSILON )
 	{
-		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
+		b2Vec2 result = { 0.0f, 0.0f }; return result;
 	}
 
 	float invLength = 1.0f / *length;
@@ -370,7 +370,7 @@ B2_INLINE float b2DistanceSquared( b2Vec2 a, b2Vec2 b )
 B2_INLINE b2Rot b2MakeRot( float radians )
 {
 	b2CosSin cs = b2ComputeCosSin( radians );
-	return B2_LITERAL( b2Rot ){ cs.cosine, cs.sine };
+	b2Rot result = { cs.cosine, cs.sine }; return result;
 }
 
 /// Compute the rotation between two unit vectors
@@ -487,13 +487,13 @@ B2_INLINE float b2UnwindAngle( float radians )
 /// Rotate a vector
 B2_INLINE b2Vec2 b2RotateVector( b2Rot q, b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y };
+	b2Vec2 result = { q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y }; return result;
 }
 
 /// Inverse rotate a vector
 B2_INLINE b2Vec2 b2InvRotateVector( b2Rot q, b2Vec2 v )
 {
-	return B2_LITERAL( b2Vec2 ){ q.c * v.x + q.s * v.y, -q.s * v.x + q.c * v.y };
+	b2Vec2 result = { q.c * v.x + q.s * v.y, -q.s * v.x + q.c * v.y }; return result;
 }
 
 /// Transform a point (e.g. local space to world space)
@@ -502,7 +502,7 @@ B2_INLINE b2Vec2 b2TransformPoint( b2Transform t, const b2Vec2 p )
 	float x = ( t.q.c * p.x - t.q.s * p.y ) + t.p.x;
 	float y = ( t.q.s * p.x + t.q.c * p.y ) + t.p.y;
 
-	return B2_LITERAL( b2Vec2 ){ x, y };
+	b2Vec2 result = { x, y }; return result;
 }
 
 /// Inverse transform a point (e.g. world space to local space)
@@ -510,7 +510,7 @@ B2_INLINE b2Vec2 b2InvTransformPoint( b2Transform t, const b2Vec2 p )
 {
 	float vx = p.x - t.p.x;
 	float vy = p.y - t.p.y;
-	return B2_LITERAL( b2Vec2 ){ t.q.c * vx + t.q.s * vy, -t.q.s * vx + t.q.c * vy };
+	b2Vec2 result = { t.q.c * vx + t.q.s * vy, -t.q.s * vx + t.q.c * vy }; return result;
 }
 
 /// Multiply two transforms. If the result is applied to a point p local to frame B,
@@ -712,31 +712,31 @@ inline void operator*=( b2Vec2& a, float b )
 /// Unary negate a vector
 inline b2Vec2 operator-( b2Vec2 a )
 {
-	return { -a.x, -a.y };
+	b2Vec2 result = { -a.x, -a.y }; return result;
 }
 
 /// Binary vector addition
 inline b2Vec2 operator+( b2Vec2 a, b2Vec2 b )
 {
-	return { a.x + b.x, a.y + b.y };
+	b2Vec2 result = { a.x + b.x, a.y + b.y }; return result;
 }
 
 /// Binary vector subtraction
 inline b2Vec2 operator-( b2Vec2 a, b2Vec2 b )
 {
-	return { a.x - b.x, a.y - b.y };
+	b2Vec2 result = { a.x - b.x, a.y - b.y }; return result;
 }
 
 /// Binary scalar and vector multiplication
 inline b2Vec2 operator*( float a, b2Vec2 b )
 {
-	return { a * b.x, a * b.y };
+	b2Vec2 result = { a * b.x, a * b.y }; return result;
 }
 
 /// Binary scalar and vector multiplication
 inline b2Vec2 operator*( b2Vec2 a, float b )
 {
-	return { a.x * b, a.y * b };
+	b2Vec2 result = { a.x * b, a.y * b }; return result;
 }
 
 /// Binary vector equality

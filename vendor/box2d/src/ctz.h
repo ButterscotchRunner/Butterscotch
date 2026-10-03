@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if defined( _MSC_VER ) && !defined( __clang__ )
+#if defined( _MSC_VER ) && _MSC_VER >= 1400 && !defined( __clang__ )
 	#include <intrin.h>
 
 // https://en.wikipedia.org/wiki/Find_first_set
@@ -67,7 +67,7 @@ static inline uint32_t b2CTZ64( uint64_t block )
 	return index;
 }
 
-#elif defined(__GNUC__) || defined(__clang__)
+#elif defined(__clang__) || (defined(__GNUC__) && !defined(__TINYC__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4)))
 
 static inline uint32_t b2CTZ32( uint32_t block )
 {
