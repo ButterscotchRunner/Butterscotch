@@ -8,6 +8,7 @@
 #include "file_system.h"
 #include "ini.h"
 #include "instance.h"
+#include "physics/physics_engine.h"
 #include "renderer.h"
 #include "runner_keyboard.h"
 #include "spatial_grid.h"
@@ -675,6 +676,9 @@ struct Runner {
     FileSystem* fileSystem;
     AudioSystem* audioSystem;
     Room* currentRoom;
+    struct PhysicsEngine* physics;
+    struct PhysicsResources* physicsResources; // shared fixture/joint handles; allocated lazily
+    struct PhysicsEngine** physicsRooms; // worlds are room-owned, including persistent rooms
     int32_t currentRoomIndex;
     int32_t currentRoomOrderPosition;
     Instance** instances; // stb_ds array of Instance*
@@ -948,6 +952,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
 Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId);
 Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEvent);
 void Runner_destroyInstance(Runner* runner, Instance* inst, bool runDestroyEvent);
+void Runner_executeCleanupEvent(Runner* runner, Instance* inst);
 void Runner_cleanupDestroyedInstances(Runner* runner);
 // Add inst to the per-object lists of its object and every ancestor.
 void Runner_addInstanceToObjectLists(Runner* runner, Instance* inst);
