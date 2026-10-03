@@ -18,7 +18,6 @@ struct Runner;
 struct Instance {
     uint32_t instanceId;
     int32_t objectIndex;
-    int32_t roomIndex;
     // Reference count for GML structs (objectIndex == STRUCT_OBJECT_INDEX mode). Unused for game-object instances.
     // The runner's structInstances registry holds an implicit +1 ref while the struct is registered, so a refCount of 1 means "only the registry references this"; the per-frame sweep (Runner_sweepDeadStructs) decRefs those to free them. RValues with ownsReference=true on RVALUE_STRUCT contribute one ref each.
     int32_t refCount;
@@ -40,7 +39,6 @@ struct Instance {
     bool persistent, solid, active, destroyed, visible, createEventFired, outsideRoom, spatialGridDirty, mouseOver;
     // Used to track which alarms are set without looping through the entire alarm array
     uint16_t activeAlarmMask;
-    bool cleanupEventFired;
     int32_t maskIndex; // collision mask sprite override (-1 = use spriteIndex)
     int32_t* collisionCells; // Used to track where we are
     uint32_t lastCollisionQueryId;
@@ -62,8 +60,6 @@ struct Instance {
     float hspeed, vspeed;
     float friction;
     float gravity, gravityDirection;
-    struct PhysicsBody* physicsBody;
-    float physicsContact[5]; // point count, first point x/y, normal x/y
 
     // Path following state
     int32_t pathIndex;           // -1 = no path active

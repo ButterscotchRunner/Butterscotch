@@ -206,9 +206,6 @@ if ! nolink=1 check 'if the compiler supports mixed declarations and code' mixed
 fi
 
 config "_CC := $CC"
-if checkdefine '__cplusplus' > /dev/null; then
-    config 'CC_IS_CXX := 1'
-fi
 
 checklog 'the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -537,38 +534,6 @@ fi
 
 if ! checkend 'for roundf' "$roundf_pid" tmp/roundf.fail; then
     define 'NO_ROUNDF'
-fi
-
-printf '%s' "\
-#include <math.h>
-int main(void){return atan2f(1,1);}
-" > tmp/atan2f.c
-if ! check 'for atan2f' atan2f $lm; then
-    define 'NO_ATAN2F'
-fi
-
-printf '%s' "\
-#include <math.h>
-int main(void){return powf(2,3);}
-" > tmp/powf.c
-if ! check 'for powf' powf $lm; then
-    define 'NO_POWF'
-fi
-
-printf '%s' "\
-#include <math.h>
-int main(void){return ceilf(1);}
-" > tmp/ceilf.c
-if ! check 'for ceilf' ceilf $lm; then
-    define 'NO_CEILF'
-fi
-
-printf '%s' "\
-#include <math.h>
-int main(void){return remainderf(1,2);}
-" > tmp/remainderf.c
-if ! check 'for remainderf' remainderf $lm; then
-    define 'NO_REMAINDERF'
 fi
 
 if ! checkend 'for isinf' "$isinf_pid" tmp/isinf.fail; then
