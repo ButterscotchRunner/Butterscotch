@@ -2578,7 +2578,6 @@ static void parseSTRG(BinaryReader* reader, DataWin* dw) {
 }
 
 static void resolveExternalTextures(BinaryReader* reader, DataWin* dw) {
-    logInfo("resolveExternalTextures %u %d", dw->tginOffset, dw->txtr.textures != nullptr);
     if (!dw->tginOffset || !dw->txtr.textures) return;
     BinaryReader_seek(reader, dw->tginOffset);
     uint32_t version = BinaryReader_readUint32(reader);
@@ -2952,7 +2951,6 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
                     logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
                     exit(1);
                 }
-                logInfo("DataWin: BinaryReader_setBuffer %.4s %u %zu\n", chunkName, chunkLength, read);
                 BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
             }
         }
