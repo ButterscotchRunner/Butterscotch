@@ -8,19 +8,22 @@ extern "C" {
 #endif
 typedef struct PhysicsEngine PhysicsEngine;
 typedef struct PhysicsBody PhysicsBody;
+typedef struct PhysicsResources PhysicsResources;
 typedef struct {
     void (*sync)(void* owner, void* instance, float x, float y, float angle);
     int (*filter)(void* owner, void* a, void* b);
     void (*contact)(void* owner, void* a, void* b, int points, float x, float y, float nx, float ny);
     void (*line)(void* owner, float x1, float y1, float x2, float y2);
 } PhysicsCallbacks;
-PhysicsEngine* PhysicsEngine_create(void* owner, PhysicsCallbacks callbacks, float scale, float fps, PhysicsEngine* resources);
+PhysicsResources* PhysicsResources_create(void);
+void PhysicsResources_free(PhysicsResources* resources);
+double PhysicsResources_call(PhysicsResources* resources, float scale, const char* name, const double* args, int count);
+PhysicsEngine* PhysicsEngine_create(void* owner, PhysicsCallbacks callbacks, float scale, float fps, PhysicsResources* resources);
 void PhysicsEngine_free(PhysicsEngine* engine);
 void PhysicsEngine_step(PhysicsEngine* engine, float fps);
-PhysicsBody* PhysicsEngine_body(PhysicsEngine* engine, void* instance, int fixture, float x, float y, float angle, float xo, float yo, int visualOffset);
+PhysicsBody* PhysicsEngine_body(PhysicsEngine* engine, void* instance, PhysicsBody* existing, int fixture, float x, float y, float angle, float xo, float yo, int visualOffset);
 void PhysicsEngine_destroyBody(PhysicsBody* body);
 void PhysicsEngine_transform(PhysicsBody* body, float x, float y, float angle, int active);
-PhysicsBody* PhysicsEngine_rehome(PhysicsBody* body, PhysicsEngine* engine);
 double PhysicsEngine_variable(PhysicsBody* body, int field, double value, int write, float fps);
 double PhysicsEngine_call(PhysicsEngine* engine, const char* name, PhysicsBody* a, PhysicsBody* b, const double* args, int count);
 int PhysicsEngine_overlap(PhysicsBody* a, PhysicsBody* b, float x, float y, float angle);

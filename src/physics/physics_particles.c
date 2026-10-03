@@ -35,7 +35,7 @@ struct PhysicsParticles {
     float shapeRadius, halfWidth, halfHeight;
 };
 PhysicsParticles* peParticlesCreate(void) {
-    PhysicsParticles* p = safeCalloc(1, sizeof(*p));
+    PhysicsParticles* p = (PhysicsParticles*)safeCalloc(1, sizeof(*p));
     p->radius = 1; p->density = 1; p->damping = 1; p->gravityScale = 1; p->shape = -1;
     return p;
 }
@@ -117,7 +117,7 @@ static void groupStats(PhysicsParticles* p, int id, float* mass, float* inertia)
         dot += b2Dot(rest, offset); cross += b2Cross(rest, offset);
     }
     g->center = center; g->velocity = velocity; g->omega = *inertia > 1e-12f ? angular / *inertia : 0;
-    if (fabsf(dot) + fabsf(cross) > 1e-12f) g->angle = atan2f(cross, dot);
+    if (fabsf(dot) + fabsf(cross) > 1e-12f) g->angle = peAtan2(cross, dot);
     g->position = b2Sub(center, b2RotateVector(b2MakeRot(g->angle), restCenter)); *mass = m * count;
 }
 static void solveGroups(PhysicsParticles* p, float dt) {
@@ -158,12 +158,12 @@ static void bodyResponse(ParticleBodyContext* c, b2ShapeId shape, b2Vec2 normal,
 }
 typedef struct { ParticleBodyContext collision; b2ShapeId shape; b2Vec2 point, normal; float fraction; } SweepContext;
 static float sweepResult(b2ShapeId shape, b2Vec2 point, b2Vec2 normal, float fraction, void* context) {
-    SweepContext* c = context; if (b2Shape_IsSensor(shape)) return -1;
+    SweepContext* c = (SweepContext*)context; if (b2Shape_IsSensor(shape)) return -1;
     if (fraction < c->fraction) { c->shape = shape; c->point = point; c->normal = normal; c->fraction = fraction; }
     return c->fraction;
 }
 static bool overlapBody(b2ShapeId shape, void* context) {
-    ParticleBodyContext* c = context; if (b2Shape_IsSensor(shape)) return true;
+    ParticleBodyContext* c = (ParticleBodyContext*)context; if (b2Shape_IsSensor(shape)) return true;
     b2Vec2 pos = c->particle->position, closest = b2Shape_GetClosestPoint(shape, pos), delta = b2Sub(pos, closest);
     float length = b2Length(delta); b2Vec2 normal = length > 1e-8f ? b2MulSV(1 / length, delta) : b2Vec2_zero;
     float depth = c->radius - length;
@@ -266,11 +266,11 @@ static int finishGroup(PhysicsEngine* e) {
         for (int i = 1; i < arrlen(p->vertices); ++i) { minimum = b2Min(minimum, p->vertices[i]); maximum = b2Max(maximum, p->vertices[i]); }
     }
     float stride = 1.5f * p->radius;
-    int nx = (int)peClamp(ceilf((maximum.x - minimum.x) / stride), 0, 1000000);
-    int ny = (int)peClamp(ceilf((maximum.y - minimum.y) / stride), 0, 1000000);
+    int nx = (int)peClamp(peCeil((maximum.x - minimum.x) / stride), 0, 1000000);
+    int ny = (int)peClamp(peCeil((maximum.y - minimum.y) / stride), 0, 1000000);
     if (!nx || !ny || (uint64_t)nx * ny > 1000000) return -1;
     int id = 0; while (id < arrlen(p->groups) && p->groups[id]) ++id;
-    FluidGroup* g = safeMalloc(sizeof(*g)); *g = p->pendingGroup;
+    FluidGroup* g = (FluidGroup*)safeMalloc(sizeof(*g)); *g = p->pendingGroup;
     if (id == arrlen(p->groups)) arrput(p->groups, g); else p->groups[id] = g;
     int first = (int)arrlen(p->items);
     for (int y = 0; y < ny; ++y) for (int x = 0; x < nx; ++x) {
@@ -387,7 +387,7 @@ int PhysicsEngine_particleData(PhysicsEngine* e, int index, int group, int flags
     int stride = ((flags & 1) ? 4 : 0) + ((flags & 2) ? 8 : 0) + ((flags & 4) ? 8 : 0) + ((flags & 8) ? 4 : 0) + ((flags & 16) ? 4 : 0);
     if (stride && count > INT_MAX / stride) return 0;
     int size = stride * count; if (!buffer || capacity < size) return size;
-    unsigned char* out = buffer;
+    unsigned char* out = (unsigned char*)buffer;
 #define PUT(v) do { memcpy(out, &(v), 4); out += 4; } while (0)
     for (int i = 0; i < arrlen(p->items); ++i) {
         FluidParticle* a = &p->items[i]; if ((index >= 0 && index != i) || (group >= 0 && a->group != group)) continue;

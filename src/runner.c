@@ -430,6 +430,7 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
 // This mirrors what the official YoYo runner does.
 static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int32_t eventType) {
+    if (eventType == EVENT_CLEANUP) return false;
     if (0 > runner->pendingRoom)
         return false;
 
@@ -1480,6 +1481,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
     GameObject* objDef = &dataWin->objt.objects[objectIndex];
 
     Instance* inst = Instance_create(instanceId, objectIndex, x, y);
+    inst->roomIndex = runner->currentRoomIndex;
 
     // Copy properties from object definition
     inst->spriteIndex = objDef->spriteId;
@@ -1510,10 +1512,10 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
 // You should re-append them at the tail AFTER creating the new room's own instances, so the iteration order matches the native runner: room-local instances first, persistent arrivals last.
 static Instance** takePersistentInstances(Runner* runner) {
     Instance** carriedPersistent = nullptr;
-    int32_t oldCount = (int32_t) arrlen(runner->instances);
-    repeat(oldCount, i) {
+    for (int32_t i = 0; i < arrlen(runner->instances); ++i) {
         Instance* inst = runner->instances[i];
-        if (inst->persistent) {
+        if (inst == nullptr) continue;
+        if (inst->persistent && !inst->destroyed) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
@@ -1536,16 +1538,25 @@ static Instance** takePersistentInstances(Runner* runner) {
 
             // Clear the slot before freeing the instance so any nested destroy/cleanup code cannot
             // accidentally dereference a stale pointer that remains in runner->instances during room transitions.
+            Runner_executeCleanupEvent(runner, inst);
             runner->instances[i] = nullptr;
-
             hmdel(runner->instancesById, inst->instanceId);
-            Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Runner_removeInstanceFromObjectLists(runner, inst);
             SpatialGrid_removeInstance(runner->spatialGrid, inst);
             Instance_free(inst);
         }
     }
 
+    for (int32_t i = 0; i < arrlen(carriedPersistent);) {
+        Instance* inst = carriedPersistent[i];
+        if (inst->destroyed) {
+            hmdel(runner->instancesById, inst->instanceId);
+            Instance_free(inst);
+            arrdel(carriedPersistent, i);
+        } else {
+            ++i;
+        }
+    }
     arrfree(runner->instances);
     runner->instances = nullptr;
 
@@ -1560,7 +1571,7 @@ static Instance** takePersistentInstances(Runner* runner) {
 static void returnPersistentInstances(Runner* runner, Instance** carriedPersistent) {
     repeat(arrlen(carriedPersistent), i) {
         arrput(runner->instances, carriedPersistent[i]);
-        carriedPersistent[i]->physicsBody = PhysicsEngine_rehome(carriedPersistent[i]->physicsBody, runner->physics);
+        carriedPersistent[i]->roomIndex = runner->currentRoomIndex;
         Physics_initInstance(runner, carriedPersistent[i]);
         Runner_addInstanceToObjectLists(runner, carriedPersistent[i]);
     }
@@ -1627,6 +1638,11 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Kept so carried persistent instances can be re-homed onto the new room's layer with the same name.
     Room* previousRoom = runner->currentRoom;
     int32_t previousRoomIndex = runner->currentRoomIndex;
+    Instance** carriedPersistent = takePersistentInstances(runner);
+    repeat(arrlen(carriedPersistent), i) {
+        PhysicsEngine_destroyBody(carriedPersistent[i]->physicsBody);
+        carriedPersistent[i]->physicsBody = nullptr;
+    }
 
     runner->currentRoom = room;
     runner->currentRoomIndex = roomIndex;
@@ -1674,8 +1690,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             if (runner->runtimeLayers[li].drawOrder > runner->nextLayerDrawOrder)
                 runner->nextLayerDrawOrder = runner->runtimeLayers[li].drawOrder;
         }
-
-        Instance** carriedPersistent = takePersistentInstances(runner);
 
         // The native runner restores the room's own linked list first, then appends persistent arrivals at the tail.
         // Event iteration is forward (oldest first), so a persistent instance runs after the room's own instances.
@@ -1844,8 +1858,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         dst->alpha = 1.0f;
     }
     }
-
-    Instance** carriedPersistent = takePersistentInstances(runner);
 
     // Re-home carried persistent instances onto the new room's layer with the same name as their old layer (native runner behavior).
     // Layer IDs are unique per room, so the old ID never matches a new-room layer directly.
@@ -2729,6 +2741,12 @@ static void clearDestroyedInstanceReferences(Runner* runner, Instance* destroyed
     }
 }
 
+void Runner_executeCleanupEvent(Runner* runner, Instance* inst) {
+    if (inst->cleanupEventFired) return;
+    inst->cleanupEventFired = true;
+    Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+}
+
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool runDestroyEvent) {
     // We check this to avoid a infinite loop if "inst" is destroyed within a event destroy event
     if (inst->destroyed)
@@ -2736,7 +2754,7 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     inst->destroyed = true;
     if (runDestroyEvent)
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
-    Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+    Runner_executeCleanupEvent(runner, inst);
     // A destroyed instance must ALWAYS be not active
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
@@ -3971,13 +3989,13 @@ void Runner_handlePendingRoomChange(Runner* runner) {
             persistRoomState(runner, oldRoomIndex);
         }
 
-        // Free the outgoing room's payload under lazyLoadRooms, unless it's eagerly pinned or we're restarting the same room (initRoom would just re-load it).
+        // Load new room
+        initRoom(runner, newRoomIndex);
+
+        // Free the outgoing room's payload after Cleanup and persistent-instance layer transfer.
         if (runner->dataWin->lazyLoadRooms && !oldRoom->eagerlyLoaded && newRoomIndex != oldRoomIndex) {
             DataWin_freeRoomPayload(oldRoom);
         }
-
-        // Load new room
-        initRoom(runner, newRoomIndex);
 
         // Fire Room Start for all instances
         Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_START);

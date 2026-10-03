@@ -9518,7 +9518,8 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     // Fire destroy event on old object if requested
     if (performEvents) {
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
-        Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+        Runner_executeCleanupEvent(runner, inst);
+        if (inst->destroyed) return RValue_makeUndefined();
     }
 
     // Move the instance between per-object lists before mutating objectIndex so the remove walks the old parent chain and the add walks the new one.
@@ -9528,6 +9529,7 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     // Change object index and copy properties from new object definition
     GameObject* newObjDef = &runner->dataWin->objt.objects[objectIndex];
     inst->objectIndex = objectIndex;
+    inst->cleanupEventFired = false;
     Runner_addInstanceToObjectLists(runner, inst);
     inst->spriteIndex = newObjDef->spriteId;
     inst->visible = newObjDef->visible;
@@ -22511,26 +22513,34 @@ static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNU
 
 // ||Physics implementation||
 
-static RValue physicsBuiltin(VMContext* ctx, RValue* values, int32_t count, const char* name, int scope, int minimum) {
+static RValue physicsBuiltin(VMContext* ctx, RValue* values, int32_t count, const char* name, int scope, int minimum, bool returnsReal) {
     if (count < minimum) return RValue_makeUndefined();
     Runner* runner = ctx->runner;
     double args[16] = {0};
     int32_t n = count < 16 ? count : 16;
     for (int32_t i = 0; i < n; ++i) {
         args[i] = RValue_toReal(values[i]);
-        if (!isfinite(args[i])) return RValue_makeUndefined();
+        float value = (float)args[i];
+        if (!(value >= -FLT_MAX && value <= FLT_MAX)) return RValue_makeUndefined();
     }
     if (!strcmp(name, "physics_world_create") && !runner->physics) {
         if (args[0] <= 0) return RValue_makeUndefined();
         runner->physics = Physics_createWorld(runner, (float)args[0]);
+        requireNotNullMessage(runner->physics, "physics_world_create could not create a Box2D world");
         if (runner->physicsRooms && runner->currentRoomIndex >= 0)
             runner->physicsRooms[runner->currentRoomIndex] = runner->physics;
     }
-    if (!runner->physics && !strcmp(name, "physics_fixture_create")) Physics_ensureResources(runner, 0.1f);
-    PhysicsEngine* engine = runner->physics ? runner->physics : runner->physicsResources;
-    if (!engine) return RValue_makeReal(-1);
+    if (!runner->physics && !strcmp(name, "physics_fixture_create")) Physics_ensureResources(runner);
+    PhysicsEngine* engine = runner->physics;
+    if (!engine) {
+        double result = -1;
+        if (!strncmp(name, "physics_fixture_", 16) && runner->physicsResources)
+            result = PhysicsResources_call(runner->physicsResources, 0.1f, name, args, n);
+        return returnsReal ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
+    }
 
     Instance* a = ctx->currentInstance;
+    if (a && a->roomIndex != runner->currentRoomIndex) a = nullptr;
     Instance* b = nullptr;
     if (scope == 2) {
         a = VM_findInstanceByTarget(ctx, RValue_toInt32(values[0]));
@@ -22545,114 +22555,112 @@ static RValue physicsBuiltin(VMContext* ctx, RValue* values, int32_t count, cons
         args[0] = args[1];
         for (int32_t i = base; i < end; ++i) {
             Instance* inst = runner->instanceSnapshots[i];
-            if (!inst->destroyed) PhysicsEngine_call(engine, name, inst->physicsBody, nullptr, args, 1);
+            if (!inst->destroyed && inst->roomIndex == runner->currentRoomIndex) PhysicsEngine_call(engine, name, inst->physicsBody, nullptr, args, 1);
         }
         Runner_popInstanceSnapshot(runner, base);
         return RValue_makeUndefined();
     }
     if (!strcmp(name, "physics_world_create") && args[0] <= 0) return RValue_makeUndefined();
     double result = PhysicsEngine_call(engine, name, a ? a->physicsBody : nullptr, b ? b->physicsBody : nullptr, args, n);
-    bool returnsResult = strstr(name, "_create") || strstr(name, "_get_") || !strncmp(name, "physics_get_", 12)
-        || (strstr(name, "_count") && !strstr(name, "_set_")) || !strcmp(name, "physics_particle_group_end");
-    return returnsResult ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
+    return returnsReal ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
 }
 
-/* name, scope (world=0, self=1, joint-create=2, instance/fixture=3), minimum arguments */
+/* name, scope (world=0, self=1, joint-create=2, instance/fixture=3), minimum arguments, numeric return */
 #define PHYSICS_FUNCTIONS(X) \
-    X(physics_world_create, 0, 1) \
-    X(physics_world_gravity, 0, 2) \
-    X(physics_world_update_speed, 0, 1) \
-    X(physics_world_update_iterations, 0, 1) \
-    X(physics_world_draw_debug, 0, 1) \
-    X(physics_pause_enable, 0, 1) \
-    X(physics_fixture_create, 0, 0) \
-    X(physics_fixture_delete, 0, 1) \
-    X(physics_fixture_set_kinematic, 0, 1) \
-    X(physics_fixture_set_density, 0, 2) \
-    X(physics_fixture_set_restitution, 0, 2) \
-    X(physics_fixture_set_friction, 0, 2) \
-    X(physics_fixture_set_collision_group, 0, 2) \
-    X(physics_fixture_set_sensor, 0, 2) \
-    X(physics_fixture_set_linear_damping, 0, 2) \
-    X(physics_fixture_set_angular_damping, 0, 2) \
-    X(physics_fixture_set_awake, 0, 2) \
-    X(physics_fixture_set_circle_shape, 0, 2) \
-    X(physics_fixture_set_box_shape, 0, 3) \
-    X(physics_fixture_set_edge_shape, 0, 5) \
-    X(physics_fixture_set_polygon_shape, 0, 1) \
-    X(physics_fixture_set_chain_shape, 0, 2) \
-    X(physics_fixture_add_point, 0, 3) \
-    X(physics_joint_distance_create, 2, 7) \
-    X(physics_joint_rope_create, 2, 8) \
-    X(physics_joint_revolute_create, 2, 11) \
-    X(physics_joint_prismatic_create, 2, 13) \
-    X(physics_joint_pulley_create, 2, 12) \
-    X(physics_joint_wheel_create, 2, 12) \
-    X(physics_joint_weld_create, 2, 8) \
-    X(physics_joint_friction_create, 2, 7) \
-    X(physics_joint_gear_create, 2, 5) \
-    X(physics_joint_enable_motor, 0, 2) \
-    X(physics_joint_get_value, 0, 2) \
-    X(physics_joint_set_value, 0, 3) \
-    X(physics_joint_delete, 0, 1) \
-    X(physics_apply_force, 1, 4) \
-    X(physics_apply_impulse, 1, 4) \
-    X(physics_apply_local_force, 1, 4) \
-    X(physics_apply_local_impulse, 1, 4) \
-    X(physics_apply_angular_impulse, 1, 1) \
-    X(physics_apply_torque, 1, 1) \
-    X(physics_mass_properties, 1, 4) \
-    X(physics_draw_debug, 1, 0) \
-    X(physics_remove_fixture, 3, 2) \
-    X(physics_get_friction, 1, 1) \
-    X(physics_get_density, 1, 1) \
-    X(physics_get_restitution, 1, 1) \
-    X(physics_set_friction, 1, 2) \
-    X(physics_set_density, 1, 2) \
-    X(physics_set_restitution, 1, 2) \
-    X(physics_particle_create, 0, 8) \
-    X(physics_particle_delete, 0, 1) \
-    X(physics_particle_delete_region_circle, 0, 3) \
-    X(physics_particle_delete_region_box, 0, 4) \
-    X(physics_particle_group_begin, 0, 12) \
-    X(physics_particle_group_circle, 0, 1) \
-    X(physics_particle_group_box, 0, 2) \
-    X(physics_particle_group_polygon, 0, 0) \
-    X(physics_particle_group_add_point, 0, 2) \
-    X(physics_particle_group_end, 0, 0) \
-    X(physics_particle_group_join, 0, 2) \
-    X(physics_particle_group_delete, 0, 1) \
-    X(physics_particle_count, 0, 0) \
-    X(physics_particle_get_max_count, 0, 0) \
-    X(physics_particle_get_radius, 0, 0) \
-    X(physics_particle_get_density, 0, 0) \
-    X(physics_particle_get_damping, 0, 0) \
-    X(physics_particle_get_gravity_scale, 0, 0) \
-    X(physics_particle_set_max_count, 0, 1) \
-    X(physics_particle_set_radius, 0, 1) \
-    X(physics_particle_set_density, 0, 1) \
-    X(physics_particle_set_damping, 0, 1) \
-    X(physics_particle_set_gravity_scale, 0, 1) \
-    X(physics_particle_set_flags, 0, 2) \
-    X(physics_particle_set_category_flags, 0, 2) \
-    X(physics_particle_set_group_flags, 0, 2) \
-    X(physics_particle_get_group_flags, 0, 1) \
-    X(physics_particle_group_count, 0, 1) \
-    X(physics_particle_group_get_mass, 0, 1) \
-    X(physics_particle_group_get_inertia, 0, 1) \
-    X(physics_particle_group_get_centre_x, 0, 1) \
-    X(physics_particle_group_get_centre_y, 0, 1) \
-    X(physics_particle_group_get_vel_x, 0, 1) \
-    X(physics_particle_group_get_vel_y, 0, 1) \
-    X(physics_particle_group_get_ang_vel, 0, 1) \
-    X(physics_particle_group_get_x, 0, 1) \
-    X(physics_particle_group_get_y, 0, 1) \
-    X(physics_particle_group_get_angle, 0, 1) \
-    X(physics_debug, 0, 0)
+    X(physics_world_create, 0, 1, false) \
+    X(physics_world_gravity, 0, 2, false) \
+    X(physics_world_update_speed, 0, 1, false) \
+    X(physics_world_update_iterations, 0, 1, false) \
+    X(physics_world_draw_debug, 0, 1, false) \
+    X(physics_pause_enable, 0, 1, false) \
+    X(physics_fixture_create, 0, 0, true) \
+    X(physics_fixture_delete, 0, 1, false) \
+    X(physics_fixture_set_kinematic, 0, 1, false) \
+    X(physics_fixture_set_density, 0, 2, false) \
+    X(physics_fixture_set_restitution, 0, 2, false) \
+    X(physics_fixture_set_friction, 0, 2, false) \
+    X(physics_fixture_set_collision_group, 0, 2, false) \
+    X(physics_fixture_set_sensor, 0, 2, false) \
+    X(physics_fixture_set_linear_damping, 0, 2, false) \
+    X(physics_fixture_set_angular_damping, 0, 2, false) \
+    X(physics_fixture_set_awake, 0, 2, false) \
+    X(physics_fixture_set_circle_shape, 0, 2, false) \
+    X(physics_fixture_set_box_shape, 0, 3, false) \
+    X(physics_fixture_set_edge_shape, 0, 5, false) \
+    X(physics_fixture_set_polygon_shape, 0, 1, false) \
+    X(physics_fixture_set_chain_shape, 0, 2, false) \
+    X(physics_fixture_add_point, 0, 3, false) \
+    X(physics_joint_distance_create, 2, 7, true) \
+    X(physics_joint_rope_create, 2, 8, true) \
+    X(physics_joint_revolute_create, 2, 11, true) \
+    X(physics_joint_prismatic_create, 2, 13, true) \
+    X(physics_joint_pulley_create, 2, 12, true) \
+    X(physics_joint_wheel_create, 2, 12, true) \
+    X(physics_joint_weld_create, 2, 8, true) \
+    X(physics_joint_friction_create, 2, 7, true) \
+    X(physics_joint_gear_create, 2, 5, true) \
+    X(physics_joint_enable_motor, 0, 2, false) \
+    X(physics_joint_get_value, 0, 2, true) \
+    X(physics_joint_set_value, 0, 3, false) \
+    X(physics_joint_delete, 0, 1, false) \
+    X(physics_apply_force, 1, 4, false) \
+    X(physics_apply_impulse, 1, 4, false) \
+    X(physics_apply_local_force, 1, 4, false) \
+    X(physics_apply_local_impulse, 1, 4, false) \
+    X(physics_apply_angular_impulse, 1, 1, false) \
+    X(physics_apply_torque, 1, 1, false) \
+    X(physics_mass_properties, 1, 4, false) \
+    X(physics_draw_debug, 1, 0, false) \
+    X(physics_remove_fixture, 3, 2, false) \
+    X(physics_get_friction, 1, 1, true) \
+    X(physics_get_density, 1, 1, true) \
+    X(physics_get_restitution, 1, 1, true) \
+    X(physics_set_friction, 1, 2, false) \
+    X(physics_set_density, 1, 2, false) \
+    X(physics_set_restitution, 1, 2, false) \
+    X(physics_particle_create, 0, 8, true) \
+    X(physics_particle_delete, 0, 1, false) \
+    X(physics_particle_delete_region_circle, 0, 3, false) \
+    X(physics_particle_delete_region_box, 0, 4, false) \
+    X(physics_particle_group_begin, 0, 12, false) \
+    X(physics_particle_group_circle, 0, 1, false) \
+    X(physics_particle_group_box, 0, 2, false) \
+    X(physics_particle_group_polygon, 0, 0, false) \
+    X(physics_particle_group_add_point, 0, 2, false) \
+    X(physics_particle_group_end, 0, 0, true) \
+    X(physics_particle_group_join, 0, 2, false) \
+    X(physics_particle_group_delete, 0, 1, false) \
+    X(physics_particle_count, 0, 0, true) \
+    X(physics_particle_get_max_count, 0, 0, true) \
+    X(physics_particle_get_radius, 0, 0, true) \
+    X(physics_particle_get_density, 0, 0, true) \
+    X(physics_particle_get_damping, 0, 0, true) \
+    X(physics_particle_get_gravity_scale, 0, 0, true) \
+    X(physics_particle_set_max_count, 0, 1, false) \
+    X(physics_particle_set_radius, 0, 1, false) \
+    X(physics_particle_set_density, 0, 1, false) \
+    X(physics_particle_set_damping, 0, 1, false) \
+    X(physics_particle_set_gravity_scale, 0, 1, false) \
+    X(physics_particle_set_flags, 0, 2, false) \
+    X(physics_particle_set_category_flags, 0, 2, false) \
+    X(physics_particle_set_group_flags, 0, 2, false) \
+    X(physics_particle_get_group_flags, 0, 1, true) \
+    X(physics_particle_group_count, 0, 1, true) \
+    X(physics_particle_group_get_mass, 0, 1, true) \
+    X(physics_particle_group_get_inertia, 0, 1, true) \
+    X(physics_particle_group_get_centre_x, 0, 1, true) \
+    X(physics_particle_group_get_centre_y, 0, 1, true) \
+    X(physics_particle_group_get_vel_x, 0, 1, true) \
+    X(physics_particle_group_get_vel_y, 0, 1, true) \
+    X(physics_particle_group_get_ang_vel, 0, 1, true) \
+    X(physics_particle_group_get_x, 0, 1, true) \
+    X(physics_particle_group_get_y, 0, 1, true) \
+    X(physics_particle_group_get_angle, 0, 1, true) \
+    X(physics_debug, 0, 0, false)
 
-#define PHYSICS_FUNCTION(name, scope, minimum) \
+#define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) \
 static RValue builtin_##name(VMContext* ctx, RValue* args, int32_t count) { \
-    return physicsBuiltin(ctx, args, count, #name, scope, minimum); \
+    return physicsBuiltin(ctx, args, count, #name, scope, minimum, returnsReal); \
 }
 PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
 #undef PHYSICS_FUNCTION
@@ -22669,10 +22677,11 @@ static RValue builtin_physics_fixture_bind(VMContext* ctx, RValue* args, int32_t
     int32_t end = (int32_t)arrlen(runner->instanceSnapshots), result = -1;
     for (int32_t i = base; i < end; ++i) {
         Instance* inst = runner->instanceSnapshots[i];
-        if (inst->destroyed) continue;
-        PhysicsBody* body = PhysicsEngine_body(runner->physics, inst, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 0);
+        if (inst->destroyed || inst->roomIndex != runner->currentRoomIndex) continue;
+        PhysicsBody* body = PhysicsEngine_body(runner->physics, inst, inst->physicsBody, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 0);
         if (body) {
             inst->physicsBody = body;
+            PhysicsEngine_transform(body, inst->x, inst->y, inst->imageAngle, inst->active);
             result = (int32_t)PhysicsEngine_call(runner->physics, "physics_fixture_index", body, nullptr, nullptr, 0);
         }
     }
@@ -22722,7 +22731,7 @@ static RValue physicsParticleData(VMContext* ctx, RValue* args, int32_t count, i
     int32_t particle = mode == 1 ? index : -1, group = mode == 2 ? index : -1;
     int32_t size = PhysicsEngine_particleData(runner->physics, particle, group, flags, nullptr, 0);
     if (size <= 0) return RValue_makeUndefined();
-    unsigned char* data = safeMalloc(size);
+    unsigned char* data = (unsigned char*)safeMalloc(size);
     PhysicsEngine_particleData(runner->physics, particle, group, flags, data, size);
     int32_t position = runner->gmlBufferPool[bufferId].position;
     BuiltinFunc writer = VM_findBuiltin(ctx, "buffer_write");
@@ -22743,7 +22752,10 @@ static RValue physicsParticleData(VMContext* ctx, RValue* args, int32_t count, i
                     value = RValue_makeReal(bit == 4 ? (GMLReal)(int32_t)v : (GMLReal)v);
                 }
                 int32_t type = bit == 1 || bit == 2 ? GML_BUFTYPE_F32 : bit == 4 ? GML_BUFTYPE_S32 : GML_BUFTYPE_U32;
-                RValue writeArgs[] = {RValue_makeReal(bufferId), RValue_makeReal(type), value};
+                RValue writeArgs[3];
+                writeArgs[0] = RValue_makeReal(bufferId);
+                writeArgs[1] = RValue_makeReal(type);
+                writeArgs[2] = value;
                 RValue result = writer(ctx, writeArgs, 3);
                 RValue_free(&result);
                 offset += 4;
@@ -22769,7 +22781,7 @@ typedef struct {
 } PhysicsParticleDraw;
 
 static void physicsDrawParticle(void* context, float x, float y, int color, float alpha) {
-    PhysicsParticleDraw* d = context;
+    PhysicsParticleDraw* d = (PhysicsParticleDraw*)context;
     Renderer_drawSpriteExt(d->runner->renderer, d->sprite, d->subimg, x, y, d->xs, d->ys, d->angle,
         d->extended ? d->color : (uint32_t)color, d->extended ? d->alpha : alpha);
 }
@@ -22840,7 +22852,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     ctx->registeredBuiltinFunctions = true;
 
     // Physics
-#define PHYSICS_FUNCTION(name, scope, minimum) VM_registerBuiltin(ctx, #name, builtin_##name);
+#define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) VM_registerBuiltin(ctx, #name, builtin_##name);
     PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
 #undef PHYSICS_FUNCTION
 #undef PHYSICS_FUNCTIONS

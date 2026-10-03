@@ -12,9 +12,9 @@ static void ensureMass(b2BodyId id) {
     }
 }
 static bool filter(b2ShapeId a, b2ShapeId b, void* context) {
-    PhysicsEngine* e = context;
-    PhysicsBoundFixture* fa = b2Shape_GetUserData(a);
-    PhysicsBoundFixture* fb = b2Shape_GetUserData(b);
+    PhysicsEngine* e = (PhysicsEngine*)context;
+    PhysicsBoundFixture* fa = (PhysicsBoundFixture*)b2Shape_GetUserData(a);
+    PhysicsBoundFixture* fb = (PhysicsBoundFixture*)b2Shape_GetUserData(b);
     if (!fa || !fb) return false;
     PhysicsBody* pa = fa->owner; PhysicsBody* pb = fb->owner;
     if (b2Body_GetType(pa->id) != b2_dynamicBody && b2Body_GetType(pb->id) != b2_dynamicBody) return false;
@@ -48,21 +48,31 @@ static void recordContact(PhysicsEngine* e, b2ShapeId a, b2ShapeId b, const b2Ma
     arrput(e->contacts, c);
 }
 static bool preSolve(b2ShapeId a, b2ShapeId b, b2Manifold* manifold, void* context) {
-    recordContact(context, a, b, manifold); return true;
+    recordContact((PhysicsEngine*)context, a, b, manifold); return true;
 }
-PhysicsEngine* PhysicsEngine_create(void* owner, PhysicsCallbacks cb, float scale, float fps, PhysicsEngine* shared) {
-    if (!isfinite(scale) || !isfinite(fps) || scale <= 0 || fps <= 0) return NULL;
-    PhysicsEngine* e = safeCalloc(1, sizeof(*e));
+PhysicsResources* PhysicsResources_create(void) {
+    PhysicsResources* r = (PhysicsResources*)safeCalloc(1, sizeof(*r));
+    r->references = 1;
+    return r;
+}
+void PhysicsResources_free(PhysicsResources* r) {
+    if (!r || --r->references != 0) return;
+    for (int i = 0; i < arrlen(r->fixtures); ++i) fixtureFree(r->fixtures[i]);
+    arrfree(r->fixtures); arrfree(r->joints); free(r);
+}
+PhysicsEngine* PhysicsEngine_create(void* owner, PhysicsCallbacks cb, float scale, float fps, PhysicsResources* shared) {
+    if (!peFinite(scale) || !peFinite(fps) || scale <= 0 || fps <= 0) return NULL;
+    PhysicsEngine* e = (PhysicsEngine*)safeCalloc(1, sizeof(*e));
     e->owner = owner; e->callbacks = cb; e->scale = scale; e->speed = e->fps = fps;
     e->timeStep = 1 / fps; e->iterations = 10;
-    e->resources = shared ? shared->resources : safeCalloc(1, sizeof(*e->resources));
-    ++e->resources->references;
+    e->resources = shared ? shared : PhysicsResources_create();
+    if (shared) ++e->resources->references;
     b2WorldDef d = b2DefaultWorldDef(); d.gravity = peVec(0, 10);
     d.workerCount = 0; // callbacks and portability fallbacks require the serial solver
     d.restitutionThreshold = 1; d.maximumLinearSpeed = 10000;
     e->world = b2CreateWorld(&d);
     if (!b2World_IsValid(e->world)) {
-        if (--e->resources->references == 0) free(e->resources);
+        PhysicsResources_free(e->resources);
         free(e); return NULL;
     }
     b2World_SetCustomFilterCallback(e->world, filter, e);
@@ -78,10 +88,7 @@ void PhysicsEngine_free(PhysicsEngine* e) {
     for (int i = 0; i < arrlen(e->bodies); ++i) { e->bodies[i]->engine = NULL; e->bodies[i]->id = b2_nullBodyId; }
     b2DestroyWorld(e->world);
     peParticlesFree(e->particles); arrfree(e->bodies); arrfree(e->contacts);
-    if (--e->resources->references == 0) {
-        for (int i = 0; i < arrlen(e->resources->fixtures); ++i) fixtureFree(e->resources->fixtures[i]);
-        arrfree(e->resources->fixtures); arrfree(e->resources->joints); free(e->resources);
-    }
+    PhysicsResources_free(e->resources);
     free(e);
 }
 void peSync(PhysicsBody* p) {
@@ -93,7 +100,7 @@ void peSync(PhysicsBody* p) {
     if (p->engine->callbacks.sync) p->engine->callbacks.sync(p->engine->owner, p->instance, pos.x, pos.y, -p->angle / PE_RAD);
 }
 void PhysicsEngine_step(PhysicsEngine* e, float fps) {
-    if (!e || e->paused || !isfinite(fps) || fps <= 0) return;
+    if (!e || e->paused || !peFinite(fps) || fps <= 0) return;
     e->fps = fps;
     for (int i = 0; i < arrlen(e->bodies); ++i) e->bodies[i]->previous = b2Body_GetPosition(e->bodies[i]->id);
     float remaining = e->speed / fps;
@@ -110,8 +117,8 @@ void PhysicsEngine_step(PhysicsEngine* e, float fps) {
             PhysicsBody* p = e->bodies[i];
             float linear = peMax(0.000001f, 1 - slice * p->linearDamping);
             float angular = peMax(0.000001f, 1 - slice * p->angularDamping);
-            b2Body_SetLinearDamping(p->id, (powf(linear, -1.0f / subSteps) - 1) / dt);
-            b2Body_SetAngularDamping(p->id, (powf(angular, -1.0f / subSteps) - 1) / dt);
+            b2Body_SetLinearDamping(p->id, (pePow(linear, -1.0f / subSteps) - 1) / dt);
+            b2Body_SetAngularDamping(p->id, (pePow(angular, -1.0f / subSteps) - 1) / dt);
             float omega = b2Body_GetAngularVelocity(p->id), maximum = 0.5f * PE_PI / slice;
             if (fabsf(omega) > maximum) b2Body_SetAngularVelocity(p->id, peClamp(omega, -maximum, maximum));
         }
@@ -142,7 +149,7 @@ void PhysicsEngine_step(PhysicsEngine* e, float fps) {
     for (int i = 0; i < arrlen(e->contacts); ++i) {
         PhysicsContact c = e->contacts[i];
         if (!b2Shape_IsValid(c.a) || !b2Shape_IsValid(c.b)) continue;
-        PhysicsBoundFixture* a = b2Shape_GetUserData(c.a); PhysicsBoundFixture* b = b2Shape_GetUserData(c.b);
+        PhysicsBoundFixture* a = (PhysicsBoundFixture*)b2Shape_GetUserData(c.a); PhysicsBoundFixture* b = (PhysicsBoundFixture*)b2Shape_GetUserData(c.b);
         if (a && b && e->callbacks.contact) e->callbacks.contact(e->owner, a->owner->instance, b->owner->instance, c.count,
             c.point.x / e->scale, c.point.y / e->scale, c.normal.x, c.normal.y);
     }
@@ -162,7 +169,7 @@ static bool validFixture(const PhysicsFixture* f) {
     return !f->loop || b2DistanceSquared(f->vertices[0], f->vertices[n - 1]) >= 0.000025f;
 }
 static PhysicsBoundFixture* bindFixture(PhysicsBody* p, const PhysicsFixture* source, b2Vec2 offset) {
-    PhysicsBoundFixture* f = safeCalloc(1, sizeof(*f)); f->owner = p; f->definition = *source; f->offset = offset;
+    PhysicsBoundFixture* f = (PhysicsBoundFixture*)safeCalloc(1, sizeof(*f)); f->owner = p; f->definition = *source; f->offset = offset;
     f->definition.vertices = NULL;
     for (int i = 0; i < arrlen(source->vertices); ++i) arrput(f->definition.vertices, source->vertices[i]);
     b2ShapeDef d = b2DefaultShapeDef(); d.userData = f; d.density = source->density;
@@ -192,15 +199,16 @@ static PhysicsBoundFixture* bindFixture(PhysicsBody* p, const PhysicsFixture* so
     ensureMass(p->id);
     return f;
 }
-PhysicsBody* PhysicsEngine_body(PhysicsEngine* e, void* inst, int index, float x, float y, float angle, float xo, float yo, int visualOffset) {
+PhysicsBody* PhysicsEngine_body(PhysicsEngine* e, void* inst, PhysicsBody* existing, int index, float x, float y, float angle, float xo, float yo, int visualOffset) {
     if (!e) return NULL;
+    if (existing && (!peBodyValid(existing) || existing->engine != e || existing->instance != inst)) return NULL;
     PhysicsFixture* f = fixtureGet(e->resources, index); if (!f || !validFixture(f)) return NULL;
-    PhysicsBody* p = NULL;
+    PhysicsBody* p = existing;
     for (int i = 0; i < arrlen(e->bodies); ++i) if (e->bodies[i]->instance == inst) { p = e->bodies[i]; break; }
     b2BodyType type = f->density > 0 ? b2_dynamicBody : f->kinematic ? b2_kinematicBody : b2_staticBody;
     b2Rot rotation = b2MakeRot(-angle * PE_RAD);
     if (!p) {
-        p = safeCalloc(1, sizeof(*p)); p->engine = e; p->instance = inst; p->enabled = true; p->lastFixture = -1;
+        p = (PhysicsBody*)safeCalloc(1, sizeof(*p)); p->engine = e; p->instance = inst; p->enabled = true; p->lastFixture = -1;
         p->offset = visualOffset ? peVec(xo, yo) : b2Vec2_zero; p->angle = -angle * PE_RAD;
         p->linearDamping = f->linearDamping; p->angularDamping = f->angularDamping;
         b2BodyDef d = b2DefaultBodyDef(); d.type = type; d.rotation = rotation; d.userData = p;
@@ -237,7 +245,8 @@ void PhysicsEngine_destroyBody(PhysicsBody* p) {
 }
 void PhysicsEngine_transform(PhysicsBody* p, float x, float y, float angle, int active) {
     if (!peBodyValid(p)) return;
-    b2Rot q = b2MakeRot(-angle * PE_RAD);
+    if (!peFinite(x) || !peFinite(y) || !peFinite(angle)) return;
+    b2Rot q = b2MakeRot(peWrap(-angle * PE_RAD));
     b2Vec2 pos = b2MulSV(p->engine->scale, b2Sub(peVec(x, y), b2RotateVector(q, p->offset)));
     if (b2DistanceSquared(pos, b2Body_GetPosition(p->id)) > 1e-12f || fabsf(peWrap(-angle * PE_RAD - peAngle(p->id))) > 1e-6f) {
         p->angle = -angle * PE_RAD; b2Body_SetTransform(p->id, pos, q); b2Body_SetAwake(p->id, true);
@@ -245,36 +254,14 @@ void PhysicsEngine_transform(PhysicsBody* p, float x, float y, float angle, int 
     bool enabled = active && p->enabled;
     if (enabled != b2Body_IsEnabled(p->id)) { if (enabled) b2Body_Enable(p->id); else b2Body_Disable(p->id); }
 }
-PhysicsBody* PhysicsEngine_rehome(PhysicsBody* old, PhysicsEngine* e) {
-    if (!old || old->engine == e) return old;
-    if (!e || !peBodyValid(old)) { PhysicsEngine_destroyBody(old); return NULL; }
-    PhysicsBody* p = safeCalloc(1, sizeof(*p)); *p = *old; p->engine = e; p->fixtures = NULL;
-    float ratio = e->scale / old->engine->scale;
-    b2BodyDef d = b2DefaultBodyDef(); d.type = b2Body_GetType(old->id); d.position = b2MulSV(ratio, b2Body_GetPosition(old->id));
-    d.rotation = b2Body_GetRotation(old->id); d.linearVelocity = b2MulSV(ratio, b2Body_GetLinearVelocity(old->id));
-    d.angularVelocity = b2Body_GetAngularVelocity(old->id); d.linearDamping = old->linearDamping; d.angularDamping = old->angularDamping;
-    d.isAwake = b2Body_IsAwake(old->id); d.isEnabled = b2Body_IsEnabled(old->id);
-    d.fixedRotation = b2Body_IsFixedRotation(old->id); d.isBullet = b2Body_IsBullet(old->id); d.userData = p;
-    p->id = b2CreateBody(e->world, &d); p->previous = d.position;
-    for (int i = 0; i < arrlen(old->fixtures); ++i) {
-        PhysicsBoundFixture* f = old->fixtures[i]; PhysicsBoundFixture* copy = NULL;
-        if (f) {
-            PhysicsFixture scaled = f->definition; scaled.vertices = NULL;
-            scaled.radius *= ratio; scaled.width *= ratio; scaled.height *= ratio;
-            for (int j = 0; j < arrlen(f->definition.vertices); ++j) arrput(scaled.vertices, b2MulSV(ratio, f->definition.vertices[j]));
-            copy = bindFixture(p, &scaled, b2MulSV(ratio, f->offset)); arrfree(scaled.vertices);
-        }
-        arrput(p->fixtures, copy);
-    }
-    arrput(e->bodies, p); PhysicsEngine_destroyBody(old); return p;
-}
 double PhysicsEngine_variable(PhysicsBody* p, int field, double value, int write, float fps) {
     if (!peBodyValid(p)) return 0;
     b2BodyId id = p->id; float s = p->engine->scale, v = (float)value;
+    if (write && !peFinite(v)) return 0;
     b2Vec2 position = b2Body_GetPosition(id), velocity = b2Body_GetLinearVelocity(id);
     if (write) {
         switch (field) {
-        case PHY_ROTATION: p->angle = v * PE_RAD; b2Body_SetTransform(id, position, b2MakeRot(p->angle)); break;
+        case PHY_ROTATION: p->angle = v * PE_RAD; b2Body_SetTransform(id, position, b2MakeRot(peWrap(p->angle))); break;
         case PHY_POSITION_X: position.x = v * s; b2Body_SetTransform(id, position, b2Body_GetRotation(id)); break;
         case PHY_POSITION_Y: position.y = v * s; b2Body_SetTransform(id, position, b2Body_GetRotation(id)); break;
         case PHY_ANGULAR_VELOCITY: b2Body_SetAngularVelocity(id, v * PE_RAD); break;
@@ -348,15 +335,15 @@ void peDrawCircle(PhysicsEngine* e, b2Vec2 center, float radius) {
     for (int i = 1; i <= 32; ++i) { float a = 2 * PE_PI * i / 32; b2Vec2 p = b2Add(center, peVec(radius * cosf(a), radius * sinf(a))); peDrawLine(e, prev, p); prev = p; }
 }
 static void debugPolygon(const b2Vec2* v, int n, b2HexColor color, void* context) {
-    (void)color; for (int i = 0; i < n; ++i) peDrawLine(context, v[i], v[(i + 1) % n]);
+    (void)color; for (int i = 0; i < n; ++i) peDrawLine((PhysicsEngine*)context, v[i], v[(i + 1) % n]);
 }
 static void debugSolidPolygon(b2Transform t, const b2Vec2* v, int n, float radius, b2HexColor color, void* context) {
-    (void)radius; (void)color; for (int i = 0; i < n; ++i) peDrawLine(context, b2TransformPoint(t, v[i]), b2TransformPoint(t, v[(i + 1) % n]));
+    (void)radius; (void)color; for (int i = 0; i < n; ++i) peDrawLine((PhysicsEngine*)context, b2TransformPoint(t, v[i]), b2TransformPoint(t, v[(i + 1) % n]));
 }
-static void debugCircle(b2Vec2 c, float r, b2HexColor color, void* context) { (void)color; peDrawCircle(context, c, r); }
+static void debugCircle(b2Vec2 c, float r, b2HexColor color, void* context) { (void)color; peDrawCircle((PhysicsEngine*)context, c, r); }
 static void debugSolidCircle(b2Transform t, float r, b2HexColor color, void* context) { debugCircle(t.p, r, color, context); }
-static void debugSegment(b2Vec2 a, b2Vec2 b, b2HexColor color, void* context) { (void)color; peDrawLine(context, a, b); }
-static void debugTransform(b2Transform t, void* context) { peDrawLine(context, t.p, b2Add(t.p, b2RotateVector(t.q, peVec(0.4f, 0)))); peDrawLine(context, t.p, b2Add(t.p, b2RotateVector(t.q, peVec(0, 0.4f)))); }
+static void debugSegment(b2Vec2 a, b2Vec2 b, b2HexColor color, void* context) { (void)color; peDrawLine((PhysicsEngine*)context, a, b); }
+static void debugTransform(b2Transform t, void* context) { peDrawLine((PhysicsEngine*)context, t.p, b2Add(t.p, b2RotateVector(t.q, peVec(0.4f, 0)))); peDrawLine((PhysicsEngine*)context, t.p, b2Add(t.p, b2RotateVector(t.q, peVec(0, 0.4f)))); }
 static void debugPoint(b2Vec2 p, float size, b2HexColor color, void* context) { (void)size; debugCircle(p, 0.01f, color, context); }
 static void debugString(b2Vec2 p, const char* text, b2HexColor color, void* context) { (void)p; (void)text; (void)color; (void)context; }
 static void drawBody(PhysicsBody* p) {
@@ -364,9 +351,42 @@ static void drawBody(PhysicsBody* p) {
     for (int i = 0; i < arrlen(p->fixtures); ++i) if (p->fixtures[i]) for (int j = 0; j < arrlen(p->fixtures[i]->shapes); ++j) {
         b2ShapeId id = p->fixtures[i]->shapes[j]; b2ShapeType type = b2Shape_GetType(id);
         if (type == b2_circleShape) { b2Circle c = b2Shape_GetCircle(id); peDrawCircle(p->engine, b2TransformPoint(t, c.center), c.radius); }
-        else if (type == b2_polygonShape) { b2Polygon poly = b2Shape_GetPolygon(id); debugSolidPolygon(t, poly.vertices, poly.count, 0, 0, p->engine); }
+        else if (type == b2_polygonShape) { b2Polygon poly = b2Shape_GetPolygon(id); debugSolidPolygon(t, poly.vertices, poly.count, 0, b2_colorWhite, p->engine); }
         else { b2Segment s = b2Shape_GetSegment(id); peDrawLine(p->engine, b2TransformPoint(t, s.point1), b2TransformPoint(t, s.point2)); }
     }
+}
+double PhysicsResources_call(PhysicsResources* resources, float scale, const char* name, const double* args, int count) {
+    if (!resources) return -1;
+#define ARG(i) peArg(args, count, i)
+#define IS(s) (!strcmp(name, s))
+#define POINT(i) b2MulSV(scale, peVec(ARG(i), ARG((i) + 1)))
+    if (IS("physics_fixture_create")) {
+        PhysicsFixture* f = (PhysicsFixture*)safeCalloc(1, sizeof(*f)); f->shape = -1; f->friction = 0.2f; f->awake = true;
+        int index = 0; while (index < arrlen(resources->fixtures) && resources->fixtures[index]) ++index;
+        if (index == arrlen(resources->fixtures)) arrput(resources->fixtures, f); else resources->fixtures[index] = f;
+        return index;
+    }
+    int index = (int)ARG(0); PhysicsFixture* f = fixtureGet(resources, index); if (!f) return -1;
+    if (IS("physics_fixture_delete")) { fixtureFree(f); resources->fixtures[index] = NULL; }
+    else if (IS("physics_fixture_set_density")) f->density = peMax(0, ARG(1));
+    else if (IS("physics_fixture_set_friction")) f->friction = peMax(0, ARG(1));
+    else if (IS("physics_fixture_set_restitution")) f->restitution = peMax(0, ARG(1));
+    else if (IS("physics_fixture_set_sensor")) f->sensor = ARG(1) != 0;
+    else if (IS("physics_fixture_set_collision_group")) f->group = (int16_t)ARG(1);
+    else if (IS("physics_fixture_set_linear_damping")) f->linearDamping = peMax(0, ARG(1));
+    else if (IS("physics_fixture_set_angular_damping")) f->angularDamping = peMax(0, ARG(1));
+    else if (IS("physics_fixture_set_awake")) f->awake = ARG(1) != 0;
+    else if (IS("physics_fixture_set_kinematic")) f->kinematic = true;
+    else if (IS("physics_fixture_set_circle_shape")) { f->shape = PE_CIRCLE; f->radius = ARG(1) * scale; arrsetlen(f->vertices, 0); }
+    else if (IS("physics_fixture_set_box_shape")) { f->shape = PE_POLYGON; f->width = ARG(1) * scale; f->height = ARG(2) * scale; arrsetlen(f->vertices, 0); }
+    else if (IS("physics_fixture_set_polygon_shape")) { f->shape = PE_POLYGON; f->width = f->height = 0; arrsetlen(f->vertices, 0); }
+    else if (IS("physics_fixture_set_chain_shape")) { f->shape = PE_CHAIN; f->loop = ARG(1) != 0; arrsetlen(f->vertices, 0); }
+    else if (IS("physics_fixture_set_edge_shape")) { f->shape = PE_EDGE; arrsetlen(f->vertices, 0); arrput(f->vertices, POINT(1)); arrput(f->vertices, POINT(3)); }
+    else if (IS("physics_fixture_add_point")) arrput(f->vertices, POINT(1));
+    return 0;
+#undef ARG
+#undef IS
+#undef POINT
 }
 double PhysicsEngine_call(PhysicsEngine* e, const char* name, PhysicsBody* a, PhysicsBody* b, const double* args, int count) {
     if (!e) return -1;
@@ -397,35 +417,10 @@ double PhysicsEngine_call(PhysicsEngine* e, const char* name, PhysicsBody* a, Ph
         return 0;
     }
     if (IS("physics_fixture_index")) return a ? a->lastFixture : -1;
-    if (IS("physics_fixture_create")) {
-        PhysicsFixture* f = safeCalloc(1, sizeof(*f)); f->shape = -1; f->friction = 0.2f; f->awake = true;
-        int index = 0; while (index < arrlen(e->resources->fixtures) && e->resources->fixtures[index]) ++index;
-        if (index == arrlen(e->resources->fixtures)) arrput(e->resources->fixtures, f); else e->resources->fixtures[index] = f;
-        return index;
-    }
-    if (!strncmp(name, "physics_fixture_", 16)) {
-        int index = (int)ARG(0); PhysicsFixture* f = fixtureGet(e->resources, index); if (!f) return -1;
-        if (IS("physics_fixture_delete")) { fixtureFree(f); e->resources->fixtures[index] = NULL; }
-        else if (IS("physics_fixture_set_density")) f->density = peMax(0, ARG(1));
-        else if (IS("physics_fixture_set_friction")) f->friction = peMax(0, ARG(1));
-        else if (IS("physics_fixture_set_restitution")) f->restitution = peMax(0, ARG(1));
-        else if (IS("physics_fixture_set_sensor")) f->sensor = ARG(1) != 0;
-        else if (IS("physics_fixture_set_collision_group")) f->group = (int16_t)ARG(1);
-        else if (IS("physics_fixture_set_linear_damping")) f->linearDamping = peMax(0, ARG(1));
-        else if (IS("physics_fixture_set_angular_damping")) f->angularDamping = peMax(0, ARG(1));
-        else if (IS("physics_fixture_set_awake")) f->awake = ARG(1) != 0;
-        else if (IS("physics_fixture_set_kinematic")) f->kinematic = true;
-        else if (IS("physics_fixture_set_circle_shape")) { f->shape = PE_CIRCLE; f->radius = ARG(1) * e->scale; arrsetlen(f->vertices, 0); }
-        else if (IS("physics_fixture_set_box_shape")) { f->shape = PE_POLYGON; f->width = ARG(1) * e->scale; f->height = ARG(2) * e->scale; arrsetlen(f->vertices, 0); }
-        else if (IS("physics_fixture_set_polygon_shape")) { f->shape = PE_POLYGON; f->width = f->height = 0; arrsetlen(f->vertices, 0); }
-        else if (IS("physics_fixture_set_chain_shape")) { f->shape = PE_CHAIN; f->loop = ARG(1) != 0; arrsetlen(f->vertices, 0); }
-        else if (IS("physics_fixture_set_edge_shape")) { f->shape = PE_EDGE; arrsetlen(f->vertices, 0); arrput(f->vertices, POINT(1)); arrput(f->vertices, POINT(3)); }
-        else if (IS("physics_fixture_add_point")) arrput(f->vertices, POINT(1));
-        return 0;
-    }
+    if (!strncmp(name, "physics_fixture_", 16)) return PhysicsResources_call(e->resources, e->scale, name, args, count);
     if (!strncmp(name, "physics_joint_", 14)) return peJointCall(e, name, a, b, args, count);
     if (!strncmp(name, "physics_particle_", 17)) return peParticleCall(e, name, args, count);
-    if (!peBodyValid(a)) return 0;
+    if (!peBodyValid(a) || a->engine != e) return 0;
     if (IS("physics_apply_force") || IS("physics_apply_impulse") || IS("physics_apply_local_force") || IS("physics_apply_local_impulse")) {
         b2Vec2 point = POINT(0), force = VEC(2);
         if (IS("physics_apply_local_force") || IS("physics_apply_local_impulse")) { point = b2Body_GetWorldPoint(a->id, point); force = b2Body_GetWorldVector(a->id, force); }

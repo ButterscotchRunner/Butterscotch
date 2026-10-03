@@ -57,8 +57,8 @@ void Physics_setVariable(Runner* runner, Instance* inst, int16_t id, RValue valu
     PhysicsEngine_variable(inst->physicsBody, id - PHYSICS_VARIABLE_BASE, RValue_toReal(value), 1, (float)Runner_getEffectiveGameSpeed(runner));
 }
 static void physicsSync(void* owner, void* instance, float x, float y, float angle) {
-    Runner* runner = owner;
-    Instance* inst = instance;
+    Runner* runner = (Runner*)owner;
+    Instance* inst = (Instance*)instance;
     if (inst->destroyed) return;
     inst->x = x; inst->y = y; inst->imageAngle = angle;
     SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
@@ -78,7 +78,7 @@ static bool hasCollision(Runner* r, Instance* a, Instance* b) {
     return false;
 }
 static int physicsFilter(void* owner, void* first, void* second) {
-    Runner* r = owner; Instance* a = first; Instance* b = second;
+    Runner* r = (Runner*)owner; Instance* a = (Instance*)first; Instance* b = (Instance*)second;
     return !a->destroyed && !b->destroyed && a->active && b->active && (hasCollision(r, a, b) || hasCollision(r, b, a));
 }
 static void dispatchContact(Runner* r, Instance* a, Instance* b) {
@@ -97,7 +97,7 @@ static void dispatchContact(Runner* r, Instance* a, Instance* b) {
     }
 }
 static void physicsContact(void* owner, void* first, void* second, int points, float x, float y, float nx, float ny) {
-    Runner* r = owner; Instance* a = first; Instance* b = second;
+    Runner* r = (Runner*)owner; Instance* a = (Instance*)first; Instance* b = (Instance*)second;
     if (a->destroyed || b->destroyed || !a->active || !b->active) return;
     float data[] = {(float)points, x, y, nx, ny};
     memcpy(a->physicsContact, data, sizeof(data)); memcpy(b->physicsContact, data, sizeof(data));
@@ -109,22 +109,22 @@ static void physicsLine(void* owner, float x1, float y1, float x2, float y2) {
     Renderer* renderer = ((Runner*)owner)->renderer;
     if (renderer) renderer->vtable->drawLine(renderer, x1, y1, x2, y2, 1, renderer->drawColor, renderer->drawAlpha);
 }
-PhysicsEngine* Physics_ensureResources(Runner* r, float scale) {
-    PhysicsCallbacks cb = {physicsSync, physicsFilter, physicsContact, physicsLine};
-    if (!r->physicsResources) r->physicsResources = PhysicsEngine_create(r, cb, scale, (float)Runner_getEffectiveGameSpeed(r), nullptr);
+PhysicsResources* Physics_ensureResources(Runner* r) {
+    if (!r->physicsResources) r->physicsResources = PhysicsResources_create();
     return r->physicsResources;
 }
 PhysicsEngine* Physics_createWorld(Runner* r, float scale) {
     PhysicsCallbacks cb = {physicsSync, physicsFilter, physicsContact, physicsLine};
-    if (!Physics_ensureResources(r, scale)) return nullptr;
+    if (!Physics_ensureResources(r)) return nullptr;
     return PhysicsEngine_create(r, cb, scale, (float)Runner_getEffectiveGameSpeed(r), r->physicsResources);
 }
 void Physics_initRoom(Runner* r) {
-    if (!r->physicsRooms) r->physicsRooms = safeCalloc(r->dataWin->room.count, sizeof(*r->physicsRooms));
+    if (!r->physicsRooms) r->physicsRooms = (PhysicsEngine**)safeCalloc(r->dataWin->room.count, sizeof(*r->physicsRooms));
     PhysicsEngine* existing = r->physicsRooms[r->currentRoomIndex];
     if (!r->currentRoom->persistent || !existing) {
-        PhysicsEngine* fresh = r->currentRoom->world ? Physics_createWorld(r, r->currentRoom->metersPerPixel > 0 ? r->currentRoom->metersPerPixel : 0.1f) : nullptr;
         PhysicsEngine_free(existing);
+        PhysicsEngine* fresh = r->currentRoom->world ? Physics_createWorld(r, r->currentRoom->metersPerPixel > 0 ? r->currentRoom->metersPerPixel : 0.1f) : nullptr;
+        requireMessage(!r->currentRoom->world || fresh != nullptr, "Could not create the room's Box2D world");
         r->physicsRooms[r->currentRoomIndex] = fresh;
         r->physics = fresh;
         double gravity[] = {r->currentRoom->world ? r->currentRoom->gravityX : 0, r->currentRoom->world ? r->currentRoom->gravityY : 10};
@@ -141,13 +141,13 @@ void Physics_free(Runner* r) {
         for (uint32_t i = 0; i < r->dataWin->room.count; ++i) PhysicsEngine_free(r->physicsRooms[i]);
         free(r->physicsRooms); r->physicsRooms = nullptr;
     }
-    PhysicsEngine_free(r->physicsResources); r->physicsResources = nullptr;
+    PhysicsResources_free(r->physicsResources); r->physicsResources = nullptr;
     r->physics = nullptr;
 }
 static double call(Runner* r, const char* name, const double* args, int count) { return PhysicsEngine_call(r->physics, name, nullptr, nullptr, args, count); }
-static void fixtureSetting(Runner* r, const char* name, int fixture, double value) { double args[] = {fixture, value}; call(r, name, args, 2); }
+static void fixtureSetting(Runner* r, const char* name, int fixture, double value) { double args[] = {(double)fixture, value}; call(r, name, args, 2); }
 void Physics_initInstance(Runner* r, Instance* inst) {
-    if (inst->physicsBody || !r->physics || inst->objectIndex < 0) return;
+    if (inst->destroyed || inst->physicsBody || !r->physics || inst->objectIndex < 0 || inst->roomIndex != r->currentRoomIndex) return;
     GameObject* o = &r->dataWin->objt.objects[inst->objectIndex];
     if (!o->usesPhysics || inst->spriteIndex < 0 || (uint32_t)inst->spriteIndex >= r->dataWin->sprt.count || o->physicsVertexCount <= 0) return;
     int fixture = (int)call(r, "physics_fixture_create", nullptr, 0);
@@ -162,7 +162,7 @@ void Physics_initInstance(Runner* r, Instance* inst) {
         fixtureSetting(r, "physics_fixture_set_polygon_shape", fixture, 0);
         for (int i = 0; i < o->physicsVertexCount; ++i) {
             int index = inst->imageXscale * inst->imageYscale < 0 ? o->physicsVertexCount - i - 1 : i;
-            double args[] = {fixture, o->physicsVertices[index].x * inst->imageXscale, o->physicsVertices[index].y * inst->imageYscale};
+            double args[] = {(double)fixture, o->physicsVertices[index].x * inst->imageXscale, o->physicsVertices[index].y * inst->imageYscale};
             call(r, "physics_fixture_add_point", args, 3);
         }
     }
@@ -175,7 +175,8 @@ void Physics_initInstance(Runner* r, Instance* inst) {
     fixtureSetting(r, "physics_fixture_set_angular_damping", fixture, o->angularDamping);
     fixtureSetting(r, "physics_fixture_set_awake", fixture, o->awake);
     if (o->kinematic) fixtureSetting(r, "physics_fixture_set_kinematic", fixture, 0);
-    inst->physicsBody = PhysicsEngine_body(r->physics, inst, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 1);
+    inst->physicsBody = PhysicsEngine_body(r->physics, inst, nullptr, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 1);
+    PhysicsEngine_transform(inst->physicsBody, inst->x, inst->y, inst->imageAngle, inst->active);
     fixtureSetting(r, "physics_fixture_delete", fixture, 0);
 }
 void Physics_step(Runner* r) {

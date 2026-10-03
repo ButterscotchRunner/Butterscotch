@@ -8,7 +8,7 @@ struct VMContext;
 struct Instance;
 #define PHYSICS_VARIABLE_BASE 10000
 #define PHYSICS_CONSTANT_BASE 10100
-PhysicsEngine* Physics_ensureResources(struct Runner* runner, float scale);
+PhysicsResources* Physics_ensureResources(struct Runner* runner);
 PhysicsEngine* Physics_createWorld(struct Runner* runner, float scale);
 int16_t Physics_resolveVariable(const char* name);
 RValue Physics_getVariable(struct Runner* runner, struct Instance* inst, int16_t id);

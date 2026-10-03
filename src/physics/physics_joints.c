@@ -18,7 +18,7 @@ static void addGradient(Jacobian* c, PhysicsBody* p, b2Vec2 linear, float angula
         c->terms[i].linear = b2Add(c->terms[i].linear, linear); c->terms[i].angular += angular; return;
     }
     require(c->count < 4);
-    c->terms[c->count++] = (Gradient){p, linear, angular};
+    Gradient* term = &c->terms[c->count++]; term->body = p; term->linear = linear; term->angular = angular;
 }
 static void applyGradient(const Jacobian* c, float impulse, bool position) {
     if (fabsf(impulse) < 1e-9f) return;
@@ -217,7 +217,7 @@ double peJointCall(PhysicsEngine* e, const char* name, PhysicsBody* a, PhysicsBo
     if (IS("physics_joint_get_value") || IS("physics_joint_set_value") || IS("physics_joint_enable_motor"))
         return jointValue(peJoint(e->resources, (int)ARG(0)), IS("physics_joint_enable_motor") ? 25 : (int)ARG(1), IS("physics_joint_enable_motor") ? ARG(1) : ARG(2), !IS("physics_joint_get_value"));
     if (!peBodyValid(a) || !peBodyValid(b) || a == b || a->engine != e || b->engine != e) return -1;
-    PhysicsJoint* j = safeCalloc(1, sizeof(*j)); j->a = a; j->b = b; j->engine = e;
+    PhysicsJoint* j = (PhysicsJoint*)safeCalloc(1, sizeof(*j)); j->a = a; j->b = b; j->engine = e;
     j->source1 = j->source2 = -1; j->reference = b->angle - a->angle;
     j->anchorA = b2Body_GetLocalPoint(a->id, POINT(2));
     j->anchorB = b2Body_GetLocalPoint(b->id, POINT(2));

@@ -8,6 +8,7 @@
 #include <stb_ds.h>
 #include <string.h>
 #include <stdlib.h>
+#include <float.h>
 
 #define PE_PI 3.14159265358979323846f
 #define PE_RAD (PE_PI / 180.0f)
@@ -38,11 +39,11 @@ typedef struct PhysicsJoint {
     b2Vec2 linearImpulse, reaction;
     bool collide, enableLimit;
 } PhysicsJoint;
-typedef struct {
+struct PhysicsResources {
     int references;
     PhysicsFixture** fixtures;
     PhysicsJoint** joints;
-} PhysicsResources;
+};
 typedef struct {
     b2ShapeId a, b;
     b2Vec2 point, normal;
@@ -76,8 +77,18 @@ static inline b2Vec2 peVec(float x, float y) { b2Vec2 v = {x, y}; return v; }
 static inline float peMin(float a, float b) { return a < b ? a : b; }
 static inline float peMax(float a, float b) { return a > b ? a : b; }
 static inline float peClamp(float x, float a, float b) { return peMin(peMax(x, a), b); }
-static inline float peAngle(b2BodyId id) { b2Rot q = b2Body_GetRotation(id); return atan2f(q.s, q.c); }
-static inline float peWrap(float x) { while (x > PE_PI) x -= 2 * PE_PI; while (x < -PE_PI) x += 2 * PE_PI; return x; }
+static inline bool peFinite(float x) { return x >= -FLT_MAX && x <= FLT_MAX; }
+static inline float peAtan2(float y, float x) { return (float)GMLReal_atan2((GMLReal)y, (GMLReal)x); }
+static inline float pePow(float x, float y) { return (float)GMLReal_pow((GMLReal)x, (GMLReal)y); }
+static inline float peCeil(float x) { return (float)GMLReal_ceil((GMLReal)x); }
+static inline float peAngle(b2BodyId id) { b2Rot q = b2Body_GetRotation(id); return peAtan2(q.s, q.c); }
+static inline float peWrap(float x) {
+    if (!peFinite(x)) return 0;
+    if (x > PE_PI || x < -PE_PI) x = fmodf(x, 2 * PE_PI);
+    if (x > PE_PI) x -= 2 * PE_PI;
+    if (x < -PE_PI) x += 2 * PE_PI;
+    return x;
+}
 static inline bool peBodyValid(const PhysicsBody* p) { return p && p->engine && b2Body_IsValid(p->id); }
 static inline float peArg(const double* args, int count, int index) { return index < count ? (float)args[index] : 0; }
 static inline PhysicsJoint* peJoint(PhysicsResources* r, int id) { return id >= 0 && id < arrlen(r->joints) ? r->joints[id] : NULL; }
