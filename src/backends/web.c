@@ -107,7 +107,7 @@ void platformLog(MAYBE_UNUSED const logType type, const char *format, va_list va
     vfprintf(stdout, format, va);
 }
 
-bool platformInit(int32_t reqW, int32_t reqH, MAYBE_UNUSED const char *title, MAYBE_UNUSED bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, MAYBE_UNUSED const char *title, MAYBE_UNUSED bool headless, MAYBE_UNUSED bool fullscreen) {
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
 
