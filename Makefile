@@ -56,7 +56,7 @@ SRCS += $(wildcard src/physics/*.c)
 DEFINES += $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-HEADERS += $(wildcard src/physics/*.h) src/physics/physics_functions.inc
+HEADERS += $(wildcard src/physics/*.h)
 SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
