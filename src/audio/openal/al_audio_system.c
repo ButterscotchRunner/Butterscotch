@@ -17,6 +17,8 @@
 
 // ===[ Helpers ]===
 
+static float maGetStreamLength(AlAudioSystem* ma, int32_t streamIndex);
+
 static bool isValidSoundInstanceId(int32_t instanceId) {
     return AUDIO_STREAM_INDEX_BASE > instanceId && instanceId >= SOUND_INSTANCE_ID_BASE;
 }
@@ -473,6 +475,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     slot->decodeScratch = nullptr;
     slot->streamEnded = false;
     slot->playedSamples = 0;
+    slot->streamLengthSamples = 0;
 
     if (isStream) {
         // Streaming path: open the decoder, queue a few small buffers, and let maUpdate() top them up.
@@ -504,17 +507,19 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
             slot->streamChannels = wavChannels;
             slot->streamSampleRate = wavSampleRate;
             slot->streamFormat = (wavChannels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-            slot->streamLengthSeconds =
-                (float)wavDataBytes / (float)(wavChannels * (int32_t)sizeof(int16_t)) / (float)wavSampleRate;
+            slot->streamLengthSamples = wavDataBytes / (wavChannels * (int32_t) sizeof(int16_t));
         } else {
             stb_vorbis_info info = stb_vorbis_get_info(v);
             slot->vorbis = v;
             slot->streamChannels = info.channels;
             slot->streamSampleRate = (int) info.sample_rate;
             slot->streamFormat = (info.channels == 2) ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-            slot->streamLengthSeconds = stb_vorbis_stream_length_in_seconds(v);
+            slot->streamLengthSamples = stb_vorbis_stream_length_in_samples(v);
         }
-        ma->streams[soundIndex - AUDIO_STREAM_INDEX_BASE].lengthSeconds = slot->streamLengthSeconds;
+        slot->streamLengthSeconds = slot->streamSampleRate > 0
+            ? (float) slot->streamLengthSamples / (float) slot->streamSampleRate : 0.0f;
+        if (slot->streamLengthSeconds > 0.0f)
+            ma->streams[soundIndex - AUDIO_STREAM_INDEX_BASE].lengthSeconds = slot->streamLengthSeconds;
         slot->decodeScratch = (int16_t*)safeMalloc(AL_STREAM_BUFFER_SAMPLES * slot->streamChannels * sizeof(int16_t));
 
         alGenSources(1, &slot->alSource);
@@ -967,14 +972,22 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
     return pitch;
 }
 
-// For streaming instances AL_SEC_OFFSET resets per buffer in the queue, so we combine the dequeued-sample tally with the offset into the currently-playing buffer to report a position over the whole track.
-static float streamCursorSeconds(SoundInstance* inst) {
+static float streamCursorSeconds(AlAudioSystem* ma, SoundInstance* inst) {
     if (0 >= inst->streamSampleRate)
         return 0.0f;
 
     ALint sampleOffset = 0;
     alGetSourcei(inst->alSource, AL_SAMPLE_OFFSET, &sampleOffset);
-    uint64_t total = inst->playedSamples + (uint64_t) sampleOffset;
+    uint64_t total = inst->playedSamples + (uint64_t) (sampleOffset > 0 ? sampleOffset : 0);
+    if (inst->loop) {
+        if (inst->streamLengthSamples > 0)
+            return (float) (total % inst->streamLengthSamples) / (float) inst->streamSampleRate;
+        if (inst->soundIndex >= AUDIO_STREAM_INDEX_BASE) {
+            uint64_t totalFrames = (uint64_t) (maGetStreamLength(ma, inst->soundIndex) * inst->streamSampleRate);
+            if (totalFrames > 0)
+                return (float) (total % totalFrames) / (float) inst->streamSampleRate;
+        }
+    }
     return (float) total / (float) inst->streamSampleRate;
 }
 
@@ -984,7 +997,7 @@ static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
     if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
-            if (inst->streaming) return streamCursorSeconds(inst);
+            if (inst->streaming) return streamCursorSeconds(ma, inst);
             float cursor;
             alGetSourcef(inst->alSource, AL_SEC_OFFSET, &cursor);
             return cursor;
@@ -993,7 +1006,7 @@ static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
             if (inst->active && inst->soundIndex == soundOrInstance) {
-                if (inst->streaming) return streamCursorSeconds(inst);
+                if (inst->streaming) return streamCursorSeconds(ma, inst);
                 float cursor;
                 alGetSourcef(inst->alSource, AL_SEC_OFFSET, &cursor);
                 return cursor;
