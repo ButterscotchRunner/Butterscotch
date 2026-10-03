@@ -517,6 +517,10 @@ static void PreProcessedStuff_free(void) {
 #endif
 }
 
+void PrintChunk(const char* chunkName, int chunkIndex, int totalChunks, DataWin* dataWin, void* userData){
+    logInfo("Parsing chunk: %s\n", chunkName);
+}
+
 // ===[ MAIN ]===
 int loop(CommandLineArgs args, const char *argv0) {
 #ifdef _WIN32
@@ -561,6 +565,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.parseFunc = true;
         options.parseStrg = true;
         options.parseTxtr = true;
+        options.progressCallback = PrintChunk;
 #ifdef PLATFORM_VITA
         do {
             char *texBinDir = safeStrdup(args.dataWinPath);
