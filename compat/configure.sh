@@ -563,6 +563,14 @@ if ! check 'for ceilf' ceilf $lm; then
     define 'NO_CEILF'
 fi
 
+printf '%s' "\
+#include <math.h>
+int main(void){return remainderf(1,2);}
+" > tmp/remainderf.c
+if ! check 'for remainderf' remainderf $lm; then
+    define 'NO_REMAINDERF'
+fi
+
 if ! checkend 'for isinf' "$isinf_pid" tmp/isinf.fail; then
     define 'NO_ISINF'
 fi
