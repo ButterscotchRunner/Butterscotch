@@ -11992,7 +11992,7 @@ static MA_INLINE ma_uint32 ma_swap_endian_uint32(ma_uint32 n)
 }
 
 
-#if !defined(MA_EMSCRIPTEN)
+#if !defined(MA_EMSCRIPTEN) && !defined(__SYMBIAN32__)
 #ifdef MA_WIN32
 static void ma_sleep__win32(ma_uint32 milliseconds)
 {
@@ -14237,7 +14237,7 @@ typedef int ma_atomic_memory_order;
                 #define MA_ATOMIC_LEGACY_MSVC_ASM
             #endif
         #endif
-    #elif (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))) || defined(__clang__)
+    #elif (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) && !defined(__SYMBIAN32__)) || defined(__clang__)
         #define MA_ATOMIC_MODERN_GCC
     #else
         #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1))
@@ -17589,7 +17589,7 @@ static ma_result ma_thread_create__posix(ma_thread* pThread, ma_thread_priority 
         pAttr = &attr;
 
         /* We need to set the scheduler policy. Only do this if the OS supports pthread_attr_setschedpolicy() */
-        #if !defined(MA_BEOS)
+        #if !defined(MA_BEOS) && !defined(__SYMBIAN32__)
         {
             if (priority == ma_thread_priority_idle) {
             #ifdef SCHED_IDLE
@@ -17624,6 +17624,7 @@ static ma_result ma_thread_create__posix(ma_thread* pThread, ma_thread_priority 
         #endif
         
 
+        #if !defined(__SYMBIAN32__)
         if (scheduler != -1) {
             int priorityMin = sched_get_priority_min(scheduler);
             int priorityMax = sched_get_priority_max(scheduler);
@@ -17664,6 +17665,7 @@ static ma_result ma_thread_create__posix(ma_thread* pThread, ma_thread_priority 
                 }
             }
         }
+        #endif
     }
 #else
     /* It's the emscripten build. We'll have a few unused parameters. */

@@ -4,6 +4,16 @@
 #include <windows.h>
 #endif
 
+#ifdef __SYMBIAN32__
+inline void ma_sleep(unsigned int milliseconds); // implemented in symbian_audio.cpp
+
+#define MA_BSD
+#define MA_NO_RUNTIME_LINKING
+#define MA_THREAD_DEFAULT_STACK_SIZE 64*1024
+#define MA_ENABLE_ONLY_SPECIFIC_BACKENDS
+#define MA_ENABLE_CUSTOM
+#endif
+
 // Include stb_vorbis BEFORE miniaudio so that STB_VORBIS_INCLUDE_STB_VORBIS_H is defined,
 // which enables miniaudio's built-in OGG Vorbis decoding support.
 #include "stb_vorbis.c"
@@ -11,12 +21,12 @@
 #define MA_NO_FLAC
 #define MA_NO_MP3
 #define MINIAUDIO_IMPLEMENTATION
-#if defined(__GNUC__) || defined(__clang__)
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__ARMCC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
 #include "miniaudio.h"
-#if defined(__GNUC__) || defined(__clang__)
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__ARMCC__)
 #pragma GCC diagnostic pop
 #endif
 
@@ -106,11 +116,26 @@ static char* resolveExternalPath(MaAudioSystem* ma, Sound* sound) {
 
 // ===[ Vtable Implementations ]===
 
+#ifdef __SYMBIAN32__
+ma_context* maSymbianAudioInit(void);
+void maSymbianAudioDestroy(void);
+#endif
+
 static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
-
+    
+#ifdef __SYMBIAN32__
+    ma_context* context = maSymbianAudioInit();
+    ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
+	deviceConfig.playback.format   = ma_format_f32;
+	deviceConfig.playback.channels = 2;
+	deviceConfig.sampleRate        = 44100;
+    deviceConfig.dataCallback = ma_engine_data_callback_internal;
+	deviceConfig.pUserData    = &ma->engine;
+    ma_result deviceResult = ma_device_init(context, &deviceConfig, &ma->device);
+#else
     ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format   = ma_format_f32;
     deviceConfig.playback.channels = 2;
@@ -119,6 +144,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     deviceConfig.dataCallback = ma_engine_data_callback_internal;
     deviceConfig.pUserData    = &ma->engine;
     ma_result deviceResult = ma_device_init(NULL, &deviceConfig, &ma->device);
+#endif
     if (deviceResult != MA_SUCCESS) {
         logError("Audio: Failed to initialize playback device (error %d)\n", deviceResult);
         return;
@@ -183,6 +209,9 @@ static void maDestroy(AudioSystem* audio) {
 
     ma_device_uninit(&ma->device);
     ma_engine_uninit(&ma->engine);
+#ifdef __SYMBIAN32__
+    maSymbianAudioDestroy();
+#endif
     free(ma);
 }
 

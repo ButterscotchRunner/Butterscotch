@@ -524,7 +524,23 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+#ifdef __SYMBIAN32__
+    if (gl->textureFormat == GL_RGBA4) {
+        uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
+        for (int i = 0; i < w * h; i++) {
+            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
+                            (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) | 
+                            (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
+                            ((uint16_t)pixels[i * 4 + 3] >> 4);
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
+        free(rgba4444);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 
     free(pixels);
 
@@ -1498,6 +1514,7 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(int));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -1747,7 +1764,15 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -1824,7 +1849,15 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     glGenTextures(1, &gl->surfaceTexture[surfaceId]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

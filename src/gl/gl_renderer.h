@@ -10,6 +10,9 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #define GL_BOOL 0x8B56
+#elif defined(__SYMBIAN32__)
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -71,6 +74,7 @@ typedef struct GLModernRenderer {
 } GLModernRenderer;
 
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId);
+void GLRenderer_unloadTexture(GLRenderer* gl, uint32_t pageId);
 Renderer* GLRenderer_create(void);
 
 #endif /* _BS_GL_RENDERER_H_ */
