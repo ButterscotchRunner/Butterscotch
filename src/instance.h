@@ -60,6 +60,8 @@ struct Instance {
     float hspeed, vspeed;
     float friction;
     float gravity, gravityDirection;
+    struct PhysicsBody* physicsBody;
+    float physicsContact[5]; // point count, first point x/y, normal x/y
 
     // Path following state
     int32_t pathIndex;           // -1 = no path active

@@ -1,5 +1,6 @@
 #include "instance.h"
 #include "vm.h"
+#include "physics/physics_engine.h"
 
 #include <stdlib.h>
 #include "string_compat.h"
@@ -85,6 +86,8 @@ uint32_t Instance_getInstanceId(Instance* inst) {
 
 void Instance_freeContents(Instance* instance) {
     if (instance == nullptr) return;
+    PhysicsEngine_destroyBody(instance->physicsBody);
+    instance->physicsBody = nullptr;
 
     // Free owned strings and decRef owned arrays in selfVars hashmap, then release the entries buffer.
     IntRValueHashMap_freeAllValues(&instance->selfVars);

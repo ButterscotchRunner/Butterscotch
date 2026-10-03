@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "physics/physics.h"
 #include "data_win.h"
 #include "instance.h"
 #include "renderer.h"
@@ -1487,6 +1488,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
     inst->persistent = objDef->persistent;
     inst->depth = objDef->depth;
     inst->maskIndex = objDef->textureMaskId;
+    Physics_initInstance(runner, inst);
 
     hmput(runner->instancesById, instanceId, inst);
     arrput(runner->instances, inst);
@@ -1558,6 +1560,8 @@ static Instance** takePersistentInstances(Runner* runner) {
 static void returnPersistentInstances(Runner* runner, Instance** carriedPersistent) {
     repeat(arrlen(carriedPersistent), i) {
         arrput(runner->instances, carriedPersistent[i]);
+        carriedPersistent[i]->physicsBody = PhysicsEngine_rehome(carriedPersistent[i]->physicsBody, runner->physics);
+        Physics_initInstance(runner, carriedPersistent[i]);
         Runner_addInstanceToObjectLists(runner, carriedPersistent[i]);
     }
     arrfree(carriedPersistent);
@@ -1622,9 +1626,11 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     // Kept so carried persistent instances can be re-homed onto the new room's layer with the same name.
     Room* previousRoom = runner->currentRoom;
+    int32_t previousRoomIndex = runner->currentRoomIndex;
 
     runner->currentRoom = room;
     runner->currentRoomIndex = roomIndex;
+    Physics_initRoom(runner);
     runner->viewsEnabled = (room->flags & 1) != 0;
     // Tile set, runtime layers, and instance list all change when entering a room.
     runner->drawableListStructureDirty = true;
@@ -1682,6 +1688,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         savedState->instances = nullptr;
 
         returnPersistentInstances(runner, carriedPersistent);
+        Physics_releaseRoom(runner, previousRoomIndex);
 
         // No Create events, no preCreateCode, no creationCode, no room creation code
         logInfo("Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
@@ -1916,6 +1923,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         inst->imageXscale = (float) roomObj->scaleX;
         inst->imageYscale = (float) roomObj->scaleY;
         inst->imageAngle = (float) roomObj->rotation;
+        PhysicsEngine_destroyBody(inst->physicsBody);
+        inst->physicsBody = nullptr;
+        Physics_initInstance(runner, inst);
         inst->imageSpeed = roomObj->imageSpeed;
         inst->imageIndex = (float) roomObj->imageIndex;
         // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
@@ -1945,6 +1955,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Append persistent instances carried over from the previous room at the tail, so forward event iteration processes the new room's own instances first and the travelers last.
     // We NEED to do this here BEFORE firing the room object's events, to avoid code that relies on persistent instances failing (example: if a object uses instance_number to get the number of instances in the room).
     returnPersistentInstances(runner, carriedPersistent);
+    Physics_releaseRoom(runner, previousRoomIndex);
     if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
         repeat(arrlen(runner->instances), i) {
             Instance* inst = runner->instances[i];
@@ -2000,6 +2011,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
 // Cleans up the runner state, used when freeing the Runner or when restarting the Runner
 static void cleanupState(Runner* runner) {
+    Physics_free(runner);
     // Drop VM-side RValue holders (globals, stack, call frames) BEFORE freeing any Instance memory. This way any RVALUE_STRUCT refs decrement against still-live struct memory; otherwise we'd free a struct here and then have VM_free's later VM_reset try to decRef a dangling pointer.
     if (runner->vmContext != nullptr) {
         VM_reset(runner->vmContext);
@@ -2675,6 +2687,9 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
 
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, source->objectIndex, source->x, source->y);
     Instance_copyFields(source, inst);
+    PhysicsEngine_destroyBody(inst->physicsBody);
+    inst->physicsBody = nullptr;
+    Physics_initInstance(runner, inst);
     if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
         RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, source->layer);
         if (layer != nullptr && !layer->automaticDepth)
@@ -3498,7 +3513,7 @@ static void dispatchCollisionEvents(Runner* runner) {
 
         repeat(selfBucketCount, si) {
             Instance* self = runner->instanceSnapshots[selfSnapBase + si];
-            if (!self->active) continue;
+            if (!self->active || self->physicsBody) continue;
 
             InstanceBBox bboxSelf;
             Sprite* sprSelf;
@@ -4298,6 +4313,11 @@ void Runner_step(Runner* runner) {
     repeat(motionCount, mi) {
         Instance* inst = runner->instances[mi];
         if (!inst->active) continue;
+        if (runner->physics) {
+            if ((!inst->physicsBody || !PhysicsEngine_variable(inst->physicsBody, PHY_DYNAMIC, 0, 0, (float)Runner_getEffectiveGameSpeed(runner))) && adaptPath(runner, inst))
+                Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH);
+            continue;
+        }
 
         // Friction: reduce speed toward zero (HTML5: AdaptSpeed)
         if (inst->friction != 0.0f) {
@@ -4332,6 +4352,8 @@ void Runner_step(Runner* runner) {
             SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
         }
     }
+
+    Physics_step(runner);
 
     // Dispatch outside room events
     dispatchOutsideRoomEvents(runner);
@@ -4435,7 +4457,7 @@ void Runner_step(Runner* runner) {
     Video_executePendingAsyncEvents(runner);
 
     // Dispatch collision events
-    dispatchCollisionEvents(runner);
+    if (!runner->physics) dispatchCollisionEvents(runner);
 
     // Execute End Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_END);

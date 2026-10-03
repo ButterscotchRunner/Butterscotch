@@ -675,6 +675,9 @@ struct Runner {
     FileSystem* fileSystem;
     AudioSystem* audioSystem;
     Room* currentRoom;
+    struct PhysicsEngine* physics;
+    struct PhysicsEngine* physicsResources; // shared fixture/joint handles; allocated lazily
+    struct PhysicsEngine** physicsRooms; // worlds are room-owned, including persistent rooms
     int32_t currentRoomIndex;
     int32_t currentRoomOrderPosition;
     Instance** instances; // stb_ds array of Instance*
