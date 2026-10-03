@@ -4332,8 +4332,10 @@ void Runner_step(Runner* runner) {
         Instance* inst = runner->instances[mi];
         if (!inst->active) continue;
         if (runner->physics) {
-            if ((!inst->physicsBody || !PhysicsEngine_variable(inst->physicsBody, PHY_DYNAMIC, 0, 0, (float)Runner_getEffectiveGameSpeed(runner))) && adaptPath(runner, inst))
-                Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH);
+            if (inst->pathIndex >= 0 && (!inst->physicsBody || !PhysicsEngine_variable(inst->physicsBody, PHY_DYNAMIC, 0, 0, (float)Runner_getEffectiveGameSpeed(runner)))) {
+                if (adaptPath(runner, inst)) Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH);
+                if (!inst->destroyed) PhysicsEngine_pathPosition(inst->physicsBody, inst->x, inst->y);
+            }
             continue;
         }
 

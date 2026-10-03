@@ -102,7 +102,10 @@ void peSync(PhysicsBody* p) {
 void PhysicsEngine_step(PhysicsEngine* e, float fps) {
     if (!e || e->paused || !peFinite(fps) || fps <= 0) return;
     e->fps = fps;
-    for (int i = 0; i < arrlen(e->bodies); ++i) e->bodies[i]->previous = b2Body_GetPosition(e->bodies[i]->id);
+    for (int i = 0; i < arrlen(e->bodies); ++i) {
+        peSync(e->bodies[i]);
+        e->bodies[i]->previous = b2Body_GetPosition(e->bodies[i]->id);
+    }
     float remaining = e->speed / fps;
     e->contactSlice = 0;
     while (remaining > 0) {
@@ -243,16 +246,11 @@ void PhysicsEngine_destroyBody(PhysicsBody* p) {
     for (int i = 0; i < arrlen(p->fixtures); ++i) boundFree(p->fixtures[i], false);
     arrfree(p->fixtures); free(p);
 }
-void PhysicsEngine_transform(PhysicsBody* p, float x, float y, float angle, int active) {
+void PhysicsEngine_pathPosition(PhysicsBody* p, float x, float y) {
     if (!peBodyValid(p)) return;
-    if (!peFinite(x) || !peFinite(y) || !peFinite(angle)) return;
-    b2Rot q = b2MakeRot(peWrap(-angle * PE_RAD));
-    b2Vec2 pos = b2MulSV(p->engine->scale, b2Sub(peVec(x, y), b2RotateVector(q, p->offset)));
-    if (b2DistanceSquared(pos, b2Body_GetPosition(p->id)) > 1e-12f || fabsf(peWrap(-angle * PE_RAD - peAngle(p->id))) > 1e-6f) {
-        p->angle = -angle * PE_RAD; b2Body_SetTransform(p->id, pos, q); b2Body_SetAwake(p->id, true);
-    }
-    bool enabled = active && p->enabled;
-    if (enabled != b2Body_IsEnabled(p->id)) { if (enabled) b2Body_Enable(p->id); else b2Body_Disable(p->id); }
+    if (!peFinite(x) || !peFinite(y) || b2Body_GetType(p->id) == b2_dynamicBody) return;
+    b2Vec2 pos = b2MulSV(p->engine->scale, peVec(x, y));
+    b2Body_SetTransform(p->id, pos, b2Body_GetRotation(p->id));
 }
 double PhysicsEngine_variable(PhysicsBody* p, int field, double value, int write, float fps) {
     if (!peBodyValid(p)) return 0;

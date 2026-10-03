@@ -78,9 +78,27 @@ static inline float peMin(float a, float b) { return a < b ? a : b; }
 static inline float peMax(float a, float b) { return a > b ? a : b; }
 static inline float peClamp(float x, float a, float b) { return peMin(peMax(x, a), b); }
 static inline bool peFinite(float x) { return x >= -FLT_MAX && x <= FLT_MAX; }
-static inline float peAtan2(float y, float x) { return (float)GMLReal_atan2((GMLReal)y, (GMLReal)x); }
-static inline float pePow(float x, float y) { return (float)GMLReal_pow((GMLReal)x, (GMLReal)y); }
-static inline float peCeil(float x) { return (float)GMLReal_ceil((GMLReal)x); }
+static inline float peAtan2(float y, float x) {
+#ifdef NO_ATAN2F
+    return (float)GMLReal_atan2((GMLReal)y, (GMLReal)x);
+#else
+    return atan2f(y, x);
+#endif
+}
+static inline float pePow(float x, float y) {
+#ifdef NO_POWF
+    return (float)GMLReal_pow((GMLReal)x, (GMLReal)y);
+#else
+    return powf(x, y);
+#endif
+}
+static inline float peCeil(float x) {
+#ifdef NO_CEILF
+    return (float)GMLReal_ceil((GMLReal)x);
+#else
+    return ceilf(x);
+#endif
+}
 static inline float peAngle(b2BodyId id) { b2Rot q = b2Body_GetRotation(id); return peAtan2(q.s, q.c); }
 static inline float peWrap(float x) {
     if (!peFinite(x)) return 0;

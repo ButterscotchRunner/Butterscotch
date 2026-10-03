@@ -1014,7 +1014,6 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 #endif
 
     instance->active = active;
-    PhysicsEngine_transform(instance->physicsBody, instance->x, instance->y, instance->imageAngle, active);
 }
 
 static inline GMLReal Runner_getEffectiveGameSpeed(Runner* runner) {

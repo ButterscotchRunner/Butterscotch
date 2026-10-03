@@ -23,7 +23,7 @@ void PhysicsEngine_free(PhysicsEngine* engine);
 void PhysicsEngine_step(PhysicsEngine* engine, float fps);
 PhysicsBody* PhysicsEngine_body(PhysicsEngine* engine, void* instance, PhysicsBody* existing, int fixture, float x, float y, float angle, float xo, float yo, int visualOffset);
 void PhysicsEngine_destroyBody(PhysicsBody* body);
-void PhysicsEngine_transform(PhysicsBody* body, float x, float y, float angle, int active);
+void PhysicsEngine_pathPosition(PhysicsBody* body, float x, float y);
 double PhysicsEngine_variable(PhysicsBody* body, int field, double value, int write, float fps);
 double PhysicsEngine_call(PhysicsEngine* engine, const char* name, PhysicsBody* a, PhysicsBody* b, const double* args, int count);
 int PhysicsEngine_overlap(PhysicsBody* a, PhysicsBody* b, float x, float y, float angle);

@@ -79,7 +79,7 @@ static bool hasCollision(Runner* r, Instance* a, Instance* b) {
 }
 static int physicsFilter(void* owner, void* first, void* second) {
     Runner* r = (Runner*)owner; Instance* a = (Instance*)first; Instance* b = (Instance*)second;
-    return !a->destroyed && !b->destroyed && a->active && b->active && (hasCollision(r, a, b) || hasCollision(r, b, a));
+    return !a->destroyed && !b->destroyed && (hasCollision(r, a, b) || hasCollision(r, b, a));
 }
 static void dispatchContact(Runner* r, Instance* a, Instance* b) {
     // collision target inheritance is independent of handler inheritance
@@ -98,7 +98,7 @@ static void dispatchContact(Runner* r, Instance* a, Instance* b) {
 }
 static void physicsContact(void* owner, void* first, void* second, int points, float x, float y, float nx, float ny) {
     Runner* r = (Runner*)owner; Instance* a = (Instance*)first; Instance* b = (Instance*)second;
-    if (a->destroyed || b->destroyed || !a->active || !b->active) return;
+    if (a->destroyed || b->destroyed) return;
     float data[] = {(float)points, x, y, nx, ny};
     memcpy(a->physicsContact, data, sizeof(data)); memcpy(b->physicsContact, data, sizeof(data));
     dispatchContact(r, a, b);
@@ -176,7 +176,6 @@ void Physics_initInstance(Runner* r, Instance* inst) {
     fixtureSetting(r, "physics_fixture_set_awake", fixture, o->awake);
     if (o->kinematic) fixtureSetting(r, "physics_fixture_set_kinematic", fixture, 0);
     inst->physicsBody = PhysicsEngine_body(r->physics, inst, nullptr, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 1);
-    PhysicsEngine_transform(inst->physicsBody, inst->x, inst->y, inst->imageAngle, inst->active);
     fixtureSetting(r, "physics_fixture_delete", fixture, 0);
 }
 void Physics_step(Runner* r) {
@@ -184,7 +183,6 @@ void Physics_step(Runner* r) {
     for (int i = 0; i < arrlen(r->instances); ++i) {
         Instance* inst = r->instances[i];
         if (inst->destroyed) { PhysicsEngine_destroyBody(inst->physicsBody); inst->physicsBody = nullptr; continue; }
-        PhysicsEngine_transform(inst->physicsBody, inst->x, inst->y, inst->imageAngle, inst->active);
     }
     PhysicsEngine_step(r->physics, (float)Runner_getEffectiveGameSpeed(r));
 }

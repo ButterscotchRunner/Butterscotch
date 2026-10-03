@@ -22681,7 +22681,6 @@ static RValue builtin_physics_fixture_bind(VMContext* ctx, RValue* args, int32_t
         PhysicsBody* body = PhysicsEngine_body(runner->physics, inst, inst->physicsBody, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 0);
         if (body) {
             inst->physicsBody = body;
-            PhysicsEngine_transform(body, inst->x, inst->y, inst->imageAngle, inst->active);
             result = (int32_t)PhysicsEngine_call(runner->physics, "physics_fixture_index", body, nullptr, nullptr, 0);
         }
     }
