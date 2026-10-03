@@ -52,6 +52,8 @@ typedef struct {
     bool lazyLoadTextures;
     // If true, AUDO objects will be loaded on demand via DataWin_loadAudoIfNeeded.
     bool lazyLoadAudio;
+    // If true, CODE objects will be loaded on demand via DataWin_loadCodeIfNeeded.
+    bool lazyLoadCode;
 
     // When lazyLoadRooms is true, this list indicates which rooms should be loaded during load time instead of demand. They will also not be freed.
     StringBooleanEntry* eagerlyLoadedRooms;
@@ -791,6 +793,7 @@ typedef struct {
     uint16_t argumentsCount;
     uint32_t bytecodeAbsoluteOffset;
     uint32_t offset;
+    uint8_t* bytecodeData; //
 } CodeEntry;
 
 typedef struct {
@@ -941,6 +944,8 @@ struct DataWin {
     bool lazyLoadRooms; // mirrors the parser option so Runner can branch without re-reading options
     bool lazyLoadTextures; // ditto, but with TXTR pages
     bool lazyLoadAudio; // ditto, but with AUDO entries
+    bool lazyLoadCode;  // ditto, but with CODE entries
+    size_t bytecodeBlobSize;
 };
 
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options);
@@ -964,5 +969,6 @@ void GamePath_computeInternal(GamePath* path);
 PathPositionResult GamePath_getPosition(GamePath* path, float t);
 void DataWin_loadTxtrIfNeeded(DataWin* dw, uint32_t textureId);
 void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId);
+void DataWin_loadCodeIfNeeded(DataWin* dw, uint32_t codeId);
 
 #endif /* _BS_DATA_WIN_H_ */

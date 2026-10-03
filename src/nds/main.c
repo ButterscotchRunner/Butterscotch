@@ -78,6 +78,7 @@ int main(int argc, char* argv[]){
     args.lazyTextures = true;
     args.lazyRooms = true;
     args.lazyAudio = true;
+    args.lazyCode = true;
     args.eagerRooms = NULL;
     args.exitAtFrame = -1;
     args.renderer = LIBNDS;

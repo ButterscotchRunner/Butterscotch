@@ -2337,7 +2337,7 @@ static void parseTPAG(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
-static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, size_t chunkDataStart) {
+static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, size_t chunkDataStart, bool LazyLoadCode) {
     Code* c = &dw->code;
 
     if (chunkLength == 0) {
@@ -2413,6 +2413,12 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
     }
     if (blobStart == UINT32_MAX) blobStart = (uint32_t) chunkDataStart;
     size_t blobSize = chunkEnd - blobStart;
+
+    if (LazyLoadCode && !dw->mappedFile) {
+        dw->bytecodeBufferBase = blobStart;
+        dw->bytecodeBlobSize = blobSize;
+        return;
+    }
 
     dw->bytecodeBufferBase = blobStart;
     dw->bytecodeBuffer = BinaryReader_readBytesAt(reader, blobStart, blobSize);
@@ -2779,6 +2785,22 @@ void DataWin_loadAudoIfNeeded(DataWin* dw, uint32_t audioEntryId) {
     }
 }
 
+void DataWin_loadCodeIfNeeded(DataWin* dw, uint32_t codeId) {
+    CodeEntry* e = &dw->code.entries[codeId];
+
+    //Not lazy loading code
+    if (!dw->lazyLoadCode){
+        e->bytecodeData = dw->bytecodeBuffer + (e->bytecodeAbsoluteOffset - dw->bytecodeBufferBase);
+        return;
+    }
+
+    e->bytecodeData = (uint8_t *)safeMalloc(e->length);
+    long oldSeek = ftell(dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, e->bytecodeAbsoluteOffset, SEEK_SET);
+    size_t read = fread(e->bytecodeData, 1, e->length, dw->lazyLoadFile);
+    fseek(dw->lazyLoadFile, oldSeek, SEEK_SET);
+}
+
 // ===[ MAIN PARSE FUNCTION ]===
 
 DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
@@ -3011,7 +3033,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseTpag && memcmp(chunkName, "TPAG", 4) == 0) {
             parseTPAG(&reader, dw);
         } else if (options.parseCode && memcmp(chunkName, "CODE", 4) == 0) {
-            parseCODE(&reader, dw, chunkLength, chunkDataStart);
+            parseCODE(&reader, dw, chunkLength, chunkDataStart, options.lazyLoadCode);
         } else if (options.parseVari && memcmp(chunkName, "VARI", 4) == 0) {
             parseVARI(&reader, dw, chunkLength);
         } else if (options.parseFunc && memcmp(chunkName, "FUNC", 4) == 0) {
@@ -3084,7 +3106,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     dw->lazyLoadRooms = options.lazyLoadRooms;
     dw->lazyLoadTextures = options.lazyLoadTextures;
     dw->lazyLoadAudio = options.lazyLoadAudio;
-    if (options.lazyLoadRooms || options.lazyLoadTextures || options.lazyLoadAudio) {
+    dw->lazyLoadCode = options.lazyLoadCode;
+    if (options.lazyLoadRooms || options.lazyLoadTextures || options.lazyLoadAudio || options.lazyLoadCode) {
         dw->lazyLoadFile = file;
         dw->fileSize = (size_t) fileSize;
     } else {

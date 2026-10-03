@@ -127,6 +127,7 @@ typedef struct {
     StringBooleanEntry* eagerRooms; // stb_ds string-keyed set of room names
     bool lazyTextures;
     bool lazyAudio;
+    bool lazyCode;
     DataWinLoadType loadType;
     int profilerFramesBetween; // 0 = disabled
 #ifdef ENABLE_VM_OPCODE_PROFILER

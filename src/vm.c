@@ -17,6 +17,52 @@
 
 #include <assert.h>
 
+static void emitPatch(VMContext* ctx, uint8_t* buf, size_t base, uint32_t operandAddr, uint32_t value, bool record) {
+    if (record){
+        PatchRec r = { operandAddr, value };
+        arrput(ctx->patches, r);
+    }else{
+        BinaryUtils_writeUint32(&buf[operandAddr - base], value);
+    }
+}
+
+static int patchCmp(const void* a, const void* b) {
+    uint32_t x = ((const PatchRec*)a)->addr;
+    uint32_t y = ((const PatchRec*)b)->addr;
+    return (x > y) - (x < y);
+}
+
+static const uint8_t* getCodeBase(VMContext* ctx, int32_t codeIndex) {
+    DataWin* dw = ctx->dataWin;
+    CodeEntry* c = &dw->code.entries[codeIndex];
+
+    if (!dw->lazyLoadCode || dw->mappedFile || dw->bytecodeBuffer != nullptr)
+        return dw->bytecodeBuffer + (c->bytecodeAbsoluteOffset - dw->bytecodeBufferBase);
+
+    
+    bool fresh = false;
+    if (c->bytecodeData == nullptr)
+        fresh = true;
+
+    DataWin_loadCodeIfNeeded(dw, codeIndex);
+    const uint8_t* bytes = c->bytecodeData;
+    if (fresh && bytes){
+        size_t lo = 0;
+        size_t hi = ctx->patchCount;
+        while (lo < hi){
+            size_t mid = (lo + hi) / 2;
+            if (ctx->patches[mid].addr < c->bytecodeAbsoluteOffset)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        for (; lo < ctx->patchCount && ctx->patches[lo].addr < c->bytecodeAbsoluteOffset + c->length; lo++)
+            BinaryUtils_writeUint32(&bytes[ctx->patches[lo].addr - c->bytecodeAbsoluteOffset], ctx->patches[lo].value);
+    }
+    
+    return bytes;
+}
+
 // ===[ Stack Operations ]===
 
 #ifdef ENABLE_VM_TRACING
@@ -165,10 +211,10 @@ static uint32_t extraDataSize(uint8_t type1) {
 // The bytecode buffer stays completely read-only.
 // Patches bytecode operands in-place so that variable/function reference chain deltas
 // are replaced with resolved indices. This avoids needing hash map lookups at runtime.
-static void patchReferenceOperands(VMContext* ctx) {
+static void patchReferenceOperands(VMContext* ctx, uint8_t* buf, size_t base, bool record) {
     DataWin* dataWin = ctx->dataWin;
-    uint8_t* buf = dataWin->bytecodeBuffer;
-    size_t base = dataWin->bytecodeBufferBase;
+    //uint8_t* buf = dataWin->bytecodeBuffer;
+    //size_t base = dataWin->bytecodeBufferBase;
 
     // Patch variable operands: replace delta with varIdx (preserving upper 5 bits)
     repeat(dataWin->vari.variableCount, varIdx) {
@@ -183,7 +229,7 @@ static void patchReferenceOperands(VMContext* ctx) {
             uint32_t upperBits = operand & 0xF8000000;
 
             // Patch in-place: upper bits preserved, lower 27 = varIdx
-            BinaryUtils_writeUint32(&buf[operandAddr - base], upperBits | (varIdx & 0x07FFFFFF));
+            emitPatch(ctx, buf, base, operandAddr, upperBits | (varIdx & 0x07FFFFFF), record);
 
             if (v->occurrences > occ + 1) {
                 addr += delta;
@@ -207,10 +253,10 @@ static void patchReferenceOperands(VMContext* ctx) {
             uint32_t delta;
             if (isPushRef) {
                 delta = operand & 0x00FFFFFF;
-                BinaryUtils_writeUint32(&buf[operandAddr - base], ((uint32_t) ASSET_TYPE_SCRIPT << 24) | (funcIdx & 0x00FFFFFF));
+                emitPatch(ctx, buf, base, operandAddr, ((uint32_t) ASSET_TYPE_SCRIPT << 24) | (funcIdx & 0x00FFFFFF), record);
             } else {
                 delta = operand & 0x07FFFFFF;
-                BinaryUtils_writeUint32(&buf[operandAddr - base], funcIdx);
+                emitPatch(ctx, buf, base, operandAddr, funcIdx, record);
             }
 
             if (f->occurrences > occ + 1) {
@@ -3418,7 +3464,7 @@ static void rewriteBytecode14To16(VMContext* ctx) {
     DataWin* dw = ctx->dataWin;
     uint8_t* buf = dw->bytecodeBuffer;
     size_t base = dw->bytecodeBufferBase;
-
+    
     // Synthesize varIDs for each variable
     repeat(dw->vari.variableCount, i) {
         dw->vari.variables[i].varID = (int32_t) i;
@@ -3567,8 +3613,18 @@ VMContext* VM_create(DataWin* dataWin) {
         }
     }
 
-    // Build reference lookup maps (file buffer stays read-only)
-    patchReferenceOperands(ctx);
+    //Lazy load code create look up map
+    if (dataWin->lazyLoadCode){
+        uint8_t* tmp = (uint8_t*) safeMalloc(dataWin->bytecodeBlobSize);
+        fseek(dataWin->lazyLoadFile, (long) dataWin->bytecodeBufferBase, SEEK_SET);
+        fread(tmp, 1, dataWin->bytecodeBlobSize, dataWin->lazyLoadFile);
+        patchReferenceOperands(ctx, tmp, dataWin->bytecodeBufferBase, true);
+        free(tmp);
+        ctx->patchCount = arrlen(ctx->patches);
+        qsort(ctx->patches, ctx->patchCount, sizeof(PatchRec), patchCmp);
+    }
+    else
+        patchReferenceOperands(ctx, dataWin->bytecodeBuffer, dataWin->bytecodeBufferBase, false);
 
     // Scan VARI entries to find max varID for global scope
     // Built-in variables have varID == -6 (sentinel), skip those
@@ -3788,7 +3844,8 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
 
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
+    ctx->bytecodeBase = getCodeBase(ctx, codeIndex);
+    require(ctx->bytecodeBase != nullptr);
     ctx->ip = code->offset;
     ctx->codeEnd = code->length;
     ctx->currentCodeName = code->name;
@@ -3860,7 +3917,8 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     int32_t storedStackTop = ctx->stack.top;
 
     // Set up callee
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
+    ctx->bytecodeBase = getCodeBase(ctx, codeIndex);
+    require(ctx->bytecodeBase != nullptr);
     ctx->ip = code->offset;
     ctx->codeEnd = code->length;
     ctx->currentCodeName = code->name;
@@ -4360,7 +4418,7 @@ void VM_buildCrossReferences(VMContext* ctx) {
 
     repeat(dw->code.count, callerIdx) {
         CodeEntry* code = &dw->code.entries[callerIdx];
-        const uint8_t* base = dw->bytecodeBuffer + (code->bytecodeAbsoluteOffset - dw->bytecodeBufferBase);
+        const uint8_t* base = getCodeBase(ctx, (int32_t) callerIdx);
         uint32_t ip = 0;
 
         while (code->length > ip) {
@@ -4438,7 +4496,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
 
     logInfo("\n");
 
-    const uint8_t* bytecodeBase = dw->bytecodeBuffer + (code->bytecodeAbsoluteOffset - dw->bytecodeBufferBase);
+    const uint8_t* bytecodeBase = getCodeBase(ctx, codeIndex);
     uint32_t codeLength = code->length;
 
     // Pass 1: collect branch targets for labels

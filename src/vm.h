@@ -118,6 +118,11 @@
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
 #define VARTYPE_ARRAYPOPAF  0x90  // Push array reference (write context)
 
+typedef struct {
+    uint32_t addr;
+    uint32_t value;
+} PatchRec;
+
 // ===[ FuncCallCache - Cached resolution for CALL instructions ]===
 // Avoids per-call string hash lookups in both the builtin map and funcMap.
 // Resolved once during VM_create, then used directly by handleCall.
@@ -301,6 +306,9 @@ struct VMContext {
 
     // Stack at the end because it is a big chunky boi (we don't want it pushing fields around)
     VMStack stack;
+
+    PatchRec* patches;
+    size_t patchCount;
 };
 
 // ===[ Public API ]===

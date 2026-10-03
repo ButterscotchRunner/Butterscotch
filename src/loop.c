@@ -601,6 +601,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.lazyLoadRooms = args.lazyRooms;
         options.lazyLoadTextures = args.lazyTextures;
         options.lazyLoadAudio = args.lazyAudio;
+        options.lazyLoadCode = args.lazyCode;
         options.eagerlyLoadedRooms = args.eagerRooms;
         DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
