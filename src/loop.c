@@ -520,58 +520,42 @@ static void PreProcessedStuff_free(void) {
 }
 
 // ===[ MAIN ]===
-int loop(CommandLineArgs args, const char *argv0) {
-    int res;
-    while (true) {
-        res = loop_init(args, argv0);
-        if (res != -1) break;
-
-        while (true) {
-            res = loop_step();
-            if (res != -1) break;
-        }
-
-        res = loop_exit();
-        if (res != -1) break;
-    }
-    return res;
-}
-
 static CommandLineArgs args;
 static char* currentDataWinPath;
 static char** currentGameArgs;
 
-static bool platformInitialized = false;
-static int32_t inputFrameCount = 0;
+static bool platformInitialized;
+static int32_t inputFrameCount;
 
-static bool fastForwardActive = false;
-static bool fastForwardTabPrev = false;
-static bool showDebugOverlay = false;
+static bool fastForwardActive;
+static bool fastForwardTabPrev;
+static bool showDebugOverlay;
 
 static DataWin* dataWin;
 static Gen8* gen8;
 static VMContext* vm;
-static Renderer* renderer = nullptr;
+static Renderer* renderer;
 static Runner* runner;
 
 static char* dataWinDir;
 static OverlayFileSystem* overlayFs;
 
-static bool debugShowCollisionMasks = false;
-static size_t overlayCachedMemBytes = 0;
-static uint64_t overlayLastMemCheck = 0;
-static bool freeCamActive = false;
-static bool actuallyShuttingDown = false;
-static bool wasPaused = false;
+static bool debugShowCollisionMasks;
+static size_t overlayCachedMemBytes;
+static uint64_t overlayLastMemCheck;
+static bool freeCamActive;
+static bool actuallyShuttingDown;
+static bool wasPaused;
 static uint64_t lastFrameTime;
 static uint64_t lastFrameStartTime;
-static bool shouldWindowClose = false;
+static bool shouldWindowClose;
 
-int loop_init(CommandLineArgs aArgs, const char *argv0) {
+void loop_init(CommandLineArgs aArgs, const char *argv0) {
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
     args = aArgs;
+    
     currentDataWinPath = safeStrdup(args.dataWinPath);
     currentGameArgs = args.gameArgs;
     repeat(arrlen(args.gameArgs), i) {
@@ -580,7 +564,15 @@ int loop_init(CommandLineArgs aArgs, const char *argv0) {
     // The first argument will ALWAYS be the argv[0]
     arrins(currentGameArgs, 0, safeStrdup(argv0 != nullptr ? argv0 : ""));
 
+    platformInitialized = false;
+	inputFrameCount = 0;
+
+	fastForwardActive = false;
+	fastForwardTabPrev = false;
     showDebugOverlay = args.debug;
+}
+
+int loop_begin(void) {
     {
         logInfo("Loading %s...\n", args.dataWinPath);
 
@@ -941,6 +933,7 @@ int loop_init(CommandLineArgs aArgs, const char *argv0) {
         // Initialize the renderer
         // NOTE: headless mode keeps rendering active (hidden window + normal renderer).
         // NOOP is a separate renderer that stubs all draw calls.
+        renderer = nullptr;
 #ifdef ENABLE_SW_RENDERER
         if (gfx == SOFTWARE)
             renderer = SWRenderer_create();
@@ -1095,13 +1088,20 @@ int loop_init(CommandLineArgs aArgs, const char *argv0) {
         // Initialize the first room and fire Game Start / Room Start events
         Runner_initFirstRoom(runner);
 
-        lastFrameTime = nowNanos();
-        lastFrameStartTime = lastFrameTime; // for delta_time
+        debugShowCollisionMasks = false;
+		overlayCachedMemBytes = 0;
+		overlayLastMemCheck = 0;
+		freeCamActive = false;
+		actuallyShuttingDown = false;
+		wasPaused = false;
+		lastFrameTime = nowNanos();
+		lastFrameStartTime = lastFrameTime; // for delta_time
+		shouldWindowClose = false;
     }
-    return -1;
+    return LOOP_CONTINUE;
 }
 
-int loop_step(void) {
+int loop_frame(void) {
     {
         {
             if (runner->shouldExit || shouldWindowClose) {
@@ -1124,7 +1124,7 @@ int loop_step(void) {
             RunnerMouse_beginFrame(runner->mouse);
             if (platformHandleEvents()) {
                 shouldWindowClose = true;
-                return -1;
+                return LOOP_CONTINUE;
             }
             
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F8)) {
@@ -1527,10 +1527,10 @@ int loop_step(void) {
             lastFrameTime = nowNanos();
         }
     }
-    return -1;
+    return LOOP_CONTINUE;
 }
 
-int loop_exit(void) {
+int loop_shutdown(void) {
     {
         saveInputRecording();
 
@@ -1666,7 +1666,23 @@ int loop_exit(void) {
             arrfree(newArguments);
         }
     }
-    return -1;
+    return LOOP_CONTINUE;
+}
+
+int loop(CommandLineArgs args, const char *argv0) {
+	loop_init(args, argv0);
+	
+    int ret;
+    while (true) {
+        ret = loop_begin();
+        if (ret != LOOP_CONTINUE) break;
+
+        while (loop_frame() == LOOP_CONTINUE);
+
+        ret = loop_shutdown();
+        if (ret != LOOP_CONTINUE) break;
+    }
+    return ret;
 }
 
 void freeCommandLineArgs(CommandLineArgs* args) {

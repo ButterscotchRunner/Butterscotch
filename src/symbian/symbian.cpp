@@ -26,7 +26,6 @@ static EGLContext eglContext;
 static EGLSurface eglSurface;
 static EGLConfig eglConfig;
 
-static CommandLineArgs args;
 static Runner* g_runner;
 static bool shouldExit;
 static bool foreground = true;
@@ -207,19 +206,19 @@ static TInt LoopCallBack(TAny* p) {
 	}
 	
 	if (state == EStateInit) {
-		if (loop_init(args, nullptr) != -1) {
+		if (loop_begin() != LOOP_CONTINUE) {
 			state = EStateExit;
 			return ETrue;
 		}
 		state = EStateTick;
 		return ETrue;
 	} else if (state == EStateTick) {
-		if (loop_step() != -1) {
+		if (loop_frame() != LOOP_CONTINUE) {
 			state = EStatePreExit;
 		}
 		return ETrue;
 	} else if (state == EStatePreExit) {
-		if (loop_exit() != -1) {
+		if (loop_shutdown() != LOOP_CONTINUE) {
 			state = EStateExit;
 			return ETrue;
 		}
@@ -284,6 +283,8 @@ void ButterscotchContainer::ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
 	setlocale(LC_COLLATE, "C");
 	setlocale(LC_NUMERIC, "C");
 	
+	CommandLineArgs args = {0};
+	
 	args.exitAtFrame = -1;
 #ifdef ENABLE_VM_TRACING
 	args.traceBytecodeAfterFrame = 0;
@@ -307,6 +308,8 @@ void ButterscotchContainer::ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
 	
 	args.debug = true;
 
+	loop_init(args, nullptr);
+	
 	RestartTimerL(10000);
 }
 
