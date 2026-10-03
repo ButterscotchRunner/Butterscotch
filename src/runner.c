@@ -735,6 +735,7 @@ static void Runner_popLayerShader(Runner* runner, int32_t previousShader) {
 }
 
 static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawableCount, int32_t subtype) {
+    if (!runner->drawEnabled) return;
     int32_t slot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_DRAW, subtype);
     if (slot == -1) return;
 
@@ -948,12 +949,14 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
 }
 
 static void drawInstanceNormally(Runner* runner, Instance* inst) {
-    int32_t ownerObjectIndex = -1;
-    int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
-    if (codeId >= 0)
-        Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
-    else if (runner->renderer != nullptr)
-        Renderer_drawSelf(runner->renderer, inst);
+    if (runner->drawEnabled) {
+        int32_t ownerObjectIndex = -1;
+        int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
+        if (codeId >= 0)
+            Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
+        else if (runner->renderer != nullptr)
+            Renderer_drawSelf(runner->renderer, inst);
+    }
 }
 
 void Runner_draw(Runner* runner) {
@@ -2551,6 +2554,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->viewportH = 1;
     runner->random = Random_create(randomSeed);
     runner->paused = false;
+    runner->drawEnabled = true;
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;

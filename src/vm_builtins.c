@@ -11930,6 +11930,12 @@ static RValue builtin_background_get_height(VMContext* ctx, RValue* args, MAYBE_
     return RValue_makeReal((GMLReal) ctx->dataWin->tpag.items[tpagIndex].boundingHeight);
 }
 
+static RValue builtin_draw_enable_drawevent(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("draw_enable_drawevent", 1, RValue_makeUndefined());
+    ctx->runner->drawEnabled = RValue_toBool(args[0]);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_self(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr && ctx->currentInstance != nullptr) {
@@ -14375,6 +14381,41 @@ static RValue builtin_date_set_timezone(VMContext* ctx, RValue* args, int32_t ar
 
 static RValue builtin_date_get_timezone(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     return RValue_makeReal(ctx->runner->dateTimeLocal ? 0.0 : 1.0);
+}
+
+static const char* dateOrdinalSuffix(int day) {
+    if (day >= 11 && day <= 13) {
+        return "th";
+    }
+    switch (day % 10) {
+        case 1:  return "st";
+        case 2:  return "nd";
+        case 3:  return "rd";
+        default: return "th";
+    }
+}
+
+static RValue builtin_date_datetime_string(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    struct tm parts;
+    
+    if (!dateGetParts(ctx, args[0], &parts)) return RValue_makeString("");
+    
+    char month[64];
+    if (strftime(month, sizeof(month), "%B", &parts) == 0) return RValue_makeString("");
+    
+    char fullDate[256];
+    int written = snprintf(fullDate, sizeof(fullDate), "%s %d%s %d, %02d:%02d.%02d",
+                           month,
+                           parts.tm_mday,
+                           dateOrdinalSuffix(parts.tm_mday),
+                           parts.tm_year + 1900,
+                           parts.tm_hour,
+                           parts.tm_min,
+                           parts.tm_sec);
+                           
+    if (written < 0 || (size_t)written >= sizeof(fullDate)) return RValue_makeString("");
+    
+    return RValue_makeOwnedString(fullDate);
 }
 
 static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -23576,6 +23617,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "background_get_name", builtin_sprite_get_name);
         VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
     }
+    VM_registerBuiltin(ctx, "draw_enable_drawevent", builtin_draw_enable_drawevent);
     VM_registerBuiltin(ctx, "draw_self", builtin_draw_self);
     VM_registerBuiltin(ctx, "draw_point", builtin_draw_point);
     VM_registerBuiltin(ctx, "draw_point_color", builtin_draw_point_color);
@@ -24054,6 +24096,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "date_get_second", builtin_date_get_second);
     VM_registerBuiltin(ctx, "date_set_timezone", builtin_date_set_timezone);
     VM_registerBuiltin(ctx, "date_get_timezone", builtin_date_get_timezone);
+    VM_registerBuiltin(ctx, "date_datetime_string", builtin_date_datetime_string);    
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
         VM_registerBuiltin(ctx, "action_if", builtin_action_if);
