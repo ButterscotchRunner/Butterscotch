@@ -666,24 +666,42 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
     return 1.0f;
 }
 
+static float maGetStreamLength(MaAudioSystem* ma, int32_t streamIndex);
+
+static float maSoundTrackPosition(MaAudioSystem* ma, SoundInstance* inst) {
+    if (ma_sound_is_looping(&inst->maSound)) {
+        ma_uint64 cursorFrames;
+        ma_uint64 lengthFrames;
+        ma_uint32 sampleRate;
+        if (ma_sound_get_cursor_in_pcm_frames(&inst->maSound, &cursorFrames) == MA_SUCCESS &&
+            ma_sound_get_data_format(&inst->maSound, nullptr, nullptr, &sampleRate, nullptr, 0) == MA_SUCCESS &&
+            sampleRate > 0) {
+            if (ma_sound_get_length_in_pcm_frames(&inst->maSound, &lengthFrames) == MA_SUCCESS && lengthFrames > 0)
+                return (float) (cursorFrames % lengthFrames) / (float) sampleRate;
+            if (inst->soundIndex >= AUDIO_STREAM_INDEX_BASE) {
+                ma_uint64 totalFrames = (ma_uint64) (maGetStreamLength(ma, inst->soundIndex) * sampleRate);
+                if (totalFrames > 0)
+                    return (float) (cursorFrames % totalFrames) / (float) sampleRate;
+            }
+        }
+    }
+
+    float cursor;
+    if (ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor) == MA_SUCCESS) return cursor;
+    return 0.0f;
+}
+
 static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
     if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
-        if (inst != nullptr) {
-            float cursor;
-            ma_result result = ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor);
-            if (result == MA_SUCCESS) return cursor;
-        }
+        if (inst != nullptr) return maSoundTrackPosition(ma, inst);
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
-            if (inst->active && inst->soundIndex == soundOrInstance) {
-                float cursor;
-                ma_result result = ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor);
-                if (result == MA_SUCCESS) return cursor;
-            }
+            if (inst->active && inst->soundIndex == soundOrInstance)
+                return maSoundTrackPosition(ma, inst);
         }
     }
     return 0.0f;
