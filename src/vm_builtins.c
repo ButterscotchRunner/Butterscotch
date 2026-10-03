@@ -14372,6 +14372,41 @@ static RValue builtin_date_get_timezone(VMContext* ctx, MAYBE_UNUSED RValue* arg
     return RValue_makeReal(ctx->runner->dateTimeLocal ? 0.0 : 1.0);
 }
 
+static const char* dateOrdinalSuffix(int day) {
+    if (day >= 11 && day <= 13) {
+        return "th";
+    }
+    switch (day % 10) {
+        case 1:  return "st";
+        case 2:  return "nd";
+        case 3:  return "rd";
+        default: return "th";
+    }
+}
+
+static RValue builtin_date_datetime_string(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    struct tm parts;
+    
+    if (!dateGetParts(ctx, args[0], &parts)) return RValue_makeString("");
+    
+    char month[64];
+    if (strftime(month, sizeof(month), "%B", &parts) == 0) return RValue_makeString("");
+    
+    char fullDate[256];
+    int written = snprintf(fullDate, sizeof(fullDate), "%s %d%s %d, %02d:%02d.%02d",
+                           month,
+                           parts.tm_mday,
+                           dateOrdinalSuffix(parts.tm_mday),
+                           parts.tm_year + 1900,
+                           parts.tm_hour,
+                           parts.tm_min,
+                           parts.tm_sec);
+                           
+    if (written < 0 || (size_t)written >= sizeof(fullDate)) return RValue_makeString("");
+    
+    return RValue_makeOwnedString(fullDate);
+}
+
 static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t steps = RValue_toInt32(args[0]);
     int32_t alarmIndex = RValue_toInt32(args[1]);
@@ -23701,6 +23736,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "date_get_second", builtin_date_get_second);
     VM_registerBuiltin(ctx, "date_set_timezone", builtin_date_set_timezone);
     VM_registerBuiltin(ctx, "date_get_timezone", builtin_date_get_timezone);
+    VM_registerBuiltin(ctx, "date_datetime_string", builtin_date_datetime_string);    
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_if_variable", builtin_action_if_variable);
         VM_registerBuiltin(ctx, "action_if", builtin_action_if);
