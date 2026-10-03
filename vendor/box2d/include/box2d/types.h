@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#pragma once
+#ifndef B2_TYPES_H
+#define B2_TYPES_H
 
 #include "base.h"
 #include "collision.h"
@@ -1462,3 +1463,5 @@ typedef struct b2DebugDraw
 /// Use this to initialize your drawing interface. This allows you to implement a sub-set
 /// of the drawing functions.
 B2_API b2DebugDraw b2DefaultDebugDraw( void );
+
+#endif

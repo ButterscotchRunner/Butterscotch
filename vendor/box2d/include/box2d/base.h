@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#pragma once
+#ifndef B2_BASE_H
+#define B2_BASE_H
 #include "butterscotch_compat.h"
 
 #include <stdint.h>
@@ -28,7 +29,11 @@
 	#define B2_API extern "C" BOX2D_EXPORT
 	#define B2_INLINE inline
 	#define B2_LITERAL(T) T
-	#define B2_ZERO_INIT {}
+	#if defined( _MSC_VER ) && _MSC_VER < 1200
+		#define B2_ZERO_INIT {0}
+	#else
+		#define B2_ZERO_INIT {}
+	#endif
 #else
 	#define B2_API BOX2D_EXPORT
 	#define B2_INLINE static inline
@@ -130,3 +135,5 @@ B2_API void b2Yield( void );
 B2_API uint32_t b2Hash( uint32_t hash, const uint8_t* data, int count );
 
 //! @endcond
+
+#endif

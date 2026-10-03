@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#pragma once
+#ifndef B2_BOX2D_H
+#define B2_BOX2D_H
 
 #include "base.h"
 #include "collision.h"
@@ -1259,3 +1260,5 @@ B2_API float b2WheelJoint_GetMotorTorque( b2JointId jointId );
 /**@}*/
 
 /**@}*/
+
+#endif

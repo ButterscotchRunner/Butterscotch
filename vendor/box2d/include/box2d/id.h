@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#pragma once
+#ifndef B2_ID_H
+#define B2_ID_H
 
 #include "base.h"
 
@@ -155,3 +156,5 @@ B2_INLINE b2JointId b2LoadJointId( uint64_t x )
 }
 
 /**@}*/
+
+#endif

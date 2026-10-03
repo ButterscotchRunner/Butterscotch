@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#pragma once
+#ifndef B2_MATH_FUNCTIONS_H
+#define B2_MATH_FUNCTIONS_H
 
 #include "base.h"
 
@@ -625,7 +626,9 @@ B2_INLINE bool b2AABB_Overlaps( b2AABB a, b2AABB b )
 B2_INLINE b2AABB b2MakeAABB( const b2Vec2* points, int count, float radius )
 {
 	B2_ASSERT( count > 0 );
-	b2AABB a = { points[0], points[0] };
+	b2AABB a;
+	a.lowerBound = points[0];
+	a.upperBound = points[0];
 	for ( int i = 1; i < count; ++i )
 	{
 		a.lowerBound = b2Min( a.lowerBound, points[i] );
@@ -754,3 +757,5 @@ inline bool operator!=( b2Vec2 a, b2Vec2 b )
 #endif
 
 /**@}*/
+
+#endif
