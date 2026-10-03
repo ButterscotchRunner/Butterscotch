@@ -10,7 +10,8 @@ just run make in the root and if you have devkitpro correctly setup, compile fin
 - ... thats basically it
 
 ## TO-DO (Highest to lowest priorty)
-- Get undertale booting (currently runs out of ram parsing the CODE chunk)
+- ~~Get undertale booting~~ ✔
+- Get undertale to the first room (currently gets stuck at "Loaded "UNDERTALE")
 - Write/finish the full ndslib render backend
 - Create a pre-processer (currently you have to dump each texture page yourself via utmt)
 - Get deltarune booting (untested)
