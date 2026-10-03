@@ -10,8 +10,8 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
-> [!IMPORTANT]  
-> Butterscotch is still VERY early in development and it is NOT that good yet.
+> [!IMPORTANT]
+> Butterscotch may have quirks that the original GameMaker: Studio runner may not have!
 
 When you create a game in GameMaker: Studio and export it, GameMaker: Studio exports the game code as bytecode instead of native compiled code, and that bytecode is compatible with any other GameMaker: Studio runner (also known as YoYo runner), as long as they have matching GameMaker: Studio versions. This is similar to how Java applications work.
 
@@ -19,17 +19,11 @@ This is how projects such as [Droidtale](https://mrpowergamerbr.com/projects/dro
 
 Ever since I created Droidtale 10+ years ago, I had that lingering thought in my mind... If GameMaker games use bytecode, what prevents us from creating our *own* runner? And if we can write our *own* runner, what prevents us from porting GameMaker: Studio games to other platforms?
 
-And that's where Butterscotch comes in! Butterscotch is an open source re-implementation of GameMaker: Studio's runner.
-
-**Butterscotch Web (WASM):** https://butterscotch.mrpowergamerbr.com/web/
-
-**Butterscotch PlayStation 2 ISO Generator:** https://butterscotch.mrpowergamerbr.com/
+And that's where Butterscotch comes in! Butterscotch is an open source re-implementation of GameMaker: Studio's runner in C.
 
 ## Game Compatibility
 
-Butterscotch's goal is to be able to have Undertale v1.08 (GameMaker: Studio 1.4.1804, WAD Version 16) fully playable. But we do want to support more GameMaker: Studio games in the future too!
-
-While our target is Undertale v1.08, that doesn't mean that other games CAN'T run in Butterscotch! Because Butterscotch is a runner and not a Undertale port/remake, you CAN run other GameMaker: Studio games with it and, as long as the game is compiled with GameMaker: Studio 1.4.1804 and they only use GML variables and functions that Butterscotch supports, it should work fine.
+Butterscotch's goal is to be able to have all bytecode compiled games playable. The majority of GameMaker: Studio games already get in game and some are even playable from start to finish! For a more complete list of working games, check the [Compatibility List.](https://github.com/ButterscotchRunner/CompatibilityList)
 
 Butterscotch supports the following WAD versions:
 
@@ -46,27 +40,34 @@ Butterscotch supports the following WAD versions:
 
 Other modding tools, such as UndertaleModTool, calls it "bytecode version" instead of "WAD version". We decided to go with WAD version instead because there are GameMaker: Studio versions (WAD version 6 and 7) that DO NOT use bytecode altogether, so calling it "bytecode version" is not quite correct, and because that's what the YoYo Runner calls it under the hood.
 
-Versions before GameMaker: Studio 1.0.198 (that is, pre-WAD version 8) uses raw GML code interpreted on load, so these versions would require a GML compiler to be supported in Butterscotch.
-
 However, that doesn't mean that a game that uses a compatible version WILL run! The bytecode support is still a WIP, and Butterscotch may have quirks that the original GameMaker: Studio runner may not have.
 
-Of course, there are exceptions that break game compatibility altogether:
+Of course, some games won't run! Some games aren't VM compiled, such as:
 
-* Games compiled with YYC, because they use native code instead of bytecode. 
+* Games compiled with YYC, because they use native code instead of bytecode. (Ex: Forager, Rivals of Aether)
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
+* Games before GameMaker: Studio 1.0.198 (pre-WAD version 8) because they use raw GML code interpreted on load.
 
 ## Supported Platforms
 
 * Windows
+* macOS
 * Web
 * PlayStation 2
 * PlayStation 3
+* PlayStation Vita
+* Nintendo Switch
 * ...and maybe more in the future!
 
+Butterscotch can be ported to about any console that has the processing power to run it! Butterscotch has already been ported to many consoles such as the Xbox 360, Wii, 3DS, and more!
+
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1996
+* Linux with glibc as old as about ~1995
 * FreeBSD as old as 2.2.8
+* OpenBSD
+* NetBSD
 * Haiku
+* Solaris/illumos (OpenIndiana tested working)
 
 The following backends are available for desktop platforms (Windows and POSIX systems).
 * GLFW 2
@@ -74,29 +75,70 @@ The following backends are available for desktop platforms (Windows and POSIX sy
 * SDL 1.2
 * SDL 2
 * SDL 3
+* AppKit (macOS only)
 
-The following compilers have been tested to successfully build butterscotch, older versions may work but are untested.
+The following compilers have been tested to successfully build Butterscotch, older versions may work but are untested.
 * GCC 2.7 and up in C++ mode, and 3.0 and up in C99 mode
 * Clang 1.1 and up
 * TinyCC 0.9.27 and up
-* MSVC 19.29.30159 and up
+* MSVC 4.0 and up
+
+## Download Butterscotch
+
+Below are direct links to download the latest auto-build of Butterscotch for your platform.
+
+### Desktop
+
+| OS | x86_64 | i386 | arm64 | armhf | PowerPC | PowerPC64 | PowerPC64 little-endian | RISC-V 64 | LoongArch64 | MIPS | MIPS little-endian | MIPS64 | MIPS64 little-endian |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Windows | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-x86_64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-windows-i486.zip) | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-windows-arm64.zip) | [armv7](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-windows-armv7.zip) | | | | | | | | | |
+| macOS | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-x86_64.zip) | | [arm64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-appkit-macos-arm64.zip) | | | | | | | | | | |
+| Linux | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-arm.zip) | [powerpc](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc.zip) | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc64.zip) | [powerpc64le](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-powerpc64le.zip) | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-riscv.zip) | [loongarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-loongarch64.zip) | [mips](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips.zip) | [mipsel](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mipsel.zip) | [mips64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips64.zip) | [mips64el](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-Linux-mips64el.zip) |
+| FreeBSD 14.0 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-arm.zip) | | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-powerpc64.zip) | [powerpc64le](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-powerpc64le.zip) | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-FreeBSD-riscv.zip) | | | | | |
+| OpenBSD 7.8 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-arm.zip) | [powerpc](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-powerpc.zip) | [powerpc64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-powerpc64.zip) | | [riscv64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-riscv.zip) | | | | [mips64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-mips64.zip) | [mips64el](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-OpenBSD-mips64el.zip) |
+| NetBSD 10.1 | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-amd64.zip) | [i486](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-i486.zip) | [aarch64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-aarch64.zip) | [arm](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-arm.zip) | | | | | | [mips](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mips.zip) | [mipsel](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/Butterscotch-NetBSD-mipsel.zip) | | |
+| Haiku | [x86_64](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-sdl2-haiku-x86-64.zip) | | | | | | | | | | | | |
+
+All desktop builds use SDL2, with the exception of Mac OS using AppKit and i486 Windows using SDL 1.2.
+
+All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware floating-point support.
+
+### Consoles
+
+| Platform | Download | Notes |
+|---|---|---|
+| PlayStation 2 | [butterscotch-ps2.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2.zip) | All WAD versions. Has worse performance compared to WAD-specific ELFs due to more code bloat on the interpreter hot path. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad14.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad14.zip) | WAD 14 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad16.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad16.zip) | WAD 16 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 2 | [butterscotch-ps2-wad17.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad17.zip) | WAD 17 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
+| PlayStation 3 | [butterscotch-ps3.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps3.zip) | To be used with the [preprocessor](https://github.com/ButterscotchRunner/ButterscotchPreprocessor). |
+| PlayStation Vita | [butterscotch-vita.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-vita.zip) | Place data.win in `ux0:/data/butterscotch/` directory. |
+| Nintendo Switch | [butterscotch-switch.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-switch.zip) | Place data.win in `sdmc:/switch/butterscotch/` directory OR compile from source with data.win file in `<cmake build dir>/romfs` directory (requires devkitPro). |
+
+
+### Other
+
+| Platform | Download | Notes |
+| -------- | -------- | ----- |
+| WebAssembly | [butterscotch-web.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-web.zip) | [Play online](https://butterscotch.mrpowergamerbr.com/web/) |
+| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) |
 
 ## Community Ports
 
 * [Xbox 360 (Butterscotch-360)](https://github.com/ceilingtilefan/Butterscotch-360) by @ceilingtilefan
-* [3DS and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682, @d16.dorian, @ralcactus
+* [3DS, Wii and Wii U (Cinnamon)](https://github.com/Project-Sunshine-Native/cinnamon) by @casrielasriel, @grayforz24682
 
 ## Building Butterscotch
 
 ```bash
 mkdir build && cd build
-cmake -DPLATFORM=desktop -DDESKTOP_BACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DBACKEND=glfw3 -DCMAKE_BUILD_TYPE=Debug ..
 make
 ```
 
-If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DDESKTOP_BACKEND=glfw3`
+If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
 
-Then run Butterscotch with `./butterscotch /path/to/data.win`!
+Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`.
 
 ## CLI parameters
 
@@ -152,6 +194,8 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --profile-opcodes                      - Rank which GML opcodes were executed the most
 --lazy-textures                        - Load textures into VRAM on first use, improving startup times
 --load-type <type>                     - Specify how data.win is loaded, per-chunk or all at once
+--disable-log-colours                  - Disable colours for warning, error, and debug logs
+--disable-log-colors                   - Same as --disable-log-colours, but different spelling
 ```
 
 ## Debug Features
@@ -172,7 +216,7 @@ Performance is pretty good on any modern computer, but when running on low end t
 
 ## Then why not have a transpiler?
 
-The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any 
+The issue with a transpiler is that, if you try transpiling the game in the "naive" way, that is, emitting VM calls like it was the original bytecode, you won't get any
 *improvement* from it, you would need to create a *good* transpiler that actually transpiles it into *good* code, and that's way harder.
 
 Having a transpiler also have other disadvantages:
@@ -252,3 +296,7 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/e8cd174c-5113-416b-9e3a-c4029e1e3176" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3702a261-01fe-4b04-9e6c-b69336c2ce46" />
+
+## Disclaimer
+
+Butterscotch has no association, endorsement, or any connection whatsoever with any of the software that it facilitates, and does not provide any of the software it can run by itself. In order to use Butterscotch, you will need to provide your own game files.

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "audio_system.h"
+
 #include "miniaudio.h"
 
 #define MAX_SOUND_INSTANCES 128
@@ -32,6 +33,7 @@ typedef struct {
     char* filePath; // resolved file path (owned, freed on destroy)
     float initialGain;
     float initialPitch;
+    float lengthSeconds;
 } AudioStreamEntry;
 
 typedef struct {

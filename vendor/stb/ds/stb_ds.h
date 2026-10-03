@@ -698,6 +698,7 @@ enum
 template<class T> static T * stbds_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_cap) {
   return (T*)stbds_arrgrowf((void *)a, elemsize, addlen, min_cap);
 }
+#define stbds_arrgrowf_wrapper(a,b,c,d) stbds_arrgrowf_wrapper(a,b,(size_t)c,(size_t)d)
 template<class T> static T * stbds_hmget_key_wrapper(T *a, size_t elemsize, void *key, size_t keysize, int mode) {
   return (T*)stbds_hmget_key((void*)a, elemsize, key, keysize, mode);
 }
@@ -713,9 +714,11 @@ template<class T> static T * stbds_hmput_key_wrapper(T *a, size_t elemsize, void
 template<class T> static T * stbds_hmdel_key_wrapper(T *a, size_t elemsize, void *key, size_t keysize, size_t keyoffset, int mode){
   return (T*)stbds_hmdel_key((void*)a, elemsize, key, keysize, keyoffset, mode);
 }
+#define stbds_hmdel_key_wrapper(a,b,c,d,e,f) stbds_hmdel_key_wrapper(a,b,c,d,(size_t)e,f)
 template<class T> static T * stbds_shmode_func_wrapper(T *, size_t elemsize, int mode) {
   return (T*)stbds_shmode_func(elemsize, mode);
 }
+#define stbds_shmode_func_wrapper(a,b,c) stbds_shmode_func_wrapper(a,b,(int)c)
 #else
 #define stbds_arrgrowf_wrapper            stbds_arrgrowf
 #define stbds_hmget_key_wrapper           stbds_hmget_key

@@ -7,6 +7,15 @@
 
 #include "data_win.h"
 #include "file_system.h"
+#include "utils.h"
+
+typedef struct {
+    float current;
+    float start;
+    float target;
+    float timeRemaining;
+    float totalTime;
+} AudioGroupGain;
 
 // ===[ AudioSystem Vtable ]===
 
@@ -17,6 +26,8 @@ typedef struct {
     void (*destroy)(AudioSystem* audio);
     void (*update)(AudioSystem* audio, float deltaTime);
     int32_t (*playSound)(AudioSystem* audio, int32_t soundIndex, int32_t priority, bool loop);
+    void (*setSoundSpatial)(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor);
+    void (*setListenerPosition)(AudioSystem* audio, float x, float y, float z);
     void (*stopSound)(AudioSystem* audio, int32_t soundOrInstance);
     void (*stopAll)(AudioSystem* audio);
     bool (*isPlaying)(AudioSystem* audio, int32_t soundOrInstance);
@@ -38,6 +49,7 @@ typedef struct {
     void (*setMasterGain)(AudioSystem* audio, float gain);
     void (*setMasterGainForListener)(AudioSystem* audio, float gain, int32_t listenerId);
     void (*setChannelCount)(AudioSystem* audio, int32_t count);
+    void (*setGroupGain)(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs);
     void (*groupLoad)(AudioSystem* audio, int32_t groupIndex);
     bool (*groupIsLoaded)(AudioSystem* audio, int32_t groupIndex);
     int32_t (*createStream)(AudioSystem* audio, const char* filename);
@@ -50,6 +62,68 @@ struct AudioSystem {
     AudioSystemVtable* vtable;
     DataWin* dw;
     DataWin** audioGroups;
+    float listenerX, listenerY, listenerZ;
+    AudioGroupGain* groupGains;
+    uint32_t groupGainCount;
 };
+
+static inline int32_t AudioSystem_soundGroup(const AudioSystem* audio, int32_t soundIndex) {
+    if (audio == nullptr || audio->dw == nullptr || soundIndex < 0 ||
+        (uint32_t)soundIndex >= audio->dw->sond.count) return 0;
+    int32_t group = audio->dw->sond.sounds[soundIndex].audioGroup;
+    return group >= 0 ? group : 0;
+}
+
+static inline float AudioSystem_getGroupGain(const AudioSystem* audio, int32_t groupIndex) {
+    if (audio == nullptr || groupIndex < 0 || (uint32_t)groupIndex >= audio->groupGainCount) return 1.0f;
+    return audio->groupGains[groupIndex].current;
+}
+
+static inline float AudioSystem_soundGroupGain(const AudioSystem* audio, int32_t soundIndex) {
+    return AudioSystem_getGroupGain(audio, AudioSystem_soundGroup(audio, soundIndex));
+}
+
+static inline void AudioSystem_setGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    if (audio == nullptr || groupIndex < 0) return;
+    uint32_t count = audio->dw != nullptr ? audio->dw->agrp.count : 0;
+    if (count == 0) count = 1; // Legacy games have only the default audio group.
+    if ((uint32_t)groupIndex >= count) return;
+
+    if (audio->groupGains == nullptr) {
+        audio->groupGains = (AudioGroupGain*)safeCalloc(count, sizeof(AudioGroupGain));
+        audio->groupGainCount = count;
+        for (uint32_t i = 0; i < count; i++) {
+            audio->groupGains[i].current = 1.0f;
+            audio->groupGains[i].start = 1.0f;
+            audio->groupGains[i].target = 1.0f;
+        }
+    }
+
+    AudioGroupGain* group = &audio->groupGains[groupIndex];
+    group->start = group->current;
+    group->target = gain;
+    group->totalTime = (float)timeMs / 1000.0f;
+    group->timeRemaining = group->totalTime;
+    if (timeMs == 0) group->current = gain;
+}
+
+static inline bool AudioSystem_updateGroupGains(AudioSystem* audio, float deltaTime) {
+    if (audio == nullptr || deltaTime <= 0) return false;
+    bool changed = false;
+    for (uint32_t i = 0; i < audio->groupGainCount; i++) {
+        AudioGroupGain* group = &audio->groupGains[i];
+        if (group->timeRemaining <= 0) continue;
+        group->timeRemaining -= deltaTime;
+        if (group->timeRemaining <= 0) {
+            group->timeRemaining = 0;
+            group->current = group->target;
+        } else {
+            group->current = group->start + (group->target - group->start) *
+                (1.0f - group->timeRemaining / group->totalTime);
+        }
+        changed = true;
+    }
+    return changed;
+}
 
 #endif /* _BS_AUDIO_SYSTEM_H_ */

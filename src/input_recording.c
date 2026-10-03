@@ -4,9 +4,9 @@
 
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #include "stb_ds.h"
 
@@ -21,7 +21,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     // Read the file contents
     FILE* f = fopen(playbackFilePath, "rb");
     if (f == nullptr) {
-        fprintf(stderr, "Error: Could not open input recording file '%s'\n", playbackFilePath);
+        logError("Could not open input recording file '%s'\n", playbackFilePath);
         exit(1);
     }
 
@@ -39,17 +39,19 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     free(contents);
 
     if (root == nullptr || !JsonReader_isObject(root)) {
-        fprintf(stderr, "Error: Invalid JSON in input recording file '%s'\n", playbackFilePath);
+        logError("Invalid JSON in input recording file '%s'\n", playbackFilePath);
         exit(1);
     }
 
     // Find the highest frame number to determine array size
     int objectLen = JsonReader_objectLength(root);
     int32_t maxFrame = -1;
+    {
     repeat(objectLen, i) {
         const char* key = JsonReader_getJsonKeyByIndex(root, i);
         int32_t frameNum = (int32_t) strtol(key, nullptr, 10);
         if (frameNum > maxFrame) maxFrame = frameNum;
+    }
     }
 
     InputRecording* rec = (InputRecording *)safeCalloc(1, sizeof(InputRecording));
@@ -79,8 +81,10 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
         int32_t* keysPressedArray = nullptr;
         int32_t* keysReleasedArray = nullptr;
 
+        {
         repeat(keysPressedLength, j) {
             arrput(keysPressedArray, JsonReader_getInt(JsonReader_getArrayElement(keysPressed, j)));
+        }
         }
 
         repeat(keysReleasedLength, j) {
@@ -94,7 +98,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     }
 
     JsonReader_free(root);
-    fprintf(stderr, "InputRecording: Loaded %d frames from '%s'\n", rec->playbackFrameCount, playbackFilePath);
+    logInfo("InputRecording: Loaded %d frames from '%s'\n", rec->playbackFrameCount, playbackFilePath);
     return rec;
 }
 
@@ -138,12 +142,14 @@ void InputRecording_processFrame(InputRecording* recording, RunnerKeyboardState*
                 RunnerKeyboard_onKeyDown(kb, frame.keysPressed[i]);
             }
 
+            {
             repeat(keyReleasedCount, i) {
                 RunnerKeyboard_onKeyUp(kb, frame.keysReleased[i]);
             }
+            }
         } else {
             if (!recording->playbackEnded) {
-                fprintf(stderr, "InputRecording: Playback ended at frame %d (recorded %d frames)\n", frameNumber, recording->playbackFrameCount);
+                logInfo("InputRecording: Playback ended at frame %d (recorded %d frames)\n", frameNumber, recording->playbackFrameCount);
                 recording->playbackEnded = true;
             }
         }
@@ -201,8 +207,10 @@ bool InputRecording_save(InputRecording* recording) {
         JsonWriter_key(&w, "keysReleased");
         JsonWriter_beginArray(&w);
 
+        {
         repeat(arrlen(frame.keysReleased), i) {
             JsonWriter_int(&w, frame.keysReleased[i]);
+        }
         }
 
         JsonWriter_endArray(&w);
@@ -212,19 +220,19 @@ bool InputRecording_save(InputRecording* recording) {
 
     JsonWriter_endObject(&w);
 
-    FILE* f = fopen(recording->recordFilePath, "wb");
-    if (f == nullptr) {
-        fprintf(stderr, "Error: Could not write input recording to '%s'\n", recording->recordFilePath);
+    FILE* file = fopen(recording->recordFilePath, "wb");
+    if (file == nullptr) {
+        logWarn("Error: Could not write input recording to '%s'\n", recording->recordFilePath);
         JsonWriter_free(&w);
         return false;
     }
 
     const char* output = JsonWriter_getOutput(&w);
-    fwrite(output, 1, JsonWriter_getLength(&w), f);
-    fputc('\n', f);
-    fclose(f);
+    fwrite(output, 1, JsonWriter_getLength(&w), file);
+    fputc('\n', file);
+    fclose(file);
 
-    fprintf(stderr, "InputRecording: Saved %d frames to '%s'\n", frameCount, recording->recordFilePath);
+    logInfo("InputRecording: Saved %d frames to '%s'\n", frameCount, recording->recordFilePath);
     JsonWriter_free(&w);
     return true;
 }

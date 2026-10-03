@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 #define MAX_PS2_SOUND_INSTANCES 64
 #define PS2_SOUND_INSTANCE_ID_BASE 100000
@@ -94,6 +94,9 @@ typedef struct {
     float fadeTimeRemaining;
     float fadeTotalTime;
     float sondVolume;     // SOND resource volume (fixed-point / 256)
+    bool spatial;
+    float spatialX, spatialY, spatialZ;
+    float falloffRef, falloffMax, falloffFactor;
 } Ps2SoundInstance;
 
 // ===[ Streaming Music Instance ]===
@@ -116,6 +119,9 @@ typedef struct {
     float sondVolume;
     float pitch;
     float sondPitch;
+    bool spatial;
+    float spatialX, spatialY, spatialZ;
+    float falloffRef, falloffMax, falloffFactor;
 
     // ADPCM file streaming state
     uint32_t fileOffset;      // current read position in SOUNDS.BIN

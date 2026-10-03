@@ -3,9 +3,9 @@
 #include "../json_reader.h"
 #include "../utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <sys/stat.h>
 
 #include "stb_ds.h"
@@ -184,9 +184,9 @@ static void copyIconIcoIfMissing(const char* dirPath) {
     // Copy from boot device
     char* srcPath = PS2Utils_createDevicePath("ICON.ICO");
     if (copyFile(srcPath, dstPath)) {
-        fprintf(stderr, "Ps2FileSystem: Copied ICON.ICO to %s\n", dirPath);
+        logInfo("Ps2FileSystem: Copied ICON.ICO to %s\n", dirPath);
     } else {
-        fprintf(stderr, "Ps2FileSystem: Failed to copy ICON.ICO from %s to %s\n", srcPath, dstPath);
+        logWarn("Ps2FileSystem: Failed to copy ICON.ICO from %s to %s\n", srcPath, dstPath);
     }
 
     free(srcPath);
@@ -217,9 +217,9 @@ static void writeIconSysIfMissing(const char* dirPath, const char* gameTitle, co
     if (f != nullptr) {
         fwrite(buffer, 1, ICON_SYS_SIZE, f);
         fclose(f);
-        fprintf(stderr, "Ps2FileSystem: Created icon.sys in %s\n", dirPath);
+        logInfo("Ps2FileSystem: Created icon.sys in %s\n", dirPath);
     } else {
-        fprintf(stderr, "Ps2FileSystem: Failed to create icon.sys in %s\n", dirPath);
+        logWarn("Ps2FileSystem: Failed to create icon.sys in %s\n", dirPath);
     }
 
     free(iconSysPath);
@@ -343,6 +343,19 @@ static bool deleteFile(FileSystem* fs, const char* relativePath) {
 
     // Delete the first path
     return remove(paths[0]) == 0;
+}
+
+static bool renameFile(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath) {
+    Ps2FileSystem* pfs = (Ps2FileSystem*) fs;
+    ptrdiff_t idx = shgeti(pfs->mappings, oldRelativePath);
+    if (0 > idx)
+        return false;
+
+    char** paths = pfs->mappings[idx].value;
+    if (arrlen(paths) == 0)
+        return false;
+
+    return rename(paths[0], newRelativePath) == 0;
 }
 
 static bool ps2ReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t** outData, int32_t* outSize) {
@@ -577,6 +590,7 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
     ps2FileSystemVtable.readFileText = readFileText;
     ps2FileSystemVtable.writeFileText = writeFileText;
     ps2FileSystemVtable.deleteFile = deleteFile;
+    ps2FileSystemVtable.renameFile = renameFile;
     ps2FileSystemVtable.readFileBinary = ps2ReadFileBinary;
     ps2FileSystemVtable.writeFileBinary = ps2WriteFileBinary;
     ps2FileSystemVtable.binaryOpen = ps2BinaryOpen;
@@ -612,13 +626,13 @@ FileSystem* Ps2FileSystem_create(JsonValue* configRoot, const char* gameTitle) {
             const char* rawPath = JsonReader_getString(pathElement);
             char* resolved = expandBootPrefix(rawPath);
             arrput(resolvedPaths, resolved);
-            fprintf(stderr, "Ps2FileSystem: '%s' -> '%s'\n", gameFileName, resolved);
+            logInfo("Ps2FileSystem: '%s' -> '%s'\n", gameFileName, resolved);
         }
 
         shput(pfs->mappings, gameFileName, resolvedPaths);
     }
 
-    fprintf(stderr, "Ps2FileSystem: Loaded %d file mappings\n", (int) shlen(pfs->mappings));
+    logInfo("Ps2FileSystem: Loaded %d file mappings\n", (int) shlen(pfs->mappings));
     return (FileSystem*) pfs;
 }
 

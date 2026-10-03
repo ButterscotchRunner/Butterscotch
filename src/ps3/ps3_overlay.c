@@ -6,9 +6,9 @@
 #include "stb_ds.h"
 
 #include <ps3gl.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #define OVERLAY_LINE_HEIGHT_SCALE 0.80f
 #define PROFILER_WINDOW_FRAMES 60
@@ -31,7 +31,7 @@ void PS3Overlay_init(void) {
     // Convert the 8bpp atlas into RGBA
     uint8_t* rgba = (uint8_t*) malloc((size_t) (DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4));
     if (rgba == nullptr) {
-        fprintf(stderr, "PS3Overlay: failed to allocate %d bytes for the font atlas\n", DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4);
+        logWarn("PS3Overlay: failed to allocate %d bytes for the font atlas\n", DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4);
         return;
     }
 

@@ -1,9 +1,9 @@
 #include "string_builder.h"
 #include "utils.h"
 
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 #include <stdarg.h>
 
 #define STRING_BUILDER_MIN_CAPACITY 16

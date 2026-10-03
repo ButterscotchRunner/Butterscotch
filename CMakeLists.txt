@@ -1,10 +1,40 @@
 cmake_minimum_required(VERSION 3.21)
 
 if(PLATFORM STREQUAL "ps3")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
+    set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
+endif()
+
+if(PLATFORM STREQUAL "vita")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+      if(DEFINED ENV{VITASDK})
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+      else()
+        message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
+      endif()
+    endif()
+
+    set(BACKEND "sdl2")
+
+    elseif(PLATFORM STREQUAL "switch")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+        if(NOT DEFINED ENV{DEVKITPRO})
+            message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
+        endif()
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
+    endif()
+
+    set(BACKEND "sdl2")
 endif()
 
 project(butterscotch C)
+
+if (PLATFORM STREQUAL "vita")
+    include("${VITASDK}/share/vita.cmake" REQUIRED)
+    set(VITA_APP_NAME "Butterscotch")
+    set(VITA_TITLEID  "BUTTRSTCH")
+    set(VITA_VERSION  "01.00")
+    set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
+endif()
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -19,12 +49,28 @@ else()
     endif()
 endif()
 
-set(PLATFORM "desktop" CACHE STRING "Platform backend")
-set(DESKTOP_BACKEND "" CACHE STRING "Desktop platform backend")
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if(MSVC)
+        # equivalent to -fomit-frame-pointer
+        add_compile_options(/Oy)
+    else()
+        add_compile_options(-ffast-math -fno-finite-math-only)
+
+        # some targets don't support -fomit-frame-pointer IIRC
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
+        if(HAS_FOMIT_FRAME_POINTER)
+            add_compile_options(-fomit-frame-pointer)
+        endif()
+    endif()
+endif()
+
+set(PLATFORM "cli" CACHE STRING "Platform backend")
+set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 
-if(PLATFORM STREQUAL "desktop" AND DESKTOP_BACKEND STREQUAL "")
-    message(FATAL_ERROR "You need to set a DESKTOP_BACKEND!")
+if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
+    message(FATAL_ERROR "You need to set a BACKEND!")
 endif()
 
 # Build metadata
@@ -37,11 +83,7 @@ add_compile_definitions(
 
 # Audio backend defaults
 if(AUDIO_BACKEND STREQUAL "")
-    if(PLATFORM STREQUAL "web")
-        set(AUDIO_BACKEND "web")
-    elseif(PLATFORM STREQUAL "web-meta")
-        set(AUDIO_BACKEND "none")
-    elseif(PLATFORM STREQUAL "ps3")
+    if(PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
         set(AUDIO_BACKEND "openal")
     elseif(PLATFORM STREQUAL "ps2")
         set(AUDIO_BACKEND "ps2")
@@ -54,6 +96,9 @@ if(AUDIO_BACKEND STREQUAL "openal")
     file(GLOB AUDIO_SOURCES src/audio/openal/*.c)
 elseif(AUDIO_BACKEND STREQUAL "miniaudio")
     file(GLOB AUDIO_SOURCES src/audio/miniaudio/*.c)
+    if(PLATFORM STREQUAL "vita")
+        add_compile_definitions(MA_NO_RUNTIME_LINKING)
+    endif()
 elseif(AUDIO_BACKEND STREQUAL "web")
     file(GLOB AUDIO_SOURCES src/audio/web/*.c src/audio/miniaudio/*.c)
 elseif(AUDIO_BACKEND STREQUAL "ps2")
@@ -70,7 +115,21 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
+    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
+endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
+option(ENABLE_NOOP_RENDERER "Enable the no-op renderer (headless stub, no drawing)" OFF)
+# Noop renderer is exclusive to the noop desktop backend (no window, no GL).
+# Auto-enable for BACKEND=noop and reject otherwise.
+if(BACKEND STREQUAL "noop")
+    set(ENABLE_NOOP_RENDERER ON CACHE BOOL "Enable the no-op renderer (headless stub, no drawing)" FORCE)
+    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
+    set(ENABLE_MODERN_GL OFF CACHE BOOL "Enable the modern OpenGL renderer" FORCE)
+endif()
+if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")
+    message(FATAL_ERROR "ENABLE_NOOP_RENDERER is exclusive to BACKEND=noop")
+endif()
 if(NOT ENABLE_WAD14 AND NOT ENABLE_WAD16 AND NOT ENABLE_WAD17)
     message(FATAL_ERROR "You need to build Butterscotch with at least one WAD version enabled!")
 endif()
@@ -89,16 +148,18 @@ endif()
 if(ENABLE_MODERN_GL)
     add_compile_definitions(ENABLE_MODERN_GL)
 endif()
-
-if(PLATFORM STREQUAL "web-meta")
-    # Metadata-only build: just the data.win parser and its direct deps. No VM, no runner, no I/O subsystems.
-    set(SOURCES
-        src/data_win.c
-        src/binary_reader.c
-    )
-else()
-    file(GLOB SOURCES src/*.c)
+if(ENABLE_NOOP_RENDERER)
+    add_compile_definitions(ENABLE_NOOP_RENDERER)
 endif()
+
+file(GLOB SOURCES src/*.c)
+
+# These platforms haven't been converted to the refactored system yet.
+# This list should NEVER grow, all new platforms should use the new system.
+if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "android")
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/loop.c")
+endif()
+
 # Platform specific files builds
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
@@ -108,27 +169,103 @@ else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
 
+# Video playback backend
+set(VIDEO_BACKEND "ffmpeg" CACHE STRING "Video playback backend (ffmpeg or none)")
+set(BUTTERSCOTCH_FFMPEG_STATIC_LIBS "")
+
+if(NOT VIDEO_BACKEND STREQUAL "ffmpeg" AND NOT VIDEO_BACKEND STREQUAL "none")
+    message(FATAL_ERROR "Invalid VIDEO_BACKEND: ${VIDEO_BACKEND}")
+endif()
+
+if(VIDEO_BACKEND STREQUAL "ffmpeg")
+    find_package(PkgConfig)
+    if(PKG_CONFIG_FOUND)
+        if(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+            # Console SDKs only ship static FFmpeg archives, and the private
+            # dependency closure (mpg123, lame, zlib, ...) is not exposed by a
+            # plain --libs query. Ask for the static closure and link it as a
+            # single, normalised list so each archive is passed exactly once.
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --static --libs libavformat libavcodec libavutil libswscale libswresample
+                OUTPUT_VARIABLE _ffmpeg_static_libs
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE _ffmpeg_static_rc)
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --static --cflags libavformat libavcodec libavutil libswscale libswresample
+                OUTPUT_VARIABLE _ffmpeg_static_cflags
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE _ffmpeg_static_cflags_rc)
+            if(_ffmpeg_static_rc EQUAL 0 AND NOT _ffmpeg_static_libs STREQUAL "")
+                add_compile_definitions(BUTTERSCOTCH_FFMPEG)
+                set(BUTTERSCOTCH_FFMPEG 1)
+                separate_arguments(_ffmpeg_static_libs UNIX_COMMAND "${_ffmpeg_static_libs}")
+                foreach(_lib IN LISTS _ffmpeg_static_libs)
+                    if(_lib MATCHES "^-l(.+)$")
+                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${CMAKE_MATCH_1}")
+                    elseif(_lib STREQUAL "-pthread")
+                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS pthread)
+                    else()
+                        list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS "${_lib}")
+                    endif()
+                endforeach()
+                if(NOT _ffmpeg_static_cflags_rc EQUAL 0)
+                    set(_ffmpeg_static_cflags "")
+                endif()
+                separate_arguments(_ffmpeg_static_cflags UNIX_COMMAND "${_ffmpeg_static_cflags}")
+                target_compile_options(butterscotch PRIVATE ${_ffmpeg_static_cflags})
+            else()
+                message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+                set(BUTTERSCOTCH_VIDEO_NULL 1)
+            endif()
+        else()
+            pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
+            if(FFMPEG_FOUND)
+                add_compile_definitions(BUTTERSCOTCH_FFMPEG)
+                set(BUTTERSCOTCH_FFMPEG 1)
+                target_link_libraries(butterscotch PRIVATE PkgConfig::FFMPEG)
+            else()
+                message(WARNING "FFmpeg development libraries not found - video playback will be disabled")
+                add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+                set(BUTTERSCOTCH_VIDEO_NULL 1)
+            endif()
+        endif()
+    else()
+        message(WARNING "pkg-config not found - video playback will be disabled")
+        add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+        set(BUTTERSCOTCH_VIDEO_NULL 1)
+    endif()
+else()
+    # VIDEO_BACKEND=none
+    add_compile_definitions(BUTTERSCOTCH_VIDEO_NULL)
+    set(BUTTERSCOTCH_VIDEO_NULL 1)
+endif()
+
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(butterscotch PRIVATE src/${PLATFORM})
+target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/video)
 
 if(AUDIO_BACKEND STREQUAL "openal")
     target_include_directories(butterscotch PUBLIC src/audio/openal)
     add_compile_definitions(USE_OPENAL)
     if(APPLE)
         set(AUDIO_LIBRARIES "-framework OpenAL")
+    elseif(PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")
+        set(AUDIO_LIBRARIES openal pthread)
     elseif(NOT PLATFORM STREQUAL "ps3")
         find_package(OpenAL REQUIRED)
         target_include_directories(butterscotch PUBLIC "${OPENAL_INCLUDE_DIR}")
         set(AUDIO_LIBRARIES "${OPENAL_LIBRARY}")
     endif()
 elseif(AUDIO_BACKEND STREQUAL "miniaudio")
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_MINIAUDIO)
     if (NOT WIN32)
         set(AUDIO_LIBRARIES pthread)
     endif()
 elseif(AUDIO_BACKEND STREQUAL "web")
-    target_include_directories(butterscotch PUBLIC vendor/miniaudio)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniaudio)
     target_include_directories(butterscotch PUBLIC src/audio/web)
     target_include_directories(butterscotch PUBLIC src/audio/miniaudio)
     add_compile_definitions(USE_WEB_AUDIO)
@@ -170,6 +307,37 @@ add_library(bzip2 STATIC
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
 
+# miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
+# All files vendored byte-for-byte from that tag except:
+#  - miniz_export.h, which upstream generates during its own CMake configure; this
+#    static build just leaves MINIZ_EXPORT and MINIZ_NO_EXPORT empty since the
+#    archive/stdio APIs are disabled above.
+#  - miniz.h's MZ_FORCEINLINE for _MSC_VER, changed from __forceinline to __inline
+#    because the zlib-compat layer writes "static MZ_FORCEINLINE" and older MSVC C
+#    rejects "static __forceinline".
+target_sources(butterscotch PRIVATE
+    vendor/miniz/miniz.c
+    vendor/miniz/miniz_tdef.c
+    vendor/miniz/miniz_tinfl.c
+)
+target_include_directories(butterscotch SYSTEM PUBLIC vendor/miniz)
+target_compile_definitions(butterscotch PRIVATE MINIZ_NO_ARCHIVE_APIS MINIZ_NO_STDIO)
+if(NOT MSVC)
+    set_source_files_properties(
+        vendor/miniz/miniz.c
+        vendor/miniz/miniz_tdef.c
+        vendor/miniz/miniz_tinfl.c
+        PROPERTIES COMPILE_OPTIONS "-w"
+    )
+endif()
+
+# Video playback source
+if(BUTTERSCOTCH_FFMPEG)
+    target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
+elseif(BUTTERSCOTCH_VIDEO_NULL)
+    target_sources(butterscotch PRIVATE src/video/null_video.c)
+endif()
+
 # Spatial grid logs
 option(ENABLE_SPATIAL_GRID_LOGS "Enable Spatial Grid logs" OFF)
 if(ENABLE_SPATIAL_GRID_LOGS)
@@ -182,11 +350,38 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "desktop")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
+    if(PLATFORM STREQUAL "vita")
+        # Normally, __VITA__ should already be defined, but for some reason,
+        # in my case, this didn't really work... so just in case, when we're
+        # building for the Vita, just force-feed these...
+        add_compile_definitions(__VITA__)
+        add_compile_definitions(PLATFORM_VITA)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "switch")
+        add_compile_definitions(PLATFORM_SWITCH)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "web")
+        add_compile_definitions(PLATFORM_WEB)
+        target_sources(butterscotch PRIVATE src/cli/args.c)
+    else()
+        set(VM_GML_PROFILER_DEFAULT ON)
+        set(VM_TRACING_DEFAULT ON)
+        set(VM_OPCODE_PROFILER_DEFAULT ON)
+        set(VM_STUB_LOGS_DEFAULT ON)
+    endif()
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
-    if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL)
+    if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL AND NOT ENABLE_NOOP_RENDERER)
         message(FATAL_ERROR "You must enable at least one renderer!")
     endif()
     file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)
@@ -201,63 +396,72 @@ if(PLATFORM STREQUAL "desktop")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
+
+    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
+    target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
+
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
         add_compile_definitions(NO_STRTOK_R)
+        add_compile_definitions(NO_STRCASECMP)
     endif()
 
     # Butterscotch VM/interpreter profiler
-    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ON)
+    option(ENABLE_VM_GML_PROFILER "Enable Butterscotch VM/interpreter profiler" ${VM_GML_PROFILER_DEFAULT})
     if(ENABLE_VM_GML_PROFILER)
         add_compile_definitions(ENABLE_VM_GML_PROFILER)
     endif()
 
     # Butterscotch VM/interpreter tracing
-    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ON)
+    option(ENABLE_VM_TRACING "Enable Butterscotch VM/interpreter tracing checks" ${VM_TRACING_DEFAULT})
     if(ENABLE_VM_TRACING)
         add_compile_definitions(ENABLE_VM_TRACING)
     endif()
 
     # Butterscotch VM opcode count profiler
-    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ON)
+    option(ENABLE_VM_OPCODE_PROFILER "Enable Butterscotch VM opcode count profiler" ${VM_OPCODE_PROFILER_DEFAULT})
     if(ENABLE_VM_OPCODE_PROFILER)
         add_compile_definitions(ENABLE_VM_OPCODE_PROFILER)
     endif()
 
     # VM unknown/stubbed function logs
-    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ON)
+    option(ENABLE_VM_STUB_LOGS "Enable VM unknown/stubbed function logs" ${VM_STUB_LOGS_DEFAULT})
     if(ENABLE_VM_STUB_LOGS)
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
-    # GLAD
-    add_library(glad STATIC vendor/glad/src/glad.c)
-    target_include_directories(glad PUBLIC vendor/glad/include)
-
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    set(PLATFORM_LIBRARIES glad bzip2 stb_ds sha1 stb_vorbis)
+    set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
+    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+        # GLAD
+        add_library(glad STATIC vendor/glad/src/glad.c)
+        target_include_directories(glad PUBLIC vendor/glad/include)
+        target_compile_options(glad PRIVATE -Wno-unused-but-set-variable)
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} glad)
+    endif()
     if(NOT MSVC)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} m)
     endif()
     if(WIN32)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
-    else()
+    elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 
-    if(DESKTOP_BACKEND STREQUAL "glfw3")
+    if(BACKEND STREQUAL "glfw3")
         add_compile_definitions(USE_GLFW3)
 
         if(MINGW)
-            find_package(glfw3 REQUIRED)
+            find_package(glfw3 CONFIG REQUIRED)
 
             # Target Windows 7+ (avoids referencing newer APIs like MapViewOfFileNuma2 that MinGW import libs don't provide)
             # https://github.com/mirror/mingw-w64/blob/master/mingw-w64-headers/include/sdkddkver.h
             target_compile_definitions(butterscotch PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000 WIN32_LEAN_AND_MEAN)
             target_link_options(butterscotch PRIVATE -static)
-            set(BACKEND_LIBRARIES glfw3 opengl32 gdi32 winmm)
+            set(BACKEND_LIBRARIES glfw opengl32 gdi32 winmm)
         elseif(MSVC)
             target_compile_definitions(butterscotch PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
             find_package(glfw3 CONFIG REQUIRED)
@@ -269,7 +473,7 @@ if(PLATFORM STREQUAL "desktop")
             target_link_directories(butterscotch PRIVATE ${GLFW3_LIBRARY_DIRS})
             set(BACKEND_LIBRARIES ${GLFW3_LIBRARIES})
         endif()
-    elseif(DESKTOP_BACKEND STREQUAL "glfw2")
+    elseif(BACKEND STREQUAL "glfw2")
         add_compile_definitions(USE_GLFW2)
 
         find_package(PkgConfig REQUIRED)
@@ -277,13 +481,13 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${GLFW2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${GLFW2_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${GLFW2_LIBRARIES})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl1")
+    elseif(BACKEND STREQUAL "sdl1")
         add_compile_definitions(USE_SDL1)
 
         find_package(SDL REQUIRED)
         target_include_directories(butterscotch PUBLIC ${SDL_INCLUDE_DIR})
         set(BACKEND_LIBRARIES ${SDL_LIBRARY})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl2")
+    elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
         find_package(PkgConfig REQUIRED)
@@ -291,7 +495,7 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
-    elseif(DESKTOP_BACKEND STREQUAL "sdl3")
+    elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
         find_package(PkgConfig REQUIRED)
@@ -299,9 +503,122 @@ if(PLATFORM STREQUAL "desktop")
         target_include_directories(butterscotch PRIVATE ${SDL3_INCLUDE_DIRS})
         target_link_directories(butterscotch PRIVATE ${SDL3_LIBRARY_DIRS})
         set(BACKEND_LIBRARIES ${SDL3_LIBRARIES})
+    elseif(BACKEND STREQUAL "appkit")
+        add_compile_definitions(USE_APPKIT)
+        target_compile_definitions(butterscotch PRIVATE GL_SILENCE_DEPRECATION)
+        set(BACKEND_LIBRARIES "-framework Cocoa" "-framework GameController")
+    elseif(BACKEND STREQUAL "noop")
+        if(NOT ENABLE_NOOP_RENDERER)
+            message(FATAL_ERROR "BACKEND=noop requires ENABLE_NOOP_RENDERER=ON")
+        endif()
+        add_compile_definitions(USE_NOOP)
+        set(BACKEND_LIBRARIES "")
     endif()
-    target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
-    target_sources(butterscotch PRIVATE src/desktop/backends/${DESKTOP_BACKEND}.c)
+    if (PLATFORM STREQUAL "vita")
+        set(BUTTERSCOTCH_CONSOLE_LIBS
+            ${BACKEND_LIBRARIES}
+            ${AUDIO_LIBRARIES}
+            ${PLATFORM_LIBRARIES}
+            vitaGL
+            stdc++
+            SceShaccCgExt
+            taihen_stub
+            SceShaccCg_stub
+        )
+    elseif (PLATFORM STREQUAL "switch")
+        set(BUTTERSCOTCH_CONSOLE_LIBS
+            ${BACKEND_LIBRARIES}
+            ${AUDIO_LIBRARIES}
+            ${PLATFORM_LIBRARIES}
+            GLESv2
+            stdc++
+        )
+    else()
+        set(BUTTERSCOTCH_CONSOLE_LIBS ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
+    endif()
+
+    # Console SDKs link pre-built static archives alongside the platform
+    # libraries. Deduplicate the combined list so each archive is passed once:
+    # without this, LTO + duplicated libpthread resolves the same archive
+    # member twice and fails with a multiple definition error.
+    if (BUTTERSCOTCH_CONSOLE_LIBS)
+        list(REMOVE_DUPLICATES BUTTERSCOTCH_CONSOLE_LIBS)
+    endif()
+    target_link_libraries(butterscotch PRIVATE ${BUTTERSCOTCH_CONSOLE_LIBS})
+
+    # FFmpeg's pkg-config files list external codecs as raw -l flags, so the
+    # transitive dependencies of those codecs (e.g. libmp3lame -> libmpg123)
+    # are not expanded by --static. Add the known gap and rescan the whole
+    # closure through a linker group so static ordering/cycles resolve no
+    # matter where each archive appears.
+    if (BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
+        find_library(BUTTERSCOTCH_MPG123_LIBRARY NAMES mpg123 libmpg123)
+        if (BUTTERSCOTCH_MPG123_LIBRARY)
+            list(APPEND BUTTERSCOTCH_FFMPEG_STATIC_LIBS mpg123)
+        endif()
+        list(REMOVE_DUPLICATES BUTTERSCOTCH_FFMPEG_STATIC_LIBS)
+        target_link_libraries(butterscotch PRIVATE
+            "-Wl,--start-group"
+            ${BUTTERSCOTCH_FFMPEG_STATIC_LIBS}
+            "-Wl,--end-group"
+        )
+    endif()
+
+    # Duplicate system archives pulled in by both the platform and FFmpeg
+    # pkg-config closures are harmless but rejected by the LTO plugin.
+    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch"))
+        target_link_options(butterscotch PRIVATE "-Wl,--allow-multiple-definition")
+    endif()
+
+    if (PLATFORM STREQUAL "vita")
+        vita_create_self(eboot.bin butterscotch UNSAFE)
+        vita_create_vpk(Butterscotch.vpk ${VITA_TITLEID} eboot.bin
+            VERSION ${VITA_VERSION}
+            NAME ${VITA_APP_NAME}
+        )
+    elseif (PLATFORM STREQUAL "switch")
+        nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
+        set(ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs")
+        if (EXISTS "${ROMFS_DIR}" AND IS_DIRECTORY "${ROMFS_DIR}")
+            nx_create_nro(butterscotch NACP Butterscotch.nacp ROMFS "${ROMFS_DIR}")
+        else()
+            nx_create_nro(butterscotch NACP Butterscotch.nacp)
+        endif()
+    elseif (PLATFORM STREQUAL "web")
+        set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
+
+        target_link_options(
+                butterscotch
+                PRIVATE
+                "-sMODULARIZE=1"
+                "-sEXPORT_ES6=1"
+                "-sENVIRONMENT=web"
+                "-sWASMFS=1"
+                "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString', 'stringToNewUTF8', 'setValue', 'FS']"
+                "-sEXPORTED_FUNCTIONS=['_malloc', '_free', '_startRunner', '_mountOpfs', '_parseDataWin', '_getGameName', '_getGameDisplayName', '_freeDataWin', '_onKeyDown', '_onKeyUp', '_onMouseDown', '_onMouseUp', '_onMouseMove', '_requestRunnerExit']"
+                "-sMIN_WEBGL_VERSION=2"
+                "-sMAX_WEBGL_VERSION=2"
+                "-sFULL_ES3=1"
+                "-sALLOW_MEMORY_GROWTH"
+                "-sINVOKE_RUN=0"
+                "-sJSPI"
+                "-sJSPI_EXPORTS=['startRunner', 'parseDataWin', 'mountOpfs']"
+                # Useful to know when a stack overflow (that is, the WASM stack) happens
+                "-sSTACK_OVERFLOW_CHECK=2"
+                # Increases the stack size, needed because for some reason MiniAudio causes a stack overflow in DELTARUNE
+                # "Aborted(stack overflow (Attempt to set SP to 0xfffff640, with stack limits [0x00000000 - 0x00010000]). If you require more stack space build with -sSTACK_SIZE=<bytes>)"
+                "-sSTACK_SIZE=1MB"
+                # We need this if we want to access "FS" from JavaScript (Module.FS.writeFile)
+                "-sFORCE_FILESYSTEM=1"
+                # "explicitSwapControl" and "renderViaOffscreenBackBuffer", see the web.c file
+                "-sOFFSCREEN_FRAMEBUFFER=1"
+        )
+    endif()
+    if(BACKEND STREQUAL "appkit")
+        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
+    else()
+        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.c)
+    endif()
 
     # Enable AddressSanitizer by default in Debug builds
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -321,69 +638,11 @@ if(PLATFORM STREQUAL "desktop")
             ${CMAKE_SOURCE_DIR}/vendor/gamecontrollerdb.txt
             $<TARGET_FILE_DIR:butterscotch>/gamecontrollerdb.txt
     )
-elseif(PLATFORM STREQUAL "web")
-    if (NOT ENABLE_MODERN_GL)
-        message(FATAL_ERROR "Web requires modern gl!")
-    endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis)
-
-    set_target_properties(butterscotch PROPERTIES SUFFIX ".mjs")
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=worker"
-            "-sWASMFS=1"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAP8', 'HEAPU8', 'HEAPF32', 'ccall', 'cwrap', 'specialHTMLTargets', 'UTF8ToString']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_mountOpfs', '_startRunner', '_stopRunner', '_malloc', '_free', '_getKeyDownPtr', '_getKeyUpPtr', '_getKeyCount', '_setAudioSampleRate', '_pullAudioFrames']"
-            "-sOFFSCREENCANVAS_SUPPORT=1"
-            "-sOFFSCREEN_FRAMEBUFFER=1"
-            "-sMIN_WEBGL_VERSION=2"
-            "-sMAX_WEBGL_VERSION=2"
-            "-sFULL_ES3=1"
-            "-sALLOW_MEMORY_GROWTH"
-            "-sSHARED_MEMORY=1"
-            "-sPTHREAD_POOL_SIZE=4"
-            "-pthread"
-    )
-
-    target_compile_options(butterscotch PRIVATE "-pthread")
-elseif(PLATFORM STREQUAL "web-meta")
-    set_target_properties(butterscotch PROPERTIES
-        SUFFIX ".mjs"
-        OUTPUT_NAME "butterscotch-meta"
-    )
-
-    target_link_libraries(butterscotch PRIVATE stb_ds)
-
-    target_link_options(
-            butterscotch
-            PRIVATE
-            "-sMODULARIZE=1"
-            "-sEXPORT_ES6=1"
-            "-sENVIRONMENT=web"
-            "-sEXPORTED_RUNTIME_METHODS=['HEAPU8', 'ccall', 'cwrap', 'UTF8ToString', 'FS']"
-            "-sEXPORTED_FUNCTIONS=['_main', '_parseDataWin', '_freeDataWin', '_getGameName', '_getGameDisplayName', '_getMajorVersion', '_getMinorVersion', '_getRelease', '_getBuild', '_getDefaultWindowWidth', '_getDefaultWindowHeight', '_malloc', '_free']"
-            "-sALLOW_MEMORY_GROWTH=1"
-            "-sFORCE_FILESYSTEM=1"
-    )
 elseif(PLATFORM STREQUAL "android")
     if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Android requires modern gl!")
     endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
@@ -483,10 +742,8 @@ elseif(PLATFORM STREQUAL "ps2")
 
     # -fsingle-precision-constant: Treat unsuffixed float constants as single-precision to avoid accidental  float->double promotions on platforms with no hardware double
     # -Werror=double-promotion: Warn when something is being promoted to a double
-    # -fomit-frame-pointer: frees a register on a target with tight register pressure
-    # -ffast-math: enables aggressive floating point optimizations
     # -Wno-format: because there are too many formatting issues that, at the end of the day, do not matter
-    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -fomit-frame-pointer -ffast-math -Wno-format)
+    target_compile_options(butterscotch PRIVATE -fsingle-precision-constant -Werror=double-promotion -Wno-format)
 
     if(PS2)
         # Compiling on the Docker container
@@ -625,7 +882,6 @@ elseif(PLATFORM STREQUAL "ps3")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/ps3)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
 
     # ps3gl
@@ -683,7 +939,8 @@ elseif(PLATFORM STREQUAL "ps3")
     target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
     # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
-    target_link_libraries(butterscotch PRIVATE ${SDL2_LIBRARIES} m gcm_sys rsx sysutil io audio rt lv2 io audio bzip2 stb_ds sha1 ps3gl mojoal stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE bzip2 sha1 ps3gl mojoal ${SDL2_LIBRARIES} gcm_sys rsx sysutil io audio rt lv2 m stb_ds stb_vorbis)
+elseif(PLATFORM STREQUAL "vita")
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")
 endif()

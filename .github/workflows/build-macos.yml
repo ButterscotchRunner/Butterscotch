@@ -1,0 +1,153 @@
+name: macOS builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-sdl-macos:
+    name: Build (SDL 1.2 ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: ppc
+            triple: powerpc-apple-darwin8
+            ar: ppc-ar
+            ranlib: ppc-ranlib
+            deps: libgmp-dev libmpc-dev libmpfr-dev
+            cflags: -mcpu=750 # todo: does our binary work on OS X 10.2? XPostFacto can just about run it on powerpc 603/604. for now, let's set the baseline at a G3
+          - arch: i386
+            triple: i386-apple-darwin8
+            ar: llvm-ar-22
+            ranlib: llvm-ranlib-22
+            cflags: -flto -march=pentium-m
+    runs-on: ubuntu-24.04
+    env:
+      CLANG: clang-22
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: install llvm 22
+        if: matrix.arch == 'i386'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh 22
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang-22 llvm-22
+
+      - name: install dependencies
+        run: sudo apt-get install -y ${{ matrix.deps }} ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/ccache
+            ${{ github.workspace }}/artifacts/macos/build/toolchain-${{ matrix.arch }}
+            ${{ github.workspace }}/artifacts/macos/build/lastworkdir
+          key: ccache-macos-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: ccache-macos-${{ matrix.arch }}-
+
+      - name: Build toolchain
+        run: ./artifacts/macos/build-toolchain-${{ matrix.arch }}.sh
+        env:
+          LLVM_CONFIG: llvm-config-22
+
+      - name: Build SDL 1.2
+        run: |
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/39e1580a7d2f8c09521338108c2a94019e37798e.tar.gz" | tar -xz
+          cd SDL-1.2-*
+          sed -e 's/-fpascal-strings//g' configure > configure.patched
+          mv configure.patched configure
+          chmod +x configure
+          ./configure \
+            --host="${{ matrix.triple }}" \
+            --prefix="$HOME/sdl" \
+            --disable-shared \
+            --disable-stdio-redirect \
+            --disable-threads \
+            --disable-video-x11 \
+            --disable-altivec \
+            AR="$(command -v ${{ matrix.ar }})" \
+            RANLIB="$(command -v ${{ matrix.ranlib }})" \
+            CPPFLAGS="-DNDEBUG" \
+            CFLAGS="-O2 -fno-stack-protector ${{ matrix.cflags }}"
+          make -j$(nproc)
+          make -j$(nproc) install
+          cd ..
+
+      - name: Configure
+        run: |
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
+            -DCMAKE_SYSTEM_NAME=Darwin \
+            -DCMAKE_C_FLAGS="-I$HOME/sdl/include -fno-stack-protector ${{ matrix.cflags }}" \
+            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl" \
+            -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
+            -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
+            -DCMAKE_RANLIB="$(command -v ${{ matrix.ranlib }})" \
+            -DWERROR=ON \
+            -DBACKEND=sdl1 \
+            -DAUDIO_BACKEND=openal \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-sdl-macos-${{ matrix.arch }}
+          path: build/butterscotch
+
+  build-appkit-macos:
+    name: Build (AppKit ${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x86_64
+            runner: macos-26-intel
+          - label: arm64
+            runner: macos-26
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: brew install ccache
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ matrix.label }}-${{ github.sha }}
+          restore-keys: ccache-macos-${{ matrix.label }}-
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations" \
+            -DBACKEND=appkit \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-appkit-macos-${{ matrix.label }}
+          path: build/butterscotch

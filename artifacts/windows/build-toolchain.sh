@@ -36,16 +36,6 @@ else
     exit 1
 fi
 
-case $arch in
-    (i?86) ;;
-    (*)
-        if ! command -v cmake > /dev/null; then
-            printf 'Missing dependency: cmake\n'
-            exit 1
-        fi
-    ;;
-esac
-
 make() {
     command "$_MAKE" "$@"
 }
@@ -54,7 +44,7 @@ export PATH="$PWD/toolchain-$arch/bin:$PATH"
 
 # toolchainver should be increased if we ever make a change to the toolchain,
 # for example using a newer GCC version, and we need to invalidate the cache.
-toolchainver=1
+toolchainver=4
 if [ "$(cat "toolchain-$arch/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -65,14 +55,17 @@ fi
 case $arch in
     (i?86)
         winnt=0x0400 # Windows NT 4.0 (We actually support lower, but this is the lowest this value is supposed to be)
+        crt=crtdll
     ;;
     (x86_64)
-        winnt=0x0501 # Windows XP
+        winnt=0x0502 # Windows XP x64 edition / Server 2003
+        crt=msvcrt
     ;;
     (arm64|aarch64)
         printf 'aarch64 builds are currently unsupported.\n'
         exit 1
-        # winnt=0x0A00 # Windows 10
+        winnt=0x0A00 # Windows 10
+        crt=ucrt
     ;;
     (*)
         printf 'Unknown architecture!\n'
@@ -83,26 +76,15 @@ esac
 rm -rf "toolchain-$arch"
 printf '\nBuilding %s toolchain...\n\n' "$arch"
 
-binutils_version='2.46.0'
+binutils_version='2.47'
 rm -rf binutils-*
 wget -O- "https://ftp.gnu.org/gnu/binutils/binutils-$binutils_version.tar.xz" | tar -xJ
-
-# The '-Wno-discarded-qualifiers' flag is unsupported on clang but required on gcc 15 to build binutils.
-# This will probably be fixed when binutils is updated.
-if command -v gcc >/dev/null; then
-    cc=gcc
-else
-    cc=cc
-fi
-printf 'int nothing;\n' | "$cc" -xc - -c -o /dev/null -Werror -Wno-discarded-qualifiers 2>/dev/null &&
-    warn='-Wno-discarded-qualifiers'
 
 cd "binutils-$binutils_version"
 ./configure \
     --prefix="$workdir/toolchain-$arch" \
     --target="$target" \
-    --disable-multilib \
-    CFLAGS="-O2 $warn"
+    --disable-multilib
 make -j"$ncpus"
 make -j"$ncpus" install-strip
 cd ..
@@ -117,11 +99,11 @@ cd "mingw-w64-v$mingw_version/mingw-w64-headers"
     --host="$target" \
     --prefix="$workdir/toolchain-$arch/$target" \
     --with-default-win32-winnt="$winnt" \
-    --with-default-msvcrt=crtdll
+    --with-default-msvcrt="$crt"
 make -j"$ncpus" install
 cd ../..
 
-gcc_version='16.1.0'
+gcc_version='16.2.0'
 rm -rf gcc-*
 wget -O- "https://ftp.gnu.org/gnu/gcc/gcc-$gcc_version/gcc-$gcc_version.tar.xz" | tar -xJ
 
@@ -153,7 +135,7 @@ cd "mingw-w64-v$mingw_version/mingw-w64-crt"
     --host="$target" \
     --prefix="$workdir/toolchain-$arch/$target" \
     --with-default-win32-winnt="$winnt" \
-    --with-default-msvcrt=crtdll
+    --with-default-msvcrt="$crt"
 make -j1
 make -j1 install
 cd ../..
@@ -165,16 +147,42 @@ make -j"$ncpus" install-strip
 cd ../..
 rm -rf "gcc-$gcc_version" &
 
-glfw2_version='2.7.9'
-rm -rf glfw-*
-wget -O- "https://github.com/glfw/glfw-legacy/archive/refs/tags/$glfw2_version.tar.gz" | tar -xz
+case $arch in
+    (i?86)
+        sdl1_version='39e1580a7d2f8c09521338108c2a94019e37798e'
+        rm -rf SDL-1.2-*
+        wget -O- "https://github.com/libsdl-org/SDL-1.2/archive/$sdl1_version.tar.gz" | tar -xz
 
-cd "glfw-legacy-$glfw2_version"
-make -j"$ncpus" cross-mgw-install \
-    TARGET="$target-" \
-    PREFIX="$workdir/toolchain-$arch/$target"
-cd ..
-rm -rf "glfw-legacy-$glfw2_version" &
+        cd "SDL-1.2-$sdl1_version"
+        ./configure \
+            --host="$target" \
+            --prefix="$workdir/toolchain-$arch/$target" \
+            --disable-shared \
+            --disable-stdio-redirect \
+            --disable-threads \
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer -mtune=i686'
+        make -j"$ncpus"
+        make -j"$ncpus" install
+        cd ..
+        rm -rf "SDL-1.2-$sdl1_version" &
+    ;;
+    (x86_64|arm64|aarch64)
+        sdl2_version='2.32.10'
+        rm -rf SDL-*
+        wget -O- "https://github.com/libsdl-org/SDL/archive/refs/tags/release-$sdl2_version.tar.gz" | tar -xz
+
+        cd "SDL-release-$sdl2_version"
+        ./configure \
+            --host="$target" \
+            --prefix="$workdir/toolchain-$arch/$target" \
+            --disable-shared \
+            CFLAGS='-O3 -DNDEBUG -fomit-frame-pointer'
+        make -j"$ncpus"
+        make -j"$ncpus" install
+        cd ..
+        rm -rf "SDL-release-$sdl2_version" &
+    ;;
+esac
 
 printf '%s' "$toolchainver" > "toolchain-$arch/toolchainver"
 wait

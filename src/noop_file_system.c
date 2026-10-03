@@ -2,7 +2,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
-#include <string.h>
+#include "string_compat.h"
 
 #include "stb_ds.h"
 
@@ -77,6 +77,16 @@ static bool noopDeleteFile(FileSystem* fs, const char* relativePath) {
 
     free(nfs->files[idx].value);
     shdel(nfs->files, relativePath);
+    return true;
+}
+
+static bool noopRenameFile(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath) {
+    NoopFileSystem* nfs = (NoopFileSystem*) fs;
+    ptrdiff_t idx = shgeti(nfs->files, oldRelativePath);
+    if (0 > idx)
+        return false;
+
+    nfs->files[idx].key = safeStrdup(newRelativePath);
     return true;
 }
 
@@ -297,6 +307,7 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
     // stb_ds dynamic array; caller releases it with arrfree() (see file_system.h).
     FileSystemDirEntry* entries = nullptr;
     const char* base;
+    {
     repeat(shlen(nfs->files), i) {
         if (keyInDir(nfs->files[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -305,6 +316,8 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             arrput(entries, e);
         }
     }
+    }
+    {
     repeat(shlen(nfs->binaryFiles), i) {
         if (keyInDir(nfs->binaryFiles[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -313,6 +326,8 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             arrput(entries, e);
         }
     }
+    }
+    {
     repeat(shlen(nfs->directories), i) {
         if (keyInDir(nfs->directories[i].key, dir, &base)) {
             FileSystemDirEntry e = {0};
@@ -320,6 +335,7 @@ static FileSystemDirEntry* noopListDirectory(FileSystem* fs, const char* relativ
             e.isDirectory = true;
             arrput(entries, e);
         }
+    }
     }
 
     free(dir);
@@ -340,6 +356,7 @@ FileSystem* NoopFileSystem_create(void) {
     noopFileSystemVtable.readFileText = noopReadFileText;
     noopFileSystemVtable.writeFileText = noopWriteFileText;
     noopFileSystemVtable.deleteFile = noopDeleteFile;
+    noopFileSystemVtable.renameFile = noopRenameFile;
     noopFileSystemVtable.readFileBinary = noopReadFileBinary;
     noopFileSystemVtable.writeFileBinary = noopWriteFileBinary;
     noopFileSystemVtable.binaryOpen = noopBinaryOpen;
@@ -369,8 +386,10 @@ void NoopFileSystem_destroy(FileSystem* fs) {
         free(nfs->files[i].value);
     }
     shfree(nfs->files);
+    {
     repeat(shlen(nfs->binaryFiles), i) {
         free(nfs->binaryFiles[i].value.data);
+    }
     }
     shfree(nfs->binaryFiles);
     shfree(nfs->directories);

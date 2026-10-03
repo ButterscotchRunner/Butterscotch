@@ -4,7 +4,7 @@
 #include "common.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 #include <stdbool.h>
 
 typedef struct {

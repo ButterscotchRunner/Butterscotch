@@ -3,7 +3,7 @@
 
 #include <common.h>
 #include <stdint.h>
-#include <stdio.h>
+#include "stdio_compat.h"
 
 // GML script profiler.
 // Tracks self-time (exclusive of nested script calls) and self-instruction-count per code name.
