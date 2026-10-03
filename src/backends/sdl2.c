@@ -291,23 +291,31 @@ void platformInitFunctions(Runner *runner) {
 
 static SDL_Surface* nextFb = NULL;
 
-void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, int bpp) {
     if (nextFb) {
         SDL_FreeSurface(nextFb);
         nextFb = NULL;
     }
+    
+    int rmask, gmask, bmask;
+    if (bpp == 32) {
+        rmask = 0x00ff0000;
+        gmask = 0x0000ff00;
+        bmask = 0x000000ff;
+    }
+    else if (bpp == 16) {
+        rmask = 0x7C00;
+        gmask = 0x03E0;
+        bmask = 0x001F;
+    }
+    else {
+        // 8bpp
+        rmask = 0x07;
+        gmask = 0x38;
+        bmask = 0xC0;
+    }
 
-    nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer,
-        width,
-        height,
-        32,
-        width * 4,
-        0x00ff0000, // Rmask
-        0x0000ff00, // Gmask
-        0x000000ff, // Bmask
-        0x00000000  // Amask
-    );
+    nextFb = SDL_CreateRGBSurfaceFrom(framebuffer, width, height, bpp, width * bpp / 8, rmask, gmask, bmask, 0);
 }
 
 #endif
