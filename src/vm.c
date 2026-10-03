@@ -3615,6 +3615,14 @@ VMContext* VM_create(DataWin* dataWin) {
 
     //Lazy load code create look up map
     if (dataWin->lazyLoadCode){
+        size_t totalPatches = 0;
+        repeat(dataWin->vari.variableCount, i)
+            totalPatches += dataWin->vari.variables[i].occurrences;
+        repeat(dataWin->func.functionCount, i)
+            totalPatches += dataWin->func.functions[i].occurrences;
+
+        arrsetcap(ctx->patches, totalPatches);
+
         uint8_t* tmp = (uint8_t*) safeMalloc(dataWin->bytecodeBlobSize);
         fseek(dataWin->lazyLoadFile, (long) dataWin->bytecodeBufferBase, SEEK_SET);
         fread(tmp, 1, dataWin->bytecodeBlobSize, dataWin->lazyLoadFile);
