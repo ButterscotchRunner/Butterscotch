@@ -1547,14 +1547,14 @@ static Instance** takePersistentInstances(Runner* runner) {
         }
     }
 
-    for (int32_t i = 0; i < arrlen(carriedPersistent);) {
-        Instance* inst = carriedPersistent[i];
+    for (int32_t carriedIndex = 0; carriedIndex < arrlen(carriedPersistent);) {
+        Instance* inst = carriedPersistent[carriedIndex];
         if (inst->destroyed) {
             hmdel(runner->instancesById, inst->instanceId);
             Instance_free(inst);
-            arrdel(carriedPersistent, i);
+            arrdel(carriedPersistent, carriedIndex);
         } else {
-            ++i;
+            ++carriedIndex;
         }
     }
     arrfree(runner->instances);
@@ -1639,9 +1639,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     Room* previousRoom = runner->currentRoom;
     int32_t previousRoomIndex = runner->currentRoomIndex;
     Instance** carriedPersistent = takePersistentInstances(runner);
-    repeat(arrlen(carriedPersistent), i) {
-        PhysicsEngine_destroyBody(carriedPersistent[i]->physicsBody);
-        carriedPersistent[i]->physicsBody = nullptr;
+    repeat(arrlen(carriedPersistent), carriedIndex) {
+        PhysicsEngine_destroyBody(carriedPersistent[carriedIndex]->physicsBody);
+        carriedPersistent[carriedIndex]->physicsBody = nullptr;
     }
 
     runner->currentRoom = room;
