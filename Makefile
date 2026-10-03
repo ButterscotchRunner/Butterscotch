@@ -50,23 +50,18 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/base64 \
 		    $(INC)vendor/bzip2 \
 		    $(INC)vendor/miniz
-# Box2D only builds as C, so compilers that default to C++ mode (and toolchains too old to
-# compile it) get the stub engine instead. Pass DISABLE_PHYSICS=0/1 to force either way.
-ifneq ($(DISABLE_PHYSICS),0)
+SRCS += src/physics/physics.c
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
 endif
-endif
-
-SRCS += src/physics/physics.c
-ifeq ($(DISABLE_PHYSICS),1)
-SRCS += src/physics/disabled/physics_disabled.c
-else
+ifndef DISABLE_PHYSICS
 DEFINES += $(DEFINE)ENABLE_PHYSICS
 INCLUDES += $(INC)vendor/box2d/include
 SRCS += $(filter-out vendor/box2d/src/timer.c,$(wildcard vendor/box2d/src/*.c))
 SRCS += $(filter-out src/physics/physics.c,$(wildcard src/physics/*.c))
 DEFINES += $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
+else
+SRCS += src/physics/disabled/physics_disabled.c
 endif
 
 HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
