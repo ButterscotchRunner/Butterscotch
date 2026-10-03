@@ -11919,6 +11919,12 @@ static RValue builtin_background_get_height(VMContext* ctx, RValue* args, MAYBE_
     return RValue_makeReal((GMLReal) ctx->dataWin->tpag.items[tpagIndex].boundingHeight);
 }
 
+static RValue builtin_draw_enable_drawevent(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("draw_enable_drawevent", 1, RValue_makeUndefined());
+    ctx->runner->drawEnabled = RValue_toBool(args[0]);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_draw_self(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner->renderer != nullptr && ctx->currentInstance != nullptr) {
@@ -23216,6 +23222,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "background_get_name", builtin_sprite_get_name);
         VM_registerBuiltin(ctx, "background_name", builtin_sprite_get_name);
     }
+    VM_registerBuiltin(ctx, "draw_enable_drawevent", builtin_draw_enable_drawevent);
     VM_registerBuiltin(ctx, "draw_self", builtin_draw_self);
     VM_registerBuiltin(ctx, "draw_point", builtin_draw_point);
     VM_registerBuiltin(ctx, "draw_point_color", builtin_draw_point_color);

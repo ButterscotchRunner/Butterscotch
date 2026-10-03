@@ -766,6 +766,7 @@ struct Runner {
     int32_t viewportH;   // Scaled game height in window
     DisabledObjEntry* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
     struct { int key; Instance* value; }* instancesById;
+    bool drawEnabled;
     bool forceDrawDepth;
     bool applyOffsetForPrimitives;
     // Depth-sorted unified list of all drawables (instances + tiles + runtime layers) for the current room.
