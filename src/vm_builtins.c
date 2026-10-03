@@ -22557,11 +22557,104 @@ static RValue physicsBuiltin(VMContext* ctx, RValue* values, int32_t count, cons
     return returnsResult ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
 }
 
+/* name, scope (world=0, self=1, joint-create=2, instance/fixture=3), minimum arguments */
+#define PHYSICS_FUNCTIONS(X) \
+    X(physics_world_create, 0, 1) \
+    X(physics_world_gravity, 0, 2) \
+    X(physics_world_update_speed, 0, 1) \
+    X(physics_world_update_iterations, 0, 1) \
+    X(physics_world_draw_debug, 0, 1) \
+    X(physics_pause_enable, 0, 1) \
+    X(physics_fixture_create, 0, 0) \
+    X(physics_fixture_delete, 0, 1) \
+    X(physics_fixture_set_kinematic, 0, 1) \
+    X(physics_fixture_set_density, 0, 2) \
+    X(physics_fixture_set_restitution, 0, 2) \
+    X(physics_fixture_set_friction, 0, 2) \
+    X(physics_fixture_set_collision_group, 0, 2) \
+    X(physics_fixture_set_sensor, 0, 2) \
+    X(physics_fixture_set_linear_damping, 0, 2) \
+    X(physics_fixture_set_angular_damping, 0, 2) \
+    X(physics_fixture_set_awake, 0, 2) \
+    X(physics_fixture_set_circle_shape, 0, 2) \
+    X(physics_fixture_set_box_shape, 0, 3) \
+    X(physics_fixture_set_edge_shape, 0, 5) \
+    X(physics_fixture_set_polygon_shape, 0, 1) \
+    X(physics_fixture_set_chain_shape, 0, 2) \
+    X(physics_fixture_add_point, 0, 3) \
+    X(physics_joint_distance_create, 2, 7) \
+    X(physics_joint_rope_create, 2, 8) \
+    X(physics_joint_revolute_create, 2, 11) \
+    X(physics_joint_prismatic_create, 2, 13) \
+    X(physics_joint_pulley_create, 2, 12) \
+    X(physics_joint_wheel_create, 2, 12) \
+    X(physics_joint_weld_create, 2, 8) \
+    X(physics_joint_friction_create, 2, 7) \
+    X(physics_joint_gear_create, 2, 5) \
+    X(physics_joint_enable_motor, 0, 2) \
+    X(physics_joint_get_value, 0, 2) \
+    X(physics_joint_set_value, 0, 3) \
+    X(physics_joint_delete, 0, 1) \
+    X(physics_apply_force, 1, 4) \
+    X(physics_apply_impulse, 1, 4) \
+    X(physics_apply_local_force, 1, 4) \
+    X(physics_apply_local_impulse, 1, 4) \
+    X(physics_apply_angular_impulse, 1, 1) \
+    X(physics_apply_torque, 1, 1) \
+    X(physics_mass_properties, 1, 4) \
+    X(physics_draw_debug, 1, 0) \
+    X(physics_remove_fixture, 3, 2) \
+    X(physics_get_friction, 1, 1) \
+    X(physics_get_density, 1, 1) \
+    X(physics_get_restitution, 1, 1) \
+    X(physics_set_friction, 1, 2) \
+    X(physics_set_density, 1, 2) \
+    X(physics_set_restitution, 1, 2) \
+    X(physics_particle_create, 0, 8) \
+    X(physics_particle_delete, 0, 1) \
+    X(physics_particle_delete_region_circle, 0, 3) \
+    X(physics_particle_delete_region_box, 0, 4) \
+    X(physics_particle_group_begin, 0, 12) \
+    X(physics_particle_group_circle, 0, 1) \
+    X(physics_particle_group_box, 0, 2) \
+    X(physics_particle_group_polygon, 0, 0) \
+    X(physics_particle_group_add_point, 0, 2) \
+    X(physics_particle_group_end, 0, 0) \
+    X(physics_particle_group_join, 0, 2) \
+    X(physics_particle_group_delete, 0, 1) \
+    X(physics_particle_count, 0, 0) \
+    X(physics_particle_get_max_count, 0, 0) \
+    X(physics_particle_get_radius, 0, 0) \
+    X(physics_particle_get_density, 0, 0) \
+    X(physics_particle_get_damping, 0, 0) \
+    X(physics_particle_get_gravity_scale, 0, 0) \
+    X(physics_particle_set_max_count, 0, 1) \
+    X(physics_particle_set_radius, 0, 1) \
+    X(physics_particle_set_density, 0, 1) \
+    X(physics_particle_set_damping, 0, 1) \
+    X(physics_particle_set_gravity_scale, 0, 1) \
+    X(physics_particle_set_flags, 0, 2) \
+    X(physics_particle_set_category_flags, 0, 2) \
+    X(physics_particle_set_group_flags, 0, 2) \
+    X(physics_particle_get_group_flags, 0, 1) \
+    X(physics_particle_group_count, 0, 1) \
+    X(physics_particle_group_get_mass, 0, 1) \
+    X(physics_particle_group_get_inertia, 0, 1) \
+    X(physics_particle_group_get_centre_x, 0, 1) \
+    X(physics_particle_group_get_centre_y, 0, 1) \
+    X(physics_particle_group_get_vel_x, 0, 1) \
+    X(physics_particle_group_get_vel_y, 0, 1) \
+    X(physics_particle_group_get_ang_vel, 0, 1) \
+    X(physics_particle_group_get_x, 0, 1) \
+    X(physics_particle_group_get_y, 0, 1) \
+    X(physics_particle_group_get_angle, 0, 1) \
+    X(physics_debug, 0, 0)
+
 #define PHYSICS_FUNCTION(name, scope, minimum) \
 static RValue builtin_##name(VMContext* ctx, RValue* args, int32_t count) { \
     return physicsBuiltin(ctx, args, count, #name, scope, minimum); \
 }
-#include "physics/physics_functions.inc"
+PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
 #undef PHYSICS_FUNCTION
 
 static RValue builtin_physics_fixture_bind(VMContext* ctx, RValue* args, int32_t count) {
@@ -22748,8 +22841,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Physics
 #define PHYSICS_FUNCTION(name, scope, minimum) VM_registerBuiltin(ctx, #name, builtin_##name);
-#include "physics/physics_functions.inc"
+    PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
 #undef PHYSICS_FUNCTION
+#undef PHYSICS_FUNCTIONS
     VM_registerBuiltin(ctx, "physics_fixture_bind", builtin_physics_fixture_bind);
     VM_registerBuiltin(ctx, "physics_fixture_bind_ext", builtin_physics_fixture_bind);
     VM_registerBuiltin(ctx, "physics_test_overlap", builtin_physics_test_overlap);
