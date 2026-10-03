@@ -1272,7 +1272,8 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                         Instance* inst = (0 > scope) ? (Instance*) ctx->currentInstance : VM_findInstanceByTarget(ctx, scope);
                         if (inst == nullptr) {
                             logError("VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
-                            abort();
+                            //abort();
+                            while (true){};
                         }
                         slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);
                         break;
@@ -1326,7 +1327,8 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
         }
         default:
             logError("VM: Push with unknown type 0x%X\n", type1);
-            abort();
+            //abort();
+            while (true){};
     }
 }
 
@@ -1367,7 +1369,8 @@ static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraD
         }
         if (inst == nullptr) {
             logError("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
-            abort();
+            //abort();
+            while (true){};
         }
         // Same trap as in handlePush: a built-in has no selfVars slot, and materialising one there
         // would replace the real value with an empty array. PushBltn only ever names built-ins, but
@@ -2720,7 +2723,8 @@ static void handleBreakChkIndex(VMContext* ctx, uint32_t instrAddr) {
     int32_t idx = RValue_toInt32(*top);
     if (0 > idx || 32000 <= idx) {
         logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, ctx->currentCodeName);
-        abort();
+        //abort();
+        while (true){};
     }
 }
 
@@ -2763,7 +2767,8 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
     RValue arrayRef = stackPop(ctx);
     if (arrayRef.type != RVALUE_ARRAY || arrayRef.array == nullptr) {
         logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, ctx->currentCodeName);
-        abort();
+        //abort();
+        while (true){};
     }
     GMLArray* parent = arrayRef.array;
     GMLArray_growTo(parent, idx + 1);
@@ -2874,7 +2879,8 @@ static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, cons
         case BREAK_PUSHREF:     handleBreakPushRef(ctx, extraData); break;
         default:
             logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, ctx->currentCodeName);
-            abort();
+            //abort();
+            while (true){};
     }
 }
 #endif
@@ -3452,7 +3458,8 @@ static RValue executeLoop(VMContext* ctx) {
 
             default:
                 logError("VM: Unknown opcode 0x%02X at offset %u\n", opcode, instrAddr);
-                abort();
+                //abort();
+                while (true){};
         }
     }
 

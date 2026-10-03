@@ -22,7 +22,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
     FILE* f = fopen(playbackFilePath, "rb");
     if (f == nullptr) {
         logError("Could not open input recording file '%s'\n", playbackFilePath);
-        exit(1);
+        while (true){};
     }
 
     fseek(f, 0, SEEK_END);
@@ -40,7 +40,7 @@ InputRecording* InputRecording_createPlayer(const char* playbackFilePath, const 
 
     if (root == nullptr || !JsonReader_isObject(root)) {
         logError("Invalid JSON in input recording file '%s'\n", playbackFilePath);
-        exit(1);
+        while (true){};
     }
 
     // Find the highest frame number to determine array size

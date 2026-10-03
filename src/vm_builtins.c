@@ -1078,7 +1078,9 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
                 case BUILTIN_VAR_CURRENT_SECOND:  return RValue_makeReal(t->tm_sec);
                 case BUILTIN_VAR_CURRENT_WEEKDAY: return RValue_makeReal(t->tm_wday);
                 case BUILTIN_VAR_CURRENT_YEAR:    return RValue_makeReal(t->tm_year + 1900);
-                default: abort(); // Should never happen
+                default:
+                    //abort();
+                    while (true){}; // Should never happen
             }
         }
         case BUILTIN_VAR_CURRENT_TIME:
@@ -8447,7 +8449,8 @@ static RValue builtin_file_text_open_read(VMContext* ctx, RValue* args, int32_t 
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
         logError("Too many open text files!\n");
-        abort();
+        //abort();
+        while (true){};
     }
 
     char* content = fs->vtable->readFileText(fs, path);
@@ -8477,7 +8480,8 @@ static RValue builtin_file_text_open_write(VMContext* ctx, RValue* args, int32_t
     int32_t slot = findFreeTextFileSlot(runner);
     if (0 > slot) {
         logError("Too many open text files!\n");
-        abort();
+        //abort();
+        while (true){};
     }
 
     OpenTextFile file = {0};

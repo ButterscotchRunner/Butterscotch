@@ -956,7 +956,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                     return 1;
 #endif
                 default:
-                    abort();
+                    //abort();
+                    while (true){};
             }
             switch (args.glSurfaceFormat) {
                 case GL_SURFACE_FORMAT_RGBA4:
@@ -966,7 +967,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                     ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
                     break;
                 default:
-                    abort();
+                    //abort();
+while (true){};
             }
         }
 #endif

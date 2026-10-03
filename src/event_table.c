@@ -120,7 +120,8 @@ void ResolvedEventTable_build(ResolvedEventTable* outTable, DataWin* dw, const E
 
     if (objectCount > MAX_EVENT_TABLE_OBJECT_COUNT) {
         logError("ResolvedEventTable: objectCount=%d exceeds max %d!\n", objectCount, MAX_EVENT_TABLE_OBJECT_COUNT);
-        abort();
+        //abort();
+        while (true){};
     }
 
     outTable->objectCount = objectCount;

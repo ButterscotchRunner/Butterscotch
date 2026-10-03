@@ -2807,7 +2807,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     FILE* file = fopen(filePath, "rb");
     if (!file) {
         logError("Failed to open file: %s\n", filePath);
-        exit(1);
+        while (true){};
     }
 
     // Use a large read buffer to reduce the number of physical reads
@@ -2822,7 +2822,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     if (0 >= fileSizeRaw) {
         logError("Invalid file size: %ld\n", fileSizeRaw);
         fclose(file);
-        exit(1);
+        while (true){};
     }
     
     size_t fileSize = (size_t) fileSizeRaw;
@@ -2845,7 +2845,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         if (!wholeFileData) {
             logError("Failed to map file\n");
             fclose(file);
-            exit(1);
+            while (true){};
         }
         BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
         dw->mappedFile = wholeFileData;
@@ -2916,7 +2916,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
     if (!codeExists && options.parseCode) {
         logError("CODE chunk does not exist or is empty! This usually means you're loading a YYC game.\n");
         fclose(file);
-        exit(1);
+        while (true){};
     }
 
     // Pass 2: Parse all chunks
@@ -2973,7 +2973,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
                 size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
                 if (read != chunkLength) {
                     logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\n", chunkName, chunkLength, read);
-                    exit(1);
+                    while (true){};
                 }
                 BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
             }
