@@ -109,7 +109,7 @@ B2_API int b2InternalAssertFcn( const char* condition, const char* fileName, int
 	}                                                                                                                            \
 	while ( 0 )
 #else
-#define B2_ASSERT( ... ) ( (void)0 )
+#define B2_ASSERT( condition ) ( (void)0 )
 #endif
 
 /// Get the absolute number of system ticks. The value is platform specific.

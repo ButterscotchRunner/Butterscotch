@@ -2,6 +2,13 @@
 #ifndef B2_BUTTERSCOTCH_COMPAT_H
 #define B2_BUTTERSCOTCH_COMPAT_H
 #include <math.h>
+#include <stdint.h>
+#ifndef UINT16_MAX
+#define UINT16_MAX 65535U
+#endif
+#ifndef UINT64_MAX
+#define UINT64_MAX ((uint64_t)-1)
+#endif
 #ifdef NO_SQRTF
 static inline float b2CompatSqrtf(float x) { return (float)sqrt((double)x); }
 #define sqrtf b2CompatSqrtf
