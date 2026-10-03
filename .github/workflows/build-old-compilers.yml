@@ -24,11 +24,9 @@ jobs:
           - name: GCC 3.0
             compiler: gcc-3.0
             flags: '-std=gnu99 -w'
-            box2d_compiler: 'gcc-3.0 -std=gnu99 -w'
           - name: GCC 2.95
             compiler: g++-2.95
             flags: '-w'
-            box2d_compiler: 'gcc-3.0 -std=gnu99 -w'
     name: Build (${{ matrix.name }})
     runs-on: ubuntu-24.04
     steps:
@@ -54,7 +52,7 @@ jobs:
           sudo mv butterscotch ~/woody
           sudo chroot ~/woody /usr/bin/env BUILD_JOBS="$(nproc)" /bin/sh --login -c '
             export CCACHE_DIR=/butterscotch/.ccache
-            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BOX2D_CC="ccache ${{ matrix.box2d_compiler }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1 -j"$BUILD_JOBS"
+            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1 -j"$BUILD_JOBS"
           '
       - name: Persist ccache
         if: always()
