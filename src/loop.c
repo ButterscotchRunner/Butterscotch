@@ -565,10 +565,10 @@ void loop_init(CommandLineArgs aArgs, const char *argv0) {
     arrins(currentGameArgs, 0, safeStrdup(argv0 != nullptr ? argv0 : ""));
 
     platformInitialized = false;
-	inputFrameCount = 0;
+    inputFrameCount = 0;
 
-	fastForwardActive = false;
-	fastForwardTabPrev = false;
+    fastForwardActive = false;
+    fastForwardTabPrev = false;
     showDebugOverlay = args.debug;
 }
 
@@ -1089,14 +1089,14 @@ int loop_begin(void) {
         Runner_initFirstRoom(runner);
 
         debugShowCollisionMasks = false;
-		overlayCachedMemBytes = 0;
-		overlayLastMemCheck = 0;
-		freeCamActive = false;
-		actuallyShuttingDown = false;
-		wasPaused = false;
-		lastFrameTime = nowNanos();
-		lastFrameStartTime = lastFrameTime; // for delta_time
-		shouldWindowClose = false;
+        overlayCachedMemBytes = 0;
+        overlayLastMemCheck = 0;
+        freeCamActive = false;
+        actuallyShuttingDown = false;
+        wasPaused = false;
+        lastFrameTime = nowNanos();
+        lastFrameStartTime = lastFrameTime; // for delta_time
+        shouldWindowClose = false;
     }
     return LOOP_CONTINUE;
 }
@@ -1670,8 +1670,8 @@ int loop_shutdown(void) {
 }
 
 int loop(CommandLineArgs args, const char *argv0) {
-	loop_init(args, argv0);
-	
+    loop_init(args, argv0);
+    
     int ret;
     while (true) {
         ret = loop_begin();
