@@ -104,7 +104,7 @@ jobs:
 
       - name: Download SDK
         if: steps.cache_sdk.outputs.cache-hit != 'true'
-        run: Invoke-WebRequest https://nnproject.cc/dl/symbian3_gcce1520_workflow.zip -OutFile symbiansdk.zip
+        run: Invoke-WebRequest https://nnproject.cc/dl/symbian3_gcce_1520_workflow.zip -OutFile symbiansdk.zip
 
       - name: Cache SDK
         if: steps.cache_sdk.outputs.cache-hit != 'true'
