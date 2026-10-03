@@ -35,7 +35,7 @@ static const struct { const char* name; int value; } constants[] = {
 int16_t Physics_resolveVariable(const char* name) {
     if (strncmp(name, "phy_", 4)) return -1;
     for (int i = 0; i < PHY_VARIABLE_COUNT; ++i) if (!strcmp(name, variables[i])) return PHYSICS_VARIABLE_BASE + i;
-    for (size_t i = 0; i < sizeof(constants) / sizeof(constants[0]); ++i) if (!strcmp(name, constants[i].name)) return PHYSICS_CONSTANT_BASE + (int16_t)i;
+    for (size_t constantIndex = 0; constantIndex < sizeof(constants) / sizeof(constants[0]); ++constantIndex) if (!strcmp(name, constants[constantIndex].name)) return PHYSICS_CONSTANT_BASE + (int16_t)constantIndex;
     return -1;
 }
 RValue Physics_getVariable(Runner* runner, Instance* inst, int16_t id) {
