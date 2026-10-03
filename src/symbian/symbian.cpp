@@ -206,19 +206,19 @@ static TInt LoopCallBack(TAny* p) {
 	}
 	
 	if (state == EStateInit) {
-		if (loop_begin() != LOOP_CONTINUE) {
+		if (App_begin() != LOOP_CONTINUE) {
 			state = EStateExit;
 			return ETrue;
 		}
 		state = EStateTick;
 		return ETrue;
 	} else if (state == EStateTick) {
-		if (loop_frame() != LOOP_CONTINUE) {
+		if (App_frame() != LOOP_CONTINUE) {
 			state = EStatePreExit;
 		}
 		return ETrue;
 	} else if (state == EStatePreExit) {
-		if (loop_shutdown() != LOOP_CONTINUE) {
+		if (App_shutdown() != LOOP_CONTINUE) {
 			state = EStateExit;
 			return ETrue;
 		}
@@ -308,7 +308,7 @@ void ButterscotchContainer::ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
 	
 	args.debug = true;
 
-	loop_init(args, nullptr);
+	App_init(args, nullptr);
 	
 	RestartTimerL(10000);
 }

@@ -550,7 +550,7 @@ static uint64_t lastFrameTime;
 static uint64_t lastFrameStartTime;
 static bool shouldWindowClose;
 
-void loop_init(CommandLineArgs aArgs, const char *argv0) {
+void App_init(CommandLineArgs aArgs, const char *argv0) {
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
@@ -572,7 +572,7 @@ void loop_init(CommandLineArgs aArgs, const char *argv0) {
     showDebugOverlay = args.debug;
 }
 
-int loop_begin(void) {
+int App_begin(void) {
     {
         logInfo("Loading %s...\n", args.dataWinPath);
 
@@ -1101,7 +1101,7 @@ int loop_begin(void) {
     return LOOP_CONTINUE;
 }
 
-int loop_frame(void) {
+int App_frame(void) {
     {
         {
             if (runner->shouldExit || shouldWindowClose) {
@@ -1530,7 +1530,7 @@ int loop_frame(void) {
     return LOOP_CONTINUE;
 }
 
-int loop_shutdown(void) {
+int App_shutdown(void) {
     {
         saveInputRecording();
 
@@ -1670,16 +1670,16 @@ int loop_shutdown(void) {
 }
 
 int loop(CommandLineArgs args, const char *argv0) {
-    loop_init(args, argv0);
+    App_init(args, argv0);
     
     int ret;
     while (true) {
-        ret = loop_begin();
+        ret = App_begin();
         if (ret != LOOP_CONTINUE) break;
 
-        while (loop_frame() == LOOP_CONTINUE);
+        while (App_frame() == LOOP_CONTINUE);
 
-        ret = loop_shutdown();
+        ret = App_shutdown();
         if (ret != LOOP_CONTINUE) break;
     }
     return ret;
