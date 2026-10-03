@@ -9,12 +9,6 @@
 #include "box2d/collision.h"
 #include "box2d/types.h"
 
-typedef struct b2Shape b2Shape;
-typedef struct b2MovePair b2MovePair;
-typedef struct b2MoveResult b2MoveResult;
-typedef struct b2ArenaAllocator b2ArenaAllocator;
-typedef struct b2World b2World;
-
 // Store the proxy type in the lower 2 bits of the proxy key. This leaves 30 bits for the id.
 #define B2_PROXY_TYPE( KEY ) ( (b2BodyType)( ( KEY ) & 3 ) )
 #define B2_PROXY_ID( KEY ) ( ( KEY ) >> 2 )
@@ -23,7 +17,7 @@ typedef struct b2World b2World;
 /// The broad-phase is used for computing pairs and performing volume queries and ray casts.
 /// This broad-phase does not persist pairs. Instead, this reports potentially new pairs.
 /// It is up to the client to consume the new pairs and to track subsequent overlap.
-typedef struct b2BroadPhase
+struct b2BroadPhase
 {
 	b2DynamicTree trees[b2_bodyTypeCount];
 
@@ -47,7 +41,7 @@ typedef struct b2BroadPhase
 	// todo pairSet can grow quite large on the first time step and remain large
 	b2HashSet pairSet;
 
-} b2BroadPhase;
+};
 
 void b2CreateBroadPhase( b2BroadPhase* bp );
 void b2DestroyBroadPhase( b2BroadPhase* bp );

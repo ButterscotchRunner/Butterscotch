@@ -8,10 +8,8 @@
 #include "box2d/math_functions.h"
 #include "box2d/types.h"
 
-typedef struct b2World b2World;
-
 // Body organizational details that are not used in the solver.
-typedef struct b2Body
+struct b2Body
 {
 	char name[32];
 
@@ -69,7 +67,7 @@ typedef struct b2Body
 	bool fixedRotation;
 	bool isSpeedCapped;
 	bool isMarked;
-} b2Body;
+};
 
 // Body State
 // The body state is designed for fast conversion to and from SIMD via scatter-gather.
@@ -98,7 +96,7 @@ typedef struct b2Body
 // round shapes.
 
 // 32 bytes
-typedef struct b2BodyState
+struct b2BodyState
 {
 	b2Vec2 linearVelocity; // 8
 	float angularVelocity; // 4
@@ -110,14 +108,14 @@ typedef struct b2BodyState
 	// Using delta rotation because I cannot access the full rotation on static bodies in
 	// the solver and must use zero delta rotation for static bodies (c,s) = (1,0)
 	b2Rot deltaRotation; // 8
-} b2BodyState;
+};
 
 // Identity body state, notice the deltaRotation is {1, 0}
 static const b2BodyState b2_identityBodyState = { { 0.0f, 0.0f }, 0.0f, 0, { 0.0f, 0.0f }, { 1.0f, 0.0f } };
 
 // Body simulation data used for integration of position and velocity
 // Transform data used for collision and solver preparation.
-typedef struct b2BodySim
+struct b2BodySim
 {
 	// todo better to have transform in sim or in base body? Try both!
 	// transform for body origin
@@ -156,7 +154,7 @@ typedef struct b2BodySim
 	bool isSpeedCapped;
 	bool allowFastRotation;
 	bool enlargeAABB;
-} b2BodySim;
+};
 
 // Get a validated body from a world using an id.
 b2Body* b2GetBodyFullId( b2World* world, b2BodyId bodyId );

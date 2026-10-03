@@ -7,10 +7,6 @@
 
 #include "box2d/types.h"
 
-typedef struct b2DebugDraw b2DebugDraw;
-typedef struct b2StepContext b2StepContext;
-typedef struct b2World b2World;
-
 /// A joint edge is used to connect bodies and joints together
 /// in a joint graph where each body is a node and each joint
 /// is an edge. A joint edge belongs to a doubly linked list
@@ -24,7 +20,7 @@ typedef struct b2JointEdge
 } b2JointEdge;
 
 // Map from b2JointId to b2Joint in the solver sets
-typedef struct b2Joint
+struct b2Joint
 {
 	void* userData;
 
@@ -58,7 +54,7 @@ typedef struct b2Joint
 	bool isMarked;
 	bool collideConnected;
 
-} b2Joint;
+};
 
 typedef struct b2DistanceJoint
 {
@@ -244,7 +240,7 @@ typedef struct b2WheelJoint
 
 /// The base joint class. Joints are used to constraint two bodies together in
 /// various fashions. Some joints also feature limits and motors.
-typedef struct b2JointSim
+struct b2JointSim
 {
 	int jointId;
 
@@ -275,7 +271,7 @@ typedef struct b2JointSim
 		b2WeldJoint weldJoint;
 		b2WheelJoint wheelJoint;
 	};
-} b2JointSim;
+};
 
 void b2DestroyJointInternal( b2World* world, b2Joint* joint, bool wakeBodies );
 

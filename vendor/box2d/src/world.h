@@ -41,7 +41,7 @@ typedef struct b2TaskContext
 
 // The world struct manages all physics entities, dynamic simulation,  and asynchronous queries.
 // The world also contains efficient memory management facilities.
-typedef struct b2World
+struct b2World
 {
 	b2ArenaAllocator arena;
 	b2BroadPhase broadPhase;
@@ -172,7 +172,7 @@ typedef struct b2World
 	bool enableContinuous;
 	bool enableSpeculative;
 	bool inUse;
-} b2World;
+};
 
 b2World* b2GetWorldFromId( b2WorldId id );
 b2World* b2GetWorld( int index );

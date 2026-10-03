@@ -8,10 +8,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct b2Contact b2Contact;
-typedef struct b2Joint b2Joint;
-typedef struct b2World b2World;
-
 // Deterministic solver
 //
 // Collide all awake contacts

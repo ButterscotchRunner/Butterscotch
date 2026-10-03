@@ -1031,7 +1031,7 @@ static inline b2Vec2W b2RotateVectorW( b2RotW q, b2Vec2W v )
 // http://mmacklin.com/smallsteps.pdf
 // https://box2d.org/files/ErinCatto_SoftConstraints_GDC2011.pdf
 
-typedef struct b2ContactConstraintSIMD
+struct b2ContactConstraintSIMD
 {
 	int indexA[B2_SIMD_WIDTH];
 	int indexB[B2_SIMD_WIDTH];
@@ -1061,7 +1061,7 @@ typedef struct b2ContactConstraintSIMD
 	b2FloatW normalMass2, tangentMass2;
 	b2FloatW restitution;
 	b2FloatW relativeVelocity1, relativeVelocity2;
-} b2ContactConstraintSIMD;
+};
 
 int b2GetContactConstraintSIMDByteCount( void )
 {

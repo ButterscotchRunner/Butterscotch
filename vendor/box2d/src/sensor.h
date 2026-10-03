@@ -6,9 +6,6 @@
 #include "array.h"
 #include "bitset.h"
 
-typedef struct b2Shape b2Shape;
-typedef struct b2World b2World;
-
 typedef struct b2ShapeRef
 {
 	int shapeId;

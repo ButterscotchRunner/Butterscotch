@@ -9,9 +9,6 @@
 #include "box2d/collision.h"
 #include "box2d/types.h"
 
-typedef struct b2Shape b2Shape;
-typedef struct b2World b2World;
-
 enum b2ContactFlags
 {
 	// Set when the solid shapes are touching.
@@ -38,7 +35,7 @@ typedef struct b2ContactEdge
 
 // Cold contact data. Used as a persistent handle and for persistent island
 // connectivity.
-typedef struct b2Contact
+struct b2Contact
 {
 	// index of simulation set stored in b2World
 	// B2_NULL_INDEX when slot is free
@@ -68,7 +65,7 @@ typedef struct b2Contact
 	uint32_t flags;
 
 	bool isMarked;
-} b2Contact;
+};
 
 // Shifted to be distinct from b2ContactFlags
 enum b2ContactSimFlags
@@ -95,7 +92,7 @@ enum b2ContactSimFlags
 /// The class manages contact between two shapes. A contact exists for each overlapping
 /// AABB in the broad-phase (except if filtered). Therefore a contact object may exist
 /// that has no contact points.
-typedef struct b2ContactSim
+struct b2ContactSim
 {
 	int contactId;
 
@@ -128,7 +125,7 @@ typedef struct b2ContactSim
 	uint32_t simFlags;
 
 	b2SimplexCache cache;
-} b2ContactSim;
+};
 
 void b2InitializeContactRegisters( void );
 

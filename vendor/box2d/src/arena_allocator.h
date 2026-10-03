@@ -20,7 +20,7 @@ typedef struct b2ArenaEntry
 // if you try to interleave multiple allocate/free pairs.
 // This allocator uses the heap if space is insufficient.
 // I could remove the need to free entries individually.
-typedef struct b2ArenaAllocator
+struct b2ArenaAllocator
 {
 	char* data;
 	int capacity;
@@ -30,7 +30,7 @@ typedef struct b2ArenaAllocator
 	int maxAllocation;
 
 	b2ArenaEntryArray entries;
-} b2ArenaAllocator;
+};
 
 b2ArenaAllocator b2CreateArenaAllocator( int capacity );
 void b2DestroyArenaAllocator( b2ArenaAllocator* allocator );

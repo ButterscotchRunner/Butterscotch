@@ -281,14 +281,14 @@ B2_API b2CastOutput b2ShapeCastPolygon( const b2ShapeCastInput* input, const b2P
 
 /// A convex hull. Used to create convex polygons.
 /// @warning Do not modify these values directly, instead use b2ComputeHull()
-typedef struct b2Hull
+struct b2Hull
 {
 	/// The final points of the hull
 	b2Vec2 points[B2_MAX_POLYGON_VERTICES];
 
 	/// The number of points
 	int count;
-} b2Hull;
+};
 
 /// Compute the convex hull of a set of points. Returns an empty hull if it fails.
 /// Some failure cases:
@@ -344,7 +344,7 @@ B2_API b2SegmentDistanceResult b2SegmentDistance( b2Vec2 p1, b2Vec2 q1, b2Vec2 p
 /// transforms this might improve performance. Otherwise you can zero initialize this.
 /// The distance cache must be initialized to zero on the first call.
 /// Users should generally just zero initialize this structure for each call.
-typedef struct b2SimplexCache
+struct b2SimplexCache
 {
 	/// The number of stored simplex points
 	uint16_t count;
@@ -354,7 +354,7 @@ typedef struct b2SimplexCache
 
 	/// The cached simplex indices on shape B
 	uint8_t indexB[3];
-} b2SimplexCache;
+};
 
 static const b2SimplexCache b2_emptySimplexCache = B2_ZERO_INIT;
 

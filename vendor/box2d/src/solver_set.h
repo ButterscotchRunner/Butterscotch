@@ -5,10 +5,6 @@
 
 #include "array.h"
 
-typedef struct b2Body b2Body;
-typedef struct b2Joint b2Joint;
-typedef struct b2World b2World;
-
 // This holds solver set data. The following sets are used:
 // - static set for all static bodies (no contacts or joints)
 // - active set for all active bodies with body states (no contacts or joints)

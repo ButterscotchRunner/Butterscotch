@@ -134,18 +134,18 @@ void b2BroadPhase_EnlargeProxy( b2BroadPhase* bp, int proxyKey, b2AABB aabb )
 	b2BufferMove( bp, proxyKey );
 }
 
-typedef struct b2MovePair
+struct b2MovePair
 {
 	int shapeIndexA;
 	int shapeIndexB;
 	b2MovePair* next;
 	bool heap;
-} b2MovePair;
+};
 
-typedef struct b2MoveResult
+struct b2MoveResult
 {
 	b2MovePair* pairList;
-} b2MoveResult;
+};
 
 typedef struct b2QueryPairContext
 {

@@ -5,6 +5,23 @@
 
 #include "box2d/math_functions.h"
 
+typedef struct b2ArenaAllocator b2ArenaAllocator;
+typedef struct b2Body b2Body;
+typedef struct b2BodySim b2BodySim;
+typedef struct b2BodyState b2BodyState;
+typedef struct b2BroadPhase b2BroadPhase;
+typedef struct b2Contact b2Contact;
+typedef struct b2ContactConstraint b2ContactConstraint;
+typedef struct b2ContactConstraintSIMD b2ContactConstraintSIMD;
+typedef struct b2ContactSim b2ContactSim;
+typedef struct b2Joint b2Joint;
+typedef struct b2JointSim b2JointSim;
+typedef struct b2MovePair b2MovePair;
+typedef struct b2MoveResult b2MoveResult;
+typedef struct b2Shape b2Shape;
+typedef struct b2StepContext b2StepContext;
+typedef struct b2World b2World;
+
 // clang-format off
 
 #define B2_NULL_INDEX ( -1 )

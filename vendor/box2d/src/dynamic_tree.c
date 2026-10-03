@@ -50,16 +50,12 @@ typedef struct b2TreeNode
 } b2TreeNode;
 
 static b2TreeNode b2_defaultTreeNode = {
-	.aabb = { { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-	.categoryBits = B2_DEFAULT_CATEGORY_BITS,
-	.children =
-		{
-			.child1 = B2_NULL_INDEX,
-			.child2 = B2_NULL_INDEX,
-		},
-	.parent = B2_NULL_INDEX,
-	.height = 0,
-	.flags = b2_allocatedNode,
+	{ { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+	B2_DEFAULT_CATEGORY_BITS,
+	{ { B2_NULL_INDEX, B2_NULL_INDEX } },
+	{ B2_NULL_INDEX },
+	0,
+	b2_allocatedNode,
 };
 
 static bool b2IsLeaf( const b2TreeNode* node )

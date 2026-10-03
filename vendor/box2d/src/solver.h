@@ -10,12 +10,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct b2BodySim b2BodySim;
-typedef struct b2BodyState b2BodyState;
-typedef struct b2ContactSim b2ContactSim;
-typedef struct b2JointSim b2JointSim;
-typedef struct b2World b2World;
-
 typedef struct b2Softness
 {
 	float biasRate;
@@ -72,7 +66,7 @@ typedef struct b2SolverStage
 } b2SolverStage;
 
 // Context for a time step. Recreated each time step.
-typedef struct b2StepContext
+struct b2StepContext
 {
 	// time step
 	float dt;
@@ -135,7 +129,7 @@ typedef struct b2StepContext
 
 	char dummy2[64];
 
-} b2StepContext;
+};
 
 static inline b2Softness b2MakeSoft( float hertz, float zeta, float h )
 {

@@ -5,8 +5,6 @@
 
 #include "solver.h"
 
-typedef struct b2ContactSim b2ContactSim;
-
 typedef struct b2ContactConstraintPoint
 {
 	b2Vec2 anchorA, anchorB;
@@ -19,7 +17,7 @@ typedef struct b2ContactConstraintPoint
 	float tangentMass;
 } b2ContactConstraintPoint;
 
-typedef struct b2ContactConstraint
+struct b2ContactConstraint
 {
 	int indexA;
 	int indexB;
@@ -35,7 +33,7 @@ typedef struct b2ContactConstraint
 	float rollingImpulse;
 	b2Softness softness;
 	int pointCount;
-} b2ContactConstraint;
+};
 
 int b2GetContactConstraintSIMDByteCount( void );
 

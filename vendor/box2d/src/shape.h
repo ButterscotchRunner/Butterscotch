@@ -7,10 +7,7 @@
 
 #include "box2d/types.h"
 
-typedef struct b2BroadPhase b2BroadPhase;
-typedef struct b2World b2World;
-
-typedef struct b2Shape
+struct b2Shape
 {
 	int id;
 	int bodyId;
@@ -49,7 +46,7 @@ typedef struct b2Shape
 	bool enableHitEvents;
 	bool enablePreSolveEvents;
 	bool enlargedAABB;
-} b2Shape;
+};
 
 typedef struct b2ChainShape
 {
