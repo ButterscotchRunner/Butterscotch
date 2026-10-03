@@ -153,6 +153,8 @@ if(ENABLE_NOOP_RENDERER)
 endif()
 
 file(GLOB SOURCES src/*.c)
+file(GLOB PHYSICS_SOURCES CONFIGURE_DEPENDS src/physics/*.c)
+list(APPEND SOURCES ${PHYSICS_SOURCES})
 
 # These platforms haven't been converted to the refactored system yet.
 # This list should NEVER grow, all new platforms should use the new system.
@@ -242,6 +244,20 @@ else()
 endif()
 
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+file(GLOB BOX2D_SOURCES CONFIGURE_DEPENDS vendor/box2d/src/*.c)
+list(REMOVE_ITEM BOX2D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/box2d/src/timer.c")
+add_library(butterscotch_box2d STATIC ${BOX2D_SOURCES})
+target_include_directories(butterscotch_box2d BEFORE PUBLIC vendor/box2d/include)
+target_include_directories(butterscotch BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/vendor/box2d/include)
+target_compile_definitions(butterscotch_box2d PRIVATE BOX2D_DISABLE_SIMD B2_SINGLE_THREADED)
+if(NOT MSVC)
+    target_compile_options(butterscotch_box2d PRIVATE -w -fno-fast-math -ffp-contract=off)
+endif()
+target_link_libraries(butterscotch PRIVATE butterscotch_box2d)
+if(NOT MSVC)
+    set_source_files_properties(src/physics/physics_engine.c src/physics/physics_joints.c src/physics/physics_particles.c
+        PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
+endif()
 target_include_directories(butterscotch PRIVATE src/${PLATFORM})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/video)
 
@@ -749,7 +765,7 @@ elseif(PLATFORM STREQUAL "ps2")
         # Compiling on the Docker container
         target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
         target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
+        target_link_libraries(butterscotch PRIVATE ${AUDIO_LIBRARIES} gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
 
         # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
         # This avoids loading from rom0: which has compatibility issues between fat/slim PS2

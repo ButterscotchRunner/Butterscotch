@@ -17,6 +17,10 @@ typedef enum {
 #define ANSI_COLOUR_CODE_BOLD_RED "\033[1;31m"
 #define ANSI_COLOUR_CODE_BOLD_PURPLE "\033[1;35m"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void logInfo(const char* fmt, ...);
 void vLogInfo(const char* fmt, va_list va);
 
@@ -28,5 +32,9 @@ void vLogError(const char* fmt, va_list va);
 
 void logDebug(const char* fmt, ...);
 void vLogDebug(const char* fmt, va_list va);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _BS_LOG_H */
