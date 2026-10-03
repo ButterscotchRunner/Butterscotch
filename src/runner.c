@@ -2964,6 +2964,10 @@ void Runner_initFirstRoom(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     require(dataWin->gen8.roomOrderCount > 0);
 
+#ifndef ENABLE_PHYSICS
+    logWarn("Runner: built without physics support, games using phy_* functions will not simulate\n");
+#endif
+
     int32_t firstRoomIndex = dataWin->gen8.roomOrder[0];
 
     runner->gameStartTime = nowNanos();

@@ -115,8 +115,13 @@ PhysicsResources* Physics_ensureResources(Runner* r) {
 }
 PhysicsEngine* Physics_createWorld(Runner* r, float scale) {
     PhysicsCallbacks cb = {physicsSync, physicsFilter, physicsContact, physicsLine};
-    if (!Physics_ensureResources(r)) return nullptr;
-    return PhysicsEngine_create(r, cb, scale, (float)Runner_getEffectiveGameSpeed(r), r->physicsResources);
+    PhysicsEngine* engine = nullptr;
+    if (Physics_ensureResources(r))
+        engine = PhysicsEngine_create(r, cb, scale, (float)Runner_getEffectiveGameSpeed(r), r->physicsResources);
+#ifdef ENABLE_PHYSICS
+    requireMessage(engine != nullptr, "Could not create a Box2D physics world");
+#endif
+    return engine;
 }
 void Physics_initRoom(Runner* r) {
     if (!r->physicsRooms) r->physicsRooms = (PhysicsEngine**)safeCalloc(r->dataWin->room.count, sizeof(*r->physicsRooms));
@@ -124,7 +129,6 @@ void Physics_initRoom(Runner* r) {
     if (!r->currentRoom->persistent || !existing) {
         PhysicsEngine_free(existing);
         PhysicsEngine* fresh = r->currentRoom->world ? Physics_createWorld(r, r->currentRoom->metersPerPixel > 0 ? r->currentRoom->metersPerPixel : 0.1f) : nullptr;
-        requireMessage(!r->currentRoom->world || fresh != nullptr, "Could not create the room's Box2D world");
         r->physicsRooms[r->currentRoomIndex] = fresh;
         r->physics = fresh;
         double gravity[] = {r->currentRoom->world ? r->currentRoom->gravityX : 0, r->currentRoom->world ? r->currentRoom->gravityY : 10};
