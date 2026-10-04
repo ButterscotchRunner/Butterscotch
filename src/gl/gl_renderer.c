@@ -3018,6 +3018,22 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
 
+    uint32_t vectorWidth = 1;
+    switch (type) {
+        case GL_FLOAT_VEC2: vectorWidth = 2; break;
+        case GL_FLOAT_VEC3: vectorWidth = 3; break;
+        case GL_FLOAT_VEC4: vectorWidth = 4; break;
+        default: break;
+    }
+    float* paddedValues = nullptr;
+    if (count % vectorWidth != 0) {
+        uint32_t paddedCount = count + vectorWidth - count % vectorWidth;
+        paddedValues = (float*) safeCalloc(paddedCount, sizeof(float));
+        memcpy(paddedValues, values, count * sizeof(float));
+        values = paddedValues;
+        count = paddedCount;
+    }
+
     switch (type) {
         case GL_FLOAT:      glUniform1fv(handle, count, values); break;
         case GL_FLOAT_VEC2: glUniform2fv(handle, count / 2, values); break;
@@ -3028,6 +3044,7 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
         case GL_FLOAT_MAT4: glUniformMatrix4fv(handle, count / 16, GL_FALSE, values); break;
         default:            glUniform1fv(handle, count, values); break;
     }
+    free(paddedValues);
 }
 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
