@@ -11992,7 +11992,7 @@ static MA_INLINE ma_uint32 ma_swap_endian_uint32(ma_uint32 n)
 }
 
 
-#if !defined(MA_EMSCRIPTEN) && !defined(__SYMBIAN32__)
+#if !defined(MA_EMSCRIPTEN)
 #ifdef MA_WIN32
 static void ma_sleep__win32(ma_uint32 milliseconds)
 {
@@ -12006,7 +12006,9 @@ static void ma_sleep__posix(ma_uint32 milliseconds)
     (void)milliseconds;
     MA_ASSERT(MA_FALSE);  /* The Emscripten build should never sleep. */
 #else
-    #if (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 199309L) || defined(MA_SWITCH)
+    #if defined(__SYMBIAN32__)
+        usleep(milliseconds * 1000);
+    #elif (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 199309L) || defined(MA_SWITCH)
         struct timespec ts;
         ts.tv_sec  = milliseconds / 1000;
         ts.tv_nsec = milliseconds % 1000 * 1000000;

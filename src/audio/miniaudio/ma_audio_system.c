@@ -5,8 +5,6 @@
 #endif
 
 #ifdef __SYMBIAN32__
-inline void ma_sleep(unsigned int milliseconds); // implemented in symbian_audio.cpp
-
 #define MA_BSD
 #define MA_NO_RUNTIME_LINKING
 #define MA_THREAD_DEFAULT_STACK_SIZE 64*1024

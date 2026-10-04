@@ -242,10 +242,6 @@ extern "C" void maSymbianAudioDestroy(void) {
 	ma_context_uninit(&context);
 }
 
-extern "C" void ma_sleep(unsigned int milliseconds) {
-	User::AfterHighRes(milliseconds * 1000);
-}
-
 // volume keys listener
 
 class CRemConObserver : public CBase, public MRemConCoreApiTargetObserver
