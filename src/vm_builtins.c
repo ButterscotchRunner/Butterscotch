@@ -5866,7 +5866,7 @@ static RValue builtin_ds_grid_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     dst->items = count > 0 ? (RValue*)safeCalloc(count, sizeof(RValue)) : nullptr;
     if (dst->items != nullptr) {
         {
-        for (int32_t i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; i++) {
             dst->items[i] = RValue_makeIndependent(src->items[i]);
         }
         }
