@@ -24,6 +24,7 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
+#include "vm_builtins.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -35,10 +36,17 @@
 
 static const char* baseVertexShader =
     "uniform mat4 uWorldViewProjection;\n"
+    "uniform mat4 uWorldView;\n"
+    "uniform vec2 uFogRange;\n"
+    "uniform vec4 uFogColor;\n"
     "void main() {\n"
-    "    gl_Position = uWorldViewProjection * vec4(aPos, 0.0, 1.0);\n"
+    "    gl_Position = uWorldViewProjection * vec4(aPos, 1.0);\n"
+    // GML exposes Direct3D-style clip Z; OpenGL clips against [-w, w].
+    "    gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
     "    vTexCoord = aTexCoord;\n"
     "    vColor = aColor;\n"
+    "    float depth = (uWorldView * vec4(aPos, 1.0)).z;\n"
+    "    vFogFactor = (1.0 - (uFogRange.y - depth) * uFogRange.x) * uFogColor.a;\n"
     "}\n";
 
 static const char* baseFragmentShader =
@@ -46,12 +54,15 @@ static const char* baseFragmentShader =
     "uniform float uAlphaTestRef;\n"
     "uniform bool uAlphaTestEnabled;\n"
     "uniform vec4 uFogColor;\n"
+    "uniform vec4 uTextureRect;\n"
+    "uniform bool uLocalUV;\n"
     "void main() {\n"
-    "    vec4 c = TEXTURE_2D(uTexture, vTexCoord) * vColor;\n"
+    "    vec2 uv = uLocalUV ? uTextureRect.xy + fract(vTexCoord) * uTextureRect.zw : vTexCoord;\n"
+    "    vec4 c = TEXTURE_2D(uTexture, uv) * vColor;\n"
     "    if (uAlphaTestEnabled) {\n"
     "        if (uAlphaTestRef >= c.a) discard;\n"
     "    }\n"
-    "    c.rgb = mix(c.rgb, uFogColor.rgb, uFogColor.a);\n"
+    "    c.rgb = mix(c.rgb, uFogColor.rgb, clamp(vFogFactor, 0.0, 1.0));\n"
     "    FRAG_COLOR = c;\n"
     "}\n";
 
@@ -286,21 +297,22 @@ static void flushBatch(GLRenderer* gl) {
     } else {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, modernGl->currentTextureId);
+        glUniform1i(modernGl->uLocalUV, modernGl->batchLocalUV);
+        if (modernGl->batchLocalUV) glUniform4fv(modernGl->uTextureRect, 1, modernGl->batchUVRect);
     }
 
     int32_t indexCount = modernGl->batchCount * INDICES_PER_QUAD;
 
     glBindBuffer(GL_ARRAY_BUFFER, modernGl->vbo);
-    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex);
 #ifdef PLATFORM_VITA
+    int32_t totalVboSize = MAX_QUADS * VERTICES_PER_QUAD * sizeof(GlVertex);
     vglBufferData(GL_ARRAY_BUFFER, (void*)gl->vertexData);
     gl->vertexData = (GlVertex*)vglAllocFromScratch((size_t)totalVboSize);
     //glBufferData(GL_ARRAY_BUFFER, totalVboSize, (void*)gl->vertexData, GL_DYNAMIC_DRAW);
 #else
     int32_t singleVertexCount = (modernGl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
     int32_t vertexCount = modernGl->batchCount * singleVertexCount;
-    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(GlVertex), gl->vertexData);
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(GlVertex), gl->vertexData, GL_STREAM_DRAW);
 #endif
 
 
@@ -310,7 +322,7 @@ static void flushBatch(GLRenderer* gl) {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
 
         int32_t stride = sizeof(GlVertex);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(GlVertex, r));
         glEnableVertexAttribArray(1);
@@ -331,6 +343,7 @@ static void flushBatch(GLRenderer* gl) {
     }
 
     modernGl->batchCount = 0;
+    if (gl->base.currentShader == -1 && modernGl->batchLocalUV) glUniform1i(modernGl->uLocalUV, 0);
 }
 
 static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, GLuint textureId) {
@@ -338,13 +351,14 @@ static void flushIfNeededAndSetActiveState(GLRenderer* gl, BatchType batchType, 
     
     if (modernGl->batchCount != 0) {
         // TODO: This should be changed down the road from MAX_QUADS to MAX_WHATEVER_BATCH_TYPE_ARE_WE_USING
-        if (modernGl->batchType != batchType || modernGl->currentTextureId != textureId || modernGl->batchCount == MAX_QUADS) {
+        if (modernGl->batchType != batchType || modernGl->currentTextureId != textureId || modernGl->batchLocalUV || modernGl->batchCount == MAX_QUADS) {
             flushBatch(gl);
         }
     }
 
     modernGl->batchType = batchType;
     modernGl->currentTextureId = textureId;
+    modernGl->batchLocalUV = false;
 }
 
 static bool glResolveTextureHandle(GLRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH);
@@ -370,11 +384,11 @@ static GLenum primitiveTypeToGL(int32_t primitiveType) {
 
 static void glPrimitiveBegin(Renderer* renderer, int32_t primitiveType) {
     GLRenderer* gl = (GLRenderer*) renderer;
-    flushBatch(gl);
+    ((GLModernRenderer*)gl)->primitiveLocalUV = false;
     GLCommon_primitiveBegin(&gl->currentPrimitive, primitiveType, gl->whiteTexture);
 }
 
-static bool glResolvePrimitiveTexture(GLRenderer* gl, int32_t texture, GLuint* textureId) {
+static bool glResolvePrimitiveTexture(GLRenderer* gl, int32_t texture, GLuint* textureId, float* rect) {
     if (texture <= 0)
         return false;
 
@@ -386,6 +400,12 @@ static bool glResolvePrimitiveTexture(GLRenderer* gl, int32_t texture, GLuint* t
             gl, (uint32_t)texture,
             &tpag, textureId, &texW, &texH)) {
 
+        if (tpag && texW > 0 && texH > 0) {
+            rect[0] = (float)tpag->sourceX / texW;
+            rect[1] = (float)tpag->sourceY / texH;
+            rect[2] = (float)tpag->sourceWidth / texW;
+            rect[3] = (float)tpag->sourceHeight / texH;
+        }
         return *textureId != 0;
     }
 
@@ -403,9 +423,33 @@ static void glPrimitiveBeginTexture(
     int32_t texture
 ) {
     GLRenderer* gl = (GLRenderer*)renderer;
+    GLModernRenderer* modernGl = (GLModernRenderer*)gl;
+    modernGl->primitiveLocalUV = renderer->legacyTextureCoordinates;
+    modernGl->primitiveUVRect[0] = modernGl->primitiveUVRect[1] = 0;
+    modernGl->primitiveUVRect[2] = modernGl->primitiveUVRect[3] = 1;
     GLuint texId = 0;
-    glResolvePrimitiveTexture(gl, texture, &texId);
+    glResolvePrimitiveTexture(gl, texture, &texId, modernGl->primitiveUVRect);
     GLCommon_primitiveBeginTexture(gl, primitiveType, texId);
+}
+
+static void glBatchPrimitiveTriangle(GLModernRenderer* modernGl, GLuint textureId, int a, int b, int c) {
+    GLRenderer* gl = &modernGl->base;
+    bool localUV = modernGl->primitiveLocalUV;
+    if (modernGl->batchCount != 0 &&
+        (modernGl->batchType != BATCHTYPE_TRIANGLE || modernGl->currentTextureId != textureId ||
+         modernGl->batchLocalUV != localUV || modernGl->batchCount == MAX_QUADS ||
+         (localUV && memcmp(modernGl->batchUVRect, modernGl->primitiveUVRect, sizeof(modernGl->batchUVRect)) != 0))) {
+        flushBatch(gl);
+    }
+    modernGl->batchType = BATCHTYPE_TRIANGLE;
+    modernGl->currentTextureId = textureId;
+    modernGl->batchLocalUV = localUV;
+    if (localUV) memcpy(modernGl->batchUVRect, modernGl->primitiveUVRect, sizeof(modernGl->batchUVRect));
+    GlVertex* target = gl->vertexData + modernGl->batchCount * VERTICES_PER_TRIANGLE;
+    target[0] = modernGl->primitiveVertices[a];
+    target[1] = modernGl->primitiveVertices[b];
+    target[2] = modernGl->primitiveVertices[c];
+    modernGl->batchCount++;
 }
 
 static void glPrimitiveEnd(Renderer* renderer) {
@@ -422,57 +466,51 @@ static void glPrimitiveEnd(Renderer* renderer) {
             &textureId))
         return;
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-
-    glBindBuffer(GL_ARRAY_BUFFER, modernGl->vbo);
-
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        (GLsizeiptr)(
-            gl->currentPrimitive.vertexCount *
-            sizeof(GlVertex)
-        ),
-        gl->vertexData,
-        GL_DYNAMIC_DRAW
-    );
-
-    if (hasVAO()) {
-        glBindVertexArray(modernGl->vao);
+    // Keep compatible geometry in the ordinary triangle batch. Separate
+    // strips/fans are expanded with their original winding and vertex data.
+    int32_t count = gl->currentPrimitive.vertexCount;
+    if (renderer->currentShader == -1 && mode == GL_TRIANGLES) {
+        for (int32_t i = 0; i + 2 < count; i += 3) glBatchPrimitiveTriangle(modernGl, textureId, i, i+1, i+2);
+    } else if (renderer->currentShader == -1 && mode == GL_TRIANGLE_STRIP) {
+        for (int32_t i = 0; i + 2 < count; i++) glBatchPrimitiveTriangle(modernGl, textureId, i+(i&1), i+1-(i&1), i+2);
+    } else if (renderer->currentShader == -1 && mode == GL_TRIANGLE_FAN) {
+        for (int32_t i = 1; i + 1 < count; i++) glBatchPrimitiveTriangle(modernGl, textureId, 0, i, i+1);
     } else {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
+        // Points, lines and custom shaders retain separate draw calls/topology.
+        flushBatch(gl);
 
-        int32_t stride = sizeof(GlVertex);
+        GLShaderUniform* sampler = renderer->currentShader == -1 ? nullptr
+            : modernGl->gmlShaders[renderer->currentShader].gmBaseTexture;
+        glActiveTexture(sampler ? GL_TEXTURE0 + sampler->samplerSlot : GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glBindBuffer(GL_ARRAY_BUFFER, modernGl->vbo);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(count * sizeof(GlVertex)), modernGl->primitiveVertices, GL_DYNAMIC_DRAW);
 
-        glVertexAttribPointer(
-            0, 2, GL_FLOAT, GL_FALSE,
-            stride, (void*)offsetof(GlVertex, x)
-        );
-        glEnableVertexAttribArray(0);
+        if (hasVAO()) {
+            glBindVertexArray(modernGl->vao);
+        } else {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
+            int32_t stride = sizeof(GlVertex);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(GlVertex, x));
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*)offsetof(GlVertex, r));
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(GlVertex, u));
+            glEnableVertexAttribArray(2);
+        }
 
-        glVertexAttribPointer(
-            1, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-            stride, (void*)offsetof(GlVertex, r)
-        );
-        glEnableVertexAttribArray(1);
+        if (renderer->currentShader == -1 && modernGl->primitiveLocalUV) {
+            glUniform4fv(modernGl->uTextureRect, 1, modernGl->primitiveUVRect);
+            glUniform1i(modernGl->uLocalUV, 1);
+        }
+        glDrawArrays(mode, 0, count);
+        if (renderer->currentShader == -1) glUniform1i(modernGl->uLocalUV, 0);
 
-        glVertexAttribPointer(
-            2, 2, GL_FLOAT, GL_FALSE,
-            stride, (void*)offsetof(GlVertex, u)
-        );
-        glEnableVertexAttribArray(2);
-    }
-
-    glDrawArrays(
-        mode,
-        0,
-        gl->currentPrimitive.vertexCount
-    );
-
-    if (!hasVAO()) {
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
-        glDisableVertexAttribArray(2);
+        if (!hasVAO()) {
+            glDisableVertexAttribArray(0);
+            glDisableVertexAttribArray(1);
+            glDisableVertexAttribArray(2);
+        }
     }
 
     gl->currentPrimitive.vertexCount = 0;
@@ -480,17 +518,21 @@ static void glPrimitiveEnd(Renderer* renderer) {
 
 static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t color, float alpha, float u, float v) {
     GLRenderer* gl = (GLRenderer*) renderer;
-
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
     if (gl->currentPrimitive.vertexCount < 0) {
         gl->currentPrimitive.vertexCount = 0;
     }
-
-    GLCommon_drawVertex(
-        gl,
-        x, y, z,
-        color, alpha,
-        u, v
-    );
+    if ((size_t)gl->currentPrimitive.vertexCount >= modernGl->primitiveVertexCapacity) {
+        modernGl->primitiveVertexCapacity = modernGl->primitiveVertexCapacity ? modernGl->primitiveVertexCapacity * 2 : 256;
+        modernGl->primitiveVertices = (GlVertex*)safeRealloc(modernGl->primitiveVertices, modernGl->primitiveVertexCapacity * sizeof(GlVertex));
+    }
+    GlVertex* vertex = &modernGl->primitiveVertices[gl->currentPrimitive.vertexCount++];
+    vertex->x = x; vertex->y = y; vertex->z = z;
+    vertex->u = u; vertex->v = v;
+    vertex->r = (uint8_t)BGR_R(color);
+    vertex->g = (uint8_t)BGR_G(color);
+    vertex->b = (uint8_t)BGR_B(color);
+    vertex->a = floatToUnormByte(alpha);
 }
 
 // ===[ Vtable Implementations ]===
@@ -602,8 +644,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
             snprintf(vertSrc, sizeof(vertSrc),
                 "%s"
-                "layout(location = 0) in vec2 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
-                "out vec2 vTexCoord;\nout vec4 vColor;\n%s",
+                "layout(location = 0) in vec3 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
+                "out vec2 vTexCoord;\nout vec4 vColor;\nout float vFogFactor;\n%s",
                 vertHeader, baseVertexShader);
         } else {
             vertHeader = "#version 130\n";
@@ -611,14 +653,14 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
             snprintf(vertSrc, sizeof(vertSrc),
                 "%s"
-                "in vec2 aPos;\nin vec4 aColor;\nin vec2 aTexCoord;\n"
-                "out vec2 vTexCoord;\nout vec4 vColor;\n%s",
+                "in vec3 aPos;\nin vec4 aColor;\nin vec2 aTexCoord;\n"
+                "out vec2 vTexCoord;\nout vec4 vColor;\nout float vFogFactor;\n%s",
                 vertHeader, baseVertexShader);
         }
 
         snprintf(fragSrc, sizeof(fragSrc),
             "%s"
-            "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
+            "in vec2 vTexCoord;\nin vec4 vColor;\nin float vFogFactor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s",
             fragHeader, baseFragmentShader);
     } else {
@@ -632,13 +674,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         snprintf(vertSrc, sizeof(vertSrc),
             "%s"
-            "attribute vec2 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
-            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n%s",
+            "attribute vec3 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\nvarying float vFogFactor;\n%s",
             vertHeader, baseVertexShader);
 
         snprintf(fragSrc, sizeof(fragSrc),
             "%s"
-            "varying vec2 vTexCoord;\nvarying vec4 vColor;\n"
+            "varying vec2 vTexCoord;\nvarying vec4 vColor;\nvarying float vFogFactor;\n"
             "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s",
             fragHeader, baseFragmentShader);
     }
@@ -651,8 +693,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     }
 
     modernGl->defaultShaderProgram = defaultShader;
+    modernGl->uTextureRect = glGetUniformLocation(defaultShader->shaderId, "uTextureRect");
+    modernGl->uLocalUV = glGetUniformLocation(defaultShader->shaderId, "uLocalUV");
+    modernGl->depthWrite = true;
 
     modernGl->uWorldViewProjection = getShaderUniform(defaultShader, "uWorldViewProjection", GL_FLOAT_MAT4);
+    modernGl->uWorldView           = getShaderUniform(defaultShader, "uWorldView",           GL_FLOAT_MAT4);
+    modernGl->uFogRange            = getShaderUniform(defaultShader, "uFogRange",            GL_FLOAT_VEC2);
     modernGl->uFogColor            = getShaderUniform(defaultShader, "uFogColor",            GL_FLOAT_VEC4);
     modernGl->uAlphaTestRef        = getShaderUniform(defaultShader, "uAlphaTestRef",        GL_FLOAT);
     modernGl->uAlphaTestEnabled    = getShaderUniform(defaultShader, "uAlphaTestEnabled",    GL_BOOL);
@@ -708,16 +755,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         modernGl->gmlShaderCount++;
     }
-    GLShaderUniform* uAlphaTestRef = getShaderUniform(modernGl->defaultShaderProgram, "uAlphaTestRef", GL_FLOAT);
-    GLShaderUniform* uFogColor     = getShaderUniform(modernGl->defaultShaderProgram, "uFogColor",     GL_FLOAT_VEC4);
-
     modernGl->fogEnable = false;
     modernGl->fogColor = 0;
+    modernGl->fogEnd = 1;
     glUseProgram(modernGl->defaultShaderProgram->shaderId);
-    glUniform1f(uAlphaTestRef->location, -1.0f);
-    glUniform4f(uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
-    free(uAlphaTestRef);
-    free(uFogColor);
+    glUniform1f(modernGl->uAlphaTestRef->location, -1.0f);
+    glUniform4f(modernGl->uFogColor->location, 0.0f, 0.0f, 0.0f, 0.0f);
+    glUniform2f(modernGl->uFogRange->location, 1.0f, 1.0f);
 
     // Create VAO/VBO/EBO
     if (hasVAO()) {
@@ -747,9 +791,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     free(indices);
 
     if (hasVAO()) {
-        // Vertex attributes: pos(2f), texcoord(2f), color(4f)
+        // Vertex attributes: XYZ, normalized RGBA8, UV.
         int32_t stride = sizeof(GlVertex);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*) offsetof(GlVertex, x));
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, (void*) offsetof(GlVertex, r));
         glEnableVertexAttribArray(1);
@@ -771,6 +815,20 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     logInfo("GL: Renderer initialized (%u texture pages)\n", gl->textureCount);
 }
 
+static void glApplyCullWinding(Renderer* renderer) {
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    // The view is left-handed, and uploaded projections flip clip Y. A normal
+    // perspective projection therefore makes outward-facing triangles CCW in
+    // GL; the negative-height rectangle projection reverses that orientation.
+    const float* projection = renderer->gmlMatrices[MATRIX_PROJECTION].m;
+    float orientation = projection[0] * projection[5] - projection[1] * projection[4];
+    GLenum frontFace = orientation >= 0 ? GL_CCW : GL_CW;
+    if (modernGl->frontFace != frontFace) {
+        glFrontFace(frontFace);
+        modernGl->frontFace = frontFace;
+    }
+}
+
 static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
@@ -779,6 +837,7 @@ static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GMLShader* gmlShader = &modernGl->gmlShaders[shaderIndex];
 
     glUseProgram(gmlShader->shaderId);
+    glApplyCullWinding(renderer);
     //Gotta set those built-ins! they ain't gonna set themselves
     GLShaderUniform* gmMatricesUniform = gmlShader->gmMatrices;
     GLShaderUniform* gmFogColourUniform = gmlShader->gmFogColour;
@@ -815,6 +874,7 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     flushBatch(gl);
+    glApplyCullWinding(renderer);
     if (renderer->currentShader != -1) {
         glGpuSetShader(renderer, (int32_t) renderer->currentShader);
     } else {
@@ -831,6 +891,9 @@ static void glShaderSettingsRefresh(Renderer* renderer) {
         Matrix4f_flipClipY(&flippedClip[MATRIX_WORLD_VIEW_PROJECTION]);
 
         glUniformMatrix4fv(modernGl->uWorldViewProjection->location, 1, GL_FALSE, flippedClip[MATRIX_WORLD_VIEW_PROJECTION].m);
+        glUniformMatrix4fv(modernGl->uWorldView->location, 1, GL_FALSE, renderer->gmlMatrices[MATRIX_WORLD_VIEW].m);
+        float range = modernGl->fogEnd - modernGl->fogStart;
+        glUniform2f(modernGl->uFogRange->location, range == 0 ? 0 : 1.0f / range, modernGl->fogEnd);
         glUniform4f(modernGl->uFogColor->location, fogR, fogG, fogB, modernGl->fogEnable ? 1.0f : 0.0f);
         glUniform1f(modernGl->uAlphaTestRef->location, gl->alphaTestRef);
         glUniform1i(modernGl->uAlphaTestEnabled->location, gl->alphaTestEnable);
@@ -890,11 +953,46 @@ static void glDestroy(Renderer* renderer) {
 
     free(modernGl->uWorldViewProjection);
     free(modernGl->uFogColor);
+    free(modernGl->uWorldView);
+    free(modernGl->uFogRange);
     free(modernGl->uAlphaTestRef);
     free(modernGl->uAlphaTestEnabled);
     free(modernGl->uTexture);
 
+    for (uint32_t i = 0; i < gl->surfaceCount; i++) {
+        if (modernGl->surfaceDepth[i]) glDeleteRenderbuffers(1, &modernGl->surfaceDepth[i]);
+    }
+    free(modernGl->surfaceDepth);
+    free(modernGl->primitiveVertices);
     GLCommon_destroy(renderer);
+}
+
+static void glSetDepthState(Renderer* renderer, bool test, bool write, bool cull) {
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    if (modernGl->depthTest == test && modernGl->depthWrite == write && modernGl->cull == cull) return;
+    flushBatch((GLRenderer*)renderer);
+    modernGl->depthTest = test;
+    modernGl->depthWrite = write;
+    modernGl->cull = cull;
+    if (test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(write ? GL_TRUE : GL_FALSE);
+    if (cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glApplyCullWinding(renderer);
+}
+
+static void glClearDepthBuffer(Renderer* renderer, float depth) {
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    flushBatch((GLRenderer*)renderer);
+    glDepthMask(GL_TRUE);
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
+    glClearDepthf(depth);
+#else
+    glClearDepth(depth);
+#endif
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthMask(modernGl->depthWrite ? GL_TRUE : GL_FALSE);
 }
 
 static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
@@ -905,6 +1003,10 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     modernGl->currentTextureId = 0;
     
     GLCommon_beginFrame(gl, gameW, gameH, windowW, windowH);
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1.0f);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
 }
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
@@ -913,6 +1015,8 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     modernGl->currentTextureId = 0;
 
     GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1, glApplyProjection);
+    VMBuiltins_applyD3DDefaultView(renderer, viewX, viewY, viewW, viewH, viewAngle);
+    glClearDepthBuffer(renderer, 1.0f);
 
     if (hasVAO()) glBindVertexArray(modernGl->vao);
 }
@@ -925,6 +1029,19 @@ static void glEndView(Renderer* renderer) {
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
+    // surface_reset_target rebinds the GUI target through this same callback.
+    // Save world state only on entry, not again while already inside the pass.
+    if (!modernGl->guiActive) {
+        modernGl->savedDepthTest = modernGl->depthTest;
+        modernGl->savedDepthWrite = modernGl->depthWrite;
+        modernGl->savedCull = modernGl->cull;
+        modernGl->savedGUIWorld = renderer->gmlMatrices[MATRIX_WORLD];
+        modernGl->guiActive = true;
+    }
+    glSetDepthState(renderer, false, false, false);
+    Matrix4f identity;
+    Matrix4f_identity(&identity);
+    renderer->vtable->setMatrix(renderer, MATRIX_WORLD, identity);
 
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
@@ -948,6 +1065,10 @@ static void glEndGUI(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     flushBatch(gl);
     glDisable(GL_SCISSOR_TEST);
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    renderer->vtable->setMatrix(renderer, MATRIX_WORLD, modernGl->savedGUIWorld);
+    glSetDepthState(renderer, modernGl->savedDepthTest, modernGl->savedDepthWrite, modernGl->savedCull);
+    modernGl->guiActive = false;
 }
 
 static void glEndFrameInit(Renderer* renderer) {
@@ -1016,6 +1137,8 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     //No it doesn't?
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
+    // HTML5 draw_clear/draw_clear_alpha also clear depth on the current target.
+    glClearDepthBuffer(renderer, 1.0f);
 }
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -1118,6 +1241,7 @@ static void emitTexturedQuad(
     uint8_t ca = floatToUnormByte(alpha);
 
     verts[0].x = x0; verts[0].y = y0; verts[0].u = u0; verts[0].v = v0; verts[0].r = r0; verts[0].g = g0; verts[0].b = b0; verts[0].a = ca;
+    for (int i = 0; i < 4; i++) verts[i].z = gl->base.drawDepth;
     verts[1].x = x1; verts[1].y = y1; verts[1].u = u1; verts[1].v = v0; verts[1].r = r1; verts[1].g = g1; verts[1].b = b1; verts[1].a = ca;
     verts[2].x = x2; verts[2].y = y2; verts[2].u = u1; verts[2].v = v1; verts[2].r = r2; verts[2].g = g2; verts[2].b = b2; verts[2].a = ca;
     verts[3].x = x3; verts[3].y = y3; verts[3].u = u0; verts[3].v = v1; verts[3].r = r3; verts[3].g = g3; verts[3].b = b3; verts[3].a = ca;
@@ -1777,6 +1901,7 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         // This gets the vertex data for the new triangle batch
         GlVertex* verts = gl->vertexData + modernGl->batchCount * VERTICES_PER_TRIANGLE;
         uint8_t ca = floatToUnormByte(alpha);
+        for (int i = 0; i < 3; i++) verts[i].z = renderer->drawDepth;
 
         verts[0].x = x1; verts[0].y = y1; verts[0].u = 0.0f; verts[0].v = 0.0f; verts[0].r = (uint8_t) BGR_R(color1); verts[0].g = (uint8_t) BGR_G(color1); verts[0].b = (uint8_t) BGR_B(color1); verts[0].a = ca;
         verts[1].x = x2; verts[1].y = y2; verts[1].u = 0.0f; verts[1].v = 0.0f; verts[1].r = (uint8_t) BGR_R(color2); verts[1].g = (uint8_t) BGR_G(color2); verts[1].b = (uint8_t) BGR_B(color2); verts[1].a = ca;
@@ -2353,6 +2478,9 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
     uint32_t surfaceIndex = GLCommon_allocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    modernGl->surfaceDepth = (GLuint*)safeRealloc(modernGl->surfaceDepth, gl->surfaceCount * sizeof(GLuint));
+    modernGl->surfaceDepth[surfaceIndex] = 0;
 
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
 
@@ -2369,6 +2497,16 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
+    glGenRenderbuffers(1, &modernGl->surfaceDepth[surfaceIndex]);
+    glBindRenderbuffer(GL_RENDERBUFFER, modernGl->surfaceDepth[surfaceIndex]);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, modernGl->surfaceDepth[surfaceIndex]);
+    GLboolean scissorEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1.0f);
+    if (scissorEnabled) glEnable(GL_SCISSOR_TEST);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        logError("GL: Incomplete depth-capable surface %u\n", surfaceIndex);
 
     gl->surfaceWidth[surfaceIndex] = width;
     gl->surfaceHeight[surfaceIndex] = height;
@@ -2405,6 +2543,9 @@ static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
 
     // Freeing the application_surface is a no-op from GML; the runner manages its lifecycle via application_surface_enable.
     if (surfaceID == renderer->runner->applicationSurfaceId) return;
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    if (modernGl->surfaceDepth[surfaceID]) glDeleteRenderbuffers(1, &modernGl->surfaceDepth[surfaceID]);
+    modernGl->surfaceDepth[surfaceID] = 0;
 
     if (gl->surfaceTexture[surfaceID] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceID]);
     if (gl->surfaces[surfaceID] != 0) glDeleteFramebuffers(1, &gl->surfaces[surfaceID]);
@@ -2438,6 +2579,13 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceID], 0);
+    GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+    glBindRenderbuffer(GL_RENDERBUFFER, modernGl->surfaceDepth[surfaceID]);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    GLboolean scissorEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1.0f);
+    if (scissorEnabled) glEnable(GL_SCISSOR_TEST);
 
     gl->surfaceWidth[surfaceID] = width;
     gl->surfaceHeight[surfaceID] = height;
@@ -2520,12 +2668,6 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
     glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
     return true;
     }
-
-
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-
-    return true;
 }
 
 static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t destX, int32_t destY, int32_t srcSurfaceID, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
@@ -2946,14 +3088,16 @@ static void glGpuGetColorWriteEnable(Renderer* renderer, bool* red, bool* green,
     *alpha = gl->colorWriteA;
 }
 
-static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color) {
+static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color, float start, float end) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
-    if (modernGl->fogEnable == enable && modernGl->fogColor == color) return;
+    if (modernGl->fogEnable == enable && modernGl->fogColor == color && modernGl->fogStart == start && modernGl->fogEnd == end) return;
     flushBatch(gl);
     modernGl->fogEnable = enable;
     modernGl->fogColor = color;
+    modernGl->fogStart = start;
+    modernGl->fogEnd = end;
     glShaderSettingsRefresh(renderer);
 }
 
@@ -3199,6 +3343,7 @@ static bool glShadersSupported(void) {
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
     if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
+    flushBatch((GLRenderer*)renderer);
 
     renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
@@ -3312,6 +3457,8 @@ Renderer* GLRenderer_create(void) {
     glVtable.shaderIsCompiled = glShaderIsCompiled,
     glVtable.shadersSupported = glShadersSupported,
     glVtable.setMatrix = glSetMatrix,
+    glVtable.setDepthState = glSetDepthState;
+    glVtable.clearDepth = glClearDepthBuffer;
 
     base->drawColor = 0xFFFFFF; // white (BGR)
     base->drawAlpha = 1.0f;

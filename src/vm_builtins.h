@@ -276,6 +276,11 @@ typedef enum {
 } BuiltinVarId;
 
 void VMBuiltins_registerAll(VMContext* ctx);
+struct Renderer;
+// Renderer lifecycle/view hooks for the legacy 3D builtins.
+void VMBuiltins_resetD3D(struct Renderer* renderer);
+bool VMBuiltins_isD3DActive(const struct Renderer* renderer);
+void VMBuiltins_applyD3DDefaultView(struct Renderer* renderer, float x, float y, float width, float height, float angle);
 int16_t VMBuiltins_resolveBuiltinVarId(const char* name);
 // Asserts at startup that the internal builtin-var lookup table is strictly sorted by strcmp order (required for bsearch) and has no duplicates.
 void VMBuiltins_checkIfBuiltinVarTableIsSorted(void);

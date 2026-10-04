@@ -5738,6 +5738,33 @@ static RValue builtin_ds_grid_width(VMContext* ctx, MAYBE_UNUSED RValue* args, M
     return RValue_makeReal(grid->width);
 }
 
+static RValue builtin_ds_grid_sort(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_grid_sort", 3, RValue_makeUndefined());
+    DsGrid* grid = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
+    int32_t column = RValue_toInt32(args[1]);
+    if (!grid || column < 0 || column >= grid->width || grid->height < 2) return RValue_makeUndefined();
+    bool ascending = RValue_toBool(args[2]);
+    // Stable merge sort of whole rows; move RValues without changing ownership.
+    size_t width = (size_t)grid->width, height = (size_t)grid->height;
+    RValue* temporary = (RValue*)safeMalloc(width * height * sizeof(RValue));
+    for (size_t span = 1; span < height; span *= 2) {
+        for (size_t base = 0; base < height; base += span * 2) {
+            size_t middle = base + span < height ? base + span : height;
+            size_t limit = base + span * 2 < height ? base + span * 2 : height;
+            size_t left = base, right = middle;
+            for (size_t out = base; out < limit; out++) {
+                int cmp = left < middle && right < limit ? arraySortCompareAsc(&grid->items[left*width+column], &grid->items[right*width+column]) : 0;
+                bool takeLeft = right == limit || (left < middle && (ascending ? cmp <= 0 : cmp >= 0));
+                size_t row = takeLeft ? left++ : right++;
+                memcpy(&temporary[out*width], &grid->items[row*width], width*sizeof(RValue));
+            }
+        }
+        memcpy(grid->items, temporary, width*height*sizeof(RValue));
+    }
+    free(temporary);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_ds_grid_height(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     REQUIRE_ARGC_AT_MOST("ds_grid_height", 1, RValue_makeUndefined());
 
@@ -9990,7 +10017,14 @@ static RValue builtin_move_contact_solid(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeUndefined();
 }
 
-// action_move_contact(dir, maxdist, against): DnD wrapper around move_contact_solid / move_contact_all.
+// move_contact_all shares the existing 2D collision/movement implementation.
+static RValue builtin_move_contact_all(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("move_contact_all", 2, RValue_makeUndefined());
+    if (ctx->currentInstance) moveContactCommon(ctx->runner, ctx->currentInstance, RValue_toReal(args[0]), RValue_toReal(args[1]), true);
+    return RValue_makeUndefined();
+}
+
+// action_move_contact(dir, maxdist, against): DnD wrapper.
 // * args[2] == 0: solid only
 // * args[2] == 1: use all
 static RValue builtin_action_move_contact(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -11098,9 +11132,9 @@ static RValue builtin_draw_vertex(MAYBE_UNUSED VMContext* ctx, RValue* args, MAY
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = x;
+    float z = runner->renderer->drawDepth;
     uint32_t color = runner->renderer->drawColor;
-    float alpha = 1.0f;
+    float alpha = runner->renderer->drawAlpha;
     float u = 0.0f;
     float v = 0.0f;
 
@@ -11119,7 +11153,7 @@ static RValue builtin_draw_vertex_color(MAYBE_UNUSED VMContext* ctx, RValue* arg
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = 0.0f;
+    float z = runner->renderer->drawDepth;
     uint32_t color = (uint32_t) RValue_toInt32(args[2]);
     float alpha = (float) RValue_toReal(args[3]);
     float u = 0.0f;
@@ -11143,9 +11177,9 @@ static RValue builtin_draw_vertex_texture(MAYBE_UNUSED VMContext* ctx, RValue* a
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = 0.0f;
+    float z = runner->renderer->drawDepth;
     uint32_t color = runner->renderer->drawColor;
-    float alpha = 1.0f;
+    float alpha = runner->renderer->drawAlpha;
     float u = (float) RValue_toReal(args[2]);
     float v = (float) RValue_toReal(args[3]);
 
@@ -11164,7 +11198,7 @@ static RValue builtin_draw_vertex_texture_color(MAYBE_UNUSED VMContext* ctx, RVa
 
     float x = (float) RValue_toReal(args[0]);
     float y = (float) RValue_toReal(args[1]);
-    float z = 0.0f;
+    float z = runner->renderer->drawDepth;
     float u = (float) RValue_toReal(args[2]);
     float v = (float) RValue_toReal(args[3]);
     uint32_t color = (uint32_t) RValue_toInt32(args[4]);
@@ -11909,6 +11943,14 @@ static RValue builtin_background_get_width(VMContext* ctx, RValue* args, MAYBE_U
     int32_t tpagIndex = Renderer_resolveBackgroundTPAGIndex(ctx->dataWin, bgIndex);
     if (0 > tpagIndex) return RValue_makeReal(0.0);
     return RValue_makeReal((GMLReal) ctx->dataWin->tpag.items[tpagIndex].boundingWidth);
+}
+
+static RValue builtin_background_get_texture(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("background_get_texture", 1, RValue_makeReal(-1));
+    Renderer* r = ctx->runner->renderer;
+    int32_t tpag = Renderer_resolveBackgroundTPAGIndex(ctx->dataWin, RValue_toInt32(args[0]));
+    if (!r || tpag < 0 || !r->vtable->spriteGetTexture) return RValue_makeReal(-1);
+    return RValue_makeReal(r->vtable->spriteGetTexture(r, tpag));
 }
 
 static RValue builtin_background_get_height(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -15190,6 +15232,21 @@ static RValue builtin_tile_get_ids_at_depth(VMContext* ctx, RValue* args, MAYBE_
     }
     return RValue_makeArray(out);
 }
+
+// Legacy tile queries use source-pixel coordinates, not room positions.
+static RValue legacyTileGet(VMContext* ctx, RValue* args, int32_t argCount, int32_t field) {
+    if (argCount < 1 || !ctx->runner->currentRoom) return RValue_makeReal(0);
+    Room* room = ctx->runner->currentRoom;
+    uint32_t id = (uint32_t)RValue_toInt32(args[0]);
+    for (uint32_t i = 0; i < room->tileCount; i++) {
+        RoomTile* tile = &room->tiles[i];
+        if (tile->instanceID == id) return RValue_makeReal(field == 0 ? tile->sourceX : field == 1 ? tile->sourceY : tile->backgroundDefinition);
+    }
+    return RValue_makeReal(0);
+}
+static RValue builtin_tile_get_left(VMContext* ctx, RValue* args, int32_t argCount) { return legacyTileGet(ctx, args, argCount, 0); }
+static RValue builtin_tile_get_top(VMContext* ctx, RValue* args, int32_t argCount) { return legacyTileGet(ctx, args, argCount, 1); }
+static RValue builtin_tile_get_background(VMContext* ctx, RValue* args, int32_t argCount) { return legacyTileGet(ctx, args, argCount, 2); }
 
 // ===[ Layer Functions ]===
 
@@ -19238,19 +19295,24 @@ static RValue builtin_gpu_set_alphatestref(VMContext* ctx, RValue* args, int32_t
 static RValue builtin_gpu_set_fog(VMContext* ctx, RValue* args, int32_t argCount) {
     bool enable;
     int32_t color;
-    if (argCount == 1 && args[0].type == RVALUE_ARRAY && args[0].array != nullptr && GMLArray_length1D(args[0].array) >= 2) {
+    float start, end;
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer || !renderer->vtable->gpuSetFog) return RValue_makeUndefined();
+    if (argCount == 1 && args[0].type == RVALUE_ARRAY && args[0].array != nullptr && GMLArray_length1D(args[0].array) >= 4) {
         GMLArray* arr = args[0].array;
         enable = RValue_toBool(*GMLArray_slot(arr, 0));
         color = (int32_t) RValue_toColour(*GMLArray_slot(arr, 1));
-    } else if (argCount >= 2) {
+        start = (float) RValue_toReal(*GMLArray_slot(arr, 2));
+        end = (float) RValue_toReal(*GMLArray_slot(arr, 3));
+    } else if (argCount >= 4) {
         enable = RValue_toBool(args[0]);
         color = (int32_t) RValue_toColour(args[1]);
+        start = (float) RValue_toReal(args[2]);
+        end = (float) RValue_toReal(args[3]);
     } else {
         return RValue_makeUndefined();
     }
-    if (ctx->runner->renderer->vtable->gpuSetFog != nullptr) {
-        ctx->runner->renderer->vtable->gpuSetFog(ctx->runner->renderer, enable, (uint32_t) color);
-    }
+    renderer->vtable->gpuSetFog(renderer, enable, (uint32_t) color, start, end);
     return RValue_makeUndefined();
 }
 
@@ -22213,7 +22275,7 @@ static RValue builtin_vertex_submit_ext(VMContext* ctx, RValue* args, int32_t ar
         ctx->runner->renderer->vtable->drawVertexBuffer(
             ctx->runner->renderer,
             &tempBuffer,
-            primitive - 1,
+            primitive,
             texture,
             offset,
             number
@@ -22541,6 +22603,608 @@ static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeReal(0);
 }
 
+// ===[ Legacy Unlit 3D ]===
+
+// Models retain primitive boundaries: strips and fans cannot be concatenated.
+// Normal-bearing vertex APIs accept normals but deliberately render unlit.
+typedef struct {
+    float x, y, z, u, v, alpha;
+    uint32_t colour;
+} D3DVertex;
+
+typedef struct {
+    int32_t kind;
+    D3DVertex* vertices;
+} D3DPrimitive;
+
+typedef struct {
+    bool freed, recording;
+    D3DPrimitive* primitives;
+} D3DModel;
+
+typedef struct D3DState {
+    bool mode, hidden, write, cull, perspective;
+    D3DModel* models;
+} D3DState;
+
+typedef enum {
+    D3D_TRANSFORM_TRANSLATION,
+    D3D_TRANSFORM_SCALING,
+    D3D_TRANSFORM_ROTATION_X,
+    D3D_TRANSFORM_ROTATION_Y,
+    D3D_TRANSFORM_ROTATION_Z,
+    D3D_TRANSFORM_ROTATION_AXIS
+} D3DTransformKind;
+
+typedef enum {
+    D3D_SHAPE_WALL,
+    D3D_SHAPE_FLOOR,
+    D3D_SHAPE_BLOCK,
+    D3D_SHAPE_CYLINDER,
+    D3D_SHAPE_CONE,
+    D3D_SHAPE_ELLIPSOID
+} D3DShapeKind;
+
+typedef enum {
+    D3D_VERTEX_MODEL = 1 << 0,
+    D3D_VERTEX_NORMAL = 1 << 1,
+    D3D_VERTEX_TEXTURE = 1 << 2,
+    D3D_VERTEX_COLOUR = 1 << 3
+} D3DVertexFields;
+
+static inline D3DState* d3dState(Renderer* renderer) {
+    if (!renderer->d3d) {
+        renderer->d3d = (D3DState*)safeCalloc(1, sizeof(D3DState));
+        renderer->d3d->write = true;
+        renderer->d3d->perspective = true;
+    }
+    return renderer->d3d;
+}
+
+bool VMBuiltins_isD3DActive(const Renderer* renderer) {
+    return renderer && renderer->d3d && renderer->d3d->mode;
+}
+
+static void d3dFreeModel(D3DModel* model) {
+    for (int32_t i = 0; i < arrlen(model->primitives); i++) arrfree(model->primitives[i].vertices);
+    arrfree(model->primitives);
+    model->primitives = nullptr;
+    model->recording = false;
+}
+
+void VMBuiltins_resetD3D(Renderer* renderer) {
+    if (!renderer) return;
+    if (renderer->d3d) {
+        for (int32_t i = 0; i < arrlen(renderer->d3d->models); i++) d3dFreeModel(&renderer->d3d->models[i]);
+        arrfree(renderer->d3d->models);
+        free(renderer->d3d);
+        renderer->d3d = nullptr;
+    }
+    renderer->drawDepth = 0;
+    renderer->legacyTextureCoordinates = false;
+}
+
+static inline void d3dApplyState(Renderer* renderer) {
+    D3DState* state = d3dState(renderer);
+    if (renderer->vtable->setDepthState) renderer->vtable->setDepthState(renderer, state->hidden, state->write, state->cull);
+}
+
+static inline void d3dSetWorld(Renderer* renderer, Matrix4f matrix) {
+    if (renderer->vtable->setMatrix) renderer->vtable->setMatrix(renderer, MATRIX_WORLD, matrix);
+    else renderer->gmlMatrices[MATRIX_WORLD] = matrix;
+}
+
+static inline void d3dIdentity(Renderer* renderer) {
+    Matrix4f matrix;
+    d3dSetWorld(renderer, *Matrix4f_identity(&matrix));
+}
+
+static inline float d3dReal(RValue* args, int32_t index) {
+    return (float)RValue_toReal(args[index]);
+}
+
+static Matrix4f d3dPerspective(float fov, float aspect, float nearZ, float farZ) {
+    Matrix4f matrix;
+    Matrix4f_identity(&matrix);
+    if (fov == 0 || aspect == 0 || nearZ == farZ) return matrix;
+    memset(matrix.m, 0, sizeof(matrix.m));
+    float y = 1.0f / tanf(fov * (float)M_PI / 360.0f);
+    matrix.m[0] = y / aspect;
+    matrix.m[5] = y;
+    matrix.m[10] = farZ / (farZ - nearZ);
+    matrix.m[11] = 1;
+    matrix.m[14] = -nearZ * farZ / (farZ - nearZ);
+    return matrix;
+}
+
+static RValue builtin_d3d_start(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer || !renderer->vtable->setDepthState || !renderer->vtable->applyProjection) return RValue_makeBool(false);
+    D3DState* state = d3dState(renderer);
+    state->mode = true;
+    state->hidden = true;
+    state->write = true;
+    state->cull = false;
+    state->perspective = true;
+    d3dIdentity(renderer);
+    d3dApplyState(renderer);
+    if (renderer->vtable->clearDepth) renderer->vtable->clearDepth(renderer, 1);
+    GMLCamera* camera = Runner_getCameraById(ctx->runner, renderer->cameraCurrent);
+    VMBuiltins_applyD3DDefaultView(renderer,
+        camera ? camera->viewX : 0, camera ? camera->viewY : 0,
+        camera ? camera->viewWidth : renderer->CPortW,
+        camera ? camera->viewHeight : renderer->CPortH,
+        camera ? camera->viewAngle : 0);
+    return RValue_makeBool(true);
+}
+
+static RValue builtin_d3d_end(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer) return RValue_makeBool(false);
+    D3DState* state = d3dState(renderer);
+    state->mode = false;
+    state->hidden = false;
+    state->write = true;
+    state->cull = false;
+    renderer->drawDepth = 0;
+    d3dIdentity(renderer);
+    d3dApplyState(renderer);
+    GMLCamera* camera = Runner_getCameraById(ctx->runner, renderer->cameraCurrent);
+    if (camera && renderer->vtable->applyProjection) renderer->vtable->applyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+    return RValue_makeBool(true);
+}
+
+static RValue builtin_d3d_get_mode(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    return RValue_makeBool(VMBuiltins_isD3DActive(renderer));
+}
+
+static RValue builtin_d3d_set_hidden(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && argCount > 0) {
+        d3dState(renderer)->hidden = RValue_toBool(args[0]);
+        d3dApplyState(renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_zwriteenable(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && argCount > 0) {
+        d3dState(renderer)->write = RValue_toBool(args[0]);
+        d3dApplyState(renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_culling(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && argCount > 0) {
+        d3dState(renderer)->cull = RValue_toBool(args[0]);
+        d3dApplyState(renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_perspective(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && argCount > 0) {
+        d3dState(renderer)->perspective = RValue_toBool(args[0]);
+        d3dApplyState(renderer);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_depth(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && argCount) renderer->drawDepth = fmaxf(-16000, fminf(16000, d3dReal(args, 0)));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_draw_clear_depth(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (renderer && renderer->vtable->clearDepth) renderer->vtable->clearDepth(renderer, argCount ? d3dReal(args, 0) * 0.5f + 0.5f : 1);
+    return RValue_makeUndefined();
+}
+
+static RValue d3dProjection(VMContext* ctx, RValue* args, int32_t argCount, bool extended) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer || !renderer->vtable->applyProjection || argCount < (extended ? 13 : 9)) return RValue_makeUndefined();
+    Matrix4f view;
+    Matrix4f_identity(&view);
+    Matrix4f_LookAt(&view, d3dReal(args,0), d3dReal(args,1), d3dReal(args,2), d3dReal(args,3), d3dReal(args,4), d3dReal(args,5), d3dReal(args,6), d3dReal(args,7), d3dReal(args,8));
+    float aspect = renderer->CPortH > 0 ? (float)renderer->CPortW / renderer->CPortH : 4.0f / 3.0f;
+    Matrix4f projection = d3dPerspective(extended ? d3dReal(args,9) : 45, extended ? d3dReal(args,10) : aspect, extended ? d3dReal(args,11) : 1, extended ? d3dReal(args,12) : 32000);
+    renderer->vtable->applyProjection(renderer, &view, &projection);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_projection(VMContext* ctx, RValue* args, int32_t argCount) {
+    return d3dProjection(ctx, args, argCount, false);
+}
+
+static RValue builtin_d3d_set_projection_ext(VMContext* ctx, RValue* args, int32_t argCount) {
+    return d3dProjection(ctx, args, argCount, true);
+}
+
+static void d3dApplyRectangleProjection(Renderer* renderer, float x, float y, float width, float height, float angle, bool perspective) {
+    if (!renderer->vtable->applyProjection || width == 0 || height == 0) return;
+    angle *= -(float)M_PI / 180;
+    Matrix4f view, projection;
+    Matrix4f_identity(&view);
+    Matrix4f_LookAt(&view, x+width/2, y+height/2, -width, x+width/2, y+height/2, 0, sinf(angle), cosf(angle), 0);
+    if (perspective) {
+        projection = d3dPerspective(2 * atanf(height / (2*width)) * 180 / (float)M_PI, width/height, 1, 32000);
+        Matrix4f_flipClipY(&projection);
+    } else {
+        // A GUI pass uses the host/GUI top-down projection. Replacing it with
+        // the world-view rectangle orientation flips surface-based overlays.
+        bool guiTarget = renderer->runner && renderer->runner->inGuiPass && renderer->cameraCurrent == GUI_CAMERA;
+        Matrix4f_Orthographic(&projection, width, guiTarget ? height : -height, 32000, 1);
+    }
+    renderer->vtable->applyProjection(renderer, &view, &projection);
+}
+
+void VMBuiltins_applyD3DDefaultView(Renderer* renderer, float x, float y, float width, float height, float angle) {
+    if (VMBuiltins_isD3DActive(renderer)) {
+        // GUI passes temporarily override GPU depth state. Room creation can
+        // enable D3D inside such a pass; its cleanup must not leave the next
+        // world view drawing with the GUI's disabled depth test/write state.
+        d3dApplyState(renderer);
+        d3dApplyRectangleProjection(renderer, x, y, width, height, angle, renderer->d3d->perspective);
+    }
+}
+
+static RValue d3dRectangleProjection(VMContext* ctx, RValue* args, int32_t argCount, bool perspective) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer || argCount < 5) return RValue_makeUndefined();
+    d3dApplyRectangleProjection(renderer, d3dReal(args,0), d3dReal(args,1), d3dReal(args,2), d3dReal(args,3), d3dReal(args,4), perspective);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_set_projection_ortho(VMContext* ctx, RValue* args, int32_t argCount) {
+    return d3dRectangleProjection(ctx, args, argCount, false);
+}
+
+static RValue builtin_d3d_set_projection_perspective(VMContext* ctx, RValue* args, int32_t argCount) {
+    return d3dRectangleProjection(ctx, args, argCount, true);
+}
+
+static RValue builtin_d3d_transform_set_identity(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->runner->renderer) d3dIdentity(ctx->runner->renderer);
+    return RValue_makeUndefined();
+}
+
+static RValue d3dTransform(VMContext* ctx, RValue* args, int32_t argCount, D3DTransformKind kind, bool add) {
+    Renderer* renderer = ctx->runner->renderer;
+    int32_t required = kind <= D3D_TRANSFORM_SCALING ? 3 : (kind == D3D_TRANSFORM_ROTATION_AXIS ? 4 : 1);
+    if (!renderer || argCount < required) return RValue_makeUndefined();
+    Matrix4f matrix;
+    Matrix4f_identity(&matrix);
+    if (kind == D3D_TRANSFORM_TRANSLATION) Matrix4f_translate(&matrix, d3dReal(args,0), d3dReal(args,1), d3dReal(args,2));
+    else if (kind == D3D_TRANSFORM_SCALING) Matrix4f_scale(&matrix, d3dReal(args,0), d3dReal(args,1), d3dReal(args,2));
+    else {
+        float x = kind == D3D_TRANSFORM_ROTATION_X ? 1 : 0;
+        float y = kind == D3D_TRANSFORM_ROTATION_Y ? 1 : 0;
+        float z = kind == D3D_TRANSFORM_ROTATION_Z ? 1 : 0;
+        float angle = d3dReal(args,0);
+        if (kind == D3D_TRANSFORM_ROTATION_AXIS) {
+            x = d3dReal(args,0);
+            y = d3dReal(args,1);
+            z = d3dReal(args,2);
+            angle = d3dReal(args,3);
+        }
+        float length = sqrtf(x*x+y*y+z*z);
+        if (length > 0) {
+            x /= length;
+            y /= length;
+            z /= length;
+            float radians = -angle * (float)M_PI / 180;
+            float c = cosf(radians), s = sinf(radians), q = 1-c;
+            matrix.m[0] = c+x*x*q; matrix.m[4] = x*y*q-z*s; matrix.m[8] = x*z*q+y*s;
+            matrix.m[1] = y*x*q+z*s; matrix.m[5] = c+y*y*q; matrix.m[9] = y*z*q-x*s;
+            matrix.m[2] = z*x*q-y*s; matrix.m[6] = z*y*q+x*s; matrix.m[10] = c+z*z*q;
+        }
+    }
+    // Add operations act after the existing transform: rotate, then translate.
+    if (add) Matrix4f_multiply(&matrix, &matrix, &renderer->gmlMatrices[MATRIX_WORLD]);
+    d3dSetWorld(renderer, matrix);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_transform_set_translation(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_TRANSLATION, false); }
+static RValue builtin_d3d_transform_add_translation(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_TRANSLATION, true); }
+static RValue builtin_d3d_transform_set_scaling(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_SCALING, false); }
+static RValue builtin_d3d_transform_add_scaling(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_SCALING, true); }
+static RValue builtin_d3d_transform_set_rotation_x(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_X, false); }
+static RValue builtin_d3d_transform_add_rotation_x(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_X, true); }
+static RValue builtin_d3d_transform_set_rotation_y(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_Y, false); }
+static RValue builtin_d3d_transform_add_rotation_y(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_Y, true); }
+static RValue builtin_d3d_transform_set_rotation_z(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_Z, false); }
+static RValue builtin_d3d_transform_add_rotation_z(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_Z, true); }
+static RValue builtin_d3d_transform_set_rotation_axis(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_AXIS, false); }
+static RValue builtin_d3d_transform_add_rotation_axis(VMContext* ctx, RValue* args, int32_t argCount) { return d3dTransform(ctx, args, argCount, D3D_TRANSFORM_ROTATION_AXIS, true); }
+
+static inline D3DModel* d3dModelGet(Renderer* renderer, int32_t id) {
+    D3DState* state = renderer->d3d;
+    if (!state || id < 0 || id >= arrlen(state->models) || state->models[id].freed) return nullptr;
+    return &state->models[id];
+}
+
+static RValue builtin_d3d_model_create(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    if (!renderer) return RValue_makeReal(-1);
+    D3DState* state = d3dState(renderer);
+    for (int32_t i = 0; i < arrlen(state->models); i++) {
+        if (state->models[i].freed) {
+            state->models[i].freed = false;
+            return RValue_makeReal(i);
+        }
+    }
+    D3DModel model = {0};
+    arrput(state->models, model);
+    return RValue_makeReal(arrlen(state->models)-1);
+}
+
+static RValue d3dModelClear(VMContext* ctx, RValue* args, int32_t argCount, bool destroy) {
+    Renderer* renderer = ctx->runner->renderer;
+    D3DModel* model = renderer && argCount ? d3dModelGet(renderer, RValue_toInt32(args[0])) : nullptr;
+    if (model) {
+        d3dFreeModel(model);
+        model->freed = destroy;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_model_clear(VMContext* ctx, RValue* args, int32_t argCount) { return d3dModelClear(ctx, args, argCount, false); }
+static RValue builtin_d3d_model_destroy(VMContext* ctx, RValue* args, int32_t argCount) { return d3dModelClear(ctx, args, argCount, true); }
+
+static RValue builtin_d3d_model_primitive_begin(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    D3DModel* model = renderer && argCount >= 2 ? d3dModelGet(renderer, RValue_toInt32(args[0])) : nullptr;
+    if (model) {
+        D3DPrimitive primitive = {0};
+        primitive.kind = RValue_toInt32(args[1]);
+        arrput(model->primitives, primitive);
+        model->recording = true;
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_model_primitive_end(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    D3DModel* model = renderer && argCount ? d3dModelGet(renderer, RValue_toInt32(args[0])) : nullptr;
+    if (model) model->recording = false;
+    return RValue_makeUndefined();
+}
+
+static RValue d3dVertex(VMContext* ctx, RValue* args, int32_t argCount, unsigned fields) {
+    Renderer* renderer = ctx->runner->renderer;
+    bool model = (fields & D3D_VERTEX_MODEL) != 0;
+    bool normal = (fields & D3D_VERTEX_NORMAL) != 0;
+    bool uv = (fields & D3D_VERTEX_TEXTURE) != 0;
+    bool colour = (fields & D3D_VERTEX_COLOUR) != 0;
+    int32_t offset = model ? 1 : 0;
+    int32_t required = offset+3+(normal?3:0)+(uv?2:0)+(colour?2:0);
+    if (!renderer || argCount < required) return RValue_makeUndefined();
+    D3DVertex vertex;
+    vertex.x = d3dReal(args,offset);
+    vertex.y = d3dReal(args,offset+1);
+    vertex.z = d3dReal(args,offset+2);
+    // Normal arguments remain part of the legacy contract; this renderer is unlit.
+    offset += 3+(normal?3:0);
+    vertex.u = uv ? d3dReal(args,offset) : 0;
+    vertex.v = uv ? d3dReal(args,offset+1) : 0;
+    offset += uv?2:0;
+    vertex.colour = colour ? RValue_toColour(args[offset]) : renderer->drawColor;
+    vertex.alpha = colour ? d3dReal(args,offset+1) : renderer->drawAlpha;
+    if (model) {
+        D3DModel* target = d3dModelGet(renderer, RValue_toInt32(args[0]));
+        if (target && target->recording && arrlen(target->primitives)) {
+            arrput(target->primitives[arrlen(target->primitives)-1].vertices, vertex);
+        }
+    } else {
+        Renderer_drawVertex(renderer, vertex.x, vertex.y, vertex.z, vertex.colour, vertex.alpha, vertex.u, vertex.v);
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_vertex(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, 0); }
+static RValue builtin_d3d_vertex_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_vertex_texture(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_TEXTURE); }
+static RValue builtin_d3d_vertex_texture_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_TEXTURE | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_vertex_normal(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_NORMAL); }
+static RValue builtin_d3d_vertex_normal_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_NORMAL | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_vertex_normal_texture(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_NORMAL | D3D_VERTEX_TEXTURE); }
+static RValue builtin_d3d_vertex_normal_texture_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_NORMAL | D3D_VERTEX_TEXTURE | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_model_vertex(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL); }
+static RValue builtin_d3d_model_vertex_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_model_vertex_texture(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_TEXTURE); }
+static RValue builtin_d3d_model_vertex_texture_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_TEXTURE | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_model_vertex_normal(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_NORMAL); }
+static RValue builtin_d3d_model_vertex_normal_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_NORMAL | D3D_VERTEX_COLOUR); }
+static RValue builtin_d3d_model_vertex_normal_texture(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_NORMAL | D3D_VERTEX_TEXTURE); }
+static RValue builtin_d3d_model_vertex_normal_texture_color(VMContext* ctx, RValue* args, int32_t argCount) { return d3dVertex(ctx, args, argCount, D3D_VERTEX_MODEL | D3D_VERTEX_NORMAL | D3D_VERTEX_TEXTURE | D3D_VERTEX_COLOUR); }
+
+static inline void d3dBegin(Renderer* renderer, int32_t kind, int32_t texture) {
+    renderer->legacyTextureCoordinates = true;
+    Renderer_primitiveBeginTexture(renderer, kind, texture);
+}
+
+static inline void d3dEnd(Renderer* renderer) {
+    Renderer_primitiveEnd(renderer);
+    renderer->legacyTextureCoordinates = false;
+}
+
+static RValue builtin_d3d_primitive_begin(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (ctx->runner->renderer && argCount) d3dBegin(ctx->runner->renderer, RValue_toInt32(args[0]), -1);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_primitive_begin_texture(VMContext* ctx, RValue* args, int32_t argCount) {
+    if (ctx->runner->renderer && argCount >= 2) d3dBegin(ctx->runner->renderer, RValue_toInt32(args[0]), RValue_toInt32(args[1]));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_primitive_end(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->runner->renderer) d3dEnd(ctx->runner->renderer);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_model_draw(VMContext* ctx, RValue* args, int32_t argCount) {
+    Renderer* renderer = ctx->runner->renderer;
+    D3DModel* model = renderer && argCount >= 5 ? d3dModelGet(renderer, RValue_toInt32(args[0])) : nullptr;
+    if (!model) return RValue_makeUndefined();
+    // Model offsets are local to the current world transform. Adding the offset
+    // to each position is equivalent to world * translation, without changing
+    // GPU matrices (and forcing a flush) for every tile-sized model.
+    float x = d3dReal(args,1), y = d3dReal(args,2), z = d3dReal(args,3);
+    // Custom shaders can inspect the world matrix or model-local position;
+    // retain the original matrix-based submission for that existing path.
+    bool customShader = renderer->currentShader != -1;
+    Matrix4f saved = renderer->gmlMatrices[MATRIX_WORLD];
+    if (customShader) {
+        Matrix4f translated = saved;
+        Matrix4f_translate(&translated, x, y, z);
+        d3dSetWorld(renderer, translated);
+        x = y = z = 0;
+    }
+    for (int32_t i = 0; i < arrlen(model->primitives); i++) {
+        D3DPrimitive* primitive = &model->primitives[i];
+        if (!arrlen(primitive->vertices)) continue;
+        d3dBegin(renderer, primitive->kind, RValue_toInt32(args[4]));
+        for (int32_t j = 0; j < arrlen(primitive->vertices); j++) {
+            D3DVertex* vertex = &primitive->vertices[j];
+            Renderer_drawVertex(renderer, vertex->x+x, vertex->y+y, vertex->z+z, vertex->colour, vertex->alpha, vertex->u, vertex->v);
+        }
+        d3dEnd(renderer);
+    }
+    if (customShader) d3dSetWorld(renderer, saved);
+    return RValue_makeUndefined();
+}
+
+static inline void d3dEmit(Renderer* renderer, float x, float y, float z, float u, float v) {
+    Renderer_drawVertex(renderer, x, y, z, renderer->drawColor, renderer->drawAlpha, u, v);
+}
+
+static void d3dQuad(Renderer* renderer, const float* points, float hrepeat, float vrepeat, bool reverse) {
+    const int order[2][6] = {{0, 1, 2, 0, 2, 3}, {0, 2, 1, 0, 3, 2}};
+    const float uv[8] = {0, 0, hrepeat, 0, hrepeat, vrepeat, 0, vrepeat};
+    for (int i = 0; i < 6; i++) {
+        int j = order[reverse][i];
+        d3dEmit(renderer, points[j*3], points[j*3+1], points[j*3+2], uv[j*2], uv[j*2+1]);
+    }
+}
+
+// Packed XYZ/UV points keep position and texture winding changes together.
+static void d3dTriangle(Renderer* renderer, const float* a, const float* b, const float* c, bool reverse) {
+    const float* points[3] = {a, reverse ? c : b, reverse ? b : c};
+    for (int i = 0; i < 3; i++) {
+        const float* p = points[i];
+        d3dEmit(renderer, p[0], p[1], p[2], p[3], p[4]);
+    }
+}
+
+static RValue d3dShape(VMContext* ctx, RValue* args, int32_t argCount, D3DShapeKind kind) {
+    Renderer* renderer = ctx->runner->renderer;
+    int required = kind == D3D_SHAPE_ELLIPSOID ? 10 : (kind == D3D_SHAPE_CYLINDER || kind == D3D_SHAPE_CONE ? 11 : 9);
+    if (!renderer || argCount < required) return RValue_makeUndefined();
+    float x1 = d3dReal(args,0), y1 = d3dReal(args,1), z1 = d3dReal(args,2);
+    float x2 = d3dReal(args,3), y2 = d3dReal(args,4), z2 = d3dReal(args,5);
+    float hr = d3dReal(args,7), vr = d3dReal(args,8);
+    // Reversed box axes reflect volume meshes. Correct their winding while
+    // preserving the caller's UV origin and repeat direction.
+    bool reverse = (x2-x1) * (y2-y1) * (z2-z1) < 0;
+    d3dBegin(renderer, PRIMITIVE_TRIANGLES, RValue_toInt32(args[6]));
+    if (kind == D3D_SHAPE_WALL) {
+        float points[12] = {x1,y1,z1,x2,y2,z1,x2,y2,z2,x1,y1,z2};
+        d3dQuad(renderer, points, hr, vr, false);
+    } else if (kind == D3D_SHAPE_FLOOR) { // UV origin at (x1,y1)
+        d3dEmit(renderer,x1,y1,z1,0,0); d3dEmit(renderer,x2,y1,z1,hr,0); d3dEmit(renderer,x2,y2,z2,hr,vr);
+        d3dEmit(renderer,x1,y1,z1,0,0); d3dEmit(renderer,x2,y2,z2,hr,vr); d3dEmit(renderer,x1,y2,z2,0,vr);
+    } else if (kind == D3D_SHAPE_BLOCK) {
+        float sides[4][12] = {
+            {x1,y1,z1,x2,y1,z1,x2,y1,z2,x1,y1,z2},
+            {x2,y1,z1,x2,y2,z1,x2,y2,z2,x2,y1,z2},
+            {x2,y2,z1,x1,y2,z1,x1,y2,z2,x2,y2,z2},
+            {x1,y2,z1,x1,y1,z1,x1,y1,z2,x1,y2,z2}
+        };
+        for (int i = 0; i < 4; i++) d3dQuad(renderer, sides[i], hr, vr, reverse);
+        if (argCount < 10 || RValue_toBool(args[9])) {
+            float top[12] = {x1,y1,z2,x2,y1,z2,x2,y2,z2,x1,y2,z2};
+            float bottom[12] = {x1,y2,z1,x2,y2,z1,x2,y1,z1,x1,y1,z1};
+            d3dQuad(renderer, top, hr, vr, reverse);
+            d3dQuad(renderer, bottom, hr, vr, reverse);
+        }
+    } else {
+        int steps = RValue_toInt32(args[kind == D3D_SHAPE_ELLIPSOID ? 9 : 10]);
+        if (steps < 3) steps = 3;
+        if (steps > 128) steps = 128;
+        float cx = (x1+x2)/2, cy = (y1+y2)/2;
+        float rx = (x2-x1)/2, ry = (y2-y1)/2;
+        if (kind == D3D_SHAPE_ELLIPSOID) {
+            int rings = steps/2;
+            if (rings < 2) rings = 2;
+            float cz = (z1+z2)/2, rz = (z2-z1)/2;
+            const int corners[2][6] = {{0,2,1,0,3,2}, {0,1,2,0,2,3}};
+            for (int j = 0; j < rings; j++) {
+                for (int i = 0; i < steps; i++) {
+                    for (int k = 0; k < 6; k++) {
+                        int c = corners[reverse][k];
+                        float u = (float)(i+(c==1||c==2))/steps;
+                        float v = (float)(j+(c>=2))/rings;
+                        float longitude = u*2*(float)M_PI, latitude = v*(float)M_PI;
+                        d3dEmit(renderer,
+                            cx+rx*sinf(latitude)*cosf(longitude),
+                            cy+ry*sinf(latitude)*sinf(longitude),
+                            cz+rz*cosf(latitude), u*hr, v*vr);
+                    }
+                }
+            }
+        } else { // cylinder or cone, axis along Z
+            for (int i = 0; i < steps; i++) {
+                float u = (float)i/steps, v = (float)(i+1)/steps;
+                float t = u*2*(float)M_PI, t2 = v*2*(float)M_PI;
+                float ax = cx+rx*cosf(t), ay = cy+ry*sinf(t);
+                float bx = cx+rx*cosf(t2), by = cy+ry*sinf(t2);
+                float a[5] = {ax,ay,z1,u*hr,0}, b[5] = {bx,by,z1,v*hr,0};
+                if (kind == D3D_SHAPE_CONE) {
+                    float tip[5] = {cx,cy,z2,(u+v)*hr/2,vr};
+                    d3dTriangle(renderer, a, b, tip, reverse);
+                } else {
+                    float c[5] = {bx,by,z2,v*hr,vr}, d[5] = {ax,ay,z2,u*hr,vr};
+                    d3dTriangle(renderer, a, b, c, reverse);
+                    d3dTriangle(renderer, a, c, d, reverse);
+                }
+                if (RValue_toBool(args[9])) {
+                    float centre[5] = {cx,cy,z1,hr/2,vr/2};
+                    float capA[5] = {ax,ay,z1,(cosf(t)+1)*hr/2,(sinf(t)+1)*vr/2};
+                    float capB[5] = {bx,by,z1,(cosf(t2)+1)*hr/2,(sinf(t2)+1)*vr/2};
+                    d3dTriangle(renderer, centre, capB, capA, reverse);
+                    if (kind == D3D_SHAPE_CYLINDER) {
+                        centre[2] = capA[2] = capB[2] = z2;
+                        d3dTriangle(renderer, centre, capA, capB, reverse);
+                    }
+                }
+            }
+        }
+    }
+    d3dEnd(renderer);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_d3d_draw_wall(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_WALL); }
+static RValue builtin_d3d_draw_floor(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_FLOOR); }
+static RValue builtin_d3d_draw_block(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_BLOCK); }
+static RValue builtin_d3d_draw_cylinder(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_CYLINDER); }
+static RValue builtin_d3d_draw_cone(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_CONE); }
+static RValue builtin_d3d_draw_ellipsoid(VMContext* ctx, RValue* args, int32_t argCount) { return d3dShape(ctx, args, argCount, D3D_SHAPE_ELLIPSOID); }
+
+static RValue builtin_draw_texture_flush(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    if (ctx->runner->renderer) ctx->runner->renderer->vtable->flush(ctx->runner->renderer);
+    return RValue_makeUndefined();
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
@@ -22551,6 +23215,73 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Core output
     VM_registerBuiltin(ctx, "show_debug_message", builtin_show_debug_message);
+    // Legacy unlit 3D
+    VM_registerBuiltin(ctx, "d3d_start", builtin_d3d_start);
+    VM_registerBuiltin(ctx, "d3d_end", builtin_d3d_end);
+    VM_registerBuiltin(ctx, "d3d_get_mode", builtin_d3d_get_mode);
+    VM_registerBuiltin(ctx, "d3d_set_hidden", builtin_d3d_set_hidden);
+    VM_registerBuiltin(ctx, "d3d_set_zwriteenable", builtin_d3d_set_zwriteenable);
+    VM_registerBuiltin(ctx, "d3d_set_culling", builtin_d3d_set_culling);
+    VM_registerBuiltin(ctx, "d3d_set_perspective", builtin_d3d_set_perspective);
+    VM_registerBuiltin(ctx, "d3d_set_depth", builtin_d3d_set_depth);
+    VM_registerBuiltin(ctx, "d3d_set_projection", builtin_d3d_set_projection);
+    VM_registerBuiltin(ctx, "d3d_set_projection_ext", builtin_d3d_set_projection_ext);
+    VM_registerBuiltin(ctx, "d3d_set_projection_ortho", builtin_d3d_set_projection_ortho);
+    VM_registerBuiltin(ctx, "d3d_set_projection_perspective", builtin_d3d_set_projection_perspective);
+    VM_registerBuiltin(ctx, "d3d_transform_set_identity", builtin_d3d_transform_set_identity);
+    VM_registerBuiltin(ctx, "d3d_transform_set_translation", builtin_d3d_transform_set_translation);
+    VM_registerBuiltin(ctx, "d3d_transform_add_translation", builtin_d3d_transform_add_translation);
+    VM_registerBuiltin(ctx, "d3d_transform_set_scaling", builtin_d3d_transform_set_scaling);
+    VM_registerBuiltin(ctx, "d3d_transform_add_scaling", builtin_d3d_transform_add_scaling);
+    VM_registerBuiltin(ctx, "d3d_transform_set_rotation_x", builtin_d3d_transform_set_rotation_x);
+    VM_registerBuiltin(ctx, "d3d_transform_add_rotation_x", builtin_d3d_transform_add_rotation_x);
+    VM_registerBuiltin(ctx, "d3d_transform_set_rotation_y", builtin_d3d_transform_set_rotation_y);
+    VM_registerBuiltin(ctx, "d3d_transform_add_rotation_y", builtin_d3d_transform_add_rotation_y);
+    VM_registerBuiltin(ctx, "d3d_transform_set_rotation_z", builtin_d3d_transform_set_rotation_z);
+    VM_registerBuiltin(ctx, "d3d_transform_add_rotation_z", builtin_d3d_transform_add_rotation_z);
+    VM_registerBuiltin(ctx, "d3d_transform_set_rotation_axis", builtin_d3d_transform_set_rotation_axis);
+    VM_registerBuiltin(ctx, "d3d_transform_add_rotation_axis", builtin_d3d_transform_add_rotation_axis);
+    VM_registerBuiltin(ctx, "d3d_vertex", builtin_d3d_vertex);
+    VM_registerBuiltin(ctx, "d3d_vertex_color", builtin_d3d_vertex_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_colour", builtin_d3d_vertex_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_texture", builtin_d3d_vertex_texture);
+    VM_registerBuiltin(ctx, "d3d_vertex_texture_color", builtin_d3d_vertex_texture_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_texture_colour", builtin_d3d_vertex_texture_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal", builtin_d3d_vertex_normal);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal_color", builtin_d3d_vertex_normal_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal_colour", builtin_d3d_vertex_normal_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal_texture", builtin_d3d_vertex_normal_texture);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal_texture_color", builtin_d3d_vertex_normal_texture_color);
+    VM_registerBuiltin(ctx, "d3d_vertex_normal_texture_colour", builtin_d3d_vertex_normal_texture_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex", builtin_d3d_model_vertex);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_color", builtin_d3d_model_vertex_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_colour", builtin_d3d_model_vertex_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_texture", builtin_d3d_model_vertex_texture);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_texture_color", builtin_d3d_model_vertex_texture_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_texture_colour", builtin_d3d_model_vertex_texture_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal", builtin_d3d_model_vertex_normal);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal_color", builtin_d3d_model_vertex_normal_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal_colour", builtin_d3d_model_vertex_normal_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal_texture", builtin_d3d_model_vertex_normal_texture);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal_texture_color", builtin_d3d_model_vertex_normal_texture_color);
+    VM_registerBuiltin(ctx, "d3d_model_vertex_normal_texture_colour", builtin_d3d_model_vertex_normal_texture_color);
+    VM_registerBuiltin(ctx, "d3d_primitive_begin", builtin_d3d_primitive_begin);
+    VM_registerBuiltin(ctx, "d3d_primitive_begin_texture", builtin_d3d_primitive_begin_texture);
+    VM_registerBuiltin(ctx, "d3d_primitive_end", builtin_d3d_primitive_end);
+    VM_registerBuiltin(ctx, "d3d_model_create", builtin_d3d_model_create);
+    VM_registerBuiltin(ctx, "d3d_model_clear", builtin_d3d_model_clear);
+    VM_registerBuiltin(ctx, "d3d_model_destroy", builtin_d3d_model_destroy);
+    VM_registerBuiltin(ctx, "d3d_model_primitive_begin", builtin_d3d_model_primitive_begin);
+    VM_registerBuiltin(ctx, "d3d_model_primitive_end", builtin_d3d_model_primitive_end);
+    VM_registerBuiltin(ctx, "d3d_model_draw", builtin_d3d_model_draw);
+    VM_registerBuiltin(ctx, "d3d_draw_wall", builtin_d3d_draw_wall);
+    VM_registerBuiltin(ctx, "d3d_draw_floor", builtin_d3d_draw_floor);
+    VM_registerBuiltin(ctx, "d3d_draw_block", builtin_d3d_draw_block);
+    VM_registerBuiltin(ctx, "d3d_draw_cylinder", builtin_d3d_draw_cylinder);
+    VM_registerBuiltin(ctx, "d3d_draw_cone", builtin_d3d_draw_cone);
+    VM_registerBuiltin(ctx, "d3d_draw_ellipsoid", builtin_d3d_draw_ellipsoid);
+    VM_registerBuiltin(ctx, "draw_clear_depth", builtin_draw_clear_depth);
+    VM_registerBuiltin(ctx, "draw_texture_flush", builtin_draw_texture_flush);
 
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtin_string_length);
@@ -22662,6 +23393,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "move_snap", builtin_move_snap);
     VM_registerBuiltin(ctx, "move_wrap", builtin_move_wrap);
     VM_registerBuiltin(ctx, "move_contact_solid", builtin_move_contact_solid);
+    VM_registerBuiltin(ctx, "move_contact_all", builtin_move_contact_all);
     VM_registerBuiltin(ctx, "move_outside_solid", builtin_move_outside_solid);
     VM_registerBuiltin(ctx, "move_outside_all", builtin_move_outside_all);
     VM_registerBuiltin(ctx, "move_bounce_solid", builtin_move_bounce_solid);
@@ -22841,6 +23573,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // ds_grid
     VM_registerBuiltin(ctx, "ds_grid_create", builtin_ds_grid_create);
+    VM_registerBuiltin(ctx, "ds_grid_sort", builtin_ds_grid_sort);
     VM_registerBuiltin(ctx, "ds_grid_destroy", builtin_ds_grid_destroy);
     VM_registerBuiltin(ctx, "ds_grid_width", builtin_ds_grid_width);
     VM_registerBuiltin(ctx, "ds_grid_height", builtin_ds_grid_height);
@@ -23251,6 +23984,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "draw_background_tiled", builtin_draw_background_tiled);
         VM_registerBuiltin(ctx, "draw_background_tiled_ext", builtin_draw_background_tiled_ext);
         VM_registerBuiltin(ctx, "background_get_width", builtin_background_get_width);
+        VM_registerBuiltin(ctx, "background_get_texture", builtin_background_get_texture);
         VM_registerBuiltin(ctx, "background_get_height", builtin_background_get_height);
         VM_registerBuiltin(ctx, "background_delete", builtin_sprite_delete);
         VM_registerBuiltin(ctx, "background_exists", builtin_sprite_exists);
@@ -23419,6 +24153,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
         VM_registerBuiltin(ctx, "tile_layer_delete_at", builtin_tile_layer_delete_at);
         VM_registerBuiltin(ctx, "tile_delete", builtin_tile_delete);
         VM_registerBuiltin(ctx, "tile_get_ids_at_depth", builtin_tile_get_ids_at_depth);
+        VM_registerBuiltin(ctx, "tile_get_left", builtin_tile_get_left);
+        VM_registerBuiltin(ctx, "tile_get_top", builtin_tile_get_top);
+        VM_registerBuiltin(ctx, "tile_get_background", builtin_tile_get_background);
         VM_registerBuiltin(ctx, "tile_set_alpha", builtin_tile_set_alpha);
         VM_registerBuiltin(ctx, "tile_set_visible", builtin_layer_tile_visible);
     }
