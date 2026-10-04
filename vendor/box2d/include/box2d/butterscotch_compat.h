@@ -9,19 +9,7 @@
 #ifndef UINT64_MAX
 #define UINT64_MAX ((uint64_t)-1)
 #endif
-#ifdef NO_SNPRINTF
-#include <stddef.h>
-#ifdef __cplusplus
-extern "C" {
-#endif
-int b2CompatSnprintf(char* buffer, size_t size, const char* format, ...);
-#ifdef __cplusplus
-}
-#endif
-#ifndef snprintf
-#define snprintf b2CompatSnprintf
-#endif
-#endif
+#include "stdio_compat.h"
 #ifdef NO_SQRTF
 static inline float b2CompatSqrtf(float x) { return (float)sqrt((double)x); }
 #define sqrtf b2CompatSqrtf
