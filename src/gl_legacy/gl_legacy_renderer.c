@@ -4,6 +4,15 @@
 #include "runner.h"
 #include "file_system.h"
 #include "gl_wrappers.h"
+#include "vm_builtins.h"
+
+// The new D3D path targets desktop compatibility GL. Keep the shared console
+// renderer's existing API requirements until its depth/fog paths are ported.
+#if !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA)
+#define LEGACY_DESKTOP_D3D 1
+#else
+#define LEGACY_DESKTOP_D3D 0
+#endif
 
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
@@ -96,23 +105,96 @@ static bool hasFBO() {
 }
 
 // camera_apply: swap the active world->clip projection on the current target without touching its viewport.
-static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix) {
-    Renderer_applyProjection(renderer, viewMatrix, projectionMatrix);
-
+static void glLoadMatrices(Renderer* renderer) {
     Matrix4f projection = renderer->gmlMatrices[MATRIX_PROJECTION];
     Matrix4f worldView = renderer->gmlMatrices[MATRIX_WORLD_VIEW];
 
 #ifndef PLATFORM_PS3
     Matrix4f_flipClipY(&projection);
 #endif
+#if LEGACY_DESKTOP_D3D
+    // GML matrices expose Direct3D clip depth; fixed-function GL needs [-w,w].
+    for (int column = 0; column < 4; column++) {
+        projection.m[column*4+2] = 2 * projection.m[column*4+2] - projection.m[column*4+3];
+    }
+#endif
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(projection.m);
     glMatrixMode(GL_MODELVIEW);
     glLoadMatrixf(worldView.m);
+#if LEGACY_DESKTOP_D3D
+    const float* p = renderer->gmlMatrices[MATRIX_PROJECTION].m;
+    float orientation = p[0]*p[5] - p[1]*p[4];
+    glFrontFace(orientation >= 0 ? GL_CCW : GL_CW);
+#endif
 }
 
+static void glApplyProjection(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix) {
+    Renderer_applyProjection(renderer, viewMatrix, projectionMatrix);
+    glLoadMatrices(renderer);
+}
+
+#if LEGACY_DESKTOP_D3D
+static void glSetMatrix(Renderer* renderer, int32_t type, Matrix4f matrix) {
+    if (type < 0 || type > MATRIX_WORLD) return;
+    renderer->gmlMatrices[type] = matrix;
+    Renderer_applyProjection(renderer, &renderer->gmlMatrices[MATRIX_VIEW], &renderer->gmlMatrices[MATRIX_PROJECTION]);
+    glLoadMatrices(renderer);
+}
+#endif
+
+#if LEGACY_DESKTOP_D3D
+static void glSetDepthState(Renderer* renderer, bool test, bool write, bool cull) {
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
+    legacyGl->depthTest = test;
+    legacyGl->depthWrite = write;
+    legacyGl->cull = cull;
+    if (test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(write ? GL_TRUE : GL_FALSE);
+    if (cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+}
+#endif
+
+static void glClearDepthBuffer(Renderer* renderer, float depth) {
+#if LEGACY_DESKTOP_D3D
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
+    glDepthMask(GL_TRUE);
+    glClearDepth(depth);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthMask(legacyGl->depthWrite ? GL_TRUE : GL_FALSE);
+#else
+    (void)renderer; (void)depth;
+#endif
+}
+
+#if LEGACY_DESKTOP_D3D
+static void glGpuSetFog(MAYBE_UNUSED Renderer* renderer, bool enable, uint32_t colour, float start, float end) {
+    float rgba[4] = {BGR_R(colour)/255.0f, BGR_G(colour)/255.0f, BGR_B(colour)/255.0f, 1};
+    glFogfv(GL_FOG_COLOR, rgba);
+    glFogi(GL_FOG_MODE, GL_LINEAR);
+    // HTML5's zero inverse range means fully fogged at every depth. Avoid
+    // fixed-function GL's undefined interpolation when start and end coincide.
+    if (start == end) { start = -1; end = 0; }
+    glFogf(GL_FOG_START, start);
+    glFogf(GL_FOG_END, end);
+    glHint(GL_FOG_HINT, GL_NICEST);
+    if (enable) glEnable(GL_FOG); else glDisable(GL_FOG);
+}
+#endif
+
 // ===[ Vtable Implementations ]===
+
+static inline void legacyVertex2f(Renderer* renderer, float x, float y) {
+#if LEGACY_DESKTOP_D3D
+    glVertex3f(x, y, renderer->drawDepth);
+#else
+    (void)renderer;
+    glVertex2f(x, y);
+#endif
+}
 
 static void glInit(Renderer* renderer, DataWin* dataWin) {
     GLRenderer* gl = (GLRenderer*) renderer;
@@ -141,6 +223,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // Prepare texture slots for lazy loading (PNG decode deferred to first use)
     glEnable(GL_TEXTURE_2D);
     glDisable(GL_DEPTH_TEST);
+    legacyGl->depthWrite = true;
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     gl->vertexData = nullptr;
@@ -155,7 +238,18 @@ static void glDestroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) renderer;
 
+    free(gl->vertexData);
     gl->vertexData = nullptr;
+#if LEGACY_DESKTOP_D3D
+    for (uint32_t i = 0; i < gl->surfaceCount; i++) {
+        if (legacyGl->surfaceDepth[i]) glDeleteRenderbuffers(1, &legacyGl->surfaceDepth[i]);
+    }
+#endif
+    free(legacyGl->surfaceDepth);
+    for (uint32_t i = 0; i < legacyGl->primitiveTextureCount; i++) {
+        if (legacyGl->primitiveTextures[i]) glDeleteTextures(1, &legacyGl->primitiveTextures[i]);
+    }
+    free(legacyGl->primitiveTextures);
     legacyGl->primitiveCapacity = 0;
 
     GLCommon_destroy(renderer);
@@ -164,12 +258,18 @@ static void glDestroy(Renderer* renderer) {
 static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLCommon_beginFrame(gl, gameW, gameH, windowW, windowH);
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     glBindTexture(GL_TEXTURE_2D, 0);
     GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE0, glApplyProjection);
+    VMBuiltins_applyD3DDefaultView(renderer, viewX, viewY, viewW, viewH, viewAngle);
+    glClearDepthBuffer(renderer, 1);
 }
 
 static void glEndView(MAYBE_UNUSED Renderer* renderer) {
@@ -177,6 +277,19 @@ static void glEndView(MAYBE_UNUSED Renderer* renderer) {
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
+#if LEGACY_DESKTOP_D3D
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
+    if (!legacyGl->guiActive) {
+        legacyGl->savedDepthTest = legacyGl->depthTest;
+        legacyGl->savedDepthWrite = legacyGl->depthWrite;
+        legacyGl->savedCull = legacyGl->cull;
+        legacyGl->savedGUIWorld = renderer->gmlMatrices[MATRIX_WORLD];
+        legacyGl->guiActive = true;
+    }
+    glSetDepthState(renderer, false, false, false);
+    Matrix4f identity;
+    glSetMatrix(renderer, MATRIX_WORLD, *Matrix4f_identity(&identity));
+#endif
     glBindTexture(GL_TEXTURE_2D, 0);
     GLCommon_beginGUI(
         renderer, targetSurfaceId, 0, GL_TEXTURE0, glApplyProjection,
@@ -184,16 +297,18 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     );
 }
 
-static void glSetGuiProjection(MAYBE_UNUSED Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
-    Matrix4f projection;
-    Matrix4f_guiProjection(&projection, (float) guiW, (float) guiH, (float) portW, (float) portH);
-    // GL surfaces are stored bottom-up and draw_surface samples them with vertical flip.
-
+static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, bool renderingToUserSurface) {
     GLCommon_setGuiProjection(renderer, renderingToUserSurface, glApplyProjection, guiW, guiH);
 }
 
 static void glEndGUI(MAYBE_UNUSED Renderer* renderer) {
     glDisable(GL_SCISSOR_TEST);
+#if LEGACY_DESKTOP_D3D
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
+    glSetMatrix(renderer, MATRIX_WORLD, legacyGl->savedGUIWorld);
+    glSetDepthState(renderer, legacyGl->savedDepthTest, legacyGl->savedDepthWrite, legacyGl->savedCull);
+    legacyGl->guiActive = false;
+#endif
 }
 
 static void glEndFrameInit(Renderer* renderer) {
@@ -219,6 +334,60 @@ static void glEndFrameEnd(Renderer* renderer) {
 static void glRendererFlush(MAYBE_UNUSED Renderer* renderer) {}
 
 static bool glLegacyResolveTextureHandle(GLRenderer* gl, uint32_t texHandle, TexturePageItem** outTpag, int32_t* outW, int32_t* outH);
+
+static GLuint legacyPrimitiveTexture(GLRenderer* gl, uint32_t handle, TexturePageItem* tpag, int32_t width, int32_t height) {
+    GLuint page = gl->glTextures[tpag->texturePageId];
+#if LEGACY_DESKTOP_D3D
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)gl;
+    // Fixed-function texture matrices cannot repeat within an atlas region.
+    // Isolate the region once, leaving ordinary sprite/page textures untouched.
+    if (handle > legacyGl->primitiveTextureCount) {
+        uint32_t oldCount = legacyGl->primitiveTextureCount;
+        legacyGl->primitiveTextures = (GLuint*)safeRealloc(legacyGl->primitiveTextures, handle * sizeof(GLuint));
+        memset(legacyGl->primitiveTextures + oldCount, 0, (handle-oldCount) * sizeof(GLuint));
+        legacyGl->primitiveTextureCount = handle;
+    }
+    GLuint* texture = &legacyGl->primitiveTextures[handle-1];
+    if (!*texture) {
+        if (width <= 0 || height <= 0 || !tpag->sourceWidth || !tpag->sourceHeight) return page;
+        if ((uint32_t)tpag->sourceX + tpag->sourceWidth > (uint32_t)width ||
+            (uint32_t)tpag->sourceY + tpag->sourceHeight > (uint32_t)height) return page;
+        int32_t regionW = legacyGl->needsPOT ? nextPow2(tpag->sourceWidth) : tpag->sourceWidth;
+        int32_t regionH = legacyGl->needsPOT ? nextPow2(tpag->sourceHeight) : tpag->sourceHeight;
+        uint8_t* pixels = (uint8_t*)safeMalloc((size_t)width * height * 4);
+        uint8_t* region = (uint8_t*)safeMalloc((size_t)regionW * regionH * 4);
+        GLint pack, unpack;
+        glGetIntegerv(GL_PACK_ALIGNMENT, &pack);
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glBindTexture(GL_TEXTURE_2D, page);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        for (int32_t y = 0; y < regionH; y++) {
+            uint32_t sourceY = tpag->sourceY + (uint32_t)y * tpag->sourceHeight / regionH;
+            for (int32_t x = 0; x < regionW; x++) {
+                uint32_t sourceX = tpag->sourceX + (uint32_t)x * tpag->sourceWidth / regionW;
+                memcpy(region + ((size_t)y * regionW + x)*4,
+                    pixels + ((size_t)sourceY * width + sourceX)*4, 4);
+            }
+        }
+        glGenTextures(1, texture);
+        glBindTexture(GL_TEXTURE_2D, *texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, regionW, regionH, 0, GL_RGBA, GL_UNSIGNED_BYTE, region);
+        GLCommon_applyTexFilter(gl->base.texFilter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glPixelStorei(GL_PACK_ALIGNMENT, pack);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, unpack);
+        free(region);
+        free(pixels);
+    }
+    return *texture;
+#else
+    (void)handle; (void)width; (void)height;
+    return page;
+#endif
+}
 
 static void legacyPrimitiveEnsureCapacity(GLRenderer* gl, int32_t needed) {
     GLLegacyRenderer* legacyGl = (GLLegacyRenderer*) gl;
@@ -250,7 +419,9 @@ static bool glResolvePrimitiveTexture(GLRenderer* gl, int32_t texture, GLuint* t
             tpag->texturePageId >= 0 &&
             (uint32_t)tpag->texturePageId < gl->textureCount) {
 
-            *textureId = gl->glTextures[tpag->texturePageId];
+            *textureId = gl->base.legacyTextureCoordinates
+                ? legacyPrimitiveTexture(gl, (uint32_t)texture, tpag, texW, texH)
+                : gl->glTextures[tpag->texturePageId];
             return *textureId != 0;
         }
 
@@ -452,6 +623,7 @@ static void glClearScreen(MAYBE_UNUSED Renderer* renderer, uint32_t color, float
 
     glClearColor(r, g, b, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
+    glClearDepthBuffer(renderer, 1);
 
 }
 
@@ -589,22 +761,22 @@ static void glDrawSprite(Renderer* renderer, int32_t tpagIndex, float x, float y
         // Vertex 0: top-left
         glColor4f(r, g, b, alpha);
         glTexCoord2f(u0, v0);
-        glVertex2f(x0, y0);
+        legacyVertex2f(renderer, x0, y0);
 
         // Vertex 1: top-right
         glColor4f(r, g, b, alpha);
         glTexCoord2f(u1, v0);
-        glVertex2f(x1, y1);
+        legacyVertex2f(renderer, x1, y1);
 
         // Vertex 2: bottom-right
         glColor4f(r, g, b, alpha);
         glTexCoord2f(u1, v1);
-        glVertex2f(x2, y2);
+        legacyVertex2f(renderer, x2, y2);
 
         // Vertex 3: bottom-left
         glColor4f(r, g, b, alpha);
         glTexCoord2f(u0, v1);
-        glVertex2f(x3, y3);
+        legacyVertex2f(renderer, x3, y3);
     glEnd();
     PS3_PALETTED_END();
 }
@@ -682,10 +854,10 @@ static void glDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float origi
             float vx0 = cx + sx0;
             float vx1 = cx + sx1;
 
-            glTexCoord2f(u0, v0); glVertex2f(vx0, vy0);
-            glTexCoord2f(u1, v0); glVertex2f(vx1, vy0);
-            glTexCoord2f(u1, v1); glVertex2f(vx1, vy1);
-            glTexCoord2f(u0, v1); glVertex2f(vx0, vy1);
+            glTexCoord2f(u0, v0); legacyVertex2f(renderer, vx0, vy0);
+            glTexCoord2f(u1, v0); legacyVertex2f(renderer, vx1, vy0);
+            glTexCoord2f(u1, v1); legacyVertex2f(renderer, vx1, vy1);
+            glTexCoord2f(u0, v1); legacyVertex2f(renderer, vx0, vy1);
         }
     }
     glEnd();
@@ -717,19 +889,19 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     glBegin(GL_QUADS);
         glColor4f(1.0f, 1.0f, 1.0f, alpha);
         glTexCoord2f(u0, v0);
-        glVertex2f(x1, y1);
+        legacyVertex2f(renderer, x1, y1);
 
         glColor4f(1.0f, 1.0f, 1.0f, alpha);
         glTexCoord2f(u1, v0);
-        glVertex2f(x2, y2);
+        legacyVertex2f(renderer, x2, y2);
 
         glColor4f(1.0f, 1.0f, 1.0f, alpha);
         glTexCoord2f(u1, v1);
-        glVertex2f(x3, y3);
+        legacyVertex2f(renderer, x3, y3);
 
         glColor4f(1.0f, 1.0f, 1.0f, alpha);
         glTexCoord2f(u0, v1);
-        glVertex2f(x4, y4);
+        legacyVertex2f(renderer, x4, y4);
     glEnd();
     PS3_PALETTED_END();
 }
@@ -788,16 +960,16 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     PS3_PALETTED_BEGIN(tpagIndex);
     glBegin(GL_QUADS);
         glColor4f(r1, g1, b1, alpha);
-        glTexCoord2f(u0, v0); glVertex2f(cx0, cy0);
+        glTexCoord2f(u0, v0); legacyVertex2f(renderer, cx0, cy0);
 
         glColor4f(r2, g2, b2, alpha);
-        glTexCoord2f(u1, v0); glVertex2f(cx1, cy1);
+        glTexCoord2f(u1, v0); legacyVertex2f(renderer, cx1, cy1);
 
         glColor4f(r3, g3, b3, alpha);
-        glTexCoord2f(u1, v1); glVertex2f(cx2, cy2);
+        glTexCoord2f(u1, v1); legacyVertex2f(renderer, cx2, cy2);
 
         glColor4f(r4, g4, b4, alpha);
-        glTexCoord2f(u0, v1); glVertex2f(cx3, cy3);
+        glTexCoord2f(u0, v1); legacyVertex2f(renderer, cx3, cy3);
     glEnd();
     PS3_PALETTED_END();
 }
@@ -808,6 +980,7 @@ static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
 
 // Emits a single colored quad into the batch using the white pixel texture
 static void emitColoredQuad(GLRenderer* gl, float x0, float y0, float x1, float y1, float r, float g, float b, float a) {
+    Renderer* renderer = &gl->base;
     glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
 
     glBegin(GL_QUADS);
@@ -815,22 +988,22 @@ static void emitColoredQuad(GLRenderer* gl, float x0, float y0, float x1, float 
         // Vertex 0: top-left
         glColor4f(r, g, b, a);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x0, y0);
+        legacyVertex2f(renderer, x0, y0);
 
         // Vertex 1: top-right
         glColor4f(r, g, b, a);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1, y0);
+        legacyVertex2f(renderer, x1, y0);
 
         // Vertex 2: bottom-right
         glColor4f(r, g, b, a);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1, y1);
+        legacyVertex2f(renderer, x1, y1);
 
         // Vertex 3: bottom-left
         glColor4f(r, g, b, a);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x0, y1);
+        legacyVertex2f(renderer, x0, y1);
     glEnd();
 }
 
@@ -889,22 +1062,22 @@ static void glDrawRectangleColor(Renderer* renderer, float x1, float y1, float x
             // Vertex 0: top-left
             glColor4f(r1, g1, b1, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x1, y1);
+            legacyVertex2f(renderer, x1, y1);
 
             // Vertex 1: top-right
             glColor4f(r2, g2, b2, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x2+1, y1);
+            legacyVertex2f(renderer, x2+1, y1);
 
             // Vertex 2: bottom-right
             glColor4f(r3, g3, b3, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x2+1, y2+1);
+            legacyVertex2f(renderer, x2+1, y2+1);
 
             // Vertex 3: bottom-left
             glColor4f(r4, g4, b4, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x1, y2+1);
+            legacyVertex2f(renderer, x1, y2+1);
 
         glEnd();
     }
@@ -935,22 +1108,22 @@ static void glDrawLine(Renderer* renderer, float x1, float y1, float x2, float y
     glBegin(GL_QUADS);
         glColor4f(r, g, b, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1 + px, y1 + py);
+        legacyVertex2f(renderer, x1 + px, y1 + py);
 
         // Vertex 1: start - perpendicular
         glColor4f(r, g, b, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1 - px, y1 - py);
+        legacyVertex2f(renderer, x1 - px, y1 - py);
 
         // Vertex 2: end - perpendicular
         glColor4f(r, g, b, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x2 - px, y2 - py);
+        legacyVertex2f(renderer, x2 - px, y2 - py);
 
         // Vertex 3: end + perpendicular
         glColor4f(r, g, b, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x2 + px, y2 + py);
+        legacyVertex2f(renderer, x2 + px, y2 + py);
     glEnd();
 }
 
@@ -982,22 +1155,22 @@ static void glDrawLineColor(Renderer* renderer, float x1, float y1, float x2, fl
         // Vertex 0: start + perpendicular (color1)
         glColor4f(r1, g1, b1, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1 + px, y1 + py);
+        legacyVertex2f(renderer, x1 + px, y1 + py);
 
         // Vertex 1: start - perpendicular (color1)
         glColor4f(r1, g1, b1, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x1 - px, y1 - py);
+        legacyVertex2f(renderer, x1 - px, y1 - py);
 
         // Vertex 2: end - perpendicular (color2)
         glColor4f(r2, g2, b2, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x2 - px, y2 - py);
+        legacyVertex2f(renderer, x2 - px, y2 - py);
 
         // Vertex 3: end + perpendicular (color2)
         glColor4f(r2, g2, b2, alpha);
         glTexCoord2f(0.5f, 0.5f);
-        glVertex2f(x2 + px, y2 + py);
+        legacyVertex2f(renderer, x2 + px, y2 + py);
     glEnd();
 }
 
@@ -1015,15 +1188,15 @@ static void glDrawTriangle(Renderer *renderer, float x1, float y1, float x2, flo
         glBegin(GL_TRIANGLES);
             glColor4f((float) BGR_R(color1) / 255.0f, (float) BGR_G(color1) / 255.0f, (float) BGR_B(color1) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x1 , y1);
+            legacyVertex2f(renderer, x1, y1);
 
             glColor4f((float) BGR_R(color2) / 255.0f, (float) BGR_G(color2) / 255.0f, (float) BGR_B(color2) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x2, y2);
+            legacyVertex2f(renderer, x2, y2);
 
             glColor4f((float) BGR_R(color3) / 255.0f, (float) BGR_G(color3) / 255.0f, (float) BGR_B(color3) / 255.0f, alpha);
             glTexCoord2f(0.5f, 0.5f);
-            glVertex2f(x3, y3);
+            legacyVertex2f(renderer, x3, y3);
         glEnd();
     }
 }
@@ -1218,19 +1391,19 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
                         glBegin(GL_QUADS);
                             glColor4f(r, g, b, alpha);
                             glTexCoord2f(u0, v0);
-                            glVertex2f(px0, py0);
+                            legacyVertex2f(renderer, px0, py0);
 
                             glColor4f(r, g, b, alpha);
                             glTexCoord2f(u1, v0);
-                            glVertex2f(px1, py1);
+                            legacyVertex2f(renderer, px1, py1);
 
                             glColor4f(r, g, b, alpha);
                             glTexCoord2f(u1, v1);
-                            glVertex2f(px2, py2);
+                            legacyVertex2f(renderer, px2, py2);
 
                             glColor4f(r, g, b, alpha);
                             glTexCoord2f(u0, v1);
-                            glVertex2f(px3, py3);
+                            legacyVertex2f(renderer, px3, py3);
                         glEnd();
                         PS3_PALETTED_END();
 
@@ -1385,19 +1558,19 @@ static void drawTextColor(
                         glBegin(GL_QUADS);
                             glColor4ub(BGR_R(c1), BGR_G(c1), BGR_B(c1), alpha * 255);
                             glTexCoord2f(u0, v0);
-                            glVertex2f(px0, py0);
+                            legacyVertex2f(renderer, px0, py0);
 
                             glColor4ub(BGR_R(c2), BGR_G(c2), BGR_B(c2), alpha * 255);
                             glTexCoord2f(u1, v0);
-                            glVertex2f(px1, py1);
+                            legacyVertex2f(renderer, px1, py1);
 
                             glColor4ub(BGR_R(c3), BGR_G(c3), BGR_B(c3), alpha * 255);
                             glTexCoord2f(u1, v1);
-                            glVertex2f(px2, py2);
+                            legacyVertex2f(renderer, px2, py2);
 
                             glColor4ub(BGR_R(c4), BGR_G(c4), BGR_B(c4), alpha * 255);
                             glTexCoord2f(u0, v1);
-                            glVertex2f(px3, py3);
+                            legacyVertex2f(renderer, px3, py3);
                         glEnd();
                         PS3_PALETTED_END();
 
@@ -1588,6 +1761,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
 
 static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
     DataWin* dw = renderer->dataWin;
 
     if (0 > spriteIndex || dw->sprt.count <= (uint32_t) spriteIndex) return;
@@ -1606,6 +1780,10 @@ static void glDeleteSprite(Renderer* renderer, int32_t spriteIndex) {
     repeat(sprite->textureCount, i) {
         int32_t tpagIdx = sprite->tpagIndices[i];
         if (tpagIdx >= 0 && (uint32_t) tpagIdx >= gl->originalTpagCount) {
+            if ((uint32_t)tpagIdx < legacyGl->primitiveTextureCount && legacyGl->primitiveTextures[tpagIdx]) {
+                glDeleteTextures(1, &legacyGl->primitiveTextures[tpagIdx]);
+                legacyGl->primitiveTextures[tpagIdx] = 0;
+            }
             TexturePageItem* tpag = &dw->tpag.items[tpagIdx];
             int16_t pageId = tpag->texturePageId;
             if (pageId >= 0 && gl->textureCount > (uint32_t) pageId) {
@@ -1685,6 +1863,16 @@ static void glGpuSetBlendEnable(Renderer* renderer, bool enable) {
 
 static void glGpuSetTexFilter(Renderer* renderer, bool enable) {
     GLCommon_setTexFilter(renderer, enable);
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
+    GLint binding;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &binding);
+    for (uint32_t i = 0; i < legacyGl->primitiveTextureCount; i++) {
+        if (legacyGl->primitiveTextures[i]) {
+            glBindTexture(GL_TEXTURE_2D, legacyGl->primitiveTextures[i]);
+            GLCommon_applyTexFilter(enable);
+        }
+    }
+    glBindTexture(GL_TEXTURE_2D, (GLuint)binding);
 }
 
 static bool glGpuGetBlendEnable(MAYBE_UNUSED Renderer* renderer) {
@@ -1740,6 +1928,8 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
     uint32_t surfaceIndex = GLCommon_allocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
+    legacyGl->surfaceDepth = (GLuint*)safeRealloc(legacyGl->surfaceDepth, gl->surfaceCount * sizeof(GLuint));
+    legacyGl->surfaceDepth[surfaceIndex] = 0;
 
     int32_t texW = legacyGl->needsPOT ? nextPow2(width)  : width;
     int32_t texH = legacyGl->needsPOT ? nextPow2(height) : height;
@@ -1754,6 +1944,16 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
+#if LEGACY_DESKTOP_D3D
+    glGenRenderbuffers(1, &legacyGl->surfaceDepth[surfaceIndex]);
+    glBindRenderbuffer(GL_RENDERBUFFER, legacyGl->surfaceDepth[surfaceIndex]);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, texW, texH);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, legacyGl->surfaceDepth[surfaceIndex]);
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
+#endif
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -1831,6 +2031,14 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceId]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceId], 0);
+#if LEGACY_DESKTOP_D3D
+    glBindRenderbuffer(GL_RENDERBUFFER, legacyGl->surfaceDepth[surfaceId]);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, texW, texH);
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearDepthBuffer(renderer, 1);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
+#endif
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) prevBinding);
 
     gl->surfaceWidth[surfaceId] = width;
@@ -1840,9 +2048,14 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
 static void glLegacySurfaceFree(Renderer* renderer, int32_t surfaceId) {
     GLRenderer* gl = (GLRenderer*) renderer;
+    GLLegacyRenderer* legacyGl = (GLLegacyRenderer*)renderer;
     if (0 > surfaceId || (uint32_t) surfaceId >= gl->surfaceCount) return;
     // Freeing the application_surface is a no-op from GML; the runner manages its lifecycle via application_surface_enable.
     if (surfaceId == renderer->runner->applicationSurfaceId) return;
+#if LEGACY_DESKTOP_D3D
+    if (legacyGl->surfaceDepth[surfaceId]) glDeleteRenderbuffers(1, &legacyGl->surfaceDepth[surfaceId]);
+#endif
+    legacyGl->surfaceDepth[surfaceId] = 0;
     if (gl->surfaceTexture[surfaceId] != 0) glDeleteTextures(1, &gl->surfaceTexture[surfaceId]);
     if (gl->surfaces[surfaceId] != 0) glDeleteFramebuffers(1, &gl->surfaces[surfaceId]);
     gl->surfaces[surfaceId] = 0;
@@ -1911,9 +2124,6 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
         return true;
     }
 
-    glViewport(0, 0, gl->surfaceWidth[surfaceId], gl->surfaceHeight[surfaceId]);
-    glDisable(GL_SCISSOR_TEST);
-    return true;
 }
 
 // Resolves a surfaceID to a GL texture and its actual texture size
@@ -1975,10 +2185,10 @@ static void glLegacyDrawSurface(Renderer* renderer, int32_t surfaceId, int32_t s
 
     glBindTexture(GL_TEXTURE_2D, texId);
     glBegin(GL_QUADS);
-        glColor4f(r, g, b, alpha); glTexCoord2f(u0, v0); glVertex2f(x0, y0);
-        glColor4f(r, g, b, alpha); glTexCoord2f(u1, v0); glVertex2f(x1, y1);
-        glColor4f(r, g, b, alpha); glTexCoord2f(u1, v1); glVertex2f(x2, y2);
-        glColor4f(r, g, b, alpha); glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+        glColor4f(r, g, b, alpha); glTexCoord2f(u0, v0); legacyVertex2f(renderer, x0, y0);
+        glColor4f(r, g, b, alpha); glTexCoord2f(u1, v0); legacyVertex2f(renderer, x1, y1);
+        glColor4f(r, g, b, alpha); glTexCoord2f(u1, v1); legacyVertex2f(renderer, x2, y2);
+        glColor4f(r, g, b, alpha); glTexCoord2f(u0, v1); legacyVertex2f(renderer, x3, y3);
     glEnd();
 }
 
@@ -2028,10 +2238,10 @@ static void glLegacyDrawSurfaceColor(Renderer* renderer, int32_t surfaceId, int3
 
     glBindTexture(GL_TEXTURE_2D, texId);
     glBegin(GL_QUADS);
-        glColor4f(r1, g1, b1, alpha); glTexCoord2f(u0, v0); glVertex2f(x0, y0);
-        glColor4f(r2, g2, b2, alpha); glTexCoord2f(u1, v0); glVertex2f(x1, y1);
-        glColor4f(r3, g3, b3, alpha); glTexCoord2f(u1, v1); glVertex2f(x2, y2);
-        glColor4f(r4, g4, b4, alpha); glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+        glColor4f(r1, g1, b1, alpha); glTexCoord2f(u0, v0); legacyVertex2f(renderer, x0, y0);
+        glColor4f(r2, g2, b2, alpha); glTexCoord2f(u1, v0); legacyVertex2f(renderer, x1, y1);
+        glColor4f(r3, g3, b3, alpha); glTexCoord2f(u1, v1); legacyVertex2f(renderer, x2, y2);
+        glColor4f(r4, g4, b4, alpha); glTexCoord2f(u0, v1); legacyVertex2f(renderer, x3, y3);
     glEnd();
 }
 
@@ -2196,6 +2406,12 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
     glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
+#if LEGACY_DESKTOP_D3D
+    glVtable.gpuSetFog = glGpuSetFog;
+    glVtable.setMatrix = glSetMatrix;
+    glVtable.setDepthState = glSetDepthState;
+    glVtable.clearDepth = glClearDepthBuffer;
+#endif
     glVtable.drawTile = nullptr;
     glVtable.drawSpriteTiled = glDrawSpriteTiled;
     glVtable.createSurface = glLegacyCreateSurface;

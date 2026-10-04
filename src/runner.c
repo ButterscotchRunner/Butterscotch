@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "vm_builtins.h"
 #include "data_win.h"
 #include "instance.h"
 #include "renderer.h"
@@ -1391,6 +1392,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                     continue;
 
                 Runner_surfaceSetTarget(runner, view->surfaceId);
+                if (renderer->vtable->clearDepth) renderer->vtable->clearDepth(renderer, 1.0f);
 
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
@@ -1398,6 +1400,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 runner->viewCurrent = (int32_t) vi;
                 runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
                 runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
+                VMBuiltins_applyD3DDefaultView(renderer, camera->viewX, camera->viewY, camera->viewWidth, camera->viewHeight, camera->viewAngle);
 
                 Runner_draw(runner);
 
@@ -2238,6 +2241,17 @@ static void cleanupState(Runner* runner) {
 // ===[ Public API ]===
 
 void Runner_reset(Runner* runner) {
+    // Renderer destruction uses the CPU-only D3D cleanup hook. A game restart
+    // keeps the renderer alive, so also restore its GPU state before cleanup.
+    Renderer* renderer = runner->renderer;
+    if (renderer && renderer->d3d) {
+        if (renderer->vtable->setDepthState) renderer->vtable->setDepthState(renderer, false, true, false);
+        if (renderer->vtable->setMatrix) {
+            Matrix4f identity;
+            renderer->vtable->setMatrix(renderer, MATRIX_WORLD, *Matrix4f_identity(&identity));
+        }
+    }
+    VMBuiltins_resetD3D(runner->renderer);
     // This actually sets the default runner values, used for initialization and restarting
     cleanupState(runner);
 
@@ -4844,14 +4858,13 @@ char* Runner_dumpStateJson(Runner* runner) {
             RValue val = entry->value;
             if (val.type == RVALUE_UNDEFINED) continue;
 
-            // Resolve variable name from VARI chunk
-            const char* varName = "?";
-            repeat(dataWin->vari.variableCount, varIdx) {
-                Variable* var = &dataWin->vari.variables[varIdx];
-                if (var->instanceType == INSTANCE_SELF && var->varID == varID) {
-                    varName = var->name;
-                    break;
-                }
+            // Self-variable keys are VM slot IDs, not necessarily VARI varIDs
+            // (notably for BC16). Use the same name map as VM member access.
+            const char* varName = VM_getVariableNameByVarId(runner->vmContext, varID);
+            char unknownName[32];
+            if (!varName) {
+                snprintf(unknownName, sizeof(unknownName), "slot_%d", varID);
+                varName = unknownName;
             }
 
             JsonWriter_key(&w, varName);
