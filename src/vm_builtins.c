@@ -7170,6 +7170,41 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     return RValue_makeUndefined();
 }
 
+static bool arrayElementsEqual(RValue* a, RValue* b) {
+    if (a->type != b->type) return false;
+    if (a->type == RVALUE_ARRAY) {
+        GMLArray* arrA = a->array;
+        GMLArray* arrB = b->array;
+        if (arrA == nullptr || arrB == nullptr) return arrA == arrB;
+        int32_t lenA = GMLArray_length1D(arrA);
+        int32_t lenB = GMLArray_length1D(arrB);
+        if (lenA != lenB) return false;
+        for (int32_t i = 0; i < lenA; i++) {
+            if (!arrayElementsEqual(GMLArray_slot(arrA, i), GMLArray_slot(arrB, i)))
+                return false;
+        }
+        return true;
+    }
+    return rValuesLooselyEqual(*a, *b);
+}
+
+static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("array_equals", 2, RValue_makeBool(false));
+    
+    GMLArray* arr1 = args[0].array;
+    GMLArray* arr2 = args[1].array;
+    if (arr1 == nullptr || arr2 == nullptr) return RValue_makeBool(false);
+    int32_t len1 = GMLArray_length1D(arr1);
+    int32_t len2 = GMLArray_length1D(arr2);
+    if (len1 != len2) return RValue_makeBool(false);
+    for (int32_t i = 0; i < len1; i++) {
+        RValue* slotA = GMLArray_slot(arr1, i);
+        RValue* slotB = GMLArray_slot(arr2, i);
+        if (!arrayElementsEqual(slotA, slotB)) return RValue_makeBool(false);
+    }
+    return RValue_makeBool(true);
+}
+
 // ===[ COLLISION FUNCTIONS]===
 
 static RValue builtin_place_free(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -22980,6 +23015,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_create", builtin_array_create);
     VM_registerBuiltin(ctx, "array_copy", builtin_array_copy);
     VM_registerBuiltin(ctx, "array_sort", builtin_array_sort);
+    VM_registerBuiltin(ctx, "array_equals", builtin_array_equals);    
 
     // Steam stubs
     VM_registerBuiltin(ctx, "steam_initialised", builtin_steam_initialised);
