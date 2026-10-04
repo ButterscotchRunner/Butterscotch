@@ -5851,6 +5851,25 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_grid_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_grid_copy", 2, RValue_makeUndefined());
+    DsGrid* dst = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
+    DsGrid* src = dsGridGet(ctx->runner, RValue_toInt32(args[1]));
+    if (dst == nullptr || src == nullptr) return RValue_makeUndefined();
+    for (int32_t i = 0; i < dst->width * dst->height; i++) {
+        RValue_free(&dst->items[i]);
+    }
+    dst->width = src->width;
+    dst->height = src->height;
+    arrsetlen(dst->items, 0);
+    {
+    for (int32_t i = 0; i < src->width * src->height; i++) {
+        arrput(dst->items, RValue_makeIndependent(src->items[i]));
+    }
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue jsonDecodeValue(VMContext* ctx, JsonValue* json);
 
 static uint8_t* dsHexDecode(const char* hex, int32_t* outLen) {
@@ -22891,6 +22910,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_grid_get", builtin_ds_grid_get);
     VM_registerBuiltin(ctx, "ds_grid_add", builtin_ds_grid_add);
     VM_registerBuiltin(ctx, "ds_grid_resize", builtin_ds_grid_resize);
+    VM_registerBuiltin(ctx, "ds_grid_copy", builtin_ds_grid_copy);
     VM_registerBuiltin(ctx, "ds_grid_read", builtin_ds_grid_read);
     VM_registerBuiltin(ctx, "ds_grid_write", builtin_ds_grid_write);
 
