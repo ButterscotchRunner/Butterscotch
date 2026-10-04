@@ -9173,6 +9173,42 @@ static RValue builtin_window_get_height(VMContext* ctx, MAYBE_UNUSED RValue* arg
     return RValue_makeReal((GMLReal) ctx->dataWin->gen8.defaultWindowHeight);
 }
 
+static RValue builtin_window_get_x(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getWindowPosition != nullptr) {
+        int32_t x = 0;
+        int32_t y = 0;
+        if (runner->getWindowPosition(&x, &y)) {
+            return RValue_makeReal((GMLReal) x);
+        }
+    }
+    return RValue_makeReal((GMLReal)0);
+}
+
+static RValue builtin_window_get_y(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->getWindowPosition != nullptr) {
+        int32_t x = 0;
+        int32_t y = 0;
+        if (runner->getWindowPosition(&x, &y)) {
+            return RValue_makeReal((GMLReal) y);
+        }
+    }
+    return RValue_makeReal((GMLReal)0);
+}
+
+static RValue builtin_window_set_position(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("window_set_position", 2, RValue_makeUndefined());
+    int32_t x = RValue_toInt32(args[0]);
+    int32_t y = RValue_toInt32(args[1]);
+    
+    Runner* runner = ctx->runner;
+    if (runner != nullptr && runner->setWindowPosition != nullptr) {
+        runner->setWindowPosition(x, y);
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_window_set_size(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("window_set_size", 2, RValue_makeUndefined());
 
@@ -23122,6 +23158,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_get_caption", builtin_window_get_caption);
     VM_registerBuiltin(ctx, "window_get_width", builtin_window_get_width);
     VM_registerBuiltin(ctx, "window_get_height", builtin_window_get_height);
+    VM_registerBuiltin(ctx, "window_get_x", builtin_window_get_x);
+    VM_registerBuiltin(ctx, "window_get_y", builtin_window_get_y);
+    VM_registerBuiltin(ctx, "window_set_position", builtin_window_set_position);
     VM_registerBuiltin(ctx, "window_set_size", builtin_window_set_size);
     VM_registerBuiltin(ctx, "window_center", builtin_window_center);
     VM_registerBuiltin(ctx, "window_has_focus", builtin_window_has_focus);

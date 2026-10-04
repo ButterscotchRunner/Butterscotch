@@ -117,6 +117,17 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     glfwSetWindowSize(window, logicalW, logicalH);
 }
 
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    if (!outX || !outY) return false;
+    glfwGetWindowPos(window, outX, outY);
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    glfwSetWindowPos(window, x, y);
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     glfwGetCursorPos(window, xPos, yPos);

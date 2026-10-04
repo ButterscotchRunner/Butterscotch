@@ -208,6 +208,17 @@ bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
     return true;
 }
 
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    (void)outX;
+    (void)outY;
+    return false;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    (void)x;
+    (void)y;
+}
+
 bool platformGetScaledWindowSize(int32_t *outW, int32_t *outH) {
     return platformGetWindowSize(outW, outH);
 }

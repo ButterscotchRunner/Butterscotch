@@ -333,6 +333,33 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     [window setFrame:newFrame display:YES animate:NO];
 }
 
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    if (!outX || !outY) return false;
+    NSRect frame = [window frame];
+    CGFloat screenHeight = [NSScreen mainScreen].frame.size.height;
+    *outX = (int32_t)round(frame.origin.x);
+    *outY = (int32_t)round(screenHeight - (frame.origin.y + frame.size.height));
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    NSScreen *screen = [window screen];
+    if (!screen) {
+        screen = [NSScreen mainScreen];
+    }
+    
+    CGFloat screenHeight = [screen frame].size.height;
+    NSRect frame = [window frame];
+    CGFloat windowHeight = frame.size.height;
+    
+    CGFloat appKitX = (CGFloat)x;
+    CGFloat appKitY = screenHeight - (CGFloat)y - windowHeight;
+    
+    NSPoint newOrigin = NSMakePoint(appKitX, appKitY);
+    [window setFrameOrigin:newOrigin];
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     NSPoint mouseLocation = [window mouseLocationOutsideOfEventStream];
     *xPos = mouseLocation.x;

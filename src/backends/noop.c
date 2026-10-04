@@ -50,6 +50,17 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (height > 0) g_height = height;
 }
 
+bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    (void)outX;
+    (void)outY;
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    (void)x;
+    (void)y;
+}
+
 void platformSetWindowTitle(const char *title) {
     (void)title;
 }

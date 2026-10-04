@@ -121,6 +121,16 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    SDL_GetWindowPosition(window, outX, outY);
+    return true;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    SDL_SetWindowPosition(window, x, y);
+}
+
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH) return false;
     int w = 0;

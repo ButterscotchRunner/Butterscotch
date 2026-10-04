@@ -225,6 +225,18 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
+// no-op, SDL 1.2 doesn't support getting/setting window position cross-platform
+bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    (void)outX;
+    (void)outY;
+    return false;
+}
+
+void platformSetWindowPosition(int32_t x, int32_t y) {
+    (void)x;
+    (void)y;
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
