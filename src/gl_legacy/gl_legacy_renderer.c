@@ -343,7 +343,7 @@ static GLuint legacyPrimitiveTexture(GLRenderer* gl, uint32_t handle, TexturePag
     // Isolate the region once, leaving ordinary sprite/page textures untouched.
     if (handle > legacyGl->primitiveTextureCount) {
         uint32_t oldCount = legacyGl->primitiveTextureCount;
-        legacyGl->primitiveTextures = safeRealloc(legacyGl->primitiveTextures, handle * sizeof(GLuint));
+        legacyGl->primitiveTextures = (GLuint*)safeRealloc(legacyGl->primitiveTextures, handle * sizeof(GLuint));
         memset(legacyGl->primitiveTextures + oldCount, 0, (handle-oldCount) * sizeof(GLuint));
         legacyGl->primitiveTextureCount = handle;
     }
@@ -354,8 +354,8 @@ static GLuint legacyPrimitiveTexture(GLRenderer* gl, uint32_t handle, TexturePag
             (uint32_t)tpag->sourceY + tpag->sourceHeight > (uint32_t)height) return page;
         int32_t regionW = legacyGl->needsPOT ? nextPow2(tpag->sourceWidth) : tpag->sourceWidth;
         int32_t regionH = legacyGl->needsPOT ? nextPow2(tpag->sourceHeight) : tpag->sourceHeight;
-        uint8_t* pixels = safeMalloc((size_t)width * height * 4);
-        uint8_t* region = safeMalloc((size_t)regionW * regionH * 4);
+        uint8_t* pixels = (uint8_t*)safeMalloc((size_t)width * height * 4);
+        uint8_t* region = (uint8_t*)safeMalloc((size_t)regionW * regionH * 4);
         GLint pack, unpack;
         glGetIntegerv(GL_PACK_ALIGNMENT, &pack);
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack);
@@ -1928,7 +1928,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
     uint32_t surfaceIndex = GLCommon_allocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
-    legacyGl->surfaceDepth = safeRealloc(legacyGl->surfaceDepth, gl->surfaceCount * sizeof(GLuint));
+    legacyGl->surfaceDepth = (GLuint*)safeRealloc(legacyGl->surfaceDepth, gl->surfaceCount * sizeof(GLuint));
     legacyGl->surfaceDepth[surfaceIndex] = 0;
 
     int32_t texW = legacyGl->needsPOT ? nextPow2(width)  : width;
