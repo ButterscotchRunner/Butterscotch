@@ -5859,13 +5859,17 @@ static RValue builtin_ds_grid_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED in
     for (int32_t i = 0; i < dst->width * dst->height; i++) {
         RValue_free(&dst->items[i]);
     }
+    free(dst->items);
+    size_t count = (size_t)src->width * (size_t)src->height;
     dst->width = src->width;
     dst->height = src->height;
-    arrsetlen(dst->items, 0);
-    {
-    for (int32_t i = 0; i < src->width * src->height; i++) {
-        arrput(dst->items, RValue_makeIndependent(src->items[i]));
-    }
+    dst->items = count > 0 ? (RValue*)safeCalloc(count, sizeof(RValue)) : nullptr;
+    if (dst->items != nullptr) {
+        {
+        for (int32_t i = 0; i < count; i++) {
+            dst->items[i] = RValue_makeIndependent(src->items[i]);
+        }
+        }
     }
     return RValue_makeUndefined();
 }
