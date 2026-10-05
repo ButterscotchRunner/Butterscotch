@@ -32,8 +32,6 @@ struct Instance {
     // Static inheritance: a static struct's parent static struct or nullptr.
     // The member-read fallback walks this chain so a child instance resolves fields declared static on a parent constructor.
     struct Instance* staticParent;
-    // Native GMS runner stores all instance built-in variables as float (32-bit),
-    // even though RValues use double. This matches the native precision model.
     float x, y;
     float xprevious, yprevious;
     float xstart, ystart;
@@ -52,7 +50,8 @@ struct Instance {
     int32_t spriteIndex;
     float imageSpeed;
     float imageIndex; // Even though textureCount is unsigned, games CAN set the image_index to negative values
-    float imageXscale, imageYscale, imageAngle, imageAlpha;
+    float imageXscale, imageYscale, imageAlpha;
+    GMLReal imageAngle;
     uint32_t imageBlend;
     int32_t depth;
     int32_t layer;
