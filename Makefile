@@ -50,23 +50,19 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/base64 \
 		    $(INC)vendor/bzip2 \
 		    $(INC)vendor/miniz
-SRCS += src/physics/physics.c
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
 endif
 ifndef DISABLE_PHYSICS
-DEFINES += $(DEFINE)ENABLE_PHYSICS
+DEFINES += $(DEFINE)ENABLE_PHYSICS $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
 INCLUDES += $(INC)vendor/box2d/include
-SRCS += $(filter-out vendor/box2d/src/timer.c,$(wildcard vendor/box2d/src/*.c))
-SRCS += $(filter-out src/physics/physics.c,$(wildcard src/physics/*.c))
-DEFINES += $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
+SRCS += $(filter-out vendor/box2d/src/timer.c,$(wildcard vendor/box2d/src/*.c)) $(filter-out src/physics/physics.c,$(wildcard src/physics/*.c))
 else
 SRCS += src/physics/disabled/physics_disabled.c
 endif
 
-HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-HEADERS += $(wildcard src/physics/*.h)
-SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(shell find vendor -name '*.h')
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
