@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "physics/physics.h"
 #include "data_win.h"
 #include "instance.h"
 #include "renderer.h"
@@ -429,6 +430,7 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
 // Persistent instances (or instances in a persistent room) still receive Create / Destroy / Alarm / Other / PreCreate so cleanup hooks still run.
 // This mirrors what the official YoYo runner does.
 static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int32_t eventType) {
+    if (eventType == EVENT_CLEANUP) return false;
     if (0 > runner->pendingRoom)
         return false;
 
@@ -1482,6 +1484,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
     GameObject* objDef = &dataWin->objt.objects[objectIndex];
 
     Instance* inst = Instance_create(instanceId, objectIndex, x, y);
+    inst->roomIndex = runner->currentRoomIndex;
 
     // Copy properties from object definition
     inst->spriteIndex = objDef->spriteId;
@@ -1490,6 +1493,7 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
     inst->persistent = objDef->persistent;
     inst->depth = objDef->depth;
     inst->maskIndex = objDef->textureMaskId;
+    Physics_initInstance(runner, inst);
 
     hmput(runner->instancesById, instanceId, inst);
     arrput(runner->instances, inst);
@@ -1511,10 +1515,10 @@ static Instance* createAndInitInstance(Runner* runner, int32_t instanceId, int32
 // You should re-append them at the tail AFTER creating the new room's own instances, so the iteration order matches the native runner: room-local instances first, persistent arrivals last.
 static Instance** takePersistentInstances(Runner* runner) {
     Instance** carriedPersistent = nullptr;
-    int32_t oldCount = (int32_t) arrlen(runner->instances);
-    repeat(oldCount, i) {
+    for (int32_t i = 0; i < arrlen(runner->instances); ++i) {
         Instance* inst = runner->instances[i];
-        if (inst->persistent) {
+        if (inst == nullptr) continue;
+        if (inst->persistent && !inst->destroyed) {
 #ifdef ENABLE_VM_TRACING
             GameObject* gameObject = &runner->dataWin->objt.objects[inst->objectIndex];
             if (shgeti(runner->vmContext->instanceLifecyclesToBeTraced, "*") != -1 || shgeti(runner->vmContext->instanceLifecyclesToBeTraced, gameObject->name) != -1) {
@@ -1537,16 +1541,25 @@ static Instance** takePersistentInstances(Runner* runner) {
 
             // Clear the slot before freeing the instance so any nested destroy/cleanup code cannot
             // accidentally dereference a stale pointer that remains in runner->instances during room transitions.
+            Runner_executeCleanupEvent(runner, inst);
             runner->instances[i] = nullptr;
-
             hmdel(runner->instancesById, inst->instanceId);
-            Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
             Runner_removeInstanceFromObjectLists(runner, inst);
             SpatialGrid_removeInstance(runner->spatialGrid, inst);
             Instance_free(inst);
         }
     }
 
+    for (int32_t carriedIndex = 0; carriedIndex < arrlen(carriedPersistent);) {
+        Instance* inst = carriedPersistent[carriedIndex];
+        if (inst->destroyed) {
+            hmdel(runner->instancesById, inst->instanceId);
+            Instance_free(inst);
+            arrdel(carriedPersistent, carriedIndex);
+        } else {
+            ++carriedIndex;
+        }
+    }
     arrfree(runner->instances);
     runner->instances = nullptr;
 
@@ -1561,6 +1574,8 @@ static Instance** takePersistentInstances(Runner* runner) {
 static void returnPersistentInstances(Runner* runner, Instance** carriedPersistent) {
     repeat(arrlen(carriedPersistent), i) {
         arrput(runner->instances, carriedPersistent[i]);
+        carriedPersistent[i]->roomIndex = runner->currentRoomIndex;
+        Physics_initInstance(runner, carriedPersistent[i]);
         Runner_addInstanceToObjectLists(runner, carriedPersistent[i]);
     }
     arrfree(carriedPersistent);
@@ -1625,9 +1640,16 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     // Kept so carried persistent instances can be re-homed onto the new room's layer with the same name.
     Room* previousRoom = runner->currentRoom;
+    int32_t previousRoomIndex = runner->currentRoomIndex;
+    Instance** carriedPersistent = takePersistentInstances(runner);
+    repeat(arrlen(carriedPersistent), carriedIndex) {
+        PhysicsEngine_destroyBody(carriedPersistent[carriedIndex]->physicsBody);
+        carriedPersistent[carriedIndex]->physicsBody = nullptr;
+    }
 
     runner->currentRoom = room;
     runner->currentRoomIndex = roomIndex;
+    Physics_initRoom(runner);
     runner->viewsEnabled = (room->flags & 1) != 0;
     // Tile set, runtime layers, and instance list all change when entering a room.
     runner->drawableListStructureDirty = true;
@@ -1672,8 +1694,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 runner->nextLayerDrawOrder = runner->runtimeLayers[li].drawOrder;
         }
 
-        Instance** carriedPersistent = takePersistentInstances(runner);
-
         // The native runner restores the room's own linked list first, then appends persistent arrivals at the tail.
         // Event iteration is forward (oldest first), so a persistent instance runs after the room's own instances.
         int32_t savedCount = (int32_t) arrlen(savedState->instances);
@@ -1685,6 +1705,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         savedState->instances = nullptr;
 
         returnPersistentInstances(runner, carriedPersistent);
+        Physics_releaseRoom(runner, previousRoomIndex);
 
         // No Create events, no preCreateCode, no creationCode, no room creation code
         logInfo("Runner: Room restored (persistent): %s (room %d) with %d instances\n", room->name, roomIndex, (int) arrlen(runner->instances));
@@ -1841,8 +1862,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     }
     }
 
-    Instance** carriedPersistent = takePersistentInstances(runner);
-
     // Re-home carried persistent instances onto the new room's layer with the same name as their old layer (native runner behavior).
     // Layer IDs are unique per room, so the old ID never matches a new-room layer directly.
     repeat(arrlen(carriedPersistent), ci) {
@@ -1919,6 +1938,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         inst->imageXscale = (float) roomObj->scaleX;
         inst->imageYscale = (float) roomObj->scaleY;
         inst->imageAngle = roomObj->rotation;
+        PhysicsEngine_destroyBody(inst->physicsBody);
+        inst->physicsBody = nullptr;
+        Physics_initInstance(runner, inst);
         inst->imageSpeed = roomObj->imageSpeed;
         inst->imageIndex = (float) roomObj->imageIndex;
         // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
@@ -1948,6 +1970,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     // Append persistent instances carried over from the previous room at the tail, so forward event iteration processes the new room's own instances first and the travelers last.
     // We NEED to do this here BEFORE firing the room object's events, to avoid code that relies on persistent instances failing (example: if a object uses instance_number to get the number of instances in the room).
     returnPersistentInstances(runner, carriedPersistent);
+    Physics_releaseRoom(runner, previousRoomIndex);
     if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
         repeat(arrlen(runner->instances), i) {
             Instance* inst = runner->instances[i];
@@ -2003,6 +2026,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
 // Cleans up the runner state, used when freeing the Runner or when restarting the Runner
 static void cleanupState(Runner* runner) {
+    Physics_free(runner);
     // Drop VM-side RValue holders (globals, stack, call frames) BEFORE freeing any Instance memory. This way any RVALUE_STRUCT refs decrement against still-live struct memory; otherwise we'd free a struct here and then have VM_free's later VM_reset try to decRef a dangling pointer.
     if (runner->vmContext != nullptr) {
         VM_reset(runner->vmContext);
@@ -2680,6 +2704,9 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
 
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, source->objectIndex, source->x, source->y);
     Instance_copyFields(source, inst);
+    PhysicsEngine_destroyBody(inst->physicsBody);
+    inst->physicsBody = nullptr;
+    Physics_initInstance(runner, inst);
     if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
         RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, source->layer);
         if (layer != nullptr && !layer->automaticDepth)
@@ -2719,6 +2746,12 @@ static void clearDestroyedInstanceReferences(Runner* runner, Instance* destroyed
     }
 }
 
+void Runner_executeCleanupEvent(Runner* runner, Instance* inst) {
+    if (inst->cleanupEventFired) return;
+    inst->cleanupEventFired = true;
+    Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+}
+
 void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool runDestroyEvent) {
     // We check this to avoid a infinite loop if "inst" is destroyed within a event destroy event
     if (inst->destroyed)
@@ -2726,7 +2759,7 @@ void Runner_destroyInstance(MAYBE_UNUSED Runner* runner, Instance* inst, bool ru
     inst->destroyed = true;
     if (runDestroyEvent)
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
-    Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+    Runner_executeCleanupEvent(runner, inst);
     // A destroyed instance must ALWAYS be not active
     // If a destroyed instance is active, then well, something went VERY wrong
     inst->active = false;
@@ -2931,6 +2964,10 @@ void Runner_cleanupDestroyedInstances(Runner* runner) {
 void Runner_initFirstRoom(Runner* runner) {
     DataWin* dataWin = runner->dataWin;
     require(dataWin->gen8.roomOrderCount > 0);
+
+#ifndef ENABLE_PHYSICS
+    logWarn("Runner: built without physics support, games using phy_* functions will not simulate\n");
+#endif
 
     int32_t firstRoomIndex = dataWin->gen8.roomOrder[0];
 
@@ -3503,7 +3540,7 @@ static void dispatchCollisionEvents(Runner* runner) {
 
         repeat(selfBucketCount, si) {
             Instance* self = runner->instanceSnapshots[selfSnapBase + si];
-            if (!self->active) continue;
+            if (!self->active || self->physicsBody) continue;
 
             InstanceBBox bboxSelf;
             Sprite* sprSelf;
@@ -3961,13 +3998,13 @@ void Runner_handlePendingRoomChange(Runner* runner) {
             persistRoomState(runner, oldRoomIndex);
         }
 
-        // Free the outgoing room's payload under lazyLoadRooms, unless it's eagerly pinned or we're restarting the same room (initRoom would just re-load it).
+        // Load new room
+        initRoom(runner, newRoomIndex);
+
+        // Free the outgoing room's payload after Cleanup and persistent-instance layer transfer.
         if (runner->dataWin->lazyLoadRooms && !oldRoom->eagerlyLoaded && newRoomIndex != oldRoomIndex) {
             DataWin_freeRoomPayload(oldRoom);
         }
-
-        // Load new room
-        initRoom(runner, newRoomIndex);
 
         // Fire Room Start for all instances
         Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_ROOM_START);
@@ -4390,6 +4427,13 @@ void Runner_step(Runner* runner) {
     repeat(motionCount, mi) {
         Instance* inst = runner->instances[mi];
         if (!inst->active) continue;
+        if (runner->physics) {
+            if (inst->pathIndex >= 0 && (!inst->physicsBody || !PhysicsEngine_variable(inst->physicsBody, PHY_DYNAMIC, 0, 0, (float)Runner_getEffectiveGameSpeed(runner)))) {
+                if (adaptPath(runner, inst)) Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH);
+                if (!inst->destroyed) PhysicsEngine_pathPosition(inst->physicsBody, inst->x, inst->y);
+            }
+            continue;
+        }
 
         // Friction: reduce speed toward zero (HTML5: AdaptSpeed)
         if (inst->friction != 0.0f) {
@@ -4424,6 +4468,8 @@ void Runner_step(Runner* runner) {
             SpatialGrid_markInstanceAsDirty(runner->spatialGrid, inst);
         }
     }
+
+    Physics_step(runner);
 
     // Dispatch outside room events
     dispatchOutsideRoomEvents(runner);
@@ -4527,7 +4573,7 @@ void Runner_step(Runner* runner) {
     Video_executePendingAsyncEvents(runner);
 
     // Dispatch collision events
-    dispatchCollisionEvents(runner);
+    if (!runner->physics) dispatchCollisionEvents(runner);
 
     // Execute End Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_END);

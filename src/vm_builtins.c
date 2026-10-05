@@ -1,4 +1,5 @@
 #include "vm_builtins.h"
+#include "physics/physics.h"
 #include "video.h"
 #include "binary_utils.h"
 #include "gml_array.h"
@@ -488,6 +489,8 @@ static int compareBuiltinVarEntry(const void* keyPtr, const void* entryPtr) {
 
 // Resolves a built-in variable name to its enum ID
 int16_t VMBuiltins_resolveBuiltinVarId(const char* name) {
+    int16_t physicsId = Physics_resolveVariable(name);
+    if (physicsId >= 0) return physicsId;
     size_t count = sizeof(BUILTIN_VAR_TABLE) / sizeof(BUILTIN_VAR_TABLE[0]);
     BuiltinVarEntry* hit = (BuiltinVarEntry*) bsearch(name, BUILTIN_VAR_TABLE, count, sizeof(BuiltinVarEntry), compareBuiltinVarEntry);
     return hit == nullptr ? BUILTIN_VAR_UNKNOWN : hit->id;
@@ -507,6 +510,7 @@ void VMBuiltins_checkIfBuiltinVarTableIsSorted(void) {
 // Indicates when a variable should be routed via structGet/structSet instead of resolving it using the default path.
 // See GameMaker-HTML5's "g_instance_names" table for reference (GameMaker-HTML5/scripts/yyVariable.js),
 static bool isInstanceScopedBuiltinVar(int16_t builtinVarId) {
+    if (builtinVarId >= PHYSICS_VARIABLE_BASE && builtinVarId < PHYSICS_VARIABLE_BASE + PHY_VARIABLE_COUNT) return true;
     switch (builtinVarId) {
         case BUILTIN_VAR_X:
         case BUILTIN_VAR_Y:
@@ -615,6 +619,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
     // In the past Butterscotch used cascading ifs for this, which in my opinion looked nicer AND GCC was converting the ifs into a jump table, so it was all well...
     // ...until the code changed enough and the GCC heuristic thought "you know what? let's drop the jump table!"
     // So that's why this (and setVariable) are a jump table
+    if (builtinVarId >= PHYSICS_VARIABLE_BASE) return Physics_getVariable(runner, inst, builtinVarId);
     switch (builtinVarId) {
         // File system
         case BUILTIN_VAR_WORKING_DIRECTORY: {
@@ -1323,6 +1328,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         return;
     }
 
+    if (builtinVarId >= PHYSICS_VARIABLE_BASE) { Physics_setVariable(runner, inst, builtinVarId, val); return; }
     switch (builtinVarId) {
         // Per-instance properties
         case BUILTIN_VAR_IMAGE_SPEED:
@@ -9573,7 +9579,8 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     // Fire destroy event on old object if requested
     if (performEvents) {
         Runner_executeEvent(runner, inst, EVENT_DESTROY, 0);
-        Runner_executeEvent(runner, inst, EVENT_CLEANUP, 0);
+        Runner_executeCleanupEvent(runner, inst);
+        if (inst->destroyed) return RValue_makeUndefined();
     }
 
     // Move the instance between per-object lists before mutating objectIndex so the remove walks the old parent chain and the add walks the new one.
@@ -9583,6 +9590,7 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     // Change object index and copy properties from new object definition
     GameObject* newObjDef = &runner->dataWin->objt.objects[objectIndex];
     inst->objectIndex = objectIndex;
+    inst->cleanupEventFired = false;
     Runner_addInstanceToObjectLists(runner, inst);
     inst->spriteIndex = newObjDef->spriteId;
     inst->visible = newObjDef->visible;
@@ -9590,6 +9598,9 @@ static RValue builtin_instance_change(VMContext* ctx, RValue* args, int32_t argC
     inst->persistent = newObjDef->persistent;
     inst->depth = newObjDef->depth;
     inst->maskIndex = newObjDef->textureMaskId;
+    PhysicsEngine_destroyBody(inst->physicsBody);
+    inst->physicsBody = nullptr;
+    Physics_initInstance(runner, inst);
     inst->imageIndex = 0.0;
     // The instance pointer is unchanged so this is just a depth shift, not a structural change.
     runner->drawableListSortDirty = true;
@@ -22645,11 +22656,360 @@ static RValue builtin_video_get_position(VMContext* ctx, RValue* args, MAYBE_UNU
     return RValue_makeReal(0);
 }
 
+// ||Physics implementation||
+
+static RValue physicsBuiltin(VMContext* ctx, RValue* values, int32_t count, const char* name, int scope, int minimum, bool returnsReal) {
+    if (count < minimum) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    double args[16] = {0};
+    int32_t n = count < 16 ? count : 16;
+    for (int32_t i = 0; i < n; ++i) {
+        args[i] = RValue_toReal(values[i]);
+        float value = (float)args[i];
+        if (!(value >= -FLT_MAX && value <= FLT_MAX)) return RValue_makeUndefined();
+    }
+    if (!strcmp(name, "physics_world_create") && !runner->physics) {
+        if (args[0] <= 0) return RValue_makeUndefined();
+        runner->physics = Physics_createWorld(runner, (float)args[0]);
+        requireNotNullMessage(runner->physics, "physics_world_create could not create a Box2D world");
+        if (runner->physicsRooms && runner->currentRoomIndex >= 0)
+            runner->physicsRooms[runner->currentRoomIndex] = runner->physics;
+    }
+    if (!runner->physics && !strcmp(name, "physics_fixture_create")) Physics_ensureResources(runner);
+    PhysicsEngine* engine = runner->physics;
+    if (!engine) {
+        double result = -1;
+        if (!strncmp(name, "physics_fixture_", 16) && runner->physicsResources)
+            result = PhysicsResources_call(runner->physicsResources, 0.1f, name, args, n);
+        return returnsReal ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
+    }
+
+    Instance* a = ctx->currentInstance;
+    if (a && a->roomIndex != runner->currentRoomIndex) a = nullptr;
+    Instance* b = nullptr;
+    if (scope == 2) {
+        a = VM_findInstanceByTarget(ctx, RValue_toInt32(values[0]));
+        b = VM_findInstanceByTarget(ctx, RValue_toInt32(values[1]));
+    }
+    if (scope == 3) {
+        int32_t id = RValue_toInt32(values[0]);
+        if (id == INSTANCE_SELF) id = a ? (int32_t)a->instanceId : INSTANCE_NOONE;
+        if (id == INSTANCE_OTHER) id = ctx->otherInstance ? (int32_t)ctx->otherInstance->instanceId : INSTANCE_NOONE;
+        int32_t base = Runner_pushInstancesForTarget(runner, id);
+        int32_t end = (int32_t)arrlen(runner->instanceSnapshots);
+        args[0] = args[1];
+        for (int32_t i = base; i < end; ++i) {
+            Instance* inst = runner->instanceSnapshots[i];
+            if (!inst->destroyed && inst->roomIndex == runner->currentRoomIndex) PhysicsEngine_call(engine, name, inst->physicsBody, nullptr, args, 1);
+        }
+        Runner_popInstanceSnapshot(runner, base);
+        return RValue_makeUndefined();
+    }
+    if (!strcmp(name, "physics_world_create") && args[0] <= 0) return RValue_makeUndefined();
+    double result = PhysicsEngine_call(engine, name, a ? a->physicsBody : nullptr, b ? b->physicsBody : nullptr, args, n);
+    return returnsReal ? RValue_makeReal((GMLReal)result) : RValue_makeUndefined();
+}
+
+/* name, scope (world=0, self=1, joint-create=2, instance/fixture=3), minimum arguments, numeric return */
+#define PHYSICS_FUNCTIONS(X) \
+    X(physics_world_create, 0, 1, false) \
+    X(physics_world_gravity, 0, 2, false) \
+    X(physics_world_update_speed, 0, 1, false) \
+    X(physics_world_update_iterations, 0, 1, false) \
+    X(physics_world_draw_debug, 0, 1, false) \
+    X(physics_pause_enable, 0, 1, false) \
+    X(physics_fixture_create, 0, 0, true) \
+    X(physics_fixture_delete, 0, 1, false) \
+    X(physics_fixture_set_kinematic, 0, 1, false) \
+    X(physics_fixture_set_density, 0, 2, false) \
+    X(physics_fixture_set_restitution, 0, 2, false) \
+    X(physics_fixture_set_friction, 0, 2, false) \
+    X(physics_fixture_set_collision_group, 0, 2, false) \
+    X(physics_fixture_set_sensor, 0, 2, false) \
+    X(physics_fixture_set_linear_damping, 0, 2, false) \
+    X(physics_fixture_set_angular_damping, 0, 2, false) \
+    X(physics_fixture_set_awake, 0, 2, false) \
+    X(physics_fixture_set_circle_shape, 0, 2, false) \
+    X(physics_fixture_set_box_shape, 0, 3, false) \
+    X(physics_fixture_set_edge_shape, 0, 5, false) \
+    X(physics_fixture_set_polygon_shape, 0, 1, false) \
+    X(physics_fixture_set_chain_shape, 0, 2, false) \
+    X(physics_fixture_add_point, 0, 3, false) \
+    X(physics_joint_distance_create, 2, 7, true) \
+    X(physics_joint_rope_create, 2, 8, true) \
+    X(physics_joint_revolute_create, 2, 11, true) \
+    X(physics_joint_prismatic_create, 2, 13, true) \
+    X(physics_joint_pulley_create, 2, 12, true) \
+    X(physics_joint_wheel_create, 2, 12, true) \
+    X(physics_joint_weld_create, 2, 8, true) \
+    X(physics_joint_friction_create, 2, 7, true) \
+    X(physics_joint_gear_create, 2, 5, true) \
+    X(physics_joint_enable_motor, 0, 2, false) \
+    X(physics_joint_get_value, 0, 2, true) \
+    X(physics_joint_set_value, 0, 3, false) \
+    X(physics_joint_delete, 0, 1, false) \
+    X(physics_apply_force, 1, 4, false) \
+    X(physics_apply_impulse, 1, 4, false) \
+    X(physics_apply_local_force, 1, 4, false) \
+    X(physics_apply_local_impulse, 1, 4, false) \
+    X(physics_apply_angular_impulse, 1, 1, false) \
+    X(physics_apply_torque, 1, 1, false) \
+    X(physics_mass_properties, 1, 4, false) \
+    X(physics_draw_debug, 1, 0, false) \
+    X(physics_remove_fixture, 3, 2, false) \
+    X(physics_get_friction, 1, 1, true) \
+    X(physics_get_density, 1, 1, true) \
+    X(physics_get_restitution, 1, 1, true) \
+    X(physics_set_friction, 1, 2, false) \
+    X(physics_set_density, 1, 2, false) \
+    X(physics_set_restitution, 1, 2, false) \
+    X(physics_particle_create, 0, 8, true) \
+    X(physics_particle_delete, 0, 1, false) \
+    X(physics_particle_delete_region_circle, 0, 3, false) \
+    X(physics_particle_delete_region_box, 0, 4, false) \
+    X(physics_particle_group_begin, 0, 12, false) \
+    X(physics_particle_group_circle, 0, 1, false) \
+    X(physics_particle_group_box, 0, 2, false) \
+    X(physics_particle_group_polygon, 0, 0, false) \
+    X(physics_particle_group_add_point, 0, 2, false) \
+    X(physics_particle_group_end, 0, 0, true) \
+    X(physics_particle_group_join, 0, 2, false) \
+    X(physics_particle_group_delete, 0, 1, false) \
+    X(physics_particle_count, 0, 0, true) \
+    X(physics_particle_get_max_count, 0, 0, true) \
+    X(physics_particle_get_radius, 0, 0, true) \
+    X(physics_particle_get_density, 0, 0, true) \
+    X(physics_particle_get_damping, 0, 0, true) \
+    X(physics_particle_get_gravity_scale, 0, 0, true) \
+    X(physics_particle_set_max_count, 0, 1, false) \
+    X(physics_particle_set_radius, 0, 1, false) \
+    X(physics_particle_set_density, 0, 1, false) \
+    X(physics_particle_set_damping, 0, 1, false) \
+    X(physics_particle_set_gravity_scale, 0, 1, false) \
+    X(physics_particle_set_flags, 0, 2, false) \
+    X(physics_particle_set_category_flags, 0, 2, false) \
+    X(physics_particle_set_group_flags, 0, 2, false) \
+    X(physics_particle_get_group_flags, 0, 1, true) \
+    X(physics_particle_group_count, 0, 1, true) \
+    X(physics_particle_group_get_mass, 0, 1, true) \
+    X(physics_particle_group_get_inertia, 0, 1, true) \
+    X(physics_particle_group_get_centre_x, 0, 1, true) \
+    X(physics_particle_group_get_centre_y, 0, 1, true) \
+    X(physics_particle_group_get_vel_x, 0, 1, true) \
+    X(physics_particle_group_get_vel_y, 0, 1, true) \
+    X(physics_particle_group_get_ang_vel, 0, 1, true) \
+    X(physics_particle_group_get_x, 0, 1, true) \
+    X(physics_particle_group_get_y, 0, 1, true) \
+    X(physics_particle_group_get_angle, 0, 1, true) \
+    X(physics_debug, 0, 0, false)
+
+#define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) \
+static RValue builtin_##name(VMContext* ctx, RValue* args, int32_t count) { \
+    return physicsBuiltin(ctx, args, count, #name, scope, minimum, returnsReal); \
+}
+PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
+#undef PHYSICS_FUNCTION
+
+static RValue builtin_physics_fixture_bind(VMContext* ctx, RValue* args, int32_t count) {
+    if (count < 2 || !ctx->runner->physics) return RValue_makeReal(-1);
+    Runner* runner = ctx->runner;
+    int32_t fixture = RValue_toInt32(args[0]), id = RValue_toInt32(args[1]);
+    if (id == INSTANCE_SELF) id = ctx->currentInstance ? (int32_t)ctx->currentInstance->instanceId : INSTANCE_NOONE;
+    if (id == INSTANCE_OTHER) id = ctx->otherInstance ? (int32_t)ctx->otherInstance->instanceId : INSTANCE_NOONE;
+    float xo = count >= 4 ? (float)RValue_toReal(args[2]) : 0;
+    float yo = count >= 4 ? (float)RValue_toReal(args[3]) : 0;
+    int32_t base = Runner_pushInstancesForTarget(runner, id);
+    int32_t end = (int32_t)arrlen(runner->instanceSnapshots), result = -1;
+    for (int32_t i = base; i < end; ++i) {
+        Instance* inst = runner->instanceSnapshots[i];
+        if (inst->destroyed || inst->roomIndex != runner->currentRoomIndex) continue;
+        PhysicsBody* body = PhysicsEngine_body(runner->physics, inst, inst->physicsBody, fixture, inst->x, inst->y, inst->imageAngle, xo, yo, 0);
+        if (body) {
+            inst->physicsBody = body;
+            result = (int32_t)PhysicsEngine_call(runner->physics, "physics_fixture_index", body, nullptr, nullptr, 0);
+        }
+    }
+    Runner_popInstanceSnapshot(runner, base);
+    return RValue_makeReal(result);
+}
+
+static RValue builtin_physics_test_overlap(VMContext* ctx, RValue* args, int32_t count) {
+    if (count < 4 || !ctx->currentInstance) return RValue_makeBool(false);
+    Runner* runner = ctx->runner;
+    int32_t id = RValue_toInt32(args[3]);
+    if (id == INSTANCE_SELF) id = ctx->currentInstance->instanceId;
+    if (id == INSTANCE_OTHER) id = ctx->otherInstance ? (int32_t)ctx->otherInstance->instanceId : INSTANCE_NOONE;
+    int32_t base = Runner_pushInstancesForTarget(runner, id);
+    int32_t end = (int32_t)arrlen(runner->instanceSnapshots);
+    bool found = false;
+    for (int32_t i = base; i < end; ++i) {
+        Instance* b = runner->instanceSnapshots[i];
+        if (b != ctx->currentInstance && !b->destroyed && b->active && PhysicsEngine_overlap(ctx->currentInstance->physicsBody,
+            b->physicsBody, (float)RValue_toReal(args[0]), (float)RValue_toReal(args[1]), (float)RValue_toReal(args[2]))) {
+            found = true;
+            break;
+        }
+    }
+    Runner_popInstanceSnapshot(runner, base);
+    return RValue_makeBool(found);
+}
+
+static RValue builtin_physics_particle_delete_region_poly(VMContext* ctx, RValue* args, int32_t count) {
+    if (count < 1 || args[0].type != RVALUE_ARRAY) return RValue_makeUndefined();
+    int32_t n = GMLArray_length1D(args[0].array);
+    if (n < 6 || n > 16 || (n & 1)) return RValue_makeUndefined();
+    float xy[16];
+    for (int32_t i = 0; i < n; ++i) xy[i] = (float)RValue_toReal(GMLArray_get(args[0].array, i));
+    PhysicsEngine_polygon(ctx->runner->physics, xy, n / 2, 1);
+    return RValue_makeUndefined();
+}
+
+static RValue physicsParticleData(VMContext* ctx, RValue* args, int32_t count, int mode) {
+    if (count < (mode ? 3 : 2)) return RValue_makeUndefined();
+    int32_t index = mode ? RValue_toInt32(args[0]) : -1;
+    if (mode && index < 0) return RValue_makeUndefined();
+    int32_t bufferId = RValue_toInt32(args[mode ? 1 : 0]);
+    int32_t flags = RValue_toInt32(args[mode ? 2 : 1]) & 31;
+    Runner* runner = ctx->runner;
+    if (bufferId < 0 || bufferId >= arrlen(runner->gmlBufferPool) || !runner->gmlBufferPool[bufferId].isValid) return RValue_makeUndefined();
+    int32_t particle = mode == 1 ? index : -1, group = mode == 2 ? index : -1;
+    int32_t size = PhysicsEngine_particleData(runner->physics, particle, group, flags, nullptr, 0);
+    if (size <= 0) return RValue_makeUndefined();
+    unsigned char* data = (unsigned char*)safeMalloc(size);
+    PhysicsEngine_particleData(runner->physics, particle, group, flags, data, size);
+    int32_t position = runner->gmlBufferPool[bufferId].position;
+    BuiltinFunc writer = VM_findBuiltin(ctx, "buffer_write");
+    int32_t offset = 0;
+    while (offset < size) {
+        for (int bit = 0; bit < 5; ++bit) {
+            if (!(flags & (1 << bit))) continue;
+            int components = bit == 1 || bit == 2 ? 2 : 1;
+            for (int i = 0; i < components; ++i) {
+                RValue value;
+                if (bit == 1 || bit == 2) {
+                    float v;
+                    memcpy(&v, data + offset, 4);
+                    value = RValue_makeReal(v);
+                } else {
+                    uint32_t v;
+                    memcpy(&v, data + offset, 4);
+                    value = RValue_makeReal(bit == 4 ? (GMLReal)(int32_t)v : (GMLReal)v);
+                }
+                int32_t type = bit == 1 || bit == 2 ? GML_BUFTYPE_F32 : bit == 4 ? GML_BUFTYPE_S32 : GML_BUFTYPE_U32;
+                RValue writeArgs[3];
+                writeArgs[0] = RValue_makeReal(bufferId);
+                writeArgs[1] = RValue_makeReal(type);
+                writeArgs[2] = value;
+                RValue result = writer(ctx, writeArgs, 3);
+                RValue_free(&result);
+                offset += 4;
+            }
+        }
+    }
+    runner->gmlBufferPool[bufferId].position = position;
+    free(data);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_physics_particle_get_data(VMContext* ctx, RValue* args, int32_t count) { return physicsParticleData(ctx, args, count, 0); }
+static RValue builtin_physics_particle_get_data_particle(VMContext* ctx, RValue* args, int32_t count) { return physicsParticleData(ctx, args, count, 1); }
+static RValue builtin_physics_particle_group_get_data(VMContext* ctx, RValue* args, int32_t count) { return physicsParticleData(ctx, args, count, 2); }
+
+typedef struct {
+    Runner* runner;
+    int32_t sprite, subimg;
+    float xs, ys, angle;
+    uint32_t color;
+    float alpha;
+    bool extended;
+} PhysicsParticleDraw;
+
+static void physicsDrawParticle(void* context, float x, float y, int color, float alpha) {
+    PhysicsParticleDraw* d = (PhysicsParticleDraw*)context;
+    Renderer_drawSpriteExt(d->runner->renderer, d->sprite, d->subimg, x, y, d->xs, d->ys, d->angle,
+        d->extended ? d->color : (uint32_t)color, d->extended ? d->alpha : alpha);
+}
+
+static RValue physicsParticleDraw(VMContext* ctx, RValue* args, int32_t count, bool extended) {
+    if (count < (extended ? 9 : 4)) return RValue_makeUndefined();
+    PhysicsParticleDraw d = {ctx->runner, RValue_toInt32(args[2]), RValue_toInt32(args[3]), 1, 1, 0, 0xFFFFFF, 1, extended};
+    if (d.sprite < 0 || (uint32_t)d.sprite >= ctx->dataWin->sprt.count) return RValue_makeUndefined();
+    if (extended) {
+        d.xs = (float)RValue_toReal(args[4]); d.ys = (float)RValue_toReal(args[5]);
+        d.angle = (float)RValue_toReal(args[6]); d.color = (uint32_t)RValue_toReal(args[7]); d.alpha = (float)RValue_toReal(args[8]);
+    }
+    PhysicsEngine_drawParticles(ctx->runner->physics, RValue_toInt32(args[0]), RValue_toInt32(args[1]), physicsDrawParticle, &d);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_physics_particle_draw(VMContext* ctx, RValue* args, int32_t count) { return physicsParticleDraw(ctx, args, count, false); }
+static RValue builtin_physics_particle_draw_ext(VMContext* ctx, RValue* args, int32_t count) { return physicsParticleDraw(ctx, args, count, true); }
+
+static RValue builtin_physics_raycast(VMContext* ctx, RValue* args, int32_t count) {
+    if (count < 5 || !ctx->runner->physics) return RValue_makeUndefined();
+    Runner* runner = ctx->runner;
+    bool all = count >= 6 && RValue_toBool(args[5]);
+    float maxFraction = count >= 7 ? (float)RValue_toReal(args[6]) : 1;
+    GMLArray* hits = GMLArray_create(ctx->dataWin, 0);
+    float closest = maxFraction;
+    for (int32_t i = 0; i < arrlen(runner->instances); ++i) {
+        Instance* inst = runner->instances[i];
+        if (!inst->active || inst->destroyed || !inst->physicsBody) continue;
+        bool selected = false;
+        int32_t ids = args[4].type == RVALUE_ARRAY ? GMLArray_length1D(args[4].array) : 1;
+        for (int32_t j = 0; j < ids; ++j) {
+            int32_t id = RValue_toInt32(args[4].type == RVALUE_ARRAY ? GMLArray_get(args[4].array, j) : args[4]);
+            if (id == INSTANCE_ALL || id == (int32_t)inst->instanceId || (id == INSTANCE_SELF && inst == ctx->currentInstance)
+                || (id == INSTANCE_OTHER && inst == ctx->otherInstance)
+                || (id >= 0 && id < INSTANCE_ID_BASE && Collision_matchesTarget(ctx->dataWin, inst, id))) {
+                selected = true;
+                break;
+            }
+        }
+        if (!selected) continue;
+        float result[3] = {0};
+        float x1 = (float)RValue_toReal(args[0]), y1 = (float)RValue_toReal(args[1]);
+        float x2 = (float)RValue_toReal(args[2]), y2 = (float)RValue_toReal(args[3]);
+        if (!PhysicsEngine_raycast(inst->physicsBody, x1, y1, x2, y2, all ? maxFraction : closest, result)) continue;
+        Instance* hit = Runner_createStruct(runner);
+        VM_structSetAndFreeVal(ctx, hit, "normalX", RValue_makeReal(result[1]), -1);
+        VM_structSetAndFreeVal(ctx, hit, "normalY", RValue_makeReal(result[2]), -1);
+        VM_structSetAndFreeVal(ctx, hit, "fraction", RValue_makeReal(result[0]), -1);
+        VM_structSetAndFreeVal(ctx, hit, "hitpointX", RValue_makeReal(x1 + result[0] * (x2 - x1)), -1);
+        VM_structSetAndFreeVal(ctx, hit, "hitpointY", RValue_makeReal(y1 + result[0] * (y2 - y1)), -1);
+        VM_structSetAndFreeVal(ctx, hit, "instance", RValue_makeReal(inst->instanceId), -1);
+        int32_t index = all ? GMLArray_length1D(hits) : 0;
+        GMLArray_growTo(hits, index + 1);
+        RValue* slot = GMLArray_slot(hits, index);
+        RValue_free(slot);
+        *slot = RValue_makeStructAndIncRef(hit);
+        closest = result[0];
+    }
+    if (!GMLArray_length1D(hits)) { GMLArray_decRef(hits); return RValue_makeUndefined(); }
+    return RValue_makeArray(hits);
+}
+
 // ===[ REGISTRATION ]===
 
 void VMBuiltins_registerAll(VMContext* ctx) {
     requireMessage(!ctx->registeredBuiltinFunctions, "Attempting to register all VMBuiltins, but it was already registered!");
     ctx->registeredBuiltinFunctions = true;
+
+    // Physics
+#define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) VM_registerBuiltin(ctx, #name, builtin_##name);
+    PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
+#undef PHYSICS_FUNCTION
+#undef PHYSICS_FUNCTIONS
+    VM_registerBuiltin(ctx, "physics_fixture_bind", builtin_physics_fixture_bind);
+    VM_registerBuiltin(ctx, "physics_fixture_bind_ext", builtin_physics_fixture_bind);
+    VM_registerBuiltin(ctx, "physics_test_overlap", builtin_physics_test_overlap);
+    VM_registerBuiltin(ctx, "physics_particle_delete_region_poly", builtin_physics_particle_delete_region_poly);
+    VM_registerBuiltin(ctx, "physics_particle_get_data", builtin_physics_particle_get_data);
+    VM_registerBuiltin(ctx, "physics_particle_get_data_particle", builtin_physics_particle_get_data_particle);
+    VM_registerBuiltin(ctx, "physics_particle_group_get_data", builtin_physics_particle_group_get_data);
+    VM_registerBuiltin(ctx, "physics_particle_draw", builtin_physics_particle_draw);
+    VM_registerBuiltin(ctx, "physics_particle_draw_ext", builtin_physics_particle_draw_ext);
+    VM_registerBuiltin(ctx, "physics_raycast", builtin_physics_raycast);
 
     const bool isGMS2 = DataWin_isVersionAtLeast(ctx->dataWin, 2, 0, 0, 0);
 
