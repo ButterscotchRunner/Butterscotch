@@ -273,6 +273,7 @@ typedef enum {
 
     // Async system
     BUILTIN_VAR_ASYNC_LOAD,
+    BUILTIN_VAR_EVENT_DATA,
 } BuiltinVarId;
 
 void VMBuiltins_registerAll(VMContext* ctx);

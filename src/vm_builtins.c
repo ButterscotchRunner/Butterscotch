@@ -328,6 +328,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "delta_time", BUILTIN_VAR_DELTA_TIME },
     { "depth", BUILTIN_VAR_DEPTH },
     { "direction", BUILTIN_VAR_DIRECTION },
+    { "event_data", BUILTIN_VAR_EVENT_DATA },
     { "false", BUILTIN_VAR_FALSE },
     { "fps", BUILTIN_VAR_FPS },
     { "fps_real", BUILTIN_VAR_FPS_REAL },
@@ -688,6 +689,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeReal(OS_LLVM_WINPHONE);
         case BUILTIN_VAR_ASYNC_LOAD:
             return RValue_makeReal((GMLReal) runner->asyncLoadMapId);
+        case BUILTIN_VAR_EVENT_DATA:
+            return RValue_makeReal((GMLReal) runner->eventDataMapId);
 
         // Per-instance properties
         case BUILTIN_VAR_IMAGE_SPEED:
@@ -1353,7 +1356,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         }
         case BUILTIN_VAR_IMAGE_ANGLE: {
             if (inst == nullptr) break;
-            float value = (float) RValue_toReal(val);
+            GMLReal value = RValue_toReal(val);
             bool changed = value != inst->imageAngle;
             if (changed) {
                 inst->imageAngle = value;

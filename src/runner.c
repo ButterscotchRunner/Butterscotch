@@ -1918,7 +1918,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         Instance* inst = createAndInitInstance(runner, roomObj->instanceID, roomObj->objectDefinition, (GMLReal) roomObj->x, (GMLReal) roomObj->y);
         inst->imageXscale = (float) roomObj->scaleX;
         inst->imageYscale = (float) roomObj->scaleY;
-        inst->imageAngle = (float) roomObj->rotation;
+        inst->imageAngle = roomObj->rotation;
         inst->imageSpeed = roomObj->imageSpeed;
         inst->imageIndex = (float) roomObj->imageIndex;
         // Room editor stores per-instance color as ABGR (0xAABBGGRR): low 24 bits feed image_blend, top 8 bits feed image_alpha.
@@ -2246,6 +2246,7 @@ void Runner_reset(Runner* runner) {
 
     runner->pendingRoom = -1;
     runner->asyncLoadMapId = -1;
+    runner->eventDataMapId = -1;
     runner->asyncBufferNextRequestId = 1;
     runner->xboxAccountPickerPendingId = -1;
     runner->xboxAccountPickerPadIndex = 0;
@@ -4081,6 +4082,87 @@ static void tickTimelines(Runner* runner) {
     arrsetlen(runner->instanceSnapshots, snapBase);
 }
 
+typedef struct {
+    int32_t elementId;
+    const char* message;
+} PendingSpriteMessage;
+
+static void queueSpriteMessageRange(PendingSpriteMessage** pending, Sprite* sprite, int32_t elementId, float start, float end) {
+    int32_t count = (int32_t) arrlen(sprite->messages);
+    bool forward = end > start;
+    repeat(count, i) {
+        SpriteMessage* message = &sprite->messages[forward ? i : count - 1 - i];
+        bool crossed = forward ? (message->frame >= start && message->frame < end)
+                               : (message->frame <= start && message->frame > end);
+        if (crossed) {
+            PendingSpriteMessage entry = { elementId, message->message };
+            arrput(*pending, entry);
+        }
+    }
+}
+
+static void queueSpriteMessages(Runner* runner, PendingSpriteMessage** pending, Instance* inst, Sprite* sprite, float start, float end) {
+    if (sprite->messages == nullptr || sprite->textureCount == 0 || start == end) return;
+    RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, inst->layer);
+    if (layer == nullptr) return;
+    int32_t elementId = -1;
+    repeat(arrlenu(layer->elements), i) {
+        RuntimeLayerElement* element = &layer->elements[i];
+        if (element->type == RuntimeLayerElementType_Instance && element->instanceId == (int32_t) inst->instanceId) {
+            elementId = element->id;
+            break;
+        }
+    }
+    if (elementId < 0) return;
+
+    float length = (float) sprite->textureCount;
+    if (end > start) {
+        while (end >= length) {
+            queueSpriteMessageRange(pending, sprite, elementId, start, length);
+            start = 0;
+            end -= length;
+        }
+    } else {
+        while (end < 0) {
+            queueSpriteMessageRange(pending, sprite, elementId, start, -1.0f);
+            start = length;
+            end += length;
+        }
+    }
+    queueSpriteMessageRange(pending, sprite, elementId, start, end);
+}
+
+static void dispatchSpriteMessages(Runner* runner, PendingSpriteMessage* pending) {
+    repeat(arrlenu(pending), i) {
+        DsMapEntry* map = nullptr;
+        int32_t mapId = -1;
+        repeat(arrlenu(runner->dsMapPool), j) {
+            if (runner->dsMapPool[j] == nullptr) { mapId = (int32_t) j; break; }
+        }
+        if (mapId < 0) {
+            arrput(runner->dsMapPool, map);
+            mapId = (int32_t) arrlen(runner->dsMapPool) - 1;
+        }
+        DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+        shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup("sprite event")));
+        shput(*mapPtr, safeStrdup("element_id"), RValue_makeReal((GMLReal) pending[i].elementId));
+        shput(*mapPtr, safeStrdup("message"), RValue_makeOwnedString(safeStrdup(pending[i].message)));
+        int32_t previousMapId = runner->eventDataMapId;
+        runner->eventDataMapId = mapId;
+        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_BROADCAST_MESSAGE);
+        runner->eventDataMapId = previousMapId;
+        mapPtr = &runner->dsMapPool[mapId];
+        if (*mapPtr != nullptr) {
+            repeat(shlen(*mapPtr), j) {
+                free((*mapPtr)[j].key);
+                RValue_free(&(*mapPtr)[j].value);
+            }
+            shfree(*mapPtr);
+            *mapPtr = nullptr;
+        }
+    }
+}
+
 void Runner_step(Runner* runner) {
     runner->fpsRealFrameStartNanos = nowNanos();
 
@@ -4101,6 +4183,7 @@ void Runner_step(Runner* runner) {
     // Advance image_index by image_speed for all active instances
     // TODO: Newer GameMaker versions (not sure exactly which, but at least GM 2024 does this) defers Animation End: have Instance_Animate just set a per-instance "wrapped" flag, and dispatch the event via a new ProcessSpriteMessageEvents step between Step and the motion loop!
     int32_t animCount = (int32_t) arrlen(runner->instances);
+    PendingSpriteMessage* spriteMessages = nullptr;
     int32_t animEndSlot = EventSlotMap_lookup(&runner->eventSlotMap, EVENT_OTHER, OTHER_ANIMATION_END);
     {
     repeat(animCount, i) {
@@ -4112,6 +4195,7 @@ void Runner_step(Runner* runner) {
         }
         // Wrap image_index (matches HTML5 runner: manual subtract/add instead of using fmod)
         Sprite* sprite = &runner->dataWin->sprt.sprites[inst->spriteIndex];
+        float previousImageIndex = inst->imageIndex;
         if (sprite->specialType == true) {
             if (DataWin_isVersionAtLeast(runner->dataWin, 2, 0, 0, 0)) {
                 if (sprite->gms2PlaybackSpeedType == true) {
@@ -4124,6 +4208,7 @@ void Runner_step(Runner* runner) {
             inst->imageIndex += inst->imageSpeed;
         }
         float frameCount = (float) sprite->textureCount;
+        queueSpriteMessages(runner, &spriteMessages, inst, sprite, previousImageIndex, inst->imageIndex);
         bool wrapped = false;
         if (inst->imageIndex >= frameCount) {
             inst->imageIndex -= frameCount;
@@ -4295,6 +4380,9 @@ void Runner_step(Runner* runner) {
 
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
+
+    dispatchSpriteMessages(runner, spriteMessages);
+    arrfree(spriteMessages);
 
     // Apply motion: friction, gravity, then x += hspeed, y += vspeed
     int32_t motionCount = (int32_t) arrlen(runner->instances);

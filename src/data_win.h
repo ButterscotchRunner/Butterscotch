@@ -215,6 +215,11 @@ typedef struct {
 
 // ===[ SPRT - Sprites ]===
 typedef struct {
+    float frame;
+    const char* message;
+} SpriteMessage;
+
+typedef struct {
     bool present;
     const char* name;
     uint32_t width;
@@ -235,6 +240,7 @@ typedef struct {
     float gms2PlaybackSpeed;
     bool gms2PlaybackSpeedType;
     bool specialType;
+    SpriteMessage* messages;
     uint32_t textureCount;
     int32_t* tpagIndices;    // resolved TPAG indices (one per frame); -1 for unresolved
     uint32_t maskCount;       // number of collision masks (one per frame, or 0)
