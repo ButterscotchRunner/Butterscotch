@@ -11363,10 +11363,10 @@ static RValue builtin_draw_sprite_part(VMContext* ctx, RValue* args, MAYBE_UNUSE
 
     int32_t spriteIndex = RValue_toInt32(args[0]);
     int32_t subimg = RValue_toInt32(args[1]);
-    int32_t left = RValue_toInt32(args[2]);
-    int32_t top = RValue_toInt32(args[3]);
-    int32_t width = RValue_toInt32(args[4]);
-    int32_t height = RValue_toInt32(args[5]);
+    float left = (float) RValue_toReal(args[2]);
+    float top = (float) RValue_toReal(args[3]);
+    float width = (float) RValue_toReal(args[4]);
+    float height = (float) RValue_toReal(args[5]);
     float x = (float) RValue_toReal(args[6]);
     float y = (float) RValue_toReal(args[7]);
 
@@ -11385,10 +11385,10 @@ static RValue builtin_draw_sprite_part_ext(VMContext* ctx, RValue* args, MAYBE_U
 
     int32_t spriteIndex = RValue_toInt32(args[0]);
     int32_t subimg = RValue_toInt32(args[1]);
-    int32_t left = RValue_toInt32(args[2]);
-    int32_t top = RValue_toInt32(args[3]);
-    int32_t width = RValue_toInt32(args[4]);
-    int32_t height = RValue_toInt32(args[5]);
+    float left = (float) RValue_toReal(args[2]);
+    float top = (float) RValue_toReal(args[3]);
+    float width = (float) RValue_toReal(args[4]);
+    float height = (float) RValue_toReal(args[5]);
     float x = (float) RValue_toReal(args[6]);
     float y = (float) RValue_toReal(args[7]);
     float xscale = (float) RValue_toReal(args[8]);
@@ -11410,10 +11410,10 @@ static RValue builtin_draw_sprite_general(VMContext* ctx, RValue* args, MAYBE_UN
 
     int32_t spriteIndex = RValue_toInt32(args[0]);
     int32_t subimg = RValue_toInt32(args[1]);
-    int32_t left = RValue_toInt32(args[2]);
-    int32_t top = RValue_toInt32(args[3]);
-    int32_t width = RValue_toInt32(args[4]);
-    int32_t height = RValue_toInt32(args[5]);
+    float left = (float) RValue_toReal(args[2]);
+    float top = (float) RValue_toReal(args[3]);
+    float width = (float) RValue_toReal(args[4]);
+    float height = (float) RValue_toReal(args[5]);
     float x = (float) RValue_toReal(args[6]);
     float y = (float) RValue_toReal(args[7]);
     float xscale = (float) RValue_toReal(args[8]);
@@ -11883,10 +11883,10 @@ static RValue builtin_draw_background_part(VMContext* ctx, RValue* args, MAYBE_U
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
     int32_t bgIndex = RValue_toInt32(args[0]);
-    int32_t left = RValue_toInt32(args[1]);
-    int32_t top = RValue_toInt32(args[2]);
-    int32_t width = RValue_toInt32(args[3]);
-    int32_t height = RValue_toInt32(args[4]);
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float width = (float) RValue_toReal(args[3]);
+    float height = (float) RValue_toReal(args[4]);
     float x = (float) RValue_toReal(args[5]);
     float y = (float) RValue_toReal(args[6]);
 
@@ -11903,10 +11903,10 @@ static RValue builtin_draw_background_part_ext(VMContext* ctx, RValue* args, MAY
     if (runner->renderer == nullptr) return RValue_makeUndefined();
 
     int32_t bgIndex = RValue_toInt32(args[0]);
-    int32_t left = RValue_toInt32(args[1]);
-    int32_t top = RValue_toInt32(args[2]);
-    int32_t width = RValue_toInt32(args[3]);
-    int32_t height = RValue_toInt32(args[4]);
+    float left = (float) RValue_toReal(args[1]);
+    float top = (float) RValue_toReal(args[2]);
+    float width = (float) RValue_toReal(args[3]);
+    float height = (float) RValue_toReal(args[4]);
     float x = (float) RValue_toReal(args[5]);
     float y = (float) RValue_toReal(args[6]);
     float xscale = (float) RValue_toReal(args[7]);

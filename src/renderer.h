@@ -149,9 +149,9 @@ typedef struct {
     void (*setGuiProjection)(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface);
     void (*endGUI)(Renderer* renderer);
     void (*drawSprite)(Renderer* renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha);
-    void (*drawSpritePart)(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha);
+    void (*drawSpritePart)(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha);
     // Per-corner-coloured variant of drawSpritePart. Colors map to TL, TR, BR, BL (GM convention).
-    void (*drawSpritePartColor)(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha);
+    void (*drawSpritePartColor)(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha);
     void (*drawSpritePos)(Renderer* renderer, int32_t tpagIndex, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float alpha);
     void (*drawRectangle)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline);
     void (*drawRectangleColor)(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha, bool outline);
@@ -356,7 +356,7 @@ static inline float Renderer_getSurfaceHeight(Renderer* renderer, int32_t surfac
 
 
 // Draws part of a sprite with extended parameters (scale, rotation, color, alpha)
-static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float left, float top, float width, float height, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     DataWin* dw = renderer->dataWin;
     int32_t tpagIndex = Renderer_resolveTPAGIndex(dw, spriteIndex, subimg);
     if (0 > tpagIndex) return;
@@ -365,7 +365,7 @@ static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t sprite
 
     // Clip region to TPAG bounds (same as Renderer_drawSpritePart)
     if (tpag->targetX > left) {
-        int32_t off = tpag->targetX - left;
+        float off = tpag->targetX - left;
         x += (float) off * xscale;
         width -= off;
         left = 0;
@@ -374,7 +374,7 @@ static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t sprite
     }
 
     if (tpag->targetY > top) {
-        int32_t off = tpag->targetY - top;
+        float off = tpag->targetY - top;
         y += (float) off * yscale;
         height -= off;
         top = 0;
@@ -390,7 +390,7 @@ static inline void Renderer_drawSpritePartExt(Renderer* renderer, int32_t sprite
 }
 
 // Partial draw: draw_sprite_part(sprite, subimg, left, top, width, height, x, y)
-static inline void Renderer_drawSpritePart(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y) {
+static inline void Renderer_drawSpritePart(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float left, float top, float width, float height, float x, float y) {
     Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, left, top, width, height, x, y, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0xFFFFFF, renderer->drawAlpha);
 }
 
@@ -413,7 +413,7 @@ static inline void Renderer_primitiveEnd(Renderer* renderer) {
 }
 
 // Full draw: draw_sprite_general(sprite, subimg, left, top, width, height, x, y, xscale, yscale, rot, c1, c2, c3, c4, alpha).
-static inline void Renderer_drawSpriteGeneral(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t left, int32_t top, int32_t width, int32_t height, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+static inline void Renderer_drawSpriteGeneral(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float left, float top, float width, float height, float x, float y, float xscale, float yscale, float angleDeg, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
     DataWin* dw = renderer->dataWin;
     int32_t tpagIndex = Renderer_resolveTPAGIndex(dw, spriteIndex, subimg);
     if (0 > tpagIndex) return;
@@ -422,7 +422,7 @@ static inline void Renderer_drawSpriteGeneral(Renderer* renderer, int32_t sprite
 
     // Clip region to TPAG bounds (same as Renderer_drawSpritePart(Ext))
     if (tpag->targetX > left) {
-        int32_t off = tpag->targetX - left;
+        float off = tpag->targetX - left;
         x += (float) off * xscale;
         width -= off;
         left = 0;
@@ -431,7 +431,7 @@ static inline void Renderer_drawSpriteGeneral(Renderer* renderer, int32_t sprite
     }
 
     if (tpag->targetY > top) {
-        int32_t off = tpag->targetY - top;
+        float off = tpag->targetY - top;
         y += (float) off * yscale;
         height -= off;
         top = 0;
