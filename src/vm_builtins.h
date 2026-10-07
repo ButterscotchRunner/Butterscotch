@@ -278,6 +278,7 @@ typedef enum {
 
 void VMBuiltins_registerAll(VMContext* ctx);
 int16_t VMBuiltins_resolveBuiltinVarId(const char* name);
+bool VMBuiltins_isInstanceScopedBuiltinVar(int16_t builtinVarId);
 // Asserts at startup that the internal builtin-var lookup table is strictly sorted by strcmp order (required for bsearch) and has no duplicates.
 void VMBuiltins_checkIfBuiltinVarTableIsSorted(void);
 RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId, const char* name, int32_t arrayIndex);
