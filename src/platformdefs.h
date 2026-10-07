@@ -149,8 +149,6 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH);
 bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH);
 void platformSetWindowSize(int32_t width, int32_t height);
 void platformSetWindowTitle(const char* title);
-bool platformGetWindowPosition(int32_t* outX, int32_t* outY);
-void platformSetWindowPosition(int32_t x, int32_t y);
 void platformSleepUntil(uint64_t time);
 
 extern InputRecording *globalInputRecording;
