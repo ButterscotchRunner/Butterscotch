@@ -2213,6 +2213,10 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->viewsFileOffset = BinaryReader_readUint32(reader);
         room->gameObjectsFileOffset = BinaryReader_readUint32(reader);
         room->tilesFileOffset = BinaryReader_readUint32(reader);
+        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
+            // The instanceCreationOrderIDs pointer precedes the physics settings.
+            BinaryReader_skip(reader, 4);
+        }
         room->world = BinaryReader_readBool32(reader);
         room->top = BinaryReader_readUint32(reader);
         room->left = BinaryReader_readUint32(reader);
@@ -2221,10 +2225,6 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->gravityX = BinaryReader_readFloat32(reader);
         room->gravityY = BinaryReader_readFloat32(reader);
         room->metersPerPixel = BinaryReader_readFloat32(reader);
-        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
-            // skip instanceCreationOrderIDs
-            BinaryReader_skip(reader, 4);
-        }
         room->layersFileOffset = 0;
         if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {
             room->layersFileOffset = BinaryReader_readUint32(reader);
