@@ -27,11 +27,6 @@ void platformExit(void) {
     g_initialized = false;
 }
 
-void platformInitFunctions(Runner *runner) {
-    g_runner = runner;
-    runner->setCursor = NULL;
-    runner->currentCursor = GML_CR_DEFAULT;
-}
 
 bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
     if (!outW || !outH) return false;
@@ -50,15 +45,23 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (height > 0) g_height = height;
 }
 
-bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     (void)outX;
     (void)outY;
     return true;
 }
 
-void platformSetWindowPosition(int32_t x, int32_t y) {
+static void platformSetWindowPosition(int32_t x, int32_t y) {
     (void)x;
     (void)y;
+}
+
+void platformInitFunctions(Runner *runner) {
+    g_runner = runner;
+    runner->setCursor = NULL;
+    runner->currentCursor = GML_CR_DEFAULT;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
 }
 
 void platformSetWindowTitle(const char *title) {

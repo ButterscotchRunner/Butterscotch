@@ -333,7 +333,7 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     [window setFrame:newFrame display:YES animate:NO];
 }
 
-bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     if (!outX || !outY) return false;
     NSRect frame = [window frame];
     CGFloat screenHeight = [NSScreen mainScreen].frame.size.height;
@@ -342,7 +342,7 @@ bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     return true;
 }
 
-void platformSetWindowPosition(int32_t x, int32_t y) {
+static void platformSetWindowPosition(int32_t x, int32_t y) {
     if (!window) return;
     NSScreen *screen = [window screen];
     if (!screen) {
@@ -668,6 +668,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = windowIsFocused;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_ARROW;
 }
 

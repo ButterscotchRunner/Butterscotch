@@ -226,13 +226,13 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 }
 
 // no-op, SDL 1.2 doesn't support getting/setting window position cross-platform
-bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
     (void)outX;
     (void)outY;
     return false;
 }
 
-void platformSetWindowPosition(int32_t x, int32_t y) {
+static void platformSetWindowPosition(int32_t x, int32_t y) {
     (void)x;
     (void)y;
 }
@@ -322,6 +322,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 

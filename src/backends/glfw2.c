@@ -82,13 +82,13 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     glfwSetWindowSize(width, height);
 }
 
-bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     (void)outX;
     (void)outY;
     return false;
 }
 
-void platformSetWindowPosition(int32_t x, int32_t y) {
+static void platformSetWindowPosition(int32_t x, int32_t y) {
     if (!window) return;
     glfwSetWindowPos(x, y);
 }
@@ -255,6 +255,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 #ifdef ENABLE_SW_RENDERER
     if (gfx == SOFTWARE)

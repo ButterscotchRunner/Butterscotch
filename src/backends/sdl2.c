@@ -121,13 +121,13 @@ bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
     if (!outX || !outY) return false;
     SDL_GetWindowPosition(window, outX, outY);
     return true;
 }
 
-void platformSetWindowPosition(int32_t x, int32_t y) {
+static void platformSetWindowPosition(int32_t x, int32_t y) {
     SDL_SetWindowPosition(window, x, y);
 }
 
@@ -294,6 +294,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 
