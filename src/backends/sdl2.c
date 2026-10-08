@@ -142,7 +142,7 @@ static float platformGetWindowScale(void) {
 
 static void platformSetWindowPosition(int32_t x, int32_t y) {
     float scale = platformGetWindowScale();
-    SDL_SetWindowPosition(window, (int)(x * scale + 0.5f), (int)(y * scale + 0.5f));
+    SDL_SetWindowPosition(window, (int)(x / scale + 0.5f), (int)(y / scale + 0.5f));
 }
 
 static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
