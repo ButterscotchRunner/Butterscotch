@@ -136,8 +136,8 @@ static void platformSetWindowPosition(int32_t x, int32_t y) {
     if (!window) return;
     float xscale, yscale;
     platformGetWindowScale(&xscale, &yscale);
-    int targetX = (int)(x * xscale + 0.5f);
-    int targetY = (int)(y * yscale + 0.5f);
+    int targetX = (int)(x / xscale + 0.5f);
+    int targetY = (int)(y / yscale + 0.5f);
     glfwSetWindowPos(window, targetX, targetY);
 }
 
