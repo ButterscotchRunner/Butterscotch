@@ -1,0 +1,28 @@
+{
+  "DisplayName": "iOS 8.0",
+  "DocSetFeedURL": "http://developer.apple.com/rss/com.apple.adc.documentation.AppleiPhone8_0.atom",
+  "MinimalDisplayName": "8.0",
+  "DefaultProperties": {
+    "AD_HOC_CODE_SIGNING_ALLOWED": "NO",
+    "SUPPORTED_DEVICE_FAMILIES": "1,2",
+    "DEFAULT_COMPILER": "com.apple.compilers.llvm.clang.1_0",
+    "IPHONEOS_DEPLOYMENT_TARGET": "8.0",
+    "DEAD_CODE_STRIPPING": "YES",
+    "CODE_SIGN_ENTITLEMENTS": "",
+    "ENTITLEMENTS_REQUIRED": "YES",
+    "CODE_SIGNING_REQUIRED": "YES",
+    "PLATFORM_NAME": "iphoneos",
+    "GCC_THUMB_SUPPORT": "YES"
+  },
+  "Version": "8.0",
+  "Toolchains": [
+    "com.apple.dt.toolchain.iOS8_0"
+  ],
+  "MinimumSupportedToolsVersion": "3.2.3",
+  "IsBaseSDK": "YES",
+  "AlternateSDK": "iphonesimulator8.0",
+  "MaximumDeploymentTarget": "8.0.99",
+  "CanonicalName": "iphoneos8.0",
+  "DocSetFeedName": "Apple iPhone OS 8.0",
+  "CustomProperties": {}
+}
