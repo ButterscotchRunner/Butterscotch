@@ -140,6 +140,21 @@ static float platformGetWindowScale(void) {
     return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
 
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    float scale = platformGetWindowScale();
+    SDL_SetWindowPosition(window, (int)(x / scale + 0.5f), (int)(y / scale + 0.5f));
+}
+
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    int32_t rawX, rawY;
+    float scale = platformGetWindowScale();
+    SDL_GetWindowPosition(window, &rawX, &rawY);
+    *outX = (int32_t)(rawX * scale + 0.5f);
+    *outY = (int32_t)(rawY * scale + 0.5f);
+    return true;
+}
+
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
 
@@ -284,6 +299,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 
