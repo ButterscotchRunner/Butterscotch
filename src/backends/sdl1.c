@@ -225,18 +225,6 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     scr = SDL_SetVideoMode(width, height, 0, (gfx == SOFTWARE ? 0 : SDL_OPENGL) | SDL_RESIZABLE);
 }
 
-// no-op, SDL 1.2 doesn't support getting/setting window position cross-platform
-static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
-    (void)outX;
-    (void)outY;
-    return false;
-}
-
-static void platformSetWindowPosition(int32_t x, int32_t y) {
-    (void)x;
-    (void)y;
-}
-
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     int mx = 0, my = 0;
@@ -322,8 +310,6 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
-    runner->getWindowPosition = platformGetWindowPosition;
-    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 

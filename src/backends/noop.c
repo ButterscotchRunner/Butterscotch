@@ -45,23 +45,10 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     if (height > 0) g_height = height;
 }
 
-static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
-    (void)outX;
-    (void)outY;
-    return true;
-}
-
-static void platformSetWindowPosition(int32_t x, int32_t y) {
-    (void)x;
-    (void)y;
-}
-
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->setCursor = NULL;
     runner->currentCursor = GML_CR_DEFAULT;
-    runner->getWindowPosition = platformGetWindowPosition;
-    runner->setWindowPosition = platformSetWindowPosition;
 }
 
 void platformSetWindowTitle(const char *title) {

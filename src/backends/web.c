@@ -202,23 +202,10 @@ bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
     return true;
 }
 
-bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
-    (void)outX;
-    (void)outY;
-    return false;
-}
-
-void platformSetWindowPosition(int32_t x, int32_t y) {
-    (void)x;
-    (void)y;
-}
-
 void platformInitFunctions(Runner *runner) {
     gRunner = runner;
     runner->setCursor = nullptr;
     runner->currentCursor = GML_CR_DEFAULT;
-    runner->getWindowPosition = platformGetWindowPosition;
-    runner->setWindowPosition = platformSetWindowPosition;
 }
 
 bool platformGetScaledWindowSize(int32_t *outW, int32_t *outH) {
