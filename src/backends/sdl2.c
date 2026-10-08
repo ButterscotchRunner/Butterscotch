@@ -150,8 +150,8 @@ static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
     int32_t rawX, rawY;
     float scale = platformGetWindowScale();
     SDL_GetWindowPosition(window, &rawX, &rawY);
-    *outX = (int32_t)(rawX / scale + 0.5f);
-    *outY = (int32_t)(rawY / scale + 0.5f);
+    *outX = (int32_t)(rawX * scale + 0.5f);
+    *outY = (int32_t)(rawY * scale + 0.5f);
     return true;
 }
 
