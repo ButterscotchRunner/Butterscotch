@@ -123,8 +123,8 @@ static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
     float xscale, yscale;
     glfwGetWindowContentScale(window, &xscale, &yscale);
     glfwGetWindowPos(window, &rawX, &rawY);
-    *outX = (int32_t)((float)rawX / xscale + 0.5f);
-    *outY = (int32_t)((float)rawY / yscale + 0.5f);
+    *outX = (int32_t)((float)rawX * xscale + 0.5f);
+    *outY = (int32_t)((float)rawY * yscale + 0.5f);
     return true;
 }
 
