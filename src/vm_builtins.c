@@ -32,6 +32,7 @@
 #include "collision.h"
 #include "ini.h"
 #include "audio_system.h"
+#include "fmod/fmod.h"
 #include "file_system.h"
 #include "md5.h"
 #include "sha1.h"
@@ -7572,6 +7573,249 @@ STUB_RETURN_ZERO(steam_file_exists)
 STUB_RETURN_UNDEFINED(steam_file_write)
 STUB_RETURN_UNDEFINED(steam_file_read)
 STUB_RETURN_ZERO(steam_get_persona_name)
+
+// ===[ fmod extension functions ]===
+
+#ifdef ENABLE_FMOD
+
+static FmodSystem* fmodGetSystem(VMContext* ctx) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    return audio != nullptr ? audio->fmodSystem : nullptr;
+}
+
+static int32_t fmodHandleArgument(RValue value, bool roundHandle) {
+    double handle = RValue_toReal(value);
+    if (roundHandle) handle = round(handle);
+    return isfinite(handle) && handle > 0 && handle < 16777216 ? (int32_t) handle : 0;
+}
+
+static const char* fmodStringArgument(RValue value) {
+    return value.type == RVALUE_STRING ? value.string : nullptr;
+}
+
+static RValue builtin_fmod_init(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_init", 1, RValue_makeReal(0));
+    AudioSystem* audio = ctx->runner->audioSystem;
+    double channels = RValue_toReal(args[0]);
+    if (audio == nullptr || !isfinite(channels) || channels < 1 || channels > 4096) return RValue_makeReal(0);
+    Fmod_audioDestroy(audio);
+    audio->fmodSystem = Fmod_create(audio, ctx->runner->fileSystem, (int32_t) channels);
+    if (audio->fmodSystem != nullptr) logInfo("FMOD initiated! :3\n");
+    return RValue_makeReal(audio->fmodSystem != nullptr);
+}
+
+static RValue builtin_fmod_destroy(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    AudioSystem* audio = ctx->runner->audioSystem;
+    if (audio == nullptr) return RValue_makeReal(0);
+    Fmod_audioDestroy(audio);
+    return RValue_makeReal(1);
+}
+
+static RValue builtin_fmod_update(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    FmodSystem* system = fmodGetSystem(ctx);
+    if (system == nullptr) return RValue_makeReal(0);
+    // the runner already advances time each step. don't count it twice here.
+    Fmod_step(system, 0);
+    return RValue_makeReal(1);
+}
+
+static RValue builtin_fmod_bank_load(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_bank_load", 2, RValue_makeReal(0));
+    const char* path = fmodStringArgument(args[0]);
+    return RValue_makeReal(Fmod_loadBank(fmodGetSystem(ctx), path, RValue_toReal(args[1]) != 0));
+}
+
+static RValue builtin_fmod_bank_load_sample_data(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_bank_load_sample_data", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_loadSamples(fmodGetSystem(ctx), fmodStringArgument(args[0])));
+}
+
+static RValue builtin_fmod_event_load(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_load", 1, RValue_makeReal(0));
+    const char* path = fmodStringArgument(args[0]);
+    if (path == nullptr) return RValue_makeReal(0);
+    return RValue_makeReal(Fmod_eventExists(fmodGetSystem(ctx), path) ? 1 : -4);
+}
+
+static RValue builtin_fmod_event_create_instance(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_create_instance", 1, RValue_makeReal(-4));
+    return RValue_makeReal(Fmod_createInstance(fmodGetSystem(ctx), fmodStringArgument(args[0])));
+}
+
+static RValue builtin_fmod_event_instance_play(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_play", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_play(fmodGetSystem(ctx), fmodHandleArgument(args[0], false)));
+}
+
+static RValue builtin_fmod_event_instance_stop(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_stop", 2, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    Fmod_stop(fmodGetSystem(ctx), handle, RValue_toReal(args[1]) != 0);
+    // the original wrapper returns zero here, including for an unknown handle.
+    return RValue_makeReal(0);
+}
+
+static RValue builtin_fmod_event_instance_release(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_release", 1, RValue_makeReal(0));
+    // release rounds the handle. the other instance calls truncate it.
+    return RValue_makeReal(Fmod_release(fmodGetSystem(ctx), fmodHandleArgument(args[0], true)));
+}
+
+static RValue builtin_fmod_event_instance_is_playing(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_is_playing", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_isPlaying(fmodGetSystem(ctx), fmodHandleArgument(args[0], false)));
+}
+
+static RValue builtin_fmod_event_instance_set_paused(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_set_paused", 2, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    return RValue_makeReal(Fmod_pause(fmodGetSystem(ctx), handle, RValue_toReal(args[1]) != 0));
+}
+
+static RValue builtin_fmod_event_instance_get_paused(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_get_paused", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_getPaused(fmodGetSystem(ctx), fmodHandleArgument(args[0], false)));
+}
+
+static RValue builtin_fmod_event_instance_set_paused_all(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_set_paused_all", 1, RValue_makeReal(0));
+    FmodSystem* system = fmodGetSystem(ctx);
+    if (system == nullptr) return RValue_makeReal(0);
+    Fmod_pauseAll(system, RValue_toReal(args[0]) != 0);
+    return RValue_makeReal(1);
+}
+
+static RValue builtin_fmod_event_instance_set_timeline_pos(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_set_timeline_pos", 2, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    return RValue_makeReal(Fmod_setPosition(fmodGetSystem(ctx), handle, RValue_toReal(args[1])));
+}
+
+static RValue builtin_fmod_event_instance_get_timeline_pos(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_get_timeline_pos", 1, RValue_makeReal(0));
+    return RValue_makeReal((GMLReal) Fmod_getPosition(fmodGetSystem(ctx), fmodHandleArgument(args[0], false)));
+}
+
+static RValue builtin_fmod_event_get_length(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_get_length", 1, RValue_makeReal(-4));
+    return RValue_makeReal((GMLReal) Fmod_getLength(fmodGetSystem(ctx), fmodStringArgument(args[0])));
+}
+
+static RValue builtin_fmod_event_instance_set_parameter(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_set_parameter", 4, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    if (handle == 0) return RValue_makeReal(0);
+    const char* name = fmodStringArgument(args[1]);
+    return RValue_makeReal(Fmod_setParameter(fmodGetSystem(ctx), handle, name, (float) RValue_toReal(args[2]), RValue_toReal(args[3]) != 0));
+}
+
+static RValue builtin_fmod_event_instance_get_parameter(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_get_parameter", 2, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    if (handle == 0) return RValue_makeReal(0);
+    return RValue_makeReal(Fmod_getParameter(fmodGetSystem(ctx), handle, fmodStringArgument(args[1])));
+}
+
+static RValue builtin_fmod_set_parameter(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_set_parameter", 3, RValue_makeReal(0));
+    const char* name = fmodStringArgument(args[0]);
+    return RValue_makeReal(Fmod_setParameter(fmodGetSystem(ctx), 0, name, (float) RValue_toReal(args[1]), RValue_toReal(args[2]) != 0));
+}
+
+static RValue builtin_fmod_get_parameter(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_get_parameter", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_getParameter(fmodGetSystem(ctx), 0, fmodStringArgument(args[0])));
+}
+
+static RValue builtin_fmod_event_instance_set_3d_attributes(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_instance_set_3d_attributes", 3, RValue_makeReal(0));
+    int32_t handle = fmodHandleArgument(args[0], false);
+    return RValue_makeReal(Fmod_setSpatial(fmodGetSystem(ctx), handle, (float) RValue_toReal(args[1]), (float) RValue_toReal(args[2])));
+}
+
+static RValue builtin_fmod_set_listener_attributes(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_set_listener_attributes", 3, RValue_makeReal(0));
+    double listener = RValue_toReal(args[0]);
+    if (!isfinite(listener) || listener < 0 || listener >= 8) return RValue_makeReal(0);
+    return RValue_makeReal(Fmod_setListener(fmodGetSystem(ctx), (int32_t) listener, (float) RValue_toReal(args[1]), (float) RValue_toReal(args[2])));
+}
+
+static RValue builtin_fmod_set_num_listeners(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_set_num_listeners", 1, RValue_makeReal(0));
+    double count = RValue_toReal(args[0]);
+    if (!isfinite(count) || count > 8) return RValue_makeReal(0);
+    return RValue_makeReal(Fmod_setListeners(fmodGetSystem(ctx), count < 1 ? 1 : (int32_t) count));
+}
+
+static RValue builtin_fmod_event_one_shot(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_one_shot", 1, RValue_makeReal(0));
+    return RValue_makeReal(Fmod_oneShot(fmodGetSystem(ctx), fmodStringArgument(args[0]), false, 0, 0));
+}
+
+static RValue builtin_fmod_event_one_shot_3d(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("fmod_event_one_shot_3d", 3, RValue_makeReal(0));
+    const char* path = fmodStringArgument(args[0]);
+    return RValue_makeReal(Fmod_oneShot(fmodGetSystem(ctx), path, true, (float) RValue_toReal(args[1]), (float) RValue_toReal(args[2])));
+}
+
+static void registerFmodBuiltins(VMContext* ctx) {
+    // extensions can rename the gml function while keeping the same dll symbol.
+    static const struct {
+        const char* name;
+        const char* symbol;
+        BuiltinFunc function;
+    } bindings[] = {
+        {"fmod_init", "FMOD_Init", builtin_fmod_init},
+        {"fmod_destroy", "FMOD_Destroy", builtin_fmod_destroy},
+        {"fmod_bank_load", "FMOD_Bank_Load", builtin_fmod_bank_load},
+        {"fmod_event_load", "FMOD_Event_Load", builtin_fmod_event_load},
+        {"fmod_update", "FMOD_Update", builtin_fmod_update},
+        {"fmod_event_create_instance", "FMOD_Event_CreateInstance", builtin_fmod_event_create_instance},
+        {"fmod_event_instance_play", "FMOD_EventInstance_Play", builtin_fmod_event_instance_play},
+        {"fmod_event_instance_stop", "FMOD_EventInstance_Stop", builtin_fmod_event_instance_stop},
+        {"fmod_event_instance_release", "FMOD_EventInstance_Release", builtin_fmod_event_instance_release},
+        {"fmod_event_instance_set_3d_attributes", "FMOD_EventInstance_Set3DAttributes", builtin_fmod_event_instance_set_3d_attributes},
+        {"fmod_set_listener_attributes", "FMOD_SetListenerAttributes", builtin_fmod_set_listener_attributes},
+        {"fmod_set_num_listeners", "FMOD_SetNumListeners", builtin_fmod_set_num_listeners},
+        {"fmod_event_instance_set_parameter", "FMOD_EventInstance_SetParameter", builtin_fmod_event_instance_set_parameter},
+        {"fmod_event_instance_get_parameter", "FMOD_EventInstance_GetParameter", builtin_fmod_event_instance_get_parameter},
+        {"fmod_set_parameter", "FMOD_SetParameter", builtin_fmod_set_parameter},
+        {"fmod_get_parameter", "FMOD_GetParameter", builtin_fmod_get_parameter},
+        {"fmod_event_instance_set_paused", "FMOD_EventInstance_SetPaused", builtin_fmod_event_instance_set_paused},
+        {"fmod_event_instance_get_paused", "FMOD_EventInstance_GetPaused", builtin_fmod_event_instance_get_paused},
+        {"fmod_event_instance_set_paused_all", "FMOD_EventInstance_SetPaused_All", builtin_fmod_event_instance_set_paused_all},
+        {"fmod_event_one_shot", "FMOD_Event_OneShot", builtin_fmod_event_one_shot},
+        {"fmod_event_one_shot_3d", "FMOD_Event_OneShot_3D", builtin_fmod_event_one_shot_3d},
+        {"fmod_event_instance_is_playing", "FMOD_EventInstance_IsPlaying", builtin_fmod_event_instance_is_playing},
+        {"fmod_event_instance_get_timeline_pos", "FMOD_EventInstance_GetTimelinePosition", builtin_fmod_event_instance_get_timeline_pos},
+        {"fmod_event_instance_set_timeline_pos", "FMOD_EventInstance_SetTimelinePosition", builtin_fmod_event_instance_set_timeline_pos},
+        {"fmod_bank_load_sample_data", "FMOD_Bank_LoadSampleData", builtin_fmod_bank_load_sample_data},
+        {"fmod_event_get_length", "FMOD_Event_GetLength", builtin_fmod_event_get_length},
+    };
+
+    for (size_t i = 0; i < sizeof(bindings) / sizeof(bindings[0]); i++) {
+        VM_registerBuiltin(ctx, bindings[i].name, bindings[i].function);
+        VM_registerBuiltin(ctx, bindings[i].symbol, bindings[i].function);
+    }
+    repeat(ctx->dataWin->extn.count, e) {
+        Extension* extension = &ctx->dataWin->extn.extensions[e];
+        repeat(extension->fileCount, f) {
+            ExtensionFile* file = &extension->files[f];
+            repeat(file->functionCount, g) {
+                ExtensionFunction* function = &file->functions[g];
+                if (function->name == nullptr || function->extName == nullptr || VM_findBuiltin(ctx, function->name)) continue;
+                for (size_t i = 0; i < sizeof(bindings) / sizeof(bindings[0]); i++) {
+                    if (strcmp(function->extName, bindings[i].symbol) == 0) {
+                        VM_registerBuiltin(ctx, function->name, bindings[i].function);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#endif
 
 // ===[ Audio Built-in Functions ]===
 
@@ -23042,6 +23286,9 @@ static RValue builtin_physics_raycast(VMContext* ctx, RValue* args, int32_t coun
 void VMBuiltins_registerAll(VMContext* ctx) {
     requireMessage(!ctx->registeredBuiltinFunctions, "Attempting to register all VMBuiltins, but it was already registered!");
     ctx->registeredBuiltinFunctions = true;
+#ifdef ENABLE_FMOD
+    registerFmodBuiltins(ctx);
+#endif
 
     // Physics
 #define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) VM_registerBuiltin(ctx, #name, builtin_##name);

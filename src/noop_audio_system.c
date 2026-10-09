@@ -1,4 +1,5 @@
 #include "noop_audio_system.h"
+#include "fmod/fmod.h"
 #include "data_win.h"
 #include "stb_ds.h"
 
@@ -10,6 +11,7 @@ static void noopInit(AudioSystem* audio, DataWin* dataWin, MAYBE_UNUSED FileSyst
 }
 
 static void noopDestroy(AudioSystem* audio) {
+    Fmod_audioDestroy(audio);
     free(audio->groupGains);
     arrfree(audio->audioGroups);
     free(audio);
@@ -21,6 +23,10 @@ static void noopUpdate(AudioSystem* audio, float deltaTime) {
 
 static int32_t noopPlaySound(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t soundIndex, MAYBE_UNUSED int32_t priority, MAYBE_UNUSED bool loop) {
     return -1;
+}
+
+static int32_t noopPlayEncoded(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED const uint8_t* data, MAYBE_UNUSED size_t bytes, MAYBE_UNUSED bool loop) {
+    return -2;
 }
 
 static void noopSetSoundSpatial(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t instanceId, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z, MAYBE_UNUSED float ref, MAYBE_UNUSED float max, MAYBE_UNUSED float factor) {}
@@ -124,6 +130,7 @@ NoopAudioSystem* NoopAudioSystem_create(void) {
     noopVtable.groupIsLoaded = noopGroupIsLoaded,
     noopVtable.createStream = noopCreateStream,
     noopVtable.destroyStream = noopDestroyStream,
+    noopVtable.playEncoded = noopPlayEncoded,
     audio->base.vtable = &noopVtable;
     return audio;
 }
