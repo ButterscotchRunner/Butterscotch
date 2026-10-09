@@ -76,7 +76,7 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
     fun handleKeyEvent(event: KeyEvent): Boolean {
         val slot = ensureSlot(event.deviceId, event.device)
         if (slot < 0) return false
-        val button = keyCodeToButton(event.keyCode)
+        val button = keyCodeToButton(event.keyCode, runner)
         if (button < 0) return false
         when (event.action) {
             // GML uses an edge model, so key-repeat (repeatCount > 0) is ignored: the button is
@@ -97,13 +97,56 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
 
         // Analog sticks: forward raw, the runner deadzones on read. Left = X/Y, right = Z/RZ (the
         // common Android mapping; controllers that expose the right stick on RX/RY won't drive it).
-        sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_X))
-        sendAxis(slot, state, AXIS_LV, event.getAxisValue(MotionEvent.AXIS_Y))
-        sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_Z))
-        sendAxis(slot, state, AXIS_RV, event.getAxisValue(MotionEvent.AXIS_RZ))
+        if (!runner.physicalControllerSideways){
+            sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_X))
+            sendAxis(slot, state, AXIS_LV, event.getAxisValue(MotionEvent.AXIS_Y))
+            sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_Z))
+            sendAxis(slot, state, AXIS_RV, event.getAxisValue(MotionEvent.AXIS_RZ))
 
-        // Many controllers report the dpad as a hat axis rather than dpad keycodes.
-        updateHat(slot, state, event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+            // Many controllers report the dpad as a hat axis rather than dpad keycodes.
+            updateHat(slot, state, event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+
+        } else {
+            // Sideways controller movement
+            sendAxis(slot, state, AXIS_LH, event.getAxisValue(MotionEvent.AXIS_Y))
+            sendAxis(slot, state, AXIS_LV, -event.getAxisValue(MotionEvent.AXIS_X))
+            sendAxis(slot, state, AXIS_RH, event.getAxisValue(MotionEvent.AXIS_RZ))
+            sendAxis(slot, state, AXIS_RV, -event.getAxisValue(MotionEvent.AXIS_Z))
+
+            // Dpad as buttons
+            val xhat = signOf(event.getAxisValue(MotionEvent.AXIS_HAT_X))
+            val yhat = signOf(event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+
+            if (xhat != state.lastHatX)
+            {
+                if(xhat < 0)
+                    runner.onGamepadButton(slot, 0, true)
+                else if (state.lastHatX < 0)
+                    runner.onGamepadButton(slot, 0, false)
+
+                if(xhat > 0)
+                    runner.onGamepadButton(slot, 3, true)
+                else if (state.lastHatX > 0)
+                    runner.onGamepadButton(slot, 3, false)
+            }
+
+            if(yhat != state.lastHatY)
+            {
+                if (yhat < 0)
+                    runner.onGamepadButton(slot, 2, true)
+                else if(state.lastHatY < 0)
+                    runner.onGamepadButton(slot, 2, false)
+
+                if (yhat > 0)
+                    runner.onGamepadButton(slot, 1, true)
+                else if(state.lastHatY > 0)
+                    runner.onGamepadButton(slot, 1, false)
+            }
+
+            state.lastHatX = xhat
+            state.lastHatY = yhat
+        }
+
 
         // Analog triggers -> digital L2/R2. Different controllers use LTRIGGER/RTRIGGER or BRAKE/GAS.
         val left = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE))
@@ -184,7 +227,7 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
         }
 
         // Android KeyEvent keycode -> canonical button index, or -1 to leave the event alone.
-        private fun keyCodeToButton(keyCode: Int): Int = when (keyCode) {
+        private fun keyCodeToButton(keyCode: Int, runner: ButterscotchDroidRunner): Int = when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> Gamepad.Button.FACE1.index
             KeyEvent.KEYCODE_BUTTON_B -> Gamepad.Button.FACE2.index
             KeyEvent.KEYCODE_BUTTON_X -> Gamepad.Button.FACE3.index
@@ -197,10 +240,10 @@ class GamepadRouter(private val runner: ButterscotchDroidRunner) {
             KeyEvent.KEYCODE_BUTTON_START -> Gamepad.Button.START.index
             KeyEvent.KEYCODE_BUTTON_THUMBL -> Gamepad.Button.STICK_L.index
             KeyEvent.KEYCODE_BUTTON_THUMBR -> Gamepad.Button.STICK_R.index
-            KeyEvent.KEYCODE_DPAD_UP -> Gamepad.Button.DPAD_UP.index
-            KeyEvent.KEYCODE_DPAD_DOWN -> Gamepad.Button.DPAD_DOWN.index
-            KeyEvent.KEYCODE_DPAD_LEFT -> Gamepad.Button.DPAD_LEFT.index
-            KeyEvent.KEYCODE_DPAD_RIGHT -> Gamepad.Button.DPAD_RIGHT.index
+            KeyEvent.KEYCODE_DPAD_UP if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_UP.index
+            KeyEvent.KEYCODE_DPAD_DOWN if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_DOWN.index
+            KeyEvent.KEYCODE_DPAD_LEFT if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_LEFT.index
+            KeyEvent.KEYCODE_DPAD_RIGHT if !runner.physicalControllerSideways -> Gamepad.Button.DPAD_RIGHT.index
             KeyEvent.KEYCODE_BUTTON_MODE -> Gamepad.Button.HOME.index
             else -> -1
         }
