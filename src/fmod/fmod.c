@@ -19,8 +19,9 @@ static float interpolateCurve(float left, float right, double position, float cu
         // a controller uses large values, such as filter frequencies.
         if (weight <= 0) return left;
         if (weight >= 1) return right;
-        double a = 2.0 * left, b = 2.0 * right, maximum = fmax(a, b);
-        return (float) ((maximum + log2((1 - weight) * exp2(a - maximum) + weight * exp2(b - maximum))) / 2);
+        double a = 2 * (double) left, b = 2 * (double) right, maximum = fmax(a, b);
+        double blend = (double) weight;
+        return (float) ((maximum + log2((1 - blend) * exp2(a - maximum) + blend * exp2(b - maximum))) / 2);
     }
     if (mode == FM_CURVE_EXPONENTIAL) {
         weight = exponentialWeight(weight, curvature);
@@ -76,8 +77,8 @@ static float parameterValue(FmodSystem* system, EventInstance* instance, int ind
 static float advanceParameter(float current, float target, const Parameter* parameter, double seconds) {
     float speed = target >= current ? parameter->seekUp : parameter->seekDown;
     if (speed == 0) return target;
-    double distance = seconds * speed;
-    return target >= current ? (float) fmin(target, current + distance) : (float) fmax(target, current - distance);
+    double distance = seconds * (double) speed;
+    return target >= current ? (float) fmin((double) target, (double) current + distance) : (float) fmax((double) target, (double) current - distance);
 }
 
 static int findParameter(FmodSystem* system, EventInstance* instance, const char* name) {
@@ -151,11 +152,11 @@ static float evaluateCurve(FmodSystem* system, EventInstance* instance, Record* 
     uint32_t count, stride;
     const uint8_t* points = fmlist(&reader, &count, &stride);
     if (reader.failed || !count || stride < 8) return 0;
-    double previousX = parameterInput ? fmfloat(points) : fm32(points) / FM_TICKS;
+    double previousX = parameterInput ? (double) fmfloat(points) : fm32(points) / FM_TICKS;
     float previousY = fmfloat(points + 4);
     if (input < previousX) return previousY;
     for (uint32_t i = 1; i < count; i++) {
-        double x = parameterInput ? fmfloat(points + i * stride) : fm32(points + i * stride) / FM_TICKS;
+        double x = parameterInput ? (double) fmfloat(points + i * stride) : fm32(points + i * stride) / FM_TICKS;
         float y = fmfloat(points + i * stride + 4);
         if (input < x) {
             const uint8_t* previous = points + (i - 1) * stride;
@@ -203,16 +204,16 @@ static float randomModulation(FmodSystem* system, Clip* clip, Record* modulator)
     for (ptrdiff_t i = 0; i < arrlen(clip->modulation); i++) {
         if (clip->modulation[i].modulator == modulator) return clip->modulation[i].value;
     }
-    ModulationValue value = {modulator, (float) ((nextRandom(system) / (double) UINT32_MAX * 2 - 1) * amount / 100)};
+    ModulationValue value = {modulator, (float) ((nextRandom(system) / (double) UINT32_MAX * 2 - 1) * (double) amount / 100)};
     arrput(clip->modulation, value);
     return value.value;
 }
 
 static float envelopeValue(FmodSystem* system, Record* envelope, double age) {
     const uint8_t* data = envelope->data;
-    double attack = fmfloat(data + FM_ENVELOPE_ATTACK) / 1000.0;
-    double hold = fmfloat(data + FM_ENVELOPE_HOLD) / 1000.0;
-    double decay = fmfloat(data + FM_ENVELOPE_DECAY) / 1000.0;
+    double attack = (double) fmfloat(data + FM_ENVELOPE_ATTACK) / 1000;
+    double hold = (double) fmfloat(data + FM_ENVELOPE_HOLD) / 1000;
+    double decay = (double) fmfloat(data + FM_ENVELOPE_DECAY) / 1000;
     float initial = mapProperty(system, volumeProperty, fmfloat(data + FM_ENVELOPE_INITIAL), true);
     float peak = mapProperty(system, volumeProperty, fmfloat(data + FM_ENVELOPE_PEAK), true);
     float sustain = mapProperty(system, volumeProperty, fmfloat(data + FM_ENVELOPE_SUSTAIN), true);
@@ -231,7 +232,7 @@ static float evaluateEnvelope(FmodSystem* system, EventInstance* instance, Clip*
     for (size_t offset = FM_ENVELOPE_INITIAL; offset < FM_ENVELOPE_SIZE; offset += 4) {
         if (!isfinite(fmfloat(envelope->data + offset))) return 0;
     }
-    double release = fmax(0, fmfloat(envelope->data + FM_ENVELOPE_RELEASE) / 1000.0);
+    double release = fmax(0, (double) fmfloat(envelope->data + FM_ENVELOPE_RELEASE) / 1000);
     if (releaseDuration && release > *releaseDuration) *releaseDuration = release;
     double activated = clip->activated;
     if (!tagIs(owner, "INST")) {
@@ -798,7 +799,7 @@ static void updateSustain(FmodSystem* system, EventInstance* instance, double pr
         double time = fm32(point) / FM_TICKS;
         uint32_t bytes = fm32(point + 4);
         if (bytes > entryBytes - 8) return;
-        if (previous <= time + 0.000001 && instance->position >= time && parameterConditions(system, instance, point + 8, bytes)) {
+        if (previous <= time + FM_TIME_EPSILON && instance->position >= time && parameterConditions(system, instance, point + 8, bytes)) {
             instance->position = time;
             instance->held = true;
             return;
@@ -815,7 +816,7 @@ static void reposition(FmodSystem* system, EventInstance* instance, double posit
         clip->finished = clip->started = false;
         clip->virtualized = false;
         if (position >= clip->start && position < clip->end && (clip->voice >= 0 || virtualized)) {
-            clip->sourcePosition = (position - clip->start) * clipPitch(system, instance, clip);
+            clip->sourcePosition = (position - clip->start) * (double) clipPitch(system, instance, clip);
             if (clip->voice >= 0) {
                 system->audio->vtable->setTrackPosition(system->audio, clip->voice, (float) clip->sourcePosition);
                 if (instance->playing && !instance->paused) system->audio->vtable->resumeSound(system->audio, clip->voice);
@@ -905,7 +906,7 @@ static bool startClip(FmodSystem* system, EventInstance* instance, Clip* clip) {
     if (!clip->started) {
         clip->activated = instance->elapsed;
         clip->lastPitch = clipPitch(system, instance, clip);
-        clip->sourcePosition = fmax(0, instance->position - clip->start) * clip->lastPitch;
+        clip->sourcePosition = fmax(0, instance->position - clip->start) * (double) clip->lastPitch;
     }
     clip->started = true;
     clip->virtualized = true;
@@ -931,12 +932,12 @@ static bool startClip(FmodSystem* system, EventInstance* instance, Clip* clip) {
 }
 
 static bool updateClip(FmodSystem* system, EventInstance* instance, Clip* clip, double seconds) {
-    if (clip->started && !instance->paused) clip->sourcePosition += seconds * clip->lastPitch;
+    if (clip->started && !instance->paused) clip->sourcePosition += seconds * (double) clip->lastPitch;
     if (instance->stopping && !clip->started) {
         clip->finished = true;
         return false;
     }
-    if (instance->held && !clip->started && clip->start >= instance->position - 0.000001) return true;
+    if (instance->held && !clip->started && clip->start >= instance->position - FM_TIME_EPSILON) return true;
     if (instance->position < clip->start) return true;
     if (instance->position >= clip->end) {
         stopClip(system, clip);
@@ -981,7 +982,7 @@ static void stepPlayback(FmodSystem* system, EventInstance* instance, double sec
                 child->finished = true;
                 continue;
             }
-            if (instance->position < child->start || (instance->held && !child->playback && child->start >= instance->position - 0.000001)) {
+            if (instance->position < child->start || (instance->held && !child->playback && child->start >= instance->position - FM_TIME_EPSILON)) {
                 pending = true;
                 continue;
             }

@@ -7,7 +7,8 @@
 #include "stb_ds.h"
 #include <string.h>
 
-#define FM_TICKS 48000.0
+#define FM_TICKS ((double) 48000)
+#define FM_TIME_EPSILON ((double) 0.000001L)
 #define FM_CACHE_LIMIT (64u * 1024u * 1024u)
 #define FM_MAX_METADATA (16u * 1024u * 1024u)
 #define FM_MAX_RECORDS 262144

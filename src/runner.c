@@ -4203,9 +4203,12 @@ static void dispatchSpriteMessages(Runner* runner, PendingSpriteMessage* pending
 }
 
 void Runner_step(Runner* runner) {
-    if (runner->audioSystem) {
-        Fmod_step(runner->audioSystem->fmodSystem, fmax(0.0, (double) runner->deltaTime / 1000000.0));
+#ifdef ENABLE_FMOD
+    if (runner->audioSystem && runner->audioSystem->fmodSystem) {
+        double seconds = (double) runner->deltaTime / 1000000;
+        Fmod_step(runner->audioSystem->fmodSystem, seconds > 0 ? seconds : 0);
     }
+#endif
     runner->fpsRealFrameStartNanos = nowNanos();
 
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
