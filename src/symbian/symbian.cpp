@@ -382,31 +382,24 @@ extern "C" void platformLog(const logType type, const char *format, va_list va) 
 #endif
 }
 
-extern "C" uint64_t nowNanos(void) {
+uint64_t nowNanos(void) {
 	TTime time;
 	time.HomeTime();
 	return (uint64_t)(time.Int64() * 1000);
 }
 
-extern "C" bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
 	return true;
 }
 
-extern "C" void platformExit(void) {
+void platformExit(void) {
 }
 
 static bool platformGetWindowFocus(void) {
     return foreground;
 }
 
-extern "C" void platformInitFunctions(Runner *runner) {
-    g_runner = runner;
-    g_runner->setCursor = NULL;
-    g_runner->windowHasFocus = platformGetWindowFocus;
-    g_runner->currentCursor = GML_CR_DEFAULT;
-}
-
-extern "C" bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
+bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     if (!outW || !outH || !container) return false;
     TSize size = container->Size();
     *outW = size.iWidth;
@@ -414,34 +407,41 @@ extern "C" bool platformGetWindowSize(int32_t* outW, int32_t* outH) {
     return true;
 }
 
-extern "C" bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
+void platformInitFunctions(Runner *runner) {
+    g_runner = runner;
+    g_runner->setCursor = NULL;
+    g_runner->windowHasFocus = platformGetWindowFocus;
+    g_runner->currentCursor = GML_CR_DEFAULT;
+}
+
+bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
     return platformGetWindowSize(outW, outH);
 }
 
-extern "C" void platformSetWindowSize(int32_t width, int32_t height) {
+void platformSetWindowSize(int32_t width, int32_t height) {
 }
 
-extern "C" void platformSetWindowTitle(const char* title) {
+void platformSetWindowTitle(const char* title) {
 }
 
-extern "C" void platformGetMousePos(double *xPos, double *yPos) {
+void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     *xPos = 0.0;
     *yPos = 0.0;
 }
 
-extern "C" void platformSwapBuffers(void) {
+void platformSwapBuffers(void) {
 	if (!foreground) return;
 	if (eglSwapBuffers(eglDisplay, eglSurface) == EGL_FALSE) {
 		// TODO handle context loss
 	}
 }
 
-extern "C" void *platformGetProcAddress(const char *name) {
+void *platformGetProcAddress(const char *name) {
 	return NULL;
 }
 
-extern "C" bool platformHandleEvents(void) {
+bool platformHandleEvents(void) {
 	const TInt count = keyEvents.Count();
 	for (TInt i = 0; i < count; ++i) {
 		const KeyEvent &e = keyEvents[i];
@@ -462,7 +462,7 @@ extern "C" bool platformHandleEvents(void) {
 	return shouldExit;
 }
 
-extern "C" void platformSleepUntil(uint64_t time) {
+void platformSleepUntil(uint64_t time) {
 	int64_t remaining = (int64_t)time - (int64_t)nowNanos();
 	if (remaining > 5000000) {
 		int64_t micros = (remaining - 3000000) / 1000;

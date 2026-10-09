@@ -82,6 +82,7 @@ MACRO NO_LOG2
 MACRO USE_FLOAT_REALS
 MACRO MINIZ_NO_ARCHIVE_APIS
 MACRO MINIZ_NO_STDIO
+MACRO DISABLE_PHYSICS
 
 USERINCLUDE ../../src
 USERINCLUDE ../../src/debug_font
@@ -128,3 +129,7 @@ SOURCEPATH ../../src/gl
 SOURCE gl_renderer.c
 SOURCEPATH ../../src/audio/miniaudio
 SOURCE ma_audio_system.c
+SOURCEPATH ../../src/physics/disabled
+SOURCE physics_disabled.c
+SOURCEPATH ../../src/physics
+SOURCE physics.c
