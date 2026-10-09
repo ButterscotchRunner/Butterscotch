@@ -9,6 +9,9 @@
 #elif PLATFORM_VITA
 #include <vitaGL.h>
 #include "vita_textures.h"
+#elif defined(__SYMBIAN32__)
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -58,7 +61,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__) && !defined(__SYMBIAN32__)
     return glGenFramebuffers;
 #else
     return true;
@@ -66,7 +69,9 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if defined(__SYMBIAN32__)
+    return false;
+#elif !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
     return glGenVertexArrays;
 #else
     return true;
@@ -304,9 +309,12 @@ static void flushBatch(GLRenderer* gl) {
 #endif
 
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vao);
-    } else {
+    } else
+#endif
+    {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
 
         int32_t stride = sizeof(GlVertex);
@@ -437,9 +445,12 @@ static void glPrimitiveEnd(Renderer* renderer) {
         GL_DYNAMIC_DRAW
     );
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vao);
-    } else {
+    } else
+#endif
+    {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modernGl->ebo);
 
         int32_t stride = sizeof(GlVertex);
@@ -595,6 +606,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     const char* vertHeader = "";
     const char* fragHeader = "";
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         if (modernGl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
@@ -621,7 +633,9 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
             "in vec2 vTexCoord;\nin vec4 vColor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s",
             fragHeader, baseFragmentShader);
-    } else {
+    } else
+#endif
+    {
         if (modernGl->isGLES) {
             vertHeader = "#version 100\nprecision highp float;\n";
             fragHeader = "#version 100\nprecision mediump float;\n";
@@ -720,11 +734,13 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     free(uFogColor);
 
     // Create VAO/VBO/EBO
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glGenVertexArrays(1, &modernGl->vao);
         glGenVertexArrays(1, &modernGl->vertexBufferVao);
         glBindVertexArray(modernGl->vao);
     }
+#endif
     glGenBuffers(1, &modernGl->vbo);
     glGenBuffers(1, &modernGl->ebo);
 
@@ -746,6 +762,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, eboSize, indices, GL_STATIC_DRAW);
     free(indices);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         // Vertex attributes: pos(2f), texcoord(2f), color(4f)
         int32_t stride = sizeof(GlVertex);
@@ -757,6 +774,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         glEnableVertexAttribArray(2);
         glBindVertexArray(0);
     }
+#endif
 
     // Allocate CPU-side vertex buffer
 #if PLATFORM_VITA
@@ -881,10 +899,12 @@ static void glDestroy(Renderer* renderer) {
     free(modernGl->gmlShaders);
     freeShader(modernGl->defaultShaderProgram);
     free(modernGl->defaultShaderProgram);
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glDeleteVertexArrays(1, &modernGl->vao);
         glDeleteVertexArrays(1, &modernGl->vertexBufferVao);
     }
+#endif
     glDeleteBuffers(1, &modernGl->vbo);
     glDeleteBuffers(1, &modernGl->ebo);
 
@@ -914,7 +934,9 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
 
     GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1, glApplyProjection);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(modernGl->vao);
+#endif
 }
 
 static void glEndView(Renderer* renderer) {
@@ -934,7 +956,9 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
         guiW, guiH, portX, portY, portW, portH
     );
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(modernGl->vao);
+#endif
 }
 
 static void glSetGuiProjection(Renderer* renderer, int32_t guiW, int32_t guiH, MAYBE_UNUSED int32_t portW, MAYBE_UNUSED int32_t portH, MAYBE_UNUSED bool renderingToUserSurface) {
@@ -954,8 +978,10 @@ static void glEndFrameInit(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(0);
-
+#endif
+    
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
         return;
@@ -971,10 +997,13 @@ static void glEndFrameEnd(Renderer* renderer) {
     }
     int32_t appId = gl->base.runner->applicationSurfaceId;
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         GLCommon_beginLetterboxBlit(gl->surfaces[appId], modernGl->hostFramebuffer);
         GLCommon_endLetterboxBlit(gl->surfaceWidth[appId], gl->surfaceHeight[appId], gl->gameW, gl->gameH, gl->windowW, gl->windowH, modernGl->hostFramebuffer);
-    } else {
+    } else
+#endif
+    {
         glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
         GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
         if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
@@ -1018,12 +1047,67 @@ static void glClearScreen(Renderer* renderer, uint32_t color, float alpha) {
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+#ifdef __SYMBIAN32__
+static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
+    uint32_t res = UINT32_MAX;
+    int min = INT32_MAX;
+    
+    for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
+        if (i == currentPageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
+            continue;
+        
+        int j = gl->textureLastUsed[i];
+        if (j >= min) continue;
+        
+        min = j;
+        res = i;
+    }
+    
+    if (res == UINT32_MAX) return false;
+    
+    flushBatch(gl);
+    GLRenderer_unloadTexture(gl, res);
+    glFlush();
+    return true;
+}
+
+#define UNLOAD_THRESHOLD 1000
+static void unloadUnusedTextures(GLRenderer* gl, uint32_t currentPageId) {
+	if (gl->base.runner->frameCount < UNLOAD_THRESHOLD) return;
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
+    bool flushed = false;
+    int threshold = gl->base.runner->frameCount - UNLOAD_THRESHOLD;
+    
+    for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
+        if (i == currentPageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
+            continue;
+        if (gl->textureLastUsed[i] > threshold)
+            continue;
+        
+        if (!flushed) {
+            flushBatch(gl);
+        	flushed = true;
+        }
+        GLRenderer_unloadTexture(gl, i);
+    }
+    if (flushed) glFlush();
+}
+#endif
+
 // Lazily decodes and uploads a TXTR page on first access.
 // Returns true if the texture is ready, false if it failed to decode.
 bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
-    if (gl->textureLoaded[pageId]) return (gl->textureWidths[pageId] != 0);
+    if (gl->textureLoaded[pageId]) {
+        if (gl->textureWidths[pageId] != 0) {
+            gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
+            return true;
+        }
+        return false;
+    }
 
     gl->textureLoaded[pageId] = true;
+    gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
 
 #if defined(PLATFORM_VITA)
     if (VitaTextures_Active()) {
@@ -1066,9 +1150,56 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
-
+    
+    if (gl->glTextures[pageId] == 0) {
+        glGenTextures(1, &gl->glTextures[pageId]);
+    }
+    
+#ifdef __SYMBIAN32__
+    unloadUnusedTextures(gl, pageId);
+    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+    
+    if (gl->textureFormat == GL_RGBA4) {
+        uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
+        for (int i = 0; i < w * h; i++) {
+            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
+                          (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) | 
+                          (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
+                          ((uint16_t)pixels[i * 4 + 3] >> 4);
+        }
+        free(pixels);
+        pixels = (uint8_t*) rgba4444;
+    }
+    
+    while (true) {
+        while (glGetError() != GL_NO_ERROR);
+        
+        if (gl->textureFormat == GL_RGBA4) {
+            GLint previousUnpackAlignment = 4;
+            glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, pixels);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+        } else {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        }
+        
+        if (glGetError() != GL_OUT_OF_MEMORY) break;
+        logWarn("GL: Failed to upload TXTR page %u (%dx%d), retrying\n",
+            pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
+        
+        if (!unloadOldestTexture(gl, pageId)) {
+            logError("GL: Failed to free VRAM, aborting texture upload\n");
+            free(pixels);
+            return false;
+        }
+        
+        glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+    }
+#else
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 
     free(pixels);
 
@@ -1081,6 +1212,21 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
+}
+
+void GLRenderer_unloadTexture(GLRenderer* gl, uint32_t pageId) {
+    if (!gl->textureLoaded[pageId]) return;
+    
+    if (gl->glTextures[pageId] != 0) {
+        glDeleteTextures(1, &gl->glTextures[pageId]);
+        gl->glTextures[pageId] = 0;
+    }
+    
+    gl->textureLoaded[pageId] = false;
+    gl->textureWidths[pageId] = 0;
+    gl->textureHeights[pageId] = 0;
+    
+    logInfo("GL: Unloaded TXTR page %u\n", pageId);
 }
 
 // Resolves a TPAG index to a loaded GL texture. Returns false if drawing should be skipped.
@@ -1830,9 +1976,11 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     GLenum mode = primitiveTypeToGL(primitive);
 
+#ifndef __SYMBIAN32__
     if (hasVAO()) {
         glBindVertexArray(modernGl->vertexBufferVao);
     }
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
 
@@ -1932,8 +2080,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     int vertexCount = buffer->size / buffer->format->stride;
     if (vertexCount <= 0) {
-        if (hasVAO()) glBindVertexArray(modernGl->vao);
-        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+        if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+        for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1951,8 +2101,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     }
 
     if (number <= 0) {
-        if (hasVAO()) glBindVertexArray(modernGl->vao);
-        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+        if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+        for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1963,8 +2115,10 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         number
     );
 
-    if (hasVAO()) glBindVertexArray(modernGl->vao);
-    else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
+#ifndef __SYMBIAN32__
+    if (hasVAO()) glBindVertexArray(modernGl->vao); else
+#endif
+    for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -2172,8 +2326,8 @@ static void drawText(
                 uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
-				if (ch == ' ') {
-					drewSuccessfully = true;
+                if (ch == ' ') {
+                    drewSuccessfully = true;
                 } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
@@ -2324,6 +2478,7 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeRealloc(gl->textureLastUsed, gl->textureCount * sizeof(int));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -2357,8 +2512,17 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
 
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
+    
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     bool isPOT = (width & (width - 1)) == 0 && (height & (height - 1)) == 0;
     GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
 
@@ -2430,7 +2594,15 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
 
     glGenTextures(1, &gl->surfaceTexture[surfaceID]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceID]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2537,9 +2709,12 @@ static void glSurfaceCopy(Renderer* renderer, int32_t destSurfaceID, int32_t des
     if (0 > srcSurfaceID || (uint32_t) srcSurfaceID >= gl->surfaceCount || gl->surfaces[srcSurfaceID] == 0) return;
     if (0 > destSurfaceID || (uint32_t) destSurfaceID >= gl->surfaceCount || gl->surfaces[destSurfaceID] == 0) return;
 
+#ifndef __SYMBIAN32__
     if (modernGl->isGL3) {
         GLCommon_surfaceBlit(gl->surfaces, gl->surfaceWidth, gl->surfaceHeight, gl->surfaceCount, destSurfaceID, destX, destY, srcSurfaceID, srcX, srcY, srcW, srcH, part);
-    } else {
+    } else
+#endif
+    {
         GLint prevBinding = 0;
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
         Matrix4f prevProj = renderer->gmlMatrices[MATRIX_WORLD_VIEW_PROJECTION];
@@ -2752,7 +2927,27 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     GLuint newTexId;
     glGenTextures(1, &newTexId);
     glBindTexture(GL_TEXTURE_2D, newTexId);
+#ifdef __SYMBIAN32__
+    if (gl->textureFormat == GL_RGBA4) {
+        GLint previousUnpackAlignment = 4;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+        uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
+        for (int i = 0; i < w * h; i++) {
+            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
+                            (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) | 
+                            (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
+                            ((uint16_t)pixels[i * 4 + 3] >> 4);
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
+        free(rgba4444);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

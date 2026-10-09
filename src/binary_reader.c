@@ -138,10 +138,13 @@ void BinaryReader_seek(BinaryReader* reader, size_t position) {
     if (reader->buffer != nullptr) {
         if (position < reader->bufferBase || position > reader->bufferBase + reader->bufferSize) {
             logError("BinaryReader: buffer seek to 0x%zX out of buffer range [0x%zX, 0x%zX]\n", position, reader->bufferBase, reader->bufferBase + reader->bufferSize);
-            abort();
+            // XXX: temporary fix for TGIN until #618 is resolved
+//            abort();
+        	reader->buffer = nullptr;
+        } else {
+			reader->bufferPos = position - reader->bufferBase;
+			return;
         }
-        reader->bufferPos = position - reader->bufferBase;
-        return;
     }
 
     if (position > reader->fileSize) {

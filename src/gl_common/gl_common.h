@@ -18,6 +18,9 @@ typedef struct GLRenderer GLRenderer;
 #include "rsxutil.h"
 #elif PLATFORM_VITA
 #include <vitaGL.h>
+#elif defined(__SYMBIAN32__)
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
 #else
 #include <glad/glad.h>
 #endif
@@ -188,6 +191,7 @@ struct GLRenderer {
     int32_t* textureHeights;
     bool* textureLoaded;      // lazy loading: true once PNG decoded and uploaded
     uint32_t textureCount;
+    int* textureLastUsed;
 
     GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
 

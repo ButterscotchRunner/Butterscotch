@@ -1,0 +1,12 @@
+&EN
+
+#{"Butterscotch"},(0xEC93FBDE),1,0,0
+
+[0x20022E6D], 0, 0, 0, {"S60ProductID"}
+
+%{"shinovon"}
+:"shinovon"
+
+"$(EPOCROOT)Epoc32\release\$(PLATFORM)\$(TARGET)\Butterscotch.exe" - "!:\sys\bin\Butterscotch.exe"
+"$(EPOCROOT)\epoc32\data\z\private\10003a3f\import\apps\butterscotch_reg.rsc" - "!:\private\10003a3f\import\apps\butterscotch_reg.rsc"
+"$(EPOCROOT)\epoc32\data\z\resource\apps\butterscotch.rsc" - "!:\resource\apps\butterscotch.rsc"

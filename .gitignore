@@ -6,3 +6,9 @@ CMakeUserPresets.json
 compat/config.mk
 /.vs
 *.log
+
+# symbian
+.project
+.cproject
+*.sis
+*.d

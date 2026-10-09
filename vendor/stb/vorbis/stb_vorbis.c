@@ -927,10 +927,29 @@ static int error(vorb *f, enum STBVorbisError e)
 
 #define array_size_required(count,size)  (count*(sizeof(void *)+(size)))
 
+#ifdef __SYMBIAN32__
+// workaround for missing alloca on symbian
+static char temp_mem[128 * 1024];
+static int temp_mem_offset = 0;
+
+static void *temp_mem_alloc(vorb *f, int sz) {
+    sz = (sz+7) & ~7;
+    if (temp_mem_offset + sz > sizeof(temp_mem)) return NULL;
+    void *p = (char *) temp_mem + temp_mem_offset;
+    temp_mem_offset += sz;
+    return p;
+}
+
+#define temp_alloc(f,size)              temp_mem_alloc(f, size)
+#define temp_free(f,p)                  (void)0
+#define temp_alloc_save(f)              (temp_mem_offset)
+#define temp_alloc_restore(f,p)         (temp_mem_offset = (p))
+#else
 #define temp_alloc(f,size)              (f->alloc.alloc_buffer ? setup_temp_malloc(f,size) : alloca(size))
 #define temp_free(f,p)                  (void)0
 #define temp_alloc_save(f)              ((f)->temp_offset)
 #define temp_alloc_restore(f,p)         ((f)->temp_offset = (p))
+#endif
 
 #define temp_block_array(f,count,size)  make_block_array(temp_alloc(f,array_size_required(count,size)), count, size)
 
