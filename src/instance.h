@@ -18,6 +18,7 @@ struct Runner;
 struct Instance {
     uint32_t instanceId;
     int32_t objectIndex;
+    int32_t roomIndex;
     // Reference count for GML structs (objectIndex == STRUCT_OBJECT_INDEX mode). Unused for game-object instances.
     // The runner's structInstances registry holds an implicit +1 ref while the struct is registered, so a refCount of 1 means "only the registry references this"; the per-frame sweep (Runner_sweepDeadStructs) decRefs those to free them. RValues with ownsReference=true on RVALUE_STRUCT contribute one ref each.
     int32_t refCount;
@@ -31,14 +32,13 @@ struct Instance {
     // Static inheritance: a static struct's parent static struct or nullptr.
     // The member-read fallback walks this chain so a child instance resolves fields declared static on a parent constructor.
     struct Instance* staticParent;
-    // Native GMS runner stores all instance built-in variables as float (32-bit),
-    // even though RValues use double. This matches the native precision model.
     float x, y;
     float xprevious, yprevious;
     float xstart, ystart;
     bool persistent, solid, active, destroyed, visible, createEventFired, outsideRoom, spatialGridDirty, mouseOver;
     // Used to track which alarms are set without looping through the entire alarm array
     uint16_t activeAlarmMask;
+    bool cleanupEventFired;
     int32_t maskIndex; // collision mask sprite override (-1 = use spriteIndex)
     int32_t* collisionCells; // Used to track where we are
     uint32_t lastCollisionQueryId;
@@ -50,7 +50,8 @@ struct Instance {
     int32_t spriteIndex;
     float imageSpeed;
     float imageIndex; // Even though textureCount is unsigned, games CAN set the image_index to negative values
-    float imageXscale, imageYscale, imageAngle, imageAlpha;
+    float imageXscale, imageYscale, imageAlpha;
+    GMLReal imageAngle;
     uint32_t imageBlend;
     int32_t depth;
     int32_t layer;
@@ -60,6 +61,8 @@ struct Instance {
     float hspeed, vspeed;
     float friction;
     float gravity, gravityDirection;
+    struct PhysicsBody* physicsBody;
+    float physicsContact[5]; // point count, first point x/y, normal x/y
 
     // Path following state
     int32_t pathIndex;           // -1 = no path active

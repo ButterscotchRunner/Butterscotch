@@ -194,18 +194,18 @@ void platformExit(void) {
     emscripten_webgl_destroy_context(gWebGLContextHandle);
 }
 
-void platformInitFunctions(Runner *runner) {
-    gRunner = runner;
-    runner->setCursor = nullptr;
-    runner->currentCursor = GML_CR_DEFAULT;
-}
-
 bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
     if (!outW || !outH) return false;
     if (!gInitialized) return false;
     *outW = gWidth;
     *outH = gHeight;
     return true;
+}
+
+void platformInitFunctions(Runner *runner) {
+    gRunner = runner;
+    runner->setCursor = nullptr;
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 bool platformGetScaledWindowSize(int32_t *outW, int32_t *outH) {

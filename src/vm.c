@@ -757,7 +757,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
     // Check for built-in variable (varID == -6 sentinel)
     if (varDef->varID == VARIABLE_BUILTIN) {
         // Struct fields are independent of instance built-ins with the same names.
-        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX) {
+        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX && VMBuiltins_isInstanceScopedBuiltinVar(varDef->builtinVarId)) {
             ptrdiff_t nameSlot = shgeti(ctx->varNameMap, (char*) varDef->name);
             if (nameSlot >= 0) {
                 int32_t structVarID = ctx->varNameMap[nameSlot].value;
@@ -1022,7 +1022,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // Check for built-in variable (varID == -6 sentinel)
     if (varDef->varID == VARIABLE_BUILTIN) {
-        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX)
+        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX && VMBuiltins_isInstanceScopedBuiltinVar(varDef->builtinVarId))
             VM_structSet(ctx, targetInstance, varDef->name, val, access.arrayIndex);
         else
             VMBuiltins_setVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, val, access.arrayIndex);

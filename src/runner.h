@@ -8,6 +8,7 @@
 #include "file_system.h"
 #include "ini.h"
 #include "instance.h"
+#include "physics/physics_engine.h"
 #include "renderer.h"
 #include "runner_keyboard.h"
 #include "spatial_grid.h"
@@ -92,6 +93,7 @@
 #define OTHER_OUTSIDE_VIEW7  47
 #define OTHER_ASYNC_DIALOG   63
 #define OTHER_ASYNC_SAVE_LOAD 72
+#define OTHER_BROADCAST_MESSAGE 76
 #define OTHER_ASYNC_SYSTEM   75
 
 #define MAX_VIEWS 8
@@ -675,6 +677,9 @@ struct Runner {
     FileSystem* fileSystem;
     AudioSystem* audioSystem;
     Room* currentRoom;
+    struct PhysicsEngine* physics;
+    struct PhysicsResources* physicsResources; // shared fixture/joint handles; allocated lazily
+    struct PhysicsEngine** physicsRooms; // worlds are room-owned, including persistent rooms
     int32_t currentRoomIndex;
     int32_t currentRoomOrderPosition;
     Instance** instances; // stb_ds array of Instance*
@@ -746,6 +751,8 @@ struct Runner {
     void (*setWindowTitle)(const char* title);
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
+    bool (*getWindowPosition)(int32_t* outX, int32_t* outY);
+    void (*setWindowPosition)(int32_t x, int32_t y);
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
@@ -852,6 +859,7 @@ struct Runner {
 
     // Async map ID
     int32_t asyncLoadMapId;
+    int32_t eventDataMapId;
 
     // Async buffer save/load state
     char* asyncBufferGroupName;                   // current group name (nullptr when no group is open); applied as a directory prefix
@@ -948,6 +956,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
 Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId);
 Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEvent);
 void Runner_destroyInstance(Runner* runner, Instance* inst, bool runDestroyEvent);
+void Runner_executeCleanupEvent(Runner* runner, Instance* inst);
 void Runner_cleanupDestroyedInstances(Runner* runner);
 // Add inst to the per-object lists of its object and every ancestor.
 void Runner_addInstanceToObjectLists(Runner* runner, Instance* inst);

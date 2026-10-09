@@ -769,6 +769,38 @@ static void parseAGRP(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
+static void parseSpriteMessages(BinaryReader* reader, DataWin* dw, Sprite* spr, uint32_t sequenceOffset) {
+    size_t savedPos = BinaryReader_getPosition(reader);
+    BinaryReader_seek(reader, sequenceOffset);
+    uint32_t version = BinaryReader_readUint32(reader);
+    if (version != 1) {
+        logWarn("DataWin: Unsupported sprite sequence version %u for %s\n", version, spr->name);
+        BinaryReader_seek(reader, savedPos);
+        return;
+    }
+    BinaryReader_skip(reader, DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0) ? 40 : 32);
+    uint32_t keyCount = BinaryReader_readUint32(reader);
+    repeat(keyCount, k) {
+        float frame = BinaryReader_readFloat32(reader);
+        BinaryReader_skip(reader, 4);
+        BinaryReader_readBool32(reader);
+        bool disabled = BinaryReader_readBool32(reader);
+        uint32_t channelCount = BinaryReader_readUint32(reader);
+        repeat(channelCount, c) {
+            int32_t channel = BinaryReader_readInt32(reader);
+            uint32_t messageCount = BinaryReader_readUint32(reader);
+            repeat(messageCount, m) {
+                const char* message = readStringPtr(reader, dw);
+                if (!disabled && channel == 0 && message != nullptr) {
+                    SpriteMessage entry = { frame, message };
+                    arrput(spr->messages, entry);
+                }
+            }
+        }
+    }
+    BinaryReader_seek(reader, savedPos);
+}
+
 static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPreciseMasksForNonPreciseSprites) {
     Sprt* s = &dw->sprt;
     uint32_t count;
@@ -802,6 +834,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         // Detect special type vs normal: peek next int32
         int32_t check = BinaryReader_readInt32(reader);
         uint32_t nineSliceOffset = 0;
+        uint32_t sequenceOffset = 0;
         if (check == -1) {
             spr->specialType = true;
             spr->sVersion = BinaryReader_readUint32(reader);
@@ -813,7 +846,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
                     spr->gms2PlaybackSpeed = BinaryReader_readFloat32(reader);
                     spr->gms2PlaybackSpeedType = BinaryReader_readUint32(reader);
                     if (spr->sVersion >= 2) {
-                        BinaryReader_skip(reader, 4); //sequenceOffset;
+                        sequenceOffset = BinaryReader_readUint32(reader);
                         if (spr->sVersion >= 3) {
                             nineSliceOffset = BinaryReader_readUint32(reader);
                         }
@@ -831,6 +864,8 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
                 continue;
             }
         }
+
+        if (sequenceOffset != 0) parseSpriteMessages(reader, dw, spr, sequenceOffset);
 
         // 'check' is the texture count (start of SimpleList)
         spr->textureCount = (uint32_t)check;
@@ -2178,6 +2213,10 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->viewsFileOffset = BinaryReader_readUint32(reader);
         room->gameObjectsFileOffset = BinaryReader_readUint32(reader);
         room->tilesFileOffset = BinaryReader_readUint32(reader);
+        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
+            // The instanceCreationOrderIDs pointer precedes the physics settings.
+            BinaryReader_skip(reader, 4);
+        }
         room->world = BinaryReader_readBool32(reader);
         room->top = BinaryReader_readUint32(reader);
         room->left = BinaryReader_readUint32(reader);
@@ -2186,10 +2225,6 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->gravityX = BinaryReader_readFloat32(reader);
         room->gravityY = BinaryReader_readFloat32(reader);
         room->metersPerPixel = BinaryReader_readFloat32(reader);
-        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
-            // skip instanceCreationOrderIDs
-            BinaryReader_skip(reader, 4);
-        }
         room->layersFileOffset = 0;
         if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {
             room->layersFileOffset = BinaryReader_readUint32(reader);
@@ -3146,6 +3181,7 @@ void DataWin_free(DataWin* dw) {
     if (dw->sprt.sprites) {
         repeat(dw->sprt.count, i) {
             free(dw->sprt.sprites[i].tpagIndices);
+            arrfree(dw->sprt.sprites[i].messages);
             if (dw->sprt.sprites[i].masks != nullptr) {
                 if (!dw->mappedFile) {
                     repeat(dw->sprt.sprites[i].maskCount, j) {
