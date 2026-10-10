@@ -4,6 +4,7 @@
 #include "runner.h"
 #include "file_system.h"
 #include "gl_wrappers.h"
+#include "gl_state.h"
 
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
@@ -125,6 +126,8 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
         logError("GL: The legacy-gl renderer requires FBO support!\n");
         abort();
     }
+
+    GLState_init();
 
     // GL 2.0+ has NPOT textures as core; older GL (1.x) may or may not have
     // GL_ARB_texture_non_power_of_two. Only round up to power-of-two on GPUs
