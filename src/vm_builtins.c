@@ -330,6 +330,8 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "depth", BUILTIN_VAR_DEPTH },
     { "direction", BUILTIN_VAR_DIRECTION },
     { "event_data", BUILTIN_VAR_EVENT_DATA },
+    { "event_number", BUILTIN_VAR_EVENT_NUMBER },
+    { "event_type", BUILTIN_VAR_EVENT_TYPE },
     { "false", BUILTIN_VAR_FALSE },
     { "fps", BUILTIN_VAR_FPS },
     { "fps_real", BUILTIN_VAR_FPS_REAL },
@@ -921,6 +923,10 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeBool(inst->timelineLoop);
 
         // Room properties
+        case BUILTIN_VAR_EVENT_TYPE:
+            return RValue_makeReal((GMLReal) ctx->currentEventType);
+        case BUILTIN_VAR_EVENT_NUMBER:
+            return RValue_makeReal((GMLReal) ctx->currentEventSubtype);
         case BUILTIN_VAR_ROOM:
             return RValue_makeReal((GMLReal) runner->currentRoomIndex);
         case BUILTIN_VAR_ROOM_FIRST:
@@ -7092,7 +7098,8 @@ static bool resolveFunctionRef(VMContext* ctx, RValue funcRef, int32_t* outCodeI
         return *outCodeIndex >= 0 || *outBuiltin != nullptr;
     }
 #endif
-    if (funcRef.type != RVALUE_INT32 && funcRef.type != RVALUE_INT64 && funcRef.type != RVALUE_REAL) return false;
+    if (funcRef.type != RVALUE_INT32 && funcRef.type != RVALUE_INT64 && funcRef.type != RVALUE_REAL &&
+        !(funcRef.type == RVALUE_ASSETREF && funcRef.assetRefType == ASSET_TYPE_SCRIPT)) return false;
     int32_t rawArg = RValue_toInt32(funcRef);
     if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
         const char* funcName = ctx->dataWin->func.functions[rawArg].name;
@@ -15694,24 +15701,28 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
 
 static RValue builtin_layer_script_begin(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
-    int32_t scriptIndex = RValue_toInt32(args[1]);
+    int32_t codeIndex;
+    BuiltinFunc builtin;
+    resolveFunctionRef(ctx, args[1], &codeIndex, &builtin);
 
     RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
     if (runtimeLayer == nullptr) return RValue_makeUndefined();
 
-    runtimeLayer->beginScript = scriptIndex;
+    runtimeLayer->beginScript = codeIndex;
 
     return RValue_makeUndefined();
 }
 
 static RValue builtin_layer_script_end(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
-    int32_t scriptIndex = RValue_toInt32(args[1]);
+    int32_t codeIndex;
+    BuiltinFunc builtin;
+    resolveFunctionRef(ctx, args[1], &codeIndex, &builtin);
 
     RuntimeLayer* runtimeLayer = Runner_findRuntimeLayerById(ctx->runner, layerId);
     if (runtimeLayer == nullptr) return RValue_makeUndefined();
 
-    runtimeLayer->endScript = scriptIndex;
+    runtimeLayer->endScript = codeIndex;
 
     return RValue_makeUndefined();
 }
@@ -23042,7 +23053,6 @@ static RValue builtin_physics_raycast(VMContext* ctx, RValue* args, int32_t coun
 void VMBuiltins_registerAll(VMContext* ctx) {
     requireMessage(!ctx->registeredBuiltinFunctions, "Attempting to register all VMBuiltins, but it was already registered!");
     ctx->registeredBuiltinFunctions = true;
-
     // Physics
 #define PHYSICS_FUNCTION(name, scope, minimum, returnsReal) VM_registerBuiltin(ctx, #name, builtin_##name);
     PHYSICS_FUNCTIONS(PHYSICS_FUNCTION)
