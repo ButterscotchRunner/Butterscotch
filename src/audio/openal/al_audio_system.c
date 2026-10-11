@@ -1,5 +1,6 @@
 // On Windows, include windows.h first so its headers are processed before stb_vorbis
 // defines single-letter macros (L, C, R) that conflict with winnt.h struct field names.
+#include <AL/al.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -711,11 +712,12 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     return slot->instanceId;
 }
 
-static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float vx, float vy, float vz, float ref, float max, float factor) {
     SoundInstance* inst = findInstanceById((AlAudioSystem*)audio, instanceId);
     if (inst == nullptr) return;
     alSourcei(inst->alSource, AL_SOURCE_RELATIVE, AL_FALSE);
     alSource3f(inst->alSource, AL_POSITION, x, y, z);
+    alSource3f(inst->alSource, AL_VELOCITY, vx, vy, vz);
     alSourcef(inst->alSource, AL_REFERENCE_DISTANCE, ref > 0 ? ref : 0.0001f);
     alSourcef(inst->alSource, AL_MAX_DISTANCE, max > 0 ? max : 0.0001f);
     alSourcef(inst->alSource, AL_ROLLOFF_FACTOR, factor);
