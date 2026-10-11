@@ -1,6 +1,5 @@
 // On Windows, include windows.h first so its headers are processed before stb_vorbis
 // defines single-letter macros (L, C, R) that conflict with winnt.h struct field names.
-#include <AL/al.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
