@@ -23527,8 +23527,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_emitter_gain", builtin_audio_emitter_gain);
     VM_registerBuiltin(ctx, "audio_emitter_pitch", builtin_audio_emitter_pitch);
     VM_registerBuiltin(ctx, "audio_emitter_position", builtin_audio_emitter_position);
+    VM_registerBuiltin(ctx, "audio_emitter_velocity", builtin_audio_emitter_velocity);
     VM_registerBuiltin(ctx, "audio_listener_position", builtin_audio_listener_position);
-    VM_registerBuiltin(ctx, "audio_listener_velocity", builtin_audio_listener_velocity);
     VM_registerBuiltin(ctx, "audio_play_sound_on", builtin_audio_play_sound_on);
     VM_registerBuiltin(ctx, "audio_emitter_exists", builtin_audio_emitter_exists);
     VM_registerBuiltin(ctx, "audio_emitter_free", builtin_audio_emitter_free);
