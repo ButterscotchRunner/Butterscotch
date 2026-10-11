@@ -598,6 +598,9 @@ bool VMBuiltins_isInstanceScopedBuiltinVar(int16_t builtinVarId) {
         // case BUILTIN_VAR_PHY_COLLISION_Y:
         // case BUILTIN_VAR_PHY_COL_NORMAL_X:
         // case BUILTIN_VAR_PHY_COL_NORMAL_Y:
+        // case BUILTIN_VAR_IN_SEQUENCE:
+        // case BUILTIN_VAR_SEQUENCE_INSTANCE:
+        // case BUILTIN_VAR_DRAWN_BY_SEQUENCE:
         // case BUILTIN_VAR_DISPLAY_AA:
         // case BUILTIN_VAR_WEBGL_ENABLED:
             return true;
