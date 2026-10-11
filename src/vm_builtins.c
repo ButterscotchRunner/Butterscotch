@@ -7680,6 +7680,26 @@ static RValue builtin_audio_emitter_falloff(VMContext* ctx, RValue* args, int32_
     return RValue_makeUndefined();
 }
 
+static RValue builtin_audio_emitter_gain(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_gain", 2, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->gain = RValue_toReal(args[1]);
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_audio_emitter_pitch(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("audio_emitter_pitch", 2, RValue_makeUndefined());
+    if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
+    AudioEmitter* emitter = audioEmitterGet(ctx->runner, RValue_toInt32(args[0]));
+    if (emitter == nullptr) return RValue_makeUndefined();
+    emitter->pitch = RValue_toReal(args[1]);
+    audioEmitterUpdateVoices(ctx->runner, emitter);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_audio_emitter_position(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("audio_emitter_position", 4, RValue_makeUndefined());
     if (args[0].type == RVALUE_UNDEFINED) return RValue_makeUndefined();
@@ -23490,6 +23510,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "audio_channel_num", builtin_audio_channel_num);
     VM_registerBuiltin(ctx, "audio_emitter_create", builtin_audio_emitter_create);
     VM_registerBuiltin(ctx, "audio_emitter_falloff", builtin_audio_emitter_falloff);
+    VM_registerBuiltin(ctx, "audio_emitter_gain", builtin_audio_emitter_gain);
+    VM_registerBuiltin(ctx, "audio_emitter_pitch", builtin_audio_emitter_pitch);
     VM_registerBuiltin(ctx, "audio_emitter_position", builtin_audio_emitter_position);
     VM_registerBuiltin(ctx, "audio_listener_position", builtin_audio_listener_position);
     VM_registerBuiltin(ctx, "audio_play_sound_on", builtin_audio_play_sound_on);
