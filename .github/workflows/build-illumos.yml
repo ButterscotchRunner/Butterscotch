@@ -28,13 +28,11 @@ jobs:
           echo "${{ github.workspace }}/artifacts/illumos/build/toolchain/bin" >> $GITHUB_PATH
 
       - name: Build SDL2 from source
-        env:
-          CC: x86_64-pc-solaris2.11-gcc
-          CXX: x86_64-pc-solaris2.11-g++
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=SunOS \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
             -DCMAKE_AR="x86_64-pc-solaris2.11-ar" \
             -DCMAKE_RANLIB="x86_64-pc-solaris2.11-ranlib" \
             -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
@@ -56,11 +54,10 @@ jobs:
           PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
           PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
-          CC: x86_64-pc-solaris2.11-gcc
-          CXX: x86_64-pc-solaris2.11-g++
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=SunOS \
+            -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
             -DCMAKE_AR="x86_64-pc-solaris2.11-ar" \
             -DCMAKE_RANLIB="x86_64-pc-solaris2.11-ranlib" \
             -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
