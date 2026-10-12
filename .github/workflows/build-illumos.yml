@@ -28,7 +28,6 @@ jobs:
           echo "${{ github.workspace }}/artifacts/illumos/build/toolchain/bin" >> $GITHUB_PATH
 
       - name: Build SDL2 from source
-        if: steps.cache-sdl2.outputs.cache-hit != 'true'
         env:
           CC: x86_64-pc-solaris2.11-gcc
           CXX: x86_64-pc-solaris2.11-g++
@@ -41,6 +40,7 @@ jobs:
             -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
             -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib" \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=compare-distinct-pointer-types" \
             -DSDL_SHARED=ON \
             -DSDL_STATIC=OFF \
@@ -64,7 +64,8 @@ jobs:
             -DCMAKE_AR="x86_64-pc-solaris2.11-ar" \
             -DCMAKE_RANLIB="x86_64-pc-solaris2.11-ranlib" \
             -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
-            -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib \
+            -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
