@@ -25,7 +25,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
           ./artifacts/illumos/build-toolchain.sh
-          echo "${{ github.workspace }}/artifacts/illumos/build/toolchain/bin" >> $GITHUB_PATH
 
       - name: Checkout SDL2
         uses: actions/checkout@v7
@@ -36,14 +35,11 @@ jobs:
 
       - name: Build SDL2 from source
         run: |
+          export PATH="${{ github.workspace }}/artifacts/illumos/build/toolchain/bin:$PATH"
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
             -DCMAKE_SYSTEM_NAME=SunOS \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
-            -DCMAKE_AR="x86_64-pc-solaris2.11-ar" \
-            -DCMAKE_RANLIB="x86_64-pc-solaris2.11-ranlib" \
-            -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
-            -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=compare-distinct-pointer-types" \
@@ -62,13 +58,10 @@ jobs:
           PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
+          export PATH="${{ github.workspace }}/artifacts/illumos/build/toolchain/bin:$PATH"
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=SunOS \
             -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
-            -DCMAKE_AR="x86_64-pc-solaris2.11-ar" \
-            -DCMAKE_RANLIB="x86_64-pc-solaris2.11-ranlib" \
-            -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
-            -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
