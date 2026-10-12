@@ -855,7 +855,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
         if (!platformInitialized) {
-            if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
+            if (!platformInit(windowW, windowH, windowTitle, args.headless, args.fullscreen)) {
                 DataWin_free(dataWin);
                 PreProcessedStuff_free();
                 return 1;
