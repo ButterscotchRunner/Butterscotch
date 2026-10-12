@@ -34,7 +34,7 @@ fi
 
 export PATH="$PREFIX/bin:$PATH"
 
-toolchainver=1
+toolchainver=2
 if [ "$(cat "$PREFIX/toolchainver" 2>/dev/null)" = "$toolchainver" ]; then
     printf 'Toolchain already built! :)\n'
     exit 0
@@ -83,6 +83,7 @@ mkdir -p build-gcc && cd build-gcc
     --disable-shared \
     --disable-libgcov \
     --disable-libgomp \
+    --disable-multilib \
     --disable-nls \
     --disable-fixincludes \
     --with-system-zlib \
