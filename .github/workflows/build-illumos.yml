@@ -41,6 +41,7 @@ jobs:
             -DCMAKE_C_COMPILER_AR="x86_64-pc-solaris2.11-gcc-ar" \
             -DCMAKE_C_COMPILER_RANLIB="x86_64-pc-solaris2.11-gcc-ranlib" \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=compare-distinct-pointer-types" \
             -DSDL_SHARED=ON \
             -DSDL_STATIC=OFF \
             -DSDL_TESTS=OFF \

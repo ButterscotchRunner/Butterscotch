@@ -86,7 +86,7 @@ mkdir -p build-gcc && cd build-gcc
     --disable-nls \
     --disable-fixincludes \
     --with-system-zlib \
-    --enable-languages=c,c++
+    --enable-languages=c
 
 $MAKE -j"$ncpus" all-gcc all-target-libgcc
 $MAKE -j"$ncpus" install-strip-gcc install-strip-target-libgcc
@@ -99,4 +99,3 @@ echo $toolchainver > $PREFIX/toolchainver
 echo "Done! You can now use the toolchain by running:"
 echo "export PATH=$PREFIX/bin:\$PATH"
 echo "export CC=$TARGET_TRIPLE-gcc"
-echo "export CXX=$TARGET_TRIPLE-g++"
