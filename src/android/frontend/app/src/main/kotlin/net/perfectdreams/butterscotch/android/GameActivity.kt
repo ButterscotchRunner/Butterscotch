@@ -69,6 +69,8 @@ import java.util.zip.CRC32
  * library entry was removed between the launcher's snapshot and the click).
  */
 class GameActivity : ComponentActivity() {
+    var requestedExit by mutableStateOf(false)
+
     var butterscotchRunner: ButterscotchDroidRunner? = null
     lateinit var gameLibrary: GameLibrary
     lateinit var layoutLibrary: LayoutLibrary
@@ -118,16 +120,13 @@ class GameActivity : ComponentActivity() {
             return
         }
 
-        // Reset the exit latch — hasExited is process-singleton state, so a previous session's
-        // exit would otherwise immediately finish() us via the LaunchedEffect below.
-        ButterscotchNative.resetExitLatch()
-
         val logsDir = gameLibrary.logsDir(entry)
         logsDir.mkdirs()
         val logsFile = File(logsDir, "latest.log")
         logsFile.delete()
 
         val butterscotchRunner = ButterscotchDroidRunner(
+            this,
             this.assets,
             wadFile.absolutePath,
             crc32(wadFile),
@@ -188,8 +187,8 @@ class GameActivity : ComponentActivity() {
                 LaunchedEffect(editorState != null) { keys.releaseAll() }
 
                 // Auto-finish when the native runner reports it has exited (game quit, fatal error).
-                val hasExited = ButterscotchNative.hasExited
-                LaunchedEffect(hasExited) {
+                val hasExited = this@GameActivity.requestedExit
+                LaunchedEffect(requestedExit) {
                     if (hasExited)
                         finish()
                 }
@@ -429,8 +428,7 @@ class GameActivity : ComponentActivity() {
                                 menuOpen = it
                             },
                             onExitGame = {
-                                // This is blocking
-                                butterscotchRunner.requestExit()
+                                this@GameActivity.requestedExit = true
                             },
                             onEditLayout = {
                                 editorState = GamepadEditorState(liveEntry.title, keys, layout)

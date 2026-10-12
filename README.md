@@ -112,7 +112,7 @@ All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware float
 | PlayStation 2 | [butterscotch-ps2-wad16.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad16.zip) | WAD 16 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
 | PlayStation 2 | [butterscotch-ps2-wad17.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps2-wad17.zip) | WAD 17 only. ELF executable to be used with the [ISO generator](https://butterscotch.mrpowergamerbr.com/). |
 | PlayStation 3 | [butterscotch-ps3.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-ps3.zip) | To be used with the [preprocessor](https://github.com/ButterscotchRunner/ButterscotchPreprocessor). |
-| PlayStation Vita | [butterscotch-vita.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-vita.zip) | Place data.win in `ux0:/data/butterscotch/` directory. |
+| PlayStation Vita | [butterscotch-vita.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-vita.zip) | Place data.win in `ux0:/data/butterscotch/` directory. Requires `libshacccg.suprx` to be installed in `ur0:/data/` |
 | Nintendo Switch | [butterscotch-switch.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-switch.zip) | Place data.win in `sdmc:/switch/butterscotch/` directory OR compile from source with data.win file in `<cmake build dir>/romfs` directory (requires devkitPro). |
 
 

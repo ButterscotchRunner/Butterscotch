@@ -37,26 +37,7 @@ static float gNormalizedCursorX = 0.0f;
 static float gNormalizedCursorY = 0.0f;
 // We don't need to worry about game changes because the profiler will be automatically disabled then
 static int32_t gProfilerStartedAtFrame = 0;
-
-void platformLog(const logType type, const char *format, va_list va) {
-    int prio;
-    switch (type) {
-        case LOG_TYPE_NORMAL:
-            prio = ANDROID_LOG_INFO;
-            break;
-        case LOG_TYPE_WARNING:
-            prio = ANDROID_LOG_WARN;
-            break;
-        case LOG_TYPE_ERROR:
-            prio = ANDROID_LOG_ERROR;
-            break;
-        case LOG_TYPE_DEBUG:
-            prio = ANDROID_LOG_DEBUG;
-            break;
-    }
-
-    __android_log_vprint(prio, LOG_TAG, format, va);
-}
+static FILE* gLog = nullptr;
 
 // Android has no platformGetWindowSize like the desktop, so we cache the EGL surface size the host
 // passes into stepAndDraw and expose it through the getWindowSize hook below.
@@ -85,6 +66,31 @@ static JNIEnv* getEnvNoAttach(void) {
     return env;
 }
 
+void platformLog(const logType type, const char *format, va_list va) {
+    int prio;
+    switch (type) {
+        case LOG_TYPE_NORMAL:
+            prio = ANDROID_LOG_INFO;
+            break;
+        case LOG_TYPE_WARNING:
+            prio = ANDROID_LOG_WARN;
+            break;
+        case LOG_TYPE_ERROR:
+            prio = ANDROID_LOG_ERROR;
+            break;
+        case LOG_TYPE_DEBUG:
+            prio = ANDROID_LOG_DEBUG;
+            break;
+    }
+
+    __android_log_vprint(prio, LOG_TAG, format, va);
+
+    if (gLog != nullptr) {
+        vfprintf(gLog, format, va);
+        fflush(gLog);
+    }
+}
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
     gJvm = vm;
     JNIEnv* env = nullptr;
@@ -109,7 +115,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, MAYBE_UNUSED void* reserved) {
 
 static void setWindowTitle(const char* title) {
     if (title == nullptr) title = "";
-    logInfo("Window title: %s", title);
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Window title: %s", title);
     JNIEnv* env = getEnvNoAttach();
     if (env == nullptr || gNativeClass == nullptr) return;
     jstring jTitle = (*env)->NewStringUTF(env, title);
@@ -121,11 +127,15 @@ static void setWindowTitle(const char* title) {
 
 #define JNI_FN(name) Java_net_perfectdreams_butterscotch_android_ButterscotchNative_##name
 
+static void throwJavaException(JNIEnv* env, const char* exceptionClazz, const char* reason) {
+    jclass exClass = (*env)->FindClass(env, exceptionClazz);
+    if (exClass != nullptr) {
+        (*env)->ThrowNew(env, exClass, reason);
+    }
+}
+
 JNIEXPORT void JNICALL JNI_FN(init)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
-    // Set stdout and stderr to not be buffered
-    setvbuf(stdout, nullptr, _IOLBF, 0);
-    setvbuf(stderr, nullptr, _IONBF, 0);
-    logInfo("Butterscotch native init");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Butterscotch native init");
 }
 
 JNIEXPORT jint JNICALL JNI_FN(getTargetFrameHz)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {
@@ -215,12 +225,7 @@ JNIEXPORT jlong JNICALL JNI_FN(dataWinParseLight)(JNIEnv* env, MAYBE_UNUSED jcla
 
 static DataWin* requireDataWin(JNIEnv* env, jlong handle) {
     DataWin* dataWin = (DataWin*) (uintptr_t) handle;
-    if (dataWin == nullptr) {
-        jclass exClass = (*env)->FindClass(env, "java/lang/IllegalStateException");
-        if (exClass != nullptr) {
-            (*env)->ThrowNew(env, exClass, "DataWin handle is null (use-after-free or never parsed)");
-        }
-    }
+    if (dataWin == nullptr) throwJavaException(env, "java/lang/IllegalStateException", "DataWin handle is null (use-after-free or never parsed)");
     return dataWin;
 }
 
@@ -389,7 +394,7 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
     gReportedOs = jOsType;
 
     gRunner = runner;
-    logInfo("Runner started OK");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Runner started OK");
     return true;
 }
 
@@ -808,7 +813,7 @@ JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED
     if (gRunner == nullptr)
         return;
 
-    logInfo("Stopping runner");
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Stopping runner");
 
     teardownRunner();
 
@@ -816,4 +821,23 @@ JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED
     gCurrentDataWinPath = nullptr;
     free(gSavesPath);
     gSavesPath = nullptr;
+}
+
+JNIEXPORT void JNICALL JNI_FN(setActiveLogFile)(JNIEnv* env, MAYBE_UNUSED jclass cls, jstring jLogPath) {
+    if (jLogPath != nullptr) {
+        const char* logPath = (*env)->GetStringUTFChars(env, jLogPath, nullptr);
+        if (gLog != nullptr) {
+            throwJavaException(env, "java/lang/IllegalStateException", "Trying to set a log file when there's already a log file active!");
+            (*env)->ReleaseStringUTFChars(env, jLogPath, logPath);
+            return;
+        }
+
+        gLog = fopen(logPath, "w");
+        setbuf(gLog, nullptr);
+        (*env)->ReleaseStringUTFChars(env, jLogPath, logPath);
+        return;
+    } else {
+        fclose(gLog);
+        gLog = nullptr;
+    }
 }

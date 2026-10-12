@@ -1,6 +1,8 @@
 #include "gl_legacy_renderer.h"
 #include "matrix_math.h"
 #include "text_utils.h"
+#include "runner.h"
+#include "file_system.h"
 #include "gl_wrappers.h"
 
 #ifdef PLATFORM_PS3
@@ -499,7 +501,14 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     DataWin_loadTxtrIfNeeded(dw, pageId);
 
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
-    pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
+    uint8_t* externalData = nullptr;
+    int32_t externalSize = 0;
+    if (txtr->externalPath != nullptr && gl->base.runner != nullptr)
+        gl->base.runner->fileSystem->vtable->readFileBinary(gl->base.runner->fileSystem,
+            txtr->externalPath, &externalData, &externalSize);
+    pixels = ImageDecoder_decodeToRgba(externalData ? externalData : txtr->blobData,
+        externalData ? (size_t)externalSize : (size_t)txtr->blobSize, gm2022_5, &w, &h);
+    free(externalData);
     if (pixels == nullptr) {
         logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
@@ -515,7 +524,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     free(pixels);
 
@@ -725,7 +734,7 @@ static void glDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
     PS3_PALETTED_END();
 }
 
-static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -793,7 +802,7 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     PS3_PALETTED_END();
 }
 
-static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     glDrawSpritePartColor(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color, color, color, color, alpha);
 }
 
@@ -1184,7 +1193,9 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
 
             if (glyph != nullptr) {
                 bool drewSuccessfully = false;
-                if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
+				if (ch == ' ') {
+					drewSuccessfully = true;
+                } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
                     GLuint glyphTexId;
@@ -1349,7 +1360,9 @@ static void drawTextColor(
                 int32_t c4 = Color_lerp(_c4, _c3, leftFrac);
 
                 bool drewSuccessfully = false;
-                if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
+				if (ch == ' ') {
+					drewSuccessfully = true;
+                } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
                     GLuint glyphTexId;
@@ -1440,7 +1453,7 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     GLRenderer* gl = (GLRenderer*) renderer;
 
     GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
 
     GlFontState fs;
     fs.font = &gl->debugUI.font;
@@ -1528,7 +1541,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     GLuint newTexId;
     glGenTextures(1, &newTexId);
     glBindTexture(GL_TEXTURE_2D, newTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -1734,7 +1747,7 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -1811,7 +1824,7 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     glGenTextures(1, &gl->surfaceTexture[surfaceId]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -2198,6 +2211,7 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.surfaceFree = glLegacySurfaceFree;
     glVtable.surfaceCopy = glLegacySurfaceCopy;
     glVtable.surfaceGetPixels = glLegacySurfaceGetPixels;
+    glVtable.surfaceSetPixels = GLCommon_surfaceSetPixels;
     glVtable.surfaceUploadPixels = GLCommon_surfaceUploadPixels;
     glVtable.spriteGetTexture = glSpriteGetTexture;
     glVtable.surfaceGetTexture = glSurfaceGetTexture;

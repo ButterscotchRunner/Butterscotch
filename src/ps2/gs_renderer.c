@@ -1555,7 +1555,7 @@ static void gsDrawTiledPart(Renderer* renderer, int32_t tpagIndex, int32_t srcX,
     }
 }
 
-static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
     if (0 > tpagIndex || (uint32_t) tpagIndex >= renderer->dataWin->tpag.count) return;
@@ -1689,7 +1689,7 @@ static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
 }
 
 // GS textured prims are single-coloured, so per-corner colours fall back to corner 1 (same as gsDrawSurfaceColor).
-static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
     gsDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
 }
 
@@ -1999,7 +1999,7 @@ static void gsDrawText(Renderer* renderer, const char* text, float x, float y, f
 
             if (glyph != nullptr) {
                 bool resolveOk = true;
-                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
+                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0 && ch != ' ') {
                     GSTEXTURE glyphTex;
                     float u0 = 0, v0 = 0, u1 = 0, v1 = 0;
                     float localX0, localY0;
@@ -2121,7 +2121,7 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
                 u64 textColor4 = GS_SETREG_RGBAQ(BGR_R(c4) >> 1, BGR_G(c4) >> 1, BGR_B(c4) >> 1, ga, 0x00);
 
                 bool resolveOk = true;
-                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
+                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0 && ch != ' ') {
                     GSTEXTURE glyphTex;
                     float u0 = 0, v0 = 0, u1 = 0, v1 = 0;
                     float localX0, localY0;

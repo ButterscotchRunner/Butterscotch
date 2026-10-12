@@ -51,7 +51,7 @@ typedef struct GLModernRenderer {
     bool fogEnable;
     uint32_t fogColor; // BGR
 
-    GLuint vao, vbo, ebo;
+    GLuint vao, vertexBufferVao, vbo, ebo;
 
     BatchType batchType;
     int32_t batchCount;

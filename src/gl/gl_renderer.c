@@ -1,6 +1,8 @@
 #include "gl_renderer.h"
 #include "matrix_math.h"
 #include "text_utils.h"
+#include "runner.h"
+#include "file_system.h"
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
@@ -720,6 +722,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     // Create VAO/VBO/EBO
     if (hasVAO()) {
         glGenVertexArrays(1, &modernGl->vao);
+        glGenVertexArrays(1, &modernGl->vertexBufferVao);
         glBindVertexArray(modernGl->vao);
     }
     glGenBuffers(1, &modernGl->vbo);
@@ -878,7 +881,10 @@ static void glDestroy(Renderer* renderer) {
     free(modernGl->gmlShaders);
     freeShader(modernGl->defaultShaderProgram);
     free(modernGl->defaultShaderProgram);
-    if (hasVAO()) glDeleteVertexArrays(1, &modernGl->vao);
+    if (hasVAO()) {
+        glDeleteVertexArrays(1, &modernGl->vao);
+        glDeleteVertexArrays(1, &modernGl->vertexBufferVao);
+    }
     glDeleteBuffers(1, &modernGl->vbo);
     glDeleteBuffers(1, &modernGl->ebo);
 
@@ -1039,7 +1045,14 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     int w, h;
     bool gm2022_5 = DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0);
-    uint8_t* pixels = ImageDecoder_decodeToRgba(txtr->blobData, (size_t) txtr->blobSize, gm2022_5, &w, &h);
+    uint8_t* externalData = nullptr;
+    int32_t externalSize = 0;
+    if (txtr->externalPath != nullptr && gl->base.runner != nullptr)
+        gl->base.runner->fileSystem->vtable->readFileBinary(gl->base.runner->fileSystem,
+            txtr->externalPath, &externalData, &externalSize);
+    uint8_t* pixels = ImageDecoder_decodeToRgba(externalData ? externalData : txtr->blobData,
+        externalData ? (size_t)externalSize : (size_t)txtr->blobSize, gm2022_5, &w, &h);
+    free(externalData);
     if (pixels == nullptr) {
         logWarn("GL: Failed to decode TXTR page %u\n", pageId);
         return false;
@@ -1055,7 +1068,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     free(pixels);
 
@@ -1390,7 +1403,7 @@ static void glDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex, float origi
     );
 }
 
-static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
+static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, uint32_t color2, uint32_t color3, uint32_t color4, float alpha) {
     GLRenderer* gl = (GLRenderer*) renderer;
     DataWin* dw = renderer->dataWin;
 
@@ -1442,7 +1455,7 @@ static void glDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t
     emitTexturedQuad(gl, texId, cx0, cy0, cx1, cy1, cx2, cy2, cx3, cy3, u0, v0, u1, v1, r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4, alpha);
 }
 
-static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void glDrawSpritePart(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     glDrawSpritePartColor(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color, color, color, color, alpha);
 }
 
@@ -1800,6 +1813,7 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         return;
 
     GLRenderer* gl = (GLRenderer*) renderer;
+    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
     flushBatch(gl);
 
     typedef struct {
@@ -1816,8 +1830,13 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     GLenum mode = primitiveTypeToGL(primitive);
 
+    if (hasVAO()) {
+        glBindVertexArray(modernGl->vertexBufferVao);
+    }
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->vbo);
     glBufferData(GL_ARRAY_BUFFER, buffer->size, buffer->data, GL_DYNAMIC_DRAW);
+
+    for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
 
     bool hasColor = false;
     bool hasTexcoord = false;
@@ -1913,10 +1932,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
 
     int vertexCount = buffer->size / buffer->format->stride;
     if (vertexCount <= 0) {
-        for (int i = 0; i < buffer->format->numElements; i++) {
-            glDisableVertexAttribArray(i);
-        }
-
+        if (hasVAO()) glBindVertexArray(modernGl->vao);
+        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1934,10 +1951,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
     }
 
     if (number <= 0) {
-        for (int i = 0; i < buffer->format->numElements; i++) {
-            glDisableVertexAttribArray(i);
-        }
-
+        if (hasVAO()) glBindVertexArray(modernGl->vao);
+        else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         return;
     }
@@ -1948,10 +1963,8 @@ static void glDrawVertexBuffer(MAYBE_UNUSED Renderer* renderer, VertexBuffer* bu
         number
     );
 
-    for (int i = 0; i < buffer->format->numElements; i++) {
-        glDisableVertexAttribArray(i);
-    }
-
+    if (hasVAO()) glBindVertexArray(modernGl->vao);
+    else for (int i = 0; i < 4; i++) glDisableVertexAttribArray(i);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -2159,7 +2172,9 @@ static void drawText(
                 uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
-                if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
+				if (ch == ' ') {
+					drewSuccessfully = true;
+                } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
                     GLuint glyphTexId;
@@ -2265,7 +2280,7 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
     GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(&gl->debugUI)) return;
+    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
 
     GlFontState fs;
     fs.font = &gl->debugUI.font;
@@ -2343,7 +2358,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
 
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     bool isPOT = (width & (width - 1)) == 0 && (height & (height - 1)) == 0;
     GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
 
@@ -2415,7 +2430,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
 
     glGenTextures(1, &gl->surfaceTexture[surfaceID]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceID]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2737,7 +2752,7 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
     GLuint newTexId;
     glGenTextures(1, &newTexId);
     glBindTexture(GL_TEXTURE_2D, newTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -2970,11 +2985,9 @@ static GLenum glShaderGetUniformTypeByLocation(GMLShader* shader, int32_t locati
 }
 
 static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t count, float value1, float value2, float value3, float value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1) return;
-    flushBatch(gl);
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
@@ -2998,14 +3011,28 @@ static void glShaderSetUniformF(Renderer* renderer, int32_t handle, int32_t coun
 }
 
 static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* values, uint32_t count) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
     if (handle == -1 || renderer->currentShader == -1 || values == NULL || count == 0) return;
-    flushBatch(gl);
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
     GLenum type = glShaderGetUniformTypeByLocation(shader, handle);
+
+    uint32_t vectorWidth = 1;
+    switch (type) {
+        case GL_FLOAT_VEC2: vectorWidth = 2; break;
+        case GL_FLOAT_VEC3: vectorWidth = 3; break;
+        case GL_FLOAT_VEC4: vectorWidth = 4; break;
+        default: break;
+    }
+    float* paddedValues = nullptr;
+    if (count % vectorWidth != 0) {
+        uint32_t paddedCount = count + vectorWidth - count % vectorWidth;
+        paddedValues = (float*) safeCalloc(paddedCount, sizeof(float));
+        memcpy(paddedValues, values, count * sizeof(float));
+        values = paddedValues;
+        count = paddedCount;
+    }
 
     switch (type) {
         case GL_FLOAT:      glUniform1fv(handle, count, values); break;
@@ -3017,13 +3044,12 @@ static void glShaderSetUniformFArray(Renderer* renderer, int32_t handle, float* 
         case GL_FLOAT_MAT4: glUniformMatrix4fv(handle, count / 16, GL_FALSE, values); break;
         default:            glUniform1fv(handle, count, values); break;
     }
+    free(paddedValues);
 }
 
 static void glShaderSetUniformI(Renderer* renderer, int32_t handle, int32_t count, int32_t value1, int32_t value2, int32_t value3, int32_t value4) {
-    GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 
-    flushBatch(gl);
     if (handle == -1 || renderer->currentShader == -1) return;
 
     GMLShader* shader = &modernGl->gmlShaders[renderer->currentShader];
@@ -3095,7 +3121,6 @@ static void glTextureSetStage(Renderer* renderer, int32_t slot, uint32_t texHand
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
-    flushBatch(gl);
     if (slot < 0) {
         logWarn("GL: Invalid Texture Stage\n");
         return;
@@ -3190,11 +3215,8 @@ static bool glShadersSupported(void) {
 }
 
 static void glSetMatrix(Renderer* renderer, int32_t matrixType, Matrix4f matrix) {
-    GLRenderer* gl = (GLRenderer*) renderer;
-
     if (memcmp(&renderer->gmlMatrices[matrixType], &matrix, sizeof(Matrix4f)) == 0) return;
 
-    flushBatch(gl);
     renderer->gmlMatrices[matrixType] = matrix;
     //yeah just recalculate everything when we change a matrix
     //TODO LATR: only allow these 3 to be changed directly, other ones should only be allowed to be calculated by the rest of the function
@@ -3282,6 +3304,7 @@ Renderer* GLRenderer_create(void) {
     glVtable.ensureApplicationSurface = glEnsureApplicationSurface;
     glVtable.surfaceCopy = glSurfaceCopy;
     glVtable.surfaceGetPixels = glSurfaceGetPixels;
+    glVtable.surfaceSetPixels = GLCommon_surfaceSetPixels;
     glVtable.surfaceUploadPixels = GLCommon_surfaceUploadPixels;
     glVtable.getSurfaceWidth = glGetSurfaceWidth;
     glVtable.getSurfaceHeight = glGetSurfaceHeight;

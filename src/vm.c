@@ -756,9 +756,8 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 
     // Check for built-in variable (varID == -6 sentinel)
     if (varDef->varID == VARIABLE_BUILTIN) {
-        // Structs aren't real game instances, but structs CAN store fields with the same names as built-ins.
-        // So we'll check the self variables FIRST before checking for built-ins.
-        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX) {
+        // Struct fields are independent of instance built-ins with the same names.
+        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX && VMBuiltins_isInstanceScopedBuiltinVar(varDef->builtinVarId)) {
             ptrdiff_t nameSlot = shgeti(ctx->varNameMap, (char*) varDef->name);
             if (nameSlot >= 0) {
                 int32_t structVarID = ctx->varNameMap[nameSlot].value;
@@ -766,6 +765,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
                 if (tryReadInstanceVarOrStatic(ctx, targetInstance, structVarID, &access, &value))
                     return value;
             }
+            return RValue_makeUndefined();
         }
 
         RValue result = VMBuiltins_getVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, access.arrayIndex);
@@ -852,7 +852,10 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 static void writeSingleInstanceVariable(VMContext* ctx, Instance* inst, Variable* varDef, ArrayAccess* access, RValue val) {
     // Built-in variable (varID == -6 sentinel)
     if (varDef->varID == VARIABLE_BUILTIN) {
-        VMBuiltins_setVariable(ctx, inst, varDef->builtinVarId, varDef->name, val, access->arrayIndex);
+        if (inst != nullptr && inst->objectIndex == STRUCT_OBJECT_INDEX)
+            VM_structSet(ctx, inst, varDef->name, val, access->arrayIndex);
+        else
+            VMBuiltins_setVariable(ctx, inst, varDef->builtinVarId, varDef->name, val, access->arrayIndex);
         return;
     }
 
@@ -1019,7 +1022,10 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // Check for built-in variable (varID == -6 sentinel)
     if (varDef->varID == VARIABLE_BUILTIN) {
-        VMBuiltins_setVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, val, access.arrayIndex);
+        if (targetInstance != nullptr && targetInstance->objectIndex == STRUCT_OBJECT_INDEX && VMBuiltins_isInstanceScopedBuiltinVar(varDef->builtinVarId))
+            VM_structSet(ctx, targetInstance, varDef->name, val, access.arrayIndex);
+        else
+            VMBuiltins_setVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, val, access.arrayIndex);
 
 #ifdef ENABLE_VM_TRACING
         if (instanceType == INSTANCE_GLOBAL) {
@@ -1894,7 +1900,11 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
         slots++;
         require(stackPos >= slots);
         uint8_t slotGmlType = ctx->stack.slots[stackPos - slots].gmlStackType;
-        remaining -= gmlTypeNativeSize(slotGmlType);
+        int32_t slotSize = gmlTypeNativeSize(slotGmlType);
+        if (slotGmlType == GML_TYPE_VARIABLE && remaining > 0 && remaining < slotSize)
+            remaining = 0;
+        else
+            remaining -= slotSize;
     }
     require(remaining == 0); // Byte count must align exactly to slot boundaries
     return slots;

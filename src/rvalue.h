@@ -96,7 +96,7 @@ struct RValue {
     // Non-owning ("weak") RValues are short-lived views returned by getters, caller must NOT free them.
     bool ownsReference;
     uint8_t gmlStackType; // GML data type from the instruction that pushed this value
-    uint8_t assetRefType; // For RVALUE_ASSETREF: Indicates the asset type (AssetRefType)
+    uint8_t assetRefType; // Asset type for RVALUE_ASSETREF; ASSET_TYPE_INSTANCE also tags instance-valued RVALUE_INT32 values.
 } BS_ALIGN(8);
 
 static inline RValue RValue_makeReal(GMLReal val) {
@@ -112,6 +112,12 @@ static inline RValue RValue_makeInt32(int32_t val) {
     rv.type = RVALUE_INT32;
     rv.gmlStackType = GML_TYPE_INT32;
     rv.int32 = val;
+    return rv;
+}
+
+static inline RValue RValue_makeInstanceRef(int32_t id) {
+    RValue rv = RValue_makeInt32(id);
+    rv.assetRefType = ASSET_TYPE_INSTANCE;
     return rv;
 }
 

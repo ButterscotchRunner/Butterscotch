@@ -242,6 +242,8 @@ typedef enum {
     BUILTIN_VAR_FPS_REAL,
     BUILTIN_VAR_DEBUG_MODE,
     BUILTIN_VAR_DELTA_TIME,
+    BUILTIN_VAR_EVENT_TYPE,
+    BUILTIN_VAR_EVENT_NUMBER,
 
     // Legacy GMS 1.x globals
     BUILTIN_VAR_SCORE,
@@ -273,10 +275,12 @@ typedef enum {
 
     // Async system
     BUILTIN_VAR_ASYNC_LOAD,
+    BUILTIN_VAR_EVENT_DATA,
 } BuiltinVarId;
 
 void VMBuiltins_registerAll(VMContext* ctx);
 int16_t VMBuiltins_resolveBuiltinVarId(const char* name);
+bool VMBuiltins_isInstanceScopedBuiltinVar(int16_t builtinVarId);
 // Asserts at startup that the internal builtin-var lookup table is strictly sorted by strcmp order (required for bsearch) and has no duplicates.
 void VMBuiltins_checkIfBuiltinVarTableIsSorted(void);
 RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId, const char* name, int32_t arrayIndex);
