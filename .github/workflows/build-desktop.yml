@@ -128,7 +128,7 @@ jobs:
           key: build-deps-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-sdl2-${{ env.SDL2_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}
 
       - name: Checkout FFmpeg
-        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true' || (matrix.arch != 'mips' && matrix.arch != mips64)
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
@@ -136,7 +136,7 @@ jobs:
           path: vendor/ffmpeg
 
       - name: Build FFmpeg from source
-        if: steps.cache-build-deps.outputs.cache-hit != 'true'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true'|| (matrix.arch != 'mips' && matrix.arch != mips64)
         working-directory: vendor/ffmpeg
         run: |
           mkdir -p ~/build-deps
@@ -251,6 +251,10 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
         run: |
           sudo apt-get install -y llvm
+          VIDEO_BACKEND=none
+          if [ ${{ matrix.arch }} != 'mips'] && [ ${{ matrix.arch }} != 'mips64' ]; then
+            VIDEO_BACKEND=ffmpeg
+          fi
           cmake -S . -B build -G Ninja \
             -DCMAKE_SYSTEM_NAME=${{ matrix.os_config.name }} \
             -DCMAKE_SYSTEM_VERSION="${{ matrix.os_config.sys_version }}" \
@@ -262,6 +266,7 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
+            -DVIDEO_BACKEND="$VIDEO_BACKEND" \
             -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }} -flto"
