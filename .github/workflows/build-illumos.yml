@@ -27,6 +27,13 @@ jobs:
           ./artifacts/illumos/build-toolchain.sh
           echo "${{ github.workspace }}/artifacts/illumos/build/toolchain/bin" >> $GITHUB_PATH
 
+      - name: Checkout SDL2
+        uses: actions/checkout@v7
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/SDL2
+
       - name: Build SDL2 from source
         run: |
           cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
