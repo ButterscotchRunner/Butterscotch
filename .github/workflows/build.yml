@@ -21,6 +21,9 @@ jobs:
   Haiku:
     uses: ./.github/workflows/build-haiku.yml
 
+  Illumos:
+    uses: ./.github/workflows/build-haiku.yml
+
   Consoles:
     uses: ./.github/workflows/build-console.yml
 
