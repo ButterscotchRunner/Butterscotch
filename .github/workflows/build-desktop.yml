@@ -128,7 +128,7 @@ jobs:
           key: build-deps-${{ env.TARGET_TRIPLE }}-${{ env.ZIG_VERSION }}-sdl2-${{ env.SDL2_VERSION }}-ffmpeg-${{ env.FFMPEG_VERSION }}
 
       - name: Checkout FFmpeg
-        if: steps.cache-build-deps.outputs.cache-hit != 'true' || matrix.arch != 'mips' && matrix.arch != 'mips64'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true' && matrix.arch != 'mips' && matrix.arch != 'mips64'
         uses: actions/checkout@v7
         with:
           repository: FFmpeg/FFmpeg
@@ -136,7 +136,7 @@ jobs:
           path: vendor/ffmpeg
 
       - name: Build FFmpeg from source
-        if: steps.cache-build-deps.outputs.cache-hit != 'true' || matrix.arch != 'mips' && matrix.arch != 'mips64'
+        if: steps.cache-build-deps.outputs.cache-hit != 'true' && matrix.arch != 'mips' && matrix.arch != 'mips64'
         working-directory: vendor/ffmpeg
         run: |
           mkdir -p ~/build-deps
