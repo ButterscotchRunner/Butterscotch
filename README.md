@@ -103,6 +103,8 @@ All desktop builds use SDL2, with the exception of Mac OS using AppKit and i486 
 
 All RISC architecture (ARM, MIPS, PowerPC, RISC-V) builds require hardware floating-point support.
 
+MIPS big-endian builds do not have ffmpeg compiled in and won't work with functions like `video_open`.
+
 ### Consoles
 
 | Platform | Download | Notes |
