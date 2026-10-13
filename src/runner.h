@@ -503,6 +503,7 @@ typedef struct {
 typedef struct {
     bool active;
     GMLReal x, y, z;
+    GMLReal vx, vy, vz;
     GMLReal falloffRef, falloffMax, falloffFactor;
     GMLReal gain, pitch;
     int32_t* voices; // sound-instance IDs played on this emitter

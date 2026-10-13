@@ -344,10 +344,11 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     return slot->instanceId;
 }
 
-static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float vx, float vy, float vz, float ref, float max, float factor) {
     SoundInstance* inst = findInstanceById((MaAudioSystem*)audio, instanceId);
     if (inst == nullptr) return;
     ma_sound_set_position(&inst->maSound, x, y, z);
+    ma_sound_set_velocity(&inst->maSound, vx, vy, vz);
     ma_sound_set_attenuation_model(&inst->maSound, ma_attenuation_model_inverse);
     ma_sound_set_min_distance(&inst->maSound, ref > 0 ? ref : 0.0001f);
     ma_sound_set_max_distance(&inst->maSound, max > 0 ? max : 0.0001f);

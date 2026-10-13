@@ -96,6 +96,7 @@ typedef struct {
     float sondVolume;     // SOND resource volume (fixed-point / 256)
     bool spatial;
     float spatialX, spatialY, spatialZ;
+    float velocityX, velocityY, velocityZ;
     float falloffRef, falloffMax, falloffFactor;
 } Ps2SoundInstance;
 
@@ -121,6 +122,7 @@ typedef struct {
     float sondPitch;
     bool spatial;
     float spatialX, spatialY, spatialZ;
+    float velocityX, velocityY, velocityZ;
     float falloffRef, falloffMax, falloffFactor;
 
     // ADPCM file streaming state
