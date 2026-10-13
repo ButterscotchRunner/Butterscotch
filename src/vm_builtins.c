@@ -3557,8 +3557,9 @@ static RValue builtin_randomize(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE
      * is used as the source. we divide by 1000 to improve entropy on such systems.
      * 2654435761u = Knuth's multiplier.
      */
-    Random_setSeed(&ctx->runner->random, (uint32_t)(nowNanos() / 1000) * 2654435761u);
-    return RValue_makeUndefined();
+    uint32_t seed = (uint32_t)(nowNanos() / 1000) * 2654435761u;
+    Random_setSeed(&ctx->runner->random, seed);
+    return RValue_makeReal((GMLReal) seed);
 }
 
 // ===[ ROOM FUNCTIONS ]===
