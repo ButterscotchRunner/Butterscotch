@@ -7778,6 +7778,7 @@ static RValue builtin_audio_play_sound_at(VMContext* ctx, RValue* args, int32_t 
     GMLReal factor = args[6].type != RVALUE_UNDEFINED ? RValue_toReal(args[6]) : 1;
 
     audio->vtable->setSoundSpatial(audio, instanceId, (float)x, (float)y, (float)z,
+                                    0.0f, 0.0f, 0.0f,
                                   (float)GMLReal_fmax(0, ref), (float)GMLReal_fmax(audioPositiveMinimum(), max),
                                   (float)GMLReal_fmax(0, factor));
 
