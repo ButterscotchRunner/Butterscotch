@@ -74,5 +74,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: butterscotch-sdl2-illumos-x86_64
+          name: butterscotch-sdl2-illumos-x86-64
           path: build/butterscotch
