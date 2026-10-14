@@ -10,7 +10,7 @@ jobs:
     env:
       SDL_VERSION: release-2.32.10
       FFMPEG_VERSION: n9.0.2
-      LLVM_MINGW_VERSION: 20260922
+      LLVM_MINGW_VERSION: 20260826
 
     strategy:
       fail-fast: false
