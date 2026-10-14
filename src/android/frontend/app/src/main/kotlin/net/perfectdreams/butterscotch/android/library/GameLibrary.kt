@@ -101,6 +101,7 @@ class GameLibrary private constructor(
         runnerOs: GameEntry.RunnerOs = GameEntry.RunnerOs.WINDOWS,
         enablePhysicalControllers: Boolean = true,
         enablePhysicalKeyboard: Boolean = true,
+        physicalControllerSideways: Boolean = true,
         enableWidescreenHack: Boolean = false,
         postProcessing: GameEntry.PostProcessingSettings = GameEntry.PostProcessingSettings()
     ) {
@@ -123,6 +124,7 @@ class GameLibrary private constructor(
             landscapeLayout = landscapeLayout,
             runnerOs = runnerOs,
             enablePhysicalControllers = enablePhysicalControllers,
+            physicalControllerSideways = physicalControllerSideways,
             enablePhysicalKeyboard = enablePhysicalKeyboard,
             enableWidescreenHack = enableWidescreenHack,
             postProcessing = postProcessing,
