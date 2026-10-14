@@ -26,12 +26,46 @@
   * actually supply three.  Ugh!
 --- a/System/Library/Frameworks/CoreServices.framework/Frameworks/CarbonCore.framework/Headers/MachineExceptions.h
 +++ b/System/Library/Frameworks/CoreServices.framework/Frameworks/CarbonCore.framework/Headers/MachineExceptions.h
-@@ -26,7 +26,7 @@
+@@ -26,5 +26,5 @@
  
  
  #if TARGET_CPU_X86 || TARGET_CPU_X86_64
 -#include <xmmintrin.h>
 +#include <emmintrin.h>
  #endif
- 
- 
+--- a/usr/include/stdlib.h
++++ b/usr/include/stdlib.h
+@@ -322,2 +322,33 @@
+
++#include <dlfcn.h>
++
++static int posix_memalign(void **memptr, size_t align, size_t size) {
++  static bool init = false;
++  static int (*func)(void **, size_t, size_t);
++
++  if (!init) {
++    func = (int (*)(void **, size_t, size_t))dlsym(RTLD_NEXT, "posix_memalign");
++    init = true;
++  }
++
++  if (func)
++    return func(memptr, align, size);
++
++  if (align < sizeof(void *) || (align & (align - 1)) != 0)
++    return EINVAL;
++
++  void *mem;
++  if (align <= 16)
++    mem = malloc(size); /* Darwin malloc always aligns to 16 bytes */
++  else
++    mem = valloc(size); /* page aligned allocation */
++
++  if (!mem)
++    return ENOMEM;
++  else {
++    *memptr = mem;
++    return 0;
++  }
++}
++
+#endif /* _STDLIB_H_ */
