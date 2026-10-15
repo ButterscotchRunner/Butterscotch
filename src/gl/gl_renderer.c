@@ -280,7 +280,7 @@ static void flushBatch(GLRenderer* gl) {
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
     if (modernGl->batchCount == 0) return;
-
+    
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &modernGl->gmlShaders[gl->base.currentShader];
 
@@ -304,8 +304,7 @@ static void flushBatch(GLRenderer* gl) {
 #else
     int32_t singleVertexCount = (modernGl->batchType == BATCHTYPE_QUAD) ? VERTICES_PER_QUAD : VERTICES_PER_TRIANGLE;
     int32_t vertexCount = modernGl->batchCount * singleVertexCount;
-    glBufferData(GL_ARRAY_BUFFER, totalVboSize, nullptr, GL_DYNAMIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(GlVertex), gl->vertexData);
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(GlVertex), gl->vertexData, GL_DYNAMIC_DRAW);
 #endif
 
 
@@ -1074,7 +1073,7 @@ static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
 
 #define UNLOAD_THRESHOLD 1000
 static void unloadUnusedTextures(GLRenderer* gl, uint32_t currentPageId) {
-	if (gl->base.runner->frameCount < UNLOAD_THRESHOLD) return;
+    if (gl->base.runner->frameCount < UNLOAD_THRESHOLD) return;
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
     bool flushed = false;
     int threshold = gl->base.runner->frameCount - UNLOAD_THRESHOLD;
@@ -1087,11 +1086,10 @@ static void unloadUnusedTextures(GLRenderer* gl, uint32_t currentPageId) {
         
         if (!flushed) {
             flushBatch(gl);
-        	flushed = true;
+            flushed = true;
         }
         GLRenderer_unloadTexture(gl, i);
     }
-    if (flushed) glFlush();
 }
 #endif
 
@@ -1160,15 +1158,14 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     
     if (gl->textureFormat == GL_RGBA4) {
-        uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
-        for (int i = 0; i < w * h; i++) {
-            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
-                          (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) | 
-                          (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
-                          ((uint16_t)pixels[i * 4 + 3] >> 4);
+        uint16_t* rgba4444 = (uint16_t*)pixels;
+        int n = w * h;
+        for (int i = 0; i < n; i++) {
+        	rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) |
+        	              (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) |
+        	              (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) |
+        	              ((uint16_t)pixels[i * 4 + 3] >> 4);
         }
-        free(pixels);
-        pixels = (uint8_t*) rgba4444;
     }
     
     while (true) {
@@ -1341,6 +1338,20 @@ static void drawTexture(
     uint32_t color,
     float alpha
 ) {
+    if (angleDeg == 0.0f) {
+        uint8_t r = (uint8_t) BGR_R(color);
+        uint8_t g = (uint8_t) BGR_G(color);
+        uint8_t b = (uint8_t) BGR_B(color);
+        float x0 = x + localX0 * xscale;
+        float y0 = y + localY0 * yscale;
+        float x1 = x + localX1 * xscale;
+        float y1 = y + localY1 * yscale;
+
+        emitTexturedQuad(renderer, textureId, x0, y0, x1, y0, x1, y1, x0, y1,
+            u0, v0, u1, v1, r, g, b, r, g, b, r, g, b, r, g, b, alpha);
+        return;
+    }
+    
     // Build 2D transform: T(x,y) * R(-angleDeg) * S(xscale, yscale)
     // GML rotation is counter-clockwise, OpenGL rotation is counter-clockwise, but
     // since we have Y-down, we negate the angle to get the correct visual rotation
@@ -2932,15 +2943,15 @@ static int32_t glCreateSpriteFromSurface(Renderer* renderer, int32_t surfaceID, 
         GLint previousUnpackAlignment = 4;
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-        uint16_t* rgba4444 = (uint16_t*)safeMalloc(w * h * sizeof(uint16_t));
-        for (int i = 0; i < w * h; i++) {
-            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) | 
-                            (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) | 
-                            (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) | 
-                            ((uint16_t)pixels[i * 4 + 3] >> 4);
+        uint16_t* rgba4444 = (uint16_t*)pixels;
+        int n = w * h;
+        for (int i = 0; i < n; i++) {
+            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) |
+                          (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) |
+                          (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) |
+                          ((uint16_t)pixels[i * 4 + 3] >> 4);
         }
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, rgba4444);
-        free(rgba4444);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, pixels);
         glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
     } else {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
