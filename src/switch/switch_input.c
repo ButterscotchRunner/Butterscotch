@@ -19,6 +19,8 @@ static void mapLibnxToGml(GamepadSlot* slot, PadState* pad, u64 cur) {
     if (cur & HidNpadButton_R) slot->buttonDown[5] = true;
     slot->buttonValue[6] = (cur & HidNpadButton_ZL) ? 1.0f : 0.0f;
     slot->buttonValue[7] = (cur & HidNpadButton_ZR) ? 1.0f : 0.0f;
+    if (cur & HidNpadButton_ZL) slot->buttonDown[6] = true;
+    if (cur & HidNpadButton_ZR) slot->buttonDown[7] = true;
     if (cur & HidNpadButton_Minus) slot->buttonDown[8] = true;
     if (cur & HidNpadButton_Plus) slot->buttonDown[9] = true;
     if (cur & HidNpadButton_StickL) slot->buttonDown[10] = true;
