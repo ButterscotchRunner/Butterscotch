@@ -5212,8 +5212,7 @@ static RValue builtin_ds_list_add(VMContext* ctx, RValue* args, int32_t argCount
 }
 
 static RValue builtin_ds_list_set(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("ds_list_set", 1, RValue_makeUndefined());
-    REQUIRE_ARGC_AT_MOST("ds_list_set", 2, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_LEAST("ds_list_set", 3, RValue_makeUndefined());
     Runner* runner = ctx->runner;
     int32_t id = RValue_toInt32(args[0]);
     int32_t pos = RValue_toInt32(args[1]);
