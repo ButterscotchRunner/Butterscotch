@@ -4804,6 +4804,25 @@ static RValue builtin_os_get_region(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RV
     return RValue_makeOwnedString(safeStrdup("US"));
 }
 
+static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t mapId = dsMapCreate(runner);
+    DsMapEntry** mapPtr = dsMapGet(runner, mapId);
+    if (mapPtr == nullptr) return RValue_makeUndefined();
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+    bool is64Bit = true;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    bool is64Bit = true;
+#else
+    bool is64Bit = false;
+#endif
+
+    shput(*mapPtr, safeStrdup("is64bit"), RValue_makeBool(is64Bit));
+
+    return RValue_makeReal((GMLReal) mapId);
+}
+
 STUB_RETURN_FALSE(os_is_paused)
 
 // ===[ XBOX ONE FUNCTIONS ]===
@@ -23448,6 +23467,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
     VM_registerBuiltin(ctx, "os_get_region", builtin_os_get_region);
+    VM_registerBuiltin(ctx, "os_get_info", builtin_os_get_info);
     VM_registerBuiltin(ctx, "os_is_paused", builtin_os_is_paused);
 
     // Xbox One
