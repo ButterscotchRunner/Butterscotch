@@ -25,6 +25,17 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#include <net/if.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
+#include <CommonCrypto/CommonDigest.h>
+#endif
 
 #include "rvalue.h"
 #include "stb_ds.h"
@@ -4838,6 +4849,143 @@ static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount
 }
 #endif
 
+// UDID Helpers
+
+#ifdef _WIN32
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+
+char *get_udid(void) {
+    HKEY key;
+    wchar_t guid[1024];
+    DWORD type = REG_SZ;
+    DWORD size = sizeof(guid);
+
+    if (RegOpenKeyExW(
+            HKEY_LOCAL_MACHINE,
+            L"SOFTWARE\\Microsoft\\Cryptography",
+            0,
+            KEY_QUERY_VALUE,
+            &key) == ERROR_SUCCESS)
+    {
+        if (RegQueryValueExW(
+                key,
+                L"MachineGuid",
+                NULL,
+                &type,
+                (LPBYTE)guid,
+                &size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(key);
+
+            int len = WideCharToMultiByte(
+                CP_UTF8, 0, guid, -1, NULL, 0, NULL, NULL);
+
+            if (len > 0) {
+                char *result = (char *)malloc(len);
+                if (result != NULL) {
+                    WideCharToMultiByte(
+                        CP_UTF8, 0, guid, -1,
+                        result, len, NULL, NULL);
+                    return result;
+                }
+            }
+        }
+        else {
+            RegCloseKey(key);
+        }
+    }
+
+    return NULL;
+}
+
+#elif defined(__APPLE__)
+
+static char *mac_address_for_interface(const char *interface_name) {
+    if (interface_name == NULL) {
+        return NULL;
+    }
+
+    struct ifaddrs *interfaces = NULL;
+
+    if (getifaddrs(&interfaces) != 0) {
+        return NULL;
+    }
+
+    char *result = NULL;
+
+    for (struct ifaddrs *ifa = interfaces;
+         ifa != NULL;
+         ifa = ifa->ifa_next) {
+
+        if (ifa->ifa_name == NULL ||
+            ifa->ifa_addr == NULL ||
+            strcmp(ifa->ifa_name, interface_name) != 0 ||
+            ifa->ifa_addr->sa_family != AF_LINK) {
+            continue;
+        }
+
+        struct sockaddr_dl *sdl =
+            (struct sockaddr_dl *)ifa->ifa_addr;
+
+        if (sdl->sdl_alen != 6) {
+            break;
+        }
+
+        const unsigned char *mac =
+            (const unsigned char *)LLADDR(sdl);
+
+        result = malloc(18);
+        if (result != NULL) {
+            snprintf(result, 18,
+                     "%02X:%02X:%02X:%02X:%02X:%02X",
+                     mac[0], mac[1], mac[2],
+                     mac[3], mac[4], mac[5]);
+        }
+
+        break;
+    }
+
+    freeifaddrs(interfaces);
+    return result;
+}
+
+static char *get_mac_address_udid(void) {
+    // Get the formatted MAC address for en0.
+    char *mac = mac_address_for_interface("en0");
+    if (mac == NULL) {
+        return strdup("NOT SUPPORTED");
+    }
+
+    // SHA-1 the formatted MAC address string.
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1((const unsigned char *)mac,
+            (CC_LONG)strlen(mac),
+            digest);
+
+    free(mac);
+
+    // Convert the digest to a lowercase hexadecimal string.
+    char *result = malloc(CC_SHA1_DIGEST_LENGTH * 2 + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        snprintf(result + i * 2, 3, "%02x", digest[i]);
+    }
+
+    result[40] = '\0';
+    return result;
+}
+
+char *get_udid(void) {
+    return get_mac_address_udid();
+}
+
+#endif
+
 // ===[ OS FUNCTIONS ]===
 
 static RValue builtin_os_get_language(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -4846,6 +4994,55 @@ static RValue builtin_os_get_language(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED 
 
 static RValue builtin_os_get_region(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     return RValue_makeOwnedString(safeStrdup("US"));
+}
+
+static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+#ifdef __SWITCH__
+    // Switch just returns -1 for this
+    return RValue_makeReal(-1);
+#else
+    Runner* runner = ctx->runner;
+    int32_t mapId = dsMapCreate(runner);
+    DsMapEntry** mapPtr = dsMapGet(runner, mapId);
+    if (mapPtr == nullptr) return RValue_makeUndefined();
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__) || defined(__aarch64__) || defined(_M_ARM64)
+    bool is64Bit = true;
+#else
+    bool is64Bit = false;
+#endif
+
+#if defined(_WIN32) || defined(__APPLE__)
+    const char *udid = get_udid();
+    const char *safeUdid = udid != nullptr ? udid : "";
+    shput(*mapPtr, safeStrdup("udid"), RValue_makeOwnedString(safeStrdup(safeUdid)));
+#endif
+
+#if defined(__linux__) || \
+    (defined(__APPLE__) && defined(__MACH__) && TARGET_OS_OSX)
+    // macOS or Linux
+
+    if (ctx->runner->renderer == nullptr || ctx->runner->renderer->vtable == nullptr) {
+        logWarn("[builtin_os_get_info] Renderer or VTable not available\n");
+    } else {
+        const char *gl_vendor_string = ctx->runner->renderer->vtable->getGLVendor();
+        const char *gl_version_string = ctx->runner->renderer->vtable->getGLVersion();
+        const char *gl_renderer_string = ctx->runner->renderer->vtable->getGLRenderer();
+
+        const char *safeGLVendorString = gl_vendor_string != nullptr ? gl_vendor_string : "Unknown";
+        const char *safeGLVersionString = gl_version_string != nullptr ? gl_version_string : "Unknown";
+        const char *safeGLRendererString = gl_renderer_string != nullptr ? gl_renderer_string : "Unknown";
+
+        shput(*mapPtr, safeStrdup("gl_vendor_string"), RValue_makeOwnedString(safeStrdup(safeGLVendorString)));
+        shput(*mapPtr, safeStrdup("gl_version_string"), RValue_makeOwnedString(safeStrdup(safeGLVersionString)));
+        shput(*mapPtr, safeStrdup("gl_renderer_string"), RValue_makeOwnedString(safeStrdup(safeGLRendererString)));
+    }
+#endif
+
+    shput(*mapPtr, safeStrdup("is64bit"), RValue_makeBool(is64Bit));
+
+    return RValue_makeReal((GMLReal) mapId);
+#endif
 }
 
 STUB_RETURN_FALSE(os_is_paused)
@@ -23495,6 +23692,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     // OS
     VM_registerBuiltin(ctx, "os_get_language", builtin_os_get_language);
     VM_registerBuiltin(ctx, "os_get_region", builtin_os_get_region);
+    VM_registerBuiltin(ctx, "os_get_info", builtin_os_get_info);
     VM_registerBuiltin(ctx, "os_is_paused", builtin_os_is_paused);
 
     // Xbox One

@@ -256,11 +256,11 @@ endif
 
 ifeq ($(OS),Windows)
 ifeq ($(SYNTAX),msvc)
-LIBS += winmm.lib
+LIBS += advapi32.lib winmm.lib
 DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS $(DEFINE)_CRT_SECURE_NO_DEPRECATE
 else
 LIBS += -static
-LIBS += -lwinmm
+LIBS += -ladvapi32 -lwinmm
 endif
 DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else

@@ -2228,6 +2228,9 @@ Renderer* GLLegacyRenderer_create(void) {
     glVtable.shaderSetUniformI = glShaderSetUniformI;
     glVtable.shaderIsCompiled = glShaderIsCompiled;
     glVtable.shadersSupported = glShadersSupported;
+    glVtable.getGLVendor = getGLVendor;
+    glVtable.getGLVersion = getGLVersion;
+    glVtable.getGLRenderer = getGLRenderer;
     
     base->drawColor = 0xFFFFFF; // white (BGR)
     base->drawAlpha = 1.0f;

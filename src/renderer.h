@@ -236,6 +236,9 @@ typedef struct {
     bool (*shaderIsCompiled)(Renderer* renderer, int32_t shader);
     bool (*shadersSupported)(void);
     void (*setMatrix)(Renderer* renderer, int32_t matrixType, Matrix4f matrix);
+    const char *(*getGLVendor)(void);
+    const char *(*getGLVersion)(void);
+    const char *(*getGLRenderer)(void);
 } RendererVtable;
 
 // ===[ Renderer Base Struct ]===
