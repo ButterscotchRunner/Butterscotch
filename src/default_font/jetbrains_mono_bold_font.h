@@ -8,6 +8,7 @@
 #define JBMSB_FIRST_CP 32
 #define JBMSB_LAST_CP 126
 #define JBMSB_GLYPH_COUNT 95
+#define JBMSB_FONT_SCALE 1.1f
 
 typedef struct {
     uint16_t x, y;

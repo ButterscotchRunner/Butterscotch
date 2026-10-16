@@ -55,7 +55,7 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     font->present = true;
     font->name = "JetBrainsMonoBold";
     font->displayName = "JetBrainsMonoBold";
-    font->emSize = 12.0f;
+    font->emSize = 12.0f * JBMSB_FONT_SCALE;
     font->bold = false;
     font->italic = false;
     font->rangeStart = JBMSB_FIRST_CP;
@@ -63,8 +63,8 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     font->antiAliasing = 1;
     font->rangeEnd = JBMSB_LAST_CP;
     font->tpagIndex = -1;
-    font->scaleX = 1.0f;
-    font->scaleY = 1.0f;
+    font->scaleX = JBMSB_FONT_SCALE;
+    font->scaleY = JBMSB_FONT_SCALE;
     font->ascenderOffset = 0;
     font->ascender = 0;
     font->sdfSpread = 0;

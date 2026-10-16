@@ -6,12 +6,13 @@ TTF_PATH = "src/default_font/JetBrainsMono-Bold.ttf"
 OUT_C = "src/default_font/jetbrains_mono_bold_font.c"
 OUT_H = "src/default_font/jetbrains_mono_bold_font.h"
 
+FONT_SCALE = 1.1
 FIRST_CP = 32
 LAST_CP = 126
 GLYPH_COUNT = LAST_CP - FIRST_CP + 1
 ATLAS_W = 512
 ATLAS_H = 512
-PIXEL_SIZE = 12
+PIXEL_SIZE = 12 * FONT_SCALE
 
 # Create a simple packing grid: one row with fixed-size glyph boxes.
 # For production, use a real packer if you want tighter packing.
@@ -77,6 +78,7 @@ header = """#ifndef _BS_JETBRAINS_MONO_SEMIBOLD_FONT_H_
 #define JBMSB_FIRST_CP 32
 #define JBMSB_LAST_CP 126
 #define JBMSB_GLYPH_COUNT 95
+#define JBMSB_FONT_SCALE 1.1f
 
 typedef struct {
     uint16_t x, y;
