@@ -1,0 +1,134 @@
+TARGET Butterscotch.exe
+TARGETTYPE exe
+UID 0x100039CE 0xEC93FBDE
+
+SYSTEMINCLUDE /epoc32
+SYSTEMINCLUDE /epoc32/include
+SYSTEMINCLUDE /epoc32/include/mw
+SYSTEMINCLUDE /epoc32/include/app
+SYSTEMINCLUDE /epoc32/include/platform
+SYSTEMINCLUDE /epoc32/include/platform/mw
+SYSTEMINCLUDE /epoc32/include/platform/app
+SYSTEMINCLUDE /epoc32/include/stdapis
+
+LIBRARY	euser.lib
+// ui
+LIBRARY cone.lib
+LIBRARY avkon.lib
+LIBRARY apparc.lib
+LIBRARY eikcore.lib
+LIBRARY ws32.lib
+// gl
+LIBRARY libglesv2.lib
+LIBRARY libegl.lib
+// pips
+LIBRARY libc.lib
+LIBRARY libm.lib
+LIBRARY libpthread.lib
+// audio
+LIBRARY mediaclientaudiostream.lib
+// volume keys
+LIBRARY remconinterfacebase.lib
+LIBRARY remconcoreapi.lib
+
+#ifdef ARMCC
+OPTION ARMCC -Otime
+OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296
+OPTION_REPLACE ARMCC --cpu 6
+OPTION_REPLACE ARMCC --fpu vfpv2 --fpmode fast
+OPTION_REPLACE ARMCC -O2 -O3
+
+ARMFPU vfpv2
+ALWAYS_BUILD_AS_ARM
+#endif
+
+OPTION GCCE -std=gnu99
+#if defined(GCCE_12) || defined(GCCE_15)
+OPTION GCCE -O3
+ARMFPU vfpv2
+ALWAYS_BUILD_AS_ARM
+#endif
+
+OPTION CW -lang c99 -undefine _WIN32 -relax_pointers
+
+CAPABILITY NetworkServices ReadUserData WriteUserData
+
+EPOCSTACKSIZE 0x14000
+EPOCHEAPSIZE 0x80000 0x4000000
+
+DEBUGGABLE_UDEBONLY
+#ifdef _DEBUG
+SRCDBG
+#endif
+
+SOURCEPATH .
+START RESOURCE butterscotch.rss
+HEADER
+TARGETPATH \resource\apps
+LANG SC
+END
+
+START RESOURCE butterscotch_reg.rss
+TARGETPATH \private\10003a3f\import\apps
+END
+
+MACRO SYMBIAN_OE_POSIX_SIGNALS
+MACRO ENABLE_MODERN_GL
+MACRO USE_MINIAUDIO
+MACRO ENABLE_WAD14
+MACRO ENABLE_WAD16
+MACRO ENABLE_WAD17
+MACRO NO_LOG2
+MACRO USE_FLOAT_REALS
+MACRO MINIZ_NO_ARCHIVE_APIS
+MACRO MINIZ_NO_STDIO
+
+USERINCLUDE ../../src
+USERINCLUDE ../../src/debug_font
+USERINCLUDE ../../src/gl
+USERINCLUDE ../../src/gl_common
+USERINCLUDE ../../src/gl_legacy
+USERINCLUDE ../../src/image
+USERINCLUDE ../../src/video
+USERINCLUDE ../../src/audio/miniaudio
+USERINCLUDE ../../src/symbian
+USERINCLUDE ../../vendor/base64
+USERINCLUDE ../../vendor/bzip2
+USERINCLUDE ../../vendor/md5
+USERINCLUDE ../../vendor/sha1
+USERINCLUDE ../../vendor/stb/ds
+USERINCLUDE ../../vendor/stb/image
+USERINCLUDE ../../vendor/stb/vorbis
+USERINCLUDE ../../vendor/miniz
+USERINCLUDE ../../vendor/miniaudio
+
+SOURCEPATH ../../src
+SOURCE binary_reader.c data_win.c data_win_print.c debug_overlay.c event_table.c gml_array.c gml_method.c ini.c input_recording.c instance.c int_int_hashmap.c int_rvalue_hashmap.c json_reader.c json_writer.c log.c loop.c noop_audio_system.c overlay_file_system.c profiler.c random.c runner.c runner_gamepad.c runner_keyboard.c runner_mouse.c spatial_grid.c stb_ds.c string_builder.c vm.c vm_builtins.c
+SOURCEPATH ../../src/video
+SOURCE null_video.c
+SOURCEPATH ../../src/debug_font
+SOURCE debug_font.c debug_font_4bpp.c
+SOURCEPATH ../../src/gl_common
+SOURCE gl_common.c
+SOURCEPATH ../../src/image
+SOURCE image_decoder.c
+SOURCEPATH ../../vendor/base64
+SOURCE base64.c
+SOURCEPATH ../../vendor/bzip2
+SOURCE bz_internal_error.c bzlib.c crctable.c decompress.c huffman.c randtable.c
+SOURCEPATH ../../vendor/md5
+SOURCE md5.c
+SOURCEPATH ../../vendor/sha1
+SOURCE sha1.c
+SOURCEPATH ../../vendor/miniz
+SOURCE miniz.c miniz_tdef.c miniz_tinfl.c
+SOURCEPATH ../../src/symbian
+SOURCE stb_impl.c symbian.cpp symbian_audio.cpp symbian_atomics.c
+SOURCEPATH ../../src/gl
+SOURCE gl_renderer.c
+SOURCEPATH ../../src/audio/miniaudio
+SOURCE ma_audio_system.c
+SOURCEPATH ../../src/physics/disabled
+SOURCE physics_disabled.c
+SOURCEPATH ../../src/physics
+SOURCE physics.c

@@ -39,7 +39,7 @@ void GLCommon_init(Renderer* renderer) {
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS3) && !defined(__SYMBIAN32__)
     gl_init_wrappers();
 #endif
 
@@ -67,6 +67,7 @@ void GLCommon_init(Renderer* renderer) {
     gl->textureWidths = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeMalloc(gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeMalloc(gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeMalloc(gl->textureCount * sizeof(int));
 
     glGenTextures((GLsizei) gl->textureCount, gl->glTextures);
 
@@ -82,7 +83,7 @@ void GLCommon_init(Renderer* renderer) {
     glGenTextures(1, &gl->whiteTexture);
     glBindTexture(GL_TEXTURE_2D, gl->whiteTexture);
     uint8_t whitePixel[4] = {255, 255, 255, 255};
-    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //I believe the old way this was done was wrong
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -297,6 +298,7 @@ void GLCommon_computeLetterbox(int32_t gameW, int32_t gameH, int32_t windowW, in
     *outEndY = startY + effH;
 }
 
+#ifndef __SYMBIAN32__
 void GLCommon_beginLetterboxBlit(GLuint fbo, GLuint hostFbo) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, hostFbo);
@@ -315,6 +317,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
     glBlitFramebuffer(0, 0, fboWidth, fboHeight, sx, ey, ex, sy, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, hostFbo);
 }
+#endif
 
 // ===[ Surface arrays ]===
 
@@ -342,6 +345,7 @@ static bool resolveSurfaceFBO(GLuint* surfaces, int32_t* surfaceWidth, int32_t* 
     return true;
 }
 
+#ifndef __SYMBIAN32__
 void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t dstId, int32_t dstX, int32_t dstY, int32_t srcId, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, bool part) {
     GLuint srcFbo, dstFbo;
     int32_t srcFboW, srcFboH;
@@ -375,6 +379,7 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, originalFramebufferBinding);
     if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
+#endif
 
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA) {
     if (0 > surfaceId || (uint32_t) surfaceId >= count)
@@ -498,7 +503,11 @@ GLenum GLCommon_blendModeToEquation(int mode) {
         case bm_add:              return GL_FUNC_ADD;
         case bm_subtract:         return GL_FUNC_ADD;
         case bm_reverse_subtract: return GL_FUNC_REVERSE_SUBTRACT;
+#ifdef GL_MIN
         case bm_min:              return GL_MIN;
+#else
+        case bm_min:              return GL_FUNC_ADD;
+#endif
         case bm_max:              return GL_FUNC_ADD;
     }
 }
@@ -652,7 +661,11 @@ bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui) {
     }
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
+#ifdef __SYMBIAN32__
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_W, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+#endif
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

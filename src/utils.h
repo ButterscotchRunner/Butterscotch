@@ -198,30 +198,30 @@ static inline void bsGetDirname(char* path) {
     }
     
     char* lastSlash = strrchr(path, '/');
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__SYMBIAN32__)
     char* lastBackslash = strrchr(path, '\\');
 #endif
     char* target = nullptr;
     if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
         target = lastSlash;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__SYMBIAN32__)
     if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
         target = lastBackslash;
 #endif
 
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
     if (target == nullptr)
         target = strrchr(path, ':');
 #endif
 
     if (target) {
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
         if (target[0] == ':') {
             target[1] = '\0';
         } else
 #endif
         if (target == path
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
             || target[0] == ':'
 #endif
             ) {
