@@ -1908,11 +1908,11 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeUndefined();
 }
 
-static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("show_error", 1, RValue_makeUndefined());
     char* str = RValue_toDebugMessageString(args[0], ctx->runner->dataWin);
     bool abort = true; // Supposed to be taken from an argument but it's not
-    logError("Error: %s\n", str);
+    logError("[%s] %s\n", ctx->currentCodeName, str);
     free(str);
 
     if (abort) {
