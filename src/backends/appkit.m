@@ -236,17 +236,20 @@ static int nsKeyToGML(unsigned short keyCode)
     }
 }
 
-@interface GameView : NSOpenGLView
-@property (strong) NSTrackingArea *trackingArea;
+@interface GameView : NSOpenGLView {
+    NSTrackingArea *trackingArea;
+}
 @end
 
 @implementation GameView
 
 - (void)dealloc {
-    if (self.trackingArea) {
-        [self removeTrackingArea:self.trackingArea];
-        self.trackingArea = nil;
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
     }
+    [super dealloc];
 }
 
 - (BOOL)acceptsFirstResponder
@@ -258,9 +261,10 @@ static int nsKeyToGML(unsigned short keyCode)
 {
     [super updateTrackingAreas];
 
-    if (self.trackingArea) {
-        [self removeTrackingArea:self.trackingArea];
-        self.trackingArea = nil;
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
     }
 
     NSTrackingArea *area = [[NSTrackingArea alloc]
@@ -271,8 +275,9 @@ static int nsKeyToGML(unsigned short keyCode)
         owner:self
         userInfo:nil];
 
-    self.trackingArea = area;
-    [self addTrackingArea:area];
+    trackingArea = [area retain];
+    [area release];
+    [self addTrackingArea:trackingArea];
 }
 
 - (void)keyDown:(NSEvent *)event {
