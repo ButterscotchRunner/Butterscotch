@@ -3129,6 +3129,16 @@ static void gsShaderSetUniformI(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED in
 static bool gsShaderIsCompiled(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t shader) { return false; }
 static bool gsShadersSupported(void) { return false; }
 
+static const char* getGLVendor() {
+    return "N/A";
+}
+static const char* getGLVersion() {
+    return "N/A";
+}
+static const char* getGLRenderer() {
+    return "N/A";
+}
+
 static RendererVtable gsVtable;
 
 // ===[ Public API ]===
@@ -3212,6 +3222,9 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.shaderSetUniformI = gsShaderSetUniformI;
     gsVtable.shaderIsCompiled = gsShaderIsCompiled;
     gsVtable.shadersSupported = gsShadersSupported;
+    gsVtable.getGLVendor = getGLVendor;
+    gsVtable.getGLVersion = getGLVersion;
+    gsVtable.getGLRenderer = getGLRenderer;
     gs->gsGlobal = gsGlobal;
     gs->scaleX = 2.0f;
     gs->scaleY = 2.0f;

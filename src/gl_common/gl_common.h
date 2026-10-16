@@ -106,6 +106,16 @@ static inline uint8_t floatToUnormByte(float v) {
     return (uint8_t)(v * 255.0f + 0.5f);
 }
 
+static inline const char *getGLVendor(void) {
+    return (const char *)glGetString(GL_VENDOR);
+}
+static inline const char *getGLVersion(void) {
+    return (const char *)glGetString(GL_VERSION);
+}
+static inline const char *getGLRenderer(void) {
+    return (const char *)glGetString(GL_RENDERER);
+}
+
 // Primitives and vertices
 
 typedef struct {

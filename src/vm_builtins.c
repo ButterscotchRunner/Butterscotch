@@ -25,6 +25,16 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#include <net/if.h>
+#include <sys/socket.h>
+#include <CommonCrypto/CommonDigest.h>
+#endif
 
 #include "rvalue.h"
 #include "stb_ds.h"
@@ -4794,6 +4804,147 @@ static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount
 }
 #endif
 
+// UDID Helpers
+
+#ifdef _WIN32
+
+char *get_udid(void) {
+    HKEY key;
+    wchar_t guid[1024];
+    DWORD type = REG_SZ;
+    DWORD size = sizeof(guid);
+
+    if (RegOpenKeyExW(
+            HKEY_LOCAL_MACHINE,
+            L"SOFTWARE\\Microsoft\\Cryptography",
+            0,
+            KEY_QUERY_VALUE,
+            &key) == ERROR_SUCCESS)
+    {
+        if (RegQueryValueExW(
+                key,
+                L"MachineGuid",
+                NULL,
+                &type,
+                (LPBYTE)guid,
+                &size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(key);
+
+            int len = WideCharToMultiByte(
+                CP_UTF8, 0, guid, -1, NULL, 0, NULL, NULL);
+
+            if (len > 0) {
+                char *result = malloc(len);
+                if (result != NULL) {
+                    WideCharToMultiByte(
+                        CP_UTF8, 0, guid, -1,
+                        result, len, NULL, NULL);
+                    return result;
+                }
+            }
+        }
+        else {
+            RegCloseKey(key);
+        }
+    }
+
+    return NULL;
+}
+
+#elif defined(__APPLE__)
+
+static char *mac_address_for_interface(const char *interface_name) {
+    if (interface_name == NULL) {
+        return NULL;
+    }
+
+    struct ifaddrs *interfaces = NULL;
+
+    if (getifaddrs(&interfaces) != 0) {
+        return NULL;
+    }
+
+    char *result = NULL;
+
+    for (struct ifaddrs *ifa = interfaces;
+         ifa != NULL;
+         ifa = ifa->ifa_next) {
+
+        if (ifa->ifa_name == NULL ||
+            ifa->ifa_addr == NULL ||
+            strcmp(ifa->ifa_name, interface_name) != 0 ||
+            ifa->ifa_addr->sa_family != AF_LINK) {
+            continue;
+        }
+
+        struct sockaddr_dl *sdl =
+            (struct sockaddr_dl *)ifa->ifa_addr;
+
+        if (sdl->sdl_alen != 6) {
+            break;
+        }
+
+        const unsigned char *mac =
+            (const unsigned char *)LLADDR(sdl);
+
+        result = malloc(18);
+        if (result != NULL) {
+            snprintf(result, 18,
+                     "%02X:%02X:%02X:%02X:%02X:%02X",
+                     mac[0], mac[1], mac[2],
+                     mac[3], mac[4], mac[5]);
+        }
+
+        break;
+    }
+
+    freeifaddrs(interfaces);
+    return result;
+}
+
+static char *get_mac_address_udid(void) {
+    // Get the formatted MAC address for en0.
+    char *mac = mac_address_for_interface("en0");
+    if (mac == NULL) {
+        return strdup("NOT SUPPORTED");
+    }
+
+    // SHA-1 the formatted MAC address string.
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1((const unsigned char *)mac,
+            (CC_LONG)strlen(mac),
+            digest);
+
+    free(mac);
+
+    // Convert the digest to a lowercase hexadecimal string.
+    char *result = malloc(CC_SHA1_DIGEST_LENGTH * 2 + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        snprintf(result + i * 2, 3, "%02x", digest[i]);
+    }
+
+    result[40] = '\0';
+    return result;
+}
+
+char *get_udid(void) {
+    return get_mac_address_udid();
+}
+
+#else
+
+static char *get_udid(void) {
+    logWarn("[get_udid] UDID not supported on this platform\n");
+    return NULL;
+}
+
+#endif
+
 // ===[ OS FUNCTIONS ]===
 
 static RValue builtin_os_get_language(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -4810,12 +4961,26 @@ static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RVal
     DsMapEntry** mapPtr = dsMapGet(runner, mapId);
     if (mapPtr == nullptr) return RValue_makeUndefined();
 
-#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
-    bool is64Bit = true;
-#elif defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__) || defined(__aarch64__) || defined(_M_ARM64)
     bool is64Bit = true;
 #else
     bool is64Bit = false;
+#endif
+
+    const char *udid = get_udid();
+    shput(*mapPtr, safeStrdup("udid"), RValue_makeOwnedString(safeStrdup(udid)));
+
+#if defined(__linux__) || \
+    (defined(__APPLE__) && defined(__MACH__) && TARGET_OS_OSX)
+    // macOS or Linux
+
+    const char *gl_vendor_string = ctx->runner->renderer->vtable->getGLVendor();
+    const char *gl_version_string = ctx->runner->renderer->vtable->getGLVersion();
+    const char *gl_renderer_string = ctx->runner->renderer->vtable->getGLRenderer();
+
+    shput(*mapPtr, safeStrdup("gl_vendor_string"), RValue_makeOwnedString(safeStrdup(gl_vendor_string)));
+    shput(*mapPtr, safeStrdup("gl_version_string"), RValue_makeOwnedString(safeStrdup(gl_version_string)));
+    shput(*mapPtr, safeStrdup("gl_renderer_string"), RValue_makeOwnedString(safeStrdup(gl_renderer_string)));
 #endif
 
     shput(*mapPtr, safeStrdup("is64bit"), RValue_makeBool(is64Bit));
