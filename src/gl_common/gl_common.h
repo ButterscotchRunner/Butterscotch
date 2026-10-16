@@ -106,6 +106,17 @@ static inline uint8_t floatToUnormByte(float v) {
     return (uint8_t)(v * 255.0f + 0.5f);
 }
 
+#if defined(PLATFORM_PS3)
+static inline const char *getGLVendor(void) {
+    return "PS3 RSX";
+}
+static inline const char *getGLVersion(void) {
+    return "PS3 OpenGL";
+}
+static inline const char *getGLRenderer(void) {
+    return "PS3 RSX";
+}
+#else
 static inline const char *getGLVendor(void) {
     return (const char *)glGetString(GL_VENDOR);
 }
@@ -115,6 +126,7 @@ static inline const char *getGLVersion(void) {
 static inline const char *getGLRenderer(void) {
     return (const char *)glGetString(GL_RENDERER);
 }
+#endif
 
 // Primitives and vertices
 
