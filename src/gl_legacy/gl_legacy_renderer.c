@@ -5,6 +5,7 @@
 #include "file_system.h"
 #include "gl_wrappers.h"
 
+#include "default_font/default_font.h"
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
@@ -1063,6 +1064,18 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
         return true;
     }
 
+    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoBold") == 0) {
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
+
+        state->fontTpag = &gl->defaultUI.tpag;
+        state->fontTpagIndex = -1;
+        state->texId = gl->defaultUI.texture;
+        state->texW = JBMSB_ATLAS_W;
+        state->texH = JBMSB_ATLAS_H;
+        return true;
+    }
+
     if (!font->isSpriteFont) {
         int32_t fontTpagIndex = font->tpagIndex;
         if (0 > fontTpagIndex) return false;
@@ -1122,7 +1135,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
+        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph) + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
     }
     return true;
 }
@@ -1300,10 +1313,16 @@ static void drawTextColor(
         if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
             font = &dw->font.fonts[fontIndex];
         } else {
-            GLCommon_initDebugUIFont(&gl->debugUI);
-            if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI))
-                return;
-            font = &gl->debugUI.font;
+            int32_t defaultFontIndex = DefaultFont_ensureLoaded(dw);
+            if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
+                renderer->drawFont = defaultFontIndex;
+                font = &dw->font.fonts[defaultFontIndex];
+            } else {
+                GLCommon_initDebugUIFont(&gl->debugUI);
+                if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI))
+                    return;
+                font = &gl->debugUI.font;
+            }
         }
     }
 
