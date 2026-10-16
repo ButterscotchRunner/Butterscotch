@@ -1908,6 +1908,20 @@ static RValue builtin_show_debug_message(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeUndefined();
 }
 
+static RValue builtin_show_error(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("show_error", 1, RValue_makeUndefined());
+    char* str = RValue_toDebugMessageString(args[0], ctx->runner->dataWin);
+    bool abort = true; // Supposed to be taken from an argument but it's not
+    logError("Error: %s\n", str);
+    free(str);
+
+    if (abort) {
+        exit(EXIT_FAILURE);
+    }
+
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_string_length(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("string_length", 1, RValue_makeInt32(0));
     // GML converts non-string arguments to string before measuring length
@@ -23185,6 +23199,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Core output
     VM_registerBuiltin(ctx, "show_debug_message", builtin_show_debug_message);
+    VM_registerBuiltin(ctx, "show_error", builtin_show_error);
 
     // String functions
     VM_registerBuiltin(ctx, "string_length", builtin_string_length);
