@@ -1051,6 +1051,18 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texH = 0;
     state->spriteFontSprite = nullptr;
 
+    if (font == &gl->debugUI.font) {
+        GLCommon_initDebugUIFont(&gl->debugUI);
+        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return false;
+
+        state->fontTpag = &gl->debugUI.tpag;
+        state->fontTpagIndex = -1;
+        state->texId = gl->debugUI.texture;
+        state->texW = DEBUGFONT_ATLAS_W;
+        state->texH = DEBUGFONT_ATLAS_H;
+        return true;
+    }
+
     if (!font->isSpriteFont) {
         int32_t fontTpagIndex = font->tpagIndex;
         if (0 > fontTpagIndex) return false;
@@ -1120,9 +1132,14 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
     DataWin* dw = renderer->dataWin;
 
     int32_t fontIndex = renderer->drawFont;
-    if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex) return;
-
-    Font* font = &dw->font.fonts[fontIndex];
+    Font* font = nullptr;
+    if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+        font = &dw->font.fonts[fontIndex];
+    } else {
+        GLCommon_initDebugUIFont(&gl->debugUI);
+        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
+        font = &gl->debugUI.font;
+    }
 
     GlFontState fontState;
     if (!glResolveFontState(gl, dw, font, &fontState)) return;
@@ -1280,10 +1297,14 @@ static void drawTextColor(
 
     if (!font) {
         int32_t fontIndex = renderer->drawFont;
-        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
-            return;
-
-        font = &dw->font.fonts[fontIndex];
+        if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+            font = &dw->font.fonts[fontIndex];
+        } else {
+            GLCommon_initDebugUIFont(&gl->debugUI);
+            if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI))
+                return;
+            font = &gl->debugUI.font;
+        }
     }
 
     GlFontState fontState;
