@@ -14662,7 +14662,7 @@ static RValue builtin_date_date_string(VMContext* ctx, MAYBE_UNUSED RValue* args
     
     if (written < 0 || (size_t)written >= sizeof(fullDate)) return RValue_makeString("");
     
-    return RValue_makeOwnedString(fullDate);
+    return RValue_makeOwnedString(safeStrdup(fullDate));
 }
 
 static RValue builtin_date_datetime_string(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -14686,7 +14686,7 @@ static RValue builtin_date_datetime_string(VMContext* ctx, MAYBE_UNUSED RValue* 
                            
     if (written < 0 || (size_t)written >= sizeof(fullDate)) return RValue_makeString("");
     
-    return RValue_makeOwnedString(fullDate);
+    return RValue_makeOwnedString(safeStrdup(fullDate));
 }
 
 static RValue builtin_action_set_alarm(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
