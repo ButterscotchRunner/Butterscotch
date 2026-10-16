@@ -1872,8 +1872,10 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
             }
         } else {
             GMLReal diff = da - db;
-            // GML uses epsilon-based comparison for all numeric CMP operations
-            int cmp = GMLReal_fabs(diff) <= GML_MATH_EPSILON ? 0 : (diff < 0 ? -1 : 1);
+            // GML uses epsilon-based comparison for all numeric CMP operations.
+            // math_set_epsilon() updates the runner's epsilon at runtime.
+            GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
+            int cmp = GMLReal_fabs(diff) <= epsilon ? 0 : (diff < 0 ? -1 : 1);
             switch (cmpKind) {
                 case CMP_LT:  result = cmp < 0; break;
                 case CMP_LTE: result = cmp <= 0; break;
@@ -3312,7 +3314,8 @@ static RValue executeLoop(VMContext* ctx) {
                     GMLReal a = aType == RVALUE_INT32 ? (GMLReal)slotA->int32 : slotA->real;
                     GMLReal b = bType == RVALUE_INT32 ? (GMLReal)slotB->int32 : slotB->real;
                     GMLReal diff = a - b;
-                    int cmp = (GMLReal_fabs(diff) <= GML_MATH_EPSILON) ? 0 : (diff < 0) ? -1 : 1;
+                    GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
+                    int cmp = (GMLReal_fabs(diff) <= epsilon) ? 0 : (diff < 0) ? -1 : 1;
                     bool result;
                     switch (instrCmpKind(instr)) {
                         case CMP_LT:  result = cmp < 0;  break;

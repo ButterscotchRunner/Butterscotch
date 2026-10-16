@@ -503,6 +503,7 @@ typedef struct {
 typedef struct {
     bool active;
     GMLReal x, y, z;
+    GMLReal vx, vy, vz;
     GMLReal falloffRef, falloffMax, falloffFactor;
     GMLReal gain, pitch;
     int32_t* voices; // sound-instance IDs played on this emitter
@@ -831,6 +832,7 @@ struct Runner {
     GMLReal mpPotAhead;
     bool mpPotOnSpot;
     bool dateTimeLocal;
+    GMLReal mathEpsilon;
 
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;
