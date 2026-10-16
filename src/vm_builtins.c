@@ -4960,6 +4960,10 @@ static RValue builtin_os_get_region(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RV
 }
 
 static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+#ifdef __SWITCH__
+    // Switch just returns -1 for this
+    return RValue_makeReal(-1);
+#else
     Runner* runner = ctx->runner;
     int32_t mapId = dsMapCreate(runner);
     DsMapEntry** mapPtr = dsMapGet(runner, mapId);
@@ -4999,6 +5003,7 @@ static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RVal
     shput(*mapPtr, safeStrdup("is64bit"), RValue_makeBool(is64Bit));
 
     return RValue_makeReal((GMLReal) mapId);
+#endif
 }
 
 STUB_RETURN_FALSE(os_is_paused)
