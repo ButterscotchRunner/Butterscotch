@@ -3878,6 +3878,10 @@ static RValue builtin_room_set_persistent(VMContext* ctx, RValue* args, MAYBE_UN
     return RValue_makeUndefined();
 }
 
+// Extensions
+
+STUB_RETURN_FALSE(extension_exists)
+
 // GMS2 camera compatibility - we treat view index as camera ID
 static RValue builtin_view_get_camera(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("view_get_camera", 1, RValue_makeReal(-1));
@@ -23414,6 +23418,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "room_next", builtin_room_next);
     VM_registerBuiltin(ctx, "room_previous", builtin_room_previous);
     VM_registerBuiltin(ctx, "room_set_persistent", builtin_room_set_persistent);
+
+    // Extension
+    VM_registerBuiltin(ctx, "extension_exists", builtin_extension_exists);
 
     // GMS2 camera compatibility
     VM_registerBuiltin(ctx, "view_get_camera", builtin_view_get_camera);
