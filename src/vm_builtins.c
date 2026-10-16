@@ -2025,11 +2025,12 @@ static RValue builtin_string(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t 
 // - When both values are numbers (any GML numeric type; they are all plain JS numbers there),
 //   they match when |a - b| <= GML_MATH_EPSILON.
 // - Otherwise values must be equal by content (strings) or identity (the rest).
-static bool rValuesLooselyEqual(RValue a, RValue b) {
+static bool rValuesLooselyEqual(VMContext* ctx, RValue a, RValue b) {
     bool aNumeric = a.type == RVALUE_REAL || a.type == RVALUE_INT32 || a.type == RVALUE_INT64 || a.type == RVALUE_BOOL || a.type == RVALUE_ASSETREF;
     bool bNumeric = b.type == RVALUE_REAL || b.type == RVALUE_INT32 || b.type == RVALUE_INT64 || b.type == RVALUE_BOOL || b.type == RVALUE_ASSETREF;
+    GMLReal epsilon = (ctx != nullptr && ctx->runner != nullptr) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
     if (aNumeric && bNumeric) {
-        return GML_MATH_EPSILON >= GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
+        return epsilon >= GMLReal_fabs(RValue_toReal(a) - RValue_toReal(b));
     }
     switch (a.type) {
         case RVALUE_STRING:
@@ -2088,7 +2089,7 @@ static RValue builtin_array_contains(VMContext* ctx, RValue* args, int32_t argCo
     int32_t offset, loops, step;
     computeArrayIterationValues(maxLength, rawOffset, rawLength, &offset, &loops, &step);
     while (loops > 0) {
-        if (offset >= 0 && offset < maxLength && rValuesLooselyEqual(GMLArray_get(args[0].array, offset), args[1]))
+        if (offset >= 0 && offset < maxLength && rValuesLooselyEqual(ctx, GMLArray_get(args[0].array, offset), args[1]))
             return RValue_makeBool(true);
         offset += step;
         loops--;
@@ -2215,6 +2216,23 @@ static RValue builtin_sign(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t ar
     GMLReal val = RValue_toReal(args[0]);
     GMLReal result = (val > 0.0) ? 1.0 : ((0.0 > val) ? -1.0 : 0.0);
     return RValue_makeReal(result);
+}
+
+static RValue builtin_math_set_epsilon(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("math_set_epsilon", 1, RValue_makeUndefined());
+    GMLReal v = RValue_toReal(args[0]);
+    if ((v >= 0.0) && (v < 1.0)) {
+        if (v == 0.0) v = 1e-11;
+        if (ctx != nullptr && ctx->runner != nullptr) {
+            ctx->runner->mathEpsilon = v;
+        }
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_math_get_epsilon(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
+    GMLReal epsilon = (ctx != nullptr && ctx->runner != nullptr) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
+    return RValue_makeReal(epsilon);
 }
 
 static RValue builtin_max(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
@@ -6604,7 +6622,7 @@ static RValue builtin_ds_priority_change_priority(MAYBE_UNUSED VMContext* ctx, R
     if (pQueue == nullptr) return RValue_makeUndefined();
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (rValuesLooselyEqual(item->item, val)) {
+        if (rValuesLooselyEqual(ctx, item->item, val)) {
             DsPriorityItem moved = *item;
             arrdel(pQueue->items, i);
             moved.depth = prio;
@@ -6622,7 +6640,7 @@ static RValue builtin_ds_priority_find_priority(VMContext* ctx, RValue* args, MA
     RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (rValuesLooselyEqual(item->item, value)) {
+        if (rValuesLooselyEqual(ctx, item->item, value)) {
             return RValue_makeReal(item->depth);
         }
     }
@@ -6636,7 +6654,7 @@ static RValue builtin_ds_priority_delete_value(VMContext* ctx, RValue* args, MAY
     RValue value = args[1];
     for (int32_t i = 0; i < (int32_t) arrlen(pQueue->items); i++) {
         DsPriorityItem* item = &pQueue->items[i];
-        if (rValuesLooselyEqual(item->item, value)) {
+        if (rValuesLooselyEqual(ctx, item->item, value)) {
             arrdel(pQueue->items, i);
             return RValue_makeUndefined();
         }
@@ -7198,7 +7216,7 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
     return RValue_makeUndefined();
 }
 
-static bool arrayElementsEqual(RValue* a, RValue* b) {
+static bool arrayElementsEqual(VMContext* ctx, RValue* a, RValue* b) {
     if (a->type != b->type) return false;
     if (a->type == RVALUE_ARRAY) {
         GMLArray* arrA = a->array;
@@ -7208,12 +7226,12 @@ static bool arrayElementsEqual(RValue* a, RValue* b) {
         int32_t lenB = GMLArray_length1D(arrB);
         if (lenA != lenB) return false;
         for (int32_t i = 0; i < lenA; i++) {
-            if (!arrayElementsEqual(GMLArray_slot(arrA, i), GMLArray_slot(arrB, i)))
+            if (!arrayElementsEqual(ctx, GMLArray_slot(arrA, i), GMLArray_slot(arrB, i)))
                 return false;
         }
         return true;
     }
-    return rValuesLooselyEqual(*a, *b);
+    return rValuesLooselyEqual(ctx, *a, *b);
 }
 
 static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -7228,7 +7246,7 @@ static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCoun
     for (int32_t i = 0; i < len1; i++) {
         RValue* slotA = GMLArray_slot(arr1, i);
         RValue* slotB = GMLArray_slot(arr2, i);
-        if (!arrayElementsEqual(slotA, slotB)) return RValue_makeBool(false);
+        if (!arrayElementsEqual(ctx, slotA, slotB)) return RValue_makeBool(false);
     }
     return RValue_makeBool(true);
 }
@@ -23244,6 +23262,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "abs", builtin_abs);
     VM_registerBuiltin(ctx, "frac", builtin_frac);
     VM_registerBuiltin(ctx, "sign", builtin_sign);
+    VM_registerBuiltin(ctx, "math_set_epsilon", builtin_math_set_epsilon);
+    VM_registerBuiltin(ctx, "math_get_epsilon", builtin_math_get_epsilon);
     VM_registerBuiltin(ctx, "max", builtin_max);
     VM_registerBuiltin(ctx, "max3", builtin_max3);
     VM_registerBuiltin(ctx, "min", builtin_min);

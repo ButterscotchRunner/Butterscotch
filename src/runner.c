@@ -2306,6 +2306,7 @@ void Runner_reset(Runner* runner) {
     runner->mpPotAhead = 3.0;
     runner->mpPotOnSpot = true;
     runner->dateTimeLocal = true;
+    runner->mathEpsilon = GML_MATH_EPSILON;
     runner->lastMusicInstance = -1;
 
     arrsetlen(runner->cachedDrawables, 0);
