@@ -4940,13 +4940,6 @@ char *get_udid(void) {
     return get_mac_address_udid();
 }
 
-#else
-
-static char *get_udid(void) {
-    logWarn("[get_udid] UDID not supported on this platform\n");
-    return NULL;
-}
-
 #endif
 
 // ===[ OS FUNCTIONS ]===
@@ -4975,9 +4968,11 @@ static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RVal
     bool is64Bit = false;
 #endif
 
+#if defined(_WIN32) || defined(__APPLE__)
     const char *udid = get_udid();
-    const char *safeUdid = udid != nullptr ? udid : "NOT SUPPORTED";
+    const char *safeUdid = udid != nullptr ? udid : "";
     shput(*mapPtr, safeStrdup("udid"), RValue_makeOwnedString(safeStrdup(safeUdid)));
+#endif
 
 #if defined(__linux__) || \
     (defined(__APPLE__) && defined(__MACH__) && TARGET_OS_OSX)
