@@ -4807,6 +4807,9 @@ static RValue builtin_call_cancel(VMContext* ctx, RValue* args, int32_t argCount
 // UDID Helpers
 
 #ifdef _WIN32
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
 
 char *get_udid(void) {
     HKEY key;
@@ -4835,7 +4838,7 @@ char *get_udid(void) {
                 CP_UTF8, 0, guid, -1, NULL, 0, NULL, NULL);
 
             if (len > 0) {
-                char *result = malloc(len);
+                char *result = (char *)malloc(len);
                 if (result != NULL) {
                     WideCharToMultiByte(
                         CP_UTF8, 0, guid, -1,
