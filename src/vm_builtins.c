@@ -4968,19 +4968,28 @@ static RValue builtin_os_get_info(MAYBE_UNUSED VMContext* ctx, MAYBE_UNUSED RVal
 #endif
 
     const char *udid = get_udid();
-    shput(*mapPtr, safeStrdup("udid"), RValue_makeOwnedString(safeStrdup(udid)));
+    const char *safeUdid = udid != nullptr ? udid : "NOT SUPPORTED";
+    shput(*mapPtr, safeStrdup("udid"), RValue_makeOwnedString(safeStrdup(safeUdid)));
 
 #if defined(__linux__) || \
     (defined(__APPLE__) && defined(__MACH__) && TARGET_OS_OSX)
     // macOS or Linux
 
-    const char *gl_vendor_string = ctx->runner->renderer->vtable->getGLVendor();
-    const char *gl_version_string = ctx->runner->renderer->vtable->getGLVersion();
-    const char *gl_renderer_string = ctx->runner->renderer->vtable->getGLRenderer();
+    if (ctx->runner->renderer == nullptr || ctx->runner->renderer->vtable == nullptr) {
+        logWarn("[builtin_os_get_info] Renderer or VTable not available\n");
+    } else {
+        const char *gl_vendor_string = ctx->runner->renderer->vtable->getGLVendor();
+        const char *gl_version_string = ctx->runner->renderer->vtable->getGLVersion();
+        const char *gl_renderer_string = ctx->runner->renderer->vtable->getGLRenderer();
 
-    shput(*mapPtr, safeStrdup("gl_vendor_string"), RValue_makeOwnedString(safeStrdup(gl_vendor_string)));
-    shput(*mapPtr, safeStrdup("gl_version_string"), RValue_makeOwnedString(safeStrdup(gl_version_string)));
-    shput(*mapPtr, safeStrdup("gl_renderer_string"), RValue_makeOwnedString(safeStrdup(gl_renderer_string)));
+        const char *safeGLVendorString = gl_vendor_string != nullptr ? gl_vendor_string : "Unknown";
+        const char *safeGLVersionString = gl_version_string != nullptr ? gl_version_string : "Unknown";
+        const char *safeGLRendererString = gl_renderer_string != nullptr ? gl_renderer_string : "Unknown";
+
+        shput(*mapPtr, safeStrdup("gl_vendor_string"), RValue_makeOwnedString(safeStrdup(safeGLVendorString)));
+        shput(*mapPtr, safeStrdup("gl_version_string"), RValue_makeOwnedString(safeStrdup(safeGLVersionString)));
+        shput(*mapPtr, safeStrdup("gl_renderer_string"), RValue_makeOwnedString(safeStrdup(safeGLRendererString)));
+    }
 #endif
 
     shput(*mapPtr, safeStrdup("is64bit"), RValue_makeBool(is64Bit));
