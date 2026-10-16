@@ -1052,18 +1052,6 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texH = 0;
     state->spriteFontSprite = nullptr;
 
-    if (font == &gl->debugUI.font) {
-        GLCommon_initDebugUIFont(&gl->debugUI);
-        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return false;
-
-        state->fontTpag = &gl->debugUI.tpag;
-        state->fontTpagIndex = -1;
-        state->texId = gl->debugUI.texture;
-        state->texW = DEBUGFONT_ATLAS_W;
-        state->texH = DEBUGFONT_ATLAS_H;
-        return true;
-    }
-
     if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoBold") == 0) {
         GLCommon_initDefaultUIFont(&gl->defaultUI);
         if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
@@ -1317,11 +1305,6 @@ static void drawTextColor(
             if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
                 renderer->drawFont = defaultFontIndex;
                 font = &dw->font.fonts[defaultFontIndex];
-            } else {
-                GLCommon_initDebugUIFont(&gl->debugUI);
-                if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI))
-                    return;
-                font = &gl->debugUI.font;
             }
         }
     }

@@ -2108,11 +2108,6 @@ static void drawText(
             if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
                 renderer->drawFont = defaultFontIndex;
                 font = &dw->font.fonts[defaultFontIndex];
-            } else {
-                GLCommon_initDebugUIFont(&gl->debugUI);
-                if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI))
-                    return;
-                font = &gl->debugUI.font;
             }
         }
     }
