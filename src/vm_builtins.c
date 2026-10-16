@@ -4626,6 +4626,50 @@ static RValue builtin_struct_get_names(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeArray(array);
 }
 
+static int32_t countInstanceVariableNames(Instance* targetInstance) {
+    if (targetInstance == nullptr) return 0;
+    int32_t count = 0;
+    repeat(targetInstance->selfVars.capacity, i) {
+        if (targetInstance->selfVars.entries[i].key != INT_RVALUE_HASHMAP_EMPTY_KEY) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static RValue builtin_variable_instance_names_count(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("variable_instance_names_count", 1, RValue_makeInt32(0));
+
+    Instance* targetInstance = nullptr;
+    if (args[0].type == RVALUE_STRUCT) {
+        targetInstance = args[0].structInst;
+    } else {
+        int32_t targetInstanceId = RValue_toInt32(args[0]);
+        if (targetInstanceId == INSTANCE_GLOBAL) {
+            targetInstance = ctx->globalScopeInstance;
+        } else if (targetInstanceId >= INSTANCE_ID_BASE) {
+            targetInstance = hmget(ctx->runner->instancesById, targetInstanceId);
+        } else {
+            int32_t snapBase = Runner_pushInstancesOfObject(ctx->runner, targetInstanceId);
+            int32_t snapEnd = (int32_t) arrlen(ctx->runner->instanceSnapshots);
+            if (snapEnd > snapBase) {
+                targetInstance = ctx->runner->instanceSnapshots[snapBase];
+            }
+            Runner_popInstanceSnapshot(ctx->runner, snapBase);
+        }
+    }
+
+    return RValue_makeInt32(countInstanceVariableNames(targetInstance));
+}
+
+static RValue builtin_variable_struct_names_count(VMContext* ctx, RValue* args, int32_t argCount) {
+    return builtin_variable_instance_names_count(ctx, args, argCount);
+}
+
+static RValue builtin_struct_names_count(VMContext* ctx, RValue* args, int32_t argCount) {
+    return builtin_variable_instance_names_count(ctx, args, argCount);
+}
+
 // ===[ METHOD ]===
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -23429,8 +23473,11 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "struct_exists_from_hash", builtin_struct_exists_from_hash);
     VM_registerBuiltin(ctx, "struct_exists", builtin_struct_exists);
     VM_registerBuiltin(ctx, "struct_get_names", builtin_struct_get_names);
+    VM_registerBuiltin(ctx, "struct_names_count", builtin_struct_names_count);
     VM_registerBuiltin(ctx, "variable_instance_get_names", builtin_struct_get_names); // I couldn't find any noticeable different behavior when testing this
+    VM_registerBuiltin(ctx, "variable_instance_names_count", builtin_variable_instance_names_count);
     VM_registerBuiltin(ctx, "variable_struct_get_names", builtin_struct_get_names); // Deprecated variant of struct_get_names (https://github.com/YoYoGames/GameMaker-Bugs/issues/6105)
+    VM_registerBuiltin(ctx, "variable_struct_names_count", builtin_variable_struct_names_count); // Deprecated variant of struct_names_count
 
     // Script
     VM_registerBuiltin(ctx, "script_execute", builtin_script_execute);
