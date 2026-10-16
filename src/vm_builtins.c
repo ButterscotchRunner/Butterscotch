@@ -27,6 +27,7 @@
 #endif
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #include <net/if_dl.h>
