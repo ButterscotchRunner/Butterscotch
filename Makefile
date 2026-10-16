@@ -42,6 +42,7 @@ INCLUDES += $(INC). \
 		    $(INC)src \
 		    $(INC)src/image \
 		    $(INC)src/debug_font \
+			$(INC)src/default_font \
 		    $(INC)vendor/stb/ds \
 		    $(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
