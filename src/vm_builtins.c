@@ -27,12 +27,12 @@
 #endif
 #ifdef __APPLE__
 #include <TargetConditionals.h>
-#include <objc/runtime.h>
-#include <objc/message.h>
+#include <sys/socket.h>
 #include <ifaddrs.h>
 #include <net/if_dl.h>
 #include <net/if.h>
-#include <sys/socket.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
 #include <CommonCrypto/CommonDigest.h>
 #endif
 
