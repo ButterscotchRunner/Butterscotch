@@ -1,0 +1,78 @@
+name: Illumos builds
+
+on:
+  workflow_call:
+
+jobs:
+  build-illumos:
+    name: Build (SDL2 x86_64)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup cache
+        uses: actions/cache@v6
+        with:
+          path: |
+              ~/.cache/ccache
+              artifacts/illumos/build/toolchain
+          key: illumos-artifact-${{ github.sha }}
+          restore-keys: illumos-artifact-
+
+      - name: Install toolchain and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache libgmp-dev libmpfr-dev libmpc-dev
+          ./artifacts/illumos/build-toolchain.sh
+
+      - name: Checkout SDL2
+        uses: actions/checkout@v7
+        with:
+          repository: libsdl-org/SDL
+          ref: release-2.32.10
+          path: vendor/SDL2
+
+      - name: Build SDL2 from source
+        run: |
+          export PATH="${{ github.workspace }}/artifacts/illumos/build/toolchain/bin:$PATH"
+          cmake -S vendor/SDL2 -B vendor/SDL2/build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=SunOS \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=compare-distinct-pointer-types" \
+            -DSDL_SHARED=ON \
+            -DSDL_STATIC=OFF \
+            -DSDL_TESTS=OFF \
+            -DSDL_TEST=OFF \
+            -DSDL_OSS=OFF
+          cmake --build vendor/SDL2/build
+          cmake --install vendor/SDL2/build
+
+      - name: Configure and build Butterscotch
+        env:
+          PKG_CONFIG_PATH: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
+          PKG_CONFIG_LIBDIR: "${{ github.workspace }}/vendor/SDL2/install/lib/pkgconfig"
+          PKG_CONFIG_SYSROOT_DIR: "${{ github.workspace }}/vendor/SDL2/install"
+          PKG_CONFIG_ALLOW_SYSTEM_LIBS: "1"
+        run: |
+          export PATH="${{ github.workspace }}/artifacts/illumos/build/toolchain/bin:$PATH"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_SYSTEM_NAME=SunOS \
+            -DCMAKE_C_COMPILER=x86_64-pc-solaris2.11-gcc \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DBACKEND=sdl2 \
+            -DWERROR=ON \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+          cmake --build build
+          x86_64-pc-solaris2.11-strip -s build/butterscotch
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-sdl2-illumos-x86-64
+          path: build/butterscotch
