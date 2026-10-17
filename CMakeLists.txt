@@ -157,6 +157,7 @@ if(ENABLE_PHYSICS)
 endif()
 
 file(GLOB SOURCES src/*.c)
+file(GLOB DEFAULT_FONT_SOURCES src/default_font/*.c)
 if(ENABLE_PHYSICS)
     file(GLOB PHYSICS_SOURCES CONFIGURE_DEPENDS src/physics/*.c)
 else()
@@ -175,9 +176,9 @@ endif()
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
 if(PLATFORM STREQUAL "android")
-    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES} ${DEFAULT_FONT_SOURCES})
 else()
-    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES} ${DEFAULT_FONT_SOURCES})
 endif()
 
 # Video playback backend

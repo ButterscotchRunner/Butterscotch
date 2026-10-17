@@ -668,3 +668,85 @@ void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui) {
         ui->texture = 0;
     }
 }
+
+void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui) {
+    if (ui->initialized) return;
+    ui->initialized = true;
+
+    ui->font.name = "JetBrainsMonoExtraBold";
+    ui->font.displayName = "JetBrainsMonoExtraBold";
+    ui->font.scaleX = 1.0f;
+    ui->font.scaleY = 1.0f;
+    ui->font.ascenderOffset = 0;
+    ui->font.maxGlyphHeight = 0;
+    ui->font.emSize = 12.0f;
+    ui->font.isSpriteFont = false;
+    ui->font.tpagIndex = -1;
+
+    repeat(JBMEB_GLYPH_COUNT, i) {
+        const JetBrainsMonoExtraBoldGlyph* e = &JetBrainsMonoExtraBoldGlyphs[i];
+        FontGlyph* g = &ui->glyphs[i];
+        g->character = (uint16_t) (JBMEB_FIRST_CP + i);
+        g->sourceX = e->x;
+        g->sourceY = e->y;
+        g->sourceWidth = e->w;
+        g->sourceHeight = e->h;
+        g->shift = e->xadvance;
+        g->offset = e->xoffset;
+        g->kerningCount = 0;
+        g->kerning = nullptr;
+        if ((uint16_t) g->sourceHeight > ui->font.maxGlyphHeight) {
+            ui->font.maxGlyphHeight = g->sourceHeight;
+        }
+    }
+    ui->font.glyphs = ui->glyphs;
+    ui->font.glyphCount = JBMEB_GLYPH_COUNT;
+    Font_buildGlyphLUT(&ui->font);
+
+    ui->tpag.present = true;
+    ui->tpag.sourceX = 0;
+    ui->tpag.sourceY = 0;
+    ui->tpag.sourceWidth = JBMEB_ATLAS_W;
+    ui->tpag.sourceHeight = JBMEB_ATLAS_H;
+    ui->tpag.targetX = 0;
+    ui->tpag.targetY = 0;
+    ui->tpag.targetWidth = JBMEB_ATLAS_W;
+    ui->tpag.targetHeight = JBMEB_ATLAS_H;
+    ui->tpag.boundingWidth = JBMEB_ATLAS_W;
+    ui->tpag.boundingHeight = JBMEB_ATLAS_H;
+    ui->tpag.texturePageId = -1;
+}
+
+bool GLCommon_ensureDefaultFontTexture(GLRenderer* gl, GLDefaultUIFont* ui) {
+    if (ui->texture != 0) return true;
+
+    glGenTextures(1, &ui->texture);
+    if (ui->texture == 0) return false;
+
+    size_t pixelCount = (size_t) JBMEB_ATLAS_W * (size_t) JBMEB_ATLAS_H;
+    uint8_t* rgba = (uint8_t *)safeMalloc(pixelCount * 4);
+    if (rgba == nullptr) return false;
+    repeat(pixelCount, i) {
+        rgba[i * 4 + 0] = 0xFF;
+        rgba[i * 4 + 1] = 0xFF;
+        rgba[i * 4 + 2] = 0xFF;
+        rgba[i * 4 + 3] = JetBrainsMonoExtraBoldPixels[i];
+    }
+
+    glBindTexture(GL_TEXTURE_2D, ui->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, JBMEB_ATLAS_W, JBMEB_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    free(rgba);
+    return true;
+}
+
+void GLCommon_deleteDefaultFontTexture(GLDefaultUIFont* ui) {
+    if (ui->texture != 0) {
+        glDeleteTextures(1, &ui->texture);
+        ui->texture = 0;
+    }
+}

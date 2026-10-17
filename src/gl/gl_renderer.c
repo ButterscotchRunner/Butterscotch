@@ -24,6 +24,7 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
+#include "default_font/default_font.h"
 
 // ===[ Constants ]===
 #define MAX_QUADS 4096
@@ -1995,6 +1996,28 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texH = 0;
     state->spriteFontSprite = nullptr;
 
+    if (font == &gl->debugUI.font) {
+        GLCommon_initDebugUIFont(&gl->debugUI);
+        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return false;
+
+        state->fontTpag = &gl->debugUI.tpag;
+        state->texId = gl->debugUI.texture;
+        state->texW = DEBUGFONT_ATLAS_W;
+        state->texH = DEBUGFONT_ATLAS_H;
+        return true;
+    }
+
+    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
+
+        state->fontTpag = &gl->defaultUI.tpag;
+        state->texId = gl->defaultUI.texture;
+        state->texW = JBMEB_ATLAS_W;
+        state->texH = JBMEB_ATLAS_H;
+        return true;
+    }
+
     if (!font->isSpriteFont) {
         int32_t fontTpagIndex = font->tpagIndex;
         if (0 > fontTpagIndex) return false;
@@ -2051,7 +2074,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
+        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph) + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
     }
     return true;
 }
@@ -2078,10 +2101,15 @@ static void drawText(
 
     if (!font) {
         int32_t fontIndex = renderer->drawFont;
-        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
-            return;
-
-        font = &dw->font.fonts[fontIndex];
+        if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+            font = &dw->font.fonts[fontIndex];
+        } else {
+            int32_t defaultFontIndex = DefaultFont_ensureLoaded(dw);
+            if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
+                renderer->drawFont = defaultFontIndex;
+                font = &dw->font.fonts[defaultFontIndex];
+            }
+        }
     }
 
     GlFontState fontState;
