@@ -26,7 +26,7 @@ row_h = 0
 
 for cp in range(FIRST_CP, LAST_CP + 1):
     ch = chr(cp)
-    font = ImageFont.truetype(TTF_PATH, PIXEL_SIZE * 2)
+    font = ImageFont.truetype(TTF_PATH, PIXEL_SIZE * 4)
 
     # Use the full glyph bbox so we keep the true top/bottom extents and baseline
     # offset. The raw mask bbox can trim off letters with descenders or small

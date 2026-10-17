@@ -19,7 +19,7 @@ static void DefaultFont_fillGlyphs(Font* font) {
         glyph->sourceY = glyphInfo->y;
         glyph->sourceWidth = glyphInfo->w;
         glyph->sourceHeight = glyphInfo->h;
-        glyph->shift = glyphInfo->xadvance * 0.9f;
+        glyph->shift = glyphInfo->xadvance * 0.88f;
         glyph->offset = glyphInfo->xoffset;
         glyph->kerningCount = 0;
         glyph->kerning = nullptr;
@@ -63,8 +63,8 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     font->antiAliasing = 1;
     font->rangeEnd = JBMEB_LAST_CP;
     font->tpagIndex = -1;
-    font->scaleX = JBMEB_FONT_SCALE * 0.5f;
-    font->scaleY = JBMEB_FONT_SCALE * 0.5f;
+    font->scaleX = JBMEB_FONT_SCALE / 4.0f;
+    font->scaleY = JBMEB_FONT_SCALE / 4.0f;
     font->ascenderOffset = 0;
     font->ascender = 0;
     font->sdfSpread = 0;
