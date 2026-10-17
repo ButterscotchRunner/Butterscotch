@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include "data_win.h"
 #include "debug_font/debug_font.h"
-#include "default_font/jetbrains_mono_bold_font.h"
+#include "default_font/jetbrains_mono_extrabold_font.h"
 
 struct GLRenderer;
 typedef struct GLRenderer GLRenderer;
@@ -152,7 +152,7 @@ typedef struct {
 
 typedef struct {
     Font font;
-    FontGlyph glyphs[JBMSB_GLYPH_COUNT];
+    FontGlyph glyphs[JBMEB_GLYPH_COUNT];
     TexturePageItem tpag;
     bool initialized;
     GLuint texture; // 0 = not uploaded yet
@@ -182,9 +182,9 @@ static inline float GLCommon_debugUIFontYOffset(GLDebugUIFont* ui, Font* font, F
 
 static inline float GLCommon_defaultUIFontYOffset(GLDefaultUIFont* ui, Font* font, FontGlyph* glyph) {
     (void)ui;
-    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoBold") == 0 &&
-        JBMSB_FIRST_CP <= glyph->character && glyph->character <= JBMSB_LAST_CP) {
-        return (float) jetbrainsMonoBoldGlyphs[glyph->character - JBMSB_FIRST_CP].yoffset;
+    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0 &&
+        JBMEB_FIRST_CP <= glyph->character && glyph->character <= JBMEB_LAST_CP) {
+        return (float) JetBrainsMonoExtraBoldGlyphs[glyph->character - JBMEB_FIRST_CP].yoffset;
     }
     return 0.0f;
 }

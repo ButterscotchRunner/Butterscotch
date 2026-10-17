@@ -2007,14 +2007,14 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
         return true;
     }
 
-    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoBold") == 0) {
+    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
         GLCommon_initDefaultUIFont(&gl->defaultUI);
         if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
 
         state->fontTpag = &gl->defaultUI.tpag;
         state->texId = gl->defaultUI.texture;
-        state->texW = JBMSB_ATLAS_W;
-        state->texH = JBMSB_ATLAS_H;
+        state->texW = JBMEB_ATLAS_W;
+        state->texH = JBMEB_ATLAS_H;
         return true;
     }
 

@@ -2,9 +2,9 @@
 from PIL import Image, ImageFont, ImageDraw
 import os
 
-TTF_PATH = "src/default_font/JetBrainsMono-Bold.ttf"
-OUT_C = "src/default_font/jetbrains_mono_bold_font.c"
-OUT_H = "src/default_font/jetbrains_mono_bold_font.h"
+TTF_PATH = "src/default_font/JetBrainsMono-ExtraBold.ttf"
+OUT_C = "src/default_font/jetbrains_mono_extrabold_font.c"
+OUT_H = "src/default_font/jetbrains_mono_extrabold_font.h"
 
 FONT_SCALE = 1.1
 FIRST_CP = 32
@@ -26,7 +26,7 @@ row_h = 0
 
 for cp in range(FIRST_CP, LAST_CP + 1):
     ch = chr(cp)
-    font = ImageFont.truetype(TTF_PATH, PIXEL_SIZE)
+    font = ImageFont.truetype(TTF_PATH, PIXEL_SIZE * 2)
 
     # Use the full glyph bbox so we keep the true top/bottom extents and baseline
     # offset. The raw mask bbox can trim off letters with descenders or small
@@ -68,17 +68,17 @@ for cp in range(FIRST_CP, LAST_CP + 1):
 pixels = list(atlas.tobytes())
 
 # Header
-header = """#ifndef _BS_JETBRAINS_MONO_SEMIBOLD_FONT_H_
-#define _BS_JETBRAINS_MONO_SEMIBOLD_FONT_H_
+header = """#ifndef _BS_JETBRAINS_MONO_EXTRABOLD_FONT_H_
+#define _BS_JETBRAINS_MONO_EXTRABOLD_FONT_H_
 
 #include <stdint.h>
 
-#define JBMSB_ATLAS_W 512
-#define JBMSB_ATLAS_H 512
-#define JBMSB_FIRST_CP 32
-#define JBMSB_LAST_CP 126
-#define JBMSB_GLYPH_COUNT 95
-#define JBMSB_FONT_SCALE 1.1f
+#define JBMEB_ATLAS_W 512
+#define JBMEB_ATLAS_H 512
+#define JBMEB_FIRST_CP 32
+#define JBMEB_LAST_CP 126
+#define JBMEB_GLYPH_COUNT 95
+#define JBMEB_FONT_SCALE 1.1f
 
 typedef struct {
     uint16_t x, y;
@@ -86,19 +86,19 @@ typedef struct {
     int16_t xoffset;
     int16_t yoffset;
     int16_t xadvance;
-} JetBrainsMonoBoldGlyph;
+} JetBrainsMonoExtraBoldGlyph;
 
-extern const uint8_t jetbrainsMonoBoldPixels[JBMSB_ATLAS_W * JBMSB_ATLAS_H];
-extern const JetBrainsMonoBoldGlyph jetbrainsMonoBoldGlyphs[JBMSB_GLYPH_COUNT];
+extern const uint8_t JetBrainsMonoExtraBoldPixels[JBMEB_ATLAS_W * JBMEB_ATLAS_H];
+extern const JetBrainsMonoExtraBoldGlyph JetBrainsMonoExtraBoldGlyphs[JBMEB_GLYPH_COUNT];
 
 #endif
 """
 
 # C file
 c_lines = [
-    "#include \"jetbrains_mono_bold_font.h\"",
+    "#include \"jetbrains_mono_extrabold_font.h\"",
     "",
-    "const uint8_t jetbrainsMonoBoldPixels[JBMSB_ATLAS_W * JBMSB_ATLAS_H] = {",
+    "const uint8_t JetBrainsMonoExtraBoldPixels[JBMEB_ATLAS_W * JBMEB_ATLAS_H] = {",
 ]
 
 for i in range(0, len(pixels), 16):
@@ -107,7 +107,7 @@ for i in range(0, len(pixels), 16):
 
 c_lines.append("};")
 c_lines.append("")
-c_lines.append("const JetBrainsMonoBoldGlyph jetbrainsMonoBoldGlyphs[JBMSB_GLYPH_COUNT] = {")
+c_lines.append("const JetBrainsMonoExtraBoldGlyph JetBrainsMonoExtraBoldGlyphs[JBMEB_GLYPH_COUNT] = {")
 
 for g in glyphs:
     c_lines.append(

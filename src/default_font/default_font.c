@@ -3,23 +3,23 @@
 #include <string.h>
 
 #include "common.h"
-#include "default_font/jetbrains_mono_bold_font.h"
+#include "default_font/jetbrains_mono_extrabold_font.h"
 
 static void DefaultFont_fillGlyphs(Font* font) {
-    font->glyphCount = JBMSB_GLYPH_COUNT;
+    font->glyphCount = JBMEB_GLYPH_COUNT;
     font->glyphs = (FontGlyph *)safeMalloc((size_t) font->glyphCount * sizeof(FontGlyph));
     font->maxGlyphHeight = 0;
 
     repeat(font->glyphCount, i) {
-        const JetBrainsMonoBoldGlyph* glyphInfo = &jetbrainsMonoBoldGlyphs[i];
+        const JetBrainsMonoExtraBoldGlyph* glyphInfo = &JetBrainsMonoExtraBoldGlyphs[i];
         FontGlyph* glyph = &font->glyphs[i];
 
-        glyph->character = (uint16_t) (JBMSB_FIRST_CP + i);
+        glyph->character = (uint16_t) (JBMEB_FIRST_CP + i);
         glyph->sourceX = glyphInfo->x;
         glyph->sourceY = glyphInfo->y;
         glyph->sourceWidth = glyphInfo->w;
         glyph->sourceHeight = glyphInfo->h;
-        glyph->shift = glyphInfo->xadvance;
+        glyph->shift = glyphInfo->xadvance * 0.9f;
         glyph->offset = glyphInfo->xoffset;
         glyph->kerningCount = 0;
         glyph->kerning = nullptr;
@@ -37,7 +37,7 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
 
     repeat(dataWin->font.count, i) {
         Font* font = &dataWin->font.fonts[i];
-        if (font->present && font->name != nullptr && strcmp(font->name, "JetBrainsMonoBold") == 0) {
+        if (font->present && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
             return (int32_t) i;
         }
     }
@@ -53,18 +53,18 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     Font* font = &dataWin->font.fonts[newIndex];
 
     font->present = true;
-    font->name = "JetBrainsMonoBold";
-    font->displayName = "JetBrainsMonoBold";
-    font->emSize = 12.0f * JBMSB_FONT_SCALE;
+    font->name = "JetBrainsMonoExtraBold";
+    font->displayName = "JetBrainsMonoExtraBold";
+    font->emSize = 12.0f * JBMEB_FONT_SCALE;
     font->bold = false;
     font->italic = false;
-    font->rangeStart = JBMSB_FIRST_CP;
+    font->rangeStart = JBMEB_FIRST_CP;
     font->charset = 0;
     font->antiAliasing = 1;
-    font->rangeEnd = JBMSB_LAST_CP;
+    font->rangeEnd = JBMEB_LAST_CP;
     font->tpagIndex = -1;
-    font->scaleX = JBMSB_FONT_SCALE;
-    font->scaleY = JBMSB_FONT_SCALE;
+    font->scaleX = JBMEB_FONT_SCALE * 0.5f;
+    font->scaleY = JBMEB_FONT_SCALE * 0.5f;
     font->ascenderOffset = 0;
     font->ascender = 0;
     font->sdfSpread = 0;
