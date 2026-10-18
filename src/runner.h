@@ -907,6 +907,7 @@ struct Runner {
     // GameMaker launcher parameters
     // Just like the original runner, argv[0] is included in gameArgs
     char** gameArgs;
+    char* programDirectory;
 
     // Offset between game start time and nowNanos()
     uint64_t gameStartTime;
@@ -918,6 +919,7 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype);
 void Runner_reset(Runner* runner);
 Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileSystem* fileSystem, AudioSystem* audioSystem, uint32_t randomSeed);
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc);
+const char* Runner_getProgramDirectory(Runner* runner);
 void Runner_setPaused(Runner* runner, bool paused);
 bool Runner_isPaused(Runner* runner);
 void Runner_initFirstRoom(Runner* runner);

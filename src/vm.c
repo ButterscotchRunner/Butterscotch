@@ -325,6 +325,13 @@ char* VM_getVariableNameByVarId(VMContext* ctx, int32_t varId) {
             name = ctx->varNameMap[j].key;
         }
     }
+    if (name == nullptr) {
+        forEach(Variable, variable, ctx->dataWin->vari.variables, ctx->dataWin->vari.variableCount) {
+            if (variable->varID == varId && variable->instanceType != INSTANCE_LOCAL) {
+                return (char*) variable->name;
+            }
+        }
+    }
     return name;
 }
 
@@ -463,12 +470,13 @@ static Variable* resolveVarDef(VMContext* ctx, uint32_t varRef) {
 // BC13/BC14, BC17+: a single GML local can surface as several VARI chunk entries that share a varID (BC17+) or has no pre-assigned slot at all (BC13/BC14).
 // We key by varID/varIdx via the per-code currentCodeLocalsSlotMap so reads/writes via any reference agree on the same localVars slot.
 static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
+    uint32_t slot;
     if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
-        return (uint32_t) varID;
+        slot = (uint32_t) varID;
+    } else {
+        // BC13/BC14 and BC17+: allocate the slot dynamically because the data.win CANNOT be trusted to know how many localVars the script has
+        slot = IntIntHashMap_getOrInsertSequential(ctx->currentCodeLocalsSlotMap, varID);
     }
-
-    // BC13/BC14 and BC17+: allocate the slot dynamically because the data.win CANNOT be trusted to know how many localVars the script has
-    uint32_t slot = IntIntHashMap_getOrInsertSequential(ctx->currentCodeLocalsSlotMap, varID);
 
     // Grow this frame's localVars window to cover `slot` whether the entry is pre-existing or freshly allocated.
     // Pre-existing entries can still be past ctx->localVarCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
@@ -1010,7 +1018,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, bid);
         }
         if (writeIndex >= 0) {
-            if (access.isArray) {
+            if (access.isArray && bid != BUILTIN_VAR_ARGUMENT) {
                 VM_writeToScriptArgsArrayElement(ctx, writeIndex, access.arrayIndex, val);
             } else {
                 VM_writeToScriptArgs(ctx, writeIndex, val);

@@ -159,6 +159,7 @@ typedef enum {
 
     // File system
     BUILTIN_VAR_WORKING_DIRECTORY,
+    BUILTIN_VAR_PROGRAM_DIRECTORY,
 
     // Arguments
     BUILTIN_VAR_ARGUMENT_COUNT,

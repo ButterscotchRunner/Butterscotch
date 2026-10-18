@@ -431,6 +431,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "path_speed", BUILTIN_VAR_PATH_SPEED },
     { "persistent", BUILTIN_VAR_PERSISTENT },
     { "pi", BUILTIN_VAR_PI },
+    { "program_directory", BUILTIN_VAR_PROGRAM_DIRECTORY },
     { "room", BUILTIN_VAR_ROOM },
     { "room_first", BUILTIN_VAR_ROOM_FIRST },
     { "room_height", BUILTIN_VAR_ROOM_HEIGHT },
@@ -624,6 +625,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
     if (builtinVarId >= PHYSICS_VARIABLE_BASE) return Physics_getVariable(runner, inst, builtinVarId);
     switch (builtinVarId) {
         // File system
+        case BUILTIN_VAR_PROGRAM_DIRECTORY:
+            return RValue_makeString(Runner_getProgramDirectory(runner));
         case BUILTIN_VAR_WORKING_DIRECTORY: {
             FileSystem* fs = runner->fileSystem;
             return RValue_makeOwnedString(fs->vtable->resolvePath(fs, ""));
@@ -1784,11 +1787,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
 
         // argument[N] - array-style write to script arguments
         case BUILTIN_VAR_ARGUMENT:
-            if (arrayIndex >= 0) {
-                VM_writeToScriptArgsArrayElement(ctx, arrayIndex, arrayIndex, val);
-            } else {
-                VM_writeToScriptArgs(ctx, arrayIndex, val);
-            }
+            VM_writeToScriptArgs(ctx, arrayIndex, val);
             return;
 
         // Argument variables (argument0..argument15)
@@ -1852,6 +1851,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_DEBUG_MODE:
         case BUILTIN_VAR_ROOM_FIRST:
         case BUILTIN_VAR_ROOM_LAST:
+        case BUILTIN_VAR_PROGRAM_DIRECTORY:
             logWarn("VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
             return;
     }
