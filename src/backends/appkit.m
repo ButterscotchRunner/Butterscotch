@@ -236,10 +236,21 @@ static int nsKeyToGML(unsigned short keyCode)
     }
 }
 
-@interface GameView : NSOpenGLView
+@interface GameView : NSOpenGLView {
+    NSTrackingArea *trackingArea;
+}
 @end
 
 @implementation GameView
+
+- (void)dealloc {
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
+    }
+    [super dealloc];
+}
 
 - (BOOL)acceptsFirstResponder
 {
@@ -250,6 +261,12 @@ static int nsKeyToGML(unsigned short keyCode)
 {
     [super updateTrackingAreas];
 
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
+    }
+
     NSTrackingArea *area = [[NSTrackingArea alloc]
         initWithRect:self.bounds
         options:NSTrackingMouseMoved |
@@ -258,7 +275,9 @@ static int nsKeyToGML(unsigned short keyCode)
         owner:self
         userInfo:nil];
 
-    [self addTrackingArea:area];
+    trackingArea = [area retain];
+    [area release];
+    [self addTrackingArea:trackingArea];
 }
 
 - (void)keyDown:(NSEvent *)event {
@@ -331,6 +350,33 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     newFrame.origin.y = NSMaxY(frame) - newFrame.size.height;
 
     [window setFrame:newFrame display:YES animate:NO];
+}
+
+static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    if (!outX || !outY) return false;
+    NSRect frame = [window frame];
+    CGFloat screenHeight = [NSScreen mainScreen].frame.size.height;
+    *outX = (int32_t)round(frame.origin.x);
+    *outY = (int32_t)round(screenHeight - (frame.origin.y + frame.size.height));
+    return true;
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    NSScreen *screen = [window screen];
+    if (!screen) {
+        screen = [NSScreen mainScreen];
+    }
+    
+    CGFloat screenHeight = [screen frame].size.height;
+    NSRect frame = [window frame];
+    CGFloat windowHeight = frame.size.height;
+    
+    CGFloat appKitX = (CGFloat)x;
+    CGFloat appKitY = screenHeight - (CGFloat)y - windowHeight;
+    
+    NSPoint newOrigin = NSMakePoint(appKitX, appKitY);
+    [window setFrameOrigin:newOrigin];
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -574,8 +620,12 @@ void platformExit(void) {
     if (@available(macOS 10.15, *)) {
         [GCController stopWirelessControllerDiscovery];
     }
-    [glContext clearDrawable];
-    [window close];
+    if (glContext) {
+        [glContext clearDrawable];
+    }
+    if (window) {
+        [window close];
+    }
     glContext = nil;
     glView = nil;
     window = nil;
@@ -641,6 +691,8 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = windowIsFocused;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
     runner->currentCursor = GML_CR_ARROW;
 }
 
@@ -658,34 +710,36 @@ bool platformHandleEvents(void)
     if (![window isVisible])
         return true;
 
-    NSEvent *event;
-    while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                       untilDate:[NSDate distantPast]
-                                          inMode:NSDefaultRunLoopMode
-                                         dequeue:YES])) {
-        [NSApp sendEvent:event];
-    }
+    @autoreleasepool {
+        NSEvent *event;
+        while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                           untilDate:[NSDate distantPast]
+                                              inMode:NSDefaultRunLoopMode
+                                             dequeue:YES])) {
+            [NSApp sendEvent:event];
+        }
 
-    [NSApp updateWindows];
+        [NSApp updateWindows];
 
-    if (g_runner && g_runner->gamepads) {
-        NSArray<GCController *> *controllers = [GCController controllers];
-        NSUInteger count = MIN((NSUInteger)MAX_GAMEPADS, controllers.count);
-        g_runner->gamepads->connectedCount = 0;
+        if (g_runner && g_runner->gamepads) {
+            NSArray<GCController *> *controllers = [GCController controllers];
+            NSUInteger count = MIN((NSUInteger)MAX_GAMEPADS, controllers.count);
+            g_runner->gamepads->connectedCount = 0;
 
-        for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
-            GamepadSlot *slot = g_runner->gamepads->slots + slotIdx;
-            GCController *controller = (slotIdx < (int)count) ? controllers[slotIdx] : nil;
+            for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+                GamepadSlot *slot = g_runner->gamepads->slots + slotIdx;
+                GCController *controller = (slotIdx < (int)count) ? controllers[slotIdx] : nil;
 
-            appkitMapControllerToSlot(controller, slot);
+                appkitMapControllerToSlot(controller, slot);
 
-            if (slot->connected) {
-                for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
-                    bool wasDown = slot->buttonDownPrev[btn];
-                    slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
-                    slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
+                if (slot->connected) {
+                    for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                        bool wasDown = slot->buttonDownPrev[btn];
+                        slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
+                        slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
+                    }
+                    g_runner->gamepads->connectedCount++;
                 }
-                g_runner->gamepads->connectedCount++;
             }
         }
     }
