@@ -27,7 +27,7 @@ jobs:
             triple_suffix_base: openbsd.7.8
             lib_dir_name: lib
           - name: NetBSD
-            triple_suffix_base: netbsd.10.1
+            triple_suffix_base: ${{ matrix.arch == "riscv" && 'netbsd.11.0' || 'netbsd.10.1' }}
             lib_dir_name: lib
         arch: ${{ inputs.full_matrix && fromJSON('["amd64","i486","aarch64","arm","powerpc","powerpc64","powerpc64le","riscv","loongarch64","mips","mipsel","mips64","mips64el"]') || fromJSON('["amd64","i486"]') }}
         exclude:
