@@ -958,7 +958,7 @@ static bool updateClip(FmodSystem* system, EventInstance* instance, Clip* clip, 
             system->audio->vtable->setSoundGain(system->audio, clip->voice, gain, 0);
             clip->lastGain = gain;
         }
-        if (instance->spatial) system->audio->vtable->setSoundSpatial(system->audio, clip->voice, instance->x, instance->y, 0, 100, 100000, 1);
+        if (instance->spatial) system->audio->vtable->setSoundSpatial(system->audio, clip->voice, instance->x, instance->y, 0, 0, 0, 0, 100, 100000, 1);
         if (!instance->paused && !system->audio->vtable->isPlaying(system->audio, clip->voice)) {
             stopClip(system, clip);
             clip->finished = true;

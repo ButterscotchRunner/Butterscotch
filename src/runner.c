@@ -20,6 +20,21 @@
 #include "gettime.h"
 #include "stb_ds.h"
 
+#include <errno.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+// Older Windows SDK headers may not define the UTF-8 code page constant.
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+#else
+#include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 // ===[ Runtime Layer Teardown Helpers ]===
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
     free(runtimeLayer->dynamicName);
@@ -2308,6 +2323,7 @@ void Runner_reset(Runner* runner) {
     runner->mpPotAhead = 3.0;
     runner->mpPotOnSpot = true;
     runner->dateTimeLocal = true;
+    runner->mathEpsilon = GML_MATH_EPSILON;
     runner->lastMusicInstance = -1;
 
     arrsetlen(runner->cachedDrawables, 0);
@@ -2726,11 +2742,126 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     return inst;
 }
 
+static char* getExecutablePath(void) {
+#ifdef _WIN32
+    DWORD capacity = 512;
+    for (;;) {
+        wchar_t* buffer = (wchar_t*)safeMalloc((size_t)capacity * sizeof(wchar_t));
+        DWORD length = GetModuleFileNameW(nullptr, buffer, capacity);
+        if (length == 0) {
+            free(buffer);
+            return nullptr;
+        }
+        if (length < capacity) {
+            int size = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, nullptr, 0, nullptr, nullptr);
+            char* path = size > 0 ? (char*)safeMalloc((size_t)size) : nullptr;
+            if (path != nullptr && !WideCharToMultiByte(CP_UTF8, 0, buffer, -1, path, size, nullptr, nullptr)) {
+                free(path);
+                path = nullptr;
+            }
+            free(buffer);
+            return path;
+        }
+        free(buffer);
+        if (capacity >= 32768) return nullptr;
+        capacity *= 2;
+    }
+#elif defined(__linux__)
+    size_t capacity = 512;
+    for (;;) {
+        char* path = (char*)safeMalloc(capacity + 1);
+        ssize_t length = readlink("/proc/self/exe", path, capacity);
+        if (length < 0) {
+            free(path);
+            return nullptr;
+        }
+        if ((size_t)length < capacity) {
+            path[length] = '\0';
+            return path;
+        }
+        free(path);
+        capacity *= 2;
+    }
+#elif defined(__APPLE__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    char* path = (char*)safeMalloc(size);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        free(path);
+        return nullptr;
+    }
+    char* resolved = realpath(path, nullptr);
+    if (resolved != nullptr) {
+        free(path);
+        return resolved;
+    }
+    return path;
+#else
+    return nullptr;
+#endif
+}
+
+static char* getCurrentWorkingDirectory(void) {
+    size_t capacity = 512;
+    for (;;) {
+        char* directory = (char*)safeMalloc(capacity);
+#ifdef _WIN32
+        if (_getcwd(directory, (int)capacity) != nullptr) return directory;
+#else
+        if (getcwd(directory, capacity) != nullptr) return directory;
+#endif
+        int error = errno;
+        free(directory);
+        if (error != ERANGE) return nullptr;
+        capacity *= 2;
+    }
+}
+
+static char* resolveProgramDirectory(const char* executableName) {
+    char* path = getExecutablePath();
+    if (path == nullptr) path = safeStrdup(executableName != nullptr ? executableName : "");
+
+    bool absolute = path[0] == '/';
+#ifdef _WIN32
+    absolute = absolute || path[0] == '\\' || (path[0] != '\0' && path[1] == ':');
+#else
+    absolute = absolute || strchr(path, ':') != nullptr;
+#endif
+    if (!absolute) {
+        char* directory = getCurrentWorkingDirectory();
+        if (directory == nullptr) {
+            free(path);
+            return safeStrdup("/");
+        }
+        size_t size = strlen(directory) + strlen(path) + 2;
+        char* joined = (char*)safeMalloc(size);
+        snprintf(joined, size, "%s/%s", directory, path);
+        free(directory);
+        free(path);
+        path = joined;
+    }
+
+    char* separator = strrchr(path, '/');
+    char* backslash = strrchr(path, '\\');
+    if (backslash != nullptr && (separator == nullptr || backslash > separator)) separator = backslash;
+    if (separator != nullptr) separator[1] = '\0';
+    return path;
+}
+
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     repeat(arrlen(runner->gameArgs), i) free(runner->gameArgs[i]);
     arrfree(runner->gameArgs);
     runner->gameArgs = nullptr;
     {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
+    Runner_getProgramDirectory(runner);
+}
+
+const char* Runner_getProgramDirectory(Runner* runner) {
+    if (runner->programDirectory == nullptr) {
+        const char* executableName = arrlen(runner->gameArgs) > 0 ? runner->gameArgs[0] : nullptr;
+        runner->programDirectory = resolveProgramDirectory(executableName);
+    }
+    return runner->programDirectory;
 }
 
 static void clearDestroyedInstanceReferences(Runner* runner, Instance* destroyedInst) {
@@ -5119,6 +5250,7 @@ void Runner_free(Runner* runner) {
         free(runner->gameArgs[i]);
     }
     arrfree(runner->gameArgs);
+    free(runner->programDirectory);
 
     if (runner->vertexFormats != nullptr) {
         repeat((int32_t) arrlen(runner->vertexFormats), i) {
