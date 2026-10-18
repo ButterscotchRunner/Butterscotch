@@ -1,4 +1,5 @@
 #include "ps2_audio_system.h"
+#include "fmod/fmod.h"
 #include "ps2/ps2_utils.h"
 #include "utils.h"
 
@@ -603,6 +604,7 @@ static void ps2Init(AudioSystem* audio, MAYBE_UNUSED DataWin* dataWin, MAYBE_UNU
 }
 
 static void ps2Destroy(AudioSystem* audio) {
+    Fmod_audioDestroy(audio);
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*) audio;
     free(audio->groupGains);
 
