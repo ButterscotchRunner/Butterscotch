@@ -50,6 +50,7 @@ typedef struct GLModernRenderer {
 
     bool fogEnable;
     uint32_t fogColor; // BGR
+    float fogStart, fogEnd;
 
     GLuint vao, vertexBufferVao, vbo, ebo;
 
@@ -58,12 +59,25 @@ typedef struct GLModernRenderer {
     GLuint currentTextureId;
 
     GLuint hostFramebuffer; // present target for the composited frame, where 0 == the window
+    GLuint* surfaceDepth;
+    GlVertex* primitiveVertices;
+    size_t primitiveVertexCapacity;
+    bool primitiveLocalUV, batchLocalUV;
+    float primitiveUVRect[4], batchUVRect[4];
+    bool depthTest, depthWrite, cull;
+    GLenum frontFace;
+    bool savedDepthTest, savedDepthWrite, savedCull;
+    bool guiActive;
+    Matrix4f savedGUIWorld;
+    GLint uTextureRect, uLocalUV;
 
     bool isGL3; // TRUE if running on OpenGL (ES) 3.x+
     bool isGLES;  // TRUE if running on OpenGL ES (GLES)
 
     // Cached default shader uniforms
     GLShaderUniform* uWorldViewProjection;
+    GLShaderUniform* uWorldView;
+    GLShaderUniform* uFogRange;
     GLShaderUniform* uFogColor;
     GLShaderUniform* uAlphaTestRef;
     GLShaderUniform* uAlphaTestEnabled;

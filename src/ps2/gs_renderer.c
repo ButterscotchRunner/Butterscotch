@@ -1,4 +1,5 @@
 #include "gs_renderer.h"
+#include "vm_builtins.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -1085,6 +1086,7 @@ static void gsInit(Renderer* renderer, DataWin* dataWin) {
 }
 
 static void gsDestroy(Renderer* renderer) {
+    VMBuiltins_resetD3D(renderer);
     GsRenderer* gs = (GsRenderer*) renderer;
     if (gs->texturesFile != nullptr) {
         fclose(gs->texturesFile);

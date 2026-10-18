@@ -19,6 +19,12 @@ typedef struct {
     GLRenderer base; // Must be first field for struct embedding
 
     int32_t primitiveCapacity;
+    GLuint* surfaceDepth;
+    GLuint* primitiveTextures; // Isolated TPAG regions for legacy repeating UVs.
+    uint32_t primitiveTextureCount;
+    bool depthTest, depthWrite, cull;
+    bool guiActive, savedDepthTest, savedDepthWrite, savedCull;
+    Matrix4f savedGUIWorld;
 
     // True if the GPU doesn't support NPOT textures (GL < 2.0), requiring
     // FBO color-attachment textures to have power-of-two dimensions.
