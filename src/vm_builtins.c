@@ -5986,6 +5986,27 @@ static RValue builtin_ds_grid_resize(VMContext* ctx, MAYBE_UNUSED RValue* args, 
     return RValue_makeUndefined();
 }
 
+static RValue builtin_ds_grid_copy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("ds_grid_copy", 2, RValue_makeUndefined());
+    DsGrid* dst = dsGridGet(ctx->runner, RValue_toInt32(args[0]));
+    DsGrid* src = dsGridGet(ctx->runner, RValue_toInt32(args[1]));
+    if (dst == nullptr || src == nullptr || dst == src) return RValue_makeUndefined();
+    for (int32_t i = 0; i < dst->width * dst->height; i++) {
+        RValue_free(&dst->items[i]);
+    }
+    free(dst->items);
+    size_t count = (size_t)src->width * (size_t)src->height;
+    dst->width = src->width;
+    dst->height = src->height;
+    dst->items = count > 0 ? (RValue*)safeCalloc(count, sizeof(RValue)) : nullptr;
+    if (dst->items != nullptr) {
+        for (size_t i = 0; i < count; i++) {
+            dst->items[i] = RValue_makeIndependent(src->items[i]);
+        }
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue jsonDecodeValue(VMContext* ctx, JsonValue* json);
 
 static uint8_t* dsHexDecode(const char* hex, int32_t* outLen) {
@@ -12989,6 +13010,49 @@ static RValue builtin_surface_resize(VMContext* ctx, RValue* args, MAYBE_UNUSED 
     }
     runner->renderer->vtable->surfaceResize(runner->renderer, surfaceId, w, h);
     return RValue_makeUndefined();
+}
+
+static RValue builtin_surface_getpixel(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    int32_t x = (int32_t) RValue_toReal(args[1]);
+    int32_t y = (int32_t) RValue_toReal(args[2]);
+    int32_t w = (int32_t) Renderer_getSurfaceWidth(runner->renderer, surfaceId);
+    int32_t h = (int32_t) Renderer_getSurfaceHeight(runner->renderer, surfaceId);
+    if (x < 0 || x >= w || y < 0 || y >= h) return RValue_makeInt32(0);
+
+    uint8_t* surfacePixels = (uint8_t*)safeMalloc((size_t)w * (size_t)h * 4);
+    if (!runner->renderer->vtable->surfaceGetPixels(runner->renderer, surfaceId, surfacePixels)) {
+        free(surfacePixels);
+        return RValue_makeInt32(0);
+    }
+    uint8_t* p = surfacePixels + (((h - 1 - y) * w) + x) * 4;
+    uint32_t bgr = p[0] | (p[1] << 8) | (p[2] << 16);
+    free(surfacePixels);
+
+    return RValue_makeInt32(bgr);
+}
+
+static RValue builtin_surface_getpixel_ext(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    int32_t surfaceId = (int32_t) RValue_toReal(args[0]);
+    int32_t x = (int32_t) RValue_toReal(args[1]);
+    int32_t y = (int32_t) RValue_toReal(args[2]);
+    int32_t w = (int32_t) Renderer_getSurfaceWidth(runner->renderer, surfaceId);
+    int32_t h = (int32_t) Renderer_getSurfaceHeight(runner->renderer, surfaceId);
+    if (x < 0 || x >= w || y < 0 || y >= h) return RValue_makeReal(0.0);
+
+    uint8_t* surfacePixels = (uint8_t*)safeMalloc((size_t)w * (size_t)h * 4);
+    if (!runner->renderer->vtable->surfaceGetPixels(runner->renderer, surfaceId, surfacePixels)) {
+        free(surfacePixels);
+        return RValue_makeReal(0.0);
+    }
+    uint8_t* p = surfacePixels + (((h - 1 - y) * w) + x) * 4;
+    uint32_t abgr = p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
+    free(surfacePixels);
+
+    return RValue_makeReal((GMLReal)abgr);
 }
 
 static RValue builtin_surface_copy_part(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -24574,6 +24638,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "ds_grid_get", builtin_ds_grid_get);
     VM_registerBuiltin(ctx, "ds_grid_add", builtin_ds_grid_add);
     VM_registerBuiltin(ctx, "ds_grid_resize", builtin_ds_grid_resize);
+    VM_registerBuiltin(ctx, "ds_grid_copy", builtin_ds_grid_copy);
     VM_registerBuiltin(ctx, "ds_grid_read", builtin_ds_grid_read);
     VM_registerBuiltin(ctx, "ds_grid_write", builtin_ds_grid_write);
 
@@ -25046,6 +25111,8 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "surface_set_target", builtin_surface_set_target);
     VM_registerBuiltin(ctx, "surface_reset_target", builtin_surface_reset_target);
     VM_registerBuiltin(ctx, "surface_get_target", builtin_surface_get_target);
+    VM_registerBuiltin(ctx, "surface_getpixel", builtin_surface_getpixel);
+    VM_registerBuiltin(ctx, "surface_getpixel_ext", builtin_surface_getpixel_ext);
     VM_registerBuiltin(ctx, "surface_exists", builtin_surface_exists);
     VM_registerBuiltin(ctx, "surface_get_width", builtin_surface_get_width);
     VM_registerBuiltin(ctx, "surface_get_height", builtin_surface_get_height);
