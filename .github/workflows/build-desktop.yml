@@ -40,8 +40,6 @@ jobs:
           - os_config: { name: NetBSD }
             arch: loongarch64
           - os_config: { name: NetBSD }
-            arch: riscv
-          - os_config: { name: NetBSD }
             arch: powerpc64
           - os_config: { name: NetBSD }
             arch: powerpc64le
