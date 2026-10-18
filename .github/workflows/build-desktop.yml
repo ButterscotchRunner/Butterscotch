@@ -64,7 +64,7 @@ jobs:
           - os_config: { name: FreeBSD }
             arch: mips64el
     env:
-      ZIG_VERSION: 0.16.0
+      ZIG_VERSION: ${{ (startsWith(matrix.arch, 'powerpc') && matrix.os_config.name == 'Linux') && '0.16.0' || '0.17.0' }}
       SDL2_VERSION: release-2.32.10
       FFMPEG_VERSION: n9.0.2
       CC: zig cc
