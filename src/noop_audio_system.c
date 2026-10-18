@@ -23,7 +23,7 @@ static int32_t noopPlaySound(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32
     return -1;
 }
 
-static void noopSetSoundSpatial(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t instanceId, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z, MAYBE_UNUSED float ref, MAYBE_UNUSED float max, MAYBE_UNUSED float factor) {}
+static void noopSetSoundSpatial(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t instanceId, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z, MAYBE_UNUSED float vx, MAYBE_UNUSED float vy, MAYBE_UNUSED float vz, MAYBE_UNUSED float ref, MAYBE_UNUSED float max, MAYBE_UNUSED float factor) {}
 
 static void noopSetListenerPosition(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z) {}
 

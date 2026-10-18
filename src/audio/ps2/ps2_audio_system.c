@@ -1000,13 +1000,14 @@ static void ps2StopSound(AudioSystem* audio, int32_t soundOrInstance) {
     forEachInstance((Ps2AudioSystem*) audio, soundOrInstance, actionStop, nullptr);
 }
 
-static void ps2SetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float ref, float max, float factor) {
+static void ps2SetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float vx, float vy, float vz, float ref, float max, float factor) {
     Ps2AudioSystem* ps2 = (Ps2AudioSystem*)audio;
     Ps2SoundInstance* sfx = findSfxInstanceById(ps2, instanceId);
     Ps2MusicStream* music = findMusicStreamById(ps2, instanceId);
     if (sfx != nullptr) {
         sfx->spatial = true;
         sfx->spatialX = x; sfx->spatialY = y; sfx->spatialZ = z;
+        sfx->velocityX = vx; sfx->velocityY = vy; sfx->velocityZ = vz;
         sfx->falloffRef = ref > 0 ? ref : 0.0001f;
         sfx->falloffMax = max > 0 ? max : 0.0001f;
         sfx->falloffFactor = factor;
@@ -1014,6 +1015,7 @@ static void ps2SetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, 
     if (music != nullptr) {
         music->spatial = true;
         music->spatialX = x; music->spatialY = y; music->spatialZ = z;
+        music->velocityX = vx; sfx->velocityY = vy; sfx->velocityZ = vz;
         music->falloffRef = ref > 0 ? ref : 0.0001f;
         music->falloffMax = max > 0 ? max : 0.0001f;
         music->falloffFactor = factor;

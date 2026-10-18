@@ -206,6 +206,9 @@ if ! nolink=1 check 'if the compiler supports mixed declarations and code' mixed
 fi
 
 config "_CC := $CC"
+if checkdefine '__cplusplus' > /dev/null; then
+    config 'CC_IS_CXX := 1'
+fi
 
 checklog 'the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -439,6 +442,38 @@ int main(void){
 ( check '' snprintf > /dev/null || :> tmp/snprintf.fail ) &
 snprintf_pid=$!
 
+printf '%s' "\
+#include <math.h>
+int main(void){return atan2f(1,1);}
+" > tmp/atan2f.c
+
+( check '' atan2f $lm > /dev/null || :> tmp/atan2f.fail ) &
+atan2f_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return powf(2,3);}
+" > tmp/powf.c
+
+( check '' powf $lm > /dev/null || :> tmp/powf.fail ) &
+powf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return ceilf(1);}
+" > tmp/ceilf.c
+
+( check '' ceilf $lm > /dev/null || :> tmp/ceilf.fail ) &
+ceilf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return remainderf(1,2);}
+" > tmp/remainderf.c
+
+( check '' remainderf $lm > /dev/null || :> tmp/remainderf.fail ) &
+remainderf_pid=$!
+
 if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF test.d' "$mmd_pid" tmp/mmd.fail; then
     config 'DISABLE_MMD := 1'
 fi
@@ -534,6 +569,22 @@ fi
 
 if ! checkend 'for roundf' "$roundf_pid" tmp/roundf.fail; then
     define 'NO_ROUNDF'
+fi
+
+if ! checkend 'for atan2f' "$atan2f_pid" tmp/atan2f.fail; then
+    define 'NO_ATAN2F'
+fi
+
+if ! checkend 'for powf' "$powf_pid" tmp/powf.fail; then
+    define 'NO_POWF'
+fi
+
+if ! checkend 'for ceilf' "$ceilf_pid" tmp/ceilf.fail; then
+    define 'NO_CEILF'
+fi
+
+if ! checkend 'for remainderf' "$remainderf_pid" tmp/remainderf.fail; then
+    define 'NO_REMAINDERF'
 fi
 
 if ! checkend 'for isinf' "$isinf_pid" tmp/isinf.fail; then

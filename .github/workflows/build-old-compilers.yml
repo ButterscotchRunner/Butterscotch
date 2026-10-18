@@ -27,6 +27,7 @@ jobs:
           - name: GCC 2.95
             compiler: g++-2.95
             flags: '-w'
+            extra: 'DISABLE_PHYSICS=1'
     name: Build (${{ matrix.name }})
     runs-on: ubuntu-24.04
     steps:
@@ -50,9 +51,9 @@ jobs:
       - name: Build
         run: |
           sudo mv butterscotch ~/woody
-          sudo chroot ~/woody /bin/sh --login -c '
+          sudo chroot ~/woody /usr/bin/env THREADS="$(nproc)" /bin/sh --login -c '
             export CCACHE_DIR=/butterscotch/.ccache
-            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1 -j$(nproc)
+            make -C /butterscotch NO_COLOR=1 VERBOSE=1 CC="ccache ${{ matrix.compiler }} ${{ matrix.flags }}" BACKEND=sdl1 AUDIO_BACKEND=none SDL1_LIBS="-lSDL" DISABLE_MMD=1 ${{ matrix.extra }} -j"$THREADS"
           '
       - name: Persist ccache
         if: always()

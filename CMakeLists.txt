@@ -120,6 +120,7 @@ if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
 option(ENABLE_NOOP_RENDERER "Enable the no-op renderer (headless stub, no drawing)" OFF)
+option(ENABLE_PHYSICS "Enable Box2D physics support" ON)
 # Noop renderer is exclusive to the noop desktop backend (no window, no GL).
 # Auto-enable for BACKEND=noop and reject otherwise.
 if(BACKEND STREQUAL "noop")
@@ -151,8 +152,18 @@ endif()
 if(ENABLE_NOOP_RENDERER)
     add_compile_definitions(ENABLE_NOOP_RENDERER)
 endif()
+if(ENABLE_PHYSICS)
+    add_compile_definitions(ENABLE_PHYSICS)
+endif()
 
 file(GLOB SOURCES src/*.c)
+if(ENABLE_PHYSICS)
+    file(GLOB PHYSICS_SOURCES CONFIGURE_DEPENDS src/physics/*.c)
+else()
+    set(PHYSICS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/physics.c"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/src/physics/disabled/physics_disabled.c")
+endif()
+list(APPEND SOURCES ${PHYSICS_SOURCES})
 
 # These platforms haven't been converted to the refactored system yet.
 # This list should NEVER grow, all new platforms should use the new system.
@@ -242,6 +253,23 @@ else()
 endif()
 
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src)
+if(ENABLE_PHYSICS)
+    file(GLOB BOX2D_SOURCES CONFIGURE_DEPENDS vendor/box2d/src/*.c)
+    list(REMOVE_ITEM BOX2D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/box2d/src/timer.c")
+    add_library(butterscotch_box2d STATIC ${BOX2D_SOURCES})
+    target_include_directories(butterscotch_box2d BEFORE PUBLIC vendor/box2d/include)
+    target_include_directories(butterscotch_box2d PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(butterscotch BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/vendor/box2d/include)
+    target_compile_definitions(butterscotch_box2d PRIVATE BOX2D_DISABLE_SIMD B2_SINGLE_THREADED)
+    if(NOT MSVC)
+        target_compile_options(butterscotch_box2d PRIVATE -w -fno-fast-math -ffp-contract=off)
+    endif()
+    target_link_libraries(butterscotch PRIVATE butterscotch_box2d)
+    if(NOT MSVC)
+        set_source_files_properties(src/physics/physics_engine.c src/physics/physics_joints.c src/physics/physics_particles.c
+            PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
+    endif()
+endif()
 target_include_directories(butterscotch PRIVATE src/${PLATFORM})
 target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/video)
 
@@ -749,7 +777,7 @@ elseif(PLATFORM STREQUAL "ps2")
         # Compiling on the Docker container
         target_include_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/include $ENV{PS2SDK}/common/include $ENV{PS2DEV}/ee/include $ENV{GSKIT}/include)
         target_link_directories(butterscotch PRIVATE $ENV{PS2SDK}/ee/lib $ENV{GSKIT}/lib)
-        target_link_libraries(${AUDIO_LIBRARIES} butterscotch gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
+        target_link_libraries(butterscotch PRIVATE ${AUDIO_LIBRARIES} gskit dmakit audsrv pad mc kbd patches kernel c m stb_ds sha1)
 
         # Embed ps2sdk IRX modules (freesio2, freepad) as C arrays via bin2c
         # This avoids loading from rom0: which has compatibility issues between fat/slim PS2
