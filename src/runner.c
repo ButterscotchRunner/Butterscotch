@@ -23,6 +23,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
+// Older Windows SDK headers may not define the UTF-8 code page constant.
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
 #else
 #include <unistd.h>
 #endif
