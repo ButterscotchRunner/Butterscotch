@@ -12,7 +12,7 @@
 
 #ifdef PLATFORM_PS3
 #include "ps3_textures.h"
-#elif defined(PLATFORM_VITA)) || defined(__SYMBIAN32__)
+#elif defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
 #include "vita_textures.h"
 #endif
 
