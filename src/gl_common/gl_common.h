@@ -6,7 +6,7 @@
 #include "runner.h"
 #include <stdint.h>
 #include "data_win.h"
-#include "default_font/jetbrains_mono_extrabold_font.h"
+#include "default_font/default_font.h"
 
 struct GLRenderer;
 typedef struct GLRenderer GLRenderer;
@@ -149,15 +149,6 @@ typedef struct {
 void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui);
 bool GLCommon_ensureDefaultFontTexture(GLRenderer* gl, GLDefaultUIFont* ui);
 void GLCommon_deleteDefaultFontTexture(GLDefaultUIFont* ui);
-
-static inline float GLCommon_defaultUIFontYOffset(GLDefaultUIFont* ui, Font* font, FontGlyph* glyph) {
-    (void)ui;
-    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0 &&
-        JBMEB_FIRST_CP <= glyph->character && glyph->character <= JBMEB_LAST_CP) {
-        return (float) JetBrainsMonoExtraBoldGlyphs[glyph->character - JBMEB_FIRST_CP].yoffset;
-    }
-    return 0.0f;
-}
 
 // Common GL Renderer struct
 

@@ -1996,7 +1996,7 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texH = 0;
     state->spriteFontSprite = nullptr;
 
-    if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
+    if (DefaultFont_isDefault(font)) {
         GLCommon_initDefaultUIFont(&gl->defaultUI);
         if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
 
@@ -2063,7 +2063,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
+        *outLocalY0 = cursorY + DefaultFont_glyphYOffset(font, glyph->character);
     }
     return true;
 }

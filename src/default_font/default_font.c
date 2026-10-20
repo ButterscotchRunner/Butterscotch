@@ -3,12 +3,25 @@
 #include <string.h>
 
 #include "common.h"
-#include "default_font/jetbrains_mono_extrabold_font.h"
 
-void DefaultFont_initializeGlyphs(Font* font, FontGlyph* glyphs, float advanceScale) {
+static const char DEFAULT_FONT_NAME[] = "JetBrainsMonoExtraBold";
+
+void DefaultFont_initialize(Font* font, FontGlyph* glyphs, DefaultFontUsage usage) {
+    memset(font, 0, sizeof(Font));
+    font->present = true;
+    font->name = DEFAULT_FONT_NAME;
+    font->displayName = DEFAULT_FONT_NAME;
+    font->emSize = usage == DEFAULT_FONT_UI ? 12.0f : 12.0f * JBMEB_FONT_SCALE;
+    font->rangeStart = JBMEB_FIRST_CP;
+    font->rangeEnd = JBMEB_LAST_CP;
+    font->antiAliasing = 1;
+    font->tpagIndex = -1;
+    font->scaleX = usage == DEFAULT_FONT_UI ? DEFAULT_FONT_UI_SCALE : JBMEB_FONT_SCALE / 4.0f;
+    font->scaleY = font->scaleX;
+    font->spriteIndex = -1;
     font->glyphs = glyphs;
     font->glyphCount = JBMEB_GLYPH_COUNT;
-    font->maxGlyphHeight = 0;
+    float advanceScale = usage == DEFAULT_FONT_UI ? 1.0f : 0.88f;
 
     repeat(font->glyphCount, i) {
         const JetBrainsMonoExtraBoldGlyph* glyphInfo = &JetBrainsMonoExtraBoldGlyphs[i];
@@ -32,12 +45,36 @@ void DefaultFont_initializeGlyphs(Font* font, FontGlyph* glyphs, float advanceSc
     Font_buildGlyphLUT(font);
 }
 
+bool DefaultFont_isDefault(const Font* font) {
+    return font != nullptr && font->name != nullptr && strcmp(font->name, DEFAULT_FONT_NAME) == 0;
+}
+
+const JetBrainsMonoExtraBoldGlyph* DefaultFont_lookupGlyph(uint16_t character) {
+    if (character < JBMEB_FIRST_CP || character > JBMEB_LAST_CP) return nullptr;
+    return &JetBrainsMonoExtraBoldGlyphs[character - JBMEB_FIRST_CP];
+}
+
+float DefaultFont_glyphYOffset(const Font* font, uint16_t character) {
+    if (!DefaultFont_isDefault(font)) return 0.0f;
+    const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph(character);
+    return glyph != nullptr ? (float) glyph->yoffset : 0.0f;
+}
+
+void DefaultFont_writeRGBA(uint8_t* rgba) {
+    repeat(JBMEB_ATLAS_W * JBMEB_ATLAS_H, i) {
+        rgba[i * 4 + 0] = 0xFF;
+        rgba[i * 4 + 1] = 0xFF;
+        rgba[i * 4 + 2] = 0xFF;
+        rgba[i * 4 + 3] = JetBrainsMonoExtraBoldPixels[i];
+    }
+}
+
 int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     if (dataWin == nullptr) return -1;
 
     repeat(dataWin->font.count, i) {
         Font* font = &dataWin->font.fonts[i];
-        if (font->present && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
+        if (font->present && DefaultFont_isDefault(font)) {
             return (int32_t) i;
         }
     }
@@ -49,35 +86,9 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
         dataWin->font.fonts = (Font *)safeRealloc(dataWin->font.fonts, (size_t) (dataWin->font.count + 1u) * sizeof(Font));
     }
 
-    memset(&dataWin->font.fonts[newIndex], 0, sizeof(Font));
     Font* font = &dataWin->font.fonts[newIndex];
-
-    font->present = true;
-    font->name = "JetBrainsMonoExtraBold";
-    font->displayName = "JetBrainsMonoExtraBold";
-    font->emSize = 12.0f * JBMEB_FONT_SCALE;
-    font->bold = false;
-    font->italic = false;
-    font->rangeStart = JBMEB_FIRST_CP;
-    font->charset = 0;
-    font->antiAliasing = 1;
-    font->rangeEnd = JBMEB_LAST_CP;
-    font->tpagIndex = -1;
-    font->scaleX = JBMEB_FONT_SCALE / 4.0f;
-    font->scaleY = JBMEB_FONT_SCALE / 4.0f;
-    font->ascenderOffset = 0;
-    font->ascender = 0;
-    font->sdfSpread = 0;
-    font->lineHeight = 0;
-    font->hasAscender = false;
-    font->hasSDFSpread = false;
-    font->hasLineHeight = false;
-    font->isSpriteFont = false;
-    font->spriteIndex = -1;
-    font->spriteOriginYAdjust = 0;
-
-    font->glyphs = (FontGlyph *)safeMalloc((size_t) JBMEB_GLYPH_COUNT * sizeof(FontGlyph));
-    DefaultFont_initializeGlyphs(font, font->glyphs, 0.88f);
+    FontGlyph* glyphs = (FontGlyph *)safeMalloc((size_t) JBMEB_GLYPH_COUNT * sizeof(FontGlyph));
+    DefaultFont_initialize(font, glyphs, DEFAULT_FONT_GAME);
     dataWin->font.count = newIndex + 1u;
     return (int32_t)newIndex;
 }

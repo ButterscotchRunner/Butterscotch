@@ -608,16 +608,7 @@ void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui) {
     if (ui->initialized) return;
     ui->initialized = true;
 
-    ui->font.name = "JetBrainsMonoExtraBold";
-    ui->font.displayName = "JetBrainsMonoExtraBold";
-    ui->font.scaleX = JBMEB_FONT_SCALE / 2.0f;
-    ui->font.scaleY = JBMEB_FONT_SCALE / 2.0f;
-    ui->font.ascenderOffset = 0;
-    ui->font.emSize = 12.0f;
-    ui->font.isSpriteFont = false;
-    ui->font.tpagIndex = -1;
-
-    DefaultFont_initializeGlyphs(&ui->font, ui->glyphs, 1.0f);
+    DefaultFont_initialize(&ui->font, ui->glyphs, DEFAULT_FONT_UI);
 
     ui->tpag.present = true;
     ui->tpag.sourceX = 0;
@@ -639,15 +630,9 @@ bool GLCommon_ensureDefaultFontTexture(GLRenderer* gl, GLDefaultUIFont* ui) {
     glGenTextures(1, &ui->texture);
     if (ui->texture == 0) return false;
 
-    size_t pixelCount = (size_t) JBMEB_ATLAS_W * (size_t) JBMEB_ATLAS_H;
-    uint8_t* rgba = (uint8_t *)safeMalloc(pixelCount * 4);
+    uint8_t* rgba = (uint8_t *)safeMalloc(DEFAULT_FONT_RGBA_BYTES);
     if (rgba == nullptr) return false;
-    repeat(pixelCount, i) {
-        rgba[i * 4 + 0] = 0xFF;
-        rgba[i * 4 + 1] = 0xFF;
-        rgba[i * 4 + 2] = 0xFF;
-        rgba[i * 4 + 3] = JetBrainsMonoExtraBoldPixels[i];
-    }
+    DefaultFont_writeRGBA(rgba);
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, JBMEB_ATLAS_W, JBMEB_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);

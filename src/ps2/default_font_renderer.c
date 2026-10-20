@@ -1,18 +1,16 @@
 #include "default_font_renderer.h"
 
-#include "default_font/jetbrains_mono_extrabold_font.h"
+#include "default_font/default_font.h"
 #include "utils.h"
 
 #include <malloc.h>
 #include <stdlib.h>
 #include "string_compat.h"
 
-#define DEFAULT_FONT_LINE_HEIGHT_SCALE 0.80f
-#define DEFAULT_FONT_SCALE (JBMEB_FONT_SCALE / 2.0f)
 #define DEFAULT_FONT_CLUT_ENTRIES 16
 #define DEFAULT_FONT_PIXELS_4BPP_BYTES (JBMEB_ATLAS_W * JBMEB_ATLAS_H / 2)
 
-// Allocate VRAM and upload one of the debug font tables via a DMA-aligned bounce buffer.
+// Allocate VRAM and upload a font table via a DMA-aligned bounce buffer.
 // Returns the assigned VRAM address. Aborts on allocation failure.
 static uint32_t uploadTable(GSGLOBAL* gsGlobal, const void* srcData, size_t srcBytes, int width, int height, uint32_t psm, uint32_t tbw, uint8_t clutFlag, const char* what) {
     uint32_t vramSize = gsKit_texture_size(width, height, psm);
@@ -64,7 +62,7 @@ DefaultFontRenderer* DefaultFontRenderer_create(GSGLOBAL* gsGlobal) {
         uint8_t second = (uint8_t) (JetBrainsMonoExtraBoldPixels[i * 2 + 1] >> 4);
         packedPixels[i] = (uint8_t) (first | (uint8_t) (second << 4));
     }
-    // Atlas: 256x256 PSMT4 (32 KB).
+    // Atlas: 512x512 PSMT4 (128 KB).
     uint32_t atlasVram = uploadTable(gsGlobal, packedPixels, DEFAULT_FONT_PIXELS_4BPP_BYTES, JBMEB_ATLAS_W, JBMEB_ATLAS_H, GS_PSM_T4, JBMEB_ATLAS_W / 64, GS_CLUT_TEXTURE, "font atlas");
     free(packedPixels);
 
@@ -88,15 +86,10 @@ void DefaultFontRenderer_destroy(DefaultFontRenderer* renderer) {
     free(renderer);
 }
 
-static const JetBrainsMonoExtraBoldGlyph* lookupGlyph(uint8_t character) {
-    if (JBMEB_FIRST_CP > character || character > JBMEB_LAST_CP) return nullptr;
-    return &JetBrainsMonoExtraBoldGlyphs[character - JBMEB_FIRST_CP];
-}
-
 static float measureLineWidth(const char* text, int32_t length, float spacing) {
     float width = 0.0f;
     repeat(length, i) {
-        const JetBrainsMonoExtraBoldGlyph* glyph = lookupGlyph((uint8_t) text[i]);
+        const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[i]);
         if (glyph != nullptr) width += (float) glyph->xadvance * spacing;
     }
     return width;
@@ -107,7 +100,7 @@ static float measureLineWidth(const char* text, int32_t length, float spacing) {
 static void drawPass(DefaultFontRenderer* renderer, float x, float y, int z, float scale, uint64_t color, const char* text, int32_t length) {
     float cursorY = y;
     int32_t lineStart = 0;
-    float fontScale = scale * DEFAULT_FONT_SCALE;
+    float fontScale = scale * DEFAULT_FONT_UI_SCALE;
 
     for (int32_t i = 0; length >= i; i++) {
         if (i == length || text[i] == '\n') {
@@ -121,7 +114,7 @@ static void drawPass(DefaultFontRenderer* renderer, float x, float y, int z, flo
 
             float pen = startX;
             repeat((uint32_t) lineLength, j) {
-                const JetBrainsMonoExtraBoldGlyph* glyph = lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
+                const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
                 if (glyph == nullptr) continue;
 
                 if (glyph->w > 0 && glyph->h > 0) {
@@ -138,7 +131,7 @@ static void drawPass(DefaultFontRenderer* renderer, float x, float y, int z, flo
                 pen += (float) glyph->xadvance * renderer->spacing * fontScale;
             }
 
-            cursorY += JBMEB_FONT_SCALE * 24.0f * scale * DEFAULT_FONT_LINE_HEIGHT_SCALE;
+            cursorY += DEFAULT_FONT_OVERLAY_LINE_HEIGHT * scale;
             lineStart = i + 1;
         }
     }
