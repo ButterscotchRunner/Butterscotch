@@ -1,4 +1,5 @@
 #include "runner.h"
+#include "vm_builtins.h"
 #include "physics/physics.h"
 #include "data_win.h"
 #include "instance.h"
@@ -8,6 +9,7 @@
 #include "json_writer.h"
 #include "collision.h"
 #include "video.h"
+#include "fmod/fmod.h"
 
 #include <stdint.h>
 #include "stdio_compat.h"
@@ -18,6 +20,21 @@
 #include "debug_overlay.h"
 #include "gettime.h"
 #include "stb_ds.h"
+
+#include <errno.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+// Older Windows SDK headers may not define the UTF-8 code page constant.
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+#else
+#include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 // ===[ Runtime Layer Teardown Helpers ]===
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
@@ -1393,6 +1410,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                     continue;
 
                 Runner_surfaceSetTarget(runner, view->surfaceId);
+                if (renderer->vtable->clearDepth) renderer->vtable->clearDepth(renderer, 1.0f);
 
                 if (runner->drawBackgroundColor)
                     renderer->vtable->clearScreen(renderer, runner->currentRoom->backgroundColor, 1.0f);
@@ -1400,6 +1418,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
                 runner->viewCurrent = (int32_t) vi;
                 runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
                 runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
+                VMBuiltins_applyD3DDefaultView(renderer, camera->viewX, camera->viewY, camera->viewWidth, camera->viewHeight, camera->viewAngle);
 
                 Runner_draw(runner);
 
@@ -2262,6 +2281,18 @@ static void cleanupState(Runner* runner) {
 // ===[ Public API ]===
 
 void Runner_reset(Runner* runner) {
+    // Renderer destruction uses the CPU-only D3D cleanup hook. A game restart
+    // keeps the renderer alive, so also restore its GPU state before cleanup.
+    Renderer* renderer = runner->renderer;
+    if (renderer && renderer->d3d) {
+        if (renderer->vtable->setDepthState) renderer->vtable->setDepthState(renderer, false, true, false);
+        if (renderer->vtable->setMatrix) {
+            Matrix4f identity;
+            renderer->vtable->setMatrix(renderer, MATRIX_WORLD, *Matrix4f_identity(&identity));
+        }
+    }
+    VMBuiltins_resetD3D(runner->renderer);
+    Fmod_audioDestroy(runner->audioSystem);
     // This actually sets the default runner values, used for initialization and restarting
     cleanupState(runner);
 
@@ -2725,11 +2756,126 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
     return inst;
 }
 
+static char* getExecutablePath(void) {
+#ifdef _WIN32
+    DWORD capacity = 512;
+    for (;;) {
+        wchar_t* buffer = (wchar_t*)safeMalloc((size_t)capacity * sizeof(wchar_t));
+        DWORD length = GetModuleFileNameW(nullptr, buffer, capacity);
+        if (length == 0) {
+            free(buffer);
+            return nullptr;
+        }
+        if (length < capacity) {
+            int size = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, nullptr, 0, nullptr, nullptr);
+            char* path = size > 0 ? (char*)safeMalloc((size_t)size) : nullptr;
+            if (path != nullptr && !WideCharToMultiByte(CP_UTF8, 0, buffer, -1, path, size, nullptr, nullptr)) {
+                free(path);
+                path = nullptr;
+            }
+            free(buffer);
+            return path;
+        }
+        free(buffer);
+        if (capacity >= 32768) return nullptr;
+        capacity *= 2;
+    }
+#elif defined(__linux__)
+    size_t capacity = 512;
+    for (;;) {
+        char* path = (char*)safeMalloc(capacity + 1);
+        ssize_t length = readlink("/proc/self/exe", path, capacity);
+        if (length < 0) {
+            free(path);
+            return nullptr;
+        }
+        if ((size_t)length < capacity) {
+            path[length] = '\0';
+            return path;
+        }
+        free(path);
+        capacity *= 2;
+    }
+#elif defined(__APPLE__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    char* path = (char*)safeMalloc(size);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        free(path);
+        return nullptr;
+    }
+    char* resolved = realpath(path, nullptr);
+    if (resolved != nullptr) {
+        free(path);
+        return resolved;
+    }
+    return path;
+#else
+    return nullptr;
+#endif
+}
+
+static char* getCurrentWorkingDirectory(void) {
+    size_t capacity = 512;
+    for (;;) {
+        char* directory = (char*)safeMalloc(capacity);
+#ifdef _WIN32
+        if (_getcwd(directory, (int)capacity) != nullptr) return directory;
+#else
+        if (getcwd(directory, capacity) != nullptr) return directory;
+#endif
+        int error = errno;
+        free(directory);
+        if (error != ERANGE) return nullptr;
+        capacity *= 2;
+    }
+}
+
+static char* resolveProgramDirectory(const char* executableName) {
+    char* path = getExecutablePath();
+    if (path == nullptr) path = safeStrdup(executableName != nullptr ? executableName : "");
+
+    bool absolute = path[0] == '/';
+#ifdef _WIN32
+    absolute = absolute || path[0] == '\\' || (path[0] != '\0' && path[1] == ':');
+#else
+    absolute = absolute || strchr(path, ':') != nullptr;
+#endif
+    if (!absolute) {
+        char* directory = getCurrentWorkingDirectory();
+        if (directory == nullptr) {
+            free(path);
+            return safeStrdup("/");
+        }
+        size_t size = strlen(directory) + strlen(path) + 2;
+        char* joined = (char*)safeMalloc(size);
+        snprintf(joined, size, "%s/%s", directory, path);
+        free(directory);
+        free(path);
+        path = joined;
+    }
+
+    char* separator = strrchr(path, '/');
+    char* backslash = strrchr(path, '\\');
+    if (backslash != nullptr && (separator == nullptr || backslash > separator)) separator = backslash;
+    if (separator != nullptr) separator[1] = '\0';
+    return path;
+}
+
 void Runner_setGameArgs(Runner* runner, char** argv, int32_t argc) {
     repeat(arrlen(runner->gameArgs), i) free(runner->gameArgs[i]);
     arrfree(runner->gameArgs);
     runner->gameArgs = nullptr;
     {repeat(argc, i) arrput(runner->gameArgs, safeStrdup(argv[i]));}
+    Runner_getProgramDirectory(runner);
+}
+
+const char* Runner_getProgramDirectory(Runner* runner) {
+    if (runner->programDirectory == nullptr) {
+        const char* executableName = arrlen(runner->gameArgs) > 0 ? runner->gameArgs[0] : nullptr;
+        runner->programDirectory = resolveProgramDirectory(executableName);
+    }
+    return runner->programDirectory;
 }
 
 static void clearDestroyedInstanceReferences(Runner* runner, Instance* destroyedInst) {
@@ -4202,6 +4348,12 @@ static void dispatchSpriteMessages(Runner* runner, PendingSpriteMessage* pending
 }
 
 void Runner_step(Runner* runner) {
+#ifdef ENABLE_FMOD
+    if (runner->audioSystem && runner->audioSystem->fmodSystem) {
+        double seconds = (double) runner->deltaTime / 1000000;
+        Fmod_step(runner->audioSystem->fmodSystem, seconds > 0 ? seconds : 0);
+    }
+#endif
     runner->fpsRealFrameStartNanos = nowNanos();
 
     // The snapshot arena is stack-like and every push must be matched with a pop within the same frame. Assert that invariant at the top of each step: a non-zero length here means some site below pushed without popping, and we want a loud failure with the offending length so we can find it instead of silently leaking until the next frame.
@@ -4979,14 +5131,13 @@ char* Runner_dumpStateJson(Runner* runner) {
             RValue val = entry->value;
             if (val.type == RVALUE_UNDEFINED) continue;
 
-            // Resolve variable name from VARI chunk
-            const char* varName = "?";
-            repeat(dataWin->vari.variableCount, varIdx) {
-                Variable* var = &dataWin->vari.variables[varIdx];
-                if (var->instanceType == INSTANCE_SELF && var->varID == varID) {
-                    varName = var->name;
-                    break;
-                }
+            // Self-variable keys are VM slot IDs, not necessarily VARI varIDs
+            // (notably for BC16). Use the same name map as VM member access.
+            const char* varName = VM_getVariableNameByVarId(runner->vmContext, varID);
+            char unknownName[32];
+            if (!varName) {
+                snprintf(unknownName, sizeof(unknownName), "slot_%d", varID);
+                varName = unknownName;
             }
 
             JsonWriter_key(&w, varName);
@@ -5112,6 +5263,7 @@ void Runner_free(Runner* runner) {
         free(runner->gameArgs[i]);
     }
     arrfree(runner->gameArgs);
+    free(runner->programDirectory);
 
     if (runner->vertexFormats != nullptr) {
         repeat((int32_t) arrlen(runner->vertexFormats), i) {

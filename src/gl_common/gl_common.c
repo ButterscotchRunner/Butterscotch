@@ -9,6 +9,7 @@
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
 #include "default_font/default_font.h"
+#include "vm_builtins.h"
 
 #ifdef PLATFORM_PS3
 #include "ps3_textures.h"
@@ -106,6 +107,7 @@ void GLCommon_init(Renderer* renderer) {
 
 void GLCommon_destroy(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*)renderer;
+    VMBuiltins_resetD3D(renderer);
     GlPrimitive_reset(&gl->currentPrimitive);
     
     GLCommon_deleteDefaultFontTexture(&gl->defaultUI);
