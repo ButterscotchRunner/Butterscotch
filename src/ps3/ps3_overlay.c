@@ -1,6 +1,6 @@
 #include "ps3_overlay.h"
 
-#include "debug_font.h"
+#include "default_font/jetbrains_mono_extrabold_font.h"
 #include "profiler.h"
 #include "utils.h"
 #include "stb_ds.h"
@@ -29,14 +29,14 @@ void PS3Overlay_init(void) {
     if (gOverlay.initialized) return;
 
     // Convert the 8bpp atlas into RGBA
-    uint8_t* rgba = (uint8_t*) malloc((size_t) (DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4));
+    uint8_t* rgba = (uint8_t*) malloc((size_t) (JBMEB_ATLAS_W * JBMEB_ATLAS_H * 4));
     if (rgba == nullptr) {
-        logWarn("PS3Overlay: failed to allocate %d bytes for the font atlas\n", DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H * 4);
+        logWarn("PS3Overlay: failed to allocate %d bytes for the font atlas\n", JBMEB_ATLAS_W * JBMEB_ATLAS_H * 4);
         return;
     }
 
-    repeat(DEBUGFONT_ATLAS_W * DEBUGFONT_ATLAS_H, i) {
-        uint8_t a = debugFontPixels[i];
+    repeat(JBMEB_ATLAS_W * JBMEB_ATLAS_H, i) {
+        uint8_t a = JetBrainsMonoExtraBoldPixels[i];
         rgba[i * 4 + 0] = 0xFF;
         rgba[i * 4 + 1] = 0xFF;
         rgba[i * 4 + 2] = 0xFF;
@@ -45,7 +45,7 @@ void PS3Overlay_init(void) {
 
     glGenTextures(1, &gOverlay.fontTexture);
     glBindTexture(GL_TEXTURE_2D, gOverlay.fontTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEBUGFONT_ATLAS_W, DEBUGFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, JBMEB_ATLAS_W, JBMEB_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -79,9 +79,9 @@ void PS3Overlay_toggleDebugOverlay(MAYBE_UNUSED Runner* runner) {
 #endif
 }
 
-static const DebugFontGlyphEntry* lookupGlyph(uint8_t c) {
-    if (DEBUGFONT_FIRST_CP > c || c > DEBUGFONT_LAST_CP) return nullptr;
-    return &debugFontGlyphs[c - DEBUGFONT_FIRST_CP];
+static const JetBrainsMonoExtraBoldGlyph* lookupGlyph(uint8_t c) {
+    if (JBMEB_FIRST_CP > c || c > JBMEB_LAST_CP) return nullptr;
+    return &JetBrainsMonoExtraBoldGlyphs[c - JBMEB_FIRST_CP];
 }
 
 // Draws a string at (x, y) using the bound font texture.
@@ -100,19 +100,20 @@ static void drawText(float x, float y, float scale, const char* text) {
 
             glBegin(GL_QUADS);
             repeat((uint32_t) lineLen, j) {
-                const DebugFontGlyphEntry* g = lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
+                const JetBrainsMonoExtraBoldGlyph* g = lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
                 if (g == nullptr) continue;
 
                 if (g->w > 0 && g->h > 0) {
-                    float qx0 = pen + (float) g->xoffset * scale;
-                    float qy0 = cursorY + (float) g->yoffset * scale;
-                    float qx1 = qx0 + (float) g->w * scale;
-                    float qy1 = qy0 + (float) g->h * scale;
+                    float fontScale = scale * (JBMEB_FONT_SCALE / 4.0f);
+                    float qx0 = pen + (float) g->xoffset * fontScale;
+                    float qy0 = cursorY + (float) g->yoffset * fontScale;
+                    float qx1 = qx0 + (float) g->w * fontScale;
+                    float qy1 = qy0 + (float) g->h * fontScale;
 
-                    float u0 = (float) g->x / (float) DEBUGFONT_ATLAS_W;
-                    float v0 = (float) g->y / (float) DEBUGFONT_ATLAS_H;
-                    float u1 = ((float) g->x + (float) g->w) / (float) DEBUGFONT_ATLAS_W;
-                    float v1 = ((float) g->y + (float) g->h) / (float) DEBUGFONT_ATLAS_H;
+                    float u0 = (float) g->x / (float) JBMEB_ATLAS_W;
+                    float v0 = (float) g->y / (float) JBMEB_ATLAS_H;
+                    float u1 = ((float) g->x + (float) g->w) / (float) JBMEB_ATLAS_W;
+                    float v1 = ((float) g->y + (float) g->h) / (float) JBMEB_ATLAS_H;
 
                     glTexCoord2f(u0, v0); glVertex2f(qx0, qy0);
                     glTexCoord2f(u1, v0); glVertex2f(qx1, qy0);
@@ -120,11 +121,11 @@ static void drawText(float x, float y, float scale, const char* text) {
                     glTexCoord2f(u0, v1); glVertex2f(qx0, qy1);
                 }
 
-                pen += (float) g->xadvance * scale;
+                pen += (float) g->xadvance * (JBMEB_FONT_SCALE / 4.0f) * scale;
             }
             glEnd();
 
-            cursorY += (float) DEBUGFONT_LINE_HEIGHT * scale * OVERLAY_LINE_HEIGHT_SCALE;
+            cursorY += JBMEB_FONT_SCALE * 12.0f * scale * OVERLAY_LINE_HEIGHT_SCALE;
             lineStart = i + 1;
         }
     }
@@ -178,7 +179,7 @@ void PS3Overlay_drawDebugOverlay(const Runner* runner, float tickMs, float stepM
 
     if (gOverlay.state == STATS_ENABLED_WITH_PROFILER) {
         // Match PS2 layout: profiler block sits below the fixed-height status block. Scale matches the main text size.
-        float profilerY = 10.0f + ((float) DEBUGFONT_LINE_HEIGHT * 0.8f * OVERLAY_LINE_HEIGHT_SCALE * 9.0f) + 6.0f;
+        float profilerY = 10.0f + (JBMEB_FONT_SCALE * 12.0f * 0.8f * OVERLAY_LINE_HEIGHT_SCALE * 9.0f) + 6.0f;
 
 #ifdef ENABLE_VM_GML_PROFILER
         gOverlay.profilerFramesInWindow++;

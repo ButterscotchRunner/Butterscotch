@@ -1123,7 +1123,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph) + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
+        *outLocalY0 = cursorY + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
     }
     return true;
 }
@@ -1137,9 +1137,9 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
     if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
         font = &dw->font.fonts[fontIndex];
     } else {
-        GLCommon_initDebugUIFont(&gl->debugUI);
-        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
-        font = &gl->debugUI.font;
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
+        font = &gl->defaultUI.font;
     }
 
     GlFontState fontState;
@@ -1475,16 +1475,16 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
+    GLCommon_initDefaultUIFont(&gl->defaultUI);
+    if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
 
     GlFontState fs;
-    fs.font = &gl->debugUI.font;
-    fs.fontTpag = &gl->debugUI.tpag;
+    fs.font = &gl->defaultUI.font;
+    fs.fontTpag = &gl->defaultUI.tpag;
     fs.fontTpagIndex = -1; // no game TPAG; PS3_PALETTED_BEGIN(-1) safely no-ops
-    fs.texId = gl->debugUI.texture;
-    fs.texW = DEBUGFONT_ATLAS_W;
-    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.texId = gl->defaultUI.texture;
+    fs.texW = JBMEB_ATLAS_W;
+    fs.texH = JBMEB_ATLAS_H;
     fs.spriteFontSprite = nullptr;
 
     drawTextColor(

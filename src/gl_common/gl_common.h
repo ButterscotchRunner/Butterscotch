@@ -6,7 +6,6 @@
 #include "runner.h"
 #include <stdint.h>
 #include "data_win.h"
-#include "debug_font/debug_font.h"
 #include "default_font/jetbrains_mono_extrabold_font.h"
 
 struct GLRenderer;
@@ -137,18 +136,7 @@ void GLCommon_drawVertex(
     float u, float v
 );
 
-// ===[ Debug UI font (drawTextUI) ]===
-
-// Embedded debug-font state backing drawTextUI. Embedded in each GL renderer
-// struct (modern + legacy) so drawTextUI needs no game fonts and no static
-// globals. The atlas texture is uploaded lazily on first use.
-typedef struct {
-    Font font;
-    FontGlyph glyphs[DEBUGFONT_GLYPH_COUNT];
-    TexturePageItem tpag;
-    bool initialized;
-    GLuint texture; // 0 = not uploaded yet
-} GLDebugUIFont;
+// ===[ Default UI font (drawTextUI) ]===
 
 typedef struct {
     Font font;
@@ -158,27 +146,9 @@ typedef struct {
     GLuint texture; // 0 = not uploaded yet
 } GLDefaultUIFont;
 
-// Builds the synthetic Font from the embedded atlas. Idempotent.
-void GLCommon_initDebugUIFont(GLDebugUIFont* ui);
-
-// Uploads the atlas texture if not yet uploaded. Returns false on failure.
-bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui);
-
-// Deletes the atlas texture if uploaded (safe to call when texture == 0).
-void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui);
-
 void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui);
 bool GLCommon_ensureDefaultFontTexture(GLRenderer* gl, GLDefaultUIFont* ui);
 void GLCommon_deleteDefaultFontTexture(GLDefaultUIFont* ui);
-
-// Y-adjust to add to a glyph's local Y when it belongs to the renderer's
-// embedded debug UI font (the debug atlas has per-glyph yoffsets, GameMaker
-// fonts don't). Returns 0 for regular game fonts.
-static inline float GLCommon_debugUIFontYOffset(GLDebugUIFont* ui, Font* font, FontGlyph* glyph) {
-    if (font == &ui->font && DEBUGFONT_FIRST_CP <= glyph->character && glyph->character <= DEBUGFONT_LAST_CP)
-        return (float) debugFontGlyphs[glyph->character - DEBUGFONT_FIRST_CP].yoffset;
-    return 0.0f;
-}
 
 static inline float GLCommon_defaultUIFontYOffset(GLDefaultUIFont* ui, Font* font, FontGlyph* glyph) {
     (void)ui;
@@ -213,8 +183,7 @@ struct GLRenderer {
 
     GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
 
-    // Embedded debug UI font backing drawTextUI (see gl_common.h).
-    GLDebugUIFont debugUI;
+    // Embedded default UI font backing drawTextUI (see gl_common.h).
     GLDefaultUIFont defaultUI;
 
     int32_t windowW; // stored from beginFrame for endFrame blit

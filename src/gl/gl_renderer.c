@@ -1982,7 +1982,7 @@ typedef struct {
 
 // ===[ Debug UI font (drawTextUI) ]===
 // drawTextUI must not depend on game fonts (data.win may ship none), so it uses
-// the embedded debug font from gl_common.h, uploaded as its own GL texture.
+// the embedded default font from gl_common.h, uploaded as its own GL texture.
 // A synthetic Font + GlFontState pair is built per renderer instance and passed
 // as real pointers into drawText().
 
@@ -1995,17 +1995,6 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texW = 0;
     state->texH = 0;
     state->spriteFontSprite = nullptr;
-
-    if (font == &gl->debugUI.font) {
-        GLCommon_initDebugUIFont(&gl->debugUI);
-        if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return false;
-
-        state->fontTpag = &gl->debugUI.tpag;
-        state->texId = gl->debugUI.texture;
-        state->texW = DEBUGFONT_ATLAS_W;
-        state->texH = DEBUGFONT_ATLAS_H;
-        return true;
-    }
 
     if (font != nullptr && font->name != nullptr && strcmp(font->name, "JetBrainsMonoExtraBold") == 0) {
         GLCommon_initDefaultUIFont(&gl->defaultUI);
@@ -2074,7 +2063,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph) + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
+        *outLocalY0 = cursorY + GLCommon_defaultUIFontYOffset(&gl->defaultUI, font, glyph);
     }
     return true;
 }
@@ -2307,15 +2296,15 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
 static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
-    GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
+    GLCommon_initDefaultUIFont(&gl->defaultUI);
+    if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
 
     GlFontState fs;
-    fs.font = &gl->debugUI.font;
-    fs.fontTpag = &gl->debugUI.tpag;
-    fs.texId = gl->debugUI.texture;
-    fs.texW = DEBUGFONT_ATLAS_W;
-    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.font = &gl->defaultUI.font;
+    fs.fontTpag = &gl->defaultUI.tpag;
+    fs.texId = gl->defaultUI.texture;
+    fs.texW = JBMEB_ATLAS_W;
+    fs.texH = JBMEB_ATLAS_H;
     fs.spriteFontSprite = nullptr;
 
     drawText(
