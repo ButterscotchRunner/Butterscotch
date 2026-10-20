@@ -5,9 +5,9 @@
 #include "common.h"
 #include "default_font/jetbrains_mono_extrabold_font.h"
 
-static void DefaultFont_fillGlyphs(Font* font) {
+void DefaultFont_initializeGlyphs(Font* font, FontGlyph* glyphs, float advanceScale) {
+    font->glyphs = glyphs;
     font->glyphCount = JBMEB_GLYPH_COUNT;
-    font->glyphs = (FontGlyph *)safeMalloc((size_t) font->glyphCount * sizeof(FontGlyph));
     font->maxGlyphHeight = 0;
 
     repeat(font->glyphCount, i) {
@@ -19,7 +19,7 @@ static void DefaultFont_fillGlyphs(Font* font) {
         glyph->sourceY = glyphInfo->y;
         glyph->sourceWidth = glyphInfo->w;
         glyph->sourceHeight = glyphInfo->h;
-        glyph->shift = glyphInfo->xadvance * 0.88f;
+        glyph->shift = glyphInfo->xadvance * advanceScale;
         glyph->offset = glyphInfo->xoffset;
         glyph->kerningCount = 0;
         glyph->kerning = nullptr;
@@ -76,7 +76,8 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     font->spriteIndex = -1;
     font->spriteOriginYAdjust = 0;
 
-    DefaultFont_fillGlyphs(font);
+    font->glyphs = (FontGlyph *)safeMalloc((size_t) JBMEB_GLYPH_COUNT * sizeof(FontGlyph));
+    DefaultFont_initializeGlyphs(font, font->glyphs, 0.88f);
     dataWin->font.count = newIndex + 1u;
     return (int32_t)newIndex;
 }

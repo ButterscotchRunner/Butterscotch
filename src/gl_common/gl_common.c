@@ -8,6 +8,7 @@
 #include "runner.h"
 #include "utils.h"
 #include "renderer.h" // for bm_* constants
+#include "default_font/default_font.h"
 
 #ifdef PLATFORM_PS3
 #include "ps3_textures.h"
@@ -612,30 +613,11 @@ void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui) {
     ui->font.scaleX = JBMEB_FONT_SCALE / 2.0f;
     ui->font.scaleY = JBMEB_FONT_SCALE / 2.0f;
     ui->font.ascenderOffset = 0;
-    ui->font.maxGlyphHeight = 0;
     ui->font.emSize = 12.0f;
     ui->font.isSpriteFont = false;
     ui->font.tpagIndex = -1;
 
-    repeat(JBMEB_GLYPH_COUNT, i) {
-        const JetBrainsMonoExtraBoldGlyph* e = &JetBrainsMonoExtraBoldGlyphs[i];
-        FontGlyph* g = &ui->glyphs[i];
-        g->character = (uint16_t) (JBMEB_FIRST_CP + i);
-        g->sourceX = e->x;
-        g->sourceY = e->y;
-        g->sourceWidth = e->w;
-        g->sourceHeight = e->h;
-        g->shift = e->xadvance;
-        g->offset = e->xoffset;
-        g->kerningCount = 0;
-        g->kerning = nullptr;
-        if ((uint16_t) g->sourceHeight > ui->font.maxGlyphHeight) {
-            ui->font.maxGlyphHeight = g->sourceHeight;
-        }
-    }
-    ui->font.glyphs = ui->glyphs;
-    ui->font.glyphCount = JBMEB_GLYPH_COUNT;
-    Font_buildGlyphLUT(&ui->font);
+    DefaultFont_initializeGlyphs(&ui->font, ui->glyphs, 1.0f);
 
     ui->tpag.present = true;
     ui->tpag.sourceX = 0;
