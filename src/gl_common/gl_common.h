@@ -140,7 +140,7 @@ void GLCommon_drawVertex(
 
 typedef struct {
     Font font;
-    FontGlyph glyphs[JBMEB_GLYPH_COUNT];
+    FontGlyph glyphs[DEFAULTFONT_GLYPH_COUNT];
     TexturePageItem tpag;
     bool initialized;
     GLuint texture; // 0 = not uploaded yet

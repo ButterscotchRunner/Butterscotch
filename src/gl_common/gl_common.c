@@ -613,14 +613,14 @@ void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui) {
     ui->tpag.present = true;
     ui->tpag.sourceX = 0;
     ui->tpag.sourceY = 0;
-    ui->tpag.sourceWidth = JBMEB_ATLAS_W;
-    ui->tpag.sourceHeight = JBMEB_ATLAS_H;
+    ui->tpag.sourceWidth = DEFAULTFONT_ATLAS_W;
+    ui->tpag.sourceHeight = DEFAULTFONT_ATLAS_H;
     ui->tpag.targetX = 0;
     ui->tpag.targetY = 0;
-    ui->tpag.targetWidth = JBMEB_ATLAS_W;
-    ui->tpag.targetHeight = JBMEB_ATLAS_H;
-    ui->tpag.boundingWidth = JBMEB_ATLAS_W;
-    ui->tpag.boundingHeight = JBMEB_ATLAS_H;
+    ui->tpag.targetWidth = DEFAULTFONT_ATLAS_W;
+    ui->tpag.targetHeight = DEFAULTFONT_ATLAS_H;
+    ui->tpag.boundingWidth = DEFAULTFONT_ATLAS_W;
+    ui->tpag.boundingHeight = DEFAULTFONT_ATLAS_H;
     ui->tpag.texturePageId = -1;
 }
 
@@ -635,7 +635,7 @@ bool GLCommon_ensureDefaultFontTexture(GLRenderer* gl, GLDefaultUIFont* ui) {
     DefaultFont_writeRGBA(rgba);
 
     glBindTexture(GL_TEXTURE_2D, ui->texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, JBMEB_ATLAS_W, JBMEB_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, DEFAULTFONT_ATLAS_W, DEFAULTFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

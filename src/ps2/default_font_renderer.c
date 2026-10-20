@@ -8,7 +8,7 @@
 #include "string_compat.h"
 
 #define DEFAULT_FONT_CLUT_ENTRIES 16
-#define DEFAULT_FONT_PIXELS_4BPP_BYTES (JBMEB_ATLAS_W * JBMEB_ATLAS_H / 2)
+#define DEFAULT_FONT_PIXELS_4BPP_BYTES (DEFAULTFONT_ATLAS_W * DEFAULTFONT_ATLAS_H / 2)
 
 // Allocate VRAM and upload a font table via a DMA-aligned bounce buffer.
 // Returns the assigned VRAM address. Aborts on allocation failure.
@@ -63,16 +63,16 @@ DefaultFontRenderer* DefaultFontRenderer_create(GSGLOBAL* gsGlobal) {
         packedPixels[i] = (uint8_t) (first | (uint8_t) (second << 4));
     }
     // Atlas: 512x512 PSMT4 (128 KB).
-    uint32_t atlasVram = uploadTable(gsGlobal, packedPixels, DEFAULT_FONT_PIXELS_4BPP_BYTES, JBMEB_ATLAS_W, JBMEB_ATLAS_H, GS_PSM_T4, JBMEB_ATLAS_W / 64, GS_CLUT_TEXTURE, "font atlas");
+    uint32_t atlasVram = uploadTable(gsGlobal, packedPixels, DEFAULT_FONT_PIXELS_4BPP_BYTES, DEFAULTFONT_ATLAS_W, DEFAULTFONT_ATLAS_H, GS_PSM_T4, DEFAULTFONT_ATLAS_W / 64, GS_CLUT_TEXTURE, "font atlas");
     free(packedPixels);
 
     GSTEXTURE* texture = &renderer->tex;
     memset(texture, 0, sizeof(GSTEXTURE));
-    texture->Width = JBMEB_ATLAS_W;
-    texture->Height = JBMEB_ATLAS_H;
+    texture->Width = DEFAULTFONT_ATLAS_W;
+    texture->Height = DEFAULTFONT_ATLAS_H;
     texture->PSM = GS_PSM_T4;
     texture->ClutPSM = GS_PSM_CT32;
-    texture->TBW = JBMEB_ATLAS_W / 64;
+    texture->TBW = DEFAULTFONT_ATLAS_W / 64;
     texture->Vram = atlasVram;
     texture->VramClut = clutVram;
     texture->Filter = GS_FILTER_LINEAR;

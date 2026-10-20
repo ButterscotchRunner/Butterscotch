@@ -11,23 +11,23 @@ void DefaultFont_initialize(Font* font, FontGlyph* glyphs, DefaultFontUsage usag
     font->present = true;
     font->name = DEFAULT_FONT_NAME;
     font->displayName = DEFAULT_FONT_NAME;
-    font->emSize = usage == DEFAULT_FONT_UI ? 12.0f : 12.0f * JBMEB_FONT_SCALE;
-    font->rangeStart = JBMEB_FIRST_CP;
-    font->rangeEnd = JBMEB_LAST_CP;
+    font->emSize = usage == DEFAULT_FONT_UI ? 12.0f : 12.0f * DEFAULTFONT_FONT_SCALE;
+    font->rangeStart = DEFAULTFONT_FIRST_CP;
+    font->rangeEnd = DEFAULTFONT_LAST_CP;
     font->antiAliasing = 1;
     font->tpagIndex = -1;
-    font->scaleX = usage == DEFAULT_FONT_UI ? DEFAULT_FONT_UI_SCALE : JBMEB_FONT_SCALE / 4.0f;
+    font->scaleX = usage == DEFAULT_FONT_UI ? DEFAULT_FONT_UI_SCALE : DEFAULTFONT_FONT_SCALE / 4.0f;
     font->scaleY = font->scaleX;
     font->spriteIndex = -1;
     font->glyphs = glyphs;
-    font->glyphCount = JBMEB_GLYPH_COUNT;
+    font->glyphCount = DEFAULTFONT_GLYPH_COUNT;
     float advanceScale = usage == DEFAULT_FONT_UI ? 1.0f : 0.88f;
 
     repeat(font->glyphCount, i) {
         const JetBrainsMonoExtraBoldGlyph* glyphInfo = &JetBrainsMonoExtraBoldGlyphs[i];
         FontGlyph* glyph = &font->glyphs[i];
 
-        glyph->character = (uint16_t) (JBMEB_FIRST_CP + i);
+        glyph->character = (uint16_t) (DEFAULTFONT_FIRST_CP + i);
         glyph->sourceX = glyphInfo->x;
         glyph->sourceY = glyphInfo->y;
         glyph->sourceWidth = glyphInfo->w;
@@ -50,8 +50,8 @@ bool DefaultFont_isDefault(const Font* font) {
 }
 
 const JetBrainsMonoExtraBoldGlyph* DefaultFont_lookupGlyph(uint16_t character) {
-    if (character < JBMEB_FIRST_CP || character > JBMEB_LAST_CP) return nullptr;
-    return &JetBrainsMonoExtraBoldGlyphs[character - JBMEB_FIRST_CP];
+    if (character < DEFAULTFONT_FIRST_CP || character > DEFAULTFONT_LAST_CP) return nullptr;
+    return &JetBrainsMonoExtraBoldGlyphs[character - DEFAULTFONT_FIRST_CP];
 }
 
 float DefaultFont_glyphYOffset(const Font* font, uint16_t character) {
@@ -61,7 +61,7 @@ float DefaultFont_glyphYOffset(const Font* font, uint16_t character) {
 }
 
 void DefaultFont_writeRGBA(uint8_t* rgba) {
-    repeat(JBMEB_ATLAS_W * JBMEB_ATLAS_H, i) {
+    repeat(DEFAULTFONT_ATLAS_W * DEFAULTFONT_ATLAS_H, i) {
         rgba[i * 4 + 0] = 0xFF;
         rgba[i * 4 + 1] = 0xFF;
         rgba[i * 4 + 2] = 0xFF;
@@ -87,7 +87,7 @@ int32_t DefaultFont_ensureLoaded(DataWin* dataWin) {
     }
 
     Font* font = &dataWin->font.fonts[newIndex];
-    FontGlyph* glyphs = (FontGlyph *)safeMalloc((size_t) JBMEB_GLYPH_COUNT * sizeof(FontGlyph));
+    FontGlyph* glyphs = (FontGlyph *)safeMalloc((size_t) DEFAULTFONT_GLYPH_COUNT * sizeof(FontGlyph));
     DefaultFont_initialize(font, glyphs, DEFAULT_FONT_GAME);
     dataWin->font.count = newIndex + 1u;
     return (int32_t)newIndex;

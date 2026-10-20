@@ -1059,8 +1059,8 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
         state->fontTpag = &gl->defaultUI.tpag;
         state->fontTpagIndex = -1;
         state->texId = gl->defaultUI.texture;
-        state->texW = JBMEB_ATLAS_W;
-        state->texH = JBMEB_ATLAS_H;
+        state->texW = DEFAULTFONT_ATLAS_W;
+        state->texH = DEFAULTFONT_ATLAS_H;
         return true;
     }
 
@@ -1483,8 +1483,8 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     fs.fontTpag = &gl->defaultUI.tpag;
     fs.fontTpagIndex = -1; // no game TPAG; PS3_PALETTED_BEGIN(-1) safely no-ops
     fs.texId = gl->defaultUI.texture;
-    fs.texW = JBMEB_ATLAS_W;
-    fs.texH = JBMEB_ATLAS_H;
+    fs.texW = DEFAULTFONT_ATLAS_W;
+    fs.texH = DEFAULTFONT_ATLAS_H;
     fs.spriteFontSprite = nullptr;
 
     drawTextColor(
