@@ -1381,7 +1381,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                         char memText[96];
                         snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
 
-                        text_height += (float)JBMEB_FONT_SCALE * 12.0f * 0.5f;
+                        text_height += (float) JBMEB_FONT_SCALE * 24.0f * 0.5f;
                         renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
                     }
 

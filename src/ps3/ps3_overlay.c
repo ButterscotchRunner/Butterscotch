@@ -104,7 +104,7 @@ static void drawText(float x, float y, float scale, const char* text) {
                 if (g == nullptr) continue;
 
                 if (g->w > 0 && g->h > 0) {
-                    float fontScale = scale * (JBMEB_FONT_SCALE / 4.0f);
+                    float fontScale = scale * (JBMEB_FONT_SCALE / 2.0f);
                     float qx0 = pen + (float) g->xoffset * fontScale;
                     float qy0 = cursorY + (float) g->yoffset * fontScale;
                     float qx1 = qx0 + (float) g->w * fontScale;
@@ -121,11 +121,11 @@ static void drawText(float x, float y, float scale, const char* text) {
                     glTexCoord2f(u0, v1); glVertex2f(qx0, qy1);
                 }
 
-                pen += (float) g->xadvance * (JBMEB_FONT_SCALE / 4.0f) * scale;
+                pen += (float) g->xadvance * (JBMEB_FONT_SCALE / 2.0f) * scale;
             }
             glEnd();
 
-            cursorY += JBMEB_FONT_SCALE * 12.0f * scale * OVERLAY_LINE_HEIGHT_SCALE;
+            cursorY += JBMEB_FONT_SCALE * 24.0f * scale * OVERLAY_LINE_HEIGHT_SCALE;
             lineStart = i + 1;
         }
     }
@@ -179,7 +179,7 @@ void PS3Overlay_drawDebugOverlay(const Runner* runner, float tickMs, float stepM
 
     if (gOverlay.state == STATS_ENABLED_WITH_PROFILER) {
         // Match PS2 layout: profiler block sits below the fixed-height status block. Scale matches the main text size.
-        float profilerY = 10.0f + (JBMEB_FONT_SCALE * 12.0f * 0.8f * OVERLAY_LINE_HEIGHT_SCALE * 9.0f) + 6.0f;
+        float profilerY = 10.0f + (JBMEB_FONT_SCALE * 24.0f * 0.8f * OVERLAY_LINE_HEIGHT_SCALE * 9.0f) + 6.0f;
 
 #ifdef ENABLE_VM_GML_PROFILER
         gOverlay.profilerFramesInWindow++;

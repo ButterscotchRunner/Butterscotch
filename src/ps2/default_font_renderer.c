@@ -8,7 +8,7 @@
 #include "string_compat.h"
 
 #define DEFAULT_FONT_LINE_HEIGHT_SCALE 0.80f
-#define DEFAULT_FONT_SCALE (JBMEB_FONT_SCALE / 4.0f)
+#define DEFAULT_FONT_SCALE (JBMEB_FONT_SCALE / 2.0f)
 #define DEFAULT_FONT_CLUT_ENTRIES 16
 #define DEFAULT_FONT_PIXELS_4BPP_BYTES (JBMEB_ATLAS_W * JBMEB_ATLAS_H / 2)
 
@@ -138,7 +138,7 @@ static void drawPass(DefaultFontRenderer* renderer, float x, float y, int z, flo
                 pen += (float) glyph->xadvance * renderer->spacing * fontScale;
             }
 
-            cursorY += JBMEB_FONT_SCALE * 12.0f * scale * DEFAULT_FONT_LINE_HEIGHT_SCALE;
+            cursorY += JBMEB_FONT_SCALE * 24.0f * scale * DEFAULT_FONT_LINE_HEIGHT_SCALE;
             lineStart = i + 1;
         }
     }

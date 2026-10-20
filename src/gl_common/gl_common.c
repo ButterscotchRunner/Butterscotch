@@ -609,8 +609,8 @@ void GLCommon_initDefaultUIFont(GLDefaultUIFont* ui) {
 
     ui->font.name = "JetBrainsMonoExtraBold";
     ui->font.displayName = "JetBrainsMonoExtraBold";
-    ui->font.scaleX = JBMEB_FONT_SCALE / 4.0f;
-    ui->font.scaleY = JBMEB_FONT_SCALE / 4.0f;
+    ui->font.scaleX = JBMEB_FONT_SCALE / 2.0f;
+    ui->font.scaleY = JBMEB_FONT_SCALE / 2.0f;
     ui->font.ascenderOffset = 0;
     ui->font.maxGlyphHeight = 0;
     ui->font.emSize = 12.0f;
