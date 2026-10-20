@@ -14,11 +14,13 @@ typedef enum {
     DEFAULT_FONT_UI
 } DefaultFontUsage;
 
+typedef JetBrainsMonoExtraBoldGlyph DefaultFontGlyph;
+
 // Initializes a fresh font using caller-owned storage for DEFAULTFONT_GLYPH_COUNT glyphs.
 void DefaultFont_initialize(Font* font, FontGlyph* glyphs, DefaultFontUsage usage);
 int32_t DefaultFont_ensureLoaded(DataWin* dataWin);
 bool DefaultFont_isDefault(const Font* font);
-const JetBrainsMonoExtraBoldGlyph* DefaultFont_lookupGlyph(uint16_t character);
+const DefaultFontGlyph* DefaultFont_lookupGlyph(uint16_t character);
 float DefaultFont_glyphYOffset(const Font* font, uint16_t character);
 
 // Writes DEFAULT_FONT_RGBA_BYTES bytes to caller-owned storage.

@@ -37,7 +37,7 @@ void PS3Overlay_init(void) {
 
     glGenTextures(1, &gOverlay.fontTexture);
     glBindTexture(GL_TEXTURE_2D, gOverlay.fontTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, JBMEB_ATLAS_W, JBMEB_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DEFAULTFONT_ATLAS_W, DEFAULTFONT_ATLAS_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -88,7 +88,7 @@ static void drawText(float x, float y, float scale, const char* text) {
 
             glBegin(GL_QUADS);
             repeat((uint32_t) lineLen, j) {
-                const JetBrainsMonoExtraBoldGlyph* g = DefaultFont_lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
+                const DefaultFontGlyph* g = DefaultFont_lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
                 if (g == nullptr) continue;
 
                 if (g->w > 0 && g->h > 0) {
@@ -97,10 +97,10 @@ static void drawText(float x, float y, float scale, const char* text) {
                     float qx1 = qx0 + (float) g->w * fontScale;
                     float qy1 = qy0 + (float) g->h * fontScale;
 
-                    float u0 = (float) g->x / (float) JBMEB_ATLAS_W;
-                    float v0 = (float) g->y / (float) JBMEB_ATLAS_H;
-                    float u1 = ((float) g->x + (float) g->w) / (float) JBMEB_ATLAS_W;
-                    float v1 = ((float) g->y + (float) g->h) / (float) JBMEB_ATLAS_H;
+                    float u0 = (float) g->x / (float) DEFAULTFONT_ATLAS_W;
+                    float v0 = (float) g->y / (float) DEFAULTFONT_ATLAS_H;
+                    float u1 = ((float) g->x + (float) g->w) / (float) DEFAULTFONT_ATLAS_W;
+                    float v1 = ((float) g->y + (float) g->h) / (float) DEFAULTFONT_ATLAS_H;
 
                     glTexCoord2f(u0, v0); glVertex2f(qx0, qy0);
                     glTexCoord2f(u1, v0); glVertex2f(qx1, qy0);

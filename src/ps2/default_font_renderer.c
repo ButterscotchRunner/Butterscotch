@@ -89,7 +89,7 @@ void DefaultFontRenderer_destroy(DefaultFontRenderer* renderer) {
 static float measureLineWidth(const char* text, int32_t length, float spacing) {
     float width = 0.0f;
     repeat(length, i) {
-        const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[i]);
+        const DefaultFontGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[i]);
         if (glyph != nullptr) width += (float) glyph->xadvance * spacing;
     }
     return width;
@@ -114,7 +114,7 @@ static void drawPass(DefaultFontRenderer* renderer, float x, float y, int z, flo
 
             float pen = startX;
             repeat((uint32_t) lineLength, j) {
-                const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
+                const DefaultFontGlyph* glyph = DefaultFont_lookupGlyph((uint8_t) text[lineStart + (int32_t) j]);
                 if (glyph == nullptr) continue;
 
                 if (glyph->w > 0 && glyph->h > 0) {

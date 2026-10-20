@@ -24,7 +24,7 @@ void DefaultFont_initialize(Font* font, FontGlyph* glyphs, DefaultFontUsage usag
     float advanceScale = usage == DEFAULT_FONT_UI ? 1.0f : 0.88f;
 
     repeat(font->glyphCount, i) {
-        const JetBrainsMonoExtraBoldGlyph* glyphInfo = &JetBrainsMonoExtraBoldGlyphs[i];
+        const DefaultFontGlyph* glyphInfo = &JetBrainsMonoExtraBoldGlyphs[i];
         FontGlyph* glyph = &font->glyphs[i];
 
         glyph->character = (uint16_t) (DEFAULTFONT_FIRST_CP + i);
@@ -49,14 +49,14 @@ bool DefaultFont_isDefault(const Font* font) {
     return font != nullptr && font->name != nullptr && strcmp(font->name, DEFAULT_FONT_NAME) == 0;
 }
 
-const JetBrainsMonoExtraBoldGlyph* DefaultFont_lookupGlyph(uint16_t character) {
+const DefaultFontGlyph* DefaultFont_lookupGlyph(uint16_t character) {
     if (character < DEFAULTFONT_FIRST_CP || character > DEFAULTFONT_LAST_CP) return nullptr;
     return &JetBrainsMonoExtraBoldGlyphs[character - DEFAULTFONT_FIRST_CP];
 }
 
 float DefaultFont_glyphYOffset(const Font* font, uint16_t character) {
     if (!DefaultFont_isDefault(font)) return 0.0f;
-    const JetBrainsMonoExtraBoldGlyph* glyph = DefaultFont_lookupGlyph(character);
+    const DefaultFontGlyph* glyph = DefaultFont_lookupGlyph(character);
     return glyph != nullptr ? (float) glyph->yoffset : 0.0f;
 }
 
