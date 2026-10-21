@@ -30,7 +30,6 @@
 #include "ps2_gamepad.h"
 #include "stb_ds.h"
 #include "utils.h"
-#include "processor_api.h"
 #include "../profiler.h"
 #include "ps2/ps2_overlay.h"
 #include "gettime.h"
@@ -108,46 +107,6 @@ void platformLog(const logType type, const char *format, va_list va) {
             break;
     }
     vfprintf(out, format, va);
-}
-
-static bool ensureNativeTexturesBin(const char *dataWinPath) {
-    char *dataWinDir = safeStrdup(dataWinPath);
-    bsGetDirname(dataWinDir);
-
-    size_t dirLen = strlen(dataWinDir);
-    char *texturesBinPath = (char *)safeMalloc(dirLen + strlen("TEXTURES.BIN") + 2);
-    snprintf(texturesBinPath, dirLen + strlen("TEXTURES.BIN") + 2,
-             "%s%s%s",
-             dataWinDir,
-             dataWinDir[0] != '\0' && dataWinDir[dirLen - 1] != '/' && dataWinDir[dirLen - 1] != '\\' ? "/" : "",
-             "TEXTURES.BIN");
-
-    struct stat dataWinStat;
-    struct stat texturesStat;
-    bool needsRefresh = stat(dataWinPath, &dataWinStat) != 0 || stat(texturesBinPath, &texturesStat) != 0 || texturesStat.st_mtime < dataWinStat.st_mtime;
-
-    if (!needsRefresh) {
-        free(texturesBinPath);
-        free(dataWinDir);
-        return true;
-    }
-
-    Options options = {0};
-    options.input = dataWinPath;
-    options.output = dataWinDir;
-    options.ps3 = false;
-    process(&options);
-
-    bool ok = stat(texturesBinPath, &texturesStat) == 0;
-    if (!ok) {
-        logError("Native PS2 texture preprocessing failed for %s\n", dataWinPath);
-    } else {
-        logInfo("Generated %s successfully\n", texturesBinPath);
-    }
-
-    free(texturesBinPath);
-    free(dataWinDir);
-    return ok;
 }
 
 static void parsePadMappings(JsonValue* configRoot, const char* key, PadMapping** outMappings, int* outCount, const char* logLabel) {
@@ -322,10 +281,6 @@ int main(int argc, char* argv[]) {
     logInfo("Loaded FS drivers!\n");
 
     char* dataWinPath = PS2Utils_createDevicePath("DATA.WIN");
-    if (!ensureNativeTexturesBin(dataWinPath)) {
-        logError("Failed to prepare TEXTURES.BIN for %s\n", dataWinPath);
-        return 1;
-    }
 
     logInfo("Butterscotch PS2 - Loading %s\n", dataWinPath);
 
