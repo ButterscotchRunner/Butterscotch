@@ -215,6 +215,11 @@ typedef struct {
 
 // ===[ SPRT - Sprites ]===
 typedef struct {
+    float frame;
+    const char* message;
+} SpriteMessage;
+
+typedef struct {
     bool present;
     const char* name;
     uint32_t width;
@@ -235,6 +240,7 @@ typedef struct {
     float gms2PlaybackSpeed;
     bool gms2PlaybackSpeedType;
     bool specialType;
+    SpriteMessage* messages;
     uint32_t textureCount;
     int32_t* tpagIndices;    // resolved TPAG indices (one per frame); -1 for unresolved
     uint32_t maskCount;       // number of collision masks (one per frame, or 0)
@@ -862,6 +868,7 @@ typedef struct {
     uint32_t blobOffset; // absolute file offset to PNG data
     uint32_t blobSize; // computed size of blob data
     uint8_t* blobData; // owned copy of PNG data
+    char* externalPath;
 } Texture;
 
 typedef struct {
@@ -926,6 +933,7 @@ struct DataWin {
     Func func;
     Strg strg;
     Txtr txtr;
+    uint32_t tginOffset;
     Audo audo;
 
     DetectedFormat detectedFormat;
@@ -954,6 +962,8 @@ uint32_t DataWin_allocSpriteSlot(DataWin* dw, uint32_t startIndex);
 //
 // Mirrors UndertaleModTool's IsVersionAtLeast.
 bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
+// IDK if this fucntion in UTMT but here it is.
+bool DataWin_isVersionOlder(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 // Raises the detected effective version to at least (major, minor, release, build). No-op if the detected version is already >= the target.
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build);
 void GamePath_computeInternal(GamePath* path);

@@ -20,6 +20,18 @@
 #pragma GCC diagnostic pop
 #endif
 
+// You may be wondering wtf is this:
+// The web version tries to load audio from onaudioprocess, that onaudioprocess tries reading files from OSPF
+// Because the onaudioprocess is not JSPI-aware, the entire game CRASHES AND BURNS
+// So instead of doing that, we just load everything up front
+#ifdef __EMSCRIPTEN__
+#define BS_SOUND_FLAG_STREAM 0
+#define BS_SOUND_FLAG_ASYNC  0
+#else
+#define BS_SOUND_FLAG_STREAM MA_SOUND_FLAG_STREAM
+#define BS_SOUND_FLAG_ASYNC  MA_SOUND_FLAG_ASYNC
+#endif
+
 #include "ma_audio_system.h"
 #include "data_win.h"
 #include "utils.h"
@@ -126,6 +138,7 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
 
     repeat(MAX_LISTENERS, i) {
         ma_sound_group_init(&ma->engine, 0, NULL, &ma->listenerGroups[i]);
+        ma_sound_group_set_spatialization_enabled(&ma->listenerGroups[i], MA_FALSE);
         ma_sound_group_set_volume(&ma->listenerGroups[i], 1.0f);
         ma->listenerGains[i] = 1.0f;
     }
@@ -135,6 +148,8 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
 
 static void maDestroy(AudioSystem* audio) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
+
+    free(audio->groupGains);
 
     repeat(MAX_LISTENERS, i) {
         ma_sound_group_uninit(&ma->listenerGroups[i]);
@@ -173,13 +188,15 @@ static void maDestroy(AudioSystem* audio) {
 
 static void maUpdate(AudioSystem* audio, float deltaTime) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
+    bool groupChanged = AudioSystem_updateGroupGains(audio, deltaTime);
 
     repeat(MAX_SOUND_INSTANCES, i) {
         SoundInstance* inst = &ma->instances[i];
         if (!inst->active) continue;
 
         // Handle gain fading (for cases where we do manual fading)
-        if (inst->fadeTimeRemaining > 0.0f) {
+        bool soundFading = inst->fadeTimeRemaining > 0.0f;
+        if (soundFading) {
             inst->fadeTimeRemaining -= deltaTime;
             if (0.0f >= inst->fadeTimeRemaining) {
                 inst->fadeTimeRemaining = 0.0f;
@@ -188,8 +205,9 @@ static void maUpdate(AudioSystem* audio, float deltaTime) {
                 float t = 1.0f - (inst->fadeTimeRemaining / inst->fadeTotalTime);
                 inst->currentGain = inst->startGain + (inst->targetGain - inst->startGain) * t;
             }
-            ma_sound_set_volume(&inst->maSound, inst->currentGain);
         }
+        if (soundFading || groupChanged)
+            ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
 
         // Clean up ended non-looping sounds (ma_sound_at_end avoids reaping still-loading async sounds)
         if (ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound)) {
@@ -241,7 +259,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     if (isStream) {
         // Stream audio: load from file path stored in stream entry
-        result = ma_sound_init_from_file(&ma->engine, streamPath, MA_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
+        result = ma_sound_init_from_file(&ma->engine, streamPath, BS_SOUND_FLAG_STREAM, &ma->listenerGroups[0], nullptr, &slot->maSound);
         if (result != MA_SUCCESS) {
             logWarn("Audio: Failed to load stream file '%s' (error %d)\n", streamPath, result);
             return -1;
@@ -286,7 +304,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
                 return -1;
             }
 
-            result = ma_sound_init_from_file(&ma->engine, path, MA_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
+            result = ma_sound_init_from_file(&ma->engine, path, BS_SOUND_FLAG_ASYNC, &ma->listenerGroups[0], nullptr, &slot->maSound);
             if (result != MA_SUCCESS) {
                 logWarn("Audio: Failed to load file for '%s' at '%s' (error %d)\n", sound->name, path, result);
                 free(path);
@@ -298,9 +316,10 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     }
 
     // Apply properties
+    ma_sound_set_spatialization_enabled(&slot->maSound, MA_FALSE);
     float volume = isStream ? streamGain : sound->volume;
     float pitch = isStream ? streamPitch : sound->pitch;
-    ma_sound_set_volume(&slot->maSound, volume);
+    ma_sound_set_volume(&slot->maSound, volume * AudioSystem_soundGroupGain(audio, soundIndex));
     if (pitch != 1.0f) {
         ma_sound_set_pitch(&slot->maSound, pitch);
     }
@@ -325,10 +344,26 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     return slot->instanceId;
 }
 
+static void maSetSoundSpatial(AudioSystem* audio, int32_t instanceId, float x, float y, float z, float vx, float vy, float vz, float ref, float max, float factor) {
+    SoundInstance* inst = findInstanceById((MaAudioSystem*)audio, instanceId);
+    if (inst == nullptr) return;
+    ma_sound_set_position(&inst->maSound, x, y, z);
+    ma_sound_set_velocity(&inst->maSound, vx, vy, vz);
+    ma_sound_set_attenuation_model(&inst->maSound, ma_attenuation_model_inverse);
+    ma_sound_set_min_distance(&inst->maSound, ref > 0 ? ref : 0.0001f);
+    ma_sound_set_max_distance(&inst->maSound, max > 0 ? max : 0.0001f);
+    ma_sound_set_rolloff(&inst->maSound, factor);
+    ma_sound_set_spatialization_enabled(&inst->maSound, MA_TRUE);
+}
+
+static void maSetListenerPosition(AudioSystem* audio, float x, float y, float z) {
+    ma_engine_listener_set_position(&((MaAudioSystem*)audio)->engine, 0, x, y, z);
+}
+
 static void maStopSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         // Stop specific instance
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
@@ -374,7 +409,7 @@ static void maStopAll(AudioSystem* audio) {
 static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         return inst != nullptr && ma_sound_is_playing(&inst->maSound);
     } else {
@@ -392,7 +427,7 @@ static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
 static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_stop(&inst->maSound);
@@ -410,7 +445,7 @@ static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
 static void maResumeSound(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_start(&inst->maSound);
@@ -479,7 +514,7 @@ static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float ga
                 inst->currentGain = gain;
                 inst->targetGain = gain;
                 inst->fadeTimeRemaining = 0.0f;
-                ma_sound_set_volume(&inst->maSound, gain);
+                ma_sound_set_volume(&inst->maSound, gain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
             } else {
                 inst->startGain = inst->currentGain;
                 inst->targetGain = gain;
@@ -502,7 +537,7 @@ static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float ga
                         inst->currentGain = gain;
                         inst->targetGain = gain;
                         inst->fadeTimeRemaining = 0.0f;
-                        ma_sound_set_volume(&inst->maSound, gain);
+                        ma_sound_set_volume(&inst->maSound, gain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
                     } else {
                         inst->startGain = inst->currentGain;
                         inst->targetGain = gain;
@@ -603,24 +638,42 @@ static float maGetSoundPitch(AudioSystem* audio, int32_t soundOrInstance) {
     return 1.0f;
 }
 
+static float maGetStreamLength(MaAudioSystem* ma, int32_t streamIndex);
+
+static float maSoundTrackPosition(MaAudioSystem* ma, SoundInstance* inst) {
+    if (ma_sound_is_looping(&inst->maSound)) {
+        ma_uint64 cursorFrames;
+        ma_uint64 lengthFrames;
+        ma_uint32 sampleRate;
+        if (ma_sound_get_cursor_in_pcm_frames(&inst->maSound, &cursorFrames) == MA_SUCCESS &&
+            ma_sound_get_data_format(&inst->maSound, nullptr, nullptr, &sampleRate, nullptr, 0) == MA_SUCCESS &&
+            sampleRate > 0) {
+            if (ma_sound_get_length_in_pcm_frames(&inst->maSound, &lengthFrames) == MA_SUCCESS && lengthFrames > 0)
+                return (float) (cursorFrames % lengthFrames) / (float) sampleRate;
+            if (inst->soundIndex >= AUDIO_STREAM_INDEX_BASE) {
+                ma_uint64 totalFrames = (ma_uint64) (maGetStreamLength(ma, inst->soundIndex) * sampleRate);
+                if (totalFrames > 0)
+                    return (float) (cursorFrames % totalFrames) / (float) sampleRate;
+            }
+        }
+    }
+
+    float cursor;
+    if (ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor) == MA_SUCCESS) return cursor;
+    return 0.0f;
+}
+
 static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
-        if (inst != nullptr) {
-            float cursor;
-            ma_result result = ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor);
-            if (result == MA_SUCCESS) return cursor;
-        }
+        if (inst != nullptr) return maSoundTrackPosition(ma, inst);
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
-            if (inst->active && inst->soundIndex == soundOrInstance) {
-                float cursor;
-                ma_result result = ma_sound_get_cursor_in_seconds(&inst->maSound, &cursor);
-                if (result == MA_SUCCESS) return cursor;
-            }
+            if (inst->active && inst->soundIndex == soundOrInstance)
+                return maSoundTrackPosition(ma, inst);
         }
     }
     return 0.0f;
@@ -629,7 +682,7 @@ static float maGetTrackPosition(AudioSystem* audio, int32_t soundOrInstance) {
 static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, float positionSeconds) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
             ma_sound_seek_to_pcm_frame(&inst->maSound, (ma_uint64) (positionSeconds * 44100.0f));
@@ -644,13 +697,34 @@ static void maSetTrackPosition(AudioSystem* audio, int32_t soundOrInstance, floa
     }
 }
 
-// Total length of a loaded sound. Works on both SOND index and active instance ids.
-// Uses miniaudio's ma_sound_get_length_in_seconds, which reads the decoded duration from the underlying data source (works for fully-decoded sounds AND streaming sounds).
+static float maGetStreamLength(MaAudioSystem* ma, int32_t streamIndex) {
+    int32_t slotIndex = streamIndex - AUDIO_STREAM_INDEX_BASE;
+    if (slotIndex < 0 || slotIndex >= MAX_AUDIO_STREAMS || !ma->streams[slotIndex].active)
+        return 0.0f;
+
+    AudioStreamEntry* stream = &ma->streams[slotIndex];
+    if (stream->lengthSeconds >= 0.0f) return stream->lengthSeconds;
+
+    stream->lengthSeconds = 0.0f;
+    ma_decoder decoder;
+    ma_decoder_config config = ma_decoder_config_init_default();
+    if (ma_decoder_init_file(stream->filePath, &config, &decoder) == MA_SUCCESS) {
+        ma_uint64 frames = 0;
+        if (ma_decoder_get_length_in_pcm_frames(&decoder, &frames) == MA_SUCCESS && decoder.outputSampleRate > 0)
+            stream->lengthSeconds = (float) frames / (float) decoder.outputSampleRate;
+        ma_decoder_uninit(&decoder);
+    }
+    return stream->lengthSeconds;
+}
+
 static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
+    if (soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+        return maGetStreamLength(ma, soundOrInstance);
+
     SoundInstance* match = nullptr;
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE) {
+    if (isValidSoundInstanceId(soundOrInstance)) {
         match = findInstanceById(ma, soundOrInstance);
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
@@ -662,13 +736,15 @@ static float maGetSoundLength(AudioSystem* audio, int32_t soundOrInstance) {
         }
     }
     if (match != nullptr) {
+        if (match->soundIndex >= AUDIO_STREAM_INDEX_BASE)
+            return maGetStreamLength(ma, match->soundIndex);
         float seconds = 0.0f;
         if (ma_sound_get_length_in_seconds(&match->maSound, &seconds) != MA_SUCCESS) return 0.0f;
         return seconds;
     }
 
     // No active instance: GMS audio_sound_length(soundIndex) must still return the asset's duration.
-    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE || soundOrInstance >= AUDIO_STREAM_INDEX_BASE)
+    if (soundOrInstance >= SOUND_INSTANCE_ID_BASE)
         return 0.0f;
 
     DataWin* dw = ma->base.audioGroups[0];
@@ -723,6 +799,16 @@ static void maSetMasterGainForListener(AudioSystem* audio, float gain, int32_t i
 
 static void maSetChannelCount(MAYBE_UNUSED AudioSystem* audio, MAYBE_UNUSED int32_t count) {
     // miniaudio handles channel management internally, this is a no-op
+}
+
+static void maSetGroupGain(AudioSystem* audio, int32_t groupIndex, float gain, uint32_t timeMs) {
+    MaAudioSystem* ma = (MaAudioSystem*) audio;
+    AudioSystem_setGroupGain(audio, groupIndex, gain, timeMs);
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (inst->active && AudioSystem_soundGroup(audio, inst->soundIndex) == groupIndex)
+            ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
+    }
 }
 
 static void maGroupLoad(AudioSystem* audio, int32_t groupIndex) {
@@ -797,6 +883,7 @@ static int32_t maCreateStream(AudioSystem* audio, const char* filename) {
     ma->streams[freeSlot].filePath = resolved;
     ma->streams[freeSlot].initialGain = 1.0f;
     ma->streams[freeSlot].initialPitch = 1.0f;
+    ma->streams[freeSlot].lengthSeconds = -1.0f;
 
     int32_t streamIndex = AUDIO_STREAM_INDEX_BASE + freeSlot;
     logInfo("Audio: Created stream %d for '%s' -> '%s'\n", streamIndex, filename, resolved);
@@ -848,6 +935,8 @@ MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
     maAudioSystemVtable.destroy = maDestroy;
     maAudioSystemVtable.update = maUpdate;
     maAudioSystemVtable.playSound = maPlaySound;
+    maAudioSystemVtable.setSoundSpatial = maSetSoundSpatial;
+    maAudioSystemVtable.setListenerPosition = maSetListenerPosition;
     maAudioSystemVtable.stopSound = maStopSound;
     maAudioSystemVtable.stopAll = maStopAll;
     maAudioSystemVtable.isPlaying = maIsPlaying;
@@ -867,6 +956,7 @@ MaAudioSystem* MaAudioSystem_create(DataWin* dataWin) {
     maAudioSystemVtable.setMasterGain = maSetMasterGain;
     maAudioSystemVtable.setMasterGainForListener = maSetMasterGainForListener;
     maAudioSystemVtable.setChannelCount = maSetChannelCount;
+    maAudioSystemVtable.setGroupGain = maSetGroupGain;
     maAudioSystemVtable.groupLoad = maGroupLoad;
     maAudioSystemVtable.groupIsLoaded = maGroupIsLoaded;
     maAudioSystemVtable.createStream = maCreateStream;

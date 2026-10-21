@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include "string_compat.h"
 #include <time.h>
-#include <signal.h>
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
@@ -26,11 +25,15 @@
 #endif
 #endif
 #endif
+#ifndef __wasi__
+#include <signal.h>
+#endif
 
 #include "runner_keyboard.h"
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
+#include "debug_font/debug_font.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
     !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
 #define USE_GLAD
@@ -171,7 +174,7 @@ static bool platformInitGlad(void) {
 }
 #endif
 
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA)
+#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_WEB)
 #define USE_OPENGL_DEBUG
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;
@@ -303,6 +306,32 @@ char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
+static char* buildGameChangeTargetPath(const char* currentDataWinPath, const char* workingDirectory, const char* dataWinFilename) {
+    if (dataWinFilename == nullptr || dataWinFilename[0] == '\0') {
+        return nullptr;
+    }
+
+    char* parentDir = safeStrdup(currentDataWinPath);
+    bsGetDirname(parentDir);
+
+    const char* normalizedWorkingDir = workingDirectory;
+    while (*normalizedWorkingDir == '/' || *normalizedWorkingDir == '\\') {
+        normalizedWorkingDir++;
+    }
+
+    bool needParentSeparator = parentDir[0] != '\0' && parentDir[strlen(parentDir) - 1] != '/' && parentDir[strlen(parentDir) - 1] != '\\';
+    size_t newPathLen = strlen(parentDir) + (needParentSeparator ? 1 : 0) + strlen(normalizedWorkingDir) + 1 + strlen(dataWinFilename) + 1;
+    char* newPath = (char *)safeMalloc(newPathLen);
+    if (normalizedWorkingDir[0] == '\0') {
+        snprintf(newPath, newPathLen, "%s%s%s", parentDir, needParentSeparator ? "/" : "", dataWinFilename);
+    } else {
+        snprintf(newPath, newPathLen, "%s%s%s/%s", parentDir, needParentSeparator ? "/" : "", normalizedWorkingDir, dataWinFilename);
+    }
+
+    free(parentDir);
+    return newPath;
+}
+
 // ===[ SCREENSHOT ]===
 // Reads the contents of an FBO (use 0 for the default framebuffer) into a PNG file.
 // If forceOpaque is true, the alpha channel is overwritten with 255, fixing any clobbering done by blending modes.
@@ -377,6 +406,8 @@ static void dumpAllSurfaces(GLRenderer* gl, const char* filenamePattern, int fra
 
 InputRecording* globalInputRecording = nullptr;
 
+#ifndef __wasi__
+
 #if defined(__has_feature)
     #if __has_feature(address_sanitizer)
         #define BUTTERSCOTCH_HAS_ASAN 1
@@ -419,6 +450,8 @@ static void installCrashHandlers(void) {
     signal(SIGILL,  crashSignalHandler);
 }
 
+#endif
+
 void saveInputRecording() {
     // Save input recording if active, then free
     if (globalInputRecording != nullptr) {
@@ -430,7 +463,7 @@ void saveInputRecording() {
     }
 }
 
-#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)
 #define USE_CRASH_SIGNAL_HANDLER
 typedef struct { int key; struct sigaction value; } PreviousSignalActionEntry;
 static PreviousSignalActionEntry* previousSignalActions = nullptr;
@@ -499,6 +532,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;
+    bool showDebugOverlay = args.debug;
     while (true) {
         logInfo("Loading %s...\n", args.dataWinPath);
 
@@ -527,18 +561,19 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.parseTxtr = true;
 #ifdef PLATFORM_VITA
         do {
-            char *lastSlash = strrchr(args.dataWinPath, '/');
-            if (!lastSlash) {
-                lastSlash = strrchr(args.dataWinPath, ':');
-                if (!lastSlash) /* should be impossible if dataWinPath is valid */
-                    break;
+            char *texBinDir = safeStrdup(args.dataWinPath);
+            bsGetDirname(texBinDir);
+            if (strcmp(texBinDir, ".") == 0) {
+                free(texBinDir);
+                break;
             }
-            size_t texBinPathSize = lastSlash - args.dataWinPath + 1;
+            size_t dirLen = strlen(texBinDir);
+            bool needsSep = texBinDir[dirLen - 1] != '/' && texBinDir[dirLen - 1] != '\\' && texBinDir[dirLen - 1] != ':';
             const char *texBinName = "textures.bin";
-            size_t texBinNameSize = strlen(texBinName) + 1;
-            char *texBinPath = (char *)safeMalloc(texBinPathSize + texBinNameSize);
-            memcpy(texBinPath, args.dataWinPath, texBinPathSize);
-            memcpy(texBinPath + texBinPathSize, texBinName, texBinNameSize);
+            size_t texBinPathSize = dirLen + (needsSep ? 1 : 0) + strlen(texBinName) + 1;
+            char *texBinPath = (char *)safeMalloc(texBinPathSize);
+            snprintf(texBinPath, texBinPathSize, "%s%s%s", texBinDir, needsSep ? "/" : "", texBinName);
+            free(texBinDir);
             FILE *texBinFile = fopen(texBinPath, "rb");
             free(texBinPath);
             if (!texBinFile)
@@ -775,21 +810,8 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // Initialize the file system
-        char* dataWinDir = nullptr;
-        {
-            const char* lastSlash = strrchr(args.dataWinPath, '/');
-            const char* lastBackslash = strrchr(args.dataWinPath, '\\');
-            if (lastBackslash != nullptr && (lastSlash == nullptr || lastBackslash > lastSlash))
-                lastSlash = lastBackslash;
-            if (lastSlash != nullptr) {
-                size_t len = (size_t) (lastSlash - args.dataWinPath + 1);
-                dataWinDir = (char *)safeMalloc(len + 1);
-                memcpy(dataWinDir, args.dataWinPath, len);
-                dataWinDir[len] = '\0';
-            } else {
-                dataWinDir = safeStrdup("./");
-            }
-        }
+        char* dataWinDir = safeStrdup(args.dataWinPath);
+        bsGetDirname(dataWinDir);
         const char* savePath = args.saveFolder != nullptr ? args.saveFolder : dataWinDir;
         OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);
         free(dataWinDir);
@@ -839,6 +861,8 @@ int loop(CommandLineArgs args, const char *argv0) {
                 return 1;
             }
 
+            // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
+            platformSetWindowTitle(gen8->displayName);
 #ifdef USE_GLAD
 #if defined(USE_GLFW3) || defined(USE_GLFW2)
             if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
@@ -863,8 +887,6 @@ int loop(CommandLineArgs args, const char *argv0) {
 
             platformInitialized = true;
         } else {
-            // game_change path: reuse the existing window/GL context, just retitle and resize for the new game.
-            platformSetWindowTitle(gen8->displayName);
             platformSetWindowSize(windowW, windowH);
         }
 
@@ -891,7 +913,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 #ifdef ENABLE_MODERN_GL
         if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
-            hostFramebuffer = &((GLRenderer *)renderer)->hostFramebuffer;
+            hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
 #endif
         if (!renderer) {
@@ -901,6 +923,41 @@ int loop(CommandLineArgs args, const char *argv0) {
             PreProcessedStuff_free();
             return 1;
         }
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+        if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+            switch (args.glTextureFormat) {
+                case GL_TEXTURE_FORMAT_RGBA4:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                    break;
+                case GL_TEXTURE_FORMAT_RGBA:
+                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                    break;
+                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
+#ifdef GL_COMPRESSED_RGBA
+                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                    break;
+#else
+                    logError("Compressed textures are unavailable in this build\n");
+                    platformExit();
+                    DataWin_free(dataWin);
+                    PreProcessedStuff_free();
+                    return 1;
+#endif
+                default:
+                    abort();
+            }
+            switch (args.glSurfaceFormat) {
+                case GL_SURFACE_FORMAT_RGBA4:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                    break;
+                case GL_SURFACE_FORMAT_RGBA:
+                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                    break;
+                default:
+                    abort();
+            }
+        }
+#endif
 
         // Initialize the audio system
         AudioSystem* audioSystem = nullptr;
@@ -928,7 +985,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
 #ifdef ENABLE_LEGACY_GL
                 if (gfx == LEGACY_GL)
-                    GLLegacyRenderer_ensureTextureLoaded((GLLegacyRenderer*) renderer, (int32_t) i);
+                    GLLegacyRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
 #endif
             }
         }
@@ -948,7 +1005,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
         if (globalInputRecording != nullptr) {
             globalInputRecording->filterDebugKeys = args.debug;
+#ifndef __wasi__
             installCrashHandlers();
+#endif
         }
 #ifdef ENABLE_VM_TRACING
         shcopyFromTo(args.varReadsToBeTraced, runner->vmContext->varReadsToBeTraced);
@@ -991,6 +1050,8 @@ int loop(CommandLineArgs args, const char *argv0) {
 
         // Main loop
         bool debugShowCollisionMasks = false;
+        size_t overlayCachedMemBytes = 0;
+        uint64_t overlayLastMemCheck = 0;
         bool freeCamActive = false;
         bool actuallyShuttingDown = false;
         bool wasPaused = false;
@@ -1108,6 +1169,12 @@ int loop(CommandLineArgs args, const char *argv0) {
                 }
             }
 
+            // Toggle the debug overlay
+            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F1)) {
+                showDebugOverlay = !showDebugOverlay;
+                shouldRender = true;
+                logDebug("Debug overlay %s!\n", showDebugOverlay ? "enabled" : "disabled");
+            }
 
             // Toggle the collision mask debug overlay
             if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
@@ -1304,6 +1371,42 @@ int loop(CommandLineArgs args, const char *argv0) {
                 Runner_drawPost(runner, fbWidth, fbHeight);
                 renderer->vtable->endFrameEnd(renderer);
                 Runner_drawGUI(runner, fbWidth, fbHeight, gameW, gameH);
+
+                if (showDebugOverlay && renderer->vtable->drawTextUI != nullptr) {
+                    renderer->vtable->beginGUI(renderer, fbWidth, fbHeight, 0, 0, fbWidth, fbHeight, RENDER_TARGET_HOST_FRAMEBUFFER);
+
+                    int32_t savedHalign = renderer->drawHalign;
+                    int32_t savedValign = renderer->drawValign;
+                    renderer->drawHalign = 0;
+                    renderer->drawValign = 0;
+
+                    char fpsText[64];
+                    snprintf(fpsText, sizeof(fpsText), "FPS: %.1f", runner->fps);
+
+                    float text_height = 10.0f;
+                    renderer->vtable->drawTextUI(renderer, fpsText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+
+                    /*
+                     * get_used_memory() is too slow to do every frame so we
+                     * cache the result and only re-check twice a second.
+                     */
+                    if (overlayCachedMemBytes == 0 || frameStartNow - overlayLastMemCheck >= 500000000U) {
+                        overlayCachedMemBytes = get_used_memory();
+                        overlayLastMemCheck = frameStartNow;
+                    }
+                    if (overlayCachedMemBytes != 0) {
+                        char memText[96];
+                        snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
+
+                        text_height += (float)DEBUGFONT_LINE_HEIGHT * 0.5f;
+                        renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
+                    }
+
+                    renderer->drawHalign = savedHalign;
+                    renderer->drawValign = savedValign;
+
+                    renderer->vtable->endGUI(renderer);
+                }
             }
 
             if (runner->paused && enteringPause && !runner->debugMode) {
@@ -1380,7 +1483,8 @@ int loop(CommandLineArgs args, const char *argv0) {
             wasPaused = runner->paused;
 
             // Limit frame rate to room speed (skip in headless mode for max speed!!)
-            if (!args.headless && runner->currentRoom->speed > 0) {
+            double effectiveGameSpeed = Runner_getEffectiveGameSpeed(runner);
+            if (!args.headless && effectiveGameSpeed > 0.0) {
                 bool fastForwardTabNow = RunnerKeyboard_checkPressed(runner->keyboard, VK_TAB);
                 if (args.fastForwardSpeed > 0.0 && fastForwardTabNow && !fastForwardTabPrev) {
                     fastForwardActive = !fastForwardActive;
@@ -1388,7 +1492,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                 }
                 fastForwardTabPrev = fastForwardTabNow;
                 double effectiveSpeed = (args.fastForwardSpeed > 0.0 && fastForwardActive) ? args.fastForwardSpeed : args.speedMultiplier;
-                uint64_t targetFrameTime = 1000000000 / (runner->currentRoom->speed * effectiveSpeed);
+                uint64_t targetFrameTime = 1000000000 / (effectiveGameSpeed * effectiveSpeed);
                 uint64_t nextFrameTime = lastFrameTime + targetFrameTime;
                 platformSleepUntil(nextFrameTime);
             }
@@ -1437,13 +1541,15 @@ int loop(CommandLineArgs args, const char *argv0) {
         }
 
         // game_change was called, so we need to restart the runner with the new data.win and launch parameters
+        bool macosGameChange = (args.osType == OS_MACOSX);
+        char* dataWinFilename = nullptr;
+
         if (nextWorkingDirectory != nullptr && nextLaunchParameters != nullptr) {
             char** newArguments = nullptr;
             newArguments = extractRunnerArguments(nextLaunchParameters);
 
             // Extract the data.win filename from "-game <file>" inside the new launch parameters
-            char* dataWinFilename = nullptr;
-            {
+            if (!macosGameChange) {
                 // After extraction, we now need to figure out where is the "-game" argument
                 size_t length = arrlen(newArguments);
                 repeat(length, i) {
@@ -1456,6 +1562,11 @@ int loop(CommandLineArgs args, const char *argv0) {
                         break;
                     }
                 }
+            }
+
+            // For some reason in the official runner, this value is just hardcoded to be game.ios.
+            if (macosGameChange) {
+                dataWinFilename = safeStrdup("game.ios");
             }
 
             if (dataWinFilename == nullptr) {
@@ -1476,27 +1587,23 @@ int loop(CommandLineArgs args, const char *argv0) {
                 return 1;
             }
 
-            // Get the parent directory of the main data.win file
-            char* parentDir = safeStrdup(currentDataWinPath);
-            {
-                char* lastSlash = strrchr(parentDir, '/');
-                char* lastBackslash = strrchr(parentDir, '\\');
-                char* sep = (lastSlash > lastBackslash) ? lastSlash : lastBackslash;
-                if (sep != nullptr) {
-                    *sep = '\0';
-                } else {
-                    parentDir[0] = '.';
-                    parentDir[1] = '\0';
+            char* newPath = buildGameChangeTargetPath(currentDataWinPath, nextWorkingDirectory, dataWinFilename);
+            if (newPath == nullptr) {
+                logError("Runner: Failed to build target path for game_change! Shutting down...\n");
+                free(nextWorkingDirectory);
+                free(nextLaunchParameters);
+                free(currentDataWinPath);
+                repeat(arrlen(newArguments), i) {
+                    free(newArguments[i]);
                 }
+                arrfree(newArguments);
+                repeat(arrlen(currentGameArgs), j) {
+                    free(currentGameArgs[j]);
+                }
+                arrfree(currentGameArgs);
+                return 1;
             }
 
-            // The pendingWorkingDirectory contains a slash at the beginning of it (example: /chapter3)
-            // The parentDir does NOT have a trailing slash, so we don't need to bother with it
-            size_t newPathLen = strlen(parentDir) + strlen(nextWorkingDirectory) + 1 + strlen(dataWinFilename) + 1;
-            char* newPath = (char *)safeMalloc(newPathLen);
-            snprintf(newPath, newPathLen, "%s%s/%s", parentDir, nextWorkingDirectory, dataWinFilename);
-
-            free(parentDir);
             free(currentDataWinPath);
             currentDataWinPath = newPath;
             args.dataWinPath = currentDataWinPath;
@@ -1508,13 +1615,21 @@ int loop(CommandLineArgs args, const char *argv0) {
                 arrdel(currentGameArgs, 1);
             }
 
-            repeat(arrlen(newArguments), i) {
-                arrput(currentGameArgs, newArguments[i]);
+            if (macosGameChange) {
+                arrput(currentGameArgs, safeStrdup("-game"));
+                arrput(currentGameArgs, safeStrdup(currentDataWinPath));
+            } else {
+                repeat(arrlen(newArguments), i) {
+                    arrput(currentGameArgs, safeStrdup(newArguments[i]));
+                }
             }
 
             free(dataWinFilename);
             free(nextWorkingDirectory);
             free(nextLaunchParameters);
+            repeat(arrlen(newArguments), i) {
+                free(newArguments[i]);
+            }
             arrfree(newArguments);
         }
     }

@@ -1,0 +1,17 @@
+press any key to test
+
+if array_copy works, output should be:
+"Game: Original:
+Game: [ "The original" ]
+Game: New array before array_copy:
+Game: [ "FAKE!!!" ]
+Game: New array after array_copy:
+Game: [ "The original" ]"
+
+if array_copy doesn't works, output should be:
+"Game: Original:
+Game: [ "The original" ]
+Game: New array before array_copy:
+Game: [ "FAKE!!!" ]
+Game: New array after array_copy:
+Game: [ "FAKE!!!" ]"

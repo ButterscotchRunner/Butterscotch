@@ -869,7 +869,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
         tex->TBW = chunk->tbw;
         tex->Vram = gs->textureVramBase + (uint32_t) chunk->firstChunk * VRAM_CHUNK_SIZE;
         tex->PSM = GS_PSM_CT16;
-        tex->Filter = GS_FILTER_NEAREST;
+        tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
         return true;
     }
 
@@ -895,7 +895,7 @@ static bool setupTextureForTPAG(GsRenderer* gs, GSTEXTURE* tex, int32_t tpagInde
     tex->Height = pageHeight;
     tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
-    tex->Filter = GS_FILTER_NEAREST;
+    tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
     if (pageBpp == 4) {
@@ -957,7 +957,7 @@ static bool setupTextureForTile(GsRenderer* gs, GSTEXTURE* tex, AtlasTileEntry* 
     tex->Height = pageHeight;
     tex->TBW = pageWidth / 64;
     tex->Vram = vramAddr;
-    tex->Filter = GS_FILTER_NEAREST;
+    tex->Filter = gs->base.texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
     tex->ClutStorageMode = GS_CLUT_STORAGE_CSM1;
 
     if (pageBpp == 4) {
@@ -1104,6 +1104,7 @@ static void gsDestroy(Renderer* renderer) {
     free(gs->eeCache);
     free(gs->eeCacheEntries);
     free(gs->atlasDataSizes);
+    // free(gs->primitiveVertices);
     arrfree(gs->snapshotChunks);
     arrfree(gs->tpagToSnapshot);
     arrfree(gs->surfaces);
@@ -1554,7 +1555,7 @@ static void gsDrawTiledPart(Renderer* renderer, int32_t tpagIndex, int32_t srcX,
     }
 }
 
-static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
     if (0 > tpagIndex || (uint32_t) tpagIndex >= renderer->dataWin->tpag.count) return;
@@ -1688,7 +1689,7 @@ static void gsDrawSpritePart(Renderer* renderer, int32_t tpagIndex, int32_t srcO
 }
 
 // GS textured prims are single-coloured, so per-corner colours fall back to corner 1 (same as gsDrawSurfaceColor).
-static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, int32_t srcOffX, int32_t srcOffY, int32_t srcW, int32_t srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
+static void gsDrawSpritePartColor(Renderer* renderer, int32_t tpagIndex, float srcOffX, float srcOffY, float srcW, float srcH, float x, float y, float xscale, float yscale, float angleDeg, float pivotX, float pivotY, uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, float alpha) {
     gsDrawSpritePart(renderer, tpagIndex, srcOffX, srcOffY, srcW, srcH, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color1, alpha);
 }
 
@@ -1752,6 +1753,35 @@ static void gsDrawSpritePos(Renderer* renderer, int32_t tpagIndex, float x1, flo
         0,
         gsColor
     );
+}
+
+static void gsPrimitiveBegin(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t primitiveType) {
+    return;
+}
+
+static void gsPrimitiveBeginTexture(MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED int32_t primitiveType, MAYBE_UNUSED int32_t texture) {
+    return;
+}
+
+static void gsPrimitiveEnd(MAYBE_UNUSED Renderer* renderer) {
+    return;
+}
+
+static void gsDrawVertex(
+    MAYBE_UNUSED Renderer* renderer,
+    MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z,
+    MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha,
+    MAYBE_UNUSED float u, MAYBE_UNUSED float v
+) {
+    return;
+}
+
+static void gsDrawVertexBuffer(
+    MAYBE_UNUSED Renderer* renderer, MAYBE_UNUSED VertexBuffer* buffer,
+    MAYBE_UNUSED int32_t primitive, MAYBE_UNUSED int32_t texture,
+    MAYBE_UNUSED int32_t offset, MAYBE_UNUSED int32_t count
+) {
+    return;
 }
 
 static void gsDrawRectangle(Renderer* renderer, float x1, float y1, float x2, float y2, uint32_t color, float alpha, bool outline) {
@@ -1969,7 +1999,7 @@ static void gsDrawText(Renderer* renderer, const char* text, float x, float y, f
 
             if (glyph != nullptr) {
                 bool resolveOk = true;
-                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
+                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0 && ch != ' ') {
                     GSTEXTURE glyphTex;
                     float u0 = 0, v0 = 0, u1 = 0, v1 = 0;
                     float localX0, localY0;
@@ -2091,7 +2121,7 @@ static void gsDrawTextColor(Renderer* renderer, const char* text, float x, float
                 u64 textColor4 = GS_SETREG_RGBAQ(BGR_R(c4) >> 1, BGR_G(c4) >> 1, BGR_B(c4) >> 1, ga, 0x00);
 
                 bool resolveOk = true;
-                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0) {
+                if (glyph->sourceWidth > 0 && glyph->sourceHeight > 0 && ch != ' ') {
                     GSTEXTURE glyphTex;
                     float u0 = 0, v0 = 0, u1 = 0, v1 = 0;
                     float localX0, localY0;
@@ -2447,6 +2477,10 @@ static void gsGpuSetBlendEnable(Renderer* renderer, bool enable) {
     gsApplySurfaceWriteMode(gs);
 }
 
+static void gsGpuSetTexFilter(Renderer* renderer, bool enable) {
+    renderer->texFilter = enable;
+}
+
 static bool gsGpuGetBlendEnable(Renderer* renderer) {
     GsRenderer* gs = (GsRenderer*) renderer;
 
@@ -2650,17 +2684,9 @@ static int32_t gsCreateSurface(Renderer* renderer, int32_t width, int32_t height
     uint32_t paddedWidth = (uint32_t) tbw * 64;
     uint32_t bytes = gsKit_texture_size(paddedWidth, height, GS_PSM_CT16);
 
-    // Reuse a freed row if possible so the table doesn't grow unbounded.
-    int32_t row = -1;
-    uint32_t rowCount = (uint32_t) arrlen(gs->surfaces);
-    for (uint32_t i = 0; rowCount > i; i++) {
-        if (!gs->surfaces[i].inUse) { row = (int32_t) i; break; }
-    }
-    if (0 > row) {
-        Surface zero = {0};
-        arrput(gs->surfaces, zero);
-        row = (int32_t) (arrlen(gs->surfaces) - 1);
-    }
+    Surface zero = {0};
+    arrput(gs->surfaces, zero);
+    int32_t row = (int32_t) (arrlen(gs->surfaces) - 1);
 
     // When we aren't able to allocate this, we return a "phantom" row
     int chunksNeeded = (int) ((bytes + VRAM_CHUNK_SIZE - 1) / VRAM_CHUNK_SIZE);
@@ -2892,7 +2918,7 @@ static void gsDrawSurface(Renderer* renderer, int32_t surfaceID, int32_t srcLeft
     tex.TBW = srcTbw;
     tex.Vram = srcVram;
     tex.PSM = GS_PSM_CT16;
-    tex.Filter = GS_FILTER_NEAREST;
+    tex.Filter = renderer->texFilter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST;
 
     uint8_t r = BGR_R(color) >> 1;
     uint8_t g = BGR_G(color) >> 1;
@@ -3130,6 +3156,11 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.drawRectangleColor = gsDrawRectangleColor;
     gsVtable.drawLine = gsDrawLine;
     gsVtable.drawLineColor = gsDrawLineColor;
+    gsVtable.primitiveBegin = gsPrimitiveBegin;
+    gsVtable.primitiveBeginTexture = gsPrimitiveBeginTexture;
+    gsVtable.primitiveEnd = gsPrimitiveEnd;
+    gsVtable.drawVertex = gsDrawVertex;
+    gsVtable.drawVertexBuffer = gsDrawVertexBuffer;
     gsVtable.drawText = gsDrawText;
     gsVtable.drawTextColor = gsDrawTextColor;
     gsVtable.drawTriangle = gsDrawTriangle;
@@ -3142,6 +3173,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.gpuSetBlendMode = gsGpuSetBlendMode;
     gsVtable.gpuSetBlendModeExt = gsGpuSetBlendModeExt;
     gsVtable.gpuSetBlendEnable = gsGpuSetBlendEnable;
+    gsVtable.gpuSetTexFilter = gsGpuSetTexFilter;
     gsVtable.gpuGetBlendEnable = gsGpuGetBlendEnable;
     gsVtable.gpuSetAlphaTestEnable = gsGpuSetAlphaTestEnable;
     gsVtable.gpuGetAlphaTestEnable = gsGpuGetAlphaTestEnable;
@@ -3164,6 +3196,7 @@ Renderer* GsRenderer_create(GSGLOBAL* gsGlobal, int64_t eeAtlasCacheMiB) {
     gsVtable.surfaceFree = gsSurfaceFree;
     gsVtable.surfaceCopy = gsSurfaceCopy;
     gsVtable.surfaceGetPixels = gsSurfaceGetPixels;
+    gsVtable.surfaceUploadPixels = nullptr;
     gsVtable.spriteGetTexture = gsSpriteGetTexture;
     gsVtable.surfaceGetTexture = gsSurfaceGetTexture;
     gsVtable.textureGetTexelWidth = gsTextureGetTexelWidth;

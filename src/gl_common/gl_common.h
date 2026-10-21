@@ -2,7 +2,14 @@
 #define _BS_GL_COMMON_H_
 
 #include "common.h"
+#include "renderer.h"
+#include "runner.h"
 #include <stdint.h>
+#include "data_win.h"
+#include "debug_font/debug_font.h"
+
+struct GLRenderer;
+typedef struct GLRenderer GLRenderer;
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
@@ -14,6 +21,21 @@
 #else
 #include <glad/glad.h>
 #endif
+
+void GLCommon_beginFrame(GLRenderer* gl, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH);
+void GLCommon_init(Renderer* renderer);
+void GLCommon_destroy(Renderer* renderer);
+void GLCommon_setTexFilter(Renderer* renderer, bool enable);
+void GLCommon_applyTexFilter(bool enable);
+void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH);
+typedef void (*GLApplyProjectionFunc)(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix);
+void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
+void GLCommon_endView();
+void GLCommon_beginGUI(
+    Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection,
+    int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH
+);
+void GLCommon_setGuiProjection(Renderer *renderer, bool renderingToUserSurface, GLApplyProjectionFunc glApplyProjection, int32_t guiW, int32_t guiH);
 
 // ===[ Letterbox blit ]===
 
@@ -31,9 +53,7 @@ void GLCommon_endLetterboxBlit(int32_t fboWidth, int32_t fboHeight, int32_t game
 // Encoded as (GL_SURFACE_TEXTURE_FLAG | surfaceID); tpag counts never approach this, so the two can't collide.
 #define GL_SURFACE_TEXTURE_FLAG 0x40000000u
 
-// Returns a free slot index, growing the surfaces arrays if all slots are in use.
-// The newly returned slot has surfaces[i] == 0 and all dimensions zeroed.
-uint32_t GLCommon_findOrAllocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);
+uint32_t GLCommon_allocateSurfaceSlot(GLuint** surfaces, GLuint** surfaceTexture, int32_t** surfaceWidth, int32_t** surfaceHeight, uint32_t* count);
 
 // Blits a region between two surface FBOs.
 // If part == false, ignores src{X,Y,W,H} and copies the whole source to a matching-size box at (dstX, dstY) on the destination.
@@ -45,6 +65,9 @@ void GLCommon_surfaceBlit(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surf
 // Returns false on invalid surfaceId.
 // Saves/restores GL_FRAMEBUFFER_BINDING and GL_PACK_ALIGNMENT around the read.
 bool GLCommon_surfaceGetPixels(GLuint* surfaces, int32_t* surfaceWidth, int32_t* surfaceHeight, uint32_t count, int32_t surfaceId, uint8_t* outRGBA);
+
+bool GLCommon_surfaceSetPixels(Renderer* renderer, int32_t surfaceId, const uint8_t* rgba);
+void GLCommon_surfaceUploadPixels(Renderer* renderer, int32_t surfaceId, int32_t w, int32_t h, const uint8_t* rgba);
 
 // ===[ Blend mode translation ]===
 
@@ -74,5 +97,141 @@ typedef struct {
 GLVer GLCommon_getGLVersion(void);
 
 #endif
+
+// Utils
+
+static inline uint8_t floatToUnormByte(float v) {
+    if (v <= 0.0f) return 0;
+    if (v >= 1.0f) return 255;
+    return (uint8_t)(v * 255.0f + 0.5f);
+}
+
+// Primitives and vertices
+
+typedef struct {
+    float x, y, z;
+    float u, v;
+    uint8_t r, g, b, a;
+} GlVertex;
+
+typedef struct {
+    int32_t type;
+    int32_t vertexCount;
+    GLuint textureId;
+    bool hasTexture;
+} GlPrimitive;
+
+void GlPrimitive_reset(GlPrimitive* primitive);
+
+void GLCommon_primitiveBegin(GlPrimitive* primitive, int32_t type, int32_t textureId);
+void GLCommon_primitiveBeginTexture(GLRenderer* gl, int32_t primitiveType, GLuint resolvedTexture);
+bool GLCommon_primitivePrepare(
+    GlPrimitive* primitive, GLuint whiteTexture,
+    GLenum* mode, GLuint* textureId
+);
+void GLCommon_drawVertex(
+    GLRenderer* gl,
+    float x, float y, float z,
+    uint32_t color, float alpha,
+    float u, float v
+);
+
+// ===[ Debug UI font (drawTextUI) ]===
+
+// Embedded debug-font state backing drawTextUI. Embedded in each GL renderer
+// struct (modern + legacy) so drawTextUI needs no game fonts and no static
+// globals. The atlas texture is uploaded lazily on first use.
+typedef struct {
+    Font font;
+    FontGlyph glyphs[DEBUGFONT_GLYPH_COUNT];
+    TexturePageItem tpag;
+    bool initialized;
+    GLuint texture; // 0 = not uploaded yet
+} GLDebugUIFont;
+
+// Builds the synthetic Font from the embedded atlas. Idempotent.
+void GLCommon_initDebugUIFont(GLDebugUIFont* ui);
+
+// Uploads the atlas texture if not yet uploaded. Returns false on failure.
+bool GLCommon_ensureDebugFontTexture(GLRenderer* gl, GLDebugUIFont* ui);
+
+// Deletes the atlas texture if uploaded (safe to call when texture == 0).
+void GLCommon_deleteDebugFontTexture(GLDebugUIFont* ui);
+
+// Y-adjust to add to a glyph's local Y when it belongs to the renderer's
+// embedded debug UI font (the debug atlas has per-glyph yoffsets, GameMaker
+// fonts don't). Returns 0 for regular game fonts.
+static inline float GLCommon_debugUIFontYOffset(GLDebugUIFont* ui, Font* font, FontGlyph* glyph) {
+    if (font == &ui->font && DEBUGFONT_FIRST_CP <= glyph->character && glyph->character <= DEBUGFONT_LAST_CP)
+        return (float) debugFontGlyphs[glyph->character - DEBUGFONT_FIRST_CP].yoffset;
+    return 0.0f;
+}
+
+// Common GL Renderer struct
+
+enum GlMode {
+    GL_MODE_LEGACY = 0,
+    GL_MODE_MODERN = 1
+};
+
+struct GLRenderer {
+    Renderer base; // Must be first field for struct embedding
+    enum GlMode glMode;
+    GLint textureFormat;
+    GLint surfaceFormat; // 0 = unset, derive from textureFormat (compressed falls back to GL_RGBA)
+
+    GlVertex* vertexData; // MAX_QUADS * VERTICES_PER_QUAD vertices
+    GlPrimitive currentPrimitive;
+
+    GLuint* glTextures;       // one GL texture per TXTR page
+    int32_t* textureWidths;   // needed for UV normalization
+    int32_t* textureHeights;
+    bool* textureLoaded;      // lazy loading: true once PNG decoded and uploaded
+    uint32_t textureCount;
+
+    GLuint whiteTexture; // 1x1 white pixel for drawing primitives (rectangles, lines, etc.)
+
+    // Embedded debug UI font backing drawTextUI (see gl_common.h).
+    GLDebugUIFont debugUI;
+
+    int32_t windowW; // stored from beginFrame for endFrame blit
+    int32_t windowH;
+    int32_t gameW; // game width (matches the application_surface size)
+    int32_t gameH; // game height (matches the application_surface size)
+
+    // Original counts from data.win (dynamic slots start at these indices)
+    uint32_t originalTexturePageCount;
+    uint32_t originalTpagCount;
+    uint32_t originalSpriteCount;
+
+    bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
+
+    // GML surfaces (each is an FBO with a backing color texture)
+    GLuint* surfaces;
+    GLuint* surfaceTexture;
+    int32_t* surfaceWidth;
+    int32_t* surfaceHeight;
+    uint32_t surfaceCount;
+
+    // Blending mode + factors
+    bool blendEnable;
+    int32_t currentBlendMode;
+    int32_t currentSFactor;
+    int32_t currentDFactor;
+    int32_t currentSFactorAlpha;
+    int32_t currentDFactorAlpha;
+
+    bool alphaTestEnable;
+    float alphaTestRef;
+};
+
+static inline GLint GLCommon_surfaceInternalFormat(const GLRenderer* gl) {
+    if (gl->surfaceFormat != 0) return gl->surfaceFormat;
+#ifdef GL_COMPRESSED_RGBA
+    return (gl->textureFormat == GL_COMPRESSED_RGBA) ? GL_RGBA : gl->textureFormat;
+#else
+    return gl->textureFormat;
+#endif
+};
 
 #endif /* _BS_GL_COMMON_H_ */

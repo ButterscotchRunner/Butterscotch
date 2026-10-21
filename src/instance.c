@@ -1,5 +1,6 @@
 #include "instance.h"
 #include "vm.h"
+#include "physics/physics_engine.h"
 
 #include <stdlib.h>
 #include "string_compat.h"
@@ -13,6 +14,7 @@ Instance* Instance_create(uint32_t instanceId, int32_t objectIndex, GMLReal x, G
     Instance* inst = (Instance *)safeCalloc(1, sizeof(Instance));
     inst->instanceId = instanceId;
     inst->objectIndex = objectIndex;
+    inst->roomIndex = -1;
     inst->refCount = 0;
     inst->pinned = false;
     inst->structRegistryIndex = -1;
@@ -85,6 +87,8 @@ uint32_t Instance_getInstanceId(Instance* inst) {
 
 void Instance_freeContents(Instance* instance) {
     if (instance == nullptr) return;
+    PhysicsEngine_destroyBody(instance->physicsBody);
+    instance->physicsBody = nullptr;
 
     // Free owned strings and decRef owned arrays in selfVars hashmap, then release the entries buffer.
     IntRValueHashMap_freeAllValues(&instance->selfVars);

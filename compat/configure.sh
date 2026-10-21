@@ -13,10 +13,16 @@ export MSYS2_ARG_CONV_EXCL='*'
 [ "${0%/*}" = "$0" ] && scriptroot="." || scriptroot="${0%/*}"
 cd "$scriptroot"
 
+[ -z "$THREADS" ] && THREADS=$(nproc 2>/dev/null) || true
+[ -z "$THREADS" ] && THREADS=$(sysctl -n hw.ncpu 2>/dev/null) || true
+[ -z "$THREADS" ] && THREADS=1
+
 : > config.mk
+rm -rf tmp/lock*
 
 cleanup() {
     rm -f tmp/*.c ./*.obj tmp/a.out tmp/test.d tmp/*.fail
+    rm -rf tmp/lock*
 }
 
 config() {
@@ -59,6 +65,27 @@ include() {
     config "INCLUDES += \$(INC)$1"
 }
 
+lock() {
+    while :; do
+        i=1
+        while [ "$i" -le "$THREADS" ]; do
+            if mkdir "tmp/lock.$i" 2>/dev/null; then
+                lockslot=$i
+                return 0
+            fi
+            i=$((i + 1))
+        done
+        sleep 0.01 2>/dev/null || true
+    done
+}
+
+unlock() {
+    if [ -n "$lockslot" ]; then
+        rm -rf "tmp/lock.$lockslot"
+        lockslot=
+    fi
+}
+
 check() {
     checklog "$1"
     srcname=$2
@@ -67,6 +94,7 @@ check() {
     shift
     output="$output_exe"
     [ -n "$nolink" ] && output="$compile_obj $output_obj" && nolink=
+    lock
     if $CC $cflags ${srcflag}"tmp/${srcname}.c" ${output}tmp/a.out "$@" > "tmp/${outname}.out" 2>&1; then
         printyes
         ret=0
@@ -74,6 +102,7 @@ check() {
         printno
         ret=1
     fi
+    unlock
     [ -s "tmp/${outname}.out" ] || rm -f "tmp/${outname}.out"
     return "$ret"
 }
@@ -177,6 +206,9 @@ if ! nolink=1 check 'if the compiler supports mixed declarations and code' mixed
 fi
 
 config "_CC := $CC"
+if checkdefine '__cplusplus' > /dev/null; then
+    config 'CC_IS_CXX := 1'
+fi
 
 checklog 'the target OS'
 if checkdefine '_WIN32' > /dev/null; then
@@ -410,6 +442,38 @@ int main(void){
 ( check '' snprintf > /dev/null || :> tmp/snprintf.fail ) &
 snprintf_pid=$!
 
+printf '%s' "\
+#include <math.h>
+int main(void){return atan2f(1,1);}
+" > tmp/atan2f.c
+
+( check '' atan2f $lm > /dev/null || :> tmp/atan2f.fail ) &
+atan2f_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return powf(2,3);}
+" > tmp/powf.c
+
+( check '' powf $lm > /dev/null || :> tmp/powf.fail ) &
+powf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return ceilf(1);}
+" > tmp/ceilf.c
+
+( check '' ceilf $lm > /dev/null || :> tmp/ceilf.fail ) &
+ceilf_pid=$!
+
+printf '%s' "\
+#include <math.h>
+int main(void){return remainderf(1,2);}
+" > tmp/remainderf.c
+
+( check '' remainderf $lm > /dev/null || :> tmp/remainderf.fail ) &
+remainderf_pid=$!
+
 if [ "$syntax" != 'gcc' ] || ! checkend 'if the compiler supports -MMD -MP -MF test.d' "$mmd_pid" tmp/mmd.fail; then
     config 'DISABLE_MMD := 1'
 fi
@@ -505,6 +569,22 @@ fi
 
 if ! checkend 'for roundf' "$roundf_pid" tmp/roundf.fail; then
     define 'NO_ROUNDF'
+fi
+
+if ! checkend 'for atan2f' "$atan2f_pid" tmp/atan2f.fail; then
+    define 'NO_ATAN2F'
+fi
+
+if ! checkend 'for powf' "$powf_pid" tmp/powf.fail; then
+    define 'NO_POWF'
+fi
+
+if ! checkend 'for ceilf' "$ceilf_pid" tmp/ceilf.fail; then
+    define 'NO_CEILF'
+fi
+
+if ! checkend 'for remainderf' "$remainderf_pid" tmp/remainderf.fail; then
+    define 'NO_REMAINDERF'
 fi
 
 if ! checkend 'for isinf' "$isinf_pid" tmp/isinf.fail; then

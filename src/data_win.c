@@ -769,6 +769,38 @@ static void parseAGRP(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
+static void parseSpriteMessages(BinaryReader* reader, DataWin* dw, Sprite* spr, uint32_t sequenceOffset) {
+    size_t savedPos = BinaryReader_getPosition(reader);
+    BinaryReader_seek(reader, sequenceOffset);
+    uint32_t version = BinaryReader_readUint32(reader);
+    if (version != 1) {
+        logWarn("DataWin: Unsupported sprite sequence version %u for %s\n", version, spr->name);
+        BinaryReader_seek(reader, savedPos);
+        return;
+    }
+    BinaryReader_skip(reader, DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0) ? 40 : 32);
+    uint32_t keyCount = BinaryReader_readUint32(reader);
+    repeat(keyCount, k) {
+        float frame = BinaryReader_readFloat32(reader);
+        BinaryReader_skip(reader, 4);
+        BinaryReader_readBool32(reader);
+        bool disabled = BinaryReader_readBool32(reader);
+        uint32_t channelCount = BinaryReader_readUint32(reader);
+        repeat(channelCount, c) {
+            int32_t channel = BinaryReader_readInt32(reader);
+            uint32_t messageCount = BinaryReader_readUint32(reader);
+            repeat(messageCount, m) {
+                const char* message = readStringPtr(reader, dw);
+                if (!disabled && channel == 0 && message != nullptr) {
+                    SpriteMessage entry = { frame, message };
+                    arrput(spr->messages, entry);
+                }
+            }
+        }
+    }
+    BinaryReader_seek(reader, savedPos);
+}
+
 static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPreciseMasksForNonPreciseSprites) {
     Sprt* s = &dw->sprt;
     uint32_t count;
@@ -802,6 +834,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
         // Detect special type vs normal: peek next int32
         int32_t check = BinaryReader_readInt32(reader);
         uint32_t nineSliceOffset = 0;
+        uint32_t sequenceOffset = 0;
         if (check == -1) {
             spr->specialType = true;
             spr->sVersion = BinaryReader_readUint32(reader);
@@ -813,7 +846,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
                     spr->gms2PlaybackSpeed = BinaryReader_readFloat32(reader);
                     spr->gms2PlaybackSpeedType = BinaryReader_readUint32(reader);
                     if (spr->sVersion >= 2) {
-                        BinaryReader_skip(reader, 4); //sequenceOffset;
+                        sequenceOffset = BinaryReader_readUint32(reader);
                         if (spr->sVersion >= 3) {
                             nineSliceOffset = BinaryReader_readUint32(reader);
                         }
@@ -831,6 +864,8 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
                 continue;
             }
         }
+
+        if (sequenceOffset != 0) parseSpriteMessages(reader, dw, spr, sequenceOffset);
 
         // 'check' is the texture count (start of SimpleList)
         spr->textureCount = (uint32_t)check;
@@ -1450,8 +1485,8 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
 
     if (count == 0) { free(ptrs); o->objects = nullptr; return; }
 
-    // Detect GMS 2022.5+ by probing the first game object's event list structure.
-    if (DataWin_isVersionAtLeast(dw, 2, 3, 0, 0) && !DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0)) {
+    // Detect GMS 2022.5 to 2026.1 managed field by probing the first game object's event list structure.
+    if (DataWin_isVersionAtLeast(dw, 2, 3, 0, 0) && (!DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0) || DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0))) {
         uint32_t probePtr = 0;
         repeat(count, i) { if (ptrs[i] != 0) { probePtr = ptrs[i]; break; } }
         if (probePtr != 0) {
@@ -1478,6 +1513,9 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
             if (!isOldFormat) {
                 DataWin_bumpVersionTo(dw, 2022, 5, 0, 0);
             }
+            else if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
+                DataWin_bumpVersionTo(dw, 2026, 1, 0, 0);
+            }
         }
         }
     }
@@ -1491,7 +1529,7 @@ static void parseOBJT(BinaryReader* reader, DataWin* dw) {
         obj->name = readStringPtr(reader, dw);
         obj->spriteId = BinaryReader_readInt32(reader);
         obj->visible = BinaryReader_readBool32(reader);
-        if (DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0)) {
+        if (DataWin_isVersionAtLeast(dw, 2022, 5, 0, 0) && !DataWin_isVersionAtLeast(dw, 2026, 1, 0, 0)) {
             obj->managed = BinaryReader_readBool32(reader);
         } else {
             obj->managed = false;
@@ -2178,6 +2216,10 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->viewsFileOffset = BinaryReader_readUint32(reader);
         room->gameObjectsFileOffset = BinaryReader_readUint32(reader);
         room->tilesFileOffset = BinaryReader_readUint32(reader);
+        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
+            // The instanceCreationOrderIDs pointer precedes the physics settings.
+            BinaryReader_skip(reader, 4);
+        }
         room->world = BinaryReader_readBool32(reader);
         room->top = BinaryReader_readUint32(reader);
         room->left = BinaryReader_readUint32(reader);
@@ -2186,10 +2228,6 @@ static void parseROOM(BinaryReader* reader, DataWin* dw, bool lazyLoadRooms, Str
         room->gravityX = BinaryReader_readFloat32(reader);
         room->gravityY = BinaryReader_readFloat32(reader);
         room->metersPerPixel = BinaryReader_readFloat32(reader);
-        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) {
-            // skip instanceCreationOrderIDs
-            BinaryReader_skip(reader, 4);
-        }
         room->layersFileOffset = 0;
         if (DataWin_isVersionAtLeast(dw, 2, 0, 0, 0)) {
             room->layersFileOffset = BinaryReader_readUint32(reader);
@@ -2395,6 +2433,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
         // BC<=14: bytecode is intermixed with entry headers. Capture the whole chunk as the bytecode buffer so that the per-entry bytecodeAbsoluteOffset values resolve correctly into it.
         dw->bytecodeBufferBase = chunkDataStart;
         dw->bytecodeBuffer = BinaryReader_readBytesAt(reader, chunkDataStart, chunkLength);
+        if (dw->mappedFile) dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
         return;
     }
 
@@ -2415,6 +2454,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
 
     dw->bytecodeBufferBase = blobStart;
     dw->bytecodeBuffer = BinaryReader_readBytesAt(reader, blobStart, blobSize);
+    if (dw->mappedFile) dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
 }
 
 static void parseVARI(BinaryReader* reader, DataWin* dw, uint32_t chunkLength) {
@@ -2575,6 +2615,35 @@ static void parseSTRG(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
+static void resolveExternalTextures(BinaryReader* reader, DataWin* dw) {
+    if (!dw->tginOffset || !dw->txtr.textures) return;
+    BinaryReader_seek(reader, dw->tginOffset);
+    uint32_t version = BinaryReader_readUint32(reader);
+    if (version != 1) return;
+    uint32_t count = 0;
+    uint32_t* groups = readPointerTable(reader, &count);
+    repeat(count, i) {
+        BinaryReader_seek(reader, groups[i]);
+        const char* name = readStringPtr(reader, dw);
+        const char* directory = readStringPtr(reader, dw);
+        BinaryReader_readUint32(reader);
+        BinaryReader_readUint32(reader);
+        uint32_t pageList = BinaryReader_readUint32(reader);
+        if (!name || !directory || !pageList) continue;
+        BinaryReader_seek(reader, pageList);
+        uint32_t pageCount = BinaryReader_readUint32(reader);
+        repeat(pageCount, j) {
+            uint32_t page = BinaryReader_readUint32(reader);
+            if (page >= dw->txtr.count || dw->txtr.textures[page].blobOffset != 0) continue;
+            size_t length = strlen(directory) + strlen(name) + 32;
+            char* path = (char*)safeMalloc(length);
+            snprintf(path, length, "%s/%s_%u.yytex", directory, name, (unsigned int)j);
+            dw->txtr.textures[page].externalPath = path;
+        }
+    }
+    free(groups);
+}
+
 static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool loadTextureDataLazily) {
     Txtr* t = &dw->txtr;
 
@@ -2636,6 +2705,8 @@ static void parseTXTR(BinaryReader* reader, DataWin* dw, size_t chunkEnd, bool l
         t->textures[i].blobData = nullptr;
     }
     free(ptrs);
+
+    resolveExternalTextures(reader, dw);
 
     // Compute blob sizes from successive offsets
     {
@@ -2959,7 +3030,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (memcmp(chunkName, "EMBI", 4) == 0) {
             // Embedded Images chunk
         } else if (memcmp(chunkName, "TGIN", 4) == 0) {
-            // Texture Group Info chunk (wadVersion >= 17)
+            dw->tginOffset = (uint32_t)chunkDataStart;
         } else if (memcmp(chunkName, "ACRV", 4) == 0) {
             // Animation Curves chunk (GMS 2.3+)
             DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
@@ -2985,10 +3056,39 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
             parseSTRG(&reader, dw);
         } else if (options.parseTxtr && memcmp(chunkName, "TXTR", 4) == 0) {
             parseTXTR(&reader, dw, chunkEnd, options.lazyLoadTextures);
+            if (dw->mappedFile && chunkLength > 0) {
+                if (options.lazyLoadTextures) {
+                    dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+                } else {
+                    uint32_t minOff = UINT32_MAX;
+                    repeat(dw->txtr.count, ti) {
+                        uint32_t off = dw->txtr.textures[ti].blobOffset;
+                        if (off != 0 && off < minOff) minOff = off;
+                    }
+                    if (minOff != UINT32_MAX && minOff > chunkDataStart) {
+                        dropMappedRange(dw->mappedFile, chunkDataStart, minOff - chunkDataStart);
+                    }
+                }
+            }
         } else if (options.parseAudo && memcmp(chunkName, "AUDO", 4) == 0) {
             parseAUDO(&reader, dw, options.lazyLoadAudio);
+            if (dw->mappedFile && chunkLength > 0 && options.lazyLoadAudio) {
+                dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+            }
         } else {
             logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
+        }
+
+        if (dw->mappedFile && chunkLength > 0) {
+            bool keepMapped =
+                (memcmp(chunkName, "STRG", 4) == 0 && options.parseStrg) ||
+                (memcmp(chunkName, "CODE", 4) == 0 && options.parseCode) ||
+                (memcmp(chunkName, "TXTR", 4) == 0 && options.parseTxtr) ||
+                (memcmp(chunkName, "AUDO", 4) == 0 && options.parseAudo) ||
+                (memcmp(chunkName, "SPRT", 4) == 0 && options.parseSprt);
+            if (!keepMapped) {
+                dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
+            }
         }
 
         // Free the chunk buffer and revert to FILE*-based reads for the next header
@@ -3084,6 +3184,7 @@ void DataWin_free(DataWin* dw) {
     if (dw->sprt.sprites) {
         repeat(dw->sprt.count, i) {
             free(dw->sprt.sprites[i].tpagIndices);
+            arrfree(dw->sprt.sprites[i].messages);
             if (dw->sprt.sprites[i].masks != nullptr) {
                 if (!dw->mappedFile) {
                     repeat(dw->sprt.sprites[i].maskCount, j) {
@@ -3225,6 +3326,7 @@ void DataWin_free(DataWin* dw) {
         repeat(dw->txtr.count, i) {
             if (!dw->txtr.textures[i].mapped)
                 free(dw->txtr.textures[i].blobData);
+            free(dw->txtr.textures[i].externalPath);
         }
         free(dw->txtr.textures);
     }
@@ -3338,6 +3440,14 @@ bool DataWin_isVersionAtLeast(const DataWin* dw, uint32_t major, uint32_t minor,
     if (f->minor != minor) return f->minor > minor;
     if (f->release != release) return f->release > release;
     return f->build >= build;
+}
+
+bool DataWin_isVersionOlder(const DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build) {
+    const DetectedFormat* f = &dw->detectedFormat;
+    if (f->major != major) return f->major < major;
+    if (f->minor != minor) return f->minor < minor;
+    if (f->release != release) return f->release < release;
+    return f->build < build;
 }
 
 void DataWin_bumpVersionTo(DataWin* dw, uint32_t major, uint32_t minor, uint32_t release, uint32_t build) {

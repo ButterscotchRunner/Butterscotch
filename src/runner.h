@@ -8,6 +8,7 @@
 #include "file_system.h"
 #include "ini.h"
 #include "instance.h"
+#include "physics/physics_engine.h"
 #include "renderer.h"
 #include "runner_keyboard.h"
 #include "spatial_grid.h"
@@ -92,6 +93,7 @@
 #define OTHER_OUTSIDE_VIEW7  47
 #define OTHER_ASYNC_DIALOG   63
 #define OTHER_ASYNC_SAVE_LOAD 72
+#define OTHER_BROADCAST_MESSAGE 76
 #define OTHER_ASYNC_SYSTEM   75
 
 #define MAX_VIEWS 8
@@ -246,19 +248,21 @@ typedef struct {
 } RuntimeLayerElement;
 
 // Runtime-mutable state for a GMS2 room layer. Parsed layers are populated at room load from RoomLayer and share IDs with the parsed data.
-// Dynamic layers are created via layer_create and carry their own name + element list; they don't correspond to any RoomLayer.
 typedef struct {
     uint32_t id;
     int32_t depth;
+    uint32_t drawOrder;
+    bool automaticDepth;
     bool visible;
     float xOffset;
     float yOffset;
     float hSpeed;
     float vSpeed;
-    bool dynamic; // true = created at runtime via layer_create
+    bool dynamic;
     char* dynamicName; // owned
     int32_t beginScript;
     int32_t endScript;
+    int32_t shaderIndex;
     RuntimeLayerElement* elements; // stb_ds array
 } RuntimeLayer;
 
@@ -275,6 +279,8 @@ typedef enum { DRAWABLE_TILE, DRAWABLE_INSTANCE, DRAWABLE_LAYER, DRAWABLE_PARTIC
 typedef struct {
     DrawableType type;
     int32_t depth;
+    uint32_t layerOrder;
+    int32_t elementOrder;
     union {
         Instance* instance;
         int32_t tileIndex;
@@ -495,6 +501,15 @@ typedef struct {
 } ParticleEmitter;
 
 typedef struct {
+    bool active;
+    GMLReal x, y, z;
+    GMLReal vx, vy, vz;
+    GMLReal falloffRef, falloffMax, falloffFactor;
+    GMLReal gain, pitch;
+    int32_t* voices; // sound-instance IDs played on this emitter
+} AudioEmitter;
+
+typedef struct {
     bool used;
     bool automaticUpdate; // step the system at the end of every frame (on by default, as in GML)
     bool automaticDraw;   // draw the system from the depth list (on by default, as in GML)
@@ -514,6 +529,97 @@ void Particles_updateAutomatic(Runner* runner);
 void Particles_drawSystem(Runner* runner, int32_t systemId);
 // Frees both pools. Called from the Runner's cleanup path.
 void Particles_freeAll(Runner* runner);
+
+// Vertex stuffs
+
+#define RESOURCE_VERTEX_FORMAT 0x1000000
+
+enum yyVertexType {
+    yyVTFLOAT1 = 0x1,
+    yyVTFLOAT2 = 0x2,
+    yyVTFLOAT3 = 0x3,
+    yyVTFLOAT4 = 0x4,
+    yyVTCOLOR = 0x5,
+    yyVTUBYTE4 = 0x6,
+    yyVTMaxType = 0x6
+};
+
+enum yyVertexUsage {
+    yyVUPOSITION = 0x1,
+    yyVUCOLOR = 0x2,
+    yyVUNORMAL = 0x3,
+    yyVUTEXCOORD = 0x4,
+    yyVUBLENDWEIGHT = 0x5,
+    yyVUBLENDINDICES = 0x6,
+    yyVUPSIZE = 0x7,
+    yyVUTANGENT = 0x8,
+    yyVUBINORMAL = 0x9,
+    yyVUTESSFACTOR = 0xa,
+    yyVUPOSITIONT = 0xb,
+    yyVUFOG = 0xc,
+    yyVUDEPTH = 0xd,
+    yyVUSAMPLER = 0xe,
+    yyVUMaxVertexUsage = 0xe
+};
+
+typedef struct {
+    int32_t offset;
+    enum yyVertexType type;
+    enum yyVertexUsage usage;
+    uint32_t bit;
+} VmVertexElement;
+
+typedef struct {
+    uint32_t id;
+    uint32_t count;
+    VmVertexElement* format;
+    void* pNative;
+    uint32_t bitMask;
+    uint32_t size;
+    uint32_t yyFVF;
+} VmVertexFormat;
+
+typedef struct VmVertexBuffer {
+    struct VmVertexBuffer* pPrev;
+    struct VmVertexBuffer* pNext;
+    uint32_t flags;
+    void* pVertexBuffer;
+    void* pHW0;
+    void* pHW1;
+    void* pHW2;
+    void* pHW3;
+    int32_t FVF;
+    int32_t FVFSize;
+    int32_t lockCurrent;
+    int32_t current;
+    int32_t total;
+    void* pAddress;
+    uint64_t frameLock;
+} VmVertexBuffer;
+
+typedef union Buffer_Vertex_u_0 {
+    uint32_t* pBuffer32;
+    uint16_t* pBuffer16;
+    uint8_t* pBuffer8;
+    float* pBufferF32;
+} Buffer_Vertex_u_0;
+
+typedef struct Buffer_Vertex {
+    Buffer_Vertex_u_0 buffer;
+    uint32_t bufferSize;
+    uint32_t streamStart;
+    uint32_t streamCurrent;
+    uint32_t elementIndex;
+    uint32_t elementCount;
+    uint32_t currentMask;
+    int32_t vertexCount;
+    uint32_t deletionCountdown;
+    bool frozen;
+    int32_t currentFormat;
+    int32_t storedFormat;
+    VmVertexFormat* pCurrentFormatVFRelease;
+    VmVertexBuffer* pFrozenVB;
+} Buffer_Vertex;
 
 // Open text file handle for GML file_text_* functions
 #define MAX_OPEN_TEXT_FILES 32
@@ -572,6 +678,9 @@ struct Runner {
     FileSystem* fileSystem;
     AudioSystem* audioSystem;
     Room* currentRoom;
+    struct PhysicsEngine* physics;
+    struct PhysicsResources* physicsResources; // shared fixture/joint handles; allocated lazily
+    struct PhysicsEngine** physicsRooms; // worlds are room-owned, including persistent rooms
     int32_t currentRoomIndex;
     int32_t currentRoomOrderPosition;
     Instance** instances; // stb_ds array of Instance*
@@ -643,6 +752,8 @@ struct Runner {
     void (*setWindowTitle)(const char* title);
     bool (*getWindowSize)(int32_t* outW, int32_t* outH);
     void (*setWindowSize)(int32_t width, int32_t height);
+    bool (*getWindowPosition)(int32_t* outX, int32_t* outY);
+    void (*setWindowPosition)(int32_t x, int32_t y);
     bool (*windowHasFocus)(void);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
@@ -651,6 +762,7 @@ struct Runner {
     TileLayerMapEntry* tileLayerMap; // stb_ds hashmap: depth -> tile layer state
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
+    uint32_t nextLayerDrawOrder;
     SavedRoomState* savedRoomStates; // array of size dataWin->room.count, for persistent room support
     int32_t viewCurrent; // index of the view currently being drawn (for view_current)
     bool viewsEnabled;   // runtime-mutable global view system toggle (view_enabled); seeded from room->flags & 1 on room enter
@@ -662,6 +774,7 @@ struct Runner {
     int32_t viewportH;   // Scaled game height in window
     DisabledObjEntry* disabledObjects; // stb_ds string hashmap, nullptr = no filtering
     struct { int key; Instance* value; }* instancesById;
+    bool drawEnabled;
     bool forceDrawDepth;
     bool applyOffsetForPrimitives;
     // Depth-sorted unified list of all drawables (instances + tiles + runtime layers) for the current room.
@@ -679,6 +792,8 @@ struct Runner {
     int32_t forcedDepth;
     // The time between the last frame and the current frame, stored in microseconds.
     GMLReal deltaTime;
+    // Runtime override for the active game speed. 0 means "unset" and the loop falls back to the room/default FPS.
+    GMLReal gameSpeedOverride;
     // Current frame rate (capped at room speed)
     double fps;                   // last measured frames-per-second value returned to GML
     uint64_t fpsWindowStartNanos;  // nowNanos() at the start of the measurement window
@@ -697,16 +812,27 @@ struct Runner {
     DsGrid* dsGridPool; // stb_ds array of DsGrid
     GmlBuffer* gmlBufferPool; // stb_ds array of GmlBuffer
     MpGrid* mpGridPool; // stb_ds array of motion-planning grids
+    // Vertex format/buffer state is runtime-global, not VM-local, because all active GML vertex
+    // builders and submitted buffers survive across scripts and are resolved by id from the runner.
+    VmVertexFormat** vertexFormats; // stb_ds array of vertex format entries indexed by resource id
+    VmVertexFormat* newVertexFormat; // format currently being assembled
+    uint32_t vertexFormatBit;
+    int32_t currentVertexFormatId;
+    Buffer_Vertex** vertexBuffers; // sparse array of live vertex buffers by id
+    int32_t vertexBufferCount;
     // Particle systems own their emitters and live particles; types are global and can be streamed by
     // any system's emitters. Both pools reuse destroyed slots, matching the ds_* id behaviour.
     ParticleSystem* particleSystemPool; // stb_ds array of ParticleSystem
     ParticleType* particleTypePool; // stb_ds array of ParticleType
+    AudioEmitter* audioEmitters; // stb_ds array, index = audio emitter id
 
     // Motion planning potential field settings
     GMLReal mpPotMaxrot;
     GMLReal mpPotStep;
     GMLReal mpPotAhead;
     bool mpPotOnSpot;
+    bool dateTimeLocal;
+    GMLReal mathEpsilon;
 
     // Legacy audio_play_music / audio_stop_music tracking
     int32_t lastMusicInstance;
@@ -735,6 +861,7 @@ struct Runner {
 
     // Async map ID
     int32_t asyncLoadMapId;
+    int32_t eventDataMapId;
 
     // Async buffer save/load state
     char* asyncBufferGroupName;                   // current group name (nullptr when no group is open); applied as a directory prefix
@@ -831,6 +958,7 @@ Instance* Runner_createInstanceWithDepth(Runner* runner, GMLReal x, GMLReal y, i
 Instance* Runner_createInstanceWithLayer(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex, int32_t layerId);
 Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEvent);
 void Runner_destroyInstance(Runner* runner, Instance* inst, bool runDestroyEvent);
+void Runner_executeCleanupEvent(Runner* runner, Instance* inst);
 void Runner_cleanupDestroyedInstances(Runner* runner);
 // Add inst to the per-object lists of its object and every ancestor.
 void Runner_addInstanceToObjectLists(Runner* runner, Instance* inst);
@@ -874,6 +1002,7 @@ RuntimeLayer* Runner_findRuntimeLayerById(Runner* runner, int32_t id);
 RoomLayer* Runner_findRoomLayerById(Room* room, int32_t id);
 RuntimeLayerElement* Runner_findLayerElementById(Runner* runner, int32_t elementId, RuntimeLayer** outLayer);
 void Runner_addInstanceLayerElement(Runner* runner, int32_t layerId, int32_t instanceId);
+void Runner_moveInstanceToDepthLayer(Runner* runner, Instance* inst, int32_t depth);
 void Runner_removeInstanceLayerElement(Runner* runner, int32_t instanceId);
 uint32_t Runner_getNextLayerId(Runner* runner);
 void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer);
@@ -892,6 +1021,14 @@ static inline void Runner_setActiveState(Runner* runner, Instance* instance, boo
 #endif
 
     instance->active = active;
+}
+
+static inline GMLReal Runner_getEffectiveGameSpeed(Runner* runner) {
+    if (runner == nullptr) return 0.0;
+    if (runner->gameSpeedOverride > 0.0) return runner->gameSpeedOverride;
+    if (runner->currentRoom != nullptr && runner->currentRoom->speed > 0) return (GMLReal) runner->currentRoom->speed;
+    if (runner->dataWin != nullptr && runner->dataWin->gen8.gms2FPS > 0.0f) return (GMLReal) runner->dataWin->gen8.gms2FPS;
+    return 30.0;
 }
 
 #endif /* _BS_RUNNER_H_ */

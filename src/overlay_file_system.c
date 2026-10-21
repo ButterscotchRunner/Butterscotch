@@ -180,6 +180,15 @@ static bool overlayDeleteFile(FileSystem* fs, const char* relativePath) {
     return result == 0;
 }
 
+static bool overlayRenameFile(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath) {
+    char* oldFullPath = resolveForWrite((OverlayFileSystem*) fs, oldRelativePath);
+    char* newFullPath = resolveForWrite((OverlayFileSystem*) fs, newRelativePath);
+    int result = rename(oldFullPath, newFullPath);
+    free(oldFullPath);
+    free(newFullPath);
+    return result == 0;
+}
+
 static bool overlayReadFileBinary(FileSystem* fs, const char* relativePath, uint8_t** outData, int32_t* outSize) {
     char* fullPath = resolveForRead((OverlayFileSystem*) fs, relativePath);
     FILE* f = fopen(fullPath, "rb");
@@ -428,6 +437,7 @@ OverlayFileSystem* OverlayFileSystem_create(const char* bundlePath, const char* 
     overlayFileSystemVtable.readFileText = overlayReadFileText;
     overlayFileSystemVtable.writeFileText = overlayWriteFileText;
     overlayFileSystemVtable.deleteFile = overlayDeleteFile;
+    overlayFileSystemVtable.renameFile = overlayRenameFile;
     overlayFileSystemVtable.readFileBinary = overlayReadFileBinary;
     overlayFileSystemVtable.writeFileBinary = overlayWriteFileBinary;
     overlayFileSystemVtable.binaryOpen = overlayBinaryOpen;

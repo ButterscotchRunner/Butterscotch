@@ -40,17 +40,29 @@ endif
 
 INCLUDES += $(INC). \
 		    $(INC)src \
-		    $(INC)vendor/stb/ds \
 		    $(INC)src/image \
+		    $(INC)src/debug_font \
+		    $(INC)vendor/stb/ds \
 		    $(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
-		    $(INC)vendor/bzip2
+		    $(INC)vendor/bzip2 \
+		    $(INC)vendor/miniz
+ifeq ($(CC_IS_CXX),1)
+DISABLE_PHYSICS := 1
+endif
+ifndef DISABLE_PHYSICS
+DEFINES += $(DEFINE)ENABLE_PHYSICS $(DEFINE)BOX2D_DISABLE_SIMD $(DEFINE)B2_SINGLE_THREADED
+INCLUDES += $(INC)vendor/box2d/include
+SRCS += $(filter-out vendor/box2d/src/timer.c,$(wildcard vendor/box2d/src/*.c)) $(filter-out src/physics/physics.c,$(wildcard src/physics/*.c))
+else
+SRCS += src/physics/disabled/physics_disabled.c
+endif
 
-HEADERS += $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(shell find vendor -name '*.h')
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
@@ -78,6 +90,8 @@ endif
 ifndef DISABLE_WAD17
 DEFINES += $(DEFINE)ENABLE_WAD17
 endif
+
+DEFINES += $(DEFINE)MINIZ_NO_ARCHIVE_APIS $(DEFINE)MINIZ_NO_STDIO
 
 SRCS += $(wildcard src/$(PLATFORM)/*.c)
 SRCS += $(wildcard src/backends/$(BACKEND).*)
@@ -131,6 +145,30 @@ ifeq ($(BACKEND),noop)
 DISABLE_LEGACY_GL := 1
 DISABLE_MODERN_GL := 1
 DEFINES += $(DEFINE)USE_NOOP
+endif
+
+VIDEO_BACKEND := ffmpeg
+
+ifeq ($(VIDEO_BACKEND),ffmpeg)
+FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
+FFMPEG_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
+ifneq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
+SYSCFLAGS += $(FFMPEG_CFLAGS)
+LIBS += $(FFMPEG_LIBS)
+DEFINES += $(DEFINE)BUTTERSCOTCH_FFMPEG
+SRCS += src/video/ffmpeg/ffmpeg.c
+INCLUDES += $(INC)src/video
+HEADERS += $(wildcard src/video/*.h)
+else
+VIDEO_BACKEND := none
+endif
+endif
+
+ifeq ($(VIDEO_BACKEND),none)
+DEFINES += $(DEFINE)BUTTERSCOTCH_VIDEO_NULL
+SRCS += src/video/null_video.c
+INCLUDES += $(INC)src/video
+HEADERS += $(wildcard src/video/*.h)
 endif
 
 # Noop renderer is exclusive to noop backend; GL renderers exclusive to non-noop backends

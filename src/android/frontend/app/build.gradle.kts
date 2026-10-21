@@ -37,8 +37,8 @@ android {
         applicationId = "net.perfectdreams.butterscotch"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "2026.06.21-1"
+        versionCode = (findProperty("butterscotch.versionCode") as String?)?.toInt() ?: 32
+        versionName = (findProperty("butterscotch.versionName") as String?) ?: "dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
