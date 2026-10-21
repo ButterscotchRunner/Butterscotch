@@ -15,7 +15,7 @@ if(PLATFORM STREQUAL "vita")
 
     set(BACKEND "sdl2")
 
-    elseif(PLATFORM STREQUAL "switch")
+elseif(PLATFORM STREQUAL "switch")
     if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         if(NOT DEFINED ENV{DEVKITPRO})
             message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
@@ -23,6 +23,9 @@ if(PLATFORM STREQUAL "vita")
         set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
     endif()
 
+    set(BACKEND "sdl2")
+
+elseif(PLATFORM STREQUAL "webos")
     set(BACKEND "sdl2")
 endif()
 
@@ -115,7 +118,7 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -385,8 +388,13 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
-    if(PLATFORM STREQUAL "vita")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
+    if(PLATFORM STREQUAL "webos")
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
