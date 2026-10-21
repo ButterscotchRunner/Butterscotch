@@ -187,8 +187,11 @@ else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
 
-add_subdirectory(src/preprocessor EXCLUDE_FROM_ALL)
-add_subdirectory(tools/preprocessor EXCLUDE_FROM_ALL)
+add_subdirectory(src/preprocessor)
+
+add_executable(butterscotch-preprocessor tools/preprocessor/preprocessor.c)
+target_include_directories(butterscotch-preprocessor PRIVATE ${CMAKE_SOURCE_DIR}/src/preprocessor)
+target_link_libraries(butterscotch-preprocessor PRIVATE processor)
 
 if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/preprocessor)
