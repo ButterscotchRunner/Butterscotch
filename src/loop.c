@@ -67,6 +67,8 @@
 #include "gettime.h"
 
 #ifdef PLATFORM_VITA
+#include <sys/stat.h>
+#include "processor_api.h"
 #include "vita_textures.h"
 #endif
 
@@ -514,6 +516,48 @@ static void PreProcessedStuff_free(void) {
 #endif
 }
 
+#ifdef PLATFORM_VITA
+static bool ensureNativeTexturesBin(const char *dataWinPath) {
+    char *dataWinDir = safeStrdup(dataWinPath);
+    bsGetDirname(dataWinDir);
+
+    size_t dirLen = strlen(dataWinDir);
+    char *texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 2);
+    snprintf(texturesBinPath, dirLen + strlen("textures.bin") + 2,
+             "%s%s%s",
+             dataWinDir,
+             dataWinDir[0] != '\0' && dataWinDir[dirLen - 1] != '/' && dataWinDir[dirLen - 1] != '\\' && dataWinDir[dirLen - 1] != ':' ? "/" : "",
+             "textures.bin");
+
+    struct stat dataWinStat;
+    struct stat texturesStat;
+    bool needsRefresh = stat(dataWinPath, &dataWinStat) != 0 || stat(texturesBinPath, &texturesStat) != 0 || texturesStat.st_mtime < dataWinStat.st_mtime;
+
+    if (!needsRefresh) {
+        free(texturesBinPath);
+        free(dataWinDir);
+        return true;
+    }
+
+    Options options = {0};
+    options.input = dataWinPath;
+    options.output = dataWinDir;
+    options.ps3 = true;
+    process(&options);
+
+    bool ok = stat(texturesBinPath, &texturesStat) == 0;
+    if (!ok) {
+        logError("Native Vita texture preprocessing failed for %s\n", dataWinPath);
+    } else {
+        logInfo("Generated %s successfully\n", texturesBinPath);
+    }
+
+    free(texturesBinPath);
+    free(dataWinDir);
+    return ok;
+}
+#endif
+
 // ===[ MAIN ]===
 int loop(CommandLineArgs args, const char *argv0) {
 #ifdef _WIN32
@@ -529,6 +573,13 @@ int loop(CommandLineArgs args, const char *argv0) {
 
     bool platformInitialized = false;
     int32_t inputFrameCount = 0;
+
+#ifdef PLATFORM_VITA
+    if (!ensureNativeTexturesBin(currentDataWinPath)) {
+        logError("Failed to prepare textures.bin for %s\n", currentDataWinPath);
+        return 1;
+    }
+#endif
 
     bool fastForwardActive = false;
     bool fastForwardTabPrev = false;

@@ -187,6 +187,14 @@ else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
 endif()
 
+add_subdirectory(src/preprocessor EXCLUDE_FROM_ALL)
+add_subdirectory(tools/preprocessor EXCLUDE_FROM_ALL)
+
+if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "vita")
+    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/preprocessor)
+    target_link_libraries(butterscotch PRIVATE processor)
+endif()
+
 # Video playback backend
 set(VIDEO_BACKEND "ffmpeg" CACHE STRING "Video playback backend (ffmpeg or none)")
 set(BUTTERSCOTCH_FFMPEG_STATIC_LIBS "")

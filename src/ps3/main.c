@@ -17,6 +17,7 @@
 #include "overlay_file_system.h"
 #include "ps3_overlay.h"
 #include "ps3_textures.h"
+#include "processor_api.h"
 #ifdef USE_OPENAL
 #include "al_audio_system.h"
 #endif
@@ -36,8 +37,10 @@ GLint  gPalettedUPaletteVLoc = -1;
 #include <io/pad.h>
 #include <sys/systime.h>
 #include <sys/thread.h>
+#include <sys/stat.h>
 #include <sysutil/sysutil.h>
 #include <ppu_intrinsics.h>
+#include <unistd.h>
 
 typedef struct {
     uint8_t digital;
@@ -102,6 +105,46 @@ static void sys_callback(uint64_t status, uint64_t param, void* userdata) {
         default:
             break;
     }
+}
+
+static bool ensureNativeTexturesBin(const char *dataWinPath) {
+    char *dataWinDir = safeStrdup(dataWinPath);
+    bsGetDirname(dataWinDir);
+
+    size_t dirLen = strlen(dataWinDir);
+    char *texturesBinPath = (char *)safeMalloc(dirLen + strlen("textures.bin") + 2);
+    snprintf(texturesBinPath, dirLen + strlen("textures.bin") + 2,
+             "%s%s%s",
+             dataWinDir,
+             dataWinDir[0] != '\0' && dataWinDir[dirLen - 1] != '/' && dataWinDir[dirLen - 1] != '\\' ? "/" : "",
+             "textures.bin");
+
+    struct stat dataWinStat;
+    struct stat texturesStat;
+    bool needsRefresh = stat(dataWinPath, &dataWinStat) != 0 || stat(texturesBinPath, &texturesStat) != 0 || texturesStat.st_mtime < dataWinStat.st_mtime;
+
+    if (!needsRefresh) {
+        free(texturesBinPath);
+        free(dataWinDir);
+        return true;
+    }
+
+    Options options = {0};
+    options.input = dataWinPath;
+    options.output = dataWinDir;
+    options.ps3 = true;
+    process(&options);
+
+    bool ok = stat(texturesBinPath, &texturesStat) == 0;
+    if (!ok) {
+        logError("Native PS3 texture preprocessing failed for %s\n", dataWinPath);
+    } else {
+        logInfo("Generated %s successfully\n", texturesBinPath);
+    }
+
+    free(texturesBinPath);
+    free(dataWinDir);
+    return ok;
 }
 
 // Source - https://stackoverflow.com/a/779960
@@ -191,6 +234,11 @@ int main(int argc, char* argv[]) {
     free(tmp);
     free(tmp2);
     free(tmp3);
+    if (!ensureNativeTexturesBin(dataWinPath)) {
+        logError("Failed to prepare textures.bin for %s\n", dataWinPath);
+        free(dataWinPath);
+        return 1;
+    }
     sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sys_callback, NULL);
     freq = sysGetTimebaseFrequency();
 
