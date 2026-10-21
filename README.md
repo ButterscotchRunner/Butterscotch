@@ -57,6 +57,7 @@ Of course, some games won't run! Some games aren't VM compiled, such as:
 * PlayStation 3
 * PlayStation Vita
 * Nintendo Switch
+* LG webOS
 * ...and maybe more in the future!
 
 Butterscotch can be ported to about any console that has the processing power to run it! Butterscotch has already been ported to many consoles such as the Xbox 360, Wii, 3DS, and more!
@@ -123,7 +124,8 @@ MIPS big-endian builds do not have ffmpeg compiled in and won't work with functi
 | Platform | Download | Notes |
 | -------- | -------- | ----- |
 | WebAssembly | [butterscotch-web.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-web.zip) | [Play online](https://butterscotch.mrpowergamerbr.com/web/) |
-| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) |
+| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) | 
+| webOS | [butterscotch-webos.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-webos.zip) | After installing the IPK, place the game's `data.win` and other required files in `/media/developer/apps/usr/palm/applications/com.mrpowergamerbr.butterscotch/` |
 
 ## Community Ports
 
