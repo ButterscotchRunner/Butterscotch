@@ -3701,17 +3701,12 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     // Well... what if the parent CallFrame is null?? (which WILL happen because the first script of the tree will obviously not have a parent CallFrame)
     callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
     callFrame.stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
+    uint32_t localsCount = code->localsCount;
     if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
         callFrame.currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[codeIndex];
-    }
-
-    uint32_t localsCount;
-    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
-        localsCount = code->localsCount;
-    } else {
         // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
         // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
-        localsCount = IntIntHashMap_count(&callFrame.currentCodeLocalsSlotMap[codeIndex]);
+        localsCount = IntIntHashMap_count(callFrame.currentCodeLocalsSlotMap);
     }
 
     RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
