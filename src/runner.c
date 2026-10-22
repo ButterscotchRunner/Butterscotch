@@ -213,70 +213,6 @@ int32_t Runner_pushInstancesForTarget(Runner* runner, int32_t target) {
 
 // ===[ Event Execution ]===
 
-static void setVMInstanceContext(VMContext* vm, Instance* instance) {
-    vm->currentInstance = instance;
-}
-
-static void restoreVMInstanceContext(VMContext* vm, Instance* savedInstance) {
-    vm->currentInstance = savedInstance;
-}
-
-static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
-    // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
-    if (0 > codeId) return;
-
-    VMContext* vm = runner->vmContext;
-
-    // Save instance context
-    Instance* savedInstance = (Instance*) vm->currentInstance;
-
-    // Save full VM execution state, because VM_executeCode overwrites all of these.
-    // This is necessary for nested execution (e.g., instance_create triggering a Create
-    // event while another event's executeLoop is still on the call stack).
-    uint8_t* savedBytecodeBase = vm->bytecodeBase;
-    uint32_t savedIP = vm->ip;
-    uint32_t savedCodeEnd = vm->codeEnd;
-    RValue* savedLocalVars = vm->localVars;
-    uint32_t savedLocalVarCount = vm->localVarCount;
-    IntIntHashMap* savedCodeLocalsSlotMap = vm->currentCodeLocalsSlotMap;
-    int32_t savedCodeIndex = vm->currentCodeIndex;
-    int32_t savedStackTop = vm->stack.top;
-
-    // Save stack values (VM_executeCode resets stack.top to 0, which would let
-    // the nested execution overwrite the caller's stack slot values)
-    RValue* savedStackValues = nullptr;
-    if (savedStackTop > 0) {
-        savedStackValues = (RValue *)safeMalloc((uint32_t) savedStackTop * sizeof(RValue));
-        memcpy(savedStackValues, vm->stack.slots, (uint32_t) savedStackTop * sizeof(RValue));
-    }
-
-    // Set instance context
-    setVMInstanceContext(vm, instance);
-
-    // Execute
-    RValue result = VM_executeCode(vm, codeId, nullptr, 0);
-    RValue_free(&result);
-
-    // Restore instance context
-    restoreVMInstanceContext(vm, savedInstance);
-
-    // Restore VM execution state
-    vm->bytecodeBase = savedBytecodeBase;
-    vm->ip = savedIP;
-    vm->codeEnd = savedCodeEnd;
-    vm->localVars = savedLocalVars;
-    vm->localVarCount = savedLocalVarCount;
-    vm->currentCodeLocalsSlotMap = savedCodeLocalsSlotMap;
-    vm->currentCodeIndex = savedCodeIndex;
-    vm->stack.top = savedStackTop;
-
-    // Restore stack values
-    if (savedStackTop > 0) {
-        memcpy(vm->stack.slots, savedStackValues, (uint32_t) savedStackTop * sizeof(RValue));
-        free(savedStackValues);
-    }
-}
-
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     switch (eventType) {
         case EVENT_CREATE:  return "Create";
@@ -380,7 +316,6 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
 static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     if (ctx == nullptr) return;
 
-    Instance* savedInstance = ctx->currentInstance;
     Instance* targetInstance = nullptr;
     int32_t rawArg = RValue_toInt32(callback);
     int32_t codeId = -1;
@@ -394,10 +329,9 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
         if (targetInstance == nullptr) {
             targetInstance = ctx->globalScopeInstance;
         }
-        ctx->currentInstance = targetInstance;
 
         if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
-            VM_executeCode(ctx, method->codeIndex, nullptr, 0);
+            VM_executeCode(ctx, method->codeIndex, targetInstance, nullptr, nullptr, 0);
         } else if (method->builtin != nullptr) {
             method->builtin(ctx, nullptr, 0);
         } else if (method->unresolvedName != nullptr) {
@@ -405,12 +339,8 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             logWarn("VM: call_later callback method unresolved: %s\n", method->unresolvedName);
 #endif
         }
-
-        ctx->currentInstance = savedInstance;
         return;
     }
-
-    ctx->currentInstance = ctx->globalScopeInstance;
 
     if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
         const char* funcName = ctx->dataWin->func.functions[rawArg].name;
@@ -432,12 +362,10 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     }
 
     if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
-        VM_executeCode(ctx, codeId, nullptr, 0);
+        VM_executeCode(ctx, codeId, ctx->globalScopeInstance, nullptr, nullptr, 0);
     } else if (builtin != nullptr) {
         builtin(ctx, nullptr, 0);
     }
-
-    ctx->currentInstance = savedInstance;
 }
 #endif
 
@@ -492,7 +420,7 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
     }
 #endif
 
-    executeCode(runner, instance, codeId);
+    VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, codeId, instance, nullptr, nullptr, 0);
 
     vm->currentEventType = savedEventType;
     vm->currentEventSubtype = savedEventSubtype;
@@ -1097,18 +1025,15 @@ void Runner_draw(Runner* runner) {
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             int32_t previousShader = Runner_pushLayerShader(runner, (int32_t) runtimeLayer->id);
             VMContext* ctx = runner->vmContext;
-            Instance* savedInstance = ctx->currentInstance;
             int32_t savedEventType = ctx->currentEventType;
             int32_t savedEventSubtype = ctx->currentEventSubtype;
 
-            ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
 
             if (runtimeLayer->beginScript >= 0)
-                VM_executeCode(ctx, runtimeLayer->beginScript, nullptr, 0);
+                VM_executeCode(ctx, runtimeLayer->beginScript, ctx->globalScopeInstance, nullptr, nullptr, 0);
 
-            ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
             runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
@@ -1236,14 +1161,12 @@ void Runner_draw(Runner* runner) {
                         spr->scaleY, spr->rotation, el->blend, el->alpha);
                 }
             }
-            ctx->currentInstance = ctx->globalScopeInstance;
             ctx->currentEventType = EVENT_DRAW;
             ctx->currentEventSubtype = DRAW_NORMAL;
 
             if (runtimeLayer->endScript >= 0)
-                VM_executeCode(ctx, runtimeLayer->endScript, nullptr, 0);
+                VM_executeCode(ctx, runtimeLayer->endScript, ctx->globalScopeInstance, nullptr, nullptr, 0);
 
-            ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
             ctx->currentEventSubtype = savedEventSubtype;
             Runner_popLayerShader(runner, previousShader);
@@ -2013,11 +1936,11 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (inst->destroyed) continue;
 
         Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
-        executeCode(runner, inst, roomObj->preCreateCode);
+        VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, roomObj->preCreateCode, inst, nullptr, nullptr, 0);
         if (inst->destroyed) continue;
         Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
         if (inst->destroyed) continue;
-        executeCode(runner, inst, roomObj->creationCode);
+        VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, roomObj->creationCode, inst, nullptr, nullptr, 0);
     }
     }
 
@@ -2025,12 +1948,10 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     if (room->creationCodeId >= 0 && dataWin->code.count > (uint32_t) room->creationCodeId) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
         Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
-        runner->vmContext->currentInstance = dummy;
         int32_t savedEventType = runner->vmContext->currentEventType;
         runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
-        RValue result = VM_executeCode(runner->vmContext, room->creationCodeId, nullptr, 0);
+        RValue result = VM_executeCode(runner->vmContext, room->creationCodeId, dummy, nullptr, nullptr, 0);
         RValue_free(&result);
-        runner->vmContext->currentInstance = nullptr;
         runner->vmContext->currentEventType = savedEventType;
         Instance_free(dummy);
     }
@@ -3125,18 +3046,16 @@ void Runner_initFirstRoom(Runner* runner) {
 
     // Run global init scripts with the global scope instance as "self"
     // In GMS 2.3+ (BC17), GLOB scripts store function declarations on "self" via Pop.v.v
-    runner->vmContext->currentInstance = runner->vmContext->globalScopeInstance;
     repeat(dataWin->glob.count, i) {
         int32_t codeId = dataWin->glob.codeIds[i];
         if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
             logInfo("Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
-            RValue result = VM_executeCode(runner->vmContext, codeId, nullptr, 0);
+            RValue result = VM_executeCode(runner->vmContext, codeId, runner->vmContext->globalScopeInstance, nullptr, nullptr, 0);
             RValue_free(&result);
         }
     }
 
     // Run extension init scripts
-    runner->vmContext->currentInstance =  runner->vmContext->globalScopeInstance;
     repeat(dataWin->extn.count, e) {
         Extension* ext = &dataWin->extn.extensions[e];
         repeat(ext->fileCount, f) {
@@ -3150,12 +3069,11 @@ void Runner_initFirstRoom(Runner* runner) {
             int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
             if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
                 logInfo("Runner: Executing extension init script: %s\n", initScript);
-                RValue result = VM_executeCode(runner->vmContext, codeId, nullptr, 0);
+                RValue result = VM_executeCode(runner->vmContext, codeId, runner->vmContext->globalScopeInstance, nullptr, nullptr, 0);
                 RValue_free(&result);
             }
         }
     }
-    runner->vmContext->currentInstance = nullptr;
 
     // Initialize the first room
     initRoom(runner, firstRoomIndex);
@@ -3240,12 +3158,10 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
     int32_t savedEventType = vm->currentEventType;
     int32_t savedEventSubtype = vm->currentEventSubtype;
     int32_t savedEventObjectIndex = vm->currentEventObjectIndex;
-    struct Instance* savedOtherInstance = vm->otherInstance;
 
     // Set collision event context
     vm->currentEventType = EVENT_COLLISION;
     vm->currentEventSubtype = targetObjectIndex;
-    vm->otherInstance = other;
     vm->currentEventObjectIndex = ownerObjectIndex;
 
 #ifdef ENABLE_VM_TRACING
@@ -3259,13 +3175,12 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
     }
 #endif
 
-    executeCode(runner, self, codeId);
+    VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, codeId, self, other, nullptr, 0);
 
     // Restore event context
     vm->currentEventType = savedEventType;
     vm->currentEventSubtype = savedEventSubtype;
     vm->currentEventObjectIndex = savedEventObjectIndex;
-    vm->otherInstance = savedOtherInstance;
 }
 
 // ===[ Path Adaptation ]===
@@ -4235,7 +4150,7 @@ static void tickTimelines(Runner* runner) {
             for (uint32_t j = ind1; ind2 > j; j++) {
                 TimelineMoment* moment = &timeline->moments[j];
                 repeat(moment->actionCount, a) {
-                    executeCode(runner, inst, moment->actions[a].codeId);
+                    VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, moment->actions[a].codeId, inst, nullptr, nullptr, 0);
                 }
             }
 
@@ -4251,7 +4166,7 @@ static void tickTimelines(Runner* runner) {
             for (int32_t j = ind1; j > ind2; j--) {
                 TimelineMoment* moment = &timeline->moments[j];
                 repeat(moment->actionCount, a) {
-                    executeCode(runner, inst, moment->actions[a].codeId);
+                    VM_executeCodeIgnoreInvalidCodeIndices(runner->vmContext, moment->actions[a].codeId, inst, nullptr, nullptr, 0);
                 }
             }
 

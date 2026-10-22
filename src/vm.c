@@ -2024,7 +2024,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
     // Fast path: cached script code index
     if (cache->scriptCodeIndex >= 0) {
-        RValue result = VM_executeCode(ctx, cache->scriptCodeIndex, args, argCount);
+        RValue result = VM_executeCode(ctx, cache->scriptCodeIndex, ctx->currentInstance, ctx->otherInstance, args, argCount);
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
@@ -2137,7 +2137,7 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
-        result = VM_executeCode(ctx, codeIndex, args, argCount);
+        result = VM_executeCode(ctx, codeIndex, ctx->currentInstance, ctx->otherInstance, args, argCount);
     } else if (builtin != nullptr) {
         result = builtin(ctx, args, argCount);
     } else if (unresolvedName != nullptr) {
@@ -3695,7 +3695,7 @@ static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
     }
 }
 
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount) {
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, RValue* args, int32_t argCount) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
     // Save current frame
@@ -3710,6 +3710,8 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t a
     frame.savedScriptArgs = ctx->scriptArgs;
     frame.savedScriptArgCount = ctx->scriptArgCount;
     frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
+    frame.savedSelfInstance = ctx->currentInstance;
+    frame.savedOtherInstance = ctx->otherInstance;
     frame.parent = ctx->callStack;
     ctx->callStack = &frame;
     ctx->callDepth++;
@@ -3721,6 +3723,8 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t a
     ctx->ip = code->offset;
     ctx->codeEnd = code->length;
     ctx->currentCodeIndex = codeIndex;
+    ctx->currentInstance = selfInstance;
+    ctx->otherInstance = otherInstance;
 
     setCurrentCodeLocalsSlotMap(ctx);
 
@@ -3789,6 +3793,8 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t a
     ctx->scriptArgCount = saved->savedScriptArgCount;
     ctx->currentCodeIndex = saved->savedCurrentCodeIndex;
     ctx->savearefBalance = saved->savedSavearefBalance;
+    ctx->currentInstance = saved->savedSelfInstance;
+    ctx->otherInstance = saved->savedOtherInstance;
     ctx->callStack = saved->parent;
     ctx->callDepth--;
 

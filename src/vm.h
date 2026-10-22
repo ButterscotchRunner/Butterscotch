@@ -95,6 +95,8 @@ typedef struct CallFrame {
     RValue* savedScriptArgs;
     int32_t savedScriptArgCount;
     int32_t savedCurrentCodeIndex;
+    Instance* savedSelfInstance;
+    Instance* savedOtherInstance;
     struct CallFrame* parent;
 } CallFrame;
 
@@ -268,11 +270,32 @@ void VM_reset(VMContext* ctx);
  *
  * @param ctx the VMContext instance
  * @param codeIndex the index of the CodeEntry that will be executed
+ * @param selfInstance the self instance involved in this execution
+ * @param otherInstance the other instance involved in this execution
  * @param args the arguments that will be passed to the executed code, can be nullptr
  * @param argCount the argument count
  * @return the return value of the executed script
  */
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, RValue* args, int32_t argCount);
+
+/**
+ * Same thing as VM_executeCode, but returns if the codeIndex is not a valid codeIndex
+ *
+ * @param ctx the VMContext instance
+ * @param codeIndex the index of the CodeEntry that will be executed
+ * @param selfInstance the self instance involved in this execution
+ * @param otherInstance the other instance involved in this execution
+ * @param args the arguments that will be passed to the executed code, can be nullptr
+ * @param argCount the argument count
+ * @return the return value of the executed script
+ */
+static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, RValue* args, int32_t argCount) {
+    // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
+    if (0 > codeIndex)
+        return;
+
+    VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, args, argCount);
+}
 
 void VM_free(VMContext* ctx);
 bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targetObjectIndex);

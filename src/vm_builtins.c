@@ -4788,9 +4788,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     }
 #endif
 
-    RValue result = VM_executeCode(ctx, codeId, scriptArgs, scriptArgCount);
-
-    ctx->currentInstance = savedInstance;
+    RValue result = VM_executeCode(ctx, codeId, savedInstance, nullptr, scriptArgs, scriptArgCount);
     return result;
 }
 
@@ -7235,7 +7233,8 @@ static int arraySortCompareCustom(const void* a, const void* b) {
     callArgs[1] = RValue_makeIndependent(*(const RValue*) b);
     RValue result;
     if (g_arraySortCodeIndex >= 0) {
-        result = VM_executeCode(g_arraySortCtx, g_arraySortCodeIndex, callArgs, 2);
+        // TODO: Maybe we need to maintain the current instance?
+        result = VM_executeCode(g_arraySortCtx, g_arraySortCodeIndex, nullptr, nullptr, callArgs, 2);
     } else {
         result = g_arraySortBuiltin(g_arraySortCtx, callArgs, 2);
     }
@@ -17583,15 +17582,11 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
     // Remember the constructor so member reads can fallback to its shared static struct.
     structInst->constructorCodeIndex = codeIndex;
 
-    Instance* savedSelf = ctx->currentInstance;
-    ctx->currentInstance = structInst;
-
     RValue* ctorArgs = (argCount > 1) ? &args[1] : nullptr;
     int32_t ctorArgCount = argCount - 1;
-    RValue result = VM_executeCode(ctx, codeIndex, ctorArgs, ctorArgCount);
+    RValue result = VM_executeCode(ctx, codeIndex, ctx->currentInstance, nullptr, ctorArgs, ctorArgCount);
     RValue_free(&result);
 
-    ctx->currentInstance = savedSelf;
     return RValue_makeStructAndIncRef(structInst);
 }
 
@@ -19248,11 +19243,10 @@ static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue valu
     if (reviver->boundInstance != nullptr) reviver->ctx->currentInstance = reviver->boundInstance;
     RValue result;
     if (reviver->codeIndex >= 0) {
-        result =VM_executeCode(reviver->ctx, reviver->codeIndex, callArgs, 2);
+        result = VM_executeCode(reviver->ctx, reviver->codeIndex, savedInstance, nullptr, callArgs, 2);
     } else {
         result = reviver->builtin(reviver->ctx, callArgs, 2);
     }
-    reviver->ctx->currentInstance = savedInstance;
     RValue_free(&callArgs[0]);
     RValue_free(&callArgs[1]);
     return result;
