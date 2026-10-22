@@ -15,7 +15,7 @@ typedef struct CallFrame {
     RValue* localVars;
     uint32_t localVarsCount;
     RValue* scriptArgs;
-    uint32_t scriptArgsCount;
+    int32_t scriptArgsCount;
     // BC17+: varID -> localVars slot lookup for the current code. Points into codeLocalsSlotMaps[currentCodeIndex] for BC17+, nullptr for BC16.
     IntIntHashMap* currentCodeLocalsSlotMap;
     // The instruction pointer before this CallFrame was created

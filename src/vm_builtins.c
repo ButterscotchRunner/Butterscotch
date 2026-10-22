@@ -1129,7 +1129,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
         case BUILTIN_VAR_ARGUMENT13:
         case BUILTIN_VAR_ARGUMENT14:
         case BUILTIN_VAR_ARGUMENT15: {
-            uint32_t argNumber = builtinVarId - BUILTIN_VAR_ARGUMENT0;
+            int32_t argNumber = builtinVarId - BUILTIN_VAR_ARGUMENT0;
             if (ctx->currentCallFrame->scriptArgs != nullptr && ctx->currentCallFrame->scriptArgsCount > argNumber) {
                 RValue val = ctx->currentCallFrame->scriptArgs[argNumber];
                 val.ownsReference = false;
