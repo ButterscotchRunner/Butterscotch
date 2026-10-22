@@ -4784,7 +4784,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     if (args[0].type == RVALUE_METHOD && args[0].method->boundInstanceId >= 0) {
         Runner* runner = ctx->runner;
         Instance* bound = hmget(runner->instancesById, args[0].method->boundInstanceId);
-        if (bound != nullptr) ctx->currentInstance = bound;
+        if (bound != nullptr) savedInstance = bound;
     }
 #endif
 
@@ -7192,6 +7192,7 @@ static RValue builtin_array_copy(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
 static VMContext* g_arraySortCtx;
 static int32_t g_arraySortCodeIndex;
+static Instance* g_arraySortSelf;
 static bool resolveFunctionRef(VMContext* ctx, RValue funcRef, int32_t* outCodeIndex, BuiltinFunc* outBuiltin) {
     *outCodeIndex = -1;
     *outBuiltin = nullptr;
@@ -7233,8 +7234,7 @@ static int arraySortCompareCustom(const void* a, const void* b) {
     callArgs[1] = RValue_makeIndependent(*(const RValue*) b);
     RValue result;
     if (g_arraySortCodeIndex >= 0) {
-        // TODO: Maybe we need to maintain the current instance?
-        result = VM_executeCode(g_arraySortCtx, g_arraySortCodeIndex, nullptr, nullptr, callArgs, 2);
+        result = VM_executeCode(g_arraySortCtx, g_arraySortCodeIndex, g_arraySortSelf, nullptr, callArgs, 2);
     } else {
         result = g_arraySortBuiltin(g_arraySortCtx, callArgs, 2);
     }
@@ -7257,6 +7257,7 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
 
     int (*compare)(const void*, const void*) = nullptr;
     bool useCallback = false;
+    g_arraySortSelf = ctx->currentInstance;
 
     if (args[1].type == RVALUE_BOOL) {
         compare = RValue_toBool(args[1]) ? arraySortCompareAsc : arraySortCompareDesc;
@@ -7270,7 +7271,7 @@ static RValue builtin_array_sort(MAYBE_UNUSED VMContext* ctx, RValue* args, int3
         }
         if (args[1].method->boundInstanceId >= 0) {
             Instance* bound = hmget(ctx->runner->instancesById, args[1].method->boundInstanceId);
-            if (bound != nullptr) ctx->currentInstance = bound;
+            if (bound != nullptr) g_arraySortSelf = bound;
         }
     }
 #endif
@@ -17584,7 +17585,7 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
 
     RValue* ctorArgs = (argCount > 1) ? &args[1] : nullptr;
     int32_t ctorArgCount = argCount - 1;
-    RValue result = VM_executeCode(ctx, codeIndex, ctx->currentInstance, nullptr, ctorArgs, ctorArgCount);
+    RValue result = VM_executeCode(ctx, codeIndex, structInst, nullptr, ctorArgs, ctorArgCount);
     RValue_free(&result);
 
     return RValue_makeStructAndIncRef(structInst);
@@ -19240,7 +19241,7 @@ static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue valu
     callArgs[0] = RValue_makeOwnedString(safeStrdup(key != nullptr ? key : ""));
     callArgs[1] = RValue_makeIndependent(value);
     Instance* savedInstance = reviver->ctx->currentInstance;
-    if (reviver->boundInstance != nullptr) reviver->ctx->currentInstance = reviver->boundInstance;
+    if (reviver->boundInstance != nullptr) savedInstance = reviver->boundInstance;
     RValue result;
     if (reviver->codeIndex >= 0) {
         result = VM_executeCode(reviver->ctx, reviver->codeIndex, savedInstance, nullptr, callArgs, 2);
