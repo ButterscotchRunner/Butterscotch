@@ -3680,16 +3680,6 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
     return shget(ctx->codeLocalsMap, (char*) codeName);
 }
 
-static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
-    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
-        return code->localsCount;
-    } else {
-        // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
-        // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
-        return IntIntHashMap_count(&ctx->codeLocalsSlotMaps[ctx->currentCallFrame->codeIndex]);
-    }
-}
-
 RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
@@ -3712,10 +3702,18 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
     callFrame.stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
     if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
-        ctx->currentCallFrame->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCallFrame->codeIndex];
+        callFrame.currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[codeIndex];
     }
 
-    uint32_t localsCount = computeLocalsCount(ctx, code);
+    uint32_t localsCount;
+    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
+        localsCount = code->localsCount;
+    } else {
+        // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
+        // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
+        localsCount = IntIntHashMap_count(&callFrame.currentCodeLocalsSlotMap[codeIndex]);
+    }
+
     RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
     callFrame.localVars = localVars;
     callFrame.localVarsCount = localsCount;
