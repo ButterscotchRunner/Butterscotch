@@ -243,6 +243,9 @@ void VM_reset(VMContext* ctx);
  * @param codeIndex the index of the CodeEntry that will be executed
  * @param selfInstance the self instance involved in this execution
  * @param otherInstance the other instance involved in this execution
+ * @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param args the arguments that will be passed to the executed code, can be nullptr
  * @param argCount the argument count
  * @return the return value of the executed script
@@ -256,6 +259,9 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
  * @param codeIndex the index of the CodeEntry that will be executed
  * @param selfInstance the self instance involved in this execution
  * @param otherInstance the other instance involved in this execution
+* @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param args the arguments that will be passed to the executed code, can be nullptr
  * @param argCount the argument count
  */
