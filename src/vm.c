@@ -2843,11 +2843,7 @@ static RValue executeLoop(VMContext* ctx) {
 
         // extraData pointer (may not be used depending on opcode)
         const uint8_t* extraData = bytecodeBase + ip;
-
-        // If instruction has extra data (bit 30 set), advance IP past it
-        if (OpWord_hasOperand(opword)) {
-            ip += OpWord_operandSize(opword);
-        }
+        ip += OpWord_operandSize(opword);
 
         uint8_t opcode = OpWord_opcode(opword);
 
