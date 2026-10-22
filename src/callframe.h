@@ -8,7 +8,6 @@ typedef struct CallFrame {
     Instance* self;
     // "other" instance for collision events
     Instance* other;
-    bool hasEventInformation;
     int32_t eventObjectIndex;
     int32_t eventType;
     int32_t eventSubtype;
@@ -18,9 +17,6 @@ typedef struct CallFrame {
     int32_t scriptArgsCount;
     // BC17+: varID -> localVars slot lookup for the current code. Points into codeLocalsSlotMaps[currentCodeIndex] for BC17+, nullptr for BC16.
     IntIntHashMap* currentCodeLocalsSlotMap;
-    // The instruction pointer before this CallFrame was created
-    uint32_t instructionPointerWhenTheCallFrameWasCreated;
-    uint32_t stackTopWhenTheCallFrameWasCreated;
     struct CallFrame* parent;
 } CallFrame;
 

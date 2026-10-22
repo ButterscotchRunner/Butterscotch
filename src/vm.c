@@ -3695,12 +3695,6 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     callFrame.eventObjectIndex = eventObjectIndex;
     callFrame.eventType = eventType;
     callFrame.eventSubtype = eventSubtype;
-    callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
-    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
-    // You may be wondering... "can't we just store it on the parent CallFrame?"
-    // Well... what if the parent CallFrame is null?? (which WILL happen because the first script of the tree will obviously not have a parent CallFrame)
-    callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
-    callFrame.stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
     uint32_t localsCount = code->localsCount;
     if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
         callFrame.currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[codeIndex];
@@ -3726,6 +3720,11 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     }
     callFrame.scriptArgs = scriptArgs;
     callFrame.scriptArgsCount = argCount;
+
+    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
+    // The instruction pointer before this CallFrame was created
+    uint32_t instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
+    uint32_t stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
 
     ctx->savearefBalance = 0;
 
@@ -3767,11 +3766,11 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     ctx->currentCallFrame = callFrame.parent;
 
     // Restore caller frame
-    ctx->ip = callFrame.instructionPointerWhenTheCallFrameWasCreated;
+    ctx->ip = instructionPointerWhenTheCallFrameWasCreated;
 
     // Reset all values in the stack (see issue #137)
     // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
-    unwindVMStack(ctx, callFrame.stackTopWhenTheCallFrameWasCreated);
+    unwindVMStack(ctx, stackTopWhenTheCallFrameWasCreated);
 
     return result;
 }
