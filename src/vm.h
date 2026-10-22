@@ -62,41 +62,6 @@
 #define CMP_GTE 5
 #define CMP_GT  6
 
-// ===[ Opcodes ]===
-#define OP_CONV     0x07
-#define OP_MUL      0x08
-#define OP_DIV      0x09
-#define OP_REM      0x0A
-#define OP_MOD      0x0B
-#define OP_ADD      0x0C
-#define OP_SUB      0x0D
-#define OP_AND      0x0E
-#define OP_OR       0x0F
-#define OP_XOR      0x10
-#define OP_NEG      0x11
-#define OP_NOT      0x12
-#define OP_SHL      0x13
-#define OP_SHR      0x14
-#define OP_CMP      0x15
-#define OP_POP      0x45
-#define OP_PUSHI    0x84
-#define OP_DUP      0x86
-#define OP_CALLV    0x99
-#define OP_RET      0x9C
-#define OP_EXIT     0x9D
-#define OP_POPZ     0x9E
-#define OP_B        0xB6
-#define OP_BT       0xB7
-#define OP_BF       0xB8
-#define OP_PUSHENV  0xBA
-#define OP_POPENV   0xBB
-#define OP_PUSH     0xC0
-#define OP_PUSHLOC  0xC1
-#define OP_PUSHGLB  0xC2
-#define OP_PUSHBLTN 0xC3
-#define OP_CALL     0xD9
-#define OP_BREAK    0xFF
-
 // ===[ Extended BREAK Sub-Opcodes (WAD version 17+) ]===
 // Encoded in bits 0-15 of the BREAK instruction (instrInstanceType field, as int16_t)
 #define BREAK_CHKINDEX     (-1)  // Validate array index bounds

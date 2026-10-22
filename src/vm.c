@@ -8,6 +8,7 @@
 #include "profiler.h"
 #include "string_builder.h"
 #include "opword.h"
+#include "op.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -1287,7 +1288,7 @@ static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot, bool forWrite) {
 }
 #endif
 
-static void handlePushBltn(VMContext* ctx, OpWord opword, const uint8_t* extraData) {
+static void handlePushBuiltin(VMContext* ctx, OpWord opword, const uint8_t* extraData) {
     uint32_t varRef = resolveVarOperand(extraData);
 #if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t varType = (varRef >> 24) & 0xF8;
@@ -1329,7 +1330,7 @@ static void handlePushBltn(VMContext* ctx, OpWord opword, const uint8_t* extraDa
     stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 }
 
-static void handlePushI(VMContext* ctx, OpWord opword) {
+static void handlePushImmediate(VMContext* ctx, OpWord opword) {
     int16_t value =  OpWord_extra(opword);
     RValue val = RValue_makeInt32((int32_t) value);
     stackPushTyped(ctx, val, GML_TYPE_INT16);
@@ -2412,45 +2413,6 @@ static void handlePopEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
 
 // ===[ Execution Loop ]===
 
-static const char* opcodeName(uint8_t opcode) {
-    switch (opcode) {
-        case OP_CONV:    return "Conv";
-        case OP_MUL:     return "Mul";
-        case OP_DIV:     return "Div";
-        case OP_REM:     return "Rem";
-        case OP_MOD:     return "Mod";
-        case OP_ADD:     return "Add";
-        case OP_SUB:     return "Sub";
-        case OP_AND:     return "And";
-        case OP_OR:      return "Or";
-        case OP_XOR:     return "Xor";
-        case OP_NEG:     return "Neg";
-        case OP_NOT:     return "Not";
-        case OP_SHL:     return "Shl";
-        case OP_SHR:     return "Shr";
-        case OP_CMP:     return "Cmp";
-        case OP_POP:     return "Pop";
-        case OP_PUSHI:   return "PushI";
-        case OP_DUP:     return "Dup";
-        case OP_RET:     return "Ret";
-        case OP_EXIT:    return "Exit";
-        case OP_POPZ:    return "Popz";
-        case OP_B:       return "B";
-        case OP_BT:      return "BT";
-        case OP_BF:      return "BF";
-        case OP_PUSHENV: return "PushEnv";
-        case OP_POPENV:  return "PopEnv";
-        case OP_PUSH:    return "Push";
-        case OP_PUSHLOC: return "PushLoc";
-        case OP_PUSHGLB: return "PushGlb";
-        case OP_PUSHBLTN:return "PushBltn";
-        case OP_CALL:    return "Call";
-        case OP_CALLV:   return "CallV";
-        case OP_BREAK:   return "Break";
-        default:         return "???";
-    }
-}
-
 #ifdef ENABLE_VM_OPCODE_PROFILER
 static char gmlTypeChar(uint8_t type);
 
@@ -2524,7 +2486,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
         double pct = total > 0 ? (100.0 * (double)(int64_t)entry->count / (double)(int64_t)total) : 0.0;
-        logInfo("%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
+        logInfo("%-12s 0x%02X   %16llu %7.2f%%\n", Op_getOpcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
     }
     }
 
@@ -2554,7 +2516,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             variantEntries[j] = tmp;
         }
 
-        logInfo("%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned longlong) entry->count);
+        logInfo("%s (0x%02X): %llu total\n", Op_getOpcodeName(opcode), opcode, (unsigned longlong) entry->count);
         forEachIndexed(CountEntry, ve, vi, variantEntries, variantCount) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
@@ -3004,7 +2966,7 @@ static RValue executeLoop(VMContext* ctx) {
                 handlePush(ctx, opword, extraData, type1);
                 break;
             }
-            case OP_PUSHLOC: {
+            case OP_PUSH_LOCAL: {
                 uint32_t varRef = resolveVarOperand(extraData);
 #if IS_WAD17_OR_HIGHER_ENABLED
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
@@ -3028,7 +2990,7 @@ static RValue executeLoop(VMContext* ctx) {
 #endif
                 break;
             }
-            case OP_PUSHGLB: {
+            case OP_PUSH_GLOBAL: {
                 uint32_t varRef = resolveVarOperand(extraData);
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
                 if (varType == VARTYPE_NORMAL) {
@@ -3053,11 +3015,11 @@ static RValue executeLoop(VMContext* ctx) {
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
                 break;
             }
-            case OP_PUSHBLTN:
-                handlePushBltn(ctx, opword, extraData);
+            case OP_PUSH_BUILTIN:
+                handlePushBuiltin(ctx, opword, extraData);
                 break;
-            case OP_PUSHI:
-                handlePushI(ctx, opword);
+            case OP_PUSH_IMMEDIATE:
+                handlePushImmediate(ctx, opword);
                 break;
 
             // Pop instructions
@@ -3358,12 +3320,12 @@ static RValue executeLoop(VMContext* ctx) {
                 return scriptFallthroughReturnValue(ctx);
 
             // Environment (with-statements)
-            case OP_PUSHENV:
+            case OP_PUSH_ENV:
                 VM_SYNC_IP();
                 handlePushEnv(ctx, opword, instrAddr);
                 VM_RELOAD_IP();
                 break;
-            case OP_POPENV:
+            case OP_POP_ENV:
                 VM_SYNC_IP();
                 handlePopEnv(ctx, opword, instrAddr);
                 VM_RELOAD_IP();
@@ -3437,12 +3399,12 @@ static void rewriteBytecode14To16(VMContext* ctx) {
                 case 0xB7: newKind = OP_B; break;
                 case 0xB8: newKind = OP_BT; break;
                 case 0xB9: newKind = OP_BF; break;
-                case 0xBB: newKind = OP_PUSHENV; break;
-                case 0xBC: newKind = OP_POPENV; break;
+                case 0xBB: newKind = OP_PUSH_ENV; break;
+                case 0xBC: newKind = OP_POP_ENV; break;
                 case 0xDA: newKind = OP_CALL; break;
                 case 0xC0:
                     if (type1 == GML_TYPE_INT16) {
-                        newKind = OP_PUSHI;
+                        newKind = OP_PUSH_IMMEDIATE;
                     }
                     break;
             }
@@ -3470,7 +3432,7 @@ static void rewriteBytecode14To16(VMContext* ctx) {
 
             uint32_t size = 4;
             switch (newKind) {
-                case OP_PUSH: case OP_PUSHLOC: case OP_PUSHGLB: case OP_PUSHBLTN:
+                case OP_PUSH: case OP_PUSH_LOCAL: case OP_PUSH_GLOBAL: case OP_PUSH_BUILTIN:
                     if (type1 == GML_TYPE_INT16) size = 4;
                     else if (type1 == GML_TYPE_DOUBLE || type1 == GML_TYPE_INT64) size = 12;
                     else size = 8;
@@ -4036,7 +3998,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
         case OP_REM: case OP_MOD: case OP_AND: case OP_OR:
         case OP_XOR: case OP_SHL: case OP_SHR:
-            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", opcodeName(opcode), gmlTypeChar(type1), gmlTypeChar(type2));
+            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName(opcode), gmlTypeChar(type1), gmlTypeChar(type2));
             snprintf(commentStr, commentSize, "// pops: [a, b] -> pushes: [result]");
             break;
 
@@ -4130,24 +4092,24 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // Scoped pushes
-        case OP_PUSHLOC:
+        case OP_PUSH_LOCAL:
             snprintf(opcodeStr, opcodeSize, "PushLoc.v");
             disasmFormatVar(ctx, extraData, "local", (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
-        case OP_PUSHGLB:
+        case OP_PUSH_GLOBAL:
             snprintf(opcodeStr, opcodeSize, "PushGlb.v");
             disasmFormatVar(ctx, extraData, "global", (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
-        case OP_PUSHBLTN:
+        case OP_PUSH_BUILTIN:
             snprintf(opcodeStr, opcodeSize, "PushBltn.v");
             disasmFormatVar(ctx, extraData, nullptr, (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
 
         // PushI (int16 immediate)
-        case OP_PUSHI:
+        case OP_PUSH_IMMEDIATE:
             snprintf(opcodeStr, opcodeSize, "PushI.e");
             snprintf(operandStr, operandSize, "%d", (int32_t) instType);
             snprintf(commentStr, commentSize, "// pushes: [int16]");
@@ -4188,7 +4150,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // With-statement: PushEnv
-        case OP_PUSHENV: {
+        case OP_PUSH_ENV: {
             snprintf(opcodeStr, opcodeSize, "PushEnv");
             int32_t offset = OpWord_branchOffset(opword);
             uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
@@ -4197,7 +4159,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
             if (instrAddr >= 4) {
                 uint32_t prevInstr = BinaryUtils_readUint32(bytecodeBase + instrAddr - 4);
                 OpWord prevOpword = {prevInstr};
-                if (OpWord_opcode(prevOpword) == OP_PUSHI) {
+                if (OpWord_opcode(prevOpword) == OP_PUSH_IMMEDIATE) {
                     int16_t objIdx = (int16_t) (prevInstr & 0xFFFF);
                     targetName = disasmScopeName(ctx, (int32_t) objIdx);
                 }
@@ -4212,7 +4174,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // With-statement: PopEnv
-        case OP_POPENV: {
+        case OP_POP_ENV: {
             snprintf(opcodeStr, opcodeSize, "PopEnv");
             if (opword.value != 0xBBF00000) {
                 snprintf(operandStr, operandSize, "[exit]");
@@ -4428,12 +4390,12 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
                 ip += extraDataSize(OpWord_type1(opword));
             }
             uint8_t opcode = OpWord_opcode(opword);
-            if (opcode == OP_B || opcode == OP_BT || opcode == OP_BF || opcode == OP_PUSHENV) {
+            if (opcode == OP_B || opcode == OP_BT || opcode == OP_BF || opcode == OP_PUSH_ENV) {
                 int32_t offset = OpWord_branchOffset(opword);
                 uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
                 hmput(branchTargets, target, true);
             }
-            if (opcode == OP_POPENV) {
+            if (opcode == OP_POP_ENV) {
                 if (opword.value == 0xBBF00000) {
                     int32_t offset = OpWord_branchOffset(opword);
                     uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
@@ -4460,7 +4422,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         uint8_t opcode = OpWord_opcode(opword);
 
         // PopEnv decreases depth before printing
-        if (opcode == OP_POPENV && envDepth > 0) envDepth--;
+        if (opcode == OP_POP_ENV && envDepth > 0) envDepth--;
 
         // Print label if this address is a branch target
         if (hmgeti(branchTargets, instrAddr) >= 0) {
@@ -4482,7 +4444,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         }
 
         // PushEnv increases depth after printing
-        if (opcode == OP_PUSHENV) envDepth++;
+        if (opcode == OP_PUSH_ENV) envDepth++;
     }
 
     hmfree(branchTargets);
