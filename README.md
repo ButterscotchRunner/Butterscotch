@@ -301,6 +301,15 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/e8cd174c-5113-416b-9e3a-c4029e1e3176" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3702a261-01fe-4b04-9e6c-b69336c2ce46" />
 
+## Similar Projects
+
+* [UndertaleModTool](https://github.com/UnderminersTeam/UndertaleModTool)
+* [OpenGM](https://github.com/misternebula/OpenGM)
+* [Starfait](https://github.com/MrPowerGamerBR/Starfait)
+* [reGML](https://github.com/TimGoTheCreator/reGML)
+* [Luna](https://github.com/nommiin/Luna)
+* [TinyGameMakerVM](https://github.com/MrPowerGamerBR/TinyGameMakerVM)
+
 ## Disclaimer
 
 Butterscotch has no association, endorsement, or any connection whatsoever with any of the software that it facilitates, and does not provide any of the software it can run by itself. In order to use Butterscotch, you will need to provide your own game files.
