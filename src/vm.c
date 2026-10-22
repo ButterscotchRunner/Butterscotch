@@ -434,17 +434,17 @@ static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
         slot = (uint32_t) varID;
     } else {
         // BC13/BC14 and BC17+: allocate the slot dynamically because the data.win CANNOT be trusted to know how many localVars the script has
-        slot = IntIntHashMap_getOrInsertSequential(ctx->currentCodeLocalsSlotMap, varID);
+        slot = IntIntHashMap_getOrInsertSequential(ctx->currentCallFrame->currentCodeLocalsSlotMap, varID);
     }
 
     // Grow this frame's localVars window to cover `slot` whether the entry is pre-existing or freshly allocated.
-    // Pre-existing entries can still be past ctx->localVarCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
-    if (slot >= ctx->localVarCount) {
+    // Pre-existing entries can still be past ctx->currentCallFrame->localVarsCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
+    if (slot >= ctx->currentCallFrame->localVarsCount) {
         RValue* resizedLocalVars = (RValue *)safeCalloc(slot + 1, sizeof(RValue));
-        memcpy(resizedLocalVars, ctx->localVars, sizeof(RValue) * ctx->localVarCount);
-        free(ctx->localVars);
-        ctx->localVars = resizedLocalVars;
-        ctx->localVarCount = slot + 1;
+        memcpy(resizedLocalVars, ctx->currentCallFrame->localVars, sizeof(RValue) * ctx->currentCallFrame->localVarsCount);
+        free(ctx->currentCallFrame->localVars);
+        ctx->currentCallFrame->localVars = resizedLocalVars;
+        ctx->currentCallFrame->localVarsCount = slot + 1;
     }
     return slot;
 }
@@ -477,7 +477,7 @@ Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target) {
 static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable* varDef, RValue* out) {
     switch (instanceType) {
         case INSTANCE_SELF: {
-            Instance* inst = (Instance*) ctx->currentInstance;
+            Instance* inst = (Instance*) ctx->currentCallFrame->self;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
             if (slot == nullptr)
@@ -488,8 +488,8 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
         }
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            *out = ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            *out = ctx->currentCallFrame->localVars[localSlot];
             out->ownsReference = false;
             return true;
         }
@@ -503,7 +503,7 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
             return true;
         }
         case INSTANCE_OTHER: {
-            Instance* inst = (Instance*) ctx->otherInstance;
+            Instance* inst = (Instance*) ctx->currentCallFrame->other;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
             if (slot == nullptr)
@@ -575,7 +575,7 @@ void VM_copyStatic(VMContext* ctx, RValue* parentRef) {
         }
     }
     if (0 > parentCodeIndex) return;
-    Instance* childStatic = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+    Instance* childStatic = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
     Instance* parentStatic = VM_getOrCreateStaticStruct(ctx, parentCodeIndex);
     if (childStatic != nullptr && parentStatic != nullptr && childStatic != parentStatic) {
         childStatic->staticParent = parentStatic;
@@ -612,17 +612,17 @@ static bool tryReadInstanceVarOrStatic(VMContext* ctx, Instance* instance, int32
 
 static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
     if (writeIndex < 0) return false;
-    if (writeIndex < ctx->scriptArgCount) return true;
+    if (writeIndex < ctx->currentCallFrame->scriptArgsCount) return true;
 
     RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
 
-    if (ctx->scriptArgCount > 0) {
-        memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-        free(ctx->scriptArgs);
+    if (ctx->currentCallFrame->scriptArgsCount > 0) {
+        memcpy(newScriptArgs, ctx->currentCallFrame->scriptArgs, ctx->currentCallFrame->scriptArgsCount * sizeof(RValue));
+        free(ctx->currentCallFrame->scriptArgs);
     }
 
-    ctx->scriptArgs = newScriptArgs;
-    ctx->scriptArgCount = writeIndex + 1;
+    ctx->currentCallFrame->scriptArgs = newScriptArgs;
+    ctx->currentCallFrame->scriptArgsCount = writeIndex + 1;
     return true;
 }
 
@@ -630,13 +630,13 @@ void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
     if (!VM_ensureScriptArg(ctx, writeIndex)) return;
 
     RValue independent = RValue_makeIndependent(val);
-    RValue_free(&ctx->scriptArgs[writeIndex]);
-    ctx->scriptArgs[writeIndex] = independent;
+    RValue_free(&ctx->currentCallFrame->scriptArgs[writeIndex]);
+    ctx->currentCallFrame->scriptArgs[writeIndex] = independent;
 }
 
 void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val) {
     if (!VM_ensureScriptArg(ctx, writeIndex)) return;
-    VM_arraySetWithCoW(ctx, &ctx->scriptArgs[writeIndex], arrayIndex, val);
+    VM_arraySetWithCoW(ctx, &ctx->currentCallFrame->scriptArgs[writeIndex], arrayIndex, val);
 }
 
 static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t varRef) {
@@ -658,7 +658,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 #endif
 
     // Resolve target instance for object/instance references (instanceType >= 0)
-    Instance* targetInstance = (Instance*) ctx->currentInstance;
+    Instance* targetInstance = (Instance*) ctx->currentCallFrame->self;
     if (instanceType >= 0) {
         targetInstance = VM_findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
@@ -674,33 +674,33 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
     } else if (instanceType == INSTANCE_GLOBAL) {
         targetInstance = ctx->globalScopeInstance;
     } else if (instanceType == INSTANCE_OTHER) {
-        if (ctx->otherInstance != nullptr) {
-            targetInstance = (Instance*) ctx->otherInstance;
+        if (ctx->currentCallFrame->other != nullptr) {
+            targetInstance = (Instance*) ctx->currentCallFrame->other;
         }
 #if IS_WAD17_OR_HIGHER_ENABLED
     } else if (instanceType == INSTANCE_STATIC) {
         // "static" scope: read from the current constructor's shared static struct via the normal slot path below.
-        targetInstance = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        targetInstance = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
 #endif
     } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
         int16_t builtinVarId = varDef->builtinVarId;
         RValue result;
         if (builtinVarId == BUILTIN_VAR_ARGUMENT_COUNT) {
-            result = RValue_makeReal((GMLReal) ctx->scriptArgCount);
+            result = RValue_makeReal((GMLReal) ctx->currentCallFrame->scriptArgsCount);
         } else if (builtinVarId == BUILTIN_VAR_ARGUMENT) {
             // argument[N] array-style access
             int32_t idx = access.arrayIndex;
-            if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > idx && idx >= 0) {
-                result = ctx->scriptArgs[idx];
+            if (ctx->currentCallFrame->scriptArgs != nullptr && ctx->currentCallFrame->scriptArgsCount > idx && idx >= 0) {
+                result = ctx->currentCallFrame->scriptArgs[idx];
                 result.ownsReference = false;
             } else {
                 result = RValue_makeUndefined();
             }
         } else if (builtinVarId >= BUILTIN_VAR_ARGUMENT0 && BUILTIN_VAR_ARGUMENT15 >= builtinVarId) {
             int32_t argIndex = builtinVarId - BUILTIN_VAR_ARGUMENT0;
-            if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > argIndex) {
-                result = ctx->scriptArgs[argIndex];
+            if (ctx->currentCallFrame->scriptArgs != nullptr && ctx->currentCallFrame->scriptArgsCount > argIndex) {
+                result = ctx->currentCallFrame->scriptArgs[argIndex];
                 result.ownsReference = false;
                 // If we are trying to access the argument via an array (example: argName[i]), we NEED to read INSIDE the array
                 // Example:
@@ -754,8 +754,8 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            slot = &ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            slot = &ctx->currentCallFrame->localVars[localSlot];
             break;
         }
         case INSTANCE_SELF:
@@ -851,16 +851,16 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         switch (instanceType) {
             case INSTANCE_LOCAL: {
                 uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                require(ctx->localVarCount > localSlot);
-                RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->localVars[localSlot], val);
+                require(ctx->currentCallFrame->localVarsCount > localSlot);
+                RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->currentCallFrame->localVars[localSlot], val);
 #ifdef ENABLE_VM_TRACING
-                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, ctx->localVars[localSlot], true, -1, -1, "");
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, ctx->currentCallFrame->localVars[localSlot], true, -1, -1, "");
 #endif
                 return;
             }
             case INSTANCE_SELF:
             case INSTANCE_GLOBAL: {
-                Instance* inst = (Instance*) ctx->currentInstance;
+                Instance* inst = (Instance*) ctx->currentCallFrame->self;
                 if (instanceType == INSTANCE_GLOBAL)
                     inst = ctx->globalScopeInstance;
 
@@ -878,7 +878,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
                 break; // fall through to slow path so the existing nullptr-instance error gets logged
             }
             case INSTANCE_OTHER: {
-                Instance* inst = (Instance*) ctx->otherInstance;
+                Instance* inst = (Instance*) ctx->currentCallFrame->other;
                 if (inst != nullptr) {
                     Instance_setSelfVar(inst, varDef->varID, val);
 #ifdef ENABLE_VM_TRACING
@@ -913,7 +913,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // "static" scope: write to the current constructor's shared static struct (runs once, guarded by isstaticok/setstatic).
     if (instanceType == INSTANCE_STATIC) {
-        Instance* staticStruct = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        Instance* staticStruct = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
         if (staticStruct != nullptr) {
             writeSingleInstanceVariable(ctx, staticStruct, varDef, &access, val);
         }
@@ -951,7 +951,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     }
 
     // Resolve target instance for instance ID references (instanceType >= INSTANCE_ID_BASE) or special types
-    Instance* targetInstance = (Instance*) ctx->currentInstance;
+    Instance* targetInstance = (Instance*) ctx->currentCallFrame->self;
     if (instanceType >= 0) {
         targetInstance = VM_findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
@@ -962,8 +962,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             return;
         }
     } else if (instanceType == INSTANCE_OTHER) {
-        if (ctx->otherInstance != nullptr) {
-            targetInstance = (Instance*) ctx->otherInstance;
+        if (ctx->currentCallFrame->other != nullptr) {
+            targetInstance = (Instance*) ctx->currentCallFrame->other;
         }
     } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: write to argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
@@ -1012,8 +1012,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            slot = &ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            slot = &ctx->currentCallFrame->localVars[localSlot];
             break;
         }
         case INSTANCE_SELF:
@@ -1054,8 +1054,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->localVars[localSlot], val);
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->currentCallFrame->localVars[localSlot], val);
             return;
         }
         case INSTANCE_SELF:
@@ -1151,11 +1151,11 @@ static void handlePush(VMContext* ctx, OpWord opword, const uint8_t* extraData, 
                 // undefined while argument[0] (which goes through resolveVariableRead) was correct.
                 // Read the real value and hand out a weak ref to it instead.
                 if (varDef->builtinVarId >= 0) {
-                    Instance* builtinInst = (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
-                        ? (Instance*) ctx->otherInstance
+                    Instance* builtinInst = (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr)
+                        ? (Instance*) ctx->currentCallFrame->other
                         : (scope == INSTANCE_GLOBAL) ? ctx->globalScopeInstance
                         : (scope >= 0) ? VM_findInstanceByTarget(ctx, scope)
-                        : (Instance*) ctx->currentInstance;
+                        : (Instance*) ctx->currentCallFrame->self;
                     RValue builtinVal = VMBuiltins_getVariable(ctx, builtinInst, varDef->builtinVarId, varDef->name, firstIndex);
                     // Only a borrowed array can become a weak ref: freeing an owned one here would
                     // leave the stack pointing at released memory. Anything else keeps the old path,
@@ -1172,17 +1172,17 @@ static void handlePush(VMContext* ctx, OpWord opword, const uint8_t* extraData, 
                 switch (scope) {
                     case INSTANCE_LOCAL: {
                         uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                        require(ctx->localVarCount > localSlot);
-                        slot = &ctx->localVars[localSlot];
+                        require(ctx->currentCallFrame->localVarsCount > localSlot);
+                        slot = &ctx->currentCallFrame->localVars[localSlot];
                         break;
                     }
                     case INSTANCE_SELF:
                     case INSTANCE_OTHER:
                     case INSTANCE_GLOBAL: {
                         Instance* inst = scope == INSTANCE_GLOBAL ? ctx->globalScopeInstance
-                            : (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
-                            ? (Instance*) ctx->otherInstance
-                            : (Instance*) ctx->currentInstance;
+                            : (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr)
+                            ? (Instance*) ctx->currentCallFrame->other
+                            : (Instance*) ctx->currentCallFrame->self;
                         require(inst != nullptr);
                         slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);
                         break;
@@ -1190,7 +1190,7 @@ static void handlePush(VMContext* ctx, OpWord opword, const uint8_t* extraData, 
                     default: {
                         // Negative pseudo-scopes not handled above resolve to the current instance, mirroring handlePushBltn.
                         // Positive scopes are real instance IDs resolved by lookup.
-                        Instance* inst = (0 > scope) ? (Instance*) ctx->currentInstance : VM_findInstanceByTarget(ctx, scope);
+                        Instance* inst = (0 > scope) ? (Instance*) ctx->currentCallFrame->self : VM_findInstanceByTarget(ctx, scope);
                         if (inst == nullptr) {
                             logError("VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
                             abort();
@@ -1278,13 +1278,13 @@ static void handlePushBuiltin(VMContext* ctx, OpWord opword, const uint8_t* extr
         int32_t scope = OpWord_extra(opword);
         Instance* inst = nullptr;
         if (scope == INSTANCE_SELF || scope == -1) {
-            inst = (Instance*) ctx->currentInstance;
-        } else if (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr) {
-            inst = (Instance*) ctx->otherInstance;
+            inst = (Instance*) ctx->currentCallFrame->self;
+        } else if (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr) {
+            inst = (Instance*) ctx->currentCallFrame->other;
         } else if (scope >= 0) {
             inst = VM_findInstanceByTarget(ctx, scope);
         } else {
-            inst = (Instance*) ctx->currentInstance;
+            inst = (Instance*) ctx->currentCallFrame->self;
         }
         if (inst == nullptr) {
             logError("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
@@ -1430,7 +1430,7 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                     }
                 }
             } else {
-                Instance* targetInstance = instanceType == INSTANCE_OTHER && ctx->otherInstance != nullptr ? ctx->otherInstance : ctx->currentInstance;
+                Instance* targetInstance = instanceType == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr ? ctx->currentCallFrame->other : ctx->currentCallFrame->self;
                 VMBuiltins_setVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, val, arrayIndex);
 #ifdef ENABLE_VM_TRACING
                 VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, targetInstance), "self", varDef->name, val, true, arrayIndex, targetInstance->instanceId, " (builtin)");
@@ -1442,14 +1442,14 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
             switch (instanceType) {
                 case INSTANCE_LOCAL: {
                     uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                    require(ctx->localVarCount > localSlot);
-                    slot = &ctx->localVars[localSlot];
+                    require(ctx->currentCallFrame->localVarsCount > localSlot);
+                    slot = &ctx->currentCallFrame->localVars[localSlot];
                     break;
                 }
                 case INSTANCE_SELF:
                 case INSTANCE_GLOBAL:
                 default: {
-                    struct Instance* inst = (struct Instance*) ctx->currentInstance;
+                    struct Instance* inst = (struct Instance*) ctx->currentCallFrame->self;
                     if (instanceType >= 0) {
                         inst = VM_findInstanceByTarget(ctx, instanceType);
                         if (inst == nullptr) {
@@ -1464,8 +1464,8 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                             RValue_free(&val);
                             return;
                         }
-                    } else if (instanceType == INSTANCE_OTHER && ctx->otherInstance != nullptr) {
-                        inst = (Instance*) ctx->otherInstance;
+                    } else if (instanceType == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr) {
+                        inst = (Instance*) ctx->currentCallFrame->other;
                     } else if (instanceType == INSTANCE_GLOBAL) {
                         inst = ctx->globalScopeInstance;
                     }
@@ -2024,7 +2024,17 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
     // Fast path: cached script code index
     if (cache->scriptCodeIndex >= 0) {
-        RValue result = VM_executeCode(ctx, cache->scriptCodeIndex, ctx->currentInstance, ctx->otherInstance, args, argCount);
+        RValue result = VM_executeCode(
+            ctx,
+            cache->scriptCodeIndex,
+            ctx->currentCallFrame->self,
+            ctx->currentCallFrame->other,
+            ctx->currentCallFrame->eventObjectIndex,
+            ctx->currentCallFrame->eventType,
+            ctx->currentCallFrame->eventSubtype,
+            args,
+            argCount
+        );
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
@@ -2035,7 +2045,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
         }
 #endif
 
-        // Free arguments (VM_callCodeIndex copies what it needs)
+        // Free arguments (VM_executeCode copies what it needs)
         if (args != nullptr) {
             repeat(argCount, i) {
                 RValue_free(&args[i]);
@@ -2129,15 +2139,25 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     // Decide target self: prefer method's bound instance, else the stack-provided instance.
     int32_t targetInstance = (boundInstance > 0) ? boundInstance : RValue_toInt32(instance);
-    Instance* savedSelf = ctx->currentInstance;
+    Instance* savedSelf = ctx->currentCallFrame->self;
     if (targetInstance != INSTANCE_SELF && targetInstance != 0) {
         Instance* target = VM_findInstanceByTarget(ctx, targetInstance);
-        if (target != nullptr) ctx->currentInstance = target;
+        if (target != nullptr) ctx->currentCallFrame->self = target;
     }
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
-        result = VM_executeCode(ctx, codeIndex, ctx->currentInstance, ctx->otherInstance, args, argCount);
+        result = VM_executeCode(
+            ctx,
+            codeIndex,
+            ctx->currentCallFrame->self,
+            ctx->currentCallFrame->other,
+            ctx->currentCallFrame->eventObjectIndex,
+            ctx->currentCallFrame->eventType,
+            ctx->currentCallFrame->eventSubtype,
+            args,
+            argCount
+        );
     } else if (builtin != nullptr) {
         result = builtin(ctx, args, argCount);
     } else if (unresolvedName != nullptr) {
@@ -2162,7 +2182,7 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 #endif
     }
 
-    ctx->currentInstance = savedSelf;
+    ctx->currentCallFrame->self = savedSelf;
 
     RValue_free(&function);
     RValue_free(&instance);
@@ -2182,11 +2202,11 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 // Resolves a collision/instance "target" argument by mapping the special INSTANCE_SELF and INSTANCE_OTHER to the concrete instance ID they refer to.
 int32_t VM_resolveInstanceTarget(VMContext* ctx, int32_t target) {
     if (target == INSTANCE_SELF) {
-        Instance* self = (Instance*) ctx->currentInstance;
+        Instance* self = (Instance*) ctx->currentCallFrame->self;
         return self != nullptr ? (int32_t) self->instanceId : INSTANCE_NOONE;
     }
     if (target == INSTANCE_OTHER) {
-        Instance* other = (Instance*) ctx->otherInstance;
+        Instance* other = (Instance*) ctx->currentCallFrame->other;
         return other != nullptr ? (int32_t) other->instanceId : INSTANCE_NOONE;
     }
     return target;
@@ -2207,13 +2227,13 @@ bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targ
 
 // Sets the VM instance context from an Instance.
 static void switchToInstance(VMContext* ctx, Instance* inst) {
-    ctx->currentInstance = inst;
+    ctx->currentCallFrame->self = inst;
 }
 
 // Restores VM context from an EnvFrame's saved fields.
 static void restoreEnvContext(VMContext* ctx, EnvFrame* frame) {
-    ctx->currentInstance = frame->savedInstance;
-    ctx->otherInstance = frame->savedOtherInstance;
+    ctx->currentCallFrame->self = frame->savedInstance;
+    ctx->currentCallFrame->other = frame->savedOtherInstance;
 }
 
 static void handlePushEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
@@ -2228,15 +2248,15 @@ static void handlePushEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
 
     // Create env frame, save current context
     EnvFrame* frame = (EnvFrame *)safeMalloc(sizeof(EnvFrame));
-    frame->savedInstance = (Instance*) ctx->currentInstance;
-    frame->savedOtherInstance = (Instance*) ctx->otherInstance;
+    frame->savedInstance = (Instance*) ctx->currentCallFrame->self;
+    frame->savedOtherInstance = (Instance*) ctx->currentCallFrame->other;
     frame->instanceList = nullptr;
     frame->currentIndex = 0;
     frame->parent = ctx->envStack;
     ctx->envStack = frame;
 
     // Inside a with-block, "other" refers to the instance that executed the with-statement
-    ctx->otherInstance = (Instance*) ctx->currentInstance;
+    ctx->currentCallFrame->other = (Instance*) ctx->currentCallFrame->self;
 
     Runner* runner = (Runner*) ctx->runner;
 
@@ -2660,13 +2680,13 @@ static void handleBreakSetOwner(VMContext* ctx) {
 
 static void handleBreakIsStaticOk(VMContext* ctx) {
     // Push bool: has this function's static block already run?
-    bool initialized = ctx->staticInitialized[ctx->currentCodeIndex];
+    bool initialized = ctx->staticInitialized[ctx->currentCallFrame->codeIndex];
     stackPush(ctx, RValue_makeBool(initialized));
 }
 
 static void handleBreakSetStatic(VMContext* ctx) {
     // Mark current function's static as initialized
-    ctx->staticInitialized[ctx->currentCodeIndex] = true;
+    ctx->staticInitialized[ctx->currentCallFrame->codeIndex] = true;
 }
 
 static void handleBreakSaveARef(VMContext* ctx) {
@@ -2766,20 +2786,21 @@ static void unwindVMStack(VMContext* ctx, int32_t newStackTop) {
     ctx->stack.top = newStackTop;
 }
 
-static RValue executeBytecodeInstructions(VMContext* ctx) {
-    // codeEnd and bytecodeBase are invariant for the lifetime of this executeBytecodeInstructions call, so let's hoist them to avoid the compiler emitting code to
+static RValue executeBytecodeInstructions(VMContext* ctx, CodeEntry* code) {
+    // codeLength and bytecodeBase are invariant for the lifetime of this executeBytecodeInstructions call, so let's hoist them to avoid the compiler emitting code to
     // reload the values at the end of every iteration.
-    const uint32_t codeEnd = ctx->codeEnd;
+    const uint32_t codeLength = code->length;
+    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
     const uint8_t* const bytecodeBase = ctx->bytecodeBase;
     // If you just joined the stream: ip is short for instruction pointer chat
     // The ip is mutable, so we need to use VM_SYNC_IP and VM_RELOAD_IP every time an opcode handler may access it or write to it
-    uint32_t ip = ctx->ip;
+    uint32_t ip = code->offset;
 
     RValue* restrict slots = ctx->stack.slots;
 
     // Some opcodes have their handler or parts of their handler inlined
     // Those are opcodes that during real gameplay (using "--profile-opcodes") shown that, with inlining and keeping only the frequently called handle parts, we could squeeze MORE performance from the interpreter!
-    while (codeEnd > ip) {
+    while (codeLength > ip) {
 #ifdef ENABLE_WAD17
         if (ctx->exception != nullptr) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
@@ -2798,7 +2819,7 @@ static RValue executeBytecodeInstructions(VMContext* ctx) {
             ExceptionHandlerFrame* exceptionHandlerFrame = &ctx->exceptionHandlerFrameStack[ctx->exceptionHandlerStackTop - 1];
 
             // Not for us, propagate the exception!
-            if (exceptionHandlerFrame->boundToCallDepth != ctx->callDepth) {
+            if (exceptionHandlerFrame->boundToCallFrame != ctx->currentCallFrame) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
                 logWarn("VM: We wanted %d but we are %d - Propagating...\n", exceptionHandlerFrame->boundToCallDepth, ctx->callDepth);
 #endif
@@ -2918,7 +2939,7 @@ static RValue executeBytecodeInstructions(VMContext* ctx) {
 #ifdef ENABLE_VM_TRACING
                                 switch (instanceType) {
                                     case INSTANCE_SELF: {
-                                        Instance* inst = (Instance*) ctx->currentInstance;
+                                        Instance* inst = (Instance*) ctx->currentCallFrame->self;
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
                                         break;
                                     }
@@ -2929,7 +2950,7 @@ static RValue executeBytecodeInstructions(VMContext* ctx) {
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
                                         break;
                                     case INSTANCE_OTHER: {
-                                        Instance* inst = (Instance*) ctx->otherInstance;
+                                        Instance* inst = (Instance*) ctx->currentCallFrame->other;
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
                                         break;
                                     }
@@ -2950,16 +2971,16 @@ static RValue executeBytecodeInstructions(VMContext* ctx) {
                 if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
                     Variable* varDef = resolveVarDef(ctx, varRef);
                     uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                    require(ctx->localVarCount > localSlot);
-                    pushTopLevelArrayRef(ctx, &ctx->localVars[localSlot], varType == VARTYPE_ARRAYPOPAF);
+                    require(ctx->currentCallFrame->localVarsCount > localSlot);
+                    pushTopLevelArrayRef(ctx, &ctx->currentCallFrame->localVars[localSlot], varType == VARTYPE_ARRAYPOPAF);
                     break;
                 }
 #endif
                 // Locals are always non-builtin (varID >= 0); inline the read straight from localVars[].
                 Variable* varDef = resolveVarDef(ctx, varRef);
                 uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                require(ctx->localVarCount > localSlot);
-                RValue val = ctx->localVars[localSlot];
+                require(ctx->currentCallFrame->localVarsCount > localSlot);
+                RValue val = ctx->currentCallFrame->localVars[localSlot];
                 val.ownsReference = false;
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 #ifdef ENABLE_VM_TRACING
@@ -3442,12 +3463,6 @@ VMContext* VM_create(DataWin* dataWin) {
 #endif
     ctx->dataWin = dataWin;
     ctx->stack.top = 0;
-    ctx->selfId = -1;
-    ctx->otherId = -1;
-    ctx->callDepth = 0;
-    ctx->currentEventType = -1;
-    ctx->currentEventSubtype = -1;
-    ctx->currentEventObjectIndex = -1;
 
     ctx->profiler = nullptr; // lazily allocated by Profiler_setEnabled(&ctx->profiler, true)
 
@@ -3495,7 +3510,7 @@ VMContext* VM_create(DataWin* dataWin) {
         }
     }
 
-    ctx->currentCodeIndex = -1;
+    ctx->currentCallFrame = nullptr;
 
     // V17+ static initialization tracking
     if (dataWin->gen8.wadVersion >= 17) {
@@ -3614,14 +3629,13 @@ void VM_reset(VMContext* ctx) {
     ctx->stack.top = 0;
 
     // Free any remaining call frames
-    CallFrame* frame = ctx->callStack;
+    CallFrame* frame = ctx->currentCallFrame;
     while (frame != nullptr) {
         CallFrame* parent = frame->parent;
         free(frame);
         frame = parent;
     }
-    ctx->callStack = nullptr;
-    ctx->callDepth = 0;
+    ctx->currentCallFrame = nullptr;
 
     // Free any remaining env frames
     EnvFrame* envFrame = ctx->envStack;
@@ -3634,19 +3648,7 @@ void VM_reset(VMContext* ctx) {
     ctx->envStack = nullptr;
 
     // Reset execution state
-    ctx->currentInstance = nullptr;
-    ctx->otherInstance = nullptr;
-    ctx->selfId = -1;
-    ctx->otherId = -1;
-    ctx->currentEventType = -1;
-    ctx->currentEventSubtype = -1;
-    ctx->currentEventObjectIndex = -1;
-    ctx->scriptArgs = nullptr;
-    ctx->scriptArgCount = 0;
-    ctx->currentCodeIndex = -1;
-    ctx->localVars = nullptr;
-    ctx->localVarCount = 0;
-    ctx->currentCodeLocalsSlotMap = nullptr;
+    ctx->currentCallFrame = nullptr;
     ctx->actionRelativeFlag = false;
 
     if (ctx->dataWin->gen8.wadVersion >= 17) {
@@ -3678,60 +3680,45 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
     return shget(ctx->codeLocalsMap, (char*) codeName);
 }
 
-// Sets the currentCodeLocalsSlotMap for BC13/BC14/BC17+ games.
-static void setCurrentCodeLocalsSlotMap(VMContext* ctx) {
-    if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
-        ctx->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCodeIndex];
-    }
-}
-
 static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
     if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
         return code->localsCount;
     } else {
         // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
         // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
-        return IntIntHashMap_count(&ctx->codeLocalsSlotMaps[ctx->currentCodeIndex]);
+        return IntIntHashMap_count(&ctx->codeLocalsSlotMaps[ctx->currentCallFrame->codeIndex]);
     }
 }
 
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, RValue* args, int32_t argCount) {
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
-    // Save current frame
-    CallFrame frame = {0};
-    frame.savedIP = ctx->ip;
-    frame.savedCodeEnd = ctx->codeEnd;
-    frame.savedBytecodeBase = ctx->bytecodeBase;
-    frame.savedLocals = ctx->localVars;
-    frame.savedLocalsCount = ctx->localVarCount;
-    frame.savedSavearefBalance = ctx->savearefBalance;
-    frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
-    frame.savedScriptArgs = ctx->scriptArgs;
-    frame.savedScriptArgCount = ctx->scriptArgCount;
-    frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
-    frame.savedSelfInstance = ctx->currentInstance;
-    frame.savedOtherInstance = ctx->otherInstance;
-    frame.parent = ctx->callStack;
-    ctx->callStack = &frame;
-    ctx->callDepth++;
 
-    int32_t storedStackTop = ctx->stack.top;
-
-    // Set up callee
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
-    ctx->ip = code->offset;
-    ctx->codeEnd = code->length;
-    ctx->currentCodeIndex = codeIndex;
-    ctx->currentInstance = selfInstance;
-    ctx->otherInstance = otherInstance;
-
-    setCurrentCodeLocalsSlotMap(ctx);
+    // Create a CallFrame for this script
+    CallFrame callFrame = {0};
+    callFrame.parent = ctx->currentCallFrame;
+    callFrame.codeIndex = codeIndex;
+    callFrame.initialSelf = selfInstance;
+    callFrame.initialOther = otherInstance;
+    callFrame.self = selfInstance;
+    callFrame.other = otherInstance;
+    callFrame.eventObjectIndex = eventObjectIndex;
+    callFrame.eventType = eventType;
+    callFrame.eventSubtype = eventSubtype;
+    callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
+    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
+    // You may be wondering... "can't we just store it on the parent CallFrame?"
+    // Well... what if the parent CallFrame is null?? (which WILL happen because the first script of the tree will obviously not have a parent CallFrame)
+    callFrame.instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
+    callFrame.stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
+    if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
+        ctx->currentCallFrame->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCallFrame->codeIndex];
+    }
 
     uint32_t localsCount = computeLocalsCount(ctx, code);
     RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
-    ctx->localVars = localVars;
-    ctx->localVarCount = localsCount;
+    callFrame.localVars = localVars;
+    callFrame.localVarsCount = localsCount;
 
     // Store arguments in scriptArgs (mirrors GMS 1.4's global argument stack).
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
@@ -3744,16 +3731,19 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
             scriptArgs[argIdx] = argCopy;
         }
     }
-    ctx->scriptArgs = scriptArgs;
-    ctx->scriptArgCount = argCount;
+    callFrame.scriptArgs = scriptArgs;
+    callFrame.scriptArgsCount = argCount;
 
     ctx->savearefBalance = 0;
+
+    // We don't need to worry about allocating it on the stack because this CallFrame's lifecycle is always active while this script is executing
+    ctx->currentCallFrame = &callFrame;
 
     // Execute the callee
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_enter(ctx->profiler, code->name);
 #endif
-    RValue result = executeBytecodeInstructions(ctx);
+    RValue result = executeBytecodeInstructions(ctx, code);
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_exit(ctx->profiler);
 #endif
@@ -3764,43 +3754,31 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     // For owning results, the refCount/string buffer stays valid (the callee transferred one ownership slot to us).
     result = RValue_stealOwnershipOrCopy(result);
 
-    // Restore caller frame
-    CallFrame* saved = ctx->callStack;
-    ctx->ip = saved->savedIP;
-    ctx->codeEnd = saved->savedCodeEnd;
-    ctx->bytecodeBase = saved->savedBytecodeBase;
-
+    // Now that we have executed the current script, we can free the current CallFrame and "pop" it
     // Free callee locals
-    repeat(ctx->localVarCount, i) {
-        RValue_free(&ctx->localVars[i]);
+    repeat(callFrame.localVarsCount, i) {
+        RValue_free(&callFrame.localVars[i]);
     }
 
-    free(ctx->localVars);
+    free(callFrame.localVars);
 
     // Free callee script args
     {
-        repeat(ctx->scriptArgCount, i) {
-            RValue_free(&ctx->scriptArgs[i]);
+        repeat(callFrame.scriptArgsCount, i) {
+            RValue_free(&callFrame.scriptArgs[i]);
         }
     }
 
-    free(ctx->scriptArgs);
+    free(callFrame.scriptArgs);
 
-    ctx->localVars = saved->savedLocals;
-    ctx->localVarCount = saved->savedLocalsCount;
-    ctx->currentCodeLocalsSlotMap = saved->savedCodeLocalsSlotMap;
-    ctx->scriptArgs = saved->savedScriptArgs;
-    ctx->scriptArgCount = saved->savedScriptArgCount;
-    ctx->currentCodeIndex = saved->savedCurrentCodeIndex;
-    ctx->savearefBalance = saved->savedSavearefBalance;
-    ctx->currentInstance = saved->savedSelfInstance;
-    ctx->otherInstance = saved->savedOtherInstance;
-    ctx->callStack = saved->parent;
-    ctx->callDepth--;
+    ctx->currentCallFrame = callFrame.parent;
+
+    // Restore caller frame
+    ctx->ip = callFrame.instructionPointerWhenTheCallFrameWasCreated;
 
     // Reset all values in the stack (see issue #137)
     // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
-    unwindVMStack(ctx, storedStackTop);
+    unwindVMStack(ctx, callFrame.stackTopWhenTheCallFrameWasCreated);
 
     return result;
 }
