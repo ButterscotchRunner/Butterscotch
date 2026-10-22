@@ -39,7 +39,7 @@
     X(OP_BREAK, 0xFF)
 
 #define MAKE_ENUM(name, val) name = val,
-typedef enum : uint8_t {
+typedef enum {
     OPCODES(MAKE_ENUM)
 } Op;
 
