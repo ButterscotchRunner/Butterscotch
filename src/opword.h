@@ -35,4 +35,21 @@ static inline int32_t OpWord_branchOffset(OpWord opword) {
     return (((int32_t) opword.value) << 9) >> 7;
 }
 
+static uint32_t OpWord_operandSize(OpWord opword) {
+    if (!OpWord_hasOperand(opword))
+        return 0;
+
+    switch (OpWord_type1(opword)) {
+        case GML_TYPE_DOUBLE: return 8;
+        case GML_TYPE_INT64:  return 8;
+        case GML_TYPE_FLOAT:  return 4;
+        case GML_TYPE_INT32:  return 4;
+        case GML_TYPE_BOOL:   return 4;
+        case GML_TYPE_VARIABLE: return 4;
+        case GML_TYPE_STRING: return 4;
+        case GML_TYPE_INT16:  return 0;
+        default:              return 0;
+    }
+}
+
 #endif

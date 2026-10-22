@@ -116,22 +116,6 @@ static RValue* stackPeek(VMContext* ctx) {
 
 #endif
 
-// ===[ Instruction Decoding ]===
-
-static uint32_t extraDataSize(uint8_t type1) {
-    switch (type1) {
-        case GML_TYPE_DOUBLE: return 8;
-        case GML_TYPE_INT64:  return 8;
-        case GML_TYPE_FLOAT:  return 4;
-        case GML_TYPE_INT32:  return 4;
-        case GML_TYPE_BOOL:   return 4;
-        case GML_TYPE_VARIABLE: return 4;
-        case GML_TYPE_STRING: return 4;
-        case GML_TYPE_INT16:  return 0;
-        default:              return 0;
-    }
-}
-
 // ===[ Reference Chain Resolution ]===
 
 // Walks reference chains from the bytecode buffer and builds hash maps
@@ -2862,7 +2846,7 @@ static RValue executeLoop(VMContext* ctx) {
 
         // If instruction has extra data (bit 30 set), advance IP past it
         if (OpWord_hasOperand(opword)) {
-            ip += extraDataSize(OpWord_type1(opword));
+            ip += OpWord_operandSize(opword);
         }
 
         uint8_t opcode = OpWord_opcode(opword);
@@ -4288,9 +4272,7 @@ void VM_buildCrossReferences(VMContext* ctx) {
             OpWord opword = {instr};
             ip += 4;
             const uint8_t* ed = base + ip;
-            if (OpWord_hasOperand(opword)) {
-                ip += extraDataSize(OpWord_type1(opword));
-            }
+            ip += OpWord_operandSize(opword);
 
             if (OpWord_opcode(opword) == OP_CALL) {
                 uint32_t funcIdx = resolveFuncOperand(ed);
@@ -4371,9 +4353,8 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
             uint32_t instr = BinaryUtils_readUint32(bytecodeBase + ip);
             OpWord opword = {instr};
             ip += 4;
-            if (OpWord_hasOperand(opword)) {
-                ip += extraDataSize(OpWord_type1(opword));
-            }
+            ip += OpWord_operandSize(opword);
+
             uint8_t opcode = OpWord_opcode(opword);
             if (opcode == OP_B || opcode == OP_BT || opcode == OP_BF || opcode == OP_PUSH_ENV) {
                 int32_t offset = OpWord_branchOffset(opword);
@@ -4400,9 +4381,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         OpWord opword = {instr};
         ip += 4;
         const uint8_t* extraData = bytecodeBase + ip;
-        if (OpWord_hasOperand(opword)) {
-            ip += extraDataSize(OpWord_type1(opword));
-        }
+        ip += OpWord_operandSize(opword);
 
         uint8_t opcode = OpWord_opcode(opword);
 
