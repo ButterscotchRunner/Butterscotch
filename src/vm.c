@@ -26,7 +26,7 @@
 static bool shouldTraceStack(VMContext* ctx) {
     if (shlen(ctx->stackToBeTraced) == 0) return false;
     if (ctx->traceBytecodeAfterFrame > ctx->runner->frameCount) return false;
-    return shgeti(ctx->stackToBeTraced, "*") != -1 || shgeti(ctx->stackToBeTraced, ctx->currentCodeName) != -1;
+    return shgeti(ctx->stackToBeTraced, "*") != -1 || shgeti(ctx->stackToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1;
 }
 
 // Returns a heap-allocated "[elem0, elem1, ..., elemN]" string for the current stack contents (bottom -> top). Caller frees.
@@ -69,7 +69,7 @@ static void stackPush(VMContext* ctx, RValue val) {
         char* valStr = RValue_toStringTyped(val);
         ctx->stack.slots[ctx->stack.top++] = val;
         char* stackBuf = formatStackContents(ctx);
-        logInfo("VM: [%s] PUSH %s [stack=%d -> %d] %s\n", ctx->currentCodeName, valStr, ctx->stack.top - 1, ctx->stack.top, stackBuf);
+        logInfo("VM: [%s] PUSH %s [stack=%d -> %d] %s\n", VM_getCurrentCallFrameCodeName(ctx), valStr, ctx->stack.top - 1, ctx->stack.top, stackBuf);
         free(stackBuf);
         free(valStr);
         return;
@@ -90,7 +90,7 @@ static RValue stackPop(VMContext* ctx) {
     if (shouldTraceStack(ctx)) {
         char* valStr = RValue_toStringTyped(val);
         char* stackBuf = formatStackContents(ctx);
-        logInfo("VM: [%s] POP  %s [stack=%d -> %d] %s\n", ctx->currentCodeName, valStr, ctx->stack.top + 1, ctx->stack.top, stackBuf);
+        logInfo("VM: [%s] POP  %s [stack=%d -> %d] %s\n", VM_getCurrentCallFrameCodeName(ctx), valStr, ctx->stack.top + 1, ctx->stack.top, stackBuf);
         free(stackBuf);
         free(valStr);
     }
@@ -665,9 +665,9 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
             if (instanceType < INSTANCE_ID_BASE && (uint32_t) instanceType < ctx->dataWin->objt.count) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
-                logWarn("VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
             } else {
-                logWarn("VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
             }
             return RValue_makeReal(0.0);
         }
@@ -715,7 +715,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
                 result = RValue_makeUndefined();
             }
         } else {
-            logWarn("VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, builtinVarId);
+            logWarn("VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, builtinVarId);
             result = RValue_makeUndefined();
         }
         return result;
@@ -764,7 +764,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             Instance* inst = targetInstance;
             if (inst == nullptr) {
                 const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
-                logWarn("VM: [%s] Read on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] Read on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
                 return RValue_makeReal(0.0);
             }
             slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
@@ -942,7 +942,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             if (ctx->dataWin->objt.count > (uint32_t) instanceType) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
                 char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-                logWarn("VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, valAsString);
+                logWarn("VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, gameObject->name, valAsString);
                 free(valAsString);
             }
         }
@@ -957,7 +957,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         if (targetInstance == nullptr) {
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
             char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-            logWarn("VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
+            logWarn("VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
             free(valAsString);
             return;
         }
@@ -974,7 +974,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         } else if (bid == BUILTIN_VAR_ARGUMENT) {
             writeIndex = access.arrayIndex;
         } else {
-            logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, bid);
+            logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, bid);
         }
         if (writeIndex >= 0) {
             if (access.isArray && bid != BUILTIN_VAR_ARGUMENT) {
@@ -1026,7 +1026,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             if (inst == nullptr) {
                 const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
                 char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-                logWarn("VM: [%s] Write on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
+                logWarn("VM: [%s] Write on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
                 free(valAsString);
                 RValue_free(&val);
                 return;
@@ -1456,9 +1456,9 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                             const char* varTypeName = varTypeToString(varType);
                             char* valAsString = RValue_toString(val, ctx->runner->dataWin);
                             if (instanceType < INSTANCE_ID_BASE && (uint32_t) instanceType < ctx->dataWin->objt.count) {
-                                logWarn("VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                logWarn("VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
                             } else {
-                                logWarn("VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                logWarn("VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
                             }
                             free(valAsString);
                             RValue_free(&val);
@@ -1568,7 +1568,7 @@ static void handleDiv(VMContext* ctx, OpWord opword) {
     GMLReal divisor = RValue_toReal(b);
     // In GameMaker's native runner, ONLY integer/integer division throws a hard error on zero, float/variable types rely on IEEE 754 (produces NaN)
     if ((type1 == GML_TYPE_INT32 || type1 == GML_TYPE_INT64) && (type2 == GML_TYPE_INT32 || type2 == GML_TYPE_INT64)) {
-        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoDiv :: Divide by zero", ctx->currentCodeName);
+        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoDiv :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     }
     GMLReal result = RValue_toReal(a) / divisor;
     RValue_free(&a);
@@ -1580,7 +1580,7 @@ static void handleRem(VMContext* ctx, OpWord opword) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     int64_t divisor = RValue_toInt64(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
+    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     int64_t result = RValue_toInt64(a) / divisor;
     RValue_free(&a);
     RValue_free(&b);
@@ -1591,7 +1591,7 @@ static void handleMod(VMContext* ctx, OpWord opword) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     GMLReal divisor = RValue_toReal(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoMod :: Divide by zero", ctx->currentCodeName);
+    requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoMod :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     GMLReal result = GMLReal_fmod(RValue_toReal(a), divisor);
     RValue_free(&a);
     RValue_free(&b);
@@ -1729,7 +1729,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x5F: result = val; break;
 
         default:
-            logWarn("VM: [%s] Conv unhandled conversion 0x%02X (src=0x%X dst=0x%X)\n", ctx->currentCodeName, convKey, srcType, dstType);
+            logWarn("VM: [%s] Conv unhandled conversion 0x%02X (src=0x%X dst=0x%X)\n", VM_getCurrentCallFrameCodeName(ctx), convKey, srcType, dstType);
             result = val;
             break;
     }
@@ -1970,7 +1970,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
 #ifdef ENABLE_VM_TRACING
     const char* funcName = ctx->dataWin->func.functions[funcIndex].name;
-    bool functionIsBeingTraced = shgeti(ctx->functionCallsToBeTraced, "*") != -1 || shgeti(ctx->functionCallsToBeTraced, funcName) != -1 || shgeti(ctx->functionCallsToBeTraced, ctx->currentCodeName) != -1;
+    bool functionIsBeingTraced = shgeti(ctx->functionCallsToBeTraced, "*") != -1 || shgeti(ctx->functionCallsToBeTraced, funcName) != -1 || shgeti(ctx->functionCallsToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1;
     char* functionArgumentList = nullptr;
     if (functionIsBeingTraced) {
         functionArgumentList = safeStrdup("");
@@ -1990,7 +1990,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
             free(display);
         }
 
-        logInfo("VM: [%s] Calling function \"%s(%s)\"\n", ctx->currentCodeName, funcName, functionArgumentList);
+        logInfo("VM: [%s] Calling function \"%s(%s)\"\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList);
     }
 #endif
 
@@ -2012,7 +2012,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
             char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
-            logInfo("VM: [%s] Built-in function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
+            logInfo("VM: [%s] Built-in function \"%s(%s)\" returned %s\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
         }
@@ -2024,12 +2024,12 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
     // Fast path: cached script code index
     if (cache->scriptCodeIndex >= 0) {
-        RValue result = VM_callCodeIndex(ctx, cache->scriptCodeIndex, args, argCount);
+        RValue result = VM_executeCode(ctx, cache->scriptCodeIndex, args, argCount);
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
             char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
-            logInfo("VM: [%s] Script function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
+            logInfo("VM: [%s] Script function \"%s(%s)\" returned %s\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
         }
@@ -2052,7 +2052,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     const char* unknownFuncName = ctx->dataWin->func.functions[funcIndex].name;
 
     // Log once per (callingCode, funcName) pair
-    const char* callerName = VM_getCallerName(ctx);
+    const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
     char* dedupKey = VM_createDedupKey(callerName, unknownFuncName);
 
     if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
@@ -2137,12 +2137,12 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
-        result = VM_callCodeIndex(ctx, codeIndex, args, argCount);
+        result = VM_executeCode(ctx, codeIndex, args, argCount);
     } else if (builtin != nullptr) {
         result = builtin(ctx, args, argCount);
     } else if (unresolvedName != nullptr) {
 #ifdef ENABLE_VM_STUB_LOGS
-        const char* callerName = VM_getCallerName(ctx);
+        const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
         char* dedupKey = VM_createDedupKey(callerName, unresolvedName);
         if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
             shput(ctx->loggedUnknownFuncs, dedupKey, true);
@@ -2153,7 +2153,7 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 #endif
         result = RValue_makeUndefined();
     } else {
-        logWarn("VM: [%s] CALLV with unresolvable function reference (type=%d, codeIndex=%d)\n", ctx->currentCodeName, function.type, codeIndex);
+        logWarn("VM: [%s] CALLV with unresolvable function reference (type=%d, codeIndex=%d)\n", VM_getCurrentCallFrameCodeName(ctx), function.type, codeIndex);
 #ifdef ENABLE_WAD17
         VMException* exception = (VMException *)safeCalloc(1, sizeof(VMException));
         exception->message = safeStrdup("CALLV with unresolvable function reference");
@@ -2346,9 +2346,9 @@ static void handlePushEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
     if (0 > target) {
         // This is triggered in DELTARUNE Chapter 5 in room_dw_garden_meetflowery. This is not a bug, as
         // gml_Object_obj_bush_leaf_Step_0 calls scr_depth(-20). scr_depth then uses with(arg0), causing this log.
-        logWarn("VM: [%s] PushEnv with negative target %d, this could be a Int64 number that is getting truncated to Int32!\n", ctx->currentCodeName, target);
+        logWarn("VM: [%s] PushEnv with negative target %d, this could be a Int64 number that is getting truncated to Int32!\n", VM_getCurrentCallFrameCodeName(ctx), target);
     } else {
-        logWarn("VM: [%s] PushEnv with unhandled target %d\n", ctx->currentCodeName, target);
+        logWarn("VM: [%s] PushEnv with unhandled target %d\n", VM_getCurrentCallFrameCodeName(ctx), target);
     }
     ctx->ip = instrAddr + jumpOffset;
 }
@@ -2587,7 +2587,7 @@ static void handleBreakChkIndex(VMContext* ctx, uint32_t instrAddr) {
     RValue* top = stackPeek(ctx);
     int32_t idx = RValue_toInt32(*top);
     if (0 > idx || 32000 <= idx) {
-        logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, ctx->currentCodeName);
+        logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
         abort();
     }
 }
@@ -2618,7 +2618,7 @@ static void handleBreakPopAF(VMContext* ctx) {
     RValue value = stackPop(ctx);
     if (arrayRef.type == RVALUE_ARRAY && arrayRef.array != nullptr && idx >= 0) {
         GMLArray* arr = arrayRef.array;
-        requireMessageFormatted(__FILE__, __LINE__, arr->refCount == 1 || arr->owner == ctx->currentArrayOwner, "BREAK_POPAF: Writing through shared/aliased array without prior CoW fork in %s: arr=%p refCount=%d owner=%p currentArrayOwner=%p idx=%d", ctx->currentCodeName, (void*) arr, arr->refCount, arr->owner, ctx->currentArrayOwner, idx);
+        requireMessageFormatted(__FILE__, __LINE__, arr->refCount == 1 || arr->owner == ctx->currentArrayOwner, "BREAK_POPAF: Writing through shared/aliased array without prior CoW fork in %s: arr=%p refCount=%d owner=%p currentArrayOwner=%p idx=%d", VM_getCurrentCallFrameCodeName(ctx), (void*) arr, arr->refCount, arr->owner, ctx->currentArrayOwner, idx);
         GMLArray_set(arr, idx, value);
     }
     RValue_free(&arrayRef);
@@ -2630,7 +2630,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
     int32_t idx = stackPopInt32(ctx);
     RValue arrayRef = stackPop(ctx);
     if (arrayRef.type != RVALUE_ARRAY || arrayRef.array == nullptr) {
-        logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, ctx->currentCodeName);
+        logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
         abort();
     }
     GMLArray* parent = arrayRef.array;
@@ -2741,7 +2741,7 @@ static void handleBreak(VMContext* ctx, OpWord opword, uint32_t instrAddr, const
         case BREAK_ISNULLISH:   handleBreakIsNullish(ctx); break;
         case BREAK_PUSHREF:     handleBreakPushRef(ctx, extraData); break;
         default:
-            logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, ctx->currentCodeName);
+            logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
             abort();
     }
 }
@@ -2884,16 +2884,16 @@ static RValue executeBytecodeInstructions(VMContext* ctx) {
 
 #ifdef ENABLE_VM_TRACING
         if (shlen(ctx->opcodesToBeTraced) > 0 && ctx->runner->frameCount >= ctx->traceBytecodeAfterFrame) {
-            if (shgeti(ctx->opcodesToBeTraced, "*") != -1 || shgeti(ctx->opcodesToBeTraced, ctx->currentCodeName) != -1) {
+            if (shgeti(ctx->opcodesToBeTraced, "*") != -1 || shgeti(ctx->opcodesToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1) {
                 char opcodeStr[32], operandStr[256] = "", commentStr[128] = "";
                 formatInstruction(ctx, ctx->bytecodeBase, instrAddr, opword, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
 
                 char* stackBuf = formatStackContents(ctx);
 
                 if (operandStr[0] != '\0') {
-                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s %s [stack=%d] %s\n", ctx->currentCodeName, instrAddr, instrAddr, opword.value, opcodeStr, operandStr, ctx->stack.top, stackBuf);
+                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s %s [stack=%d] %s\n", VM_getCurrentCallFrameCodeName(ctx), instrAddr, instrAddr, opword.value, opcodeStr, operandStr, ctx->stack.top, stackBuf);
                 } else {
-                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s [stack=%d] %s\n", ctx->currentCodeName, instrAddr, instrAddr, opword.value, opcodeStr, ctx->stack.top, stackBuf);
+                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s [stack=%d] %s\n", VM_getCurrentCallFrameCodeName(ctx), instrAddr, instrAddr, opword.value, opcodeStr, ctx->stack.top, stackBuf);
                 }
                 free(stackBuf);
             }
@@ -3643,7 +3643,7 @@ void VM_reset(VMContext* ctx) {
     ctx->currentEventObjectIndex = -1;
     ctx->scriptArgs = nullptr;
     ctx->scriptArgCount = 0;
-    ctx->currentCodeName = nullptr;
+    ctx->currentCodeIndex = -1;
     ctx->localVars = nullptr;
     ctx->localVarCount = 0;
     ctx->currentCodeLocalsSlotMap = nullptr;
@@ -3695,62 +3695,9 @@ static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
     }
 }
 
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
-
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
-    ctx->ip = code->offset;
-    ctx->codeEnd = code->length;
-    ctx->currentCodeName = code->name;
-    ctx->currentCodeIndex = codeIndex;
-
-    setCurrentCodeLocalsSlotMap(ctx);
-
-    uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
-    ctx->localVars = localVars;
-    ctx->localVarCount = localsCount;
-
-    // Reset stack for top-level execution
-    ctx->stack.top = 0;
-
-    int32_t savedSavearefBalance = ctx->savearefBalance;
-    ctx->savearefBalance = 0;
-
-#ifdef ENABLE_VM_GML_PROFILER
-    Profiler_enter(ctx->profiler, code->name);
-#endif
-    RValue result = executeBytecodeInstructions(ctx);
-#ifdef ENABLE_VM_GML_PROFILER
-    Profiler_exit(ctx->profiler);
-#endif
-
-    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_executeCode (unpaired SAVEAREF)");
-    ctx->savearefBalance = savedSavearefBalance;
-
-    // Free locals (decRefs owned arrays, frees owned strings)
-    repeat(ctx->localVarCount, i) {
-        RValue_free(&ctx->localVars[i]);
-    }
-    free(ctx->localVars);
-    ctx->localVars = nullptr;
-    ctx->localVarCount = 0;
-
-    // Reset all values in the stack (see issue #137)
-    // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
-    unwindVMStack(ctx, 0);
-
-    ctx->stack.top = 0;
-
-    return result;
-}
-
-
-RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount) {
-    require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
-    CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
-
     // Save current frame
     CallFrame frame = {0};
     frame.savedIP = ctx->ip;
@@ -3758,7 +3705,6 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     frame.savedBytecodeBase = ctx->bytecodeBase;
     frame.savedLocals = ctx->localVars;
     frame.savedLocalsCount = ctx->localVarCount;
-    frame.savedCodeName = ctx->currentCodeName;
     frame.savedSavearefBalance = ctx->savearefBalance;
     frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
     frame.savedScriptArgs = ctx->scriptArgs;
@@ -3774,7 +3720,6 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
     ctx->ip = code->offset;
     ctx->codeEnd = code->length;
-    ctx->currentCodeName = code->name;
     ctx->currentCodeIndex = codeIndex;
 
     setCurrentCodeLocalsSlotMap(ctx);
@@ -3809,7 +3754,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     Profiler_exit(ctx->profiler);
 #endif
 
-    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_callCodeIndex (unpaired SAVEAREF)");
+    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_executeCode (unpaired SAVEAREF)");
 
     // Strengthen result BEFORE freeing callee locals/scriptArgs: if result is a weak view into callee state, the upcoming frees would leave a dangling pointer.
     // For owning results, the refCount/string buffer stays valid (the callee transferred one ownership slot to us).
@@ -3830,9 +3775,9 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
 
     // Free callee script args
     {
-    repeat(ctx->scriptArgCount, i) {
-        RValue_free(&ctx->scriptArgs[i]);
-    }
+        repeat(ctx->scriptArgCount, i) {
+            RValue_free(&ctx->scriptArgs[i]);
+        }
     }
 
     free(ctx->scriptArgs);
@@ -3842,7 +3787,6 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
     ctx->currentCodeLocalsSlotMap = saved->savedCodeLocalsSlotMap;
     ctx->scriptArgs = saved->savedScriptArgs;
     ctx->scriptArgCount = saved->savedScriptArgCount;
-    ctx->currentCodeName = saved->savedCodeName;
     ctx->currentCodeIndex = saved->savedCurrentCodeIndex;
     ctx->savearefBalance = saved->savedSavearefBalance;
     ctx->callStack = saved->parent;

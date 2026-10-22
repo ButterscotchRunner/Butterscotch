@@ -109,7 +109,7 @@
 
 #ifdef ENABLE_VM_STUB_LOGS
 static void logStubbedFunction(VMContext* ctx, const char* funcName) {
-    const char* callerName = VM_getCallerName(ctx);
+    const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
     char* dedupKey = VM_createDedupKey(callerName, funcName);
 
     if (ctx->alwaysLogStubbedFunctions || 0 > shgeti(ctx->loggedStubbedFuncs, dedupKey)) {
@@ -122,7 +122,7 @@ static void logStubbedFunction(VMContext* ctx, const char* funcName) {
 }
 
 static void logSemiStubbedFunction(VMContext* ctx, const char* funcName) {
-    const char* callerName = VM_getCallerName(ctx);
+    const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
     char* dedupKey = VM_createDedupKey(callerName, funcName);
 
     if (ctx->alwaysLogStubbedFunctions || 0 > shgeti(ctx->loggedStubbedFuncs, dedupKey)) {
@@ -1324,7 +1324,7 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             break;
     }
 
-    logWarn("VM: [%s] Unhandled built-in variable read '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
+    logWarn("VM: [%s] Unhandled built-in variable read '%s' (arrayIndex=%d)\n", VM_getCurrentCallFrameCodeName(ctx), name, arrayIndex);
     return RValue_makeReal(0.0);
 }
 
@@ -1853,11 +1853,11 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_ROOM_FIRST:
         case BUILTIN_VAR_ROOM_LAST:
         case BUILTIN_VAR_PROGRAM_DIRECTORY:
-            logWarn("VM: [%s] Attempted write to read-only built-in '%s'\n", ctx->currentCodeName, name);
+            logWarn("VM: [%s] Attempted write to read-only built-in '%s'\n", VM_getCurrentCallFrameCodeName(ctx), name);
             return;
     }
 
-    logWarn("VM: [%s] Unhandled built-in variable write '%s' (arrayIndex=%d)\n", ctx->currentCodeName, name, arrayIndex);
+    logWarn("VM: [%s] Unhandled built-in variable write '%s' (arrayIndex=%d)\n", VM_getCurrentCallFrameCodeName(ctx), name, arrayIndex);
 }
 
 // Arg requirements macros
@@ -1913,7 +1913,7 @@ static RValue builtin_show_error(VMContext* ctx, RValue* args, int32_t argCount)
     REQUIRE_ARGC_AT_LEAST("show_error", 1, RValue_makeUndefined());
     char* str = RValue_toDebugMessageString(args[0], ctx->runner->dataWin);
     bool abort = true; // Supposed to be taken from an argument but it's not
-    logError("[%s] %s\n", ctx->currentCodeName, str);
+    logError("[%s] %s\n", VM_getCurrentCallFrameCodeName(ctx), str);
     free(str);
 
     if (abort) {
@@ -4788,7 +4788,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     }
 #endif
 
-    RValue result = VM_callCodeIndex(ctx, codeId, scriptArgs, scriptArgCount);
+    RValue result = VM_executeCode(ctx, codeId, scriptArgs, scriptArgCount);
 
     ctx->currentInstance = savedInstance;
     return result;
@@ -7235,7 +7235,7 @@ static int arraySortCompareCustom(const void* a, const void* b) {
     callArgs[1] = RValue_makeIndependent(*(const RValue*) b);
     RValue result;
     if (g_arraySortCodeIndex >= 0) {
-        result = VM_callCodeIndex(g_arraySortCtx, g_arraySortCodeIndex, callArgs, 2);
+        result = VM_executeCode(g_arraySortCtx, g_arraySortCodeIndex, callArgs, 2);
     } else {
         result = g_arraySortBuiltin(g_arraySortCtx, callArgs, 2);
     }
@@ -8393,7 +8393,7 @@ static RValue builtin_audio_group_is_loaded(VMContext* ctx, RValue* args, MAYBE_
 
 static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->dataWin->gen8.wadVersion >= 14) {
-        logWarn("VM: [%s] audio_play_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
+        logWarn("VM: [%s] audio_play_music is no-op in WAD version 14+!\n", VM_getCurrentCallFrameCodeName(ctx));
         return RValue_makeUndefined();
     }
 
@@ -8409,7 +8409,7 @@ static RValue builtin_audio_play_music(VMContext* ctx, RValue* args, MAYBE_UNUSE
 
 static RValue builtin_audio_stop_music(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (ctx->dataWin->gen8.wadVersion >= 14) {
-        logWarn("VM: [%s] audio_stop_music is no-op in WAD version 14+!\n", ctx->currentCodeName);
+        logWarn("VM: [%s] audio_stop_music is no-op in WAD version 14+!\n", VM_getCurrentCallFrameCodeName(ctx));
         return RValue_makeUndefined();
     }
 
@@ -17337,7 +17337,7 @@ static RValue builtin_tilemap_set(VMContext* ctx, RValue* args, MAYBE_UNUSED int
     uint32_t cell = (uint32_t) RValue_toInt32(args[1]);
     uint32_t tileIndex = (cell >> 0) & TILEINDEX_SHIFTEDMASK;
     if (tileset != nullptr && tileset->gms2TileCount != 0 && tileIndex >= tileset->gms2TileCount) {
-        logWarn("VM: [%s] tilemap_set() - tile index outside tile set count\n", ctx->currentCodeName);
+        logWarn("VM: [%s] tilemap_set() - tile index outside tile set count\n", VM_getCurrentCallFrameCodeName(ctx));
         return RValue_makeBool(false);
     }
 
@@ -17361,7 +17361,7 @@ static RValue builtin_tilemap_set_at_pixel(VMContext* ctx, RValue* args, MAYBE_U
     uint32_t cell = (uint32_t) RValue_toInt32(args[1]);
     uint32_t tileIndex = cell & TILEINDEX_SHIFTEDMASK;
     if (tileset->gms2TileCount != 0 && tileIndex >= tileset->gms2TileCount) {
-        logWarn("VM: [%s] tilemap_set_at_pixel() - tile index outside tile set count\n", ctx->currentCodeName);
+        logWarn("VM: [%s] tilemap_set_at_pixel() - tile index outside tile set count\n", VM_getCurrentCallFrameCodeName(ctx));
         return RValue_makeBool(false);
     }
 
@@ -17588,7 +17588,7 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
 
     RValue* ctorArgs = (argCount > 1) ? &args[1] : nullptr;
     int32_t ctorArgCount = argCount - 1;
-    RValue result = VM_callCodeIndex(ctx, codeIndex, ctorArgs, ctorArgCount);
+    RValue result = VM_executeCode(ctx, codeIndex, ctorArgs, ctorArgCount);
     RValue_free(&result);
 
     ctx->currentInstance = savedSelf;
@@ -19248,7 +19248,7 @@ static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue valu
     if (reviver->boundInstance != nullptr) reviver->ctx->currentInstance = reviver->boundInstance;
     RValue result;
     if (reviver->codeIndex >= 0) {
-        result = VM_callCodeIndex(reviver->ctx, reviver->codeIndex, callArgs, 2);
+        result =VM_executeCode(reviver->ctx, reviver->codeIndex, callArgs, 2);
     } else {
         result = reviver->builtin(reviver->ctx, callArgs, 2);
     }

@@ -90,7 +90,6 @@ typedef struct CallFrame {
     uint8_t* savedBytecodeBase;
     RValue* savedLocals;
     uint32_t savedLocalsCount;
-    const char* savedCodeName;
     int32_t savedSavearefBalance;
     IntIntHashMap* savedCodeLocalsSlotMap;
     RValue* savedScriptArgs;
@@ -168,8 +167,7 @@ struct VMContext {
     // BC17+: varID -> localVars slot lookup for the current code. Points into codeLocalsSlotMaps[currentCodeIndex] for BC17+, nullptr for BC16.
     IntIntHashMap* currentCodeLocalsSlotMap;
     FuncCallCache* funcCallCache;
-    const char* currentCodeName;
-    int32_t currentCodeIndex; // Index into code.entries for the currently executing code
+    int32_t currentCodeIndex;
 
     // Warm: touched on calls, variable resolution, event dispatch
     CallFrame* callStack;
@@ -264,8 +262,18 @@ struct VMContext {
 Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target);
 VMContext* VM_create(DataWin* dataWin);
 void VM_reset(VMContext* ctx);
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex);
-RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
+
+/**
+ * Executes a CodeEntry of the current game
+ *
+ * @param ctx the VMContext instance
+ * @param codeIndex the index of the CodeEntry that will be executed
+ * @param args the arguments that will be passed to the executed code, can be nullptr
+ * @param argCount the argument count
+ * @return the RValue of the executed code
+ */
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
+
 void VM_free(VMContext* ctx);
 bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targetObjectIndex);
 int32_t VM_resolveInstanceTarget(VMContext* ctx, int32_t target);
@@ -304,8 +312,14 @@ int32_t VM_getOrAllocateVarID(VMContext* ctx, const char* name);
 void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val);
 void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val);
 
-static inline const char* VM_getCallerName(VMContext* ctx) {
-    return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
+/**
+ * Gets the name of the current code being executed
+ *
+ * @param vm the VMContext instance
+ * @return the name of the current code name being executed
+ */
+static inline const char* VM_getCurrentCallFrameCodeName(VMContext* vm) {
+    return vm->dataWin->code.entries[vm->currentCodeIndex].name;
 }
 
 static inline char* VM_createDedupKey(const char* callerName, const char* funcName) {
@@ -377,7 +391,7 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
     char instanceIdBuf[28] = "";
     if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
-    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", VM_getCurrentCallFrameCodeName(ctx), verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }
 #endif

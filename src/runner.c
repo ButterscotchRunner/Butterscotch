@@ -236,7 +236,6 @@ static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
     uint8_t* savedBytecodeBase = vm->bytecodeBase;
     uint32_t savedIP = vm->ip;
     uint32_t savedCodeEnd = vm->codeEnd;
-    const char* savedCodeName = vm->currentCodeName;
     RValue* savedLocalVars = vm->localVars;
     uint32_t savedLocalVarCount = vm->localVarCount;
     IntIntHashMap* savedCodeLocalsSlotMap = vm->currentCodeLocalsSlotMap;
@@ -255,7 +254,7 @@ static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
     setVMInstanceContext(vm, instance);
 
     // Execute
-    RValue result = VM_executeCode(vm, codeId);
+    RValue result = VM_executeCode(vm, codeId, nullptr, 0);
     RValue_free(&result);
 
     // Restore instance context
@@ -265,7 +264,6 @@ static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
     vm->bytecodeBase = savedBytecodeBase;
     vm->ip = savedIP;
     vm->codeEnd = savedCodeEnd;
-    vm->currentCodeName = savedCodeName;
     vm->localVars = savedLocalVars;
     vm->localVarCount = savedLocalVarCount;
     vm->currentCodeLocalsSlotMap = savedCodeLocalsSlotMap;
@@ -399,7 +397,7 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
         ctx->currentInstance = targetInstance;
 
         if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
-            VM_callCodeIndex(ctx, method->codeIndex, nullptr, 0);
+            VM_executeCode(ctx, method->codeIndex, nullptr, 0);
         } else if (method->builtin != nullptr) {
             method->builtin(ctx, nullptr, 0);
         } else if (method->unresolvedName != nullptr) {
@@ -434,7 +432,7 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     }
 
     if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
-        VM_callCodeIndex(ctx, codeId, nullptr, 0);
+        VM_executeCode(ctx, codeId, nullptr, 0);
     } else if (builtin != nullptr) {
         builtin(ctx, nullptr, 0);
     }
@@ -1108,7 +1106,7 @@ void Runner_draw(Runner* runner) {
             ctx->currentEventSubtype = DRAW_NORMAL;
 
             if (runtimeLayer->beginScript >= 0)
-                VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
+                VM_executeCode(ctx, runtimeLayer->beginScript, nullptr, 0);
 
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
@@ -1243,7 +1241,7 @@ void Runner_draw(Runner* runner) {
             ctx->currentEventSubtype = DRAW_NORMAL;
 
             if (runtimeLayer->endScript >= 0)
-                VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
+                VM_executeCode(ctx, runtimeLayer->endScript, nullptr, 0);
 
             ctx->currentInstance = savedInstance;
             ctx->currentEventType = savedEventType;
@@ -2030,7 +2028,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         runner->vmContext->currentInstance = dummy;
         int32_t savedEventType = runner->vmContext->currentEventType;
         runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
-        RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
+        RValue result = VM_executeCode(runner->vmContext, room->creationCodeId, nullptr, 0);
         RValue_free(&result);
         runner->vmContext->currentInstance = nullptr;
         runner->vmContext->currentEventType = savedEventType;
@@ -3132,7 +3130,7 @@ void Runner_initFirstRoom(Runner* runner) {
         int32_t codeId = dataWin->glob.codeIds[i];
         if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
             logInfo("Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
-            RValue result = VM_executeCode(runner->vmContext, codeId);
+            RValue result = VM_executeCode(runner->vmContext, codeId, nullptr, 0);
             RValue_free(&result);
         }
     }
@@ -3152,7 +3150,7 @@ void Runner_initFirstRoom(Runner* runner) {
             int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
             if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
                 logInfo("Runner: Executing extension init script: %s\n", initScript);
-                RValue result = VM_executeCode(runner->vmContext, codeId);
+                RValue result = VM_executeCode(runner->vmContext, codeId, nullptr, 0);
                 RValue_free(&result);
             }
         }
