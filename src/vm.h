@@ -264,13 +264,13 @@ VMContext* VM_create(DataWin* dataWin);
 void VM_reset(VMContext* ctx);
 
 /**
- * Executes a CodeEntry of the current game
+ * Executes a CodeEntry (a GML script) of the current game
  *
  * @param ctx the VMContext instance
  * @param codeIndex the index of the CodeEntry that will be executed
  * @param args the arguments that will be passed to the executed code, can be nullptr
  * @param argCount the argument count
- * @return the RValue of the executed code
+ * @return the return value of the executed script
  */
 RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
 
