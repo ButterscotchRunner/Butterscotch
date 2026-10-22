@@ -5,6 +5,10 @@
 #include "audio_system.h"
 
 #include "miniaudio.h"
+#ifdef PLATFORM_PS4
+#include <orbis/libkernel.h>
+#include <stdatomic.h>
+#endif
 
 #define MAX_SOUND_INSTANCES 128
 #define SOUND_INSTANCE_ID_BASE 100000
@@ -39,7 +43,14 @@ typedef struct {
 typedef struct {
     AudioSystem base;
     ma_engine engine;
+#ifdef PLATFORM_PS4
+    int32_t device;
+    OrbisPthread outputThread;
+    atomic_bool outputRunning, outputPaused;
+    ma_default_vfs vfs;
+#else
     ma_device device;
+#endif
     SoundInstance instances[MAX_SOUND_INSTANCES];
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;

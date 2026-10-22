@@ -25,6 +25,15 @@ elseif(PLATFORM STREQUAL "switch")
 
     set(BACKEND "sdl2")
 
+elseif(PLATFORM STREQUAL "ps4")
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+        set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/cmake/ps4.cmake" CACHE PATH "PS4 toolchain file")
+    endif()
+
+    set(BACKEND "sdl2")
+    set(AUDIO_BACKEND "miniaudio")
+    add_compile_definitions(MA_NO_DEVICE_IO MA_NO_RUNTIME_LINKING)
+
 elseif(PLATFORM STREQUAL "webos")
     set(BACKEND "sdl2")
 endif()
@@ -118,10 +127,21 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "ps4" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
-option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
+if(PLATFORM STREQUAL "ps4")
+    set(MODERN_GL_DEFAULT OFF)
+    set(SW_RENDERER_DEFAULT ON)
+else()
+    set(MODERN_GL_DEFAULT ON)
+    set(SW_RENDERER_DEFAULT OFF)
+endif()
+option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ${MODERN_GL_DEFAULT})
+option(ENABLE_SW_RENDERER "Enable the software renderer (SDL2)" ${SW_RENDERER_DEFAULT})
+if(ENABLE_SW_RENDERER AND NOT BACKEND STREQUAL "sdl2")
+    message(FATAL_ERROR "The software renderer requires BACKEND=sdl2")
+endif()
 option(ENABLE_NOOP_RENDERER "Enable the no-op renderer (headless stub, no drawing)" OFF)
 option(ENABLE_PHYSICS "Enable Box2D physics support" ON)
 option(ENABLE_FMOD "Enable standalone FMOD bank/event compatibility" ON)
@@ -152,6 +172,9 @@ if(ENABLE_LEGACY_GL)
 endif()
 if(ENABLE_MODERN_GL)
     add_compile_definitions(ENABLE_MODERN_GL)
+endif()
+if(ENABLE_SW_RENDERER)
+    add_compile_definitions(ENABLE_SW_RENDERER)
 endif()
 if(ENABLE_NOOP_RENDERER)
     add_compile_definitions(ENABLE_NOOP_RENDERER)
@@ -388,7 +411,7 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "ps4" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
     if(PLATFORM STREQUAL "webos")
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -412,6 +435,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "ps4")
+        add_compile_definitions(PLATFORM_PS4 ENABLE_GLES)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "web")
         add_compile_definitions(PLATFORM_WEB)
         target_sources(butterscotch PRIVATE src/cli/args.c)
@@ -424,10 +454,13 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
 
-    if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL AND NOT ENABLE_NOOP_RENDERER)
+    if(NOT ENABLE_LEGACY_GL AND NOT ENABLE_MODERN_GL AND NOT ENABLE_SW_RENDERER AND NOT ENABLE_NOOP_RENDERER)
         message(FATAL_ERROR "You must enable at least one renderer!")
     endif()
-    file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)
+    file(GLOB GL_SOURCES src/image/*.c)
+    if(ENABLE_LEGACY_GL OR ENABLE_MODERN_GL)
+        file(GLOB GL_SOURCES ${GL_SOURCES} src/gl_common/*.c)
+    endif()
     if(ENABLE_LEGACY_GL)
         file(GLOB GL_SOURCES ${GL_SOURCES} src/gl_legacy/*.c)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
@@ -478,7 +511,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
-    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+    if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "ps4")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
         target_include_directories(glad PUBLIC vendor/glad/include)
@@ -490,7 +523,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     endif()
     if(WIN32)
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} opengl32 gdi32 winmm)
-    elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
+    elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "ps4")
         set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 
@@ -533,11 +566,26 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     elseif(BACKEND STREQUAL "sdl2")
         add_compile_definitions(USE_SDL2)
 
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(SDL2 REQUIRED sdl2)
-        target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
-        set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        if(PLATFORM STREQUAL "ps4")
+            find_package(SDL2 CONFIG QUIET)
+            if(NOT TARGET SDL2::SDL2)
+                find_path(PS4_SDL2_INCLUDE_DIR SDL2/SDL.h
+                    PATHS "$ENV{OO_PS4_TOOLCHAIN}/include" NO_DEFAULT_PATH REQUIRED)
+                find_library(PS4_SDL2_LIBRARY SDL2
+                    PATHS "$ENV{OO_PS4_TOOLCHAIN}/lib" NO_DEFAULT_PATH REQUIRED)
+                add_library(SDL2::SDL2 STATIC IMPORTED)
+                set_target_properties(SDL2::SDL2 PROPERTIES
+                    IMPORTED_LOCATION "${PS4_SDL2_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${PS4_SDL2_INCLUDE_DIR}")
+            endif()
+            set(BACKEND_LIBRARIES SDL2::SDL2)
+        else()
+            find_package(PkgConfig REQUIRED)
+            pkg_check_modules(SDL2 REQUIRED sdl2)
+            target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_directories(butterscotch PRIVATE ${SDL2_LIBRARY_DIRS})
+            set(BACKEND_LIBRARIES ${SDL2_LIBRARIES})
+        endif()
     elseif(BACKEND STREQUAL "sdl3")
         add_compile_definitions(USE_SDL3)
 
@@ -576,6 +624,22 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             GLESv2
             stdc++
         )
+    elseif (PLATFORM STREQUAL "ps4")
+        set(BUTTERSCOTCH_CONSOLE_LIBS
+            ${BACKEND_LIBRARIES}
+            ${AUDIO_LIBRARIES}
+            ${PLATFORM_LIBRARIES}
+            SceSystemService
+            SceSysUtil
+            SceSysmodule
+            SceUserService
+            SceAudioOut
+            ScePad
+            SceVideoOut
+        )
+        if(ENABLE_MODERN_GL)
+            list(APPEND BUTTERSCOTCH_CONSOLE_LIBS ScePigletv2VSH)
+        endif()
     else()
         set(BUTTERSCOTCH_CONSOLE_LIBS ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})
     endif()
@@ -609,7 +673,9 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
 
     # Duplicate system archives pulled in by both the platform and FFmpeg
     # pkg-config closures are harmless but rejected by the LTO plugin.
-    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch"))
+    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION AND PLATFORM STREQUAL "ps4")
+        target_link_options(butterscotch PRIVATE --allow-multiple-definition)
+    elseif(CMAKE_INTERPROCEDURAL_OPTIMIZATION AND (PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch"))
         target_link_options(butterscotch PRIVATE "-Wl,--allow-multiple-definition")
     endif()
 
@@ -619,6 +685,37 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
             VERSION ${VITA_VERSION}
             NAME ${VITA_APP_NAME}
         )
+    elseif (PLATFORM STREQUAL "ps4")
+        if(CMAKE_HOST_WIN32)
+            set(ORBIS_HOST_DIR windows)
+        elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+            set(ORBIS_HOST_DIR macos)
+        else()
+            set(ORBIS_HOST_DIR linux)
+        endif()
+
+        find_program(ORBIS_CREATE_FSELF
+            NAMES create-fself create-fself.exe
+            PATHS "$ENV{OO_PS4_TOOLCHAIN}/bin/${ORBIS_HOST_DIR}"
+            NO_DEFAULT_PATH
+            REQUIRED
+        )
+        set(PS4_EBOOT "${CMAKE_CURRENT_BINARY_DIR}/eboot.bin")
+        set(PS4_OELF "${CMAKE_CURRENT_BINARY_DIR}/butterscotch.oelf")
+        set(PS4_AUTH_INFO "000000000000000000000000001C004000FF000000000080000000000000000000000000000000000000008000400040000000000000008000000000000000080040FFFF000000F000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+        add_custom_command(
+            OUTPUT "${PS4_EBOOT}"
+            BYPRODUCTS "${PS4_OELF}"
+            COMMAND "${ORBIS_CREATE_FSELF}"
+                "-in=$<TARGET_FILE:butterscotch>"
+                "-out=${PS4_OELF}"
+                --eboot "${PS4_EBOOT}"
+                --paid 0x3800000000000035
+                --authinfo "${PS4_AUTH_INFO}"
+            DEPENDS butterscotch
+            VERBATIM
+        )
+        add_custom_target(butterscotch-ps4 ALL DEPENDS "${PS4_EBOOT}")
     elseif (PLATFORM STREQUAL "switch")
         nx_generate_nacp(OUTPUT Butterscotch.nacp NAME "Butterscotch" AUTHOR "Butterscotch" VERSION "1.0.0")
         set(ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs")
@@ -669,8 +766,11 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     else()
         set(ENABLE_ASAN_DEFAULT OFF)
     endif()
+    if(PLATFORM STREQUAL "ps4")
+        set(ENABLE_ASAN_DEFAULT OFF)
+    endif()
     set(ENABLE_ASAN ${ENABLE_ASAN_DEFAULT} CACHE BOOL "Enable AddressSanitizer")
-    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+    if(ENABLE_ASAN AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND NOT PLATFORM STREQUAL "ps4")
         target_compile_options(butterscotch PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(butterscotch PRIVATE -fsanitize=address)
     endif()
