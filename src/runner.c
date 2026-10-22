@@ -1046,8 +1046,6 @@ void Runner_draw(Runner* runner) {
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             int32_t previousShader = Runner_pushLayerShader(runner, (int32_t) runtimeLayer->id);
             VMContext* ctx = runner->vmContext;
-            int32_t savedEventType = ctx->currentCallFrame->eventType;
-            int32_t savedEventSubtype = ctx->currentCallFrame->eventSubtype;
 
             if (runtimeLayer->beginScript >= 0) {
                 VM_executeCode(
@@ -3246,7 +3244,7 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
 #endif
 
     VM_executeCodeIgnoreInvalidCodeIndices(
-        runner->vmContext,
+        vm,
         codeId,
         self,
         other,
