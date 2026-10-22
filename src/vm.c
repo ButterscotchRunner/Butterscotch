@@ -1956,16 +1956,16 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
 
         // Shift bottom group up to where top group was
         {
-        for (int32_t i = bottomSlots - 1; i >= 0; i--) {
-            ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
-        }
+            for (int32_t i = bottomSlots - 1; i >= 0; i--) {
+                ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
+            }
         }
 
         // Place top group at the bottom
         {
-        for (int32_t i = 0; topSlots > i; i++) {
-            ctx->stack.slots[baseIdx + i] = temp[i];
-        }
+            for (int32_t i = 0; topSlots > i; i++) {
+                ctx->stack.slots[baseIdx + i] = temp[i];
+            }
         }
         return;
     }
@@ -1987,23 +1987,7 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     // Copy 'count' items from the top of the stack (preserving order)
     int32_t startIdx = ctx->stack.top - count;
     for (int32_t i = 0; count > i; i++) {
-        RValue copy = ctx->stack.slots[startIdx + i];
-
-        // If the value owns a string, duplicate it to avoid double-free.
-        // For arrays and methods, bump the refcount so each duplicate independently owns a reference.
-        if (copy.type == RVALUE_STRING && copy.ownsReference && copy.string != nullptr) {
-            copy.string = safeStrdup(copy.string);
-        } else if (copy.type == RVALUE_ARRAY && copy.ownsReference && copy.array != nullptr) {
-            GMLArray_incRef(copy.array);
-#if IS_WAD17_OR_HIGHER_ENABLED
-        } else if (copy.type == RVALUE_METHOD && copy.ownsReference && copy.method != nullptr) {
-            GMLMethod_incRef(copy.method);
-#endif
-        } else if (copy.type == RVALUE_STRUCT && copy.ownsReference && copy.structInst != nullptr) {
-            Instance_structIncRef(copy.structInst);
-        }
-
-        stackPush(ctx, copy);
+        stackPush(ctx, RValue_makeIndependent(ctx->stack.slots[startIdx + i]));
     }
 }
 
