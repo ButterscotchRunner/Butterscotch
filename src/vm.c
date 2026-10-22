@@ -178,7 +178,7 @@ static void patchReferenceOperands(VMContext* ctx) {
             uint32_t operand = BinaryUtils_readUint32(&buf[operandAddr - base]);
 
             uint32_t instrWord = BinaryUtils_readUint32(&buf[addr - base]);
-            OpWord opword = { .value = instrWord };
+            OpWord opword = {instrWord};
             bool isPushRef = OpWord_opcode(opword) == OP_BREAK && OpWord_extra(opword) == BREAK_PUSHREF;
 
             uint32_t delta;
@@ -2895,7 +2895,7 @@ static RValue executeLoop(VMContext* ctx) {
             Profiler_tickInstruction(ctx->profiler);
 #endif
         uint32_t instrAddr = ip;
-        OpWord opword = {.value = BinaryUtils_readUint32Aligned(bytecodeBase + ip)};
+        OpWord opword = {BinaryUtils_readUint32Aligned(bytecodeBase + ip)};
         ip += 4;
 
         // extraData pointer (may not be used depending on opcode)
@@ -4196,7 +4196,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
             const char* targetName = nullptr;
             if (instrAddr >= 4) {
                 uint32_t prevInstr = BinaryUtils_readUint32(bytecodeBase + instrAddr - 4);
-                OpWord prevOpword = {.value = prevInstr};
+                OpWord prevOpword = {prevInstr};
                 if (OpWord_opcode(prevOpword) == OP_PUSHI) {
                     int16_t objIdx = (int16_t) (prevInstr & 0xFFFF);
                     targetName = disasmScopeName(ctx, (int32_t) objIdx);
@@ -4338,7 +4338,7 @@ void VM_buildCrossReferences(VMContext* ctx) {
 
         while (code->length > ip) {
             uint32_t instr = BinaryUtils_readUint32(base + ip);
-            OpWord opword = {.value = instr};
+            OpWord opword = {instr};
             ip += 4;
             const uint8_t* ed = base + ip;
             if (OpWord_hasOperand(opword)) {
@@ -4422,7 +4422,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         while (codeLength > ip) {
             uint32_t instrAddr = ip;
             uint32_t instr = BinaryUtils_readUint32(bytecodeBase + ip);
-            OpWord opword = {.value = instr};
+            OpWord opword = {instr};
             ip += 4;
             if (OpWord_hasOperand(opword)) {
                 ip += extraDataSize(OpWord_type1(opword));
@@ -4450,7 +4450,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     while (codeLength > ip) {
         uint32_t instrAddr = ip;
         uint32_t instr = BinaryUtils_readUint32(bytecodeBase + ip);
-        OpWord opword = {.value = instr};
+        OpWord opword = {instr};
         ip += 4;
         const uint8_t* extraData = bytecodeBase + ip;
         if (OpWord_hasOperand(opword)) {
