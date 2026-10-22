@@ -54,14 +54,6 @@
 
 #define INSTANCE_ID_BASE 100000
 
-// ===[ Comparison Kinds ]===
-#define CMP_LT  1
-#define CMP_LTE 2
-#define CMP_EQ  3
-#define CMP_NEQ 4
-#define CMP_GTE 5
-#define CMP_GT  6
-
 // ===[ Extended BREAK Sub-Opcodes (WAD version 17+) ]===
 // Encoded in bits 0-15 of the BREAK instruction (instrInstanceType field, as int16_t)
 #define BREAK_CHKINDEX     (-1)  // Validate array index bounds

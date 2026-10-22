@@ -23,6 +23,10 @@ static inline int16_t OpWord_extra(OpWord opword) {
     return (int16_t) (opword.value & 0xFFFF);
 }
 
+static inline uint8_t OpWord_comparisonFunction(OpWord opword) {
+    return (opword.value >> 8) & 0xF;
+}
+
 static inline bool OpWord_hasOperand(OpWord opword) {
     return (OpWord_opcode(opword) & 0x40) != 0;
 }

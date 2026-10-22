@@ -9,6 +9,7 @@
 #include "string_builder.h"
 #include "opword.h"
 #include "op.h"
+#include "cmpop.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -116,10 +117,6 @@ static RValue* stackPeek(VMContext* ctx) {
 #endif
 
 // ===[ Instruction Decoding ]===
-
-static uint8_t instrCmpKind(uint32_t instr) {
-    return (instr >> 8) & 0xFF;
-}
 
 static uint32_t extraDataSize(uint8_t type1) {
     switch (type1) {
@@ -1778,7 +1775,7 @@ static bool tryParseRealFromString(const char* str, GMLReal* out) {
 }
 
 static void handleCmp(VMContext* ctx, OpWord opword) {
-    uint8_t cmpKind = instrCmpKind(opword.value);
+    uint8_t cmpKind = OpWord_comparisonFunction(opword);
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
 
@@ -1787,46 +1784,46 @@ static void handleCmp(VMContext* ctx, OpWord opword) {
         // Undefined is only == to undefined
         bool eq = a.type == b.type;
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_ARRAY || b.type == RVALUE_ARRAY) {
         // Array is only == to the same array
         bool eq = (a.type == RVALUE_ARRAY && b.type == RVALUE_ARRAY) && (a.array == b.array);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
 #if IS_WAD17_OR_HIGHER_ENABLED
     } else if (a.type == RVALUE_METHOD || b.type == RVALUE_METHOD) {
         // Method is only == to the same method
         bool eq = (a.type == RVALUE_METHOD && b.type == RVALUE_METHOD) && (a.method == b.method);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
 #endif
     } else if (a.type == RVALUE_STRUCT || b.type == RVALUE_STRUCT) {
         // Struct is only == to the same struct (identity comparison)
         bool eq = (a.type == RVALUE_STRUCT && b.type == RVALUE_STRUCT) && (a.structInst == b.structInst);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_STRING && b.type == RVALUE_STRING) {
         int cmp = strcmp(a.string != nullptr ? a.string : "", b.string != nullptr ? b.string : "");
         switch (cmpKind) {
-            case CMP_LT:  result = 0 > cmp; break;
-            case CMP_LTE: result = 0 >= cmp; break;
-            case CMP_EQ:  result = cmp == 0; break;
-            case CMP_NEQ: result = cmp != 0; break;
-            case CMP_GTE: result = cmp >= 0; break;
-            case CMP_GT:  result = cmp > 0; break;
-            default: result = false; break;
+            case CMPOP_LESS_THAN:  result = 0 > cmp; break;
+            case CMPOP_LESS_THAN_OR_EQUAL: result = 0 >= cmp; break;
+            case CMPOP_EQUAL:  result = cmp == 0; break;
+            case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+            case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+            case CMPOP_GREATER_THAN:  result = cmp > 0; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else {
         // Mixed string/number: coerce strings to reals (matching GameMaker-HTML5 yyCompareVal).
@@ -1852,9 +1849,9 @@ static void handleCmp(VMContext* ctx, OpWord opword) {
 
         if (incomparable) {
             switch (cmpKind) {
-                case CMP_EQ:  result = false; break;
-                case CMP_NEQ: result = true;  break;
-                default:      result = false; break;
+                case CMPOP_EQUAL:  result = false; break;
+                case CMPOP_NOT_EQUAL: result = true;  break;
+                default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
             }
         } else {
             GMLReal diff = da - db;
@@ -1863,13 +1860,13 @@ static void handleCmp(VMContext* ctx, OpWord opword) {
             GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
             int cmp = GMLReal_fabs(diff) <= epsilon ? 0 : (diff < 0 ? -1 : 1);
             switch (cmpKind) {
-                case CMP_LT:  result = cmp < 0; break;
-                case CMP_LTE: result = cmp <= 0; break;
-                case CMP_EQ:  result = cmp == 0; break;
-                case CMP_NEQ: result = cmp != 0; break;
-                case CMP_GTE: result = cmp >= 0; break;
-                case CMP_GT:  result = cmp > 0; break;
-                default: result = false; break;
+                case CMPOP_LESS_THAN:  result = cmp < 0; break;
+                case CMPOP_LESS_THAN_OR_EQUAL: result = cmp <= 0; break;
+                case CMPOP_EQUAL:  result = cmp == 0; break;
+                case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+                case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+                case CMPOP_GREATER_THAN:  result = cmp > 0; break;
+                default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
             }
         }
     }
@@ -3248,14 +3245,14 @@ static RValue executeLoop(VMContext* ctx) {
                     GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
                     int cmp = (GMLReal_fabs(diff) <= epsilon) ? 0 : (diff < 0) ? -1 : 1;
                     bool result;
-                    switch (instrCmpKind(opword.value)) {
-                        case CMP_LT:  result = cmp < 0;  break;
-                        case CMP_LTE: result = cmp <= 0; break;
-                        case CMP_EQ:  result = cmp == 0; break;
-                        case CMP_NEQ: result = cmp != 0; break;
-                        case CMP_GTE: result = cmp >= 0; break;
-                        case CMP_GT:  result = cmp > 0;  break;
-                        default:      result = false;  break;
+                    switch (OpWord_comparisonFunction(opword)) {
+                        case CMPOP_LESS_THAN:  result = cmp < 0;  break;
+                        case CMPOP_LESS_THAN_OR_EQUAL: result = cmp <= 0; break;
+                        case CMPOP_EQUAL:  result = cmp == 0; break;
+                        case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+                        case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+                        case CMPOP_GREATER_THAN:  result = cmp > 0;  break;
+                        default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
                     }
                     slotA->int32 = result ? 1 : 0;
                     slotA->type = RVALUE_BOOL;
@@ -3894,18 +3891,6 @@ static char gmlTypeChar(uint8_t type) {
     }
 }
 
-static const char* cmpKindName(uint8_t kind) {
-    switch (kind) {
-        case CMP_LT:  return "LT";
-        case CMP_LTE: return "LTE";
-        case CMP_EQ:  return "EQ";
-        case CMP_NEQ: return "NEQ";
-        case CMP_GTE: return "GTE";
-        case CMP_GT:  return "GT";
-        default:      return "???";
-    }
-}
-
 static const char* varTypeName(uint32_t varRef) {
     uint8_t varType = (varRef >> 24) & 0xF8;
     switch (varType) {
@@ -4025,7 +4010,7 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         // Comparison
         case OP_CMP:
             snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName(opcode), gmlTypeChar(type1), gmlTypeChar(type2));
-            snprintf(operandStr, operandSize, "%s", cmpKindName(instrCmpKind(opword.value)));
+            snprintf(operandStr, operandSize, "%s", CmpOp_getCmpOpcodeName(opword.value));
             snprintf(commentStr, commentSize, "// pops: [a, b] -> pushes: [bool]");
             break;
 
