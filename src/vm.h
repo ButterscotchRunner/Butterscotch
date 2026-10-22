@@ -287,7 +287,6 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
  * @param otherInstance the other instance involved in this execution
  * @param args the arguments that will be passed to the executed code, can be nullptr
  * @param argCount the argument count
- * @return the return value of the executed script
  */
 static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, RValue* args, int32_t argCount) {
     // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
