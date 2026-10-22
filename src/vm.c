@@ -3625,17 +3625,10 @@ VMContext* VM_create(DataWin* dataWin) {
 }
 
 void VM_reset(VMContext* ctx) {
+    requireMessageFormatted(__FILE__, __LINE__, ctx->currentCallFrame == nullptr, "You can't call VM_reset while there's an active CallFrame!");
+
     // Reset stack
     ctx->stack.top = 0;
-
-    // Free any remaining call frames
-    CallFrame* frame = ctx->currentCallFrame;
-    while (frame != nullptr) {
-        CallFrame* parent = frame->parent;
-        free(frame);
-        frame = parent;
-    }
-    ctx->currentCallFrame = nullptr;
 
     // Free any remaining env frames
     EnvFrame* envFrame = ctx->envStack;
