@@ -293,7 +293,8 @@ static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_
     if (0 > codeIndex)
         return;
 
-    VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, args, argCount);
+    RValue rvalue = VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, args, argCount);
+    RValue_free(&rvalue);
 }
 
 void VM_free(VMContext* ctx);
