@@ -473,7 +473,7 @@ Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target) {
 
 // Inline read of a non-array, non-builtin variable from a simple scope.
 // Returns false when the instanceType isn't covered or the scope's instance pointer is unavailable, so the caller can fall through to the full resolveVariableRead.
-// Used by the OP_PUSH/PUSHLOC/PUSHGLB fast paths in executeLoop to skip the entire resolveVariableRead dispatch overhead.
+// Used by the OP_PUSH/PUSHLOC/PUSHGLB fast paths in executeBytecodeInstructions to skip the entire resolveVariableRead dispatch overhead.
 static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable* varDef, RValue* out) {
     switch (instanceType) {
         case INSTANCE_SELF: {
@@ -837,7 +837,7 @@ static void writeSingleInstanceVariable(VMContext* ctx, Instance* inst, Variable
     Instance_setSelfVar(inst, varDef->varID, val);
 }
 
-// Force out-of-line so the OP_POP fast path in executeLoop doesn't inline this, because we already have an "optimized" version for common writes
+// Force out-of-line so the OP_POP fast path in executeBytecodeInstructions doesn't inline this, because we already have an "optimized" version for common writes
 NOINLINE
 static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t varRef, RValue val) {
     Variable* varDef = resolveVarDef(ctx, varRef);
@@ -2766,8 +2766,8 @@ static void unwindVMStack(VMContext* ctx, int32_t newStackTop) {
     ctx->stack.top = newStackTop;
 }
 
-static RValue executeLoop(VMContext* ctx) {
-    // codeEnd and bytecodeBase are invariant for the lifetime of this executeLoop call, so let's hoist them to avoid the compiler emitting code to
+static RValue executeBytecodeInstructions(VMContext* ctx) {
+    // codeEnd and bytecodeBase are invariant for the lifetime of this executeBytecodeInstructions call, so let's hoist them to avoid the compiler emitting code to
     // reload the values at the end of every iteration.
     const uint32_t codeEnd = ctx->codeEnd;
     const uint8_t* const bytecodeBase = ctx->bytecodeBase;
@@ -3023,7 +3023,7 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
 
             // Arithmetic
-            // We keep the number + number operations inlined in executeLoop, keeping only the slow path for string concat/repetition
+            // We keep the number + number operations inlined in executeBytecodeInstructions, keeping only the slow path for string concat/repetition
             case OP_ADD: {
                 RValue* slotA = &slots[ctx->stack.top - 2];
                 RValue* slotB = &slots[ctx->stack.top - 1];
@@ -3721,7 +3721,7 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_enter(ctx->profiler, code->name);
 #endif
-    RValue result = executeLoop(ctx);
+    RValue result = executeBytecodeInstructions(ctx);
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_exit(ctx->profiler);
 #endif
@@ -3804,7 +3804,7 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_enter(ctx->profiler, code->name);
 #endif
-    RValue result = executeLoop(ctx);
+    RValue result = executeBytecodeInstructions(ctx);
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_exit(ctx->profiler);
 #endif
