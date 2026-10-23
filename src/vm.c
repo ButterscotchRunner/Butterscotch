@@ -3625,7 +3625,7 @@ VMContext* VM_create(DataWin* dataWin) {
 }
 
 void VM_reset(VMContext* ctx) {
-    // All of these are things that are only "active" outside a script
+    // All of these are things that are only "active" inside a script
     // If VM_reset is called while a script is executing, we did something terribly wrong
     requireMessageFormatted(__FILE__, __LINE__, ctx->currentCallFrame == nullptr, "You can't call VM_reset while there's an active CallFrame!");
     requireMessageFormatted(__FILE__, __LINE__, ctx->stack.top == 0, "You can't call VM_reset while there are elements on the stack!");
