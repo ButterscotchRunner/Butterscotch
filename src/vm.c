@@ -3625,23 +3625,13 @@ VMContext* VM_create(DataWin* dataWin) {
 }
 
 void VM_reset(VMContext* ctx) {
+    // All of these are things that are only "active" outside a script
+    // If VM_reset is called while a script is executing, we did something terribly wrong
     requireMessageFormatted(__FILE__, __LINE__, ctx->currentCallFrame == nullptr, "You can't call VM_reset while there's an active CallFrame!");
-
-    // Reset stack
-    ctx->stack.top = 0;
-
-    // Free any remaining env frames
-    EnvFrame* envFrame = ctx->envStack;
-    while (envFrame != nullptr) {
-        EnvFrame* parent = envFrame->parent;
-        arrfree(envFrame->instanceList);
-        free(envFrame);
-        envFrame = parent;
-    }
-    ctx->envStack = nullptr;
+    requireMessageFormatted(__FILE__, __LINE__, ctx->stack.top == 0, "You can't call VM_reset while there are elements on the stack!");
+    requireMessageFormatted(__FILE__, __LINE__, ctx->envStack == nullptr, "You can't call VM_reset while there's an active EnvironmentFrame!");
 
     // Reset execution state
-    ctx->currentCallFrame = nullptr;
     ctx->actionRelativeFlag = false;
 
     if (ctx->dataWin->gen8.wadVersion >= 17) {
