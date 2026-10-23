@@ -297,12 +297,12 @@ void ButterscotchContainer::ConstructL(const TRect& aRect, CAknAppUi* aAppUi) {
 	args.lazyRooms = true;
 	args.lazyTextures = true;
 	args.lazyAudio = true;
-	args.renderer = MODERN_GL;
+	args.renderer = MODERN_GLES;
 	args.dataWinPath = "E:/butterscotch/data.win";
 	args.saveFolder = "E:/butterscotch/";
 	
-		args.glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
-		args.glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
+	args.glTextureFormat = GL_TEXTURE_FORMAT_RGBA4;
+	args.glSurfaceFormat = GL_SURFACE_FORMAT_RGBA4;
 	
 	args.debug = true;
 

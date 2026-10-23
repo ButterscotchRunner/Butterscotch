@@ -66,6 +66,12 @@ static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 f
         return NULL;
     }
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
+        if (gfx == MODERN_GL && GLCommon_versions[i].gles)
+            continue;
+
+        if (gfx == MODERN_GLES && !GLCommon_versions[i].gles)
+            continue;
+
         SDL_Window *newWindow;
         int contextFlags = 0;
 
@@ -274,7 +280,7 @@ void platformSwapBuffers(void) {
     }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    if (gfx == LEGACY_GL || gfx == MODERN_GL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES)
         SDL_GL_SwapWindow(window);
 #endif
 }

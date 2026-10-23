@@ -225,6 +225,44 @@ char *fixShaderForVita(const char *src) {
 }
 #endif
 
+#if defined(__EMSCRIPTEN__)
+static bool isGLES1Shader(const char* shaderSource) {
+    return strstr(shaderSource, "#version 100") != nullptr || strstr(shaderSource, "#version ") == nullptr;
+}
+
+// See three.js' WebGLProgram.js
+static char* convertVertexShaderToES3(const char* shaderSource) {
+    size_t len = strlen(shaderSource) + 1024;
+    char* out = safeMalloc(len);
+
+    snprintf(
+        out,
+        len,
+        "#version 300 es\n#define attribute in\n#define varying out\n#define texture2D texture\n%s",
+        // Read up until the first line and skip it
+        strchr(shaderSource, '\n') + 1
+    );
+
+    return out;
+}
+
+// See three.js' WebGLProgram.js
+static char* convertFragmentShaderToES3(const char* shaderSource) {
+    size_t len = strlen(shaderSource) + 1024;
+    char* out = safeMalloc(len);
+
+    snprintf(
+        out,
+        len,
+        "#version 300 es\nprecision highp float;\n#define varying in\nlayout(location = 0) out highp vec4 pc_fragColor;\n#define gl_FragColor pc_fragColor\n#define gl_FragDepthEXT gl_FragDepth\n#define texture2D texture\n#define textureCube texture\n#define texture2DProj textureProj\n#define texture2DLodEXT textureLod\n#define texture2DProjLodEXT textureProjLod\n#define textureCubeLodEXT textureLod\n#define texture2DGradEXT textureGrad\n#define texture2DProjGradEXT textureProjGrad\n#define textureCubeGradEXT textureGrad\n%s",
+        // Read up until the first line and skip it
+        strchr(shaderSource, '\n') + 1
+    );
+
+    return out;
+}
+#endif
+
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
     #ifdef PLATFORM_VITA
     const char* actualSource = fixShaderForVita(source);
@@ -292,7 +330,7 @@ static void flushBatch(GLRenderer* gl) {
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
     if (modernGl->batchCount == 0) return;
-    
+
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &modernGl->gmlShaders[gl->base.currentShader];
 
@@ -553,13 +591,49 @@ static bool compileProgram(GMLShader* gmlShader, const char* name, const char* v
     logInfo("GL: Compiling %s vertex shader\n", name);
     bool vertexShaderOK = false;
     bool fragmentShaderOK = false;
-    GLuint vertShaderT = compileShader(GL_VERTEX_SHADER, vertexShaderSource, &vertexShaderOK);
+
+    char* convertedVertexShaderSource;
+#if defined(__EMSCRIPTEN__)
+    if (isGLES1Shader(vertexShaderSource)) {
+        convertedVertexShaderSource = convertVertexShaderToES3(vertexShaderSource);
+    } else {
+        convertedVertexShaderSource = strdup(vertexShaderSource);
+    }
+#else
+    convertedVertexShaderSource = strdup(vertexShaderSource);
+#endif
+
+    GLuint vertShaderT = compileShader(
+        GL_VERTEX_SHADER,
+        convertedVertexShaderSource,
+        &vertexShaderOK
+    );
+    free(convertedVertexShaderSource);
+
     if (!vertexShaderOK) {
         logError("GL: Failed to compile %s vertex shader!\n", name);
         return false;
     }
     logInfo("GL: Compiling %s fragment shader\n", name);
-    GLuint fragShaderT = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource, &fragmentShaderOK);
+
+    char* convertedFragmentShaderSource;
+#if defined(__EMSCRIPTEN__)
+    if (isGLES1Shader(fragmentShaderSource)) {
+        convertedFragmentShaderSource = convertFragmentShaderToES3(fragmentShaderSource);
+    } else {
+        convertedFragmentShaderSource = strdup(fragmentShaderSource);
+    }
+#else
+    convertedFragmentShaderSource = strdup(fragmentShaderSource);
+#endif
+
+    GLuint fragShaderT = compileShader(
+        GL_FRAGMENT_SHADER,
+        convertedFragmentShaderSource,
+        &fragmentShaderOK
+    );
+    free(convertedFragmentShaderSource);
+
     if (!fragmentShaderOK) {
         logError("GL: Failed to compile %s fragment shader!\n", name);
         return false;
@@ -653,55 +727,76 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     if (modernGl->isGL3) {
         if (modernGl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
-            fragHeader = "#version 300 es\nprecision mediump float;\n";
+            fragHeader = "#version 300 es\nprecision highp float;\n";
 
-            snprintf(vertSrc, sizeof(vertSrc),
+            snprintf(
+                vertSrc,
+                sizeof(vertSrc),
                 "%s"
                 "layout(location = 0) in vec3 aPos;\nlayout(location = 1) in vec4 aColor;\nlayout(location = 2) in vec2 aTexCoord;\n"
                 "out vec2 vTexCoord;\nout vec4 vColor;\nout float vFogFactor;\n%s",
-                vertHeader, baseVertexShader);
+                vertHeader,
+                baseVertexShader
+            );
         } else {
             vertHeader = "#version 130\n";
             fragHeader = "#version 130\n";
 
-            snprintf(vertSrc, sizeof(vertSrc),
+            snprintf(
+                vertSrc,
+                sizeof(vertSrc),
                 "%s"
                 "in vec3 aPos;\nin vec4 aColor;\nin vec2 aTexCoord;\n"
                 "out vec2 vTexCoord;\nout vec4 vColor;\nout float vFogFactor;\n%s",
-                vertHeader, baseVertexShader);
+                vertHeader,
+                baseVertexShader
+            );
         }
 
-        snprintf(fragSrc, sizeof(fragSrc),
+        snprintf(
+            fragSrc,
+            sizeof(fragSrc),
             "%s"
             "in vec2 vTexCoord;\nin vec4 vColor;\nin float vFogFactor;\nout vec4 fragColor;\n"
             "#define TEXTURE_2D texture\n#define FRAG_COLOR fragColor\n%s",
-            fragHeader, baseFragmentShader);
+            fragHeader,
+            baseFragmentShader
+        );
     } else
 #endif
     {
         if (modernGl->isGLES) {
 #ifdef __SYMBIAN32__
             vertHeader = "#version 100\nprecision mediump float;\n";
-#else
-            vertHeader = "#version 100\nprecision high float;\n";
-#endif
             fragHeader = "#version 100\nprecision mediump float;\n";
+#else
+            vertHeader = "#version 100\nprecision highp float;\n";
+            fragHeader = "#version 100\nprecision highp float;\n";
+#endif
         } else {
             vertHeader = "#version 110\n";
             fragHeader = "#version 110\n";
         }
 
-        snprintf(vertSrc, sizeof(vertSrc),
+        snprintf(
+            vertSrc,
+            sizeof(vertSrc),
             "%s"
             "attribute vec3 aPos;\nattribute vec4 aColor;\nattribute vec2 aTexCoord;\n"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\nvarying float vFogFactor;\n%s",
-            vertHeader, baseVertexShader);
+            vertHeader,
+            baseVertexShader
+        );
 
-        snprintf(fragSrc, sizeof(fragSrc),
+        snprintf(
+            fragSrc,
+            sizeof(fragSrc),
             "%s"
             "varying vec2 vTexCoord;\nvarying vec4 vColor;\nvarying float vFogFactor;\n"
             "#define TEXTURE_2D texture2D\n#define FRAG_COLOR gl_FragColor\n%s",
-            fragHeader, baseFragmentShader);
+            fragHeader,
+            baseFragmentShader
+        );
     }
 
     const char* defaultAttributes[] = { "aPos", "aColor", "aTexCoord" };
@@ -1019,9 +1114,13 @@ static void glClearDepthBuffer(Renderer* renderer, float depth) {
     flushBatch((GLRenderer*)renderer);
     glDepthMask(GL_TRUE);
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__) || defined(__SYMBIAN32__)
-    glClearDepthf(depth);
+    if (modernGl->isGLES) {
+        glClearDepthf(depth);
+    } else {
+        glClearDepth(depth);
+    }
 #else
-    glClearDepth(depth);
+        glClearDepth(depth);
 #endif
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthMask(modernGl->depthWrite ? GL_TRUE : GL_FALSE);
@@ -1117,7 +1216,7 @@ static void glEndFrameInit(Renderer* renderer) {
 #ifndef __SYMBIAN32__
     if (hasVAO()) glBindVertexArray(0);
 #endif
-    
+
     if (renderer->runner->usingAppSurface && !renderer->runner->appSurfaceAutoDraw) {
         glBindFramebuffer(GL_FRAMEBUFFER, modernGl->hostFramebuffer);
         return;
@@ -1287,7 +1386,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     gl->textureWidths[pageId] = w;
     gl->textureHeights[pageId] = h;
-    
+
     if (gl->glTextures[pageId] == 0) {
         glGenTextures(1, &gl->glTextures[pageId]);
     }
@@ -2478,8 +2577,8 @@ static void drawText(
                 uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
-                if (ch == ' ') {
-                    drewSuccessfully = true;
+				if (ch == ' ') {
+					drewSuccessfully = true;
                 } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
@@ -2675,7 +2774,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
     } else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -2772,7 +2871,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
     } else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);

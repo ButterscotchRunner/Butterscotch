@@ -124,7 +124,7 @@ MIPS big-endian builds do not have ffmpeg compiled in and won't work with functi
 | Platform | Download | Notes |
 | -------- | -------- | ----- |
 | WebAssembly | [butterscotch-web.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-web.zip) | [Play online](https://butterscotch.mrpowergamerbr.com/web/) |
-| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) | 
+| Android | [butterscotch-android.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-android.zip) | <a href="https://play.google.com/store/apps/details?id=net.perfectdreams.butterscotch&referrer=utm_source%3Dgithub%26utm_medium%3Dreferral%26utm_content%3Dgithub-readme"><img width="159" height="47" alt="GetItOnGooglePlay_Badge_Web_color_English" src="https://github.com/user-attachments/assets/c6be56cb-68ca-41d6-b479-3bf2a95f0ba6" /></a></div> |
 | webOS | [butterscotch-webos.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-webos.zip) | After installing the IPK, place the game's `data.win` and other required files in `/media/developer/apps/usr/palm/applications/com.mrpowergamerbr.butterscotch/` |
 
 ## Community Ports
@@ -300,6 +300,15 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/e8cd174c-5113-416b-9e3a-c4029e1e3176" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3702a261-01fe-4b04-9e6c-b69336c2ce46" />
+
+## Similar Projects
+
+* [UndertaleModTool](https://github.com/UnderminersTeam/UndertaleModTool)
+* [OpenGM](https://github.com/misternebula/OpenGM)
+* [Starfait](https://github.com/MrPowerGamerBR/Starfait)
+* [reGML](https://github.com/TimGoTheCreator/reGML)
+* [Luna](https://github.com/nommiin/Luna)
+* [TinyGameMakerVM](https://github.com/MrPowerGamerBR/TinyGameMakerVM)
 
 ## Disclaimer
 
