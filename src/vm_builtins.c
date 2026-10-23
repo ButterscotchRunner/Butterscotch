@@ -2025,6 +2025,25 @@ static RValue builtin_string_byte_length(MAYBE_UNUSED VMContext* ctx, RValue* ar
     return RValue_makeInt32(byteLen);
 }
 
+static RValue builtin_string_concat(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_concat", 1, RValue_makeOwnedString(safeStrdup("")));
+    if (argCount == 1) return RValue_makeOwnedString(RValue_toString(args[0], ctx->runner->dataWin));
+    char* firstStr = RValue_toString(args[0], ctx->runner->dataWin);
+    size_t len = strlen(firstStr);
+    char* strbuf = (char*)safeMalloc(len + 1);
+    strcpy(strbuf, firstStr);
+    free(firstStr);
+    for (int32_t i = 1; i < argCount; i++) {
+        char* str = RValue_toString(args[i], ctx->runner->dataWin);
+        size_t alen = strlen(str);
+        strbuf = (char*)safeRealloc(strbuf, len + alen + 1);
+        strcpy(strbuf + len, str);
+        len += alen;
+        free(str);
+    }
+    return RValue_makeOwnedString(strbuf);
+}
+
 static RValue builtin_real(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("real", 1, RValue_makeReal(0.0));
     return RValue_makeReal(RValue_toReal(args[0]));
@@ -24373,6 +24392,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_digits", builtin_string_digits);
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
+    VM_registerBuiltin(ctx, "string_concat", builtin_string_concat);
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "array_contains", builtin_array_contains);
     VM_registerBuiltin(ctx, "@@array_get@@", builtin_internal_array_get);
