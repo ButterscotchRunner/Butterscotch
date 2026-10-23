@@ -1114,13 +1114,13 @@ static void glClearDepthBuffer(Renderer* renderer, float depth) {
     flushBatch((GLRenderer*)renderer);
     glDepthMask(GL_TRUE);
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__) || defined(__SYMBIAN32__)
+    glClearDepthf(depth);
+#else
     if (modernGl->isGLES) {
         glClearDepthf(depth);
     } else {
         glClearDepth(depth);
     }
-#else
-        glClearDepth(depth);
 #endif
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthMask(modernGl->depthWrite ? GL_TRUE : GL_FALSE);
@@ -2577,8 +2577,8 @@ static void drawText(
                 uint8_t r3 = (uint8_t) BGR_R(c4), g3 = (uint8_t) BGR_G(c4), b3 = (uint8_t) BGR_B(c4);
 
                 bool drewSuccessfully = false;
-				if (ch == ' ') {
-					drewSuccessfully = true;
+                if (ch == ' ') {
+                    drewSuccessfully = true;
                 } else if (glyph->sourceWidth != 0 && glyph->sourceHeight != 0) {
                     float u0, v0, u1, v1;
                     float localX0, localY0;
@@ -2774,7 +2774,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
     } else {
-    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -2871,7 +2871,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
     if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
     } else {
-    glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
