@@ -1,7 +1,7 @@
 #ifndef _BS_VITA_TEXTURES_H_
 #define _BS_VITA_TEXTURES_H_
 
-#include <vitaGL.h>
+#include "gl_common.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

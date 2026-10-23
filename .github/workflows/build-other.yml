@@ -138,3 +138,100 @@ jobs:
         with:
           name: butterscotch-webos
           path: dist/*.ipk
+
+  build-symbian:
+    name: Build (Symbian)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache/restore@v5
+        name: Check SDK
+        id: cache_sdk
+        with:
+          path: symbiansdk.zip
+          key: symbian-sdk
+
+      - name: Download SDK
+        if: steps.cache_sdk.outputs.cache-hit != 'true'
+        run: Invoke-WebRequest https://nnproject.cc/dl/symbian3_gcce1520_workflow.zip -OutFile symbiansdk.zip
+
+      - name: Cache SDK
+        if: steps.cache_sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: symbiansdk.zip
+          key: symbian-sdk
+
+      - name: Extract SDK
+        run: Expand-Archive symbiansdk.zip -DestinationPath .
+
+      - name: Compile
+        run: |
+          $SDK = "$pwd/SDK/"
+          $Env:EPOCROOT = "$SDK".Substring(2)
+          $Env:SBS_GCCE1520BIN = "$pwd/GCCE/bin"
+          cmd /c "$SDK/epoc32/tools/sbs\bin\sbs.bat -b artifacts/symbian/bld.inf -c armv6_urel_gcce -f - -m $SDK/epoc32/build/Butterscotch/makefile -j 4"
+          
+          cd artifacts/symbian
+          (Get-Content Butterscotch.pkg).Replace('$(EPOCROOT)', "$SDK").Replace('$(PLATFORM)', 'armv6').Replace('$(TARGET)', 'urel') | Set-Content Butterscotch.pkg
+          cmd /c "$SDK/epoc32/tools/makesis.exe Butterscotch.pkg Butterscotch.sis"
+          
+          
+      - name: Upload SIS
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-symbian
+          path: artifacts/symbian/Butterscotch.sis
+          
+  build-webos:
+    name: Build (webOS)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up webOS toolchain
+        run: |
+          curl -Lo native-toolchain.tar.gz https://github.com/openlgtv/buildroot-nc4/releases/latest/download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz
+          sudo tar xzf native-toolchain.tar.gz -C /opt/
+          
+          PLATFORM=linux-x86_64
+          TAG=$(curl -fsSL https://api.github.com/repos/webosbrew/ares-cli-rs/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
+          curl -fsSL "https://github.com/webosbrew/ares-cli-rs/releases/download/$TAG/ares-cli-rs-$TAG-$PLATFORM.tar.gz" | tar xz
+          sudo install -m 755 "ares-cli-rs-$TAG-$PLATFORM"/ares-* /usr/local/bin/
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ccache
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-webos-${{ github.sha }}
+          restore-keys: |
+            ccache-webos-
+
+      - name: Build Butterscotch
+        run: |
+          cmake -B build -G Ninja \
+            -DWERROR=ON -DPLATFORM=webos \
+            -DCMAKE_TOOLCHAIN_FILE=/opt/arm-webos-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist/
+          cp build/butterscotch dist/
+          cp src/webos/dist/appinfo.json dist/
+          cp src/webos/dist/icon.png dist/
+          ares-package dist/ -o dist/
+
+      - name: Upload IPK
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-webos
+          path: dist/*.ipk
