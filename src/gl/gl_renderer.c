@@ -219,6 +219,7 @@ char *fixShaderForVita(const char *src) {
 }
 #endif
 
+#if defined(__EMSCRIPTEN__)
 static bool isGLES1Shader(const char* shaderSource) {
     return strstr(shaderSource, "#version 100") != nullptr || strstr(shaderSource, "#version ") == nullptr;
 }
@@ -254,6 +255,7 @@ static char* convertFragmentShaderToES3(const char* shaderSource) {
 
     return out;
 }
+#endif
 
 static GLuint compileShader(GLenum type, const char* source, bool* ok) {
     #ifdef PLATFORM_VITA
