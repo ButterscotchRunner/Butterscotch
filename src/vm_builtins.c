@@ -1,4 +1,5 @@
 #include "vm_builtins.h"
+#include "common.h"
 #include "physics/physics.h"
 #include "video.h"
 #include "binary_utils.h"
@@ -19,6 +20,7 @@
 #include <float.h>
 #include "string_compat.h"
 #include "math_compat.h"
+#include "vm.h"
 #include <ctype.h>
 #include <time.h>
 #include <stdio.h>
@@ -4564,6 +4566,11 @@ static RValue builtin_variable_get_hash(VMContext* ctx, RValue* args, int32_t ar
             return RValue_makeInt32((int32_t) i);
     }
     return RValue_makeInt32(-VM_getOrAllocateVarID(ctx, args[0].string) - 1);
+}
+
+static RValue builtin_variable_clone(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("variable_clone", 1, RValue_makeUndefined());
+    return RValue_makeIndependent(args[0]);
 }
 
 static int32_t structHashArgToVarId(VMContext* ctx, RValue hash) {
@@ -24596,6 +24603,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "variable_struct_get", builtin_variable_struct_get);
     VM_registerBuiltin(ctx, "variable_struct_exists", builtin_variable_struct_exists);
     VM_registerBuiltin(ctx, "variable_get_hash", builtin_variable_get_hash);
+    VM_registerBuiltin(ctx, "variable_clone", builtin_variable_clone);
     VM_registerBuiltin(ctx, "struct_get_from_hash", builtin_struct_get_from_hash);
     VM_registerBuiltin(ctx, "struct_set_from_hash", builtin_struct_set_from_hash);
     VM_registerBuiltin(ctx, "struct_exists_from_hash", builtin_struct_exists_from_hash);
