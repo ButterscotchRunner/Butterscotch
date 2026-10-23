@@ -348,7 +348,7 @@ void platformSwapBuffers(void) {
     }
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-    if (gfx == LEGACY_GL || gfx == MODERN_GL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES)
         SDL_GL_SwapBuffers();
 #endif
 }
