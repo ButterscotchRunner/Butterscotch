@@ -1,5 +1,4 @@
 #include "vm_builtins.h"
-#include "common.h"
 #include "physics/physics.h"
 #include "video.h"
 #include "binary_utils.h"
@@ -20,7 +19,6 @@
 #include <float.h>
 #include "string_compat.h"
 #include "math_compat.h"
-#include "vm.h"
 #include <ctype.h>
 #include <time.h>
 #include <stdio.h>
