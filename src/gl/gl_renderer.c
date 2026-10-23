@@ -640,7 +640,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     if (modernGl->isGL3) {
         if (modernGl->isGLES) {
             vertHeader = "#version 300 es\nprecision highp float;\n";
-            fragHeader = "#version 300 es\nprecision mediump float;\n";
+            fragHeader = "#version 300 es\nprecision highp float;\n";
 
             snprintf(vertSrc, sizeof(vertSrc),
                 "%s"
@@ -666,7 +666,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     } else {
         if (modernGl->isGLES) {
             vertHeader = "#version 100\nprecision highp float;\n";
-            fragHeader = "#version 100\nprecision mediump float;\n";
+            fragHeader = "#version 100\nprecision highp float;\n";
         } else {
             vertHeader = "#version 110\n";
             fragHeader = "#version 110\n";
