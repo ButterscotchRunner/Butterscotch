@@ -118,6 +118,21 @@ MIPS big-endian builds do not have ffmpeg compiled in and won't work with functi
 | PlayStation Vita | [butterscotch-vita.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-vita.zip) | Place data.win in `ux0:/data/butterscotch/` directory. Requires `libshacccg.suprx` to be installed in `ur0:/data/` |
 | Nintendo Switch | [butterscotch-switch.zip](https://nightly.link/ButterscotchRunner/Butterscotch/workflows/build/main/butterscotch-switch.zip) | Place data.win in `sdmc:/switch/butterscotch/` directory OR compile from source with data.win file in `<cmake build dir>/romfs` directory (requires devkitPro). |
 
+### Experimental PS4 homebrew build
+
+PS4 builds use Clang/LLD, the OpenOrbis SDK's SDL2 library, and the software renderer. Set `OO_PS4_TOOLCHAIN` to the OpenOrbis SDK directory and, if LLVM is not on `PATH`, set `PS4_TOOLCHAIN_BIN` to its installation directory. The project provides its own CMake toolchain file:
+
+```bash
+cmake -S . -B build-ps4 -DPLATFORM=ps4 -DCMAKE_BUILD_TYPE=Release
+cmake --build build-ps4
+```
+
+The build requires the OpenOrbis `create-fself` tool. It creates `build-ps4/eboot.bin` and `build-ps4/butterscotch.oelf` with PS4 ELF headers. Put `data.win` and the game's external audio files beside the executable so they are available under `/app0`, or place them under `/data/butterscotch` on the console. Save files are written under `/data/butterscotch`. Audio uses miniaudio for mixing and PS4 AudioOut for playback.
+
+The default software renderer does not require Piglet or its shader compiler. Custom GPU shaders and 3D rendering are not supported by this renderer. An optional GLES build requires a GLES-enabled SDL2 package, `-DENABLE_SW_RENDERER=OFF -DENABLE_MODERN_GL=ON`, and compatible console-dumped `libScePigletv2VSH.sprx` and `libSceShaccVSH.sprx` under `sce_module`.
+
+To try the build in shadPS4, run `shadPS4 /path/to/build-ps4/butterscotch.oelf`. The emulator must be able to write its user directory and logs. Undertale's intro renders at 30 FPS in shadPS4 v0.20.0 with this build; full gameplay and console hardware have not been verified.
+
 
 ### Other
 

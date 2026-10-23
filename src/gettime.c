@@ -4,6 +4,8 @@
 #include <timer.h>
 #elif defined(PLATFORM_PS3)
 #include <sys/systime.h>
+#elif defined(PLATFORM_PS4)
+#include <orbis/libkernel.h>
 #elif defined(_WIN32)
 #include <windows.h>
 #elif defined(__APPLE__)
@@ -26,6 +28,8 @@ uint64_t nowNanos(void) {
     return sec * 1000000000 + (rem * 1000000000) / clk;
 #elif defined(PLATFORM_PS3)
     return ((double)__builtin_ppc_get_timebase()/(double)sysGetTimebaseFrequency());
+#elif defined(PLATFORM_PS4)
+    return sceKernelGetProcessTime() * 1000;
 #elif defined(_WIN32)
     static uint64_t freq = 0;
     if (freq == 0) {

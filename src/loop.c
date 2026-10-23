@@ -35,7 +35,7 @@
 #include "debug_overlay.h"
 #include "debug_font/debug_font.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
-    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
+    !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(PLATFORM_PS4)
 #define USE_GLAD
 #include <glad/glad.h>
 #endif
@@ -174,7 +174,7 @@ static bool platformInitGlad(void) {
 }
 #endif
 
-#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_WEB)
+#if (defined(ENABLE_MODERN_GL) || defined(ENABLE_LEGACY_GL)) && !defined(NDEBUG) && !defined(PLATFORM_VITA) && !defined(PLATFORM_PS4) && !defined(PLATFORM_WEB)
 #define USE_OPENGL_DEBUG
 static void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, MAYBE_UNUSED GLsizei length, const GLchar* message, MAYBE_UNUSED const void* userParam) {
     const char* sourceStr;

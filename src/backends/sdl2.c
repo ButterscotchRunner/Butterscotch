@@ -12,11 +12,20 @@
 #include <switch.h>
 #include "switch_input.h"
 #endif
+#ifdef PLATFORM_PS4
+#include <orbis/libkernel.h>
+#include <orbis/Pad.h>
+#include <orbis/UserService.h>
+#endif
 
 static Runner *g_runner;
 static SDL_Surface* scr;
 static SDL_Window *window;
 static SDL_GameController* openControllers[MAX_GAMEPADS];
+#ifdef PLATFORM_PS4
+static SDL_Joystick* ps4Joystick;
+static int32_t ps4PadHandle = -1;
+#endif
 
 static SDL_Window *tryOpenWindow(int reqW, int reqH, const char* title, Uint32 flags) {
     if (gfx == SOFTWARE) {
@@ -158,6 +167,13 @@ static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
 void platformSetWindowSize(int32_t width, int32_t height) {
     if (width <= 0 || height <= 0) return;
 
+#ifdef PLATFORM_PS4
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
+        width = mode.w;
+        height = mode.h;
+    }
+#endif
 #ifdef PLATFORM_SWITCH
     u32 operationMode = appletGetOperationMode();
     width = (operationMode == AppletOperationMode_Console) ? 1920 : 1280;
@@ -166,6 +182,9 @@ void platformSetWindowSize(int32_t width, int32_t height) {
 
     float scale = platformGetWindowScale();
     SDL_SetWindowSize(window, (int)(width / scale), (int)(height / scale));
+#ifdef PLATFORM_PS4
+    SDL_SetWindowPosition(window, 0, 0);
+#endif
 
     if (gfx == SOFTWARE)
         scr = SDL_GetWindowSurface(window);
@@ -186,11 +205,22 @@ static bool platformGetWindowFocus(void) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     // Init SDL
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
+    Uint32 initFlags = SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER;
+#ifndef PLATFORM_PS4
+    initFlags |= SDL_INIT_TIMER;
+#endif
+    if (SDL_Init(initFlags)) {
         logError("Failed to initialize SDL\n");
         return false;
     }
 
+#ifdef PLATFORM_PS4
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) == 0) {
+        reqW = mode.w;
+        reqH = mode.h;
+    }
+#endif
     for (int i = 0; i < MAX_GAMEPADS; i++) {
         openControllers[i] = NULL;
     }
@@ -253,10 +283,31 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     }
 #endif
 
+#ifdef PLATFORM_PS4
+    // Read the live pad state directly, with SDL joystick polling as a fallback.
+    ps4Joystick = SDL_NumJoysticks() > 0 ? SDL_JoystickOpen(0) : NULL;
+    if (ps4Joystick) logInfo("Gamepad: opened native PS4 joystick: %s\n", SDL_JoystickName(ps4Joystick));
+    else logWarn("Gamepad: no native PS4 joystick found: %s\n", SDL_GetError());
+
+    int32_t userId = -1;
+    if (sceUserServiceGetInitialUser(&userId) == 0 && userId >= 0) {
+        ps4PadHandle = scePadGetHandle(userId, ORBIS_PAD_PORT_TYPE_STANDARD, 0);
+    }
+    if (ps4PadHandle > 0) logInfo("Gamepad: using native PS4 pad state (handle %d)\n", ps4PadHandle);
+    else logWarn("Gamepad: native PS4 pad state unavailable, using SDL joystick polling\n");
+#endif
+
     return true;
 }
 
 void platformExit(void) {
+#ifdef PLATFORM_PS4
+    if (ps4Joystick) {
+        SDL_JoystickClose(ps4Joystick);
+        ps4Joystick = NULL;
+    }
+    ps4PadHandle = -1;
+#endif
     for (int i = 0; i < MAX_GAMEPADS; i++) {
         if (openControllers[i]) {
             SDL_GameControllerClose(openControllers[i]);
@@ -332,6 +383,7 @@ void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
 void platformSwapBuffers(void) {
 #ifdef ENABLE_SW_RENDERER
     if(gfx == SOFTWARE) {
+        if (!nextFb || !scr) return;
         SDL_BlitSurface(nextFb, NULL, scr, NULL);
         SDL_UpdateWindowSurface(window);
     }
@@ -556,6 +608,9 @@ bool platformHandleEvents(void) {
     }
 
     g_runner->gamepads->connectedCount = 0;
+#ifdef PLATFORM_PS4
+    SDL_JoystickUpdate();
+#endif
     for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
         GamepadSlot* slot = g_runner->gamepads->slots + slotIdx;
         SDL_GameController* gc = openControllers[slotIdx];
@@ -566,6 +621,77 @@ bool platformHandleEvents(void) {
         memset(slot->buttonReleased, 0, sizeof(slot->buttonReleased));
         memset(slot->buttonValue, 0, sizeof(slot->buttonValue));
         memset(slot->axisValue, 0, sizeof(slot->axisValue));
+
+#ifdef PLATFORM_PS4
+        if (slotIdx == 0 && ps4Joystick && SDL_JoystickGetAttached(ps4Joystick)) {
+            static const int buttonMap[GP_BUTTON_COUNT] = {0, 1, 2, 3, 9, 10, -1, -1, 4, 6, 7, 8, 11, 12, 13, 14, -1};
+            slot->connected = true;
+            slot->jid = 0;
+            snprintf(slot->description, sizeof(slot->description), "%s", SDL_JoystickName(ps4Joystick));
+            OrbisPadData padData;
+            int32_t padResult = ps4PadHandle > 0 ? scePadReadState(ps4PadHandle, &padData) : -1;
+            if (padResult != 0 && ps4PadHandle > 0) {
+                static bool loggedPadReadFailure;
+                if (!loggedPadReadFailure) {
+                    logWarn("Gamepad: native PS4 pad read failed (0x%x), using SDL joystick polling\n", (unsigned)padResult);
+                    loggedPadReadFailure = true;
+                }
+            }
+            if (padResult == 0) {
+                static const struct {
+                    uint32_t mask;
+                    int button;
+                } ps4Buttons[] = {
+                    {ORBIS_PAD_BUTTON_CROSS, 0},
+                    {ORBIS_PAD_BUTTON_CIRCLE, 1},
+                    {ORBIS_PAD_BUTTON_SQUARE, 2},
+                    {ORBIS_PAD_BUTTON_TRIANGLE, 3},
+                    {ORBIS_PAD_BUTTON_L1, 4},
+                    {ORBIS_PAD_BUTTON_R1, 5},
+                    {ORBIS_PAD_BUTTON_OPTIONS, 8},
+                    {ORBIS_PAD_BUTTON_TOUCH_PAD, 9},
+                    {ORBIS_PAD_BUTTON_L3, 10},
+                    {ORBIS_PAD_BUTTON_R3, 11},
+                    {ORBIS_PAD_BUTTON_UP, 12},
+                    {ORBIS_PAD_BUTTON_DOWN, 13},
+                    {ORBIS_PAD_BUTTON_LEFT, 14},
+                    {ORBIS_PAD_BUTTON_RIGHT, 15},
+                };
+                for (size_t i = 0; i < sizeof(ps4Buttons) / sizeof(ps4Buttons[0]); i++)
+                    slot->buttonDown[ps4Buttons[i].button] = (padData.buttons & ps4Buttons[i].mask) != 0;
+
+                slot->buttonValue[6] = padData.analogButtons.l2 / 255.0f;
+                slot->buttonValue[7] = padData.analogButtons.r2 / 255.0f;
+                if (slot->buttonValue[6] >= slot->triggerThreshold) slot->buttonDown[6] = true;
+                if (slot->buttonValue[7] >= slot->triggerThreshold) slot->buttonDown[7] = true;
+
+                slot->axisValue[0] = (padData.leftStick.x - 128) / (padData.leftStick.x >= 128 ? 127.0f : 128.0f);
+                slot->axisValue[1] = (padData.leftStick.y - 128) / (padData.leftStick.y >= 128 ? 127.0f : 128.0f);
+                slot->axisValue[2] = (padData.rightStick.x - 128) / (padData.rightStick.x >= 128 ? 127.0f : 128.0f);
+                slot->axisValue[3] = (padData.rightStick.y - 128) / (padData.rightStick.y >= 128 ? 127.0f : 128.0f);
+            } else {
+                for (int button = 0; button < GP_BUTTON_COUNT; button++) {
+                    int nativeButton = buttonMap[button];
+                    if (nativeButton >= 0 && SDL_JoystickGetButton(ps4Joystick, nativeButton))
+                        slot->buttonDown[button] = true;
+                }
+                slot->buttonValue[6] = (SDL_JoystickGetAxis(ps4Joystick, 4) + 32768.0f) / 65535.0f;
+                slot->buttonValue[7] = (SDL_JoystickGetAxis(ps4Joystick, 5) + 32768.0f) / 65535.0f;
+                if (slot->buttonValue[6] >= slot->triggerThreshold) slot->buttonDown[6] = true;
+                if (slot->buttonValue[7] >= slot->triggerThreshold) slot->buttonDown[7] = true;
+                for (int axis = 0; axis < GP_AXIS_COUNT; axis++)
+                    slot->axisValue[axis] = SDL_JoystickGetAxis(ps4Joystick, axis) / 32767.0f;
+            }
+            for (int button = 0; button < GP_BUTTON_COUNT; button++) {
+                bool wasDown = slot->buttonDownPrev[button];
+                slot->buttonPressed[button] = slot->buttonDown[button] && !wasDown;
+                slot->buttonReleased[button] = !slot->buttonDown[button] && wasDown;
+                if (button != 6 && button != 7) slot->buttonValue[button] = slot->buttonDown[button] ? 1.0f : 0.0f;
+            }
+            g_runner->gamepads->connectedCount++;
+            continue;
+        }
+#endif
 
         if (gc && SDL_GameControllerGetAttached(gc)) {
             slot->connected = true;
@@ -611,8 +737,13 @@ bool platformHandleEvents(void) {
 
 void platformSleepUntil(uint64_t time) {
     int64_t remaining = time - nowNanos();
-    if (remaining > 2000000)
+    if (remaining > 2000000) {
+#ifdef PLATFORM_PS4
+        sceKernelUsleep((remaining - 1000000) / 1000);
+#else
         SDL_Delay((remaining - 1000000) / 1000000);
+#endif
+    }
 
     while (nowNanos() < time) {
         // Spin-wait for the remaining sub-millisecond
