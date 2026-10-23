@@ -986,11 +986,11 @@ static void glClearDepthBuffer(Renderer* renderer, float depth) {
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     flushBatch((GLRenderer*)renderer);
     glDepthMask(GL_TRUE);
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
-    glClearDepthf(depth);
-#else
-    glClearDepth(depth);
-#endif
+    if (modernGl->isGLES) {
+        glClearDepthf(depth);
+    } else {
+        glClearDepth(depth);
+    }
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthMask(modernGl->depthWrite ? GL_TRUE : GL_FALSE);
 }
