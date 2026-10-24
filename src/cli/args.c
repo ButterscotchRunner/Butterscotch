@@ -1,5 +1,7 @@
 #include <loop.h>
 #include <getopt.h>
+
+#include "../../vendor/tinyfd/tinyfiledialogs.h"
 #ifdef _WIN32
 #include <io.h>
 #else
@@ -534,6 +536,22 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                 break;
             }
         }
+
+#ifdef ENABLE_FILE_PICKER
+        if (args->dataWinPath == nullptr) {
+            char const* filterPatterns[] = { "*.win", "*.ios", "*.unx", "*.droid", "*.psp" };
+
+            char* path = tinyfd_openFileDialog(
+                "Select GameMaker: Studio WAD File",
+                nullptr,
+                5,
+                filterPatterns,
+                nullptr,
+                false
+            );
+            args->dataWinPath = path;
+        }
+#endif
         if (args->dataWinPath == nullptr) {
             printUsage(argv[0]);
             exit(1);
