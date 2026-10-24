@@ -162,6 +162,7 @@ static const struct {
     { 2, 0, true },
 #else
     /* Desktop GL */
+#ifndef DISABLE_DESKTOP_GL
     { 4, 6, false },
     { 4, 5, false },
     { 4, 4, false },
@@ -175,6 +176,7 @@ static const struct {
     { 3, 0, false },
     { 2, 1, false },
     { 2, 0, false },
+#endif
 #ifndef USE_GLFW2
     /* GLES */
     { 3, 2, true  },

@@ -238,10 +238,19 @@ static int nsKeyToGML(unsigned short keyCode)
 
 @interface GameView : NSOpenGLView {
     NSTrackingArea *trackingArea;
+    NSEventModifierFlags lastModifierFlags;
 }
 @end
 
 @implementation GameView
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        lastModifierFlags = 0;
+    }
+    return self;
+}
 
 - (void)dealloc {
     if (trackingArea) {
@@ -281,10 +290,70 @@ static int nsKeyToGML(unsigned short keyCode)
 }
 
 - (void)keyDown:(NSEvent *)event {
-    RunnerKeyboard_onKeyDown(g_runner->keyboard, nsKeyToGML(event.keyCode));
+    NSString *characters = event.characters;
+    if (characters.length == 1) {
+        unichar ch = [characters characterAtIndex:0];
+        if (ch >= 32 && ch <= 126) {
+            int32_t mappedChar = (int32_t)ch;
+            if (mappedChar >= 'a' && mappedChar <= 'z') {
+                mappedChar = mappedChar - 'a' + 'A';
+            }
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, mappedChar);
+            RunnerKeyboard_onCharacter(g_runner->keyboard, (unsigned int)ch);
+            return;
+        }
+    }
+
+    int32_t mappedKey = nsKeyToGML(event.keyCode);
+    if (mappedKey != 0) {
+        RunnerKeyboard_onKeyDown(g_runner->keyboard, mappedKey);
+    }
 }
 - (void)keyUp:(NSEvent *)event {
     RunnerKeyboard_onKeyUp(g_runner->keyboard, nsKeyToGML(event.keyCode));
+}
+
+- (void)flagsChanged:(NSEvent *)event {
+    NSEventModifierFlags flags = event.modifierFlags;
+    NSEventModifierFlags changed = lastModifierFlags ^ flags;
+
+    if (changed & NSEventModifierFlagShift) {
+        if (flags & NSEventModifierFlagShift) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_SHIFT);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_SHIFT);
+        }
+    }
+    if (changed & NSEventModifierFlagControl) {
+        if (flags & NSEventModifierFlagControl) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_CONTROL);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_CONTROL);
+        }
+    }
+    if (changed & NSEventModifierFlagOption) {
+        if (flags & NSEventModifierFlagOption) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_ALT);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_ALT);
+        }
+    }
+    if (changed & NSEventModifierFlagCommand) {
+        if (flags & NSEventModifierFlagCommand) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, 91);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, 91);
+        }
+    }
+    if (changed & NSEventModifierFlagCapsLock) {
+        if (flags & NSEventModifierFlagCapsLock) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, 20);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, 20);
+        }
+    }
+
+    lastModifierFlags = flags;
 }
 
 - (void)mouseDown:(NSEvent *)event {

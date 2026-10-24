@@ -7,6 +7,9 @@
 #include "wad_versions.h"
 #include "profiler.h"
 #include "string_builder.h"
+#include "opword.h"
+#include "op.h"
+#include "cmpop.h"
 
 #include "stdio_compat.h"
 #include <stdlib.h>
@@ -23,7 +26,7 @@
 static bool shouldTraceStack(VMContext* ctx) {
     if (shlen(ctx->stackToBeTraced) == 0) return false;
     if (ctx->traceBytecodeAfterFrame > ctx->runner->frameCount) return false;
-    return shgeti(ctx->stackToBeTraced, "*") != -1 || shgeti(ctx->stackToBeTraced, ctx->currentCodeName) != -1;
+    return shgeti(ctx->stackToBeTraced, "*") != -1 || shgeti(ctx->stackToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1;
 }
 
 // Returns a heap-allocated "[elem0, elem1, ..., elemN]" string for the current stack contents (bottom -> top). Caller frees.
@@ -66,7 +69,7 @@ static void stackPush(VMContext* ctx, RValue val) {
         char* valStr = RValue_toStringTyped(val);
         ctx->stack.slots[ctx->stack.top++] = val;
         char* stackBuf = formatStackContents(ctx);
-        logInfo("VM: [%s] PUSH %s [stack=%d -> %d] %s\n", ctx->currentCodeName, valStr, ctx->stack.top - 1, ctx->stack.top, stackBuf);
+        logInfo("VM: [%s] PUSH %s [stack=%d -> %d] %s\n", VM_getCurrentCallFrameCodeName(ctx), valStr, ctx->stack.top - 1, ctx->stack.top, stackBuf);
         free(stackBuf);
         free(valStr);
         return;
@@ -87,7 +90,7 @@ static RValue stackPop(VMContext* ctx) {
     if (shouldTraceStack(ctx)) {
         char* valStr = RValue_toStringTyped(val);
         char* stackBuf = formatStackContents(ctx);
-        logInfo("VM: [%s] POP  %s [stack=%d -> %d] %s\n", ctx->currentCodeName, valStr, ctx->stack.top + 1, ctx->stack.top, stackBuf);
+        logInfo("VM: [%s] POP  %s [stack=%d -> %d] %s\n", VM_getCurrentCallFrameCodeName(ctx), valStr, ctx->stack.top + 1, ctx->stack.top, stackBuf);
         free(stackBuf);
         free(valStr);
     }
@@ -112,51 +115,6 @@ static RValue* stackPeek(VMContext* ctx) {
 }
 
 #endif
-
-// ===[ Instruction Decoding ]===
-
-static uint8_t instrOpcode(uint32_t instr) {
-    return (instr >> 24) & 0xFF;
-}
-
-static uint8_t instrType1(uint32_t instr) {
-    return (instr >> 16) & 0xF;
-}
-
-static uint8_t instrType2(uint32_t instr) {
-    return (instr >> 20) & 0xF;
-}
-
-static int16_t instrInstanceType(uint32_t instr) {
-    return (int16_t) (instr & 0xFFFF);
-}
-
-static uint8_t instrCmpKind(uint32_t instr) {
-    return (instr >> 8) & 0xFF;
-}
-
-static bool instrHasExtraData(uint32_t instr) {
-    return (instr & 0x40000000) != 0;
-}
-
-// Jump offset for branch instructions: sign-extend 23 bits, multiply by 4
-static int32_t instrJumpOffset(uint32_t instr) {
-    return ((int32_t) (instr << 9)) >> 7;
-}
-
-static uint32_t extraDataSize(uint8_t type1) {
-    switch (type1) {
-        case GML_TYPE_DOUBLE: return 8;
-        case GML_TYPE_INT64:  return 8;
-        case GML_TYPE_FLOAT:  return 4;
-        case GML_TYPE_INT32:  return 4;
-        case GML_TYPE_BOOL:   return 4;
-        case GML_TYPE_VARIABLE: return 4;
-        case GML_TYPE_STRING: return 4;
-        case GML_TYPE_INT16:  return 0;
-        default:              return 0;
-    }
-}
 
 // ===[ Reference Chain Resolution ]===
 
@@ -202,7 +160,8 @@ static void patchReferenceOperands(VMContext* ctx) {
             uint32_t operand = BinaryUtils_readUint32(&buf[operandAddr - base]);
 
             uint32_t instrWord = BinaryUtils_readUint32(&buf[addr - base]);
-            bool isPushRef = instrOpcode(instrWord) == OP_BREAK && instrInstanceType(instrWord) == BREAK_PUSHREF;
+            OpWord opword = {instrWord};
+            bool isPushRef = OpWord_opcode(opword) == OP_BREAK && OpWord_extra(opword) == BREAK_PUSHREF;
 
             uint32_t delta;
             if (isPushRef) {
@@ -475,17 +434,17 @@ static uint32_t resolveLocalSlot(VMContext* ctx, int32_t varID) {
         slot = (uint32_t) varID;
     } else {
         // BC13/BC14 and BC17+: allocate the slot dynamically because the data.win CANNOT be trusted to know how many localVars the script has
-        slot = IntIntHashMap_getOrInsertSequential(ctx->currentCodeLocalsSlotMap, varID);
+        slot = IntIntHashMap_getOrInsertSequential(ctx->currentCallFrame->currentCodeLocalsSlotMap, varID);
     }
 
     // Grow this frame's localVars window to cover `slot` whether the entry is pre-existing or freshly allocated.
-    // Pre-existing entries can still be past ctx->localVarCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
-    if (slot >= ctx->localVarCount) {
+    // Pre-existing entries can still be past ctx->currentCallFrame->localVarsCount if a nested call to the same code extended the slot map while the outer frame was suspended (the outer frame's localVarCount is captured at call entry and doesn't follow later growth).
+    if (slot >= ctx->currentCallFrame->localVarsCount) {
         RValue* resizedLocalVars = (RValue *)safeCalloc(slot + 1, sizeof(RValue));
-        memcpy(resizedLocalVars, ctx->localVars, sizeof(RValue) * ctx->localVarCount);
-        free(ctx->localVars);
-        ctx->localVars = resizedLocalVars;
-        ctx->localVarCount = slot + 1;
+        memcpy(resizedLocalVars, ctx->currentCallFrame->localVars, sizeof(RValue) * ctx->currentCallFrame->localVarsCount);
+        free(ctx->currentCallFrame->localVars);
+        ctx->currentCallFrame->localVars = resizedLocalVars;
+        ctx->currentCallFrame->localVarsCount = slot + 1;
     }
     return slot;
 }
@@ -514,11 +473,11 @@ Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target) {
 
 // Inline read of a non-array, non-builtin variable from a simple scope.
 // Returns false when the instanceType isn't covered or the scope's instance pointer is unavailable, so the caller can fall through to the full resolveVariableRead.
-// Used by the OP_PUSH/PUSHLOC/PUSHGLB fast paths in executeLoop to skip the entire resolveVariableRead dispatch overhead.
+// Used by the OP_PUSH/PUSHLOC/PUSHGLB fast paths in executeBytecodeInstructions to skip the entire resolveVariableRead dispatch overhead.
 static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable* varDef, RValue* out) {
     switch (instanceType) {
         case INSTANCE_SELF: {
-            Instance* inst = (Instance*) ctx->currentInstance;
+            Instance* inst = (Instance*) ctx->currentCallFrame->self;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
             if (slot == nullptr)
@@ -529,8 +488,8 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
         }
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            *out = ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            *out = ctx->currentCallFrame->localVars[localSlot];
             out->ownsReference = false;
             return true;
         }
@@ -544,7 +503,7 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
             return true;
         }
         case INSTANCE_OTHER: {
-            Instance* inst = (Instance*) ctx->otherInstance;
+            Instance* inst = (Instance*) ctx->currentCallFrame->other;
             if (inst == nullptr) return false;
             RValue* slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
             if (slot == nullptr)
@@ -616,7 +575,7 @@ void VM_copyStatic(VMContext* ctx, RValue* parentRef) {
         }
     }
     if (0 > parentCodeIndex) return;
-    Instance* childStatic = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+    Instance* childStatic = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
     Instance* parentStatic = VM_getOrCreateStaticStruct(ctx, parentCodeIndex);
     if (childStatic != nullptr && parentStatic != nullptr && childStatic != parentStatic) {
         childStatic->staticParent = parentStatic;
@@ -653,17 +612,17 @@ static bool tryReadInstanceVarOrStatic(VMContext* ctx, Instance* instance, int32
 
 static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
     if (writeIndex < 0) return false;
-    if (writeIndex < ctx->scriptArgCount) return true;
+    if (writeIndex < ctx->currentCallFrame->scriptArgsCount) return true;
 
     RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
 
-    if (ctx->scriptArgCount > 0) {
-        memcpy(newScriptArgs, ctx->scriptArgs, ctx->scriptArgCount * sizeof(RValue));
-        free(ctx->scriptArgs);
+    if (ctx->currentCallFrame->scriptArgsCount > 0) {
+        memcpy(newScriptArgs, ctx->currentCallFrame->scriptArgs, ctx->currentCallFrame->scriptArgsCount * sizeof(RValue));
+        free(ctx->currentCallFrame->scriptArgs);
     }
 
-    ctx->scriptArgs = newScriptArgs;
-    ctx->scriptArgCount = writeIndex + 1;
+    ctx->currentCallFrame->scriptArgs = newScriptArgs;
+    ctx->currentCallFrame->scriptArgsCount = writeIndex + 1;
     return true;
 }
 
@@ -671,13 +630,13 @@ void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
     if (!VM_ensureScriptArg(ctx, writeIndex)) return;
 
     RValue independent = RValue_makeIndependent(val);
-    RValue_free(&ctx->scriptArgs[writeIndex]);
-    ctx->scriptArgs[writeIndex] = independent;
+    RValue_free(&ctx->currentCallFrame->scriptArgs[writeIndex]);
+    ctx->currentCallFrame->scriptArgs[writeIndex] = independent;
 }
 
 void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val) {
     if (!VM_ensureScriptArg(ctx, writeIndex)) return;
-    VM_arraySetWithCoW(ctx, &ctx->scriptArgs[writeIndex], arrayIndex, val);
+    VM_arraySetWithCoW(ctx, &ctx->currentCallFrame->scriptArgs[writeIndex], arrayIndex, val);
 }
 
 static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t varRef) {
@@ -699,49 +658,49 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
 #endif
 
     // Resolve target instance for object/instance references (instanceType >= 0)
-    Instance* targetInstance = (Instance*) ctx->currentInstance;
+    Instance* targetInstance = (Instance*) ctx->currentCallFrame->self;
     if (instanceType >= 0) {
         targetInstance = VM_findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
             if (instanceType < INSTANCE_ID_BASE && (uint32_t) instanceType < ctx->dataWin->objt.count) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
-                logWarn("VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] READ var '%s' on object index %d (%s) but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, gameObject->name, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
             } else {
-                logWarn("VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] READ var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
             }
             return RValue_makeReal(0.0);
         }
     } else if (instanceType == INSTANCE_GLOBAL) {
         targetInstance = ctx->globalScopeInstance;
     } else if (instanceType == INSTANCE_OTHER) {
-        if (ctx->otherInstance != nullptr) {
-            targetInstance = (Instance*) ctx->otherInstance;
+        if (ctx->currentCallFrame->other != nullptr) {
+            targetInstance = (Instance*) ctx->currentCallFrame->other;
         }
 #if IS_WAD17_OR_HIGHER_ENABLED
     } else if (instanceType == INSTANCE_STATIC) {
         // "static" scope: read from the current constructor's shared static struct via the normal slot path below.
-        targetInstance = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        targetInstance = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
 #endif
     } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
         int16_t builtinVarId = varDef->builtinVarId;
         RValue result;
         if (builtinVarId == BUILTIN_VAR_ARGUMENT_COUNT) {
-            result = RValue_makeReal((GMLReal) ctx->scriptArgCount);
+            result = RValue_makeReal((GMLReal) ctx->currentCallFrame->scriptArgsCount);
         } else if (builtinVarId == BUILTIN_VAR_ARGUMENT) {
             // argument[N] array-style access
             int32_t idx = access.arrayIndex;
-            if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > idx && idx >= 0) {
-                result = ctx->scriptArgs[idx];
+            if (ctx->currentCallFrame->scriptArgs != nullptr && ctx->currentCallFrame->scriptArgsCount > idx && idx >= 0) {
+                result = ctx->currentCallFrame->scriptArgs[idx];
                 result.ownsReference = false;
             } else {
                 result = RValue_makeUndefined();
             }
         } else if (builtinVarId >= BUILTIN_VAR_ARGUMENT0 && BUILTIN_VAR_ARGUMENT15 >= builtinVarId) {
             int32_t argIndex = builtinVarId - BUILTIN_VAR_ARGUMENT0;
-            if (ctx->scriptArgs != nullptr && ctx->scriptArgCount > argIndex) {
-                result = ctx->scriptArgs[argIndex];
+            if (ctx->currentCallFrame->scriptArgs != nullptr && ctx->currentCallFrame->scriptArgsCount > argIndex) {
+                result = ctx->currentCallFrame->scriptArgs[argIndex];
                 result.ownsReference = false;
                 // If we are trying to access the argument via an array (example: argName[i]), we NEED to read INSIDE the array
                 // Example:
@@ -756,7 +715,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
                 result = RValue_makeUndefined();
             }
         } else {
-            logWarn("VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, builtinVarId);
+            logWarn("VM: [%s] INSTANCE_ARG read on unknown variable '%s' (builtinVarId=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, builtinVarId);
             result = RValue_makeUndefined();
         }
         return result;
@@ -795,8 +754,8 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            slot = &ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            slot = &ctx->currentCallFrame->localVars[localSlot];
             break;
         }
         case INSTANCE_SELF:
@@ -805,7 +764,7 @@ static RValue resolveVariableRead(VMContext* ctx, int32_t instanceType, uint32_t
             Instance* inst = targetInstance;
             if (inst == nullptr) {
                 const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
-                logWarn("VM: [%s] Read on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
+                logWarn("VM: [%s] Read on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID);
                 return RValue_makeReal(0.0);
             }
             slot = IntRValueHashMap_findSlot(&inst->selfVars, varDef->varID);
@@ -878,7 +837,7 @@ static void writeSingleInstanceVariable(VMContext* ctx, Instance* inst, Variable
     Instance_setSelfVar(inst, varDef->varID, val);
 }
 
-// Force out-of-line so the OP_POP fast path in executeLoop doesn't inline this, because we already have an "optimized" version for common writes
+// Force out-of-line so the OP_POP fast path in executeBytecodeInstructions doesn't inline this, because we already have an "optimized" version for common writes
 NOINLINE
 static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t varRef, RValue val) {
     Variable* varDef = resolveVarDef(ctx, varRef);
@@ -892,16 +851,16 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         switch (instanceType) {
             case INSTANCE_LOCAL: {
                 uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                require(ctx->localVarCount > localSlot);
-                RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->localVars[localSlot], val);
+                require(ctx->currentCallFrame->localVarsCount > localSlot);
+                RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->currentCallFrame->localVars[localSlot], val);
 #ifdef ENABLE_VM_TRACING
-                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, ctx->localVars[localSlot], true, -1, -1, "");
+                VM_checkIfVariableShouldBeTracedAndLog(ctx, "local", nullptr, varDef->name, ctx->currentCallFrame->localVars[localSlot], true, -1, -1, "");
 #endif
                 return;
             }
             case INSTANCE_SELF:
             case INSTANCE_GLOBAL: {
-                Instance* inst = (Instance*) ctx->currentInstance;
+                Instance* inst = (Instance*) ctx->currentCallFrame->self;
                 if (instanceType == INSTANCE_GLOBAL)
                     inst = ctx->globalScopeInstance;
 
@@ -919,7 +878,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
                 break; // fall through to slow path so the existing nullptr-instance error gets logged
             }
             case INSTANCE_OTHER: {
-                Instance* inst = (Instance*) ctx->otherInstance;
+                Instance* inst = (Instance*) ctx->currentCallFrame->other;
                 if (inst != nullptr) {
                     Instance_setSelfVar(inst, varDef->varID, val);
 #ifdef ENABLE_VM_TRACING
@@ -954,7 +913,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
 
     // "static" scope: write to the current constructor's shared static struct (runs once, guarded by isstaticok/setstatic).
     if (instanceType == INSTANCE_STATIC) {
-        Instance* staticStruct = VM_getOrCreateStaticStruct(ctx, ctx->currentCodeIndex);
+        Instance* staticStruct = VM_getOrCreateStaticStruct(ctx, ctx->currentCallFrame->codeIndex);
         if (staticStruct != nullptr) {
             writeSingleInstanceVariable(ctx, staticStruct, varDef, &access, val);
         }
@@ -983,7 +942,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             if (ctx->dataWin->objt.count > (uint32_t) instanceType) {
                 GameObject* gameObject = &ctx->dataWin->objt.objects[instanceType];
                 char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-                logWarn("VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, gameObject->name, valAsString);
+                logWarn("VM: [%s] WRITE var '%s' on object %d (%s) but no instances found (value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, gameObject->name, valAsString);
                 free(valAsString);
             }
         }
@@ -992,19 +951,19 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     }
 
     // Resolve target instance for instance ID references (instanceType >= INSTANCE_ID_BASE) or special types
-    Instance* targetInstance = (Instance*) ctx->currentInstance;
+    Instance* targetInstance = (Instance*) ctx->currentCallFrame->self;
     if (instanceType >= 0) {
         targetInstance = VM_findInstanceByTarget(ctx, instanceType);
         if (targetInstance == nullptr) {
             const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
             char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-            logWarn("VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
+            logWarn("VM: [%s] WRITE var '%s' on instance %d but no instance found (varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
             free(valAsString);
             return;
         }
     } else if (instanceType == INSTANCE_OTHER) {
-        if (ctx->otherInstance != nullptr) {
-            targetInstance = (Instance*) ctx->otherInstance;
+        if (ctx->currentCallFrame->other != nullptr) {
+            targetInstance = (Instance*) ctx->currentCallFrame->other;
         }
     } else if (IS_WAD17_OR_HIGHER(ctx) && instanceType == INSTANCE_ARG) {
         // BC17: write to argument0..argument15 via INSTANCE_ARG instance type (builtinVarId pre-resolved at parse time)
@@ -1015,7 +974,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
         } else if (bid == BUILTIN_VAR_ARGUMENT) {
             writeIndex = access.arrayIndex;
         } else {
-            logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", ctx->currentCodeName, varDef->name, bid);
+            logWarn("VM: [%s] INSTANCE_ARG write on unknown variable '%s' (builtinVarId=%d)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, bid);
         }
         if (writeIndex >= 0) {
             if (access.isArray && bid != BUILTIN_VAR_ARGUMENT) {
@@ -1053,8 +1012,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            slot = &ctx->localVars[localSlot];
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            slot = &ctx->currentCallFrame->localVars[localSlot];
             break;
         }
         case INSTANCE_SELF:
@@ -1067,7 +1026,7 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
             if (inst == nullptr) {
                 const char* varTypeName = varTypeToString((varRef >> 24) & 0xF8);
                 char* valAsString = RValue_toString(val, ctx->runner->dataWin);
-                logWarn("VM: [%s] Write on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
+                logWarn("VM: [%s] Write on self var '%s' but no current instance (instanceType=%d, varType=%s, isArray=%s, originalInstanceType=%d, hasInstanceType=%s, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, instanceType, varTypeName, access.isArray ? "true" : "false", originalInstanceType, access.hasInstanceType ? "true" : "false", varDef->varID, valAsString);
                 free(valAsString);
                 RValue_free(&val);
                 return;
@@ -1095,8 +1054,8 @@ static void resolveVariableWrite(VMContext* ctx, int32_t instanceType, uint32_t 
     switch (instanceType) {
         case INSTANCE_LOCAL: {
             uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-            require(ctx->localVarCount > localSlot);
-            RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->localVars[localSlot], val);
+            require(ctx->currentCallFrame->localVarsCount > localSlot);
+            RValue_writeIntoSlotStealingOwnershipOrCopying(&ctx->currentCallFrame->localVars[localSlot], val);
             return;
         }
         case INSTANCE_SELF:
@@ -1149,7 +1108,7 @@ static RValue convertValue(RValue val, uint8_t targetType, DataWin* dataWin) {
 
 // ===[ Opcode Handlers ]===
 
-static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData, uint8_t type1) {
+static void handlePush(VMContext* ctx, OpWord opword, const uint8_t* extraData, uint8_t type1) {
     switch (type1) {
         case GML_TYPE_DOUBLE:
             stackPushTyped(ctx, RValue_makeReal(BinaryUtils_readFloat64Aligned(extraData)), GML_TYPE_DOUBLE);
@@ -1168,7 +1127,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
             stackPushTyped(ctx, RValue_makeBool(BinaryUtils_readInt32Aligned(extraData) != 0), GML_TYPE_BOOL);
             break;
         case GML_TYPE_VARIABLE: {
-            int32_t instanceType = (int32_t) instrInstanceType(instr);
+            int32_t instanceType = (int32_t) OpWord_extra(opword);
             uint32_t varRef = resolveVarOperand(extraData);
             uint8_t varType = (varRef >> 24) & 0xF8;
             // BC17: VARTYPE_INSTANCE encodes (instanceId - INSTANCE_ID_BASE) in the instruction's lower 16 bits.
@@ -1192,11 +1151,11 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 // undefined while argument[0] (which goes through resolveVariableRead) was correct.
                 // Read the real value and hand out a weak ref to it instead.
                 if (varDef->builtinVarId >= 0) {
-                    Instance* builtinInst = (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
-                        ? (Instance*) ctx->otherInstance
+                    Instance* builtinInst = (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr)
+                        ? (Instance*) ctx->currentCallFrame->other
                         : (scope == INSTANCE_GLOBAL) ? ctx->globalScopeInstance
                         : (scope >= 0) ? VM_findInstanceByTarget(ctx, scope)
-                        : (Instance*) ctx->currentInstance;
+                        : (Instance*) ctx->currentCallFrame->self;
                     RValue builtinVal = VMBuiltins_getVariable(ctx, builtinInst, varDef->builtinVarId, varDef->name, firstIndex);
                     // Only a borrowed array can become a weak ref: freeing an owned one here would
                     // leave the stack pointing at released memory. Anything else keeps the old path,
@@ -1213,17 +1172,17 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                 switch (scope) {
                     case INSTANCE_LOCAL: {
                         uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                        require(ctx->localVarCount > localSlot);
-                        slot = &ctx->localVars[localSlot];
+                        require(ctx->currentCallFrame->localVarsCount > localSlot);
+                        slot = &ctx->currentCallFrame->localVars[localSlot];
                         break;
                     }
                     case INSTANCE_SELF:
                     case INSTANCE_OTHER:
                     case INSTANCE_GLOBAL: {
                         Instance* inst = scope == INSTANCE_GLOBAL ? ctx->globalScopeInstance
-                            : (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr)
-                            ? (Instance*) ctx->otherInstance
-                            : (Instance*) ctx->currentInstance;
+                            : (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr)
+                            ? (Instance*) ctx->currentCallFrame->other
+                            : (Instance*) ctx->currentCallFrame->self;
                         require(inst != nullptr);
                         slot = IntRValueHashMap_getOrInsertUndefined(&inst->selfVars, varDef->varID);
                         break;
@@ -1231,7 +1190,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
                     default: {
                         // Negative pseudo-scopes not handled above resolve to the current instance, mirroring handlePushBltn.
                         // Positive scopes are real instance IDs resolved by lookup.
-                        Instance* inst = (0 > scope) ? (Instance*) ctx->currentInstance : VM_findInstanceByTarget(ctx, scope);
+                        Instance* inst = (0 > scope) ? (Instance*) ctx->currentCallFrame->self : VM_findInstanceByTarget(ctx, scope);
                         if (inst == nullptr) {
                             logError("VM: ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
                             abort();
@@ -1281,7 +1240,7 @@ static void handlePush(VMContext* ctx, uint32_t instr, const uint8_t* extraData,
             break;
         }
         case GML_TYPE_INT16: {
-            int16_t value = (int16_t) (instr & 0xFFFF);
+            int16_t value = OpWord_extra(opword);
             RValue val = RValue_makeInt32((int32_t) value);
             stackPushTyped(ctx, val, GML_TYPE_INT16);
             break;
@@ -1310,22 +1269,22 @@ static void pushTopLevelArrayRef(VMContext* ctx, RValue* slot, bool forWrite) {
 }
 #endif
 
-static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraData) {
+static void handlePushBuiltin(VMContext* ctx, OpWord opword, const uint8_t* extraData) {
     uint32_t varRef = resolveVarOperand(extraData);
 #if IS_WAD17_OR_HIGHER_ENABLED
     uint8_t varType = (varRef >> 24) & 0xF8;
     if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
         Variable* varDef = resolveVarDef(ctx, varRef);
-        int32_t scope = (int32_t) instrInstanceType(instr);
+        int32_t scope = OpWord_extra(opword);
         Instance* inst = nullptr;
         if (scope == INSTANCE_SELF || scope == -1) {
-            inst = (Instance*) ctx->currentInstance;
-        } else if (scope == INSTANCE_OTHER && ctx->otherInstance != nullptr) {
-            inst = (Instance*) ctx->otherInstance;
+            inst = (Instance*) ctx->currentCallFrame->self;
+        } else if (scope == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr) {
+            inst = (Instance*) ctx->currentCallFrame->other;
         } else if (scope >= 0) {
             inst = VM_findInstanceByTarget(ctx, scope);
         } else {
-            inst = (Instance*) ctx->currentInstance;
+            inst = (Instance*) ctx->currentCallFrame->self;
         }
         if (inst == nullptr) {
             logError("VM: PushBltn ARRAYPUSHAF: no instance for scope %d varID=%d\n", scope, varDef->varID);
@@ -1348,12 +1307,12 @@ static void handlePushBltn(VMContext* ctx, uint32_t instr, const uint8_t* extraD
         return;
     }
 #endif
-    RValue val = resolveVariableRead(ctx, (int32_t) instrInstanceType(instr), varRef);
+    RValue val = resolveVariableRead(ctx, OpWord_extra(opword), varRef);
     stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 }
 
-static void handlePushI(VMContext* ctx, uint32_t instr) {
-    int16_t value = (int16_t) (instr & 0xFFFF);
+static void handlePushImmediate(VMContext* ctx, OpWord opword) {
+    int16_t value =  OpWord_extra(opword);
     RValue val = RValue_makeInt32((int32_t) value);
     stackPushTyped(ctx, val, GML_TYPE_INT16);
 }
@@ -1471,7 +1430,7 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
                     }
                 }
             } else {
-                Instance* targetInstance = instanceType == INSTANCE_OTHER && ctx->otherInstance != nullptr ? ctx->otherInstance : ctx->currentInstance;
+                Instance* targetInstance = instanceType == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr ? ctx->currentCallFrame->other : ctx->currentCallFrame->self;
                 VMBuiltins_setVariable(ctx, targetInstance, varDef->builtinVarId, varDef->name, val, arrayIndex);
 #ifdef ENABLE_VM_TRACING
                 VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, targetInstance), "self", varDef->name, val, true, arrayIndex, targetInstance->instanceId, " (builtin)");
@@ -1483,30 +1442,30 @@ static void handlePop(VMContext* ctx, uint8_t type1, uint8_t type2, uint32_t var
             switch (instanceType) {
                 case INSTANCE_LOCAL: {
                     uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                    require(ctx->localVarCount > localSlot);
-                    slot = &ctx->localVars[localSlot];
+                    require(ctx->currentCallFrame->localVarsCount > localSlot);
+                    slot = &ctx->currentCallFrame->localVars[localSlot];
                     break;
                 }
                 case INSTANCE_SELF:
                 case INSTANCE_GLOBAL:
                 default: {
-                    struct Instance* inst = (struct Instance*) ctx->currentInstance;
+                    struct Instance* inst = (struct Instance*) ctx->currentCallFrame->self;
                     if (instanceType >= 0) {
                         inst = VM_findInstanceByTarget(ctx, instanceType);
                         if (inst == nullptr) {
                             const char* varTypeName = varTypeToString(varType);
                             char* valAsString = RValue_toString(val, ctx->runner->dataWin);
                             if (instanceType < INSTANCE_ID_BASE && (uint32_t) instanceType < ctx->dataWin->objt.count) {
-                                logWarn("VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                logWarn("VM: [%s] WRITE array var '%s[%d]' on object index %d (%s) but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, arrayIndex, instanceType, ctx->dataWin->objt.objects[instanceType].name, varTypeName, originalInstanceType, varDef->varID, valAsString);
                             } else {
-                                logWarn("VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", ctx->currentCodeName, varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
+                                logWarn("VM: [%s] WRITE array var '%s[%d]' on instance %d but no instance found (varType=%s, originalInstanceType=%d, varID=%d, value=%s)\n", VM_getCurrentCallFrameCodeName(ctx), varDef->name, arrayIndex, instanceType, varTypeName, originalInstanceType, varDef->varID, valAsString);
                             }
                             free(valAsString);
                             RValue_free(&val);
                             return;
                         }
-                    } else if (instanceType == INSTANCE_OTHER && ctx->otherInstance != nullptr) {
-                        inst = (Instance*) ctx->otherInstance;
+                    } else if (instanceType == INSTANCE_OTHER && ctx->currentCallFrame->other != nullptr) {
+                        inst = (Instance*) ctx->currentCallFrame->other;
                     } else if (instanceType == INSTANCE_GLOBAL) {
                         inst = ctx->globalScopeInstance;
                     }
@@ -1601,71 +1560,71 @@ static void handleMulString(VMContext* ctx, RValue a, RValue b, uint8_t resultTy
     }
 }
 
-static void handleDiv(VMContext* ctx, uint32_t instr) {
+static void handleDiv(VMContext* ctx, OpWord opword) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
-    uint8_t type1 = instrType1(instr);
-    uint8_t type2 = instrType2(instr);
+    uint8_t type1 = OpWord_type1(opword);
+    uint8_t type2 = OpWord_type2(opword);
     GMLReal divisor = RValue_toReal(b);
     // In GameMaker's native runner, ONLY integer/integer division throws a hard error on zero, float/variable types rely on IEEE 754 (produces NaN)
     if ((type1 == GML_TYPE_INT32 || type1 == GML_TYPE_INT64) && (type2 == GML_TYPE_INT32 || type2 == GML_TYPE_INT64)) {
-        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoDiv :: Divide by zero", ctx->currentCodeName);
+        requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoDiv :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     }
     GMLReal result = RValue_toReal(a) / divisor;
     RValue_free(&a);
     RValue_free(&b);
-    stackPushTyped(ctx, RValue_makeReal(result), instrType2(instr));
+    stackPushTyped(ctx, RValue_makeReal(result), type2);
 }
 
-static void handleRem(VMContext* ctx, uint32_t instr) {
+static void handleRem(VMContext* ctx, OpWord opword) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     int64_t divisor = RValue_toInt64(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", ctx->currentCodeName);
+    requireMessageFormatted(__FILE__, __LINE__, divisor != 0, "VM: [%s] DoRem :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     int64_t result = RValue_toInt64(a) / divisor;
     RValue_free(&a);
     RValue_free(&b);
-    stackPushTyped(ctx, RValue_makeInt64(result), instrType2(instr));
+    stackPushTyped(ctx, RValue_makeInt64(result), OpWord_type2(opword));
 }
 
-static void handleMod(VMContext* ctx, uint32_t instr) {
+static void handleMod(VMContext* ctx, OpWord opword) {
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
     GMLReal divisor = RValue_toReal(b);
-    requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoMod :: Divide by zero", ctx->currentCodeName);
+    requireMessageFormatted(__FILE__, __LINE__, divisor != 0.0, "VM: [%s] DoMod :: Divide by zero", VM_getCurrentCallFrameCodeName(ctx));
     GMLReal result = GMLReal_fmod(RValue_toReal(a), divisor);
     RValue_free(&a);
     RValue_free(&b);
-    stackPushTyped(ctx, RValue_makeReal(result), instrType2(instr));
+    stackPushTyped(ctx, RValue_makeReal(result), OpWord_type2(opword));
 }
 
 #define SIMPLE_BYTECODE_BITWISE_OPERATION(op) \
     int32_t b = stackPopInt32(ctx); \
     int32_t a = stackPopInt32(ctx); \
     int32_t result = a op b; \
-    stackPushTyped(ctx, RValue_makeInt32(result), instrType2(instr))
+    stackPushTyped(ctx, RValue_makeInt32(result), OpWord_type2(opword))
 
-static void handleAnd(VMContext* ctx, uint32_t instr) {
+static void handleAnd(VMContext* ctx, OpWord opword) {
     SIMPLE_BYTECODE_BITWISE_OPERATION(&);
 }
 
-static void handleOr(VMContext* ctx, uint32_t instr) {
+static void handleOr(VMContext* ctx, OpWord opword) {
     SIMPLE_BYTECODE_BITWISE_OPERATION(|);
 }
 
-static void handleXor(VMContext* ctx, uint32_t instr) {
+static void handleXor(VMContext* ctx, OpWord opword) {
     SIMPLE_BYTECODE_BITWISE_OPERATION(^);
 }
 
-static void handleNeg(VMContext* ctx, uint32_t instr) {
+static void handleNeg(VMContext* ctx, OpWord opword) {
     RValue a = stackPop(ctx);
     GMLReal result = -RValue_toReal(a);
     RValue_free(&a);
-    stackPushTyped(ctx, RValue_makeReal(result), instrType1(instr));
+    stackPushTyped(ctx, RValue_makeReal(result), OpWord_type1(opword));
 }
 
-static void handleNot(VMContext* ctx, uint32_t instr) {
-    uint8_t resultType = instrType1(instr);
+static void handleNot(VMContext* ctx, OpWord opword) {
+    uint8_t resultType = OpWord_type1(opword);
     int32_t a = stackPopInt32(ctx);
     if (GML_TYPE_BOOL == resultType) {
         // Logical NOT: compiler emits this for the ! operator on boolean expressions
@@ -1678,11 +1637,11 @@ static void handleNot(VMContext* ctx, uint32_t instr) {
     }
 }
 
-static void handleShl(VMContext* ctx, uint32_t instr) {
+static void handleShl(VMContext* ctx, OpWord opword) {
     SIMPLE_BYTECODE_BITWISE_OPERATION(<<);
 }
 
-static void handleShr(VMContext* ctx, uint32_t instr) {
+static void handleShr(VMContext* ctx, OpWord opword) {
     SIMPLE_BYTECODE_BITWISE_OPERATION(>>);
 }
 
@@ -1770,7 +1729,7 @@ static void handleConv(VMContext* ctx, uint8_t srcType, uint8_t dstType, uint8_t
         case 0x5F: result = val; break;
 
         default:
-            logWarn("VM: [%s] Conv unhandled conversion 0x%02X (src=0x%X dst=0x%X)\n", ctx->currentCodeName, convKey, srcType, dstType);
+            logWarn("VM: [%s] Conv unhandled conversion 0x%02X (src=0x%X dst=0x%X)\n", VM_getCurrentCallFrameCodeName(ctx), convKey, srcType, dstType);
             result = val;
             break;
     }
@@ -1799,8 +1758,8 @@ static bool tryParseRealFromString(const char* str, GMLReal* out) {
     return true;
 }
 
-static void handleCmp(VMContext* ctx, uint32_t instr) {
-    uint8_t cmpKind = instrCmpKind(instr);
+static void handleCmp(VMContext* ctx, OpWord opword) {
+    uint8_t cmpKind = OpWord_comparisonFunction(opword);
     RValue b = stackPop(ctx);
     RValue a = stackPop(ctx);
 
@@ -1809,46 +1768,46 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
         // Undefined is only == to undefined
         bool eq = a.type == b.type;
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_ARRAY || b.type == RVALUE_ARRAY) {
         // Array is only == to the same array
         bool eq = (a.type == RVALUE_ARRAY && b.type == RVALUE_ARRAY) && (a.array == b.array);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
 #if IS_WAD17_OR_HIGHER_ENABLED
     } else if (a.type == RVALUE_METHOD || b.type == RVALUE_METHOD) {
         // Method is only == to the same method
         bool eq = (a.type == RVALUE_METHOD && b.type == RVALUE_METHOD) && (a.method == b.method);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
 #endif
     } else if (a.type == RVALUE_STRUCT || b.type == RVALUE_STRUCT) {
         // Struct is only == to the same struct (identity comparison)
         bool eq = (a.type == RVALUE_STRUCT && b.type == RVALUE_STRUCT) && (a.structInst == b.structInst);
         switch (cmpKind) {
-            case CMP_EQ:  result = eq;  break;
-            case CMP_NEQ: result = !eq; break;
-            default:      result = false; break;
+            case CMPOP_EQUAL:  result = eq;  break;
+            case CMPOP_NOT_EQUAL: result = !eq; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_STRING && b.type == RVALUE_STRING) {
         int cmp = strcmp(a.string != nullptr ? a.string : "", b.string != nullptr ? b.string : "");
         switch (cmpKind) {
-            case CMP_LT:  result = 0 > cmp; break;
-            case CMP_LTE: result = 0 >= cmp; break;
-            case CMP_EQ:  result = cmp == 0; break;
-            case CMP_NEQ: result = cmp != 0; break;
-            case CMP_GTE: result = cmp >= 0; break;
-            case CMP_GT:  result = cmp > 0; break;
-            default: result = false; break;
+            case CMPOP_LESS_THAN:  result = 0 > cmp; break;
+            case CMPOP_LESS_THAN_OR_EQUAL: result = 0 >= cmp; break;
+            case CMPOP_EQUAL:  result = cmp == 0; break;
+            case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+            case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+            case CMPOP_GREATER_THAN:  result = cmp > 0; break;
+            default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else {
         // Mixed string/number: coerce strings to reals (matching GameMaker-HTML5 yyCompareVal).
@@ -1874,9 +1833,9 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
 
         if (incomparable) {
             switch (cmpKind) {
-                case CMP_EQ:  result = false; break;
-                case CMP_NEQ: result = true;  break;
-                default:      result = false; break;
+                case CMPOP_EQUAL:  result = false; break;
+                case CMPOP_NOT_EQUAL: result = true;  break;
+                default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
             }
         } else {
             GMLReal diff = da - db;
@@ -1885,13 +1844,13 @@ static void handleCmp(VMContext* ctx, uint32_t instr) {
             GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
             int cmp = GMLReal_fabs(diff) <= epsilon ? 0 : (diff < 0 ? -1 : 1);
             switch (cmpKind) {
-                case CMP_LT:  result = cmp < 0; break;
-                case CMP_LTE: result = cmp <= 0; break;
-                case CMP_EQ:  result = cmp == 0; break;
-                case CMP_NEQ: result = cmp != 0; break;
-                case CMP_GTE: result = cmp >= 0; break;
-                case CMP_GT:  result = cmp > 0; break;
-                default: result = false; break;
+                case CMPOP_LESS_THAN:  result = cmp < 0; break;
+                case CMPOP_LESS_THAN_OR_EQUAL: result = cmp <= 0; break;
+                case CMPOP_EQUAL:  result = cmp == 0; break;
+                case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+                case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+                case CMPOP_GREATER_THAN:  result = cmp > 0; break;
+                default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
             }
         }
     }
@@ -1920,9 +1879,9 @@ static int32_t bytesToSlotCount(VMContext* ctx, int32_t nativeBytes, int32_t sta
     return slots;
 }
 
-static void handleDup(VMContext* ctx, uint32_t instr) {
-    uint16_t operand = (uint16_t)(instr & 0xFFFF);
-    uint8_t type1 = instrType1(instr);
+static void handleDup(VMContext* ctx, OpWord opword) {
+    uint16_t operand = OpWord_extra(opword);
+    uint8_t type1 = OpWord_type1(opword);
     int32_t typeSize = gmlTypeNativeSize(type1);
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -1956,16 +1915,16 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
 
         // Shift bottom group up to where top group was
         {
-        for (int32_t i = bottomSlots - 1; i >= 0; i--) {
-            ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
-        }
+            for (int32_t i = bottomSlots - 1; i >= 0; i--) {
+                ctx->stack.slots[baseIdx + topSlots + i] = ctx->stack.slots[baseIdx + i];
+            }
         }
 
         // Place top group at the bottom
         {
-        for (int32_t i = 0; topSlots > i; i++) {
-            ctx->stack.slots[baseIdx + i] = temp[i];
-        }
+            for (int32_t i = 0; topSlots > i; i++) {
+                ctx->stack.slots[baseIdx + i] = temp[i];
+            }
         }
         return;
     }
@@ -1987,30 +1946,14 @@ static void handleDup(VMContext* ctx, uint32_t instr) {
     // Copy 'count' items from the top of the stack (preserving order)
     int32_t startIdx = ctx->stack.top - count;
     for (int32_t i = 0; count > i; i++) {
-        RValue copy = ctx->stack.slots[startIdx + i];
-
-        // If the value owns a string, duplicate it to avoid double-free.
-        // For arrays and methods, bump the refcount so each duplicate independently owns a reference.
-        if (copy.type == RVALUE_STRING && copy.ownsReference && copy.string != nullptr) {
-            copy.string = safeStrdup(copy.string);
-        } else if (copy.type == RVALUE_ARRAY && copy.ownsReference && copy.array != nullptr) {
-            GMLArray_incRef(copy.array);
-#if IS_WAD17_OR_HIGHER_ENABLED
-        } else if (copy.type == RVALUE_METHOD && copy.ownsReference && copy.method != nullptr) {
-            GMLMethod_incRef(copy.method);
-#endif
-        } else if (copy.type == RVALUE_STRUCT && copy.ownsReference && copy.structInst != nullptr) {
-            Instance_structIncRef(copy.structInst);
-        }
-
-        stackPush(ctx, copy);
+        stackPush(ctx, RValue_makeIndependent(ctx->stack.slots[startIdx + i]));
     }
 }
 
 // ===[ Function Call Handler ]===
 
-static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData) {
-    int32_t argCount = instr & 0xFFFF;
+static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) {
+    int32_t argCount = OpWord_extra(opword);
     uint32_t funcIndex = resolveFuncOperand(extraData);
     require(ctx->dataWin->func.functionCount > funcIndex);
 
@@ -2027,7 +1970,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 
 #ifdef ENABLE_VM_TRACING
     const char* funcName = ctx->dataWin->func.functions[funcIndex].name;
-    bool functionIsBeingTraced = shgeti(ctx->functionCallsToBeTraced, "*") != -1 || shgeti(ctx->functionCallsToBeTraced, funcName) != -1 || shgeti(ctx->functionCallsToBeTraced, ctx->currentCodeName) != -1;
+    bool functionIsBeingTraced = shgeti(ctx->functionCallsToBeTraced, "*") != -1 || shgeti(ctx->functionCallsToBeTraced, funcName) != -1 || shgeti(ctx->functionCallsToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1;
     char* functionArgumentList = nullptr;
     if (functionIsBeingTraced) {
         functionArgumentList = safeStrdup("");
@@ -2047,7 +1990,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
             free(display);
         }
 
-        logInfo("VM: [%s] Calling function \"%s(%s)\"\n", ctx->currentCodeName, funcName, functionArgumentList);
+        logInfo("VM: [%s] Calling function \"%s(%s)\"\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList);
     }
 #endif
 
@@ -2069,7 +2012,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
             char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
-            logInfo("VM: [%s] Built-in function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
+            logInfo("VM: [%s] Built-in function \"%s(%s)\" returned %s\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
         }
@@ -2081,18 +2024,28 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 
     // Fast path: cached script code index
     if (cache->scriptCodeIndex >= 0) {
-        RValue result = VM_callCodeIndex(ctx, cache->scriptCodeIndex, args, argCount);
+        RValue result = VM_executeCode(
+            ctx,
+            cache->scriptCodeIndex,
+            ctx->currentCallFrame->self,
+            ctx->currentCallFrame->other,
+            ctx->currentCallFrame->eventObjectIndex,
+            ctx->currentCallFrame->eventType,
+            ctx->currentCallFrame->eventSubtype,
+            args,
+            argCount
+        );
 
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
             char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
-            logInfo("VM: [%s] Script function \"%s(%s)\" returned %s\n", ctx->currentCodeName, funcName, functionArgumentList, returnValueAsString);
+            logInfo("VM: [%s] Script function \"%s(%s)\" returned %s\n", VM_getCurrentCallFrameCodeName(ctx), funcName, functionArgumentList, returnValueAsString);
             free(returnValueAsString);
             free(functionArgumentList);
         }
 #endif
 
-        // Free arguments (VM_callCodeIndex copies what it needs)
+        // Free arguments (VM_executeCode copies what it needs)
         if (args != nullptr) {
             repeat(argCount, i) {
                 RValue_free(&args[i]);
@@ -2109,7 +2062,7 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
     const char* unknownFuncName = ctx->dataWin->func.functions[funcIndex].name;
 
     // Log once per (callingCode, funcName) pair
-    const char* callerName = VM_getCallerName(ctx);
+    const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
     char* dedupKey = VM_createDedupKey(callerName, unknownFuncName);
 
     if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
@@ -2141,8 +2094,8 @@ static void handleCall(VMContext* ctx, uint32_t instr, const uint8_t* extraData)
 // BC17+ CALLV: dynamic call through a variable (method/script reference).
 // Stack layout (top -> bottom): function, instance, arg[N-1], ..., arg[0]
 // argCount is in the low 16 bits of the instruction.
-static void handleCallV(VMContext* ctx, uint32_t instr) {
-    int32_t argCount = instr & 0xFFFF;
+static void handleCallV(VMContext* ctx, OpWord opword) {
+    int32_t argCount = OpWord_extra(opword);
 
     RValue function = stackPop(ctx);
     RValue instance = stackPop(ctx);
@@ -2186,20 +2139,30 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
 
     // Decide target self: prefer method's bound instance, else the stack-provided instance.
     int32_t targetInstance = (boundInstance > 0) ? boundInstance : RValue_toInt32(instance);
-    Instance* savedSelf = ctx->currentInstance;
+    Instance* savedSelf = ctx->currentCallFrame->self;
     if (targetInstance != INSTANCE_SELF && targetInstance != 0) {
         Instance* target = VM_findInstanceByTarget(ctx, targetInstance);
-        if (target != nullptr) ctx->currentInstance = target;
+        if (target != nullptr) ctx->currentCallFrame->self = target;
     }
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
-        result = VM_callCodeIndex(ctx, codeIndex, args, argCount);
+        result = VM_executeCode(
+            ctx,
+            codeIndex,
+            ctx->currentCallFrame->self,
+            ctx->currentCallFrame->other,
+            ctx->currentCallFrame->eventObjectIndex,
+            ctx->currentCallFrame->eventType,
+            ctx->currentCallFrame->eventSubtype,
+            args,
+            argCount
+        );
     } else if (builtin != nullptr) {
         result = builtin(ctx, args, argCount);
     } else if (unresolvedName != nullptr) {
 #ifdef ENABLE_VM_STUB_LOGS
-        const char* callerName = VM_getCallerName(ctx);
+        const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
         char* dedupKey = VM_createDedupKey(callerName, unresolvedName);
         if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
             shput(ctx->loggedUnknownFuncs, dedupKey, true);
@@ -2210,7 +2173,7 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
 #endif
         result = RValue_makeUndefined();
     } else {
-        logWarn("VM: [%s] CALLV with unresolvable function reference (type=%d, codeIndex=%d)\n", ctx->currentCodeName, function.type, codeIndex);
+        logWarn("VM: [%s] CALLV with unresolvable function reference (type=%d, codeIndex=%d)\n", VM_getCurrentCallFrameCodeName(ctx), function.type, codeIndex);
 #ifdef ENABLE_WAD17
         VMException* exception = (VMException *)safeCalloc(1, sizeof(VMException));
         exception->message = safeStrdup("CALLV with unresolvable function reference");
@@ -2219,7 +2182,7 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
 #endif
     }
 
-    ctx->currentInstance = savedSelf;
+    ctx->currentCallFrame->self = savedSelf;
 
     RValue_free(&function);
     RValue_free(&instance);
@@ -2239,11 +2202,11 @@ static void handleCallV(VMContext* ctx, uint32_t instr) {
 // Resolves a collision/instance "target" argument by mapping the special INSTANCE_SELF and INSTANCE_OTHER to the concrete instance ID they refer to.
 int32_t VM_resolveInstanceTarget(VMContext* ctx, int32_t target) {
     if (target == INSTANCE_SELF) {
-        Instance* self = (Instance*) ctx->currentInstance;
+        Instance* self = (Instance*) ctx->currentCallFrame->self;
         return self != nullptr ? (int32_t) self->instanceId : INSTANCE_NOONE;
     }
     if (target == INSTANCE_OTHER) {
-        Instance* other = (Instance*) ctx->otherInstance;
+        Instance* other = (Instance*) ctx->currentCallFrame->other;
         return other != nullptr ? (int32_t) other->instanceId : INSTANCE_NOONE;
     }
     return target;
@@ -2264,17 +2227,17 @@ bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targ
 
 // Sets the VM instance context from an Instance.
 static void switchToInstance(VMContext* ctx, Instance* inst) {
-    ctx->currentInstance = inst;
+    ctx->currentCallFrame->self = inst;
 }
 
 // Restores VM context from an EnvFrame's saved fields.
 static void restoreEnvContext(VMContext* ctx, EnvFrame* frame) {
-    ctx->currentInstance = frame->savedInstance;
-    ctx->otherInstance = frame->savedOtherInstance;
+    ctx->currentCallFrame->self = frame->savedInstance;
+    ctx->currentCallFrame->other = frame->savedOtherInstance;
 }
 
-static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
-    int32_t jumpOffset = instrJumpOffset(instr);
+static void handlePushEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
+    int32_t jumpOffset = OpWord_branchOffset(opword);
 
     // Pop target from stack
     int32_t target = stackPopInt32(ctx);
@@ -2285,15 +2248,15 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
 
     // Create env frame, save current context
     EnvFrame* frame = (EnvFrame *)safeMalloc(sizeof(EnvFrame));
-    frame->savedInstance = (Instance*) ctx->currentInstance;
-    frame->savedOtherInstance = (Instance*) ctx->otherInstance;
+    frame->savedInstance = (Instance*) ctx->currentCallFrame->self;
+    frame->savedOtherInstance = (Instance*) ctx->currentCallFrame->other;
     frame->instanceList = nullptr;
     frame->currentIndex = 0;
     frame->parent = ctx->envStack;
     ctx->envStack = frame;
 
     // Inside a with-block, "other" refers to the instance that executed the with-statement
-    ctx->otherInstance = (Instance*) ctx->currentInstance;
+    ctx->currentCallFrame->other = (Instance*) ctx->currentCallFrame->self;
 
     Runner* runner = (Runner*) ctx->runner;
 
@@ -2403,19 +2366,19 @@ static void handlePushEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
     if (0 > target) {
         // This is triggered in DELTARUNE Chapter 5 in room_dw_garden_meetflowery. This is not a bug, as
         // gml_Object_obj_bush_leaf_Step_0 calls scr_depth(-20). scr_depth then uses with(arg0), causing this log.
-        logWarn("VM: [%s] PushEnv with negative target %d, this could be a Int64 number that is getting truncated to Int32!\n", ctx->currentCodeName, target);
+        logWarn("VM: [%s] PushEnv with negative target %d, this could be a Int64 number that is getting truncated to Int32!\n", VM_getCurrentCallFrameCodeName(ctx), target);
     } else {
-        logWarn("VM: [%s] PushEnv with unhandled target %d\n", ctx->currentCodeName, target);
+        logWarn("VM: [%s] PushEnv with unhandled target %d\n", VM_getCurrentCallFrameCodeName(ctx), target);
     }
     ctx->ip = instrAddr + jumpOffset;
 }
 
-static void handlePopEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
+static void handlePopEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
     EnvFrame* frame = ctx->envStack;
     require(frame != nullptr);
 
-    // Check for exit magic: PopEnv with 0xF00000 operand means "unwind env stack and exit/return"
-    if ((instr & 0x00FFFFFF) == 0xF00000) {
+    // The 0xBBF00000 word is used when an "exit" is called within a "with" statement
+    if (opword.value == 0xBBF00000) {
         // Restore context and pop frame
         restoreEnvContext(ctx, frame);
         ctx->envStack = frame->parent;
@@ -2436,7 +2399,7 @@ static void handlePopEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
         if (nextInst->active) {
             switchToInstance(ctx, nextInst);
             // Jump back to the start of the with-block body
-            int32_t jumpOffset = instrJumpOffset(instr);
+            int32_t jumpOffset = OpWord_branchOffset(opword);
             ctx->ip = instrAddr + jumpOffset;
             return;
         }
@@ -2450,45 +2413,6 @@ static void handlePopEnv(VMContext* ctx, uint32_t instr, uint32_t instrAddr) {
 }
 
 // ===[ Execution Loop ]===
-
-static const char* opcodeName(uint8_t opcode) {
-    switch (opcode) {
-        case OP_CONV:    return "Conv";
-        case OP_MUL:     return "Mul";
-        case OP_DIV:     return "Div";
-        case OP_REM:     return "Rem";
-        case OP_MOD:     return "Mod";
-        case OP_ADD:     return "Add";
-        case OP_SUB:     return "Sub";
-        case OP_AND:     return "And";
-        case OP_OR:      return "Or";
-        case OP_XOR:     return "Xor";
-        case OP_NEG:     return "Neg";
-        case OP_NOT:     return "Not";
-        case OP_SHL:     return "Shl";
-        case OP_SHR:     return "Shr";
-        case OP_CMP:     return "Cmp";
-        case OP_POP:     return "Pop";
-        case OP_PUSHI:   return "PushI";
-        case OP_DUP:     return "Dup";
-        case OP_RET:     return "Ret";
-        case OP_EXIT:    return "Exit";
-        case OP_POPZ:    return "Popz";
-        case OP_B:       return "B";
-        case OP_BT:      return "BT";
-        case OP_BF:      return "BF";
-        case OP_PUSHENV: return "PushEnv";
-        case OP_POPENV:  return "PopEnv";
-        case OP_PUSH:    return "Push";
-        case OP_PUSHLOC: return "PushLoc";
-        case OP_PUSHGLB: return "PushGlb";
-        case OP_PUSHBLTN:return "PushBltn";
-        case OP_CALL:    return "Call";
-        case OP_CALLV:   return "CallV";
-        case OP_BREAK:   return "Break";
-        default:         return "???";
-    }
-}
 
 #ifdef ENABLE_VM_OPCODE_PROFILER
 static char gmlTypeChar(uint8_t type);
@@ -2563,7 +2487,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
     forEachIndexed(CountEntry, entry, i, entries, entryCount) {
         (void) i;
         double pct = total > 0 ? (100.0 * (double)(int64_t)entry->count / (double)(int64_t)total) : 0.0;
-        logInfo("%-12s 0x%02X   %16llu %7.2f%%\n", opcodeName((uint8_t) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
+        logInfo("%-12s 0x%02X   %16llu %7.2f%%\n", Op_getOpcodeName((Op) entry->key), (uint8_t) entry->key, (unsigned longlong) entry->count, pct);
     }
     }
 
@@ -2593,7 +2517,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
             variantEntries[j] = tmp;
         }
 
-        logInfo("%s (0x%02X): %llu total\n", opcodeName(opcode), opcode, (unsigned longlong) entry->count);
+        logInfo("%s (0x%02X): %llu total\n", Op_getOpcodeName((Op) opcode), opcode, (unsigned longlong) entry->count);
         forEachIndexed(CountEntry, ve, vi, variantEntries, variantCount) {
             (void) vi;
             uint8_t type1 = (uint8_t) ((ve->key >> 4) & 0xF);
@@ -2673,7 +2597,7 @@ void VM_printOpcodeProfilerReport(const VMContext* ctx) {
 #endif // ENABLE_VM_OPCODE_PROFILER
 
 // Forward declaration for formatInstruction (defined in disassembler section, used by trace-opcodes)
-static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint32_t instrAddr, uint32_t instr, const uint8_t* extraData, char* opcodeStr, size_t opcodeSize, char* operandStr, size_t operandSize, char* commentStr, size_t commentSize);
+static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint32_t instrAddr, OpWord opword, const uint8_t* extraData, char* opcodeStr, size_t opcodeSize, char* operandStr, size_t operandSize, char* commentStr, size_t commentSize);
 
 #if IS_WAD17_OR_HIGHER_ENABLED
 // ===[ BREAK sub-opcode handlers (BC17+) ]===
@@ -2683,7 +2607,7 @@ static void handleBreakChkIndex(VMContext* ctx, uint32_t instrAddr) {
     RValue* top = stackPeek(ctx);
     int32_t idx = RValue_toInt32(*top);
     if (0 > idx || 32000 <= idx) {
-        logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, ctx->currentCodeName);
+        logError("VM: chkindex out of bounds: %d at offset %u in %s\n", idx, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
         abort();
     }
 }
@@ -2714,7 +2638,7 @@ static void handleBreakPopAF(VMContext* ctx) {
     RValue value = stackPop(ctx);
     if (arrayRef.type == RVALUE_ARRAY && arrayRef.array != nullptr && idx >= 0) {
         GMLArray* arr = arrayRef.array;
-        requireMessageFormatted(__FILE__, __LINE__, arr->refCount == 1 || arr->owner == ctx->currentArrayOwner, "BREAK_POPAF: Writing through shared/aliased array without prior CoW fork in %s: arr=%p refCount=%d owner=%p currentArrayOwner=%p idx=%d", ctx->currentCodeName, (void*) arr, arr->refCount, arr->owner, ctx->currentArrayOwner, idx);
+        requireMessageFormatted(__FILE__, __LINE__, arr->refCount == 1 || arr->owner == ctx->currentArrayOwner, "BREAK_POPAF: Writing through shared/aliased array without prior CoW fork in %s: arr=%p refCount=%d owner=%p currentArrayOwner=%p idx=%d", VM_getCurrentCallFrameCodeName(ctx), (void*) arr, arr->refCount, arr->owner, ctx->currentArrayOwner, idx);
         GMLArray_set(arr, idx, value);
     }
     RValue_free(&arrayRef);
@@ -2726,7 +2650,7 @@ static void handleBreakPushAC(VMContext* ctx, uint32_t instrAddr) {
     int32_t idx = stackPopInt32(ctx);
     RValue arrayRef = stackPop(ctx);
     if (arrayRef.type != RVALUE_ARRAY || arrayRef.array == nullptr) {
-        logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, ctx->currentCodeName);
+        logError("VM: pushac on non-array (type=%d) at offset %u in %s\n", arrayRef.type, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
         abort();
     }
     GMLArray* parent = arrayRef.array;
@@ -2756,13 +2680,13 @@ static void handleBreakSetOwner(VMContext* ctx) {
 
 static void handleBreakIsStaticOk(VMContext* ctx) {
     // Push bool: has this function's static block already run?
-    bool initialized = ctx->staticInitialized[ctx->currentCodeIndex];
+    bool initialized = ctx->staticInitialized[ctx->currentCallFrame->codeIndex];
     stackPush(ctx, RValue_makeBool(initialized));
 }
 
 static void handleBreakSetStatic(VMContext* ctx) {
     // Mark current function's static as initialized
-    ctx->staticInitialized[ctx->currentCodeIndex] = true;
+    ctx->staticInitialized[ctx->currentCallFrame->codeIndex] = true;
 }
 
 static void handleBreakSaveARef(VMContext* ctx) {
@@ -2821,9 +2745,9 @@ static void handleBreakPushRef(VMContext* ctx, const uint8_t* extraData) {
     stackPushTyped(ctx, RValue_makeAssetRef(index, assetType), GML_TYPE_VARIABLE);
 }
 
-static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, const uint8_t* extraData) {
+static void handleBreak(VMContext* ctx, OpWord opword, uint32_t instrAddr, const uint8_t* extraData) {
     if (IS_WAD16_OR_BELOW(ctx)) return;
-    int16_t breakType = instrInstanceType(instr);
+    int16_t breakType = OpWord_extra(opword);
     switch (breakType) {
         case BREAK_CHKINDEX:    handleBreakChkIndex(ctx, instrAddr); break;
         case BREAK_PUSHAF:      handleBreakPushAF(ctx); break;
@@ -2837,7 +2761,7 @@ static void handleBreak(VMContext* ctx, uint32_t instr, uint32_t instrAddr, cons
         case BREAK_ISNULLISH:   handleBreakIsNullish(ctx); break;
         case BREAK_PUSHREF:     handleBreakPushRef(ctx, extraData); break;
         default:
-            logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, ctx->currentCodeName);
+            logError("VM: Unknown BREAK sub-opcode %d at offset %u in %s\n", breakType, instrAddr, VM_getCurrentCallFrameCodeName(ctx));
             abort();
     }
 }
@@ -2862,20 +2786,21 @@ static void unwindVMStack(VMContext* ctx, int32_t newStackTop) {
     ctx->stack.top = newStackTop;
 }
 
-static RValue executeLoop(VMContext* ctx) {
-    // codeEnd and bytecodeBase are invariant for the lifetime of this executeLoop call, so let's hoist them to avoid the compiler emitting code to
+static RValue executeBytecodeInstructions(VMContext* ctx, CodeEntry* code) {
+    // codeLength and bytecodeBase are invariant for the lifetime of this executeBytecodeInstructions call, so let's hoist them to avoid the compiler emitting code to
     // reload the values at the end of every iteration.
-    const uint32_t codeEnd = ctx->codeEnd;
+    const uint32_t codeLength = code->length;
+    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
     const uint8_t* const bytecodeBase = ctx->bytecodeBase;
     // If you just joined the stream: ip is short for instruction pointer chat
     // The ip is mutable, so we need to use VM_SYNC_IP and VM_RELOAD_IP every time an opcode handler may access it or write to it
-    uint32_t ip = ctx->ip;
+    uint32_t ip = code->offset;
 
     RValue* restrict slots = ctx->stack.slots;
 
     // Some opcodes have their handler or parts of their handler inlined
     // Those are opcodes that during real gameplay (using "--profile-opcodes") shown that, with inlining and keeping only the frequently called handle parts, we could squeeze MORE performance from the interpreter!
-    while (codeEnd > ip) {
+    while (codeLength > ip) {
 #ifdef ENABLE_WAD17
         if (ctx->exception != nullptr) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
@@ -2894,7 +2819,7 @@ static RValue executeLoop(VMContext* ctx) {
             ExceptionHandlerFrame* exceptionHandlerFrame = &ctx->exceptionHandlerFrameStack[ctx->exceptionHandlerStackTop - 1];
 
             // Not for us, propagate the exception!
-            if (exceptionHandlerFrame->boundToCallDepth != ctx->callDepth) {
+            if (exceptionHandlerFrame->boundToCallFrame != ctx->currentCallFrame) {
 #ifdef ENABLE_VM_EXCEPTIONS_LOGS
                 logWarn("VM: We wanted %d but we are %d - Propagating...\n", exceptionHandlerFrame->boundToCallDepth, ctx->callDepth);
 #endif
@@ -2934,25 +2859,21 @@ static RValue executeLoop(VMContext* ctx) {
             Profiler_tickInstruction(ctx->profiler);
 #endif
         uint32_t instrAddr = ip;
-        uint32_t instr = BinaryUtils_readUint32Aligned(bytecodeBase + ip);
+        OpWord opword = {BinaryUtils_readUint32Aligned(bytecodeBase + ip)};
         ip += 4;
 
         // extraData pointer (may not be used depending on opcode)
         const uint8_t* extraData = bytecodeBase + ip;
+        ip += OpWord_operandSize(opword);
 
-        // If instruction has extra data (bit 30 set), advance IP past it
-        if (instrHasExtraData(instr)) {
-            ip += extraDataSize(instrType1(instr));
-        }
-
-        uint8_t opcode = instrOpcode(instr);
+        uint8_t opcode = OpWord_opcode(opword);
 
 #ifdef ENABLE_VM_OPCODE_PROFILER
         if (ctx->opcodeProfilerEnabled) {
             ctx->opcodeCounts[opcode]++;
-            ctx->opcodeVariantCounts[opcode * 256 + instrType1(instr) * 16 + instrType2(instr)]++;
+            ctx->opcodeVariantCounts[opcode * 256 + OpWord_type1(opword) * 16 + OpWord_type2(opword)]++;
             if (opcode == OP_BREAK) {
-                int16_t breakType = instrInstanceType(instr);
+                int16_t breakType = OpWord_extra(opword);
                 int idx = -breakType;
                 if (idx >= 0 && 64 > idx) {
                     ctx->breakSubOpCounts[idx]++;
@@ -2984,16 +2905,16 @@ static RValue executeLoop(VMContext* ctx) {
 
 #ifdef ENABLE_VM_TRACING
         if (shlen(ctx->opcodesToBeTraced) > 0 && ctx->runner->frameCount >= ctx->traceBytecodeAfterFrame) {
-            if (shgeti(ctx->opcodesToBeTraced, "*") != -1 || shgeti(ctx->opcodesToBeTraced, ctx->currentCodeName) != -1) {
+            if (shgeti(ctx->opcodesToBeTraced, "*") != -1 || shgeti(ctx->opcodesToBeTraced, VM_getCurrentCallFrameCodeName(ctx)) != -1) {
                 char opcodeStr[32], operandStr[256] = "", commentStr[128] = "";
-                formatInstruction(ctx, ctx->bytecodeBase, instrAddr, instr, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
+                formatInstruction(ctx, ctx->bytecodeBase, instrAddr, opword, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
 
                 char* stackBuf = formatStackContents(ctx);
 
                 if (operandStr[0] != '\0') {
-                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s %s [stack=%d] %s\n", ctx->currentCodeName, instrAddr, instrAddr, instr, opcodeStr, operandStr, ctx->stack.top, stackBuf);
+                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s %s [stack=%d] %s\n", VM_getCurrentCallFrameCodeName(ctx), instrAddr, instrAddr, opword.value, opcodeStr, operandStr, ctx->stack.top, stackBuf);
                 } else {
-                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s [stack=%d] %s\n", ctx->currentCodeName, instrAddr, instrAddr, instr, opcodeStr, ctx->stack.top, stackBuf);
+                    logInfo("VM: [%s] @%04X (%d) [0x%08X] %s [stack=%d] %s\n", VM_getCurrentCallFrameCodeName(ctx), instrAddr, instrAddr, opword.value, opcodeStr, ctx->stack.top, stackBuf);
                 }
                 free(stackBuf);
             }
@@ -3003,7 +2924,7 @@ static RValue executeLoop(VMContext* ctx) {
         switch (opcode) {
             // Push instructions
             case OP_PUSH: {
-                uint8_t type1 = instrType1(instr);
+                uint8_t type1 = OpWord_type1(opword);
                 // Inline fast paths for variable reads (not ints, doubles, etc, only VARIABLES) that are "normal" type (not arrays, not stacktop, and not the new fangled BC17 array reads)
                 if (type1 == GML_TYPE_VARIABLE) {
                     uint32_t varRef = resolveVarOperand(extraData);
@@ -3011,14 +2932,14 @@ static RValue executeLoop(VMContext* ctx) {
                     if (varType == VARTYPE_NORMAL) {
                         Variable* varDef = resolveVarDef(ctx, varRef);
                         if (varDef->varID >= 0) {
-                            int32_t instanceType = (int32_t) instrInstanceType(instr);
+                            int32_t instanceType = (int32_t) OpWord_extra(opword);
                             RValue val;
                             if (tryFastVarRead(ctx, instanceType, varDef, &val)) {
                                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 #ifdef ENABLE_VM_TRACING
                                 switch (instanceType) {
                                     case INSTANCE_SELF: {
-                                        Instance* inst = (Instance*) ctx->currentInstance;
+                                        Instance* inst = (Instance*) ctx->currentCallFrame->self;
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
                                         break;
                                     }
@@ -3029,7 +2950,7 @@ static RValue executeLoop(VMContext* ctx) {
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, "global", nullptr, varDef->name, val, false, -1, -1, "");
                                         break;
                                     case INSTANCE_OTHER: {
-                                        Instance* inst = (Instance*) ctx->otherInstance;
+                                        Instance* inst = (Instance*) ctx->currentCallFrame->other;
                                         VM_checkIfVariableShouldBeTracedAndLog(ctx, instanceObjectName(ctx, inst), "self", varDef->name, val, false, -1, inst->instanceId, "");
                                         break;
                                     }
@@ -3040,26 +2961,26 @@ static RValue executeLoop(VMContext* ctx) {
                         }
                     }
                 }
-                handlePush(ctx, instr, extraData, type1);
+                handlePush(ctx, opword, extraData, type1);
                 break;
             }
-            case OP_PUSHLOC: {
+            case OP_PUSH_LOCAL: {
                 uint32_t varRef = resolveVarOperand(extraData);
 #if IS_WAD17_OR_HIGHER_ENABLED
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
                 if (varType == VARTYPE_ARRAYPUSHAF || varType == VARTYPE_ARRAYPOPAF) {
                     Variable* varDef = resolveVarDef(ctx, varRef);
                     uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                    require(ctx->localVarCount > localSlot);
-                    pushTopLevelArrayRef(ctx, &ctx->localVars[localSlot], varType == VARTYPE_ARRAYPOPAF);
+                    require(ctx->currentCallFrame->localVarsCount > localSlot);
+                    pushTopLevelArrayRef(ctx, &ctx->currentCallFrame->localVars[localSlot], varType == VARTYPE_ARRAYPOPAF);
                     break;
                 }
 #endif
                 // Locals are always non-builtin (varID >= 0); inline the read straight from localVars[].
                 Variable* varDef = resolveVarDef(ctx, varRef);
                 uint32_t localSlot = resolveLocalSlot(ctx, varDef->varID);
-                require(ctx->localVarCount > localSlot);
-                RValue val = ctx->localVars[localSlot];
+                require(ctx->currentCallFrame->localVarsCount > localSlot);
+                RValue val = ctx->currentCallFrame->localVars[localSlot];
                 val.ownsReference = false;
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
 #ifdef ENABLE_VM_TRACING
@@ -3067,7 +2988,7 @@ static RValue executeLoop(VMContext* ctx) {
 #endif
                 break;
             }
-            case OP_PUSHGLB: {
+            case OP_PUSH_GLOBAL: {
                 uint32_t varRef = resolveVarOperand(extraData);
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
                 if (varType == VARTYPE_NORMAL) {
@@ -3092,22 +3013,22 @@ static RValue executeLoop(VMContext* ctx) {
                 stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
                 break;
             }
-            case OP_PUSHBLTN:
-                handlePushBltn(ctx, instr, extraData);
+            case OP_PUSH_BUILTIN:
+                handlePushBuiltin(ctx, opword, extraData);
                 break;
-            case OP_PUSHI:
-                handlePushI(ctx, instr);
+            case OP_PUSH_IMMEDIATE:
+                handlePushImmediate(ctx, opword);
                 break;
 
             // Pop instructions
             case OP_POP: {
-                uint8_t type1 = instrType1(instr);
+                uint8_t type1 = OpWord_type1(opword);
                 uint32_t varRef = resolveVarOperand(extraData);
                 uint8_t varType = (uint8_t) ((varRef >> 24) & 0xF8);
-                int32_t instanceType = instrInstanceType(instr);
+                int32_t instanceType = OpWord_extra(opword);
                 // BC17: VARTYPE_INSTANCE encodes (instanceId - INSTANCE_ID_BASE) in the instruction's lower 16 bits.
                 if (varType == VARTYPE_INSTANCE) instanceType += INSTANCE_ID_BASE;
-                int32_t type2 = instrType2(instr); // source type (what's on stack)
+                int32_t type2 = OpWord_type2(opword); // source type (what's on stack)
                 if (type1 == GML_TYPE_VARIABLE && varType == VARTYPE_NORMAL) {
                     // Inline fast path for the simple variable-assignment case: type1==VARIABLE, which is ~99.998% of all Pops in real workloads
                     RValue val = stackPop(ctx);
@@ -3123,7 +3044,7 @@ static RValue executeLoop(VMContext* ctx) {
                 break;
 
             // Arithmetic
-            // We keep the number + number operations inlined in executeLoop, keeping only the slow path for string concat/repetition
+            // We keep the number + number operations inlined in executeBytecodeInstructions, keeping only the slow path for string concat/repetition
             case OP_ADD: {
                 RValue* slotA = &slots[ctx->stack.top - 2];
                 RValue* slotB = &slots[ctx->stack.top - 1];
@@ -3140,10 +3061,10 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal + bVal;
                         slotA->type = RVALUE_REAL;
                     }
-                    slotA->gmlStackType = instrType2(instr);
+                    slotA->gmlStackType = OpWord_type2(opword);
                     ctx->stack.top--;
                 } else {
-                    uint8_t resultType = instrType2(instr);
+                    uint8_t resultType = OpWord_type2(opword);
                     RValue b = stackPop(ctx);
                     RValue a = stackPop(ctx);
                     if (a.type == RVALUE_STRING || b.type == RVALUE_STRING) {
@@ -3177,10 +3098,10 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal - bVal;
                         slotA->type = RVALUE_REAL;
                     }
-                    slotA->gmlStackType = instrType2(instr);
+                    slotA->gmlStackType = OpWord_type2(opword);
                     ctx->stack.top--;
                 } else {
-                    uint8_t resultType = instrType2(instr);
+                    uint8_t resultType = OpWord_type2(opword);
                     RValue b = stackPop(ctx);
                     RValue a = stackPop(ctx);
 #ifndef NO_RVALUE_INT64
@@ -3210,10 +3131,10 @@ static RValue executeLoop(VMContext* ctx) {
                         slotA->real = aVal * bVal;
                         slotA->type = RVALUE_REAL;
                     }
-                    slotA->gmlStackType = instrType2(instr);
+                    slotA->gmlStackType = OpWord_type2(opword);
                     ctx->stack.top--;
                 } else {
-                    uint8_t resultType = instrType2(instr);
+                    uint8_t resultType = OpWord_type2(opword);
                     RValue b = stackPop(ctx);
                     RValue a = stackPop(ctx);
                     if (a.type == RVALUE_STRING) {
@@ -3233,25 +3154,25 @@ static RValue executeLoop(VMContext* ctx) {
                 }
                 break;
             }
-            case OP_DIV: handleDiv(ctx, instr); break;
-            case OP_REM: handleRem(ctx, instr); break;
-            case OP_MOD: handleMod(ctx, instr); break;
+            case OP_DIV: handleDiv(ctx, opword); break;
+            case OP_REM: handleRem(ctx, opword); break;
+            case OP_MOD: handleMod(ctx, opword); break;
 
             // Bitwise / Logical
-            case OP_AND: handleAnd(ctx, instr); break;
-            case OP_OR:  handleOr(ctx, instr);  break;
-            case OP_XOR: handleXor(ctx, instr); break;
-            case OP_SHL: handleShl(ctx, instr); break;
-            case OP_SHR: handleShr(ctx, instr); break;
+            case OP_AND: handleAnd(ctx, opword); break;
+            case OP_OR:  handleOr(ctx, opword);  break;
+            case OP_XOR: handleXor(ctx, opword); break;
+            case OP_SHL: handleShl(ctx, opword); break;
+            case OP_SHR: handleShr(ctx, opword); break;
 
             // Unary
-            case OP_NEG: handleNeg(ctx, instr); break;
-            case OP_NOT: handleNot(ctx, instr); break;
+            case OP_NEG: handleNeg(ctx, opword); break;
+            case OP_NOT: handleNot(ctx, opword); break;
 
             // Type conversion
             case OP_CONV: {
-                uint8_t srcType = instrType1(instr);
-                uint8_t dstType = instrType2(instr);
+                uint8_t srcType = OpWord_type1(opword);
+                uint8_t dstType = OpWord_type2(opword);
                 uint8_t convKey = (uint8_t) ((dstType << 4) | srcType);
                 RValue* top = &slots[ctx->stack.top - 1];
                 bool fastHit = false;
@@ -3325,42 +3246,42 @@ static RValue executeLoop(VMContext* ctx) {
                     GMLReal epsilon = (ctx->runner != NULL) ? ctx->runner->mathEpsilon : GML_MATH_EPSILON;
                     int cmp = (GMLReal_fabs(diff) <= epsilon) ? 0 : (diff < 0) ? -1 : 1;
                     bool result;
-                    switch (instrCmpKind(instr)) {
-                        case CMP_LT:  result = cmp < 0;  break;
-                        case CMP_LTE: result = cmp <= 0; break;
-                        case CMP_EQ:  result = cmp == 0; break;
-                        case CMP_NEQ: result = cmp != 0; break;
-                        case CMP_GTE: result = cmp >= 0; break;
-                        case CMP_GT:  result = cmp > 0;  break;
-                        default:      result = false;  break;
+                    switch (OpWord_comparisonFunction(opword)) {
+                        case CMPOP_LESS_THAN:  result = cmp < 0;  break;
+                        case CMPOP_LESS_THAN_OR_EQUAL: result = cmp <= 0; break;
+                        case CMPOP_EQUAL:  result = cmp == 0; break;
+                        case CMPOP_NOT_EQUAL: result = cmp != 0; break;
+                        case CMPOP_GREATER_THAN_OR_EQUAL: result = cmp >= 0; break;
+                        case CMPOP_GREATER_THAN:  result = cmp > 0;  break;
+                        default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
                     }
                     slotA->int32 = result ? 1 : 0;
                     slotA->type = RVALUE_BOOL;
                     slotA->gmlStackType = GML_TYPE_BOOL;
                     ctx->stack.top--;
                 } else {
-                    handleCmp(ctx, instr);
+                    handleCmp(ctx, opword);
                 }
                 break;
             }
 
             // Duplicate
             case OP_DUP:
-                handleDup(ctx, instr);
+                handleDup(ctx, opword);
                 break;
 
             // Branches
             // The reason why these (the branches opcodes) are inlined is because they access ctx->ip
             // So, because they are short n' sweet, we prefer to keep them inlined to avoid any reloading shenanigans that the compiler may do
             case OP_B: {
-                int32_t offset = instrJumpOffset(instr);
+                int32_t offset = OpWord_branchOffset(opword);
                 ip = instrAddr + offset;
                 break;
             }
             case OP_BT: {
                 bool condition = stackPopInt32(ctx) != 0;
                 if (condition == true) {
-                    int32_t offset = instrJumpOffset(instr);
+                    int32_t offset = OpWord_branchOffset(opword);
                     ip = instrAddr + offset;
                 }
                 break;
@@ -3368,7 +3289,7 @@ static RValue executeLoop(VMContext* ctx) {
             case OP_BF: {
                 bool condition = stackPopInt32(ctx) != 0;
                 if (condition == false) {
-                    int32_t offset = instrJumpOffset(instr);
+                    int32_t offset = OpWord_branchOffset(opword);
                     ip = instrAddr + offset;
                 }
                 break;
@@ -3377,12 +3298,12 @@ static RValue executeLoop(VMContext* ctx) {
             // Function call
             case OP_CALL:
                 VM_SYNC_IP();
-                handleCall(ctx, instr, extraData);
+                handleCall(ctx, opword, extraData);
                 break;
 #if IS_WAD17_OR_HIGHER_ENABLED
             case OP_CALLV:
                 VM_SYNC_IP();
-                handleCallV(ctx, instr);
+                handleCallV(ctx, opword);
                 break;
 #endif
 
@@ -3397,21 +3318,21 @@ static RValue executeLoop(VMContext* ctx) {
                 return scriptFallthroughReturnValue(ctx);
 
             // Environment (with-statements)
-            case OP_PUSHENV:
+            case OP_PUSH_ENV:
                 VM_SYNC_IP();
-                handlePushEnv(ctx, instr, instrAddr);
+                handlePushEnv(ctx, opword, instrAddr);
                 VM_RELOAD_IP();
                 break;
-            case OP_POPENV:
+            case OP_POP_ENV:
                 VM_SYNC_IP();
-                handlePopEnv(ctx, instr, instrAddr);
+                handlePopEnv(ctx, opword, instrAddr);
                 VM_RELOAD_IP();
                 break;
 
             // Break (extended opcodes in V17+, no-op/debug in V16)
             case OP_BREAK:
 #if IS_WAD17_OR_HIGHER_ENABLED
-                handleBreak(ctx, instr, instrAddr, extraData);
+                handleBreak(ctx, opword, instrAddr, extraData);
 #endif
                 break;
 
@@ -3476,12 +3397,12 @@ static void rewriteBytecode14To16(VMContext* ctx) {
                 case 0xB7: newKind = OP_B; break;
                 case 0xB8: newKind = OP_BT; break;
                 case 0xB9: newKind = OP_BF; break;
-                case 0xBB: newKind = OP_PUSHENV; break;
-                case 0xBC: newKind = OP_POPENV; break;
+                case 0xBB: newKind = OP_PUSH_ENV; break;
+                case 0xBC: newKind = OP_POP_ENV; break;
                 case 0xDA: newKind = OP_CALL; break;
                 case 0xC0:
                     if (type1 == GML_TYPE_INT16) {
-                        newKind = OP_PUSHI;
+                        newKind = OP_PUSH_IMMEDIATE;
                     }
                     break;
             }
@@ -3509,7 +3430,7 @@ static void rewriteBytecode14To16(VMContext* ctx) {
 
             uint32_t size = 4;
             switch (newKind) {
-                case OP_PUSH: case OP_PUSHLOC: case OP_PUSHGLB: case OP_PUSHBLTN:
+                case OP_PUSH: case OP_PUSH_LOCAL: case OP_PUSH_GLOBAL: case OP_PUSH_BUILTIN:
                     if (type1 == GML_TYPE_INT16) size = 4;
                     else if (type1 == GML_TYPE_DOUBLE || type1 == GML_TYPE_INT64) size = 12;
                     else size = 8;
@@ -3542,12 +3463,6 @@ VMContext* VM_create(DataWin* dataWin) {
 #endif
     ctx->dataWin = dataWin;
     ctx->stack.top = 0;
-    ctx->selfId = -1;
-    ctx->otherId = -1;
-    ctx->callDepth = 0;
-    ctx->currentEventType = -1;
-    ctx->currentEventSubtype = -1;
-    ctx->currentEventObjectIndex = -1;
 
     ctx->profiler = nullptr; // lazily allocated by Profiler_setEnabled(&ctx->profiler, true)
 
@@ -3595,7 +3510,7 @@ VMContext* VM_create(DataWin* dataWin) {
         }
     }
 
-    ctx->currentCodeIndex = -1;
+    ctx->currentCallFrame = nullptr;
 
     // V17+ static initialization tracking
     if (dataWin->gen8.wadVersion >= 17) {
@@ -3710,43 +3625,13 @@ VMContext* VM_create(DataWin* dataWin) {
 }
 
 void VM_reset(VMContext* ctx) {
-    // Reset stack
-    ctx->stack.top = 0;
-
-    // Free any remaining call frames
-    CallFrame* frame = ctx->callStack;
-    while (frame != nullptr) {
-        CallFrame* parent = frame->parent;
-        free(frame);
-        frame = parent;
-    }
-    ctx->callStack = nullptr;
-    ctx->callDepth = 0;
-
-    // Free any remaining env frames
-    EnvFrame* envFrame = ctx->envStack;
-    while (envFrame != nullptr) {
-        EnvFrame* parent = envFrame->parent;
-        arrfree(envFrame->instanceList);
-        free(envFrame);
-        envFrame = parent;
-    }
-    ctx->envStack = nullptr;
+    // All of these are things that are only "active" inside a script
+    // If VM_reset is called while a script is executing, then we did something terribly wrong
+    requireMessageFormatted(__FILE__, __LINE__, ctx->currentCallFrame == nullptr, "You can't call VM_reset while there's an active CallFrame!");
+    requireMessageFormatted(__FILE__, __LINE__, ctx->stack.top == 0, "You can't call VM_reset while there are elements on the stack!");
+    requireMessageFormatted(__FILE__, __LINE__, ctx->envStack == nullptr, "You can't call VM_reset while there's an active EnvironmentFrame!");
 
     // Reset execution state
-    ctx->currentInstance = nullptr;
-    ctx->otherInstance = nullptr;
-    ctx->selfId = -1;
-    ctx->otherId = -1;
-    ctx->currentEventType = -1;
-    ctx->currentEventSubtype = -1;
-    ctx->currentEventObjectIndex = -1;
-    ctx->scriptArgs = nullptr;
-    ctx->scriptArgCount = 0;
-    ctx->currentCodeName = nullptr;
-    ctx->localVars = nullptr;
-    ctx->localVarCount = 0;
-    ctx->currentCodeLocalsSlotMap = nullptr;
     ctx->actionRelativeFlag = false;
 
     if (ctx->dataWin->gen8.wadVersion >= 17) {
@@ -3778,111 +3663,32 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
     return shget(ctx->codeLocalsMap, (char*) codeName);
 }
 
-// Sets the currentCodeLocalsSlotMap for BC13/BC14/BC17+ games.
-static void setCurrentCodeLocalsSlotMap(VMContext* ctx) {
-    if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
-        ctx->currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[ctx->currentCodeIndex];
-    }
-}
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
+    require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
+    CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
 
-static uint32_t computeLocalsCount(VMContext* ctx, CodeEntry* code) {
-    if (IS_WAD15_OR_HIGHER(ctx) && IS_WAD16_OR_BELOW(ctx)) {
-        return code->localsCount;
-    } else {
+    // Create a CallFrame for this script
+    CallFrame callFrame = {0};
+    callFrame.parent = ctx->currentCallFrame;
+    callFrame.codeIndex = codeIndex;
+    callFrame.initialSelf = selfInstance;
+    callFrame.initialOther = otherInstance;
+    callFrame.self = selfInstance;
+    callFrame.other = otherInstance;
+    callFrame.eventObjectIndex = eventObjectIndex;
+    callFrame.eventType = eventType;
+    callFrame.eventSubtype = eventSubtype;
+    uint32_t localsCount = code->localsCount;
+    if (IS_WAD17_OR_HIGHER(ctx) || IS_WAD14_OR_BELOW(ctx)) {
+        callFrame.currentCodeLocalsSlotMap = &ctx->codeLocalsSlotMaps[codeIndex];
         // BC13/BC14/BC17+ (GM:S 2.3+): we can't trust the CODE entry's localsCount field (BC13/BC14 has no CodeLocals chunk, BC17+ sometimes omits entries from it), so we will get our cached map
         // It is NOT the "right" localsCount because it may increase during runtime, but for now, this shall do
-        return IntIntHashMap_count(&ctx->codeLocalsSlotMaps[ctx->currentCodeIndex]);
+        localsCount = IntIntHashMap_count(callFrame.currentCodeLocalsSlotMap);
     }
-}
 
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex) {
-    require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
-    CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
-
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
-    ctx->ip = code->offset;
-    ctx->codeEnd = code->length;
-    ctx->currentCodeName = code->name;
-    ctx->currentCodeIndex = codeIndex;
-
-    setCurrentCodeLocalsSlotMap(ctx);
-
-    uint32_t localsCount = computeLocalsCount(ctx, code);
     RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
-    ctx->localVars = localVars;
-    ctx->localVarCount = localsCount;
-
-    // Reset stack for top-level execution
-    ctx->stack.top = 0;
-
-    int32_t savedSavearefBalance = ctx->savearefBalance;
-    ctx->savearefBalance = 0;
-
-#ifdef ENABLE_VM_GML_PROFILER
-    Profiler_enter(ctx->profiler, code->name);
-#endif
-    RValue result = executeLoop(ctx);
-#ifdef ENABLE_VM_GML_PROFILER
-    Profiler_exit(ctx->profiler);
-#endif
-
-    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_executeCode (unpaired SAVEAREF)");
-    ctx->savearefBalance = savedSavearefBalance;
-
-    // Free locals (decRefs owned arrays, frees owned strings)
-    repeat(ctx->localVarCount, i) {
-        RValue_free(&ctx->localVars[i]);
-    }
-    free(ctx->localVars);
-    ctx->localVars = nullptr;
-    ctx->localVarCount = 0;
-
-    // Reset all values in the stack (see issue #137)
-    // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
-    unwindVMStack(ctx, 0);
-
-    ctx->stack.top = 0;
-
-    return result;
-}
-
-
-RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount) {
-    require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
-    CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
-
-    // Save current frame
-    CallFrame frame = {0};
-    frame.savedIP = ctx->ip;
-    frame.savedCodeEnd = ctx->codeEnd;
-    frame.savedBytecodeBase = ctx->bytecodeBase;
-    frame.savedLocals = ctx->localVars;
-    frame.savedLocalsCount = ctx->localVarCount;
-    frame.savedCodeName = ctx->currentCodeName;
-    frame.savedSavearefBalance = ctx->savearefBalance;
-    frame.savedCodeLocalsSlotMap = ctx->currentCodeLocalsSlotMap;
-    frame.savedScriptArgs = ctx->scriptArgs;
-    frame.savedScriptArgCount = ctx->scriptArgCount;
-    frame.savedCurrentCodeIndex = ctx->currentCodeIndex;
-    frame.parent = ctx->callStack;
-    ctx->callStack = &frame;
-    ctx->callDepth++;
-
-    int32_t storedStackTop = ctx->stack.top;
-
-    // Set up callee
-    ctx->bytecodeBase = ctx->dataWin->bytecodeBuffer + (code->bytecodeAbsoluteOffset - ctx->dataWin->bytecodeBufferBase);
-    ctx->ip = code->offset;
-    ctx->codeEnd = code->length;
-    ctx->currentCodeName = code->name;
-    ctx->currentCodeIndex = codeIndex;
-
-    setCurrentCodeLocalsSlotMap(ctx);
-
-    uint32_t localsCount = computeLocalsCount(ctx, code);
-    RValue* localVars = (RValue *)safeCalloc(localsCount, sizeof(RValue));
-    ctx->localVars = localVars;
-    ctx->localVarCount = localsCount;
+    callFrame.localVars = localVars;
+    callFrame.localVarsCount = localsCount;
 
     // Store arguments in scriptArgs (mirrors GMS 1.4's global argument stack).
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
@@ -3895,62 +3701,59 @@ RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t
             scriptArgs[argIdx] = argCopy;
         }
     }
-    ctx->scriptArgs = scriptArgs;
-    ctx->scriptArgCount = argCount;
+    callFrame.scriptArgs = scriptArgs;
+    callFrame.scriptArgsCount = argCount;
+
+    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
+    // The instruction pointer before this CallFrame was created
+    uint32_t instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
+    uint32_t stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
 
     ctx->savearefBalance = 0;
+
+    // We don't need to worry about allocating it on the stack because this CallFrame's lifecycle is always active while this script is executing
+    ctx->currentCallFrame = &callFrame;
 
     // Execute the callee
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_enter(ctx->profiler, code->name);
 #endif
-    RValue result = executeLoop(ctx);
+    RValue result = executeBytecodeInstructions(ctx, code);
 #ifdef ENABLE_VM_GML_PROFILER
     Profiler_exit(ctx->profiler);
 #endif
 
-    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_callCodeIndex (unpaired SAVEAREF)");
+    requireMessage(ctx->savearefBalance == 0, "SAVEAREF/RESTOREAREF imbalance at end of VM_executeCode (unpaired SAVEAREF)");
 
     // Strengthen result BEFORE freeing callee locals/scriptArgs: if result is a weak view into callee state, the upcoming frees would leave a dangling pointer.
     // For owning results, the refCount/string buffer stays valid (the callee transferred one ownership slot to us).
     result = RValue_stealOwnershipOrCopy(result);
 
-    // Restore caller frame
-    CallFrame* saved = ctx->callStack;
-    ctx->ip = saved->savedIP;
-    ctx->codeEnd = saved->savedCodeEnd;
-    ctx->bytecodeBase = saved->savedBytecodeBase;
-
+    // Now that we have executed the current script, we can free the current CallFrame and "pop" it
     // Free callee locals
-    repeat(ctx->localVarCount, i) {
-        RValue_free(&ctx->localVars[i]);
+    repeat(callFrame.localVarsCount, i) {
+        RValue_free(&callFrame.localVars[i]);
     }
 
-    free(ctx->localVars);
+    free(callFrame.localVars);
 
     // Free callee script args
     {
-    repeat(ctx->scriptArgCount, i) {
-        RValue_free(&ctx->scriptArgs[i]);
-    }
+        repeat(callFrame.scriptArgsCount, i) {
+            RValue_free(&callFrame.scriptArgs[i]);
+        }
     }
 
-    free(ctx->scriptArgs);
+    free(callFrame.scriptArgs);
 
-    ctx->localVars = saved->savedLocals;
-    ctx->localVarCount = saved->savedLocalsCount;
-    ctx->currentCodeLocalsSlotMap = saved->savedCodeLocalsSlotMap;
-    ctx->scriptArgs = saved->savedScriptArgs;
-    ctx->scriptArgCount = saved->savedScriptArgCount;
-    ctx->currentCodeName = saved->savedCodeName;
-    ctx->currentCodeIndex = saved->savedCurrentCodeIndex;
-    ctx->savearefBalance = saved->savedSavearefBalance;
-    ctx->callStack = saved->parent;
-    ctx->callDepth--;
+    ctx->currentCallFrame = callFrame.parent;
+
+    // Restore caller frame
+    ctx->ip = instructionPointerWhenTheCallFrameWasCreated;
 
     // Reset all values in the stack (see issue #137)
     // Keep in mind that recent GameMaker versions do seem to emit Pop/Popz when exiting loops (example: when using a repeat + return) but older versions DO need it
-    unwindVMStack(ctx, storedStackTop);
+    unwindVMStack(ctx, stackTopWhenTheCallFrameWasCreated);
 
     return result;
 }
@@ -3968,18 +3771,6 @@ static char gmlTypeChar(uint8_t type) {
         case GML_TYPE_STRING:   return 's';
         case GML_TYPE_INT16:    return 'e';
         default:                return '?';
-    }
-}
-
-static const char* cmpKindName(uint8_t kind) {
-    switch (kind) {
-        case CMP_LT:  return "LT";
-        case CMP_LTE: return "LTE";
-        case CMP_EQ:  return "EQ";
-        case CMP_NEQ: return "NEQ";
-        case CMP_GTE: return "GTE";
-        case CMP_GT:  return "GT";
-        default:      return "???";
     }
 }
 
@@ -4062,30 +3853,30 @@ static void disasmFormatVarComment(const uint8_t* extraData, bool isPop, char* b
 // Formats a single instruction into opcodeStr, operandStr, and commentStr buffers.
 // Used by both VM_disassemble and --trace-opcodes.
 // bytecodeBase is needed because the disassembler and trace have it from different sources.
-static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint32_t instrAddr, uint32_t instr, const uint8_t* extraData,
+static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint32_t instrAddr, OpWord opword, const uint8_t* extraData,
                               char* opcodeStr, size_t opcodeSize, char* operandStr, size_t operandSize, char* commentStr, size_t commentSize) {
     DataWin* dw = ctx->dataWin;
-    uint8_t opcode = instrOpcode(instr);
-    uint8_t type1 = instrType1(instr);
-    uint8_t type2 = instrType2(instr);
-    int16_t instType = instrInstanceType(instr);
+    uint8_t opcode = OpWord_opcode(opword);
+    uint8_t type1 = OpWord_type1(opword);
+    uint8_t type2 = OpWord_type2(opword);
+    int16_t instType = OpWord_extra(opword);
 
     switch (opcode) {
         // Binary arithmetic/logic
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
         case OP_REM: case OP_MOD: case OP_AND: case OP_OR:
         case OP_XOR: case OP_SHL: case OP_SHR:
-            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", opcodeName(opcode), gmlTypeChar(type1), gmlTypeChar(type2));
+            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1), gmlTypeChar(type2));
             snprintf(commentStr, commentSize, "// pops: [a, b] -> pushes: [result]");
             break;
 
         // Unary
         case OP_NEG:
-            snprintf(opcodeStr, opcodeSize, "Neg.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             snprintf(commentStr, commentSize, "// pops: [a] -> pushes: [result]");
             break;
         case OP_NOT:
-            snprintf(opcodeStr, opcodeSize, "Not.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             if (type1 == GML_TYPE_BOOL) {
                 snprintf(commentStr, commentSize, "// pops: [a] -> pushes: [bool] (logical NOT)");
             } else {
@@ -4095,14 +3886,14 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Type conversion
         case OP_CONV:
-            snprintf(opcodeStr, opcodeSize, "Conv.%c.%c", gmlTypeChar(type1), gmlTypeChar(type2));
+            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1), gmlTypeChar(type2));
             snprintf(commentStr, commentSize, "// pops: [%c] -> pushes: [%c]", gmlTypeChar(type2), gmlTypeChar(type1));
             break;
 
         // Comparison
         case OP_CMP:
-            snprintf(opcodeStr, opcodeSize, "Cmp.%c.%c", gmlTypeChar(type1), gmlTypeChar(type2));
-            snprintf(operandStr, operandSize, "%s", cmpKindName(instrCmpKind(instr)));
+            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1), gmlTypeChar(type2));
+            snprintf(operandStr, operandSize, "%s", CmpOp_getCmpOpcodeName((CmpOp) OpWord_comparisonFunction(opword)));
             snprintf(commentStr, commentSize, "// pops: [a, b] -> pushes: [bool]");
             break;
 
@@ -4110,32 +3901,32 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         case OP_PUSH: {
             switch (type1) {
                 case GML_TYPE_DOUBLE:
-                    snprintf(opcodeStr, opcodeSize, "Push.d");
+                    snprintf(opcodeStr, opcodeSize, "%s.d", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%g", BinaryUtils_readFloat64(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [double]");
                     break;
                 case GML_TYPE_FLOAT:
-                    snprintf(opcodeStr, opcodeSize, "Push.f");
+                    snprintf(opcodeStr, opcodeSize, "%s.f", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%g", (double) BinaryUtils_readFloat32(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [float]");
                     break;
                 case GML_TYPE_INT32:
-                    snprintf(opcodeStr, opcodeSize, "Push.i");
+                    snprintf(opcodeStr, opcodeSize, "%s.i", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%d", BinaryUtils_readInt32(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [int32]");
                     break;
                 case GML_TYPE_INT64:
-                    snprintf(opcodeStr, opcodeSize, "Push.l");
+                    snprintf(opcodeStr, opcodeSize, "%s.l", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%lld", (longlong) BinaryUtils_readInt64(extraData));
                     snprintf(commentStr, commentSize, "// pushes: [int64]");
                     break;
                 case GML_TYPE_BOOL:
-                    snprintf(opcodeStr, opcodeSize, "Push.b");
+                    snprintf(opcodeStr, opcodeSize, "%s.b", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%s", BinaryUtils_readInt32(extraData) != 0 ? "true" : "false");
                     snprintf(commentStr, commentSize, "// pushes: [bool]");
                     break;
                 case GML_TYPE_STRING: {
-                    snprintf(opcodeStr, opcodeSize, "Push.s");
+                    snprintf(opcodeStr, opcodeSize, "%s.s", Op_getOpcodeName((Op) opcode));
                     int32_t strIdx = BinaryUtils_readInt32(extraData);
                     if (strIdx >= 0 && dw->strg.count > (uint32_t) strIdx) {
                         const char* str = dw->strg.strings[strIdx];
@@ -4151,17 +3942,17 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
                     break;
                 }
                 case GML_TYPE_VARIABLE:
-                    snprintf(opcodeStr, opcodeSize, "Push.v");
+                    snprintf(opcodeStr, opcodeSize, "%s.v", Op_getOpcodeName((Op) opcode));
                     disasmFormatVar(ctx, extraData, nullptr, (int32_t) instType, operandStr, operandSize);
                     disasmFormatVarComment(extraData, false, commentStr, commentSize);
                     break;
                 case GML_TYPE_INT16:
-                    snprintf(opcodeStr, opcodeSize, "Push.e");
+                    snprintf(opcodeStr, opcodeSize, "%s.e", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "%d", (int32_t) instType);
                     snprintf(commentStr, commentSize, "// pushes: [int16]");
                     break;
                 default:
-                    snprintf(opcodeStr, opcodeSize, "Push.?");
+                    snprintf(opcodeStr, opcodeSize, "%s.?", Op_getOpcodeName((Op) opcode));
                     snprintf(operandStr, operandSize, "(unknown type 0x%X)", type1);
                     break;
             }
@@ -4169,40 +3960,40 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // Scoped pushes
-        case OP_PUSHLOC:
-            snprintf(opcodeStr, opcodeSize, "PushLoc.v");
+        case OP_PUSH_LOCAL:
+            snprintf(opcodeStr, opcodeSize, "%s.v", Op_getOpcodeName((Op) opcode));
             disasmFormatVar(ctx, extraData, "local", (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
-        case OP_PUSHGLB:
-            snprintf(opcodeStr, opcodeSize, "PushGlb.v");
+        case OP_PUSH_GLOBAL:
+            snprintf(opcodeStr, opcodeSize, "%s.v", Op_getOpcodeName((Op) opcode));
             disasmFormatVar(ctx, extraData, "global", (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
-        case OP_PUSHBLTN:
-            snprintf(opcodeStr, opcodeSize, "PushBltn.v");
+        case OP_PUSH_BUILTIN:
+            snprintf(opcodeStr, opcodeSize, "%s.v", Op_getOpcodeName((Op) opcode));
             disasmFormatVar(ctx, extraData, nullptr, (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, false, commentStr, commentSize);
             break;
 
         // PushI (int16 immediate)
-        case OP_PUSHI:
-            snprintf(opcodeStr, opcodeSize, "PushI.e");
+        case OP_PUSH_IMMEDIATE:
+            snprintf(opcodeStr, opcodeSize, "%s.e", Op_getOpcodeName((Op) opcode));
             snprintf(operandStr, operandSize, "%d", (int32_t) instType);
             snprintf(commentStr, commentSize, "// pushes: [int16]");
             break;
 
         // Pop (store to variable)
         case OP_POP:
-            snprintf(opcodeStr, opcodeSize, "Pop.%c.%c", gmlTypeChar(type1), gmlTypeChar(type2));
+            snprintf(opcodeStr, opcodeSize, "%s.%c.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1), gmlTypeChar(type2));
             disasmFormatVar(ctx, extraData, nullptr, (int32_t) instType, operandStr, operandSize);
             disasmFormatVarComment(extraData, true, commentStr, commentSize);
             break;
 
         // Unconditional branch
         case OP_B: {
-            snprintf(opcodeStr, opcodeSize, "B");
-            int32_t offset = instrJumpOffset(instr);
+            snprintf(opcodeStr, opcodeSize, "%s", Op_getOpcodeName((Op) opcode));
+            int32_t offset = OpWord_branchOffset(opword);
             uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
             snprintf(operandStr, operandSize, "L_%04X (offset: %+d)", target, offset);
             break;
@@ -4210,16 +4001,16 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Conditional branches
         case OP_BT: {
-            snprintf(opcodeStr, opcodeSize, "BT");
-            int32_t offset = instrJumpOffset(instr);
+            snprintf(opcodeStr, opcodeSize, "%s", Op_getOpcodeName((Op) opcode));
+            int32_t offset = OpWord_branchOffset(opword);
             uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
             snprintf(operandStr, operandSize, "L_%04X (offset: %+d)", target, offset);
             snprintf(commentStr, commentSize, "// pops: [bool]");
             break;
         }
         case OP_BF: {
-            snprintf(opcodeStr, opcodeSize, "BF");
-            int32_t offset = instrJumpOffset(instr);
+            snprintf(opcodeStr, opcodeSize, "%s", Op_getOpcodeName((Op) opcode));
+            int32_t offset = OpWord_branchOffset(opword);
             uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
             snprintf(operandStr, operandSize, "L_%04X (offset: %+d)", target, offset);
             snprintf(commentStr, commentSize, "// pops: [bool]");
@@ -4227,15 +4018,16 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // With-statement: PushEnv
-        case OP_PUSHENV: {
-            snprintf(opcodeStr, opcodeSize, "PushEnv");
-            int32_t offset = instrJumpOffset(instr);
+        case OP_PUSH_ENV: {
+            snprintf(opcodeStr, opcodeSize, "%s", Op_getOpcodeName((Op) opcode));
+            int32_t offset = OpWord_branchOffset(opword);
             uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
             // Peek at previous instruction to identify the target object
             const char* targetName = nullptr;
             if (instrAddr >= 4) {
                 uint32_t prevInstr = BinaryUtils_readUint32(bytecodeBase + instrAddr - 4);
-                if (instrOpcode(prevInstr) == OP_PUSHI) {
+                OpWord prevOpword = {prevInstr};
+                if (OpWord_opcode(prevOpword) == OP_PUSH_IMMEDIATE) {
                     int16_t objIdx = (int16_t) (prevInstr & 0xFFFF);
                     targetName = disasmScopeName(ctx, (int32_t) objIdx);
                 }
@@ -4250,12 +4042,12 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
         }
 
         // With-statement: PopEnv
-        case OP_POPENV: {
-            snprintf(opcodeStr, opcodeSize, "PopEnv");
-            if ((instr & 0x00FFFFFF) == 0xF00000) {
+        case OP_POP_ENV: {
+            snprintf(opcodeStr, opcodeSize, "%s", Op_getOpcodeName((Op) opcode));
+            if (opword.value != 0xBBF00000) {
                 snprintf(operandStr, operandSize, "[exit]");
             } else {
-                int32_t offset = instrJumpOffset(instr);
+                int32_t offset = OpWord_branchOffset(opword);
                 uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
                 snprintf(operandStr, operandSize, "(target: L_%04X, offset: %+d)", target, offset);
             }
@@ -4264,8 +4056,8 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Function call
         case OP_CALL: {
-            snprintf(opcodeStr, opcodeSize, "Call.i");
-            int32_t argCount = instr & 0xFFFF;
+            snprintf(opcodeStr, opcodeSize, "%s.i", Op_getOpcodeName((Op) opcode));
+            int32_t argCount = OpWord_extra(opword);
             uint32_t funcIdx = resolveFuncOperand(extraData);
             const char* funcName = (dw->func.functionCount > funcIdx) ? dw->func.functions[funcIdx].name : "???";
             snprintf(operandStr, operandSize, "%s(argCount=%d)", funcName, argCount);
@@ -4286,8 +4078,8 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Dynamic call through variable/method reference (BC17+)
         case OP_CALLV: {
-            int32_t argCount = instr & 0xFFFF;
-            snprintf(opcodeStr, opcodeSize, "CallV.v");
+            int32_t argCount = OpWord_extra(opword);
+            snprintf(opcodeStr, opcodeSize, "%s.v", Op_getOpcodeName((Op) opcode));
             snprintf(operandStr, operandSize, "argCount=%d", argCount);
             snprintf(commentStr, commentSize, "// pops: [func, instance, %d args] -> pushes: [result]", argCount);
             break;
@@ -4295,9 +4087,9 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Duplicate stack items
         case OP_DUP: {
-            uint8_t extra = (uint8_t) (instr & 0xFF);
+            uint8_t extra = OpWord_extra(opword);
             int32_t count = (int32_t) extra + 1;
-            snprintf(opcodeStr, opcodeSize, "Dup.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             if (count > 1) {
                 snprintf(operandStr, operandSize, "%d", count);
                 snprintf(commentStr, commentSize, "// duplicates %d items", count);
@@ -4309,15 +4101,15 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
 
         // Control flow
         case OP_RET:
-            snprintf(opcodeStr, opcodeSize, "Ret.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             snprintf(commentStr, commentSize, "// pops: [value] (return)");
             break;
         case OP_EXIT:
-            snprintf(opcodeStr, opcodeSize, "Exit.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             snprintf(commentStr, commentSize, "// (end of code)");
             break;
         case OP_POPZ:
-            snprintf(opcodeStr, opcodeSize, "Popz.%c", gmlTypeChar(type1));
+            snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
             snprintf(commentStr, commentSize, "// pops: [value]");
             break;
 
@@ -4353,14 +4145,14 @@ static void formatInstruction(VMContext* ctx, const uint8_t* bytecodeBase, uint3
                     }
                 }
             } else {
-                snprintf(opcodeStr, opcodeSize, "Break.%c", gmlTypeChar(type1));
+                snprintf(opcodeStr, opcodeSize, "%s.%c", Op_getOpcodeName((Op) opcode), gmlTypeChar(type1));
                 snprintf(operandStr, operandSize, "%d", (int32_t) breakType);
             }
             break;
         }
 
         default:
-            snprintf(opcodeStr, opcodeSize, "??? (0x%02X)", opcode);
+            snprintf(opcodeStr, opcodeSize, "%s (0x%02X)", Op_getOpcodeName((Op) opcode), opcode);
             break;
     }
 }
@@ -4376,13 +4168,12 @@ void VM_buildCrossReferences(VMContext* ctx) {
 
         while (code->length > ip) {
             uint32_t instr = BinaryUtils_readUint32(base + ip);
+            OpWord opword = {instr};
             ip += 4;
             const uint8_t* ed = base + ip;
-            if (instrHasExtraData(instr)) {
-                ip += extraDataSize(instrType1(instr));
-            }
+            ip += OpWord_operandSize(opword);
 
-            if (instrOpcode(instr) == OP_CALL) {
+            if (OpWord_opcode(opword) == OP_CALL) {
                 uint32_t funcIdx = resolveFuncOperand(ed);
                 if (dw->func.functionCount > funcIdx) {
                     const char* funcName = dw->func.functions[funcIdx].name;
@@ -4459,19 +4250,19 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         while (codeLength > ip) {
             uint32_t instrAddr = ip;
             uint32_t instr = BinaryUtils_readUint32(bytecodeBase + ip);
+            OpWord opword = {instr};
             ip += 4;
-            if (instrHasExtraData(instr)) {
-                ip += extraDataSize(instrType1(instr));
-            }
-            uint8_t opcode = instrOpcode(instr);
-            if (opcode == OP_B || opcode == OP_BT || opcode == OP_BF || opcode == OP_PUSHENV) {
-                int32_t offset = instrJumpOffset(instr);
+            ip += OpWord_operandSize(opword);
+
+            uint8_t opcode = OpWord_opcode(opword);
+            if (opcode == OP_B || opcode == OP_BT || opcode == OP_BF || opcode == OP_PUSH_ENV) {
+                int32_t offset = OpWord_branchOffset(opword);
                 uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
                 hmput(branchTargets, target, true);
             }
-            if (opcode == OP_POPENV) {
-                if ((instr & 0x00FFFFFF) != 0xF00000) {
-                    int32_t offset = instrJumpOffset(instr);
+            if (opcode == OP_POP_ENV) {
+                if (opword.value == 0xBBF00000) {
+                    int32_t offset = OpWord_branchOffset(opword);
                     uint32_t target = (uint32_t) ((int32_t) instrAddr + offset);
                     hmput(branchTargets, target, true);
                 }
@@ -4486,16 +4277,15 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
     while (codeLength > ip) {
         uint32_t instrAddr = ip;
         uint32_t instr = BinaryUtils_readUint32(bytecodeBase + ip);
+        OpWord opword = {instr};
         ip += 4;
         const uint8_t* extraData = bytecodeBase + ip;
-        if (instrHasExtraData(instr)) {
-            ip += extraDataSize(instrType1(instr));
-        }
+        ip += OpWord_operandSize(opword);
 
-        uint8_t opcode = instrOpcode(instr);
+        uint8_t opcode = OpWord_opcode(opword);
 
         // PopEnv decreases depth before printing
-        if (opcode == OP_POPENV && envDepth > 0) envDepth--;
+        if (opcode == OP_POP_ENV && envDepth > 0) envDepth--;
 
         // Print label if this address is a branch target
         if (hmgeti(branchTargets, instrAddr) >= 0) {
@@ -4507,7 +4297,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         char operandStr[256] = "";
         char commentStr[256] = "";
 
-        formatInstruction(ctx, bytecodeBase, instrAddr, instr, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
+        formatInstruction(ctx, bytecodeBase, instrAddr, opword, extraData, opcodeStr, sizeof(opcodeStr), operandStr, sizeof(operandStr), commentStr, sizeof(commentStr));
 
         // Print the formatted line
         if (commentStr[0] != '\0') {
@@ -4517,7 +4307,7 @@ void VM_disassemble(VMContext* ctx, int32_t codeIndex) {
         }
 
         // PushEnv increases depth after printing
-        if (opcode == OP_PUSHENV) envDepth++;
+        if (opcode == OP_PUSH_ENV) envDepth++;
     }
 
     hmfree(branchTargets);

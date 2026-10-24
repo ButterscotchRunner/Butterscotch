@@ -926,7 +926,7 @@ void Runner_initFirstRoom(Runner* runner);
 void Runner_step(Runner* runner);
 void Runner_handlePendingRoomChange(Runner* runner);
 void Runner_executeEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype);
-void Runner_executeEventFromObject(Runner* runner, Instance* instance, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype);
+void Runner_executeEventFromObject(Runner* runner, Instance* instance, Instance* other, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype);
 void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventSubtype);
 // Sets the "lives" global variable.
 // Used to fire events when the values are equal to or lesser than 0.

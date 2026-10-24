@@ -11,6 +11,7 @@
 #include "profiler.h"
 #include "int_int_hashmap.h"
 #include "string_builder.h"
+#include "callframe.h"
 
 // ===[ Instance Types (signed 16-bit) ]===
 #define INSTANCE_SELF      (-1)
@@ -54,49 +55,6 @@
 
 #define INSTANCE_ID_BASE 100000
 
-// ===[ Comparison Kinds ]===
-#define CMP_LT  1
-#define CMP_LTE 2
-#define CMP_EQ  3
-#define CMP_NEQ 4
-#define CMP_GTE 5
-#define CMP_GT  6
-
-// ===[ Opcodes ]===
-#define OP_CONV     0x07
-#define OP_MUL      0x08
-#define OP_DIV      0x09
-#define OP_REM      0x0A
-#define OP_MOD      0x0B
-#define OP_ADD      0x0C
-#define OP_SUB      0x0D
-#define OP_AND      0x0E
-#define OP_OR       0x0F
-#define OP_XOR      0x10
-#define OP_NEG      0x11
-#define OP_NOT      0x12
-#define OP_SHL      0x13
-#define OP_SHR      0x14
-#define OP_CMP      0x15
-#define OP_POP      0x45
-#define OP_PUSHI    0x84
-#define OP_DUP      0x86
-#define OP_CALLV    0x99
-#define OP_RET      0x9C
-#define OP_EXIT     0x9D
-#define OP_POPZ     0x9E
-#define OP_B        0xB6
-#define OP_BT       0xB7
-#define OP_BF       0xB8
-#define OP_PUSHENV  0xBA
-#define OP_POPENV   0xBB
-#define OP_PUSH     0xC0
-#define OP_PUSHLOC  0xC1
-#define OP_PUSHGLB  0xC2
-#define OP_PUSHBLTN 0xC3
-#define OP_CALL     0xD9
-#define OP_BREAK    0xFF
-
 // ===[ Extended BREAK Sub-Opcodes (WAD version 17+) ]===
 // Encoded in bits 0-15 of the BREAK instruction (instrInstanceType field, as int16_t)
 #define BREAK_CHKINDEX     (-1)  // Validate array index bounds
@@ -126,22 +84,6 @@ typedef struct {
     int32_t scriptCodeIndex; // cached script code index, or -1 if not a script
 } FuncCallCache;
 
-// ===[ CallFrame - Saved state for script-to-script calls ]===
-typedef struct CallFrame {
-    uint32_t savedIP;
-    uint32_t savedCodeEnd;
-    uint8_t* savedBytecodeBase;
-    RValue* savedLocals;
-    uint32_t savedLocalsCount;
-    const char* savedCodeName;
-    int32_t savedSavearefBalance;
-    IntIntHashMap* savedCodeLocalsSlotMap;
-    RValue* savedScriptArgs;
-    int32_t savedScriptArgCount;
-    int32_t savedCurrentCodeIndex;
-    struct CallFrame* parent;
-} CallFrame;
-
 // ===[ EnvFrame - Saved context for with-statement (PushEnv/PopEnv) ]===
 typedef struct EnvFrame {
     struct Instance* savedInstance;
@@ -154,7 +96,7 @@ typedef struct EnvFrame {
 typedef struct {
     int32_t jumpToOnException;
     int32_t jumpToOnSuccess;
-    int32_t boundToCallDepth;
+    CallFrame* boundToCallFrame;
     int32_t stackTop;
 } ExceptionHandlerFrame;
 
@@ -198,34 +140,17 @@ typedef struct { int32_t key; int32_t* value; } CrossRefMapEntry;
 // This way data can be kept "hot" in the CPU cache or, depending on the platform, in scratchpad RAM
 struct VMContext {
     // Hot: touched every instruction in the dispatch loop
+    // Used only for the formatInstructions
     uint8_t* bytecodeBase;
     uint32_t ip;
-    uint32_t codeEnd;
-    RValue* localVars;
-    uint32_t localVarCount;
     struct Instance* globalScopeInstance; // used when GLOB scripts are being executed, and used for the "global" reference
-    struct Instance* currentInstance;
-    struct Instance* otherInstance; // "other" instance for collision events
     DataWin* dataWin;
     struct Runner* runner;
-    // BC17+: varID -> localVars slot lookup for the current code. Points into codeLocalsSlotMaps[currentCodeIndex] for BC17+, nullptr for BC16.
-    IntIntHashMap* currentCodeLocalsSlotMap;
     FuncCallCache* funcCallCache;
-    const char* currentCodeName;
-    int32_t currentCodeIndex; // Index into code.entries for the currently executing code
 
     // Warm: touched on calls, variable resolution, event dispatch
-    CallFrame* callStack;
-    int32_t callDepth;
+    CallFrame* currentCallFrame;
     EnvFrame* envStack; // Environment stack for with-statements (PushEnv/PopEnv)
-    RValue* scriptArgs;       // Arguments passed to current script (nullptr for non-script code)
-    int32_t scriptArgCount;   // Number of arguments passed
-    int32_t selfId;
-    int32_t otherId;
-    // Current event context (set by Runner_executeEvent, -1 when not in an event)
-    int32_t currentEventType;
-    int32_t currentEventSubtype;
-    int32_t currentEventObjectIndex; // objectIndex of the object that owns the executing event handler
     // Cached varID for the built-in "creator" self variable (-1 if not found)
     int32_t creatorVarID;
     uint32_t funcCallCacheCount;
@@ -307,8 +232,48 @@ struct VMContext {
 Instance* VM_findInstanceByTarget(VMContext* ctx, int32_t target);
 VMContext* VM_create(DataWin* dataWin);
 void VM_reset(VMContext* ctx);
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex);
-RValue VM_callCodeIndex(VMContext* ctx, int32_t codeIndex, RValue* args, int32_t argCount);
+
+// Used ONLY for when we need to call a VM_executeCode outside an event AND outside an already existing CallFrame
+#define CODE_NOT_RELATED_TO_EVENTS (-1)
+
+/**
+ * Executes a CodeEntry (a GML script) of the current game
+ *
+ * @param ctx the VMContext instance
+ * @param codeIndex the index of the CodeEntry that will be executed
+ * @param selfInstance the self instance involved in this execution
+ * @param otherInstance the other instance involved in this execution
+ * @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param args the arguments that will be passed to the executed code, can be nullptr
+ * @param argCount the argument count
+ * @return the return value of the executed script
+ */
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount);
+
+/**
+ * Same thing as VM_executeCode, but returns if the codeIndex is not a valid codeIndex
+ *
+ * @param ctx the VMContext instance
+ * @param codeIndex the index of the CodeEntry that will be executed
+ * @param selfInstance the self instance involved in this execution
+ * @param otherInstance the other instance involved in this execution
+ * @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
+ * @param args the arguments that will be passed to the executed code, can be nullptr
+ * @param argCount the argument count
+ */
+static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
+    // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
+    if (0 > codeIndex)
+        return;
+
+    RValue rvalue = VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, eventObjectIndex, eventType, eventSubtype, args, argCount);
+    RValue_free(&rvalue);
+}
+
 void VM_free(VMContext* ctx);
 bool VM_isObjectOrDescendant(DataWin* dataWin, int32_t objectIndex, int32_t targetObjectIndex);
 int32_t VM_resolveInstanceTarget(VMContext* ctx, int32_t target);
@@ -347,8 +312,14 @@ int32_t VM_getOrAllocateVarID(VMContext* ctx, const char* name);
 void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val);
 void VM_writeToScriptArgsArrayElement(VMContext* ctx, int32_t writeIndex, int32_t arrayIndex, RValue val);
 
-static inline const char* VM_getCallerName(VMContext* ctx) {
-    return ctx->currentCodeName != nullptr ? ctx->currentCodeName : "<unknown>";
+/**
+ * Gets the name of the current code being executed
+ *
+ * @param vm the VMContext instance
+ * @return the name of the current code name being executed
+ */
+static inline const char* VM_getCurrentCallFrameCodeName(VMContext* vm) {
+    return vm->dataWin->code.entries[vm->currentCallFrame->codeIndex].name;
 }
 
 static inline char* VM_createDedupKey(const char* callerName, const char* funcName) {
@@ -420,7 +391,7 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
     char instanceIdBuf[28] = "";
     if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
-    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", ctx->currentCodeName, verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
+    logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", VM_getCurrentCallFrameCodeName(ctx), verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }
 #endif
