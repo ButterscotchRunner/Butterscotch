@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include "ps2_utils.h"
-#include "debug_font.h"
 
 // ===[ Loading Screen ]===
 
@@ -13,7 +12,7 @@ static bool gPS2OverlayInitialized = false;
 static PS2Overlay gOverlay = { 0 };
 
 static inline void overlayPrint(float x, float y, int z, float scale, uint64_t color, const char* text) {
-    DebugFontRenderer_printScaled(gOverlay.font, x, y, z, scale, color, text);
+    DefaultFontRenderer_printScaled(gOverlay.font, x, y, z, scale, color, text);
 }
 
 // Draws chunk item counts in the top-left corner (if any stats have been recorded)
@@ -81,7 +80,7 @@ void PS2Overlay_init(GSGLOBAL* gsGlobal, int memorySize, int heapCeiling) {
     gOverlay.state = STATS_DISABLED;
     gOverlay.profilerFramesInWindow = 0;
 
-    gOverlay.font = DebugFontRenderer_create(gsGlobal);
+    gOverlay.font = DefaultFontRenderer_create(gsGlobal);
     gOverlay.font->spacing = 0.95f;
     // Soft black halo/outline so debug text stays legible over any background.
     gOverlay.font->outlineColor = GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x10, 0x00);
@@ -93,7 +92,7 @@ void PS2Overlay_init(GSGLOBAL* gsGlobal, int memorySize, int heapCeiling) {
 void PS2Overlay_deinit() {
     if (!gPS2OverlayInitialized) return;
 
-    DebugFontRenderer_destroy(gOverlay.font);
+    DefaultFontRenderer_destroy(gOverlay.font);
 
     memset(&gOverlay, 0, sizeof(gOverlay));
     gPS2OverlayInitialized = false;

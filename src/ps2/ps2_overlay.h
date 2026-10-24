@@ -4,7 +4,7 @@
 #include <gsKit.h>
 
 #include "gs_renderer.h"
-#include "debug_font_renderer.h"
+#include "default_font_renderer.h"
 #include "runner.h"
 
 // Maximum number of chunk stats we track (24 chunks in data.win, but only some have interesting counts)
@@ -30,7 +30,7 @@ typedef enum {
 typedef struct {
     DebugOverlayState state;
     GSGLOBAL* gsGlobal;
-    DebugFontRenderer* font;
+    DefaultFontRenderer* font;
     int memorySize;
     int heapCeiling;
     int profilerFramesInWindow;
