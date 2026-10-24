@@ -1708,7 +1708,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RuntimeLayer runtimeLayer = {0};
         runtimeLayer.id = layerSource->id;
         runtimeLayer.depth = layerSource->depth;
-        runtimeLayer.drawOrder = room->layerCount - i;
+        // room layers at equal depths draw in reverse file order
+        runtimeLayer.drawOrder = i + 1;
         runtimeLayer.visible = layerSource->visible;
         runtimeLayer.xOffset = layerSource->xOffset;
         runtimeLayer.yOffset = layerSource->yOffset;
