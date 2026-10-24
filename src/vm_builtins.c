@@ -8906,10 +8906,11 @@ static RValue builtin_ini_write_string(VMContext* ctx, RValue* args, int32_t arg
     char keyBuf[32];
     const char* section = iniArgToString(args[0], sectionBuf, sizeof(sectionBuf), ctx->dataWin);
     const char* key = iniArgToString(args[1], keyBuf, sizeof(keyBuf), ctx->dataWin);
-    const char* value = (args[2].type == RVALUE_STRING ? args[2].string : "");
+    char* value = RValue_toString(args[2], ctx->dataWin);
 
     Ini_setString(runner->currentIni, section, key, value);
     runner->currentIniDirty = true;
+    free(value);
     return RValue_makeUndefined();
 }
 
