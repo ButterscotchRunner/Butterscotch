@@ -1770,6 +1770,10 @@ static void handleCmp(VMContext* ctx, OpWord opword) {
         switch (cmpKind) {
             case CMPOP_EQUAL:  result = eq;  break;
             case CMPOP_NOT_EQUAL: result = !eq; break;
+            case CMPOP_GREATER_THAN: result = !eq; break;
+            case CMPOP_LESS_THAN: result = !eq; break;
+            case CMPOP_GREATER_THAN_OR_EQUAL: result = eq; break;
+            case CMPOP_LESS_THAN_OR_EQUAL: result = eq; break;
             default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_ARRAY || b.type == RVALUE_ARRAY) {
