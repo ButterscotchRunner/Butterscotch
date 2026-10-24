@@ -12,7 +12,10 @@ plugins {
 }
 
 // Signing settings
-val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystorePropertiesFile = (findProperty("butterscotch.keystoreProperties") as String?)
+    ?.let { file(it) }
+    ?: rootProject.file("keystore.properties")
+
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
 }
