@@ -158,6 +158,9 @@ static const struct {
     uint8_t major, minor;
     bool gles;
 } GLCommon_versions[] = {
+#if defined(PLATFORM_PS4)
+    { 2, 0, true },
+#else
     /* Desktop GL */
 #ifndef DISABLE_DESKTOP_GL
     { 4, 6, false },
@@ -180,6 +183,7 @@ static const struct {
     { 3, 1, true  },
     { 3, 0, true  },
     { 2, 0, true  },
+#endif
 #endif
 };
 

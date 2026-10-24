@@ -4,7 +4,9 @@
 #include "runner.h"
 #include "file_system.h"
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
+#if defined(PLATFORM_PS4)
+#include "ps4/gl.h"
+#elif defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
 #include <vitaGL.h>
@@ -69,7 +71,7 @@ static const char* baseFragmentShader =
 // ===[ Runtime OpenGL extension checks ]===
 
 static bool hasFBO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__) && !defined(PLATFORM_PS4)
     return glGenFramebuffers;
 #else
     return true;
@@ -77,7 +79,10 @@ static bool hasFBO() {
 }
 
 static bool hasVAO() {
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
+#if defined(PLATFORM_PS4)
+    const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
+    return extensions && strstr(extensions, "GL_OES_vertex_array_object");
+#elif !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(__VITA__) && !defined(__SWITCH__)
     return glGenVertexArrays;
 #else
     return true;
@@ -1080,7 +1085,7 @@ static void glClearDepthBuffer(Renderer* renderer, float depth) {
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     flushBatch((GLRenderer*)renderer);
     glDepthMask(GL_TRUE);
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__) || defined(ENABLE_GLES)
     glClearDepthf(depth);
 #else
     if (modernGl->isGLES) {

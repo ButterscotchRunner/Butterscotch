@@ -120,11 +120,45 @@ static char* resolveExternalPath(MaAudioSystem* ma, Sound* sound) {
 
 // ===[ Vtable Implementations ]===
 
+#ifdef PLATFORM_PS4
+#include <orbis/AudioOut.h>
+static ma_result ps4AudioFileInfo(ma_vfs* vfs, ma_vfs_file file, ma_file_info* info) {
+    (void)vfs;
+    FILE* stream = file;
+    long position = ftell(stream);
+    if (position < 0 || fseek(stream, 0, SEEK_END) != 0) return MA_IO_ERROR;
+    long size = ftell(stream);
+    if (fseek(stream, position, SEEK_SET) != 0 || size < 0) return MA_IO_ERROR;
+    info->sizeInBytes = (ma_uint64)size;
+    return MA_SUCCESS;
+}
+static void* ps4AudioThread(void* userdata) {
+    MaAudioSystem* ma = userdata;
+    float output[1024 * 2];
+    while (atomic_load(&ma->outputRunning)) {
+        if (atomic_load(&ma->outputPaused) || ma_engine_read_pcm_frames(&ma->engine, output, 1024, NULL) != MA_SUCCESS)
+            memset(output, 0, sizeof(output));
+        if (sceAudioOutOutput(ma->device, output) < 0) sceKernelUsleep(20000);
+    }
+    sceAudioOutOutput(ma->device, NULL);
+    return NULL;
+}
+#endif
+
 static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
     arrput(ma->base.audioGroups, dataWin);
     ma->fileSystem = fileSystem;
 
+#ifdef PLATFORM_PS4
+    ma_engine_config config = ma_engine_config_init();
+    config.noDevice = MA_TRUE;
+    config.channels = 2;
+    config.sampleRate = 48000;
+    ma_default_vfs_init(&ma->vfs, NULL);
+    ma->vfs.cb.onInfo = ps4AudioFileInfo;
+    config.pResourceManagerVFS = &ma->vfs;
+#else
     ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format   = ma_format_f32;
     deviceConfig.playback.channels = 2;
@@ -139,11 +173,14 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     }
     ma_engine_config config = ma_engine_config_init();
     config.pDevice = &ma->device;
+#endif
     
     ma_result result = ma_engine_init(&config, &ma->engine);
     if (result != MA_SUCCESS) {
         logError("Audio: Failed to initialize miniaudio engine (error %d)\n", result);
+#ifndef PLATFORM_PS4
         ma_device_uninit(&ma->device);
+#endif
         return;
     }
 
@@ -157,10 +194,30 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
         ma->listenerGains[i] = 1.0f;
     }
 
+#ifdef PLATFORM_PS4
+    sceAudioOutInit();
+    ma->device = sceAudioOutOpen(255, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0, 1024, 48000,
+                                ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO);
+    atomic_init(&ma->outputRunning, ma->device >= 0);
+    atomic_init(&ma->outputPaused, false);
+    if (ma->device >= 0 && scePthreadCreate(&ma->outputThread, NULL, ps4AudioThread, ma, "ButterscotchAudio") != 0) {
+        atomic_store(&ma->outputRunning, false);
+        sceAudioOutClose(ma->device);
+        ma->device = -1;
+    }
+    if (ma->device < 0) logError("Audio: PS4 playback initialization failed\n");
+#endif
     logInfo("Audio: miniaudio engine initialized\n");
 }
 
 static void maDestroy(AudioSystem* audio) {
+#ifdef PLATFORM_PS4
+    MaAudioSystem* output = (MaAudioSystem*) audio;
+    if (atomic_exchange(&output->outputRunning, false)) {
+        scePthreadJoin(output->outputThread, NULL);
+        sceAudioOutClose(output->device);
+    }
+#endif
     Fmod_audioDestroy(audio);
     MaAudioSystem* ma = (MaAudioSystem*) audio;
 
@@ -196,7 +253,9 @@ static void maDestroy(AudioSystem* audio) {
     }
     arrfree(ma->base.audioGroups);
 
+#ifndef PLATFORM_PS4
     ma_device_uninit(&ma->device);
+#endif
     ma_engine_uninit(&ma->engine);
     free(ma);
 }
@@ -543,12 +602,20 @@ static void maResumeAll(AudioSystem* audio) {
 
 static void maSuspend(AudioSystem* audio) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
+#ifdef PLATFORM_PS4
+    atomic_store(&ma->outputPaused, true);
+#else
     ma_device_stop(ma_engine_get_device(&ma->engine));
+#endif
 }
 
 static void maResume(AudioSystem* audio) {
     MaAudioSystem* ma = (MaAudioSystem*) audio;
+#ifdef PLATFORM_PS4
+    atomic_store(&ma->outputPaused, false);
+#else
     ma_device_start(ma_engine_get_device(&ma->engine));
+#endif
 }
 
 static void maSetSoundGain(AudioSystem* audio, int32_t soundOrInstance, float gain, uint32_t timeMs) {
