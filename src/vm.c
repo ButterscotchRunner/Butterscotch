@@ -1766,14 +1766,13 @@ static void handleCmp(VMContext* ctx, OpWord opword) {
     bool result;
     if (a.type == RVALUE_UNDEFINED || b.type == RVALUE_UNDEFINED) {
         // Undefined is only == to undefined
-        bool eq = a.type == b.type;
         switch (cmpKind) {
-            case CMPOP_EQUAL:  result = eq;  break;
-            case CMPOP_NOT_EQUAL: result = !eq; break;
-            case CMPOP_GREATER_THAN: result = !eq; break;
-            case CMPOP_LESS_THAN: result = !eq; break;
-            case CMPOP_GREATER_THAN_OR_EQUAL: result = eq; break;
-            case CMPOP_LESS_THAN_OR_EQUAL: result = eq; break;
+            case CMPOP_EQUAL:  result = a.type == b.type;  break;
+            case CMPOP_NOT_EQUAL: result = a.type != b.type; break;
+            case CMPOP_GREATER_THAN: result = false; break;
+            case CMPOP_LESS_THAN: result = false; break;
+            case CMPOP_GREATER_THAN_OR_EQUAL: result = a.type == b.type; break;
+            case CMPOP_LESS_THAN_OR_EQUAL: result = a.type == b.type; break;
             default: abort(); // TODO: Maybe use a pretty message here? "Unsupported comparsion function"
         }
     } else if (a.type == RVALUE_ARRAY || b.type == RVALUE_ARRAY) {
