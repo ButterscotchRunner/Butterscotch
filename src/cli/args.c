@@ -390,8 +390,6 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
             case 'g':
                 if (strcmp(optarg, "modern-gl") == 0)
                     args->renderer = MODERN_GL;
-                if (strcmp(optarg, "modern-gles") == 0)
-                    args->renderer = MODERN_GLES;
                 else if (strcmp(optarg, "legacy-gl") == 0)
                     args->renderer = LEGACY_GL;
                 else if (strcmp(optarg, "software") == 0)
