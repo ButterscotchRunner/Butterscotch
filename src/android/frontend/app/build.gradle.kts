@@ -48,7 +48,8 @@ android {
                     "-DPLATFORM=android",
                     "-DENABLE_MODERN_GL=ON",
                     "-DENABLE_LEGACY_GL=OFF",
-                    "-DAUDIO_BACKEND=miniaudio"
+                    "-DAUDIO_BACKEND=miniaudio",
+                    "-DVIDEO_BACKEND=none"
                 )
                 if (ccachePath != null) {
                     arguments += listOf("-DCMAKE_C_COMPILER_LAUNCHER=${ccachePath.absolutePath}", "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccachePath.absolutePath}")
