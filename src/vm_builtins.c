@@ -10296,7 +10296,7 @@ static RValue builtin_event_inherited(VMContext* ctx, MAYBE_UNUSED RValue* args,
     }
     if (0 > parentObjectIndex) return RValue_makeReal(0.0);
 
-    Runner_executeEventFromObject(runner, inst, parentObjectIndex, ctx->currentCallFrame->eventType, ctx->currentCallFrame->eventSubtype);
+    Runner_executeEventFromObject(runner, inst, ctx->currentCallFrame->other, parentObjectIndex, ctx->currentCallFrame->eventType, ctx->currentCallFrame->eventSubtype);
     return RValue_makeReal(0.0);
 }
 
