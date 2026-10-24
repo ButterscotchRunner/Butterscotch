@@ -63,7 +63,7 @@ Of course, some games won't run! Some games aren't VM compiled, such as:
 Butterscotch can be ported to about any console that has the processing power to run it! Butterscotch has already been ported to many consoles such as the Xbox 360, Wii, 3DS, and more!
 
 Additionally, any platform with reasonably complete C and POSIX conformance should work, the following have been tested.
-* Linux with glibc as old as about ~1995
+* Linux distributions dating back to around ~1995 (glibc and musl libc tested working)
 * FreeBSD as old as 2.2.8
 * OpenBSD
 * NetBSD
