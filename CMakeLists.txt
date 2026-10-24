@@ -487,9 +487,11 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
-    # tinyfd
-    target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
-    target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
+    if (ENABLE_FILE_PICKER)
+        # tinyfd
+        target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
+        target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
+    endif()
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
