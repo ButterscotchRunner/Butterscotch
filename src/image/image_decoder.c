@@ -137,11 +137,11 @@ static uint8_t* decodeQoi(const uint8_t* data, size_t dataSize, int* outW, int* 
 //   bytes 8.. (or 12.. if gm2022_5) = raw BZip2 stream, which decompresses into a full "fioq" QOI file.
 static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5, int* outW, int* outH) {
     size_t headerSize = gm2022_5 ? COMPRESSED_QOI_HEADER_SIZE_NEW : COMPRESSED_QOI_HEADER_SIZE_OLD;
-    if (headerSize > blobSize) return NULL;
+    if (headerSize > blobSize) return nullptr;
 
     int width = blob[4] | (blob[5] << 8);
     int height = blob[6] | (blob[7] << 8);
-    if (0 >= width || 0 >= height) return NULL;
+    if (0 >= width || 0 >= height) return nullptr;
 
     // Upper bound on decompressed QOI: header size + width*height*5 pixel data.
     size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t)width * (size_t)height * 5;
@@ -152,7 +152,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     wuffs_base__status status = wuffs_bzip2__decoder__initialize(&dec, sizeof(dec), WUFFS_VERSION, 0);
     if (!wuffs_base__status__is_ok(&status)) {
         free(uncompressed);
-        return NULL;
+        return nullptr;
     }
 
     wuffs_base__io_buffer dstBuf = wuffs_base__ptr_u8__writer(uncompressed, uncompressedCapacity);
@@ -176,7 +176,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     if (!wuffs_base__status__is_ok(&status)) {
         logWarn("ImageDecoder: BZ2 decompress failed\n");
         free(uncompressed);
-        return NULL;
+        return nullptr;
     }
 
     size_t destLen = dstBuf.meta.wi;
@@ -253,7 +253,7 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
         workbuf = wuffs_base__make_slice_u8(workPtr, workbufLen.max_incl);
     }
 
-    status = wuffs_base__image_decoder__decode_frame(imgDec, &pb, &src, WUFFS_BASE__PIXEL_BLEND__SRC, workbuf, NULL);
+    status = wuffs_base__image_decoder__decode_frame(imgDec, &pb, &src, WUFFS_BASE__PIXEL_BLEND__SRC, workbuf, nullptr);
 
     if (workbuf.ptr) free(workbuf.ptr);
 
