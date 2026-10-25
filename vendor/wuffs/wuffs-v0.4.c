@@ -41,14 +41,15 @@
 #include <string.h>
 
 #ifdef __cplusplus
-#if (__cplusplus >= 201103L) || defined(_MSC_VER)
+#if (__cplusplus >= 201103L) || (defined(_MSC_VER) && defined(_MSVC_LANG) && (_MSVC_LANG >= 201103L))
 #include <memory>
 #define WUFFS_BASE__HAVE_EQ_DELETE
 #define WUFFS_BASE__HAVE_UNIQUE_PTR
 // The "defined(__clang__)" isn't redundant. While vanilla clang defines
 // __GNUC__, clang-cl (which mimics MSVC's cl.exe) does not.
 #elif defined(__GNUC__) || defined(__clang__)
-#warning "Wuffs' C++ code expects -std=c++11 or later"
+// this does compile on g++ -std=c++98 so what??
+// #warning "Wuffs' C++ code expects -std=c++11 or later"
 #endif
 
 extern "C" {
