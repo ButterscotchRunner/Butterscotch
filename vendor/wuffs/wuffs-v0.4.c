@@ -52,6 +52,22 @@
 // #warning "Wuffs' C++ code expects -std=c++11 or later"
 #endif
 
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t)-1)
+#endif
+
+#ifndef UINT64_MAX
+#define UINT64_MAX ((uint64_t)-1) 
+#endif
+
+#ifndef INT64_MIN
+#define INT64_MIN (~0x7fffffffffffffffLL)  
+#endif
+
+#ifndef INT64_MAX
+#define INT64_MAX (0x7fffffffffffffffLL) 
+#endif
+
 extern "C" {
 #endif
 
