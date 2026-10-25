@@ -382,7 +382,7 @@ static inline bool Collision_lineOverlapsInstance(Runner* runner, Instance* inst
 }
 
 // Tests if world point (px, py) is inside the given instance's collision shape.
-// The point is inverse-transformed into sprite-local coords (translation, rotation, inverse scale, origin) and bounds-checked against the full sprite texture [0, spr.width) x [0, spr.height).
+// The point is inverse-transformed into sprite-local coords (translation, rotation, inverse scale, origin), bounds-checked against the sprite texture and then against its bounding box (the margins).
 // Precise sprites (sepMasks == 1) additionally require the mask bit at the resulting local pixel to be set.
 static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLReal px, GMLReal py) {
     if (spr == nullptr) return false;
@@ -415,6 +415,14 @@ static inline bool Collision_pointInInstance(Sprite* spr, Instance* inst, GMLRea
 
     // Bounds check
     if (0 > ix || 0 > iy || ix >= (int32_t) spr->width || iy >= (int32_t) spr->height) return false;
+
+    // The bounding box gates every collision in GameMaker: for a non-precise sprite it is the whole shape, and a
+    // precise mask is only consulted inside it. The margins are the box in sprite-local pixels, right and bottom
+    // inclusive; bbox mode 1 means the full image, as Collision_computeBBox treats it. Without this a sprite drawn
+    // on a large transparent canvas (a settings toggle whose canvas is the whole panel) answered to clicks anywhere
+    // on the canvas.
+    if (spr->bboxMode != 1 &&
+        (ix < spr->marginLeft || ix > spr->marginRight || iy < spr->marginTop || iy > spr->marginBottom)) return false;
 
     if (Collision_hasFrameMasks(spr)) {
         // Pick mask for current frame
