@@ -49,7 +49,8 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
 		    $(INC)vendor/bzip2 \
-		    $(INC)vendor/miniz
+		    $(INC)vendor/miniz \
+			$(INC)vendor/wuffs
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
 endif

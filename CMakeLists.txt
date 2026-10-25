@@ -369,6 +369,10 @@ if(NOT MSVC)
     )
 endif()
 
+# wuffs
+target_sources(butterscotch PRIVATE vendor/wuffs/wuffs-v0.4.c)
+target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
+
 # Video playback source
 if(BUTTERSCOTCH_FFMPEG)
     target_sources(butterscotch PRIVATE src/video/ffmpeg/ffmpeg.c)
