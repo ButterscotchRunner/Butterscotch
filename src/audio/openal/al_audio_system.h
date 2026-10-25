@@ -25,6 +25,8 @@ struct stb_vorbis;
 
 typedef struct {
     bool active;
+    bool pendingStart;
+    bool paused;
     int32_t soundIndex; // SOND resource that spawned this
     int32_t instanceId; // unique ID returned to GML
     ALuint alSource; // OpenAL source object

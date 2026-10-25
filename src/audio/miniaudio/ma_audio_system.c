@@ -56,7 +56,7 @@ static SoundInstance* findFreeSlot(MaAudioSystem* ma) {
     SoundInstance* best = nullptr;
     repeat(MAX_SOUND_INSTANCES, i) {
         SoundInstance* inst = &ma->instances[i];
-        if (ma_sound_at_end(&inst->maSound)) {
+        if (!inst->pendingStart && ma_sound_at_end(&inst->maSound)) {
             if (best == nullptr || best->priority > inst->priority) {
                 best = inst;
             }
@@ -85,6 +85,19 @@ static SoundInstance* findInstanceById(MaAudioSystem* ma, int32_t instanceId) {
             return inst;
     }
     return nullptr;
+}
+
+static bool isInstancePlaying(const SoundInstance* inst) {
+    // scheduled starts count as playing before their audio-clock deadline
+    return inst->pendingStart || ma_node_get_state(&inst->maSound) == ma_node_state_started;
+}
+
+static void startInstance(SoundInstance* inst) {
+    if (isInstancePlaying(inst)) return;
+    if (inst->soundIndex >= AUDIO_STREAM_INDEX_BASE)
+        inst->pendingStart = true;
+    else
+        ma_sound_start(&inst->maSound);
 }
 
 // Helper: resolve external audio file path from Sound entry
@@ -212,13 +225,23 @@ static void maUpdate(AudioSystem* audio, float deltaTime) {
             ma_sound_set_volume(&inst->maSound, inst->currentGain * AudioSystem_soundGroupGain(audio, inst->soundIndex));
 
         // Clean up ended non-looping sounds (ma_sound_at_end avoids reaping still-loading async sounds)
-        if (ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound)) {
+        if (!inst->pendingStart && ma_sound_at_end(&inst->maSound) && !ma_sound_is_looping(&inst->maSound)) {
             ma_sound_uninit(&inst->maSound);
             if (inst->ownsDecoder) {
                 ma_decoder_uninit(&inst->decoder);
             }
             inst->active = false;
         }
+    }
+
+    // load all streams first, then give this frame's starts the same mixer timestamp
+    ma_uint64 startTime = ma_engine_get_time_in_pcm_frames(&ma->engine) + ma_engine_get_sample_rate(&ma->engine) / 100;
+    repeat(MAX_SOUND_INSTANCES, i) {
+        SoundInstance* inst = &ma->instances[i];
+        if (!inst->active || !inst->pendingStart) continue;
+        ma_sound_set_start_time_in_pcm_frames(&inst->maSound, startTime);
+        ma_sound_start(&inst->maSound);
+        inst->pendingStart = false;
     }
 }
 
@@ -329,6 +352,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
 
     // Set up instance tracking
     slot->active = true;
+    slot->pendingStart = isStream;
     slot->soundIndex = soundIndex;
     slot->instanceId = SOUND_INSTANCE_ID_BASE + ma->nextInstanceCounter++;
     slot->currentGain = volume;
@@ -341,7 +365,7 @@ static int32_t maPlaySound(AudioSystem* audio, int32_t soundIndex, int32_t prior
     // Track unique IDs for disambiguation
     ma->nextInstanceCounter++;
 
-    ma_sound_start(&slot->maSound);
+    if (!isStream) ma_sound_start(&slot->maSound);
 
     return slot->instanceId;
 }
@@ -358,6 +382,7 @@ static int32_t maPlayEncoded(AudioSystem* audio, const uint8_t* data, size_t byt
     }
     slot->ownsDecoder = true;
     slot->active = true;
+    slot->pendingStart = false;
     slot->soundIndex = -1;
     slot->instanceId = SOUND_INSTANCE_ID_BASE + ma->nextInstanceCounter++;
     slot->currentGain = slot->targetGain = slot->startGain = 1;
@@ -442,12 +467,12 @@ static bool maIsPlaying(AudioSystem* audio, int32_t soundOrInstance) {
 
     if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
-        return inst != nullptr && ma_sound_is_playing(&inst->maSound);
+        return inst != nullptr && isInstancePlaying(inst);
     } else {
         // Check if any instance of this sound resource is playing
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
-            if (inst->active && inst->soundIndex == soundOrInstance && ma_sound_is_playing(&inst->maSound)) {
+            if (inst->active && inst->soundIndex == soundOrInstance && isInstancePlaying(inst)) {
                 return true;
             }
         }
@@ -461,12 +486,14 @@ static void maPauseSound(AudioSystem* audio, int32_t soundOrInstance) {
     if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
+            inst->pendingStart = false;
             ma_sound_stop(&inst->maSound);
         }
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
             if (inst->active && inst->soundIndex == soundOrInstance) {
+                inst->pendingStart = false;
                 ma_sound_stop(&inst->maSound);
             }
         }
@@ -479,13 +506,13 @@ static void maResumeSound(AudioSystem* audio, int32_t soundOrInstance) {
     if (isValidSoundInstanceId(soundOrInstance)) {
         SoundInstance* inst = findInstanceById(ma, soundOrInstance);
         if (inst != nullptr) {
-            ma_sound_start(&inst->maSound);
+            startInstance(inst);
         }
     } else {
         repeat(MAX_SOUND_INSTANCES, i) {
             SoundInstance* inst = &ma->instances[i];
             if (inst->active && inst->soundIndex == soundOrInstance) {
-                ma_sound_start(&inst->maSound);
+                startInstance(inst);
             }
         }
     }
@@ -496,7 +523,8 @@ static void maPauseAll(AudioSystem* audio) {
 
     repeat(MAX_SOUND_INSTANCES, i) {
         SoundInstance* inst = &ma->instances[i];
-        if (inst->active && inst->soundIndex >= 0 && ma_sound_is_playing(&inst->maSound)) {
+        if (inst->active && inst->soundIndex >= 0 && isInstancePlaying(inst)) {
+            inst->pendingStart = false;
             ma_sound_stop(&inst->maSound);
         }
     }
@@ -508,7 +536,7 @@ static void maResumeAll(AudioSystem* audio) {
     repeat(MAX_SOUND_INSTANCES, i) {
         SoundInstance* inst = &ma->instances[i];
         if (inst->active && inst->soundIndex >= 0) {
-            ma_sound_start(&inst->maSound);
+            startInstance(inst);
         }
     }
 }
