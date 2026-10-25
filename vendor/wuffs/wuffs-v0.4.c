@@ -68,6 +68,11 @@
 #define INT64_MAX (0x7fffffffffffffffLL) 
 #endif
 
+#ifdef _MSC_VER
+#define ull ui64
+#define ul ui32
+#endif
+
 extern "C" {
 #endif
 
