@@ -24623,7 +24623,9 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "variable_struct_exists", builtin_variable_struct_exists);
     VM_registerBuiltin(ctx, "variable_get_hash", builtin_variable_get_hash);
     VM_registerBuiltin(ctx, "variable_clone", builtin_variable_clone);
+    VM_registerBuiltin(ctx, "struct_get", builtin_struct_get);
     VM_registerBuiltin(ctx, "struct_get_from_hash", builtin_struct_get_from_hash);
+    VM_registerBuiltin(ctx, "struct_set", builtin_struct_set);
     VM_registerBuiltin(ctx, "struct_set_from_hash", builtin_struct_set_from_hash);
     VM_registerBuiltin(ctx, "struct_exists_from_hash", builtin_struct_exists_from_hash);
     VM_registerBuiltin(ctx, "struct_exists", builtin_struct_exists);
