@@ -1,0 +1,219 @@
+{
+    "width":  924,
+    "height":  660,
+    "size":  128,
+    "padding":  2,
+    "columns":  7,
+    "glyphs":  {
+                   "A":  {
+                             "x":  2,
+                             "y":  2,
+                             "width":  128,
+                             "height":  128
+                         },
+                   "B":  {
+                             "x":  134,
+                             "y":  2,
+                             "width":  128,
+                             "height":  128
+                         },
+                   "D-Pad Down":  {
+                                      "x":  266,
+                                      "y":  2,
+                                      "width":  128,
+                                      "height":  128
+                                  },
+                   "D-Pad Left":  {
+                                      "x":  398,
+                                      "y":  2,
+                                      "width":  128,
+                                      "height":  128
+                                  },
+                   "D-Pad Right":  {
+                                       "x":  530,
+                                       "y":  2,
+                                       "width":  128,
+                                       "height":  128
+                                   },
+                   "D-Pad Up":  {
+                                    "x":  662,
+                                    "y":  2,
+                                    "width":  128,
+                                    "height":  128
+                                },
+                   "D-Pad":  {
+                                 "x":  794,
+                                 "y":  2,
+                                 "width":  128,
+                                 "height":  128
+                             },
+                   "Home":  {
+                                "x":  2,
+                                "y":  134,
+                                "width":  128,
+                                "height":  128
+                            },
+                   "Left Bumper":  {
+                                       "x":  134,
+                                       "y":  134,
+                                       "width":  128,
+                                       "height":  128
+                                   },
+                   "Left Stick All":  {
+                                          "x":  266,
+                                          "y":  134,
+                                          "width":  128,
+                                          "height":  128
+                                      },
+                   "Left Stick Click":  {
+                                            "x":  398,
+                                            "y":  134,
+                                            "width":  128,
+                                            "height":  128
+                                        },
+                   "Left Stick Down":  {
+                                           "x":  530,
+                                           "y":  134,
+                                           "width":  128,
+                                           "height":  128
+                                       },
+                   "Left Stick Left":  {
+                                           "x":  662,
+                                           "y":  134,
+                                           "width":  128,
+                                           "height":  128
+                                       },
+                   "Left Stick Left-Right":  {
+                                                 "x":  794,
+                                                 "y":  134,
+                                                 "width":  128,
+                                                 "height":  128
+                                             },
+                   "Left Stick Right":  {
+                                            "x":  2,
+                                            "y":  266,
+                                            "width":  128,
+                                            "height":  128
+                                        },
+                   "Left Stick Up":  {
+                                         "x":  134,
+                                         "y":  266,
+                                         "width":  128,
+                                         "height":  128
+                                     },
+                   "Left Stick Up-Down":  {
+                                              "x":  266,
+                                              "y":  266,
+                                              "width":  128,
+                                              "height":  128
+                                          },
+                   "Left Stick":  {
+                                      "x":  398,
+                                      "y":  266,
+                                      "width":  128,
+                                      "height":  128
+                                  },
+                   "Left Trigger":  {
+                                        "x":  530,
+                                        "y":  266,
+                                        "width":  128,
+                                        "height":  128
+                                    },
+                   "Menu":  {
+                                "x":  662,
+                                "y":  266,
+                                "width":  128,
+                                "height":  128
+                            },
+                   "Right Bumper":  {
+                                        "x":  794,
+                                        "y":  266,
+                                        "width":  128,
+                                        "height":  128
+                                    },
+                   "Right Stick All":  {
+                                           "x":  2,
+                                           "y":  398,
+                                           "width":  128,
+                                           "height":  128
+                                       },
+                   "Right Stick Click":  {
+                                             "x":  134,
+                                             "y":  398,
+                                             "width":  128,
+                                             "height":  128
+                                         },
+                   "Right Stick Down":  {
+                                            "x":  266,
+                                            "y":  398,
+                                            "width":  128,
+                                            "height":  128
+                                        },
+                   "Right Stick Left":  {
+                                            "x":  398,
+                                            "y":  398,
+                                            "width":  128,
+                                            "height":  128
+                                        },
+                   "Right Stick Left-Right":  {
+                                                  "x":  530,
+                                                  "y":  398,
+                                                  "width":  128,
+                                                  "height":  128
+                                              },
+                   "Right Stick Right":  {
+                                             "x":  662,
+                                             "y":  398,
+                                             "width":  128,
+                                             "height":  128
+                                         },
+                   "Right Stick Up":  {
+                                          "x":  794,
+                                          "y":  398,
+                                          "width":  128,
+                                          "height":  128
+                                      },
+                   "Right Stick Up-Down":  {
+                                               "x":  2,
+                                               "y":  530,
+                                               "width":  128,
+                                               "height":  128
+                                           },
+                   "Right Stick":  {
+                                       "x":  134,
+                                       "y":  530,
+                                       "width":  128,
+                                       "height":  128
+                                   },
+                   "Right Trigger":  {
+                                         "x":  266,
+                                         "y":  530,
+                                         "width":  128,
+                                         "height":  128
+                                     },
+                   "Share":  {
+                                 "x":  398,
+                                 "y":  530,
+                                 "width":  128,
+                                 "height":  128
+                             },
+                   "View":  {
+                                "x":  530,
+                                "y":  530,
+                                "width":  128,
+                                "height":  128
+                            },
+                   "X":  {
+                             "x":  662,
+                             "y":  530,
+                             "width":  128,
+                             "height":  128
+                         },
+                   "Y":  {
+                             "x":  794,
+                             "y":  530,
+                             "width":  128,
+                             "height":  128
+                         }
+               }
+}

@@ -33,6 +33,9 @@
 #endif
 
 #include "ma_audio_system.h"
+#ifdef PLATFORM_UWP
+#include "uwp/audio.h"
+#endif
 #include "fmod/fmod.h"
 #include "data_win.h"
 #include "utils.h"
@@ -132,7 +135,11 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     deviceConfig.periodSizeInMilliseconds = 10;
     deviceConfig.dataCallback = ma_engine_data_callback_internal;
     deviceConfig.pUserData    = &ma->engine;
+#ifdef PLATFORM_UWP
+    ma_result deviceResult = uwpAudioDeviceInit(&ma->device, &deviceConfig);
+#else
     ma_result deviceResult = ma_device_init(NULL, &deviceConfig, &ma->device);
+#endif
     if (deviceResult != MA_SUCCESS) {
         logError("Audio: Failed to initialize playback device (error %d)\n", deviceResult);
         return;

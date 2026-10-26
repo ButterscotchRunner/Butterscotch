@@ -3,6 +3,9 @@
 #include "data_win.h"
 #include "vm.h"
 #include "loop.h"
+#ifdef PLATFORM_UWP
+#include "uwp/frontend/ui.h"
+#endif
 
 #include "platformdefs.h"
 #include "stdio_compat.h"
@@ -130,6 +133,10 @@ static size_t get_used_memory(void) {
     if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
         return info.resident_size;
     }
+#elif defined(PLATFORM_UWP)
+    APP_MEMORY_INFORMATION info;
+    if (GetProcessInformation(GetCurrentProcess(), ProcessAppMemoryInfo, &info, sizeof(info)))
+        return info.TotalCommitUsage;
 #elif defined(_WIN32)
     typedef BOOL (WINAPI *GetProcessMemoryInfo_t)(HANDLE, BS_PROCESS_MEMORY_COUNTERS*, DWORD);
     static GetProcessMemoryInfo_t func = NULL;
@@ -516,7 +523,7 @@ static void PreProcessedStuff_free(void) {
 
 // ===[ MAIN ]===
 int loop(CommandLineArgs args, const char *argv0) {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(PLATFORM_UWP)
     timeBeginPeriod(1);
 #endif
     char* currentDataWinPath = safeStrdup(args.dataWinPath);
@@ -595,6 +602,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.lazyLoadTextures = args.lazyTextures;
         options.lazyLoadAudio = args.lazyAudio;
         options.eagerlyLoadedRooms = args.eagerRooms;
+#ifdef PLATFORM_UWP
+        options.progressCallback = uwpDataProgress;
+#endif
         DataWin* dataWin = DataWin_parse(currentDataWinPath, options);
 
         Gen8* gen8 = &dataWin->gen8;
@@ -1534,7 +1544,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
             arrfree(currentGameArgs);
             logInfo("Bye! :3\n");
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(PLATFORM_UWP)
             timeEndPeriod(1);
 #endif
             return 0;

@@ -1289,7 +1289,15 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureHeights[pageId] = h;
 
     glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
+#ifdef PLATFORM_UWP
+    //for xbox uwp: allocate storage first to bypass ANGLE staging texture uploads. this significantly reduces startup memory and allows pizza tower to boot with 32bpp textures within the 5gb xbox uwp app memory limit
+    GLenum format = gl->textureFormat == GL_RGBA ? GL_RGBA8 : gl->textureFormat;
+    glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glFinish();
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 
     free(pixels);
 
