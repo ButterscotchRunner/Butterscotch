@@ -55,7 +55,7 @@ jobs:
           echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
 
       - name: Configure
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DPLATFORM=uwp "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DPLATFORM=uwp -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
 
       - name: Build
         run: cmake --build build --config Release --parallel
