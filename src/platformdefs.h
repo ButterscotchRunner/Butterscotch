@@ -41,7 +41,6 @@ static const OsTypeNameEntry OS_TYPE_NAMES[] = {
 enum GraphicsAPI {
     SOFTWARE,
     MODERN_GL,
-    MODERN_GLES,
     LEGACY_GL,
     NOOP
 };
@@ -160,6 +159,7 @@ static const struct {
     bool gles;
 } GLCommon_versions[] = {
     /* Desktop GL */
+#ifndef DISABLE_DESKTOP_GL
     { 4, 6, false },
     { 4, 5, false },
     { 4, 4, false },
@@ -173,6 +173,7 @@ static const struct {
     { 3, 0, false },
     { 2, 1, false },
     { 2, 0, false },
+#endif
 #ifndef USE_GLFW2
     /* GLES */
     { 3, 2, true  },

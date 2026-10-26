@@ -408,7 +408,7 @@ static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int3
 }
 
 // Executes an already-resolved event handler (see findEventCodeIdAndOwner) and verified codeId >= 0.
-static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
+static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, Instance* other, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
     if (isEventBlockedByPendingRoom(runner, instance, eventType) || runner->shouldExit)
         return;
 
@@ -438,7 +438,7 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
         runner->vmContext,
         codeId,
         instance,
-        nullptr,
+        other,
         ownerObjectIndex,
         eventType,
         eventSubtype,
@@ -449,18 +449,18 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
     vm->actionRelativeFlag = savedActionRelativeFlag;
 }
 
-void Runner_executeEventFromObject(Runner* runner, Instance* instance, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype) {
+void Runner_executeEventFromObject(Runner* runner, Instance* instance, Instance* other, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype) {
     int32_t ownerObjectIndex = -1;
     int32_t codeId = findEventCodeIdAndOwner(runner, startObjectIndex, eventType, eventSubtype, &ownerObjectIndex);
     // Fast path: If the codeId is invalid, let's bail out fast
     // This way can avoid the need of loading and saving the current state variables
     if (0 > codeId)
         return;
-    Runner_executeResolvedEvent(runner, instance, eventType, eventSubtype, codeId, ownerObjectIndex);
+    Runner_executeResolvedEvent(runner, instance, other, eventType, eventSubtype, codeId, ownerObjectIndex);
 }
 
 void Runner_executeEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype) {
-    Runner_executeEventFromObject(runner, instance, instance->objectIndex, eventType, eventSubtype);
+    Runner_executeEventFromObject(runner, instance, nullptr, instance->objectIndex, eventType, eventSubtype);
 }
 
 // Events that GameMaker routes through the per-object obj_has_event table instead of Perform_Event_All.
@@ -517,7 +517,7 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
-        Runner_executeResolvedEvent(runner, inst, eventType, eventSubtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, eventType, eventSubtype, codeId, ownerObjectIndex);
     }
 }
 
@@ -720,7 +720,7 @@ static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawabl
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
         int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
-        Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, subtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_DRAW, subtype, codeId, ownerObjectIndex);
         Runner_popLayerShader(runner, previousShader);
     }
 }
@@ -917,7 +917,7 @@ static void drawInstanceNormally(Runner* runner, Instance* inst) {
         int32_t ownerObjectIndex = -1;
         int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
         if (codeId >= 0)
-            Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
+            Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
         else if (runner->renderer != nullptr)
             Renderer_drawSelf(runner->renderer, inst);
     }
@@ -1053,7 +1053,7 @@ void Runner_draw(Runner* runner) {
                     runtimeLayer->beginScript,
                     ctx->globalScopeInstance,
                     nullptr,
-                    ctx->currentCallFrame->eventObjectIndex,
+                    CODE_NOT_RELATED_TO_EVENTS,
                     EVENT_DRAW,
                     DRAW_NORMAL,
                     nullptr,
@@ -1192,7 +1192,7 @@ void Runner_draw(Runner* runner) {
                     runtimeLayer->endScript,
                     ctx->globalScopeInstance,
                     nullptr,
-                    ctx->currentCallFrame->eventObjectIndex,
+                    CODE_NOT_RELATED_TO_EVENTS,
                     EVENT_DRAW,
                     DRAW_NORMAL,
                     nullptr,
@@ -1708,7 +1708,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RuntimeLayer runtimeLayer = {0};
         runtimeLayer.id = layerSource->id;
         runtimeLayer.depth = layerSource->depth;
-        runtimeLayer.drawOrder = room->layerCount - i;
+        // room layers at equal depths draw in reverse file order
+        runtimeLayer.drawOrder = i + 1;
         runtimeLayer.visible = layerSource->visible;
         runtimeLayer.xOffset = layerSource->xOffset;
         runtimeLayer.yOffset = layerSource->yOffset;
@@ -3487,7 +3488,7 @@ static void fireLocalMouseSubtype(Runner* runner, int32_t subtype, int32_t slot,
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
-        Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, subtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, subtype, codeId, ownerObjectIndex);
         if (runner->pendingRoom >= 0) return;
     }
 }
@@ -3584,14 +3585,14 @@ static void dispatchMouseEvents(Runner* runner) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotEnter, &ownerObjectIndex);
             if (codeId >= 0) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_ENTER, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, MOUSE_ENTER, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         } else if (!over && wasOver && slotLeave >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotLeave, &ownerObjectIndex);
             if (codeId >= 0) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_LEAVE, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, MOUSE_LEAVE, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         }
@@ -3959,7 +3960,7 @@ static void dispatchOutsideRoomEvents(Runner* runner) {
             }
 
             if (outside && !inst->outsideRoom) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) {
                     arrsetlen(runner->instanceSnapshots, snapshotBase);
                     return;
@@ -4020,7 +4021,7 @@ static void dispatchOutsideViewEvents(Runner* runner, int32_t viewIndex) {
             }
 
             if (outside && !inst->outsideRoom) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) {
                     arrsetlen(runner->instanceSnapshots, snapshotBase);
                     return;
@@ -4416,7 +4417,7 @@ void Runner_step(Runner* runner) {
         if (wrapped && animEndSlot >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, animEndSlot, &ownerObjectIndex);
-            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
+            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
         }
     }
     }
@@ -4540,7 +4541,7 @@ void Runner_step(Runner* runner) {
                     }
 #endif
 
-                    Runner_executeResolvedEvent(runner, inst, EVENT_ALARM, alarmIdx, codeId, ownerObjectIndex);
+                    Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_ALARM, alarmIdx, codeId, ownerObjectIndex);
                 }
             }
 
@@ -4617,7 +4618,7 @@ void Runner_step(Runner* runner) {
         if (adaptPath(runner, inst) && endOfPathSlot >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, endOfPathSlot, &ownerObjectIndex);
-            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH, codeId, ownerObjectIndex);
+            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_END_OF_PATH, codeId, ownerObjectIndex);
         }
 
         // Apply movement

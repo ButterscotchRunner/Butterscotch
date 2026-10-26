@@ -42,12 +42,6 @@ static GLFWwindow *tryOpenWindow(int reqW, int reqH, const char* title) {
     }
 
     for (size_t i = 0; i < sizeof(GLCommon_versions)/sizeof(GLCommon_versions[0]); i++) {
-        if (gfx == MODERN_GL && GLCommon_versions[i].gles)
-            continue;
-
-        if (gfx == MODERN_GLES && !GLCommon_versions[i].gles)
-            continue;
-
         GLFWwindow *window;
 
         glfwDefaultWindowHints();

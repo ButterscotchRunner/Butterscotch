@@ -15,6 +15,7 @@
 
 typedef struct {
     bool active;
+    bool pendingStart;
     int32_t soundIndex; // SOND resource that spawned this
     int32_t instanceId; // unique ID returned to GML
     ma_sound maSound; // miniaudio sound object

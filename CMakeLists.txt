@@ -394,6 +394,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -405,6 +406,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
 
@@ -412,6 +414,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "web")
         add_compile_definitions(PLATFORM_WEB)
         target_sources(butterscotch PRIVATE src/cli/args.c)
@@ -420,6 +423,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT ON)
         set(VM_OPCODE_PROFILER_DEFAULT ON)
         set(VM_STUB_LOGS_DEFAULT ON)
+        set(ENABLE_FILE_PICKER ON)
     endif()
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
@@ -474,8 +478,20 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
+    # File Picker
+    option(ENABLE_FILE_PICKER "Enable file picker" ${VM_STUB_LOGS_DEFAULT})
+    if(ENABLE_FILE_PICKER)
+        add_compile_definitions(ENABLE_FILE_PICKER)
+    endif()
+
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
+    if (ENABLE_FILE_PICKER)
+        # tinyfd
+        target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
+        target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
+    endif()
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")

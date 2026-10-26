@@ -866,7 +866,7 @@ int App_begin(void) {
         }
 #endif
 #ifndef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL || gfx == MODERN_GLES) {
+        if (gfx == MODERN_GL) {
             logError("The modern gl renderer is not available in this build!\n");
             return 0;
         }
@@ -885,7 +885,7 @@ int App_begin(void) {
 #endif
 
 #ifdef ENABLE_SCREENSHOTS
-        if (gfx != MODERN_GL && gfx != MODERN_GLES && hmlen(args.screenshotSurfacesFrames)) {
+        if (gfx != MODERN_GL && hmlen(args.screenshotSurfacesFrames)) {
             logError("You can only use --screenshot-surfaces with the modern gl renderer!\n");
             return 0;
         }
@@ -906,9 +906,9 @@ int App_begin(void) {
             platformSetWindowTitle(gen8->displayName);
 #ifdef USE_GLAD
 #if defined(USE_GLFW3) || defined(USE_GLFW2)
-            if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES || gfx == SOFTWARE) {
+            if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
 #else
-            if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES) {
+            if (gfx == LEGACY_GL || gfx == MODERN_GL) {
 #endif
                 if (!platformInitGlad()) {
                     logError("Failed to initialize GLAD\n");
@@ -952,7 +952,7 @@ int App_begin(void) {
         }
 #endif
 #ifdef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL || gfx == MODERN_GLES) {
+        if (gfx == MODERN_GL) {
             renderer = GLRenderer_create();
             hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
         }
@@ -965,7 +965,7 @@ int App_begin(void) {
             return 1;
         }
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-        if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES) {
+        if (gfx == LEGACY_GL || gfx == MODERN_GL) {
             switch (args.glTextureFormat) {
                 case GL_TEXTURE_FORMAT_RGBA4:
                     ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
@@ -1020,7 +1020,7 @@ int App_begin(void) {
         if (!args.lazyTextures) {
             repeat(runner->dataWin->txtr.count, i) {
 #ifdef ENABLE_MODERN_GL
-                if (gfx == MODERN_GL || gfx == MODERN_GLES)
+                if (gfx == MODERN_GL)
                     GLRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
 #endif
 
@@ -1355,7 +1355,7 @@ int App_frame(void) {
                     SWRenderer_clearFrameBuffer(renderer, 0);
 #endif
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-                if ((gfx == LEGACY_GL || gfx == MODERN_GL || gfx == MODERN_GLES) && shouldRender) {
+                if ((gfx == LEGACY_GL || gfx == MODERN_GL) && shouldRender) {
                     glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
                     glClear(GL_COLOR_BUFFER_BIT);
                 }
