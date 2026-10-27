@@ -147,7 +147,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t)width * (size_t)height * 5;
     uint8_t* uncompressed = (uint8_t*)malloc(uncompressedCapacity);
     if (!uncompressed) return nullptr;
-#ifdef WUFFS_IMPLEMENTATION
+#ifdef USE_WUFFS_IMGDEC
     wuffs_bzip2__decoder dec;
     wuffs_base__status status = wuffs_bzip2__decoder__initialize(&dec, sizeof(dec), WUFFS_VERSION, 0);
     if (!wuffs_base__status__is_ok(&status)) {
@@ -180,7 +180,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     }
 
     size_t destLen = dstBuf.meta.wi;
-#else
+#elif defined(USE_STB_IMGDEC)
     unsigned int destLen = (unsigned int) uncompressedCapacity;
     int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, &destLen, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
     if (rc != BZ_OK) {
@@ -208,7 +208,7 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
         return decodeBz2Qoi(blob, blobSize, gm2022_5, outW, outH);
     }
 
-#ifdef WUFFS_IMPLEMENTATION
+#ifdef USE_WUFFS_IMGDEC
     wuffs_png__decoder dec;
     wuffs_base__status status = wuffs_png__decoder__initialize(&dec, sizeof(dec), WUFFS_VERSION, 0);
     if (!wuffs_base__status__is_ok(&status)) return nullptr;
@@ -261,7 +261,7 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
         free(pixels);
         return nullptr;
     }
-#else
+#elif defined(USE_STB_IMGDEC)
     int w, h, channels;
     uint8_t* pixels = stbi_load_from_memory(blob, (int) blobSize, &w, &h, &channels, 4);
     if (!pixels) return nullptr;
