@@ -341,10 +341,7 @@ if (IMAGE_DECODER STREQUAL "wuffs")
     target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
     add_compile_definitions(USE_WUFFS_IMGDEC)
 elseif(IMAGE_DECODER STREQUAL "stb")
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
-    # bzip2
+    # bzip2 for GMQOZ
     add_library(bzip2 STATIC
         vendor/bzip2/bz_internal_error.c
         vendor/bzip2/bzlib.c
@@ -357,6 +354,9 @@ elseif(IMAGE_DECODER STREQUAL "stb")
     target_compile_options(bzip2 PRIVATE -w)
     add_compile_definitions(USE_STB_IMGDEC)
 endif()
+
+# stb_image (needed for write regardless)
+target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
 # miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
 # All files vendored byte-for-byte from that tag except:
