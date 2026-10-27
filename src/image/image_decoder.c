@@ -7,7 +7,7 @@
 #include "log.h"
 #include "utils.h"
 
-#ifdef USE_IMGDEC_WUFFS
+#ifdef USE_WUFFS_IMGDEC
 #define WUFFS_IMPLEMENTATION
 #define WUFFS_CONFIG__MODULES
 #define WUFFS_CONFIG__MODULE__BASE
@@ -18,7 +18,7 @@
 #define WUFFS_CONFIG__MODULE__PNG
 #define WUFFS_CONFIG__MODULE__BZIP2
 #include "wuffs-v0.4.c"
-#elif defined(USE_IMGDEC_STB)
+#elif defined(USE_STB_IMGDEC)
 // fallbacks for older compilers
 #include "stb_image.h"
 #include <bzlib.h>
