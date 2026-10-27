@@ -504,6 +504,9 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     endif()
 
     set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis)
+    if (IMAGE_DECODER STREQUAL "stb")
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} bzip2)
+    endif()
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
