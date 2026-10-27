@@ -252,11 +252,12 @@ ifeq ($(IMAGE_DECODER),wuffs)
 INCLUDES += $(INC)vendor/wuffs/
 SRCS += vendor/wuffs/wuffs-v0.4.c
 HEADERS += vendor/wuffs/wuffs-v0.4.c
-DEFINES += $(DEFINE)USE_IMGDEC_WUFFS
+DEFINES += $(DEFINE)USE_WUFFS_IMGDEC
 else
 ifeq ($(IMAGE_DECODER),stb)
 INCLUDES += $(INC)vendor/bzip2
 SRCS += $(wildcard vendor/bzip2/*.c)
+DEFINES += $(DEFINE)USE_STB_IMGDEC
 endif
 endif
 
