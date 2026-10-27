@@ -71,6 +71,7 @@ endif()
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+set(IMAGE_DECODER "wuffs" CACHE STRING "Image decoder")
 
 if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
     message(FATAL_ERROR "You need to set a BACKEND!")
@@ -333,17 +334,29 @@ target_compile_options(sha1 PRIVATE -w)
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
 target_include_directories(butterscotch PUBLIC vendor/base64)
 
-# bzip2
-add_library(bzip2 STATIC
-    vendor/bzip2/bz_internal_error.c
-    vendor/bzip2/bzlib.c
-    vendor/bzip2/crctable.c
-    vendor/bzip2/decompress.c
-    vendor/bzip2/huffman.c
-    vendor/bzip2/randtable.c
-)
-target_include_directories(bzip2 PUBLIC vendor/bzip2)
-target_compile_options(bzip2 PRIVATE -w)
+# Image decoding deps
+if (IMAGE_DECODER STREQUAL "wuffs")
+    # wuffs
+    target_sources(butterscotch PRIVATE vendor/wuffs/wuffs-v0.4.c)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
+    add_compile_definitions(USE_WUFFS_IMGDEC)
+elseif(IMAGE_DECODER STREQUAL "stb")
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
+    # bzip2
+    add_library(bzip2 STATIC
+        vendor/bzip2/bz_internal_error.c
+        vendor/bzip2/bzlib.c
+        vendor/bzip2/crctable.c
+        vendor/bzip2/decompress.c
+        vendor/bzip2/huffman.c
+        vendor/bzip2/randtable.c
+    )
+    target_include_directories(bzip2 PUBLIC vendor/bzip2)
+    target_compile_options(bzip2 PRIVATE -w)
+    add_compile_definitions(USE_STB_IMGDEC)
+endif()
 
 # miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
 # All files vendored byte-for-byte from that tag except:
@@ -368,10 +381,6 @@ if(NOT MSVC)
         PROPERTIES COMPILE_OPTIONS "-w"
     )
 endif()
-
-# wuffs
-target_sources(butterscotch PRIVATE vendor/wuffs/wuffs-v0.4.c)
-target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
 
 # Video playback source
 if(BUTTERSCOTCH_FFMPEG)
@@ -487,9 +496,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     if(ENABLE_FILE_PICKER)
         add_compile_definitions(ENABLE_FILE_PICKER)
     endif()
-
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
     if (ENABLE_FILE_PICKER)
         # tinyfd

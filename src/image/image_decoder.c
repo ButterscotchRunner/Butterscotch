@@ -7,7 +7,7 @@
 #include "log.h"
 #include "utils.h"
 
-#if (defined(__GNUC__) && __GNUC__ >= 3) || defined(__clang__)
+#ifdef USE_IMGDEC_WUFFS
 #define WUFFS_IMPLEMENTATION
 #define WUFFS_CONFIG__MODULES
 #define WUFFS_CONFIG__MODULE__BASE
@@ -18,7 +18,7 @@
 #define WUFFS_CONFIG__MODULE__PNG
 #define WUFFS_CONFIG__MODULE__BZIP2
 #include "wuffs-v0.4.c"
-#else
+#elif defined(USE_IMGDEC_STB)
 // fallbacks for older compilers
 #include "stb_image.h"
 #include <bzlib.h>
@@ -225,9 +225,9 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
     uint32_t h = wuffs_base__pixel_config__height(&ic.pixcfg);
 
     wuffs_base__pixel_config__set(
-        &ic.pixcfg, 
-        WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL, 
-        WUFFS_BASE__PIXEL_SUBSAMPLING__NONE, 
+        &ic.pixcfg,
+        WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL,
+        WUFFS_BASE__PIXEL_SUBSAMPLING__NONE,
         w, h
     );
 
@@ -270,4 +270,3 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
     *outH = (int)h;
     return pixels;
 }
-
