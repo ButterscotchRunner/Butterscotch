@@ -503,7 +503,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
     endif()
 
-    set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
+    set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
@@ -753,13 +753,15 @@ elseif(PLATFORM STREQUAL "android")
     # stb_vorbis (for miniaudio's OGG decoding)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
     # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2)
+    if (IMAGE_DECODER STREQUAL "stb")
+        target_link_libraries(butterscotch PRIVATE bzip2)
+    endif()
 
     # Android NDK system libraries:
     # - log: __android_log_*
     # - GLESv3: OpenGL ES 3.0 functions
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
-    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
     target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
