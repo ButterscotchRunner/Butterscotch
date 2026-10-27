@@ -85,7 +85,7 @@ static void addGame(GameScan* scan, const char* dir, const char* name, const cha
         if (!_stricmp(scan->games[i].path, path)) return;
     }
 
-    // Keep saves and options tied to the folder name, even if the drive letter changes.
+    // Keep options tied to the folder name, even if the drive letter changes.
     uint64_t hash = 14695981039346656037ULL;
     for (const unsigned char* p = (const unsigned char*)name; *p; p++) {
         hash = (hash ^ *p) * 1099511628211ULL;
@@ -377,9 +377,8 @@ static void renderLauncher(const Launcher* launcher) {
     SDL_GL_SwapWindow(launcher->window);
 }
 
-int uwpChooseGame(char** dataPath, char** saveKey, UwpLaunchOptions* options) {
+int uwpChooseGame(char** dataPath, UwpLaunchOptions* options) {
     *dataPath = NULL;
-    *saveKey = NULL;
     *options = uwpLaunchOptionsDefault();
     Launcher launcher = {0};
     if (!initLauncher(&launcher)) {
@@ -399,7 +398,6 @@ int uwpChooseGame(char** dataPath, char** saveKey, UwpLaunchOptions* options) {
     if (launcher.result) {
         const Game* game = &launcher.games[launcher.selected];
         *dataPath = safeStrdup(game->path);
-        *saveKey = safeStrdup(game->key);
         *options = game->options;
         SDL_SetWindowTitle(launcher.window, game->title);
     }

@@ -26,16 +26,41 @@ static wchar_t* widePath(const char* path) {
 }
 
 FILE* uwpWFopen(const wchar_t* path, const wchar_t* mode) {
-    if (mode[0] != L'r' || wcschr(mode, L'+')) return _wfopen(path, mode);
+    DWORD access;
+    DWORD creation;
+    int flags = wcschr(mode, L'b') ? _O_BINARY : _O_TEXT;
+    switch (mode[0]) {
+        case L'r':
+            access = GENERIC_READ;
+            creation = OPEN_EXISTING;
+            flags |= _O_RDONLY;
+            break;
+        case L'w':
+            access = GENERIC_WRITE;
+            creation = wcschr(mode, L'x') ? CREATE_NEW : CREATE_ALWAYS;
+            flags |= _O_WRONLY;
+            break;
+        case L'a':
+            access = GENERIC_WRITE;
+            creation = OPEN_ALWAYS;
+            flags |= _O_WRONLY | _O_APPEND;
+            break;
+        default:
+            errno = EINVAL;
+            return NULL;
+    }
+    if (wcschr(mode, L'+')) {
+        access = GENERIC_READ | GENERIC_WRITE;
+        flags = (flags & ~_O_WRONLY) | _O_RDWR;
+    }
 
-    HANDLE handle = CreateFile2FromAppW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, OPEN_EXISTING, NULL);
+    HANDLE handle = CreateFile2FromAppW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, creation, NULL);
     if (handle == INVALID_HANDLE_VALUE) {
         DWORD error = GetLastError();
         errno = error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? ENOENT : EACCES;
         return NULL;
     }
 
-    int flags = _O_RDONLY | (wcschr(mode, L'b') ? _O_BINARY : _O_TEXT);
     int fd = _open_osfhandle((intptr_t)handle, flags);
     if (fd == -1) {
         CloseHandle(handle);

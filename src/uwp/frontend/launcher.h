@@ -3,6 +3,6 @@
 
 #include "launch_options.h"
 
-int uwpChooseGame(char** dataPath, char** saveKey, UwpLaunchOptions* options);
+int uwpChooseGame(char** dataPath, UwpLaunchOptions* options);
 
 #endif

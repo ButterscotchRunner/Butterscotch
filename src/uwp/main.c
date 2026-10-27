@@ -14,24 +14,12 @@ int main(int argc, char* argv[]) {
     SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
 
     char* path;
-    char* saveKey;
     UwpLaunchOptions options;
-    int selected = uwpChooseGame(&path, &saveKey, &options);
+    int selected = uwpChooseGame(&path, &options);
     if (selected <= 0) return selected < 0 ? 1 : 0;
-    char* save = SDL_GetPrefPath("Butterscotch", saveKey);
-    free(saveKey);
-    if (!save) {
-        free(path);
-        return 1;
-    }
-
-    for (char* p = save; *p; p++) {
-        if (*p == '\\') *p = '/';
-    }
 
     CommandLineArgs args = {0};
     args.dataWinPath = path;
-    args.saveFolder = save;
     args.exitAtFrame = -1;
     args.speedMultiplier = 1.0f;
     args.debug = options.debugStats;
@@ -47,7 +35,6 @@ int main(int argc, char* argv[]) {
     int ret = loop(args, "butterscotch.exe");
     freeCommandLineArgs(&args);
     free(path);
-    SDL_free(save);
     return ret;
 }
 

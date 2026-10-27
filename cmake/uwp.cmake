@@ -93,7 +93,7 @@ target_sources(butterscotch PRIVATE
     src/cli/stb_impl.c
     "${SDL_UWP_ROOT}/src/main/winrt/SDL2-WinRTResources.rc")
 
-set_property(SOURCE src/data_win.c src/input_recording.c src/loop.c APPEND PROPERTY COMPILE_OPTIONS "/FI${CMAKE_SOURCE_DIR}/src/uwp/stdio_redirect.h")
+set_property(SOURCE src/data_win.c src/input_recording.c src/loop.c src/overlay_file_system.c APPEND PROPERTY COMPILE_OPTIONS "/FI${CMAKE_SOURCE_DIR}/src/uwp/stdio_redirect.h")
 # MSVC does not track sprSelf's initialization through the selfDirty guard.
 set_property(SOURCE src/runner.c APPEND PROPERTY COMPILE_OPTIONS /w14703)
 set(UWP_CERTIFICATE_THUMBPRINT "$ENV{UWP_CERTIFICATE_THUMBPRINT}" CACHE STRING "Signing certificate in CurrentUser/My; empty builds an unsigned package")
