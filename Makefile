@@ -66,6 +66,7 @@ SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/
 PLATFORM := cli
 BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
+IMAGE_DECODER := wuffs
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
