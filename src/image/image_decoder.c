@@ -62,13 +62,11 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
 
         if ((b1 & 0xC0) == 0x00) {
             // QOI_INDEX
-            int indexPos = b1 & 0x3F;
-            packedCol = index[indexPos];
+            packedCol = index[b1 & 0x3F];
             r = UNPACK_R(packedCol);
             g = UNPACK_G(packedCol);
             b = UNPACK_B(packedCol);
             a = UNPACK_A(packedCol);
-            index[(r ^ g ^ b ^ a) & 63] = packedCol;
             *raw++ = packedCol;
         } else if ((b1 & 0xE0) == 0x40) {
             // QOI_RUN_8
