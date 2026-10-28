@@ -44,21 +44,21 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
     if (QOI_HEADER_SIZE + (size_t) length > dataSize) return nullptr;
     if (0 >= width || 0 >= height) return nullptr;
 
-    const uint8_t* pixelData = data + QOI_HEADER_SIZE;
-    size_t pixelDataSize = length;
+    const uint8_t* restrict pixelData = data + QOI_HEADER_SIZE;
+    const uint8_t* restrict pixelDataEnd = pixelData + length;
     size_t rawSize = (size_t)width * (size_t)height;
     uint32_t* restrict raw = (uint32_t*)safeMalloc(rawSize * sizeof(uint32_t));
     if (!raw) return nullptr;
 
+    const uint32_t* rawStart = raw;
+    const uint32_t* rawEnd = raw + rawSize;
     uint32_t index[64] = {0};
 
-    size_t pos = 0;
-    size_t rawDataPos = 0;
     uint8_t r = 0, g = 0, b = 0, a = 255;
     uint32_t packedCol = PACK_RGBA(r, g, b, a);
 
-    while (rawSize > rawDataPos && pixelDataSize > pos) {
-        uint8_t b1 = pixelData[pos++];
+    while (raw < rawEnd && pixelData < pixelDataEnd) {
+        uint8_t b1 = *pixelData++;
 
         if ((b1 & 0xC0) == 0x00) {
             // QOI_INDEX
@@ -69,31 +69,29 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
             b = UNPACK_B(packedCol);
             a = UNPACK_A(packedCol);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
-            raw[rawDataPos++] = packedCol;
+            *raw++ = packedCol;
         } else if ((b1 & 0xE0) == 0x40) {
             // QOI_RUN_8
             size_t run = (b1 & 0x1F) + 1;
-            size_t remaining = rawSize - rawDataPos;
+            size_t remaining = rawEnd - raw;
             if (run > remaining) run = remaining;
 
-            uint32_t* restrict dst = &raw[rawDataPos];
-            for (size_t i = 0; i < run; i++) {
-                dst[i] = packedCol;
+            const uint32_t* end = raw + run;
+            while (raw < end) {
+                *raw++ = packedCol;
             }
-            rawDataPos += run;
         } else if ((b1 & 0xE0) == 0x60) {
             // QOI_RUN_16
-            if (pixelDataSize <= pos) { free(raw); return nullptr; }
-            uint8_t b2 = pixelData[pos++];
+            if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; }
+            uint8_t b2 = *pixelData++;
             size_t run = (((b1 & 0x1F) << 8) | b2) + 33;
-            size_t remaining = rawSize - rawDataPos;
+            size_t remaining = rawEnd - raw;
             if (run > remaining) run = remaining;
 
-            uint32_t* restrict dst = &raw[rawDataPos];
-            for (size_t i = 0; i < run; i++) {
-                dst[i] = packedCol;
+            const uint32_t* end = raw + run;
+            while (raw < end) {
+                *raw++ = packedCol;
             }
-            rawDataPos += run;
         } else if ((b1 & 0xC0) == 0x80) {
             // QOI_DIFF_8 (2-2-2 signed deltas on r,g,b)
             r += signExtend((b1 >> 4) & 3, 2);
@@ -101,23 +99,23 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
             b += signExtend(b1 & 3, 2);
             packedCol = PACK_RGBA(r, g, b, a);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
-            raw[rawDataPos++] = packedCol;
+            *raw++ = packedCol;
         } else if ((b1 & 0xE0) == 0xC0) {
             // QOI_DIFF_16 (5-4-4 signed deltas on r,g,b)
-            if (pixelDataSize <= pos) { free(raw); return nullptr; }
-            uint8_t b2 = pixelData[pos++];
+            if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; }
+            uint8_t b2 = *pixelData++;
             uint32_t merged = ((uint32_t)b1 << 8) | b2;
             r += signExtend((merged >> 8) & 0x1F, 5);
             g += signExtend((merged >> 4) & 0x0F, 4);
             b += signExtend(merged & 0x0F, 4);
             packedCol = PACK_RGBA(r, g, b, a);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
-            raw[rawDataPos++] = packedCol;
+            *raw++ = packedCol;
         } else if ((b1 & 0xF0) == 0xE0) {
             // QOI_DIFF_24 (5-5-5-5 signed deltas on r,g,b,a)
-            if (pixelDataSize <= pos + 1) { free(raw); return nullptr; }
-            uint8_t b2 = pixelData[pos++];
-            uint8_t b3 = pixelData[pos++];
+            if (pixelData + 1 >= pixelDataEnd) { free((void*)rawStart); return nullptr; }
+            uint8_t b2 = *pixelData++;
+            uint8_t b3 = *pixelData++;
             uint32_t merged = ((uint32_t)b1 << 16) | ((uint32_t)b2 << 8) | b3;
             r += signExtend((merged >> 15) & 0x1F, 5);
             g += signExtend((merged >> 10) & 0x1F, 5);
@@ -125,22 +123,21 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
             a += signExtend(merged & 0x1F, 5);
             packedCol = PACK_RGBA(r, g, b, a);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
-            raw[rawDataPos++] = packedCol;
+            *raw++ = packedCol;
         } else if ((b1 & 0xF0) == 0xF0) {
             // QOI_COLOR (per-channel raw bytes, only those with set bit flag)
-            if (b1 & 8) { if (pixelDataSize <= pos) { free(raw); return nullptr; } r = pixelData[pos++]; }
-            if (b1 & 4) { if (pixelDataSize <= pos) { free(raw); return nullptr; } g = pixelData[pos++]; }
-            if (b1 & 2) { if (pixelDataSize <= pos) { free(raw); return nullptr; } b = pixelData[pos++]; }
-            if (b1 & 1) { if (pixelDataSize <= pos) { free(raw); return nullptr; } a = pixelData[pos++]; }
-            packedCol = PACK_RGBA(r, g, b, a);
+            if (b1 & 8) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } r = *pixelData++; }
+            if (b1 & 4) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } g = *pixelData++; }
+            if (b1 & 2) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } b = *pixelData++; }
+            if (b1 & 1) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } a = *pixelData++; }            packedCol = PACK_RGBA(r, g, b, a);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
-            raw[rawDataPos++] = packedCol;
+            *raw++ = packedCol;
         }
     }
 
     *outW = width;
     *outH = height;
-    return (uint8_t*)raw;
+    return (uint8_t*)rawStart;
 }
 
 // Decodes BZip2-compressed custom QOI. The blob layout is:
