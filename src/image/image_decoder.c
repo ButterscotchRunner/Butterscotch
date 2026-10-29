@@ -3,11 +3,26 @@
 #include "stdio_compat.h"
 #include <stdlib.h>
 #include "string_compat.h"
-#include <bzlib.h>
 
 #include "log.h"
 #include "utils.h"
+
+#ifdef USE_WUFFS_IMGDEC
+#define WUFFS_IMPLEMENTATION
+#define WUFFS_CONFIG__MODULES
+#define WUFFS_CONFIG__MODULE__BASE
+#define WUFFS_CONFIG__MODULE__CRC32
+#define WUFFS_CONFIG__MODULE__ADLER32
+#define WUFFS_CONFIG__MODULE__DEFLATE
+#define WUFFS_CONFIG__MODULE__ZLIB
+#define WUFFS_CONFIG__MODULE__PNG
+#define WUFFS_CONFIG__MODULE__BZIP2
+#include "wuffs-v0.4.c"
+#elif defined(USE_STB_IMGDEC)
+// fallbacks for older compilers
 #include "stb_image.h"
+#include <bzlib.h>
+#endif
 
 #define QOI_HEADER_SIZE 12
 #define COMPRESSED_QOI_HEADER_SIZE_OLD 8
@@ -153,10 +168,43 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     if (0 >= width || 0 >= height) return nullptr;
 
     // Upper bound on decompressed QOI: header size + width*height*5 pixel data.
-    size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t) width * (size_t) height * 5;
-    uint8_t* uncompressed = (uint8_t*) malloc(uncompressedCapacity);
+    size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t)width * (size_t)height * 5;
+    uint8_t* uncompressed = (uint8_t*)malloc(uncompressedCapacity);
     if (!uncompressed) return nullptr;
+#ifdef USE_WUFFS_IMGDEC
+    wuffs_bzip2__decoder dec;
+    wuffs_base__status status = wuffs_bzip2__decoder__initialize(&dec, sizeof(dec), WUFFS_VERSION, 0);
+    if (!wuffs_base__status__is_ok(&status)) {
+        free(uncompressed);
+        return nullptr;
+    }
 
+    wuffs_base__io_buffer dstBuf = wuffs_base__ptr_u8__writer(uncompressed, uncompressedCapacity);
+    wuffs_base__io_buffer srcBuf = wuffs_base__ptr_u8__reader((uint8_t*)(blob + headerSize), blobSize - headerSize, true);
+
+    wuffs_base__range_ii_u64 workbufLen = wuffs_bzip2__decoder__workbuf_len(&dec);
+    wuffs_base__slice_u8 workbuf = wuffs_base__empty_slice_u8();
+    if (workbufLen.max_incl > 0) {
+        uint8_t* workPtr = (uint8_t*)malloc(workbufLen.max_incl);
+        if (workPtr == nullptr) {
+            free(uncompressed);
+            return nullptr;
+        }
+        workbuf = wuffs_base__make_slice_u8(workPtr, workbufLen.max_incl);
+    }
+
+    status = wuffs_bzip2__decoder__transform_io(&dec, &dstBuf, &srcBuf, workbuf);
+
+    if (workbuf.ptr != nullptr) free(workbuf.ptr);
+
+    if (!wuffs_base__status__is_ok(&status)) {
+        logWarn("ImageDecoder: BZ2 decompress failed\n");
+        free(uncompressed);
+        return nullptr;
+    }
+
+    size_t destLen = dstBuf.meta.wi;
+#elif defined(USE_STB_IMGDEC)
     unsigned int destLen = (unsigned int) uncompressedCapacity;
     int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, &destLen, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
     if (rc != BZ_OK) {
@@ -164,6 +212,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
         free(uncompressed);
         return nullptr;
     }
+#endif
 
     uint8_t* result = decodeQoi(uncompressed, destLen, outW, outH);
     free(uncompressed);
@@ -183,11 +232,65 @@ uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm
         return decodeBz2Qoi(blob, blobSize, gm2022_5, outW, outH);
     }
 
-    // PNG (or anything else stbi recognizes).
+#ifdef USE_WUFFS_IMGDEC
+    wuffs_png__decoder dec;
+    wuffs_base__status status = wuffs_png__decoder__initialize(&dec, sizeof(dec), WUFFS_VERSION, 0);
+    if (!wuffs_base__status__is_ok(&status)) return nullptr;
+
+    wuffs_base__image_decoder* imgDec = wuffs_png__decoder__upcast_as__wuffs_base__image_decoder(&dec);
+
+    wuffs_base__io_buffer src = wuffs_base__ptr_u8__reader((uint8_t*)blob, blobSize, true);
+
+    wuffs_base__image_config ic;
+    status = wuffs_base__image_decoder__decode_image_config(imgDec, &ic, &src);
+    if (!wuffs_base__status__is_ok(&status)) return nullptr;
+
+    uint32_t w = wuffs_base__pixel_config__width(&ic.pixcfg);
+    uint32_t h = wuffs_base__pixel_config__height(&ic.pixcfg);
+
+    wuffs_base__pixel_config__set(
+        &ic.pixcfg,
+        WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL,
+        WUFFS_BASE__PIXEL_SUBSAMPLING__NONE,
+        w, h
+    );
+
+    size_t pixBufSize = (size_t)w * (size_t)h * 4;
+    uint8_t* pixels = (uint8_t*)safeMalloc(pixBufSize);
+    if (!pixels) return nullptr;
+
+    wuffs_base__pixel_buffer pb;
+    status = wuffs_base__pixel_buffer__set_from_slice(&pb, &ic.pixcfg, wuffs_base__make_slice_u8(pixels, pixBufSize));
+    if (!wuffs_base__status__is_ok(&status)) {
+        free(pixels);
+        return nullptr;
+    }
+
+    wuffs_base__range_ii_u64 workbufLen = wuffs_base__image_decoder__workbuf_len(imgDec);
+    wuffs_base__slice_u8 workbuf = wuffs_base__empty_slice_u8();
+    if (workbufLen.max_incl > 0) {
+        uint8_t* workPtr = (uint8_t*)safeMalloc(workbufLen.max_incl);
+        if (workPtr == nullptr) {
+            free(pixels);
+            return nullptr;
+        }
+        workbuf = wuffs_base__make_slice_u8(workPtr, workbufLen.max_incl);
+    }
+
+    status = wuffs_base__image_decoder__decode_frame(imgDec, &pb, &src, WUFFS_BASE__PIXEL_BLEND__SRC, workbuf, nullptr);
+
+    if (workbuf.ptr) free(workbuf.ptr);
+
+    if (!wuffs_base__status__is_ok(&status)) {
+        free(pixels);
+        return nullptr;
+    }
+#elif defined(USE_STB_IMGDEC)
     int w, h, channels;
     uint8_t* pixels = stbi_load_from_memory(blob, (int) blobSize, &w, &h, &channels, 4);
     if (!pixels) return nullptr;
-    *outW = w;
-    *outH = h;
+#endif
+    *outW = (int)w;
+    *outH = (int)h;
     return pixels;
 }
