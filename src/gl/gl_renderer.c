@@ -37,6 +37,12 @@
 #define VERTICES_PER_QUAD 4
 #define INDICES_PER_QUAD 6
 
+#if !defined(__SYMBIAN32__)
+#define MODERN_DESKTOP_D3D 1
+#else
+#define MODERN_DESKTOP_D3D 0
+#endif
+
 // ===[ Shader Sources ]===
 
 static const char* baseVertexShader =
@@ -810,7 +816,7 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     modernGl->defaultShaderProgram = defaultShader;
     modernGl->uTextureRect = glGetUniformLocation(defaultShader->shaderId, "uTextureRect");
     modernGl->uLocalUV = glGetUniformLocation(defaultShader->shaderId, "uLocalUV");
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     modernGl->depthWrite = true;
 #endif
 
@@ -1082,7 +1088,7 @@ static void glDestroy(Renderer* renderer) {
     free(modernGl->uAlphaTestEnabled);
     free(modernGl->uTexture);
 
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     for (uint32_t i = 0; i < gl->surfaceCount; i++) {
         if (modernGl->surfaceDepth[i]) glDeleteRenderbuffers(1, &modernGl->surfaceDepth[i]);
     }
@@ -1092,8 +1098,8 @@ static void glDestroy(Renderer* renderer) {
     GLCommon_destroy(renderer);
 }
 
+#if MODERN_DESKTOP_D3D
 static void glSetDepthState(Renderer* renderer, bool test, bool write, bool cull) {
-#ifndef __SYMBIAN32__
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     if (modernGl->depthTest == test && modernGl->depthWrite == write && modernGl->cull == cull) return;
     flushBatch((GLRenderer*)renderer);
@@ -1106,11 +1112,11 @@ static void glSetDepthState(Renderer* renderer, bool test, bool write, bool cull
     if (cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glApplyCullWinding(renderer);
-#endif
 }
+#endif
 
 static void glClearDepthBuffer(Renderer* renderer, float depth) {
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     flushBatch((GLRenderer*)renderer);
     glDepthMask(GL_TRUE);
@@ -1136,7 +1142,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     modernGl->currentTextureId = 0;
     
     GLCommon_beginFrame(gl, gameW, gameH, windowW, windowH);
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
     glDisable(GL_SCISSOR_TEST);
     glClearDepthBuffer(renderer, 1.0f);
@@ -1165,7 +1171,8 @@ static void glEndView(Renderer* renderer) {
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
-    GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
+	GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
+#if MODERN_DESKTOP_D3D
     // surface_reset_target rebinds the GUI target through this same callback.
     // Save world state only on entry, not again while already inside the pass.
     if (!modernGl->guiActive) {
@@ -1179,6 +1186,7 @@ static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t p
     Matrix4f identity;
     Matrix4f_identity(&identity);
     renderer->vtable->setMatrix(renderer, MATRIX_WORLD, identity);
+#endif
 
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
@@ -1205,8 +1213,10 @@ static void glEndGUI(Renderer* renderer) {
     flushBatch(gl);
     glDisable(GL_SCISSOR_TEST);
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
+#if MODERN_DESKTOP_D3D
     renderer->vtable->setMatrix(renderer, MATRIX_WORLD, modernGl->savedGUIWorld);
     glSetDepthState(renderer, modernGl->savedDepthTest, modernGl->savedDepthWrite, modernGl->savedCull);
+#endif
     modernGl->guiActive = false;
 }
 
@@ -1347,6 +1357,7 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
 
 #if defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
+    // TODO: implement lru for compressed textures for symbian
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
         if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
@@ -2776,7 +2787,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevBinding);
 
     uint32_t surfaceIndex = GLCommon_allocateSurfaceSlot(&gl->surfaces, &gl->surfaceTexture, &gl->surfaceWidth, &gl->surfaceHeight, &gl->surfaceCount);
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     modernGl->surfaceDepth = (GLuint*)safeRealloc(modernGl->surfaceDepth, gl->surfaceCount * sizeof(GLuint));
     modernGl->surfaceDepth[surfaceIndex] = 0;
@@ -2806,7 +2817,7 @@ static int32_t glCreateSurface(Renderer* renderer, int32_t width, int32_t height
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceIndex]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex], 0);
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     glGenRenderbuffers(1, &modernGl->surfaceDepth[surfaceIndex]);
     glBindRenderbuffer(GL_RENDERBUFFER, modernGl->surfaceDepth[surfaceIndex]);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
@@ -2854,7 +2865,7 @@ static void glSurfaceFree(Renderer* renderer, int32_t surfaceID) {
 
     // Freeing the application_surface is a no-op from GML; the runner manages its lifecycle via application_surface_enable.
     if (surfaceID == renderer->runner->applicationSurfaceId) return;
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     if (modernGl->surfaceDepth[surfaceID]) glDeleteRenderbuffers(1, &modernGl->surfaceDepth[surfaceID]);
     modernGl->surfaceDepth[surfaceID] = 0;
@@ -2900,7 +2911,7 @@ static void glSurfaceResize(Renderer* renderer, int32_t surfaceID, int32_t width
 
     glBindFramebuffer(GL_FRAMEBUFFER, gl->surfaces[surfaceID]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl->surfaceTexture[surfaceID], 0);
-#ifndef __SYMBIAN32__
+#if MODERN_DESKTOP_D3D
     GLModernRenderer* modernGl = (GLModernRenderer*)renderer;
     glBindRenderbuffer(GL_RENDERBUFFER, modernGl->surfaceDepth[surfaceID]);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
@@ -3434,6 +3445,7 @@ static void glGpuGetColorWriteEnable(Renderer* renderer, bool* red, bool* green,
     *alpha = gl->colorWriteA;
 }
 
+#if MODERN_DESKTOP_D3D
 static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color, float start, float end) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
@@ -3446,6 +3458,7 @@ static void glGpuSetFog(Renderer* renderer, bool enable, uint32_t color, float s
     modernGl->fogEnd = end;
     glShaderSettingsRefresh(renderer);
 }
+#endif
 
 static int32_t glShaderGetUniform(Renderer* renderer, int32_t shaderIndex, char* uniform) {
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
@@ -3785,7 +3798,6 @@ Renderer* GLRenderer_create(void) {
     glVtable.gpuSetAlphaTestRef = glGpuSetAlphaTestRef;
     glVtable.gpuSetColorWriteEnable = glGpuSetColorWriteEnable;
     glVtable.gpuGetColorWriteEnable = glGpuGetColorWriteEnable;
-    glVtable.gpuSetFog = glGpuSetFog;
     glVtable.gpuGetBlendEnable = glGpuGetBlendEnable;
     glVtable.drawTile = nullptr;
     glVtable.drawSpriteTiled = glDrawSpriteTiled;
@@ -3819,9 +3831,12 @@ Renderer* GLRenderer_create(void) {
     glVtable.textureSetStage = glTextureSetStage,
     glVtable.shaderIsCompiled = glShaderIsCompiled,
     glVtable.shadersSupported = glShadersSupported,
+#if MODERN_DESKTOP_D3D
+    glVtable.gpuSetFog = glGpuSetFog;
     glVtable.setMatrix = glSetMatrix,
     glVtable.setDepthState = glSetDepthState;
     glVtable.clearDepth = glClearDepthBuffer;
+#endif
 
     base->drawColor = 0xFFFFFF; // white (BGR)
     base->drawAlpha = 1.0f;
