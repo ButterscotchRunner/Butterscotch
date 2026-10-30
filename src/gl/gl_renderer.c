@@ -24,6 +24,7 @@
 #include "image_decoder.h"
 #include "gl_common.h"
 #include "gl_wrappers.h"
+#include "default_font/default_font.h"
 #include "vm_builtins.h"
 
 // ===[ Constants ]===
@@ -2204,7 +2205,7 @@ typedef struct {
 
 // ===[ Debug UI font (drawTextUI) ]===
 // drawTextUI must not depend on game fonts (data.win may ship none), so it uses
-// the embedded debug font from gl_common.h, uploaded as its own GL texture.
+// the embedded default font from gl_common.h, uploaded as its own GL texture.
 // A synthetic Font + GlFontState pair is built per renderer instance and passed
 // as real pointers into drawText().
 
@@ -2217,6 +2218,17 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texW = 0;
     state->texH = 0;
     state->spriteFontSprite = nullptr;
+
+    if (DefaultFont_isDefault(font)) {
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
+
+        state->fontTpag = &gl->defaultUI.tpag;
+        state->texId = gl->defaultUI.texture;
+        state->texW = DEFAULTFONT_ATLAS_W;
+        state->texH = DEFAULTFONT_ATLAS_H;
+        return true;
+    }
 
     if (!font->isSpriteFont) {
         int32_t fontTpagIndex = font->tpagIndex;
@@ -2274,7 +2286,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
+        *outLocalY0 = cursorY + DefaultFont_glyphYOffset(font, glyph->character);
     }
     return true;
 }
@@ -2301,10 +2313,15 @@ static void drawText(
 
     if (!font) {
         int32_t fontIndex = renderer->drawFont;
-        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
-            return;
-
-        font = &dw->font.fonts[fontIndex];
+        if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+            font = &dw->font.fonts[fontIndex];
+        } else {
+            int32_t defaultFontIndex = DefaultFont_ensureLoaded(dw);
+            if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
+                renderer->drawFont = defaultFontIndex;
+                font = &dw->font.fonts[defaultFontIndex];
+            }
+        }
     }
 
     GlFontState fontState;
@@ -2502,15 +2519,15 @@ static void glDrawTextColor(Renderer* renderer, const char* text, float x, float
 static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y, float xscale, float yscale, float angleDeg, int32_t _c1, int32_t _c2, int32_t _c3, int32_t _c4, float alpha, float lineSeparation) {
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
-    GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
+    GLCommon_initDefaultUIFont(&gl->defaultUI);
+    if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
 
     GlFontState fs;
-    fs.font = &gl->debugUI.font;
-    fs.fontTpag = &gl->debugUI.tpag;
-    fs.texId = gl->debugUI.texture;
-    fs.texW = DEBUGFONT_ATLAS_W;
-    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.font = &gl->defaultUI.font;
+    fs.fontTpag = &gl->defaultUI.tpag;
+    fs.texId = gl->defaultUI.texture;
+    fs.texW = DEFAULTFONT_ATLAS_W;
+    fs.texH = DEFAULTFONT_ATLAS_H;
     fs.spriteFontSprite = nullptr;
 
     drawText(
