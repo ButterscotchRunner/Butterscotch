@@ -48,6 +48,8 @@ Of course, some games won't run! Some games aren't VM compiled, such as:
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
 * Games before GameMaker: Studio 1.0.198 (pre-WAD version 8) because they use raw GML code interpreted on load.
 
+Some games may also have issues if they use an *external extension* for stuff like Discord or shaders! (FMOD is the only implemented extension!)
+
 ## Supported Platforms
 
 * Windows
