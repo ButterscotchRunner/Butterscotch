@@ -15,7 +15,7 @@ if(PLATFORM STREQUAL "vita")
 
     set(BACKEND "sdl2")
 
-    elseif(PLATFORM STREQUAL "switch")
+elseif(PLATFORM STREQUAL "switch")
     if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         if(NOT DEFINED ENV{DEVKITPRO})
             message(FATAL_ERROR "Please define DEVKITPRO to point to your SDK path!")
@@ -23,6 +23,9 @@ if(PLATFORM STREQUAL "vita")
         set(CMAKE_TOOLCHAIN_FILE "$ENV{DEVKITPRO}/cmake/Switch.cmake" CACHE PATH "toolchain file")
     endif()
 
+    set(BACKEND "sdl2")
+
+elseif(PLATFORM STREQUAL "webos")
     set(BACKEND "sdl2")
 endif()
 
@@ -68,6 +71,7 @@ endif()
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+set(IMAGE_DECODER "wuffs" CACHE STRING "Image decoder")
 
 if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
     message(FATAL_ERROR "You need to set a BACKEND!")
@@ -115,7 +119,7 @@ option(ENABLE_WAD14 "Enable support for WAD Version 14 and below" ON)
 option(ENABLE_WAD16 "Enable support for WAD Version 15/16" ON)
 option(ENABLE_WAD17 "Enable support for WAD Version 17" ON)
 option(ENABLE_LEGACY_GL "Enable the legacy OpenGL renderer" ON)
-if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
+if(PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ON)
@@ -331,17 +335,29 @@ target_compile_options(sha1 PRIVATE -w)
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
 target_include_directories(butterscotch PUBLIC vendor/base64)
 
-# bzip2
-add_library(bzip2 STATIC
-    vendor/bzip2/bz_internal_error.c
-    vendor/bzip2/bzlib.c
-    vendor/bzip2/crctable.c
-    vendor/bzip2/decompress.c
-    vendor/bzip2/huffman.c
-    vendor/bzip2/randtable.c
-)
-target_include_directories(bzip2 PUBLIC vendor/bzip2)
-target_compile_options(bzip2 PRIVATE -w)
+# Image decoding deps
+if (IMAGE_DECODER STREQUAL "wuffs")
+    # wuffs
+    target_sources(butterscotch PRIVATE vendor/wuffs/wuffs-v0.4.c)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
+    add_compile_definitions(USE_WUFFS_IMGDEC)
+elseif(IMAGE_DECODER STREQUAL "stb")
+    # bzip2 for GMQOZ
+    add_library(bzip2 STATIC
+        vendor/bzip2/bz_internal_error.c
+        vendor/bzip2/bzlib.c
+        vendor/bzip2/crctable.c
+        vendor/bzip2/decompress.c
+        vendor/bzip2/huffman.c
+        vendor/bzip2/randtable.c
+    )
+    target_include_directories(bzip2 PUBLIC vendor/bzip2)
+    target_compile_options(bzip2 PRIVATE -w)
+    add_compile_definitions(USE_STB_IMGDEC)
+endif()
+
+# stb_image (needed for write regardless)
+target_include_directories(butterscotch PUBLIC vendor/stb/image)
 
 # miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
 # All files vendored byte-for-byte from that tag except:
@@ -386,8 +402,14 @@ if(ENABLE_VM_EXCEPTIONS_LOGS)
     add_compile_definitions(ENABLE_VM_EXCEPTIONS_LOGS)
 endif()
 
-if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "web")
-    if(PLATFORM STREQUAL "vita")
+if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "webos" OR PLATFORM STREQUAL "web")
+    if(PLATFORM STREQUAL "webos")
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
+    elseif(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
         # building for the Vita, just force-feed these...
@@ -398,6 +420,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
 
@@ -405,6 +428,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "web")
         add_compile_definitions(PLATFORM_WEB)
         target_sources(butterscotch PRIVATE src/cli/args.c)
@@ -413,6 +437,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT ON)
         set(VM_OPCODE_PROFILER_DEFAULT ON)
         set(VM_STUB_LOGS_DEFAULT ON)
+        set(ENABLE_FILE_PICKER ON)
     endif()
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
@@ -463,10 +488,22 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
-    # stb_image
-    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+    # File Picker
+    option(ENABLE_FILE_PICKER "Enable file picker" ${VM_STUB_LOGS_DEFAULT})
+    if(ENABLE_FILE_PICKER)
+        add_compile_definitions(ENABLE_FILE_PICKER)
+    endif()
 
-    set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
+    if (ENABLE_FILE_PICKER)
+        # tinyfd
+        target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
+        target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
+    endif()
+
+    set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis)
+    if (IMAGE_DECODER STREQUAL "stb")
+        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} bzip2)
+    endif()
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
@@ -716,13 +753,15 @@ elseif(PLATFORM STREQUAL "android")
     # stb_vorbis (for miniaudio's OGG decoding)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
     # bzip2
-    target_link_libraries(butterscotch PRIVATE bzip2)
+    if (IMAGE_DECODER STREQUAL "stb")
+        target_link_libraries(butterscotch PRIVATE bzip2)
+    endif()
 
     # Android NDK system libraries:
     # - log: __android_log_*
     # - GLESv3: OpenGL ES 3.0 functions
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
-    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     # The PS2 EE has a single-precision FPU only, so double is software-emulated
     add_compile_definitions(USE_FLOAT_REALS)
@@ -965,7 +1004,7 @@ elseif(PLATFORM STREQUAL "ps3")
     target_include_directories(butterscotch PRIVATE ${SDL2_INCLUDE_DIRS})
     # mojoal calls SDL atomics/threads, so SDL2 must link after it (static link order)
     target_link_libraries(mojoal PUBLIC ${SDL2_LIBRARIES})
-    target_link_libraries(butterscotch PRIVATE bzip2 sha1 ps3gl mojoal ${SDL2_LIBRARIES} gcm_sys rsx sysutil io audio rt lv2 m stb_ds stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE sha1 ps3gl mojoal ${SDL2_LIBRARIES} gcm_sys rsx sysutil io audio rt lv2 m stb_ds stb_vorbis)
 elseif(PLATFORM STREQUAL "vita")
 else()
     message(FATAL_ERROR "Unknown platform! ${PLATFORM}")

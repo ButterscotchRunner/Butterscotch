@@ -213,72 +213,6 @@ int32_t Runner_pushInstancesForTarget(Runner* runner, int32_t target) {
 
 // ===[ Event Execution ]===
 
-static void setVMInstanceContext(VMContext* vm, Instance* instance) {
-    vm->currentInstance = instance;
-}
-
-static void restoreVMInstanceContext(VMContext* vm, Instance* savedInstance) {
-    vm->currentInstance = savedInstance;
-}
-
-static void executeCode(Runner* runner, Instance* instance, int32_t codeId) {
-    // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
-    if (0 > codeId) return;
-
-    VMContext* vm = runner->vmContext;
-
-    // Save instance context
-    Instance* savedInstance = (Instance*) vm->currentInstance;
-
-    // Save full VM execution state, because VM_executeCode overwrites all of these.
-    // This is necessary for nested execution (e.g., instance_create triggering a Create
-    // event while another event's executeLoop is still on the call stack).
-    uint8_t* savedBytecodeBase = vm->bytecodeBase;
-    uint32_t savedIP = vm->ip;
-    uint32_t savedCodeEnd = vm->codeEnd;
-    const char* savedCodeName = vm->currentCodeName;
-    RValue* savedLocalVars = vm->localVars;
-    uint32_t savedLocalVarCount = vm->localVarCount;
-    IntIntHashMap* savedCodeLocalsSlotMap = vm->currentCodeLocalsSlotMap;
-    int32_t savedCodeIndex = vm->currentCodeIndex;
-    int32_t savedStackTop = vm->stack.top;
-
-    // Save stack values (VM_executeCode resets stack.top to 0, which would let
-    // the nested execution overwrite the caller's stack slot values)
-    RValue* savedStackValues = nullptr;
-    if (savedStackTop > 0) {
-        savedStackValues = (RValue *)safeMalloc((uint32_t) savedStackTop * sizeof(RValue));
-        memcpy(savedStackValues, vm->stack.slots, (uint32_t) savedStackTop * sizeof(RValue));
-    }
-
-    // Set instance context
-    setVMInstanceContext(vm, instance);
-
-    // Execute
-    RValue result = VM_executeCode(vm, codeId);
-    RValue_free(&result);
-
-    // Restore instance context
-    restoreVMInstanceContext(vm, savedInstance);
-
-    // Restore VM execution state
-    vm->bytecodeBase = savedBytecodeBase;
-    vm->ip = savedIP;
-    vm->codeEnd = savedCodeEnd;
-    vm->currentCodeName = savedCodeName;
-    vm->localVars = savedLocalVars;
-    vm->localVarCount = savedLocalVarCount;
-    vm->currentCodeLocalsSlotMap = savedCodeLocalsSlotMap;
-    vm->currentCodeIndex = savedCodeIndex;
-    vm->stack.top = savedStackTop;
-
-    // Restore stack values
-    if (savedStackTop > 0) {
-        memcpy(vm->stack.slots, savedStackValues, (uint32_t) savedStackTop * sizeof(RValue));
-        free(savedStackValues);
-    }
-}
-
 const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
     switch (eventType) {
         case EVENT_CREATE:  return "Create";
@@ -382,7 +316,6 @@ const char* Runner_getEventName(int32_t eventType, int32_t eventSubtype) {
 static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     if (ctx == nullptr) return;
 
-    Instance* savedInstance = ctx->currentInstance;
     Instance* targetInstance = nullptr;
     int32_t rawArg = RValue_toInt32(callback);
     int32_t codeId = -1;
@@ -396,10 +329,19 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
         if (targetInstance == nullptr) {
             targetInstance = ctx->globalScopeInstance;
         }
-        ctx->currentInstance = targetInstance;
 
         if (method->codeIndex >= 0 && (uint32_t) method->codeIndex < ctx->dataWin->code.count) {
-            VM_callCodeIndex(ctx, method->codeIndex, nullptr, 0);
+            VM_executeCode(
+                ctx,
+                method->codeIndex,
+                targetInstance,
+                nullptr,
+                ctx->currentCallFrame->eventObjectIndex,
+                ctx->currentCallFrame->eventType,
+                ctx->currentCallFrame->eventSubtype,
+                nullptr,
+                0
+            );
         } else if (method->builtin != nullptr) {
             method->builtin(ctx, nullptr, 0);
         } else if (method->unresolvedName != nullptr) {
@@ -407,12 +349,8 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             logWarn("VM: call_later callback method unresolved: %s\n", method->unresolvedName);
 #endif
         }
-
-        ctx->currentInstance = savedInstance;
         return;
     }
-
-    ctx->currentInstance = ctx->globalScopeInstance;
 
     if (rawArg >= 0 && ctx->dataWin->func.functionCount > (uint32_t) rawArg) {
         const char* funcName = ctx->dataWin->func.functions[rawArg].name;
@@ -434,12 +372,20 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
     }
 
     if (0 <= codeId && (uint32_t) codeId < ctx->dataWin->code.count) {
-        VM_callCodeIndex(ctx, codeId, nullptr, 0);
+        VM_executeCode(
+            ctx,
+            codeId,
+            ctx->globalScopeInstance,
+            nullptr,
+            ctx->currentCallFrame->eventObjectIndex,
+            ctx->currentCallFrame->eventType,
+            ctx->currentCallFrame->eventSubtype,
+            nullptr,
+            0
+        );
     } else if (builtin != nullptr) {
         builtin(ctx, nullptr, 0);
     }
-
-    ctx->currentInstance = savedInstance;
 }
 #endif
 
@@ -462,20 +408,14 @@ static bool isEventBlockedByPendingRoom(Runner* runner, Instance* instance, int3
 }
 
 // Executes an already-resolved event handler (see findEventCodeIdAndOwner) and verified codeId >= 0.
-static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
+static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, Instance* other, int32_t eventType, int32_t eventSubtype, int32_t codeId, int32_t ownerObjectIndex) {
     if (isEventBlockedByPendingRoom(runner, instance, eventType) || runner->shouldExit)
         return;
 
     VMContext* vm = runner->vmContext;
-    int32_t savedEventType = vm->currentEventType;
-    int32_t savedEventSubtype = vm->currentEventSubtype;
-    int32_t savedEventObjectIndex = vm->currentEventObjectIndex;
     bool savedActionRelativeFlag = vm->actionRelativeFlag;
 
     vm->actionRelativeFlag = false;
-    vm->currentEventType = eventType;
-    vm->currentEventSubtype = eventSubtype;
-    vm->currentEventObjectIndex = ownerObjectIndex;
 
 #ifdef ENABLE_VM_TRACING
     if (codeId >= 0 && shlen(vm->eventsToBeTraced) != -1) {
@@ -494,26 +434,33 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, int3
     }
 #endif
 
-    executeCode(runner, instance, codeId);
+    VM_executeCodeIgnoreInvalidCodeIndices(
+        runner->vmContext,
+        codeId,
+        instance,
+        other,
+        ownerObjectIndex,
+        eventType,
+        eventSubtype,
+        nullptr,
+        0
+    );
 
-    vm->currentEventType = savedEventType;
-    vm->currentEventSubtype = savedEventSubtype;
-    vm->currentEventObjectIndex = savedEventObjectIndex;
     vm->actionRelativeFlag = savedActionRelativeFlag;
 }
 
-void Runner_executeEventFromObject(Runner* runner, Instance* instance, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype) {
+void Runner_executeEventFromObject(Runner* runner, Instance* instance, Instance* other, int32_t startObjectIndex, int32_t eventType, int32_t eventSubtype) {
     int32_t ownerObjectIndex = -1;
     int32_t codeId = findEventCodeIdAndOwner(runner, startObjectIndex, eventType, eventSubtype, &ownerObjectIndex);
     // Fast path: If the codeId is invalid, let's bail out fast
     // This way can avoid the need of loading and saving the current state variables
     if (0 > codeId)
         return;
-    Runner_executeResolvedEvent(runner, instance, eventType, eventSubtype, codeId, ownerObjectIndex);
+    Runner_executeResolvedEvent(runner, instance, other, eventType, eventSubtype, codeId, ownerObjectIndex);
 }
 
 void Runner_executeEvent(Runner* runner, Instance* instance, int32_t eventType, int32_t eventSubtype) {
-    Runner_executeEventFromObject(runner, instance, instance->objectIndex, eventType, eventSubtype);
+    Runner_executeEventFromObject(runner, instance, nullptr, instance->objectIndex, eventType, eventSubtype);
 }
 
 // Events that GameMaker routes through the per-object obj_has_event table instead of Perform_Event_All.
@@ -570,7 +517,7 @@ void Runner_executeEventForAll(Runner* runner, int32_t eventType, int32_t eventS
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
-        Runner_executeResolvedEvent(runner, inst, eventType, eventSubtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, eventType, eventSubtype, codeId, ownerObjectIndex);
     }
 }
 
@@ -773,7 +720,7 @@ static void fireDrawSubtype(Runner* runner, Drawable* drawables, int32_t drawabl
         int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
         int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
-        Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, subtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_DRAW, subtype, codeId, ownerObjectIndex);
         Runner_popLayerShader(runner, previousShader);
     }
 }
@@ -970,7 +917,7 @@ static void drawInstanceNormally(Runner* runner, Instance* inst) {
         int32_t ownerObjectIndex = -1;
         int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
         if (codeId >= 0)
-            Runner_executeResolvedEvent(runner, inst, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
+            Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_DRAW, DRAW_NORMAL, codeId, ownerObjectIndex);
         else if (runner->renderer != nullptr)
             Renderer_drawSelf(runner->renderer, inst);
     }
@@ -1099,20 +1046,21 @@ void Runner_draw(Runner* runner) {
             if (runtimeLayer == nullptr || !runtimeLayer->visible) continue;
             int32_t previousShader = Runner_pushLayerShader(runner, (int32_t) runtimeLayer->id);
             VMContext* ctx = runner->vmContext;
-            Instance* savedInstance = ctx->currentInstance;
-            int32_t savedEventType = ctx->currentEventType;
-            int32_t savedEventSubtype = ctx->currentEventSubtype;
 
-            ctx->currentInstance = ctx->globalScopeInstance;
-            ctx->currentEventType = EVENT_DRAW;
-            ctx->currentEventSubtype = DRAW_NORMAL;
+            if (runtimeLayer->beginScript >= 0) {
+                VM_executeCode(
+                    ctx,
+                    runtimeLayer->beginScript,
+                    ctx->globalScopeInstance,
+                    nullptr,
+                    CODE_NOT_RELATED_TO_EVENTS,
+                    EVENT_DRAW,
+                    DRAW_NORMAL,
+                    nullptr,
+                    0
+                );
+            }
 
-            if (runtimeLayer->beginScript >= 0)
-                VM_callCodeIndex(ctx, runtimeLayer->beginScript, nullptr, 0);
-
-            ctx->currentInstance = savedInstance;
-            ctx->currentEventType = savedEventType;
-            ctx->currentEventSubtype = savedEventSubtype;
             runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr) {
                 Runner_popLayerShader(runner, previousShader);
@@ -1238,16 +1186,20 @@ void Runner_draw(Runner* runner) {
                         spr->scaleY, spr->rotation, el->blend, el->alpha);
                 }
             }
-            ctx->currentInstance = ctx->globalScopeInstance;
-            ctx->currentEventType = EVENT_DRAW;
-            ctx->currentEventSubtype = DRAW_NORMAL;
+            if (runtimeLayer->endScript >= 0) {
+                VM_executeCode(
+                    ctx,
+                    runtimeLayer->endScript,
+                    ctx->globalScopeInstance,
+                    nullptr,
+                    CODE_NOT_RELATED_TO_EVENTS,
+                    EVENT_DRAW,
+                    DRAW_NORMAL,
+                    nullptr,
+                    0
+                );
+            }
 
-            if (runtimeLayer->endScript >= 0)
-                VM_callCodeIndex(ctx, runtimeLayer->endScript, nullptr, 0);
-
-            ctx->currentInstance = savedInstance;
-            ctx->currentEventType = savedEventType;
-            ctx->currentEventSubtype = savedEventSubtype;
             Runner_popLayerShader(runner, previousShader);
         }
     }
@@ -1756,7 +1708,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RuntimeLayer runtimeLayer = {0};
         runtimeLayer.id = layerSource->id;
         runtimeLayer.depth = layerSource->depth;
-        runtimeLayer.drawOrder = room->layerCount - i;
+        // room layers at equal depths draw in reverse file order
+        runtimeLayer.drawOrder = i + 1;
         runtimeLayer.visible = layerSource->visible;
         runtimeLayer.xOffset = layerSource->xOffset;
         runtimeLayer.yOffset = layerSource->yOffset;
@@ -2000,40 +1953,65 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
 
     // Pass 2: Fire events for newly created instances (in room definition order)
     {
-    repeat(room->gameObjectCount, i) {
-        RoomGameObject* roomObj = &room->gameObjects[i];
+        repeat(room->gameObjectCount, i) {
+            RoomGameObject* roomObj = &room->gameObjects[i];
 
-        Instance* inst = hmget(runner->instancesById, roomObj->instanceID);
-        if (inst == nullptr) continue;
+            Instance* inst = hmget(runner->instancesById, roomObj->instanceID);
+            if (inst == nullptr) continue;
 
-        // Skip instances that already had their Create event fired (persistent carry-overs
-        // that hmget also matches, since instancesById still holds them).
-        if (inst->createEventFired) continue;
-        inst->createEventFired = true;
+            // Skip instances that already had their Create event fired (persistent carry-overs
+            // that hmget also matches, since instancesById still holds them).
+            if (inst->createEventFired) continue;
+            inst->createEventFired = true;
 
-        // An earlier instance's Create event may have destroyed this one, skip it!
-        if (inst->destroyed) continue;
+            // An earlier instance's Create event may have destroyed this one, skip it!
+            if (inst->destroyed) continue;
 
-        Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
-        executeCode(runner, inst, roomObj->preCreateCode);
-        if (inst->destroyed) continue;
-        Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
-        if (inst->destroyed) continue;
-        executeCode(runner, inst, roomObj->creationCode);
-    }
+            Runner_executeEvent(runner, inst, EVENT_PRECREATE, 0);
+            VM_executeCodeIgnoreInvalidCodeIndices(
+                runner->vmContext,
+                roomObj->preCreateCode,
+                inst,
+                nullptr,
+                roomObj->objectDefinition,
+                EVENT_PRECREATE,
+                0,
+                nullptr,
+                0
+            );
+            if (inst->destroyed) continue;
+            Runner_executeEvent(runner, inst, EVENT_CREATE, 0);
+            if (inst->destroyed) continue;
+            VM_executeCodeIgnoreInvalidCodeIndices(
+                runner->vmContext,
+                roomObj->creationCode,
+                inst,
+                nullptr,
+                roomObj->objectDefinition,
+                EVENT_CREATE, // TODO: Is this really EVENT_CREATE?
+                0,
+                nullptr,
+                0
+            );
+        }
     }
 
     // Run room creation code
     if (room->creationCodeId >= 0 && dataWin->code.count > (uint32_t) room->creationCodeId) {
         // Room creation code runs in global context, the native runner creates a fake/dummy instance for the "self"
         Instance* dummy = Instance_create(0, STRUCT_OBJECT_INDEX, 0, 0);
-        runner->vmContext->currentInstance = dummy;
-        int32_t savedEventType = runner->vmContext->currentEventType;
-        runner->vmContext->currentEventType = EVENT_ROOM_CREATION;
-        RValue result = VM_executeCode(runner->vmContext, room->creationCodeId);
+        RValue result = VM_executeCode(
+            runner->vmContext,
+            room->creationCodeId,
+            dummy,
+            nullptr,
+            dummy->objectIndex,
+            EVENT_ROOM_CREATION,
+            0,
+            nullptr,
+            0
+        );
         RValue_free(&result);
-        runner->vmContext->currentInstance = nullptr;
-        runner->vmContext->currentEventType = savedEventType;
         Instance_free(dummy);
     }
 
@@ -3127,18 +3105,26 @@ void Runner_initFirstRoom(Runner* runner) {
 
     // Run global init scripts with the global scope instance as "self"
     // In GMS 2.3+ (BC17), GLOB scripts store function declarations on "self" via Pop.v.v
-    runner->vmContext->currentInstance = runner->vmContext->globalScopeInstance;
     repeat(dataWin->glob.count, i) {
         int32_t codeId = dataWin->glob.codeIds[i];
         if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
             logInfo("Runner: Executing global init script: %s\n", dataWin->code.entries[codeId].name);
-            RValue result = VM_executeCode(runner->vmContext, codeId);
+            RValue result = VM_executeCode(
+                runner->vmContext,
+                codeId,
+                runner->vmContext->globalScopeInstance,
+                nullptr,
+                CODE_NOT_RELATED_TO_EVENTS,
+                CODE_NOT_RELATED_TO_EVENTS,
+                CODE_NOT_RELATED_TO_EVENTS,
+                nullptr,
+                0
+            );
             RValue_free(&result);
         }
     }
 
     // Run extension init scripts
-    runner->vmContext->currentInstance =  runner->vmContext->globalScopeInstance;
     repeat(dataWin->extn.count, e) {
         Extension* ext = &dataWin->extn.extensions[e];
         repeat(ext->fileCount, f) {
@@ -3152,12 +3138,21 @@ void Runner_initFirstRoom(Runner* runner) {
             int32_t codeId = dataWin->scpt.scripts[scriptIndex].codeId;
             if (codeId >= 0 && dataWin->code.count > (uint32_t) codeId) {
                 logInfo("Runner: Executing extension init script: %s\n", initScript);
-                RValue result = VM_executeCode(runner->vmContext, codeId);
+                RValue result = VM_executeCode(
+                    runner->vmContext,
+                    codeId,
+                    runner->vmContext->globalScopeInstance,
+                    nullptr,
+                    CODE_NOT_RELATED_TO_EVENTS,
+                    CODE_NOT_RELATED_TO_EVENTS,
+                    CODE_NOT_RELATED_TO_EVENTS,
+                    nullptr,
+                    0
+                );
                 RValue_free(&result);
             }
         }
     }
-    runner->vmContext->currentInstance = nullptr;
 
     // Initialize the first room
     initRoom(runner, firstRoomIndex);
@@ -3238,18 +3233,6 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
 
     VMContext* vm = runner->vmContext;
 
-    // Save event context
-    int32_t savedEventType = vm->currentEventType;
-    int32_t savedEventSubtype = vm->currentEventSubtype;
-    int32_t savedEventObjectIndex = vm->currentEventObjectIndex;
-    struct Instance* savedOtherInstance = vm->otherInstance;
-
-    // Set collision event context
-    vm->currentEventType = EVENT_COLLISION;
-    vm->currentEventSubtype = targetObjectIndex;
-    vm->otherInstance = other;
-    vm->currentEventObjectIndex = ownerObjectIndex;
-
 #ifdef ENABLE_VM_TRACING
     if (codeId >= 0 && shlen(vm->eventsToBeTraced) != -1) {
         const char* selfName = runner->dataWin->objt.objects[self->objectIndex].name;
@@ -3261,13 +3244,17 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
     }
 #endif
 
-    executeCode(runner, self, codeId);
-
-    // Restore event context
-    vm->currentEventType = savedEventType;
-    vm->currentEventSubtype = savedEventSubtype;
-    vm->currentEventObjectIndex = savedEventObjectIndex;
-    vm->otherInstance = savedOtherInstance;
+    VM_executeCodeIgnoreInvalidCodeIndices(
+        vm,
+        codeId,
+        self,
+        other,
+        ownerObjectIndex,
+        EVENT_COLLISION,
+        targetObjectIndex,
+        nullptr,
+        0
+    );
 }
 
 // ===[ Path Adaptation ]===
@@ -3501,7 +3488,7 @@ static void fireLocalMouseSubtype(Runner* runner, int32_t subtype, int32_t slot,
         int32_t ownerObjectIndex = -1;
         int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slot, &ownerObjectIndex);
         if (0 > codeId) continue;
-        Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, subtype, codeId, ownerObjectIndex);
+        Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, subtype, codeId, ownerObjectIndex);
         if (runner->pendingRoom >= 0) return;
     }
 }
@@ -3598,14 +3585,14 @@ static void dispatchMouseEvents(Runner* runner) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotEnter, &ownerObjectIndex);
             if (codeId >= 0) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_ENTER, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, MOUSE_ENTER, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         } else if (!over && wasOver && slotLeave >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(table, inst->objectIndex, slotLeave, &ownerObjectIndex);
             if (codeId >= 0) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_MOUSE, MOUSE_LEAVE, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_MOUSE, MOUSE_LEAVE, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) { arrsetlen(runner->instanceSnapshots, snapshotBase); free(isOver); return; }
             }
         }
@@ -3973,7 +3960,7 @@ static void dispatchOutsideRoomEvents(Runner* runner) {
             }
 
             if (outside && !inst->outsideRoom) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) {
                     arrsetlen(runner->instanceSnapshots, snapshotBase);
                     return;
@@ -4034,7 +4021,7 @@ static void dispatchOutsideViewEvents(Runner* runner, int32_t viewIndex) {
             }
 
             if (outside && !inst->outsideRoom) {
-                Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
+                Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_OUTSIDE_ROOM, codeId, ownerObjectIndex);
                 if (runner->pendingRoom >= 0) {
                     arrsetlen(runner->instanceSnapshots, snapshotBase);
                     return;
@@ -4237,7 +4224,17 @@ static void tickTimelines(Runner* runner) {
             for (uint32_t j = ind1; ind2 > j; j++) {
                 TimelineMoment* moment = &timeline->moments[j];
                 repeat(moment->actionCount, a) {
-                    executeCode(runner, inst, moment->actions[a].codeId);
+                    VM_executeCodeIgnoreInvalidCodeIndices(
+                        runner->vmContext,
+                        moment->actions[a].codeId,
+                        inst,
+                        nullptr,
+                        inst->objectIndex,
+                        CODE_NOT_RELATED_TO_EVENTS,
+                        CODE_NOT_RELATED_TO_EVENTS,
+                        nullptr,
+                        0
+                    );
                 }
             }
 
@@ -4253,7 +4250,17 @@ static void tickTimelines(Runner* runner) {
             for (int32_t j = ind1; j > ind2; j--) {
                 TimelineMoment* moment = &timeline->moments[j];
                 repeat(moment->actionCount, a) {
-                    executeCode(runner, inst, moment->actions[a].codeId);
+                    VM_executeCodeIgnoreInvalidCodeIndices(
+                        runner->vmContext,
+                        moment->actions[a].codeId,
+                        inst,
+                        nullptr,
+                        inst->objectIndex,
+                        CODE_NOT_RELATED_TO_EVENTS,
+                        CODE_NOT_RELATED_TO_EVENTS,
+                        nullptr,
+                        0
+                    );
                 }
             }
 
@@ -4410,7 +4417,7 @@ void Runner_step(Runner* runner) {
         if (wrapped && animEndSlot >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, animEndSlot, &ownerObjectIndex);
-            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
+            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_ANIMATION_END, codeId, ownerObjectIndex);
         }
     }
     }
@@ -4534,7 +4541,7 @@ void Runner_step(Runner* runner) {
                     }
 #endif
 
-                    Runner_executeResolvedEvent(runner, inst, EVENT_ALARM, alarmIdx, codeId, ownerObjectIndex);
+                    Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_ALARM, alarmIdx, codeId, ownerObjectIndex);
                 }
             }
 
@@ -4611,7 +4618,7 @@ void Runner_step(Runner* runner) {
         if (adaptPath(runner, inst) && endOfPathSlot >= 0) {
             int32_t ownerObjectIndex = -1;
             int32_t codeId = ResolvedEventTable_lookup(&runner->eventTable, inst->objectIndex, endOfPathSlot, &ownerObjectIndex);
-            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH, codeId, ownerObjectIndex);
+            if (codeId >= 0) Runner_executeResolvedEvent(runner, inst, nullptr, EVENT_OTHER, OTHER_END_OF_PATH, codeId, ownerObjectIndex);
         }
 
         // Apply movement

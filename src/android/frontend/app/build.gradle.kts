@@ -12,7 +12,10 @@ plugins {
 }
 
 // Signing settings
-val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystorePropertiesFile = (findProperty("butterscotch.keystoreProperties") as String?)
+    ?.let { file(it) }
+    ?: rootProject.file("keystore.properties")
+
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
 }
@@ -48,7 +51,8 @@ android {
                     "-DPLATFORM=android",
                     "-DENABLE_MODERN_GL=ON",
                     "-DENABLE_LEGACY_GL=OFF",
-                    "-DAUDIO_BACKEND=miniaudio"
+                    "-DAUDIO_BACKEND=miniaudio",
+                    "-DVIDEO_BACKEND=none"
                 )
                 if (ccachePath != null) {
                     arguments += listOf("-DCMAKE_C_COMPILER_LAUNCHER=${ccachePath.absolutePath}", "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccachePath.absolutePath}")

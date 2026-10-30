@@ -58,11 +58,11 @@ jobs:
           cmake --build build
           cp build/butterscotch build/butterscotch.elf
 
-      - name: Check executeLoop I-Cache fit
+      - name: Check executeBytecodeInstructions I-Cache fit
         run: |
-          SYMBOL_LINES=$(mips64r5900el-ps2-elf-nm -S build/butterscotch.elf | grep -E ' executeLoop(\..*)?$' || true)
+          SYMBOL_LINES=$(mips64r5900el-ps2-elf-nm -S build/butterscotch.elf | grep -E ' executeBytecodeInstructions(\..*)?$' || true)
           if [ -z "$SYMBOL_LINES" ]; then
-            echo "::error::Could not find executeLoop symbol in ELF (is it stripped?)"
+            echo "::error::Could not find executeBytecodeInstructions symbol in ELF (is it stripped?)"
             exit 1
           fi
           echo "$SYMBOL_LINES"
@@ -74,27 +74,27 @@ jobs:
           done
           LIMIT=16384
           if [ "$SIZE_DEC" -gt "$LIMIT" ]; then
-            echo "::error::executeLoop is $SIZE_DEC bytes across $VARIANT_COUNT variant(s), exceeding the PS2 16 KB I-Cache ($LIMIT bytes) by $((SIZE_DEC - LIMIT)) bytes"
+            echo "::error::executeBytecodeInstructions is $SIZE_DEC bytes across $VARIANT_COUNT variant(s), exceeding the PS2 16 KB I-Cache ($LIMIT bytes) by $((SIZE_DEC - LIMIT)) bytes"
             echo "| Function | Size | Limit | Status |" >> $GITHUB_STEP_SUMMARY
             echo "|----------|------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-            echo "| \`executeLoop\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | **EXCEEDED** by $((SIZE_DEC - LIMIT)) bytes |" >> $GITHUB_STEP_SUMMARY
+            echo "| \`executeBytecodeInstructions\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | **EXCEEDED** by $((SIZE_DEC - LIMIT)) bytes |" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
           echo "| Function | Size | Limit | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| \`executeLoop\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | $((LIMIT - SIZE_DEC)) bytes remaining |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`executeBytecodeInstructions\` ($VARIANT_COUNT variant(s)) | $SIZE_DEC bytes | $LIMIT bytes (16 KB) | $((LIMIT - SIZE_DEC)) bytes remaining |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Report executeLoop inlining
+      - name: Report executeBytecodeInstructions inlining
         run: |
           REPORT=build/inline_report.txt
           if [ ! -s "$REPORT" ]; then
             echo "::warning::No inline report produced at $REPORT"
             exit 0
           fi
-          INLINED=$(grep -E "Inlin(ed|ing) .* into executeLoop" "$REPORT" \
-            | awk '{for(i=1;i<=NF;i++) if($i=="into" && $(i+1) ~ /^executeLoop/) {name=$(i-1); sub(/\/[0-9]+$/,"",name); print name}}' \
+          INLINED=$(grep -E "Inlin(ed|ing) .* into executeBytecodeInstructions" "$REPORT" \
+            | awk '{for(i=1;i<=NF;i++) if($i=="into" && $(i+1) ~ /^executeBytecodeInstructions/) {name=$(i-1); sub(/\/[0-9]+$/,"",name); print name}}' \
             | sort -u)
-          VARIANT_NAMES=$(mips64r5900el-ps2-elf-nm build/butterscotch.elf | awk '/ executeLoop(\..*)?$/ {print $3}')
+          VARIANT_NAMES=$(mips64r5900el-ps2-elf-nm build/butterscotch.elf | awk '/ executeBytecodeInstructions(\..*)?$/ {print $3}')
           DISASM_ARGS=""
           for NAME in $VARIANT_NAMES; do
             DISASM_ARGS="$DISASM_ARGS --disassemble=$NAME"
@@ -107,9 +107,9 @@ jobs:
           NOT_INLINED_COUNT=$(printf "%s\n" "$NOT_INLINED" | grep -c . || true)
           {
             echo ""
-            echo "### \`executeLoop\` inlining report"
+            echo "### \`executeBytecodeInstructions\` inlining report"
             echo ""
-            echo "<details><summary>Inlined into <code>executeLoop</code> ($INLINED_COUNT callees, per GCC <code>-fopt-info-inline-optimized</code>)</summary>"
+            echo "<details><summary>Inlined into <code>executeBytecodeInstructions</code> ($INLINED_COUNT callees, per GCC <code>-fopt-info-inline-optimized</code>)</summary>"
             echo ""
             echo '```'
             printf "%s\n" "$INLINED"
@@ -117,7 +117,7 @@ jobs:
             echo ""
             echo "</details>"
             echo ""
-            echo "<details><summary>Still called via <code>jal</code> from <code>executeLoop</code> ($NOT_INLINED_COUNT symbols, per <code>objdump</code>)</summary>"
+            echo "<details><summary>Still called via <code>jal</code> from <code>executeBytecodeInstructions</code> ($NOT_INLINED_COUNT symbols, per <code>objdump</code>)</summary>"
             echo ""
             echo '```'
             printf "%s\n" "$NOT_INLINED"

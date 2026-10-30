@@ -151,7 +151,7 @@ void SpatialGrid_markInstanceAsDirty(SpatialGrid* grid, Instance* dirtyInstance)
 
 SpatialGridQuery SpatialGrid_prepareQuery(Runner* runner, GMLReal x1, GMLReal y1, GMLReal x2, GMLReal y2, int32_t target) {
     // We do let INSTANCE_ALL through
-    requireMessageFormatted(__FILE__, __LINE__, target >= 0 || target == INSTANCE_ALL, "SpatialGrid: [%s] Query target cannot be instance type %d!", runner->vmContext->currentCodeName, target);
+    requireMessageFormatted(__FILE__, __LINE__, target >= 0 || target == INSTANCE_ALL, "SpatialGrid: [%s] Query target cannot be instance type %d!", VM_getCurrentCallFrameCodeName(runner->vmContext), target);
 
     SpatialGridRange callerRange = SpatialGrid_computeCellRange(runner->spatialGrid, x1, y1, x2, y2);
     bool filterByObject = target >= 0 && INSTANCE_ID_BASE > target;
