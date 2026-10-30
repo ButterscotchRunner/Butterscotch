@@ -1293,9 +1293,12 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     free(pixels);
 
+    bool isPOT = (w & (w - 1)) == 0 && (h & (h - 1)) == 0;
+    GLint wrapMode = isPOT ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+
     GLCommon_applyTexFilter(gl->base.texFilter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
 
     logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
     return true;
