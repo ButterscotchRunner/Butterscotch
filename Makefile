@@ -41,7 +41,7 @@ endif
 INCLUDES += $(INC). \
 		    $(INC)src \
 		    $(INC)src/image \
-			$(INC)src/default_font \
+		    $(INC)src/default_font \
 		    $(INC)vendor/stb/ds \
 			$(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
@@ -61,7 +61,7 @@ SRCS += src/physics/disabled/physics_disabled.c
 endif
 
 HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(wildcard src/default_font/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/default_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/default_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
@@ -275,7 +275,7 @@ else
 LIBS += -static
 LIBS += -lwinmm
 endif
-DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
+DEFINES += $(DEFINE)WIN32_LEAN_MEAN
 else
 ifeq ($(OS),Darwin)
 LIBS += -lobjc
