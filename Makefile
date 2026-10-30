@@ -275,7 +275,7 @@ else
 LIBS += -static
 LIBS += -lwinmm
 endif
-DEFINES += $(DEFINE)WIN32_LEAN_MEAN
+DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else
 ifeq ($(OS),Darwin)
 LIBS += -lobjc
