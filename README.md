@@ -339,6 +339,17 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/b8a848df-fd1c-49b7-9602-e8020ac86d5d" />
 
+### Undertale Yellow (GLFW) [WAD Version 17]
+<img width="160" height="120" alt="Screenshot_20261030_215006" src="https://github.com/user-attachments/assets/e1bc694e-3eb8-4330-9ef9-6f4592fbe00f" />
+<img width="160" height="120" alt="Screenshot_20261030_215150" src="https://github.com/user-attachments/assets/e2b557bb-20f1-4371-a797-2b31c861ebb8" />
+<img width="160" height="120" alt="Screenshot_20261030_215231" src="https://github.com/user-attachments/assets/0bd92d9a-d362-4c4b-8388-bac204c33a80" />
+<img width="160" height="120" alt="Screenshot_20261030_215250" src="https://github.com/user-attachments/assets/09438124-e240-43ea-90da-174ac29acc0a" />
+<img width="160" height="120" alt="Screenshot_20261030_215334" src="https://github.com/user-attachments/assets/a102d8d1-b04a-4b5b-ae37-b8646186237f" />
+<img width="160" height="120" alt="Screenshot_20261030_215348" src="https://github.com/user-attachments/assets/7705842f-9075-4463-84a7-ab342d64da19" />
+<img width="160" height="120" alt="Screenshot_20261030_215438" src="https://github.com/user-attachments/assets/3533cd30-1a65-4790-b2e2-89361d235911" />
+<img width="160" height="120" alt="Screenshot_20261030_215451" src="https://github.com/user-attachments/assets/57322063-67f1-4523-b71b-431e64a2a9c8" />
+<img width="160" height="120" alt="Screenshot_20261030_215537" src="https://github.com/user-attachments/assets/a0ee2121-b4dc-4dab-9783-79cf11934fa1" />
+
 ### Undertale 10th Anniversary (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ec0c64e-23f1-4bb1-8291-6aaf626a690f" />
