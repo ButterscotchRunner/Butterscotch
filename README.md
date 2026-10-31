@@ -260,6 +260,14 @@ Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 ### DELTARUNE Chapter 2 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d0df9858-ad2b-4642-9f32-a542d1d942e0" />
+<img width="160" height="120" alt="Screenshot_20261030_212524" src="https://github.com/user-attachments/assets/009342ce-7702-466a-8fb4-64dec3e07fa9" />
+<img width="160" height="120" alt="Screenshot_20261030_212614" src="https://github.com/user-attachments/assets/92640091-c421-4ca5-89be-b67d3f46f126" />
+<img width="160" height="120" alt="Screenshot_20261030_212626" src="https://github.com/user-attachments/assets/05c4966f-80c3-4ff4-8a9a-3a56f7dac5da" />
+<img width="160" height="120" alt="Screenshot_20261030_212651" src="https://github.com/user-attachments/assets/69150a70-ec88-47ab-a055-e6ca5dff4376" />
+<img width="160" height="120" alt="Screenshot_20261030_212705" src="https://github.com/user-attachments/assets/f210b7c6-181c-4424-8c99-e67cc40e5eaf" />
+<img width="160" height="120" alt="Screenshot_20261030_212801" src="https://github.com/user-attachments/assets/0ee06dbd-bf85-4173-beda-43e940923fc0" />
+<img width="160" height="120" alt="Screenshot_20261030_212856" src="https://github.com/user-attachments/assets/88130378-89e5-416a-9f5f-994d7945ca17" />
+<img width="160" height="120" alt="Screenshot_20261030_213025" src="https://github.com/user-attachments/assets/cc18cdbd-542a-4fe3-b5a5-7e4284c12a33" />
 
 ### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
 
