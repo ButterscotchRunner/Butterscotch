@@ -4839,7 +4839,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
         ctx,
         codeId,
         savedInstance,
-        nullptr,
+        ctx->currentCallFrame->other,
         ctx->currentCallFrame->eventObjectIndex,
         ctx->currentCallFrame->eventType,
         ctx->currentCallFrame->eventSubtype,
@@ -7295,7 +7295,7 @@ static int arraySortCompareCustom(const void* a, const void* b) {
             g_arraySortCtx,
             g_arraySortCodeIndex,
             g_arraySortSelf,
-            nullptr,
+            g_arraySortCtx->currentCallFrame->other,
             g_arraySortCtx->currentCallFrame->eventObjectIndex,
             g_arraySortCtx->currentCallFrame->eventType,
             g_arraySortCtx->currentCallFrame->eventSubtype,
@@ -10332,7 +10332,7 @@ static RValue builtin_event_user(VMContext* ctx, RValue* args, int32_t argCount)
     int32_t subevent = RValue_toInt32(args[0]);
     if (0 > subevent || 15 < subevent) return RValue_makeReal(0.0);
 
-    Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_USER0 + subevent);
+    Runner_executeEventFromObject(runner, inst, ctx->currentCallFrame->other, inst->objectIndex, EVENT_OTHER, OTHER_USER0 + subevent);
     return RValue_makeReal(0.0);
 }
 
@@ -10345,7 +10345,7 @@ static RValue builtin_event_perform(VMContext* ctx, RValue* args, int32_t argCou
     int32_t eventType = RValue_toInt32(args[0]);
     int32_t eventSubtype = RValue_toInt32(args[1]);
 
-    Runner_executeEvent(runner, inst, eventType, eventSubtype);
+    Runner_executeEventFromObject(runner, inst, ctx->currentCallFrame->other, inst->objectIndex, eventType, eventSubtype);
     return RValue_makeReal(0.0);
 }
 
@@ -17657,7 +17657,7 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
         ctx,
         codeIndex,
         structInst,
-        nullptr,
+        ctx->currentCallFrame->other,
         ctx->currentCallFrame->eventObjectIndex,
         ctx->currentCallFrame->eventType,
         ctx->currentCallFrame->eventSubtype,
@@ -19326,7 +19326,7 @@ static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue valu
             reviver->ctx,
             reviver->codeIndex,
             savedInstance,
-            nullptr,
+            reviver->ctx->currentCallFrame->other,
             reviver->ctx->currentCallFrame->eventObjectIndex,
             reviver->ctx->currentCallFrame->eventType,
             reviver->ctx->currentCallFrame->eventSubtype,
