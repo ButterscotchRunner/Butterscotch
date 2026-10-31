@@ -350,6 +350,15 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 <img width="160" height="120" alt="Screenshot_20261030_215451" src="https://github.com/user-attachments/assets/57322063-67f1-4523-b71b-431e64a2a9c8" />
 <img width="160" height="120" alt="Screenshot_20261030_215537" src="https://github.com/user-attachments/assets/a0ee2121-b4dc-4dab-9783-79cf11934fa1" />
 
+### Pizza Tower (GLFW) [WAD Version 17]
+<img width="160" alt="Screenshot_20261030_214716" src="https://github.com/user-attachments/assets/7ac08c5c-20c7-41c5-8c6f-8dfd54e56449" />
+<img width="160" alt="Screenshot_20261030_214739" src="https://github.com/user-attachments/assets/a1e0e226-2aa3-406d-a4f4-1fc727ed03bb" />
+<img width="160" alt="Screenshot_20261030_214758" src="https://github.com/user-attachments/assets/71f823fe-2663-48de-a3b4-6d03ececc570" />
+<img width="160" alt="Screenshot_20261030_214809" src="https://github.com/user-attachments/assets/5bb84dc9-39e9-4343-8e2e-28f4f8d248c1" />
+<img width="160" alt="Screenshot_20261030_214819" src="https://github.com/user-attachments/assets/1e0ab08e-fe09-4aa0-b6e3-72b224857406" />
+
+
+
 ### Undertale 10th Anniversary (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/4ec0c64e-23f1-4bb1-8291-6aaf626a690f" />
