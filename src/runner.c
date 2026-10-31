@@ -1951,6 +1951,9 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         }
     }
 
+    // depth writes must not move instances out of layers that later Create events destroy
+    runner->deferInstanceDepthChanges = true;
+
     // Pass 2: Fire events for newly created instances (in room definition order)
     {
         repeat(room->gameObjectCount, i) {
@@ -2014,6 +2017,16 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         RValue_free(&result);
         Instance_free(dummy);
     }
+
+    runner->deferInstanceDepthChanges = false;
+    {
+    repeat(arrlen(runner->deferredInstanceDepthChanges), i) {
+        Instance* inst = hmget(runner->instancesById, runner->deferredInstanceDepthChanges[i]);
+        if (inst == nullptr || inst->destroyed) continue;
+        Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+    }
+    }
+    arrfree(runner->deferredInstanceDepthChanges);
 
     // Mark this room as initialized for persistent room support
     savedState->initialized = true;

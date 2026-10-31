@@ -43,11 +43,12 @@ INCLUDES += $(INC). \
 		    $(INC)src/image \
 		    $(INC)src/default_font \
 		    $(INC)vendor/stb/ds \
-			$(INC)vendor/stb/image \
+		    $(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
+		    $(INC)vendor/bzip2 \
 		    $(INC)vendor/miniz
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
@@ -60,13 +61,12 @@ else
 SRCS += src/physics/disabled/physics_disabled.c
 endif
 
-HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(wildcard src/default_font/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/default_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(shell find vendor -name '*.h')
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
-IMAGE_DECODER := wuffs
 
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
@@ -246,19 +246,6 @@ ifeq ($(OS),Darwin)
 LIBS += -framework OpenAL
 else
 LIBS += -lopenal
-endif
-endif
-
-ifeq ($(IMAGE_DECODER),wuffs)
-INCLUDES += $(INC)vendor/wuffs/
-SRCS += vendor/wuffs/wuffs-v0.4.c
-HEADERS += vendor/wuffs/wuffs-v0.4.c
-DEFINES += $(DEFINE)USE_WUFFS_IMGDEC
-else
-ifeq ($(IMAGE_DECODER),stb)
-INCLUDES += $(INC)vendor/bzip2
-SRCS += $(wildcard vendor/bzip2/*.c)
-DEFINES += $(DEFINE)USE_STB_IMGDEC
 endif
 endif
 

@@ -763,6 +763,8 @@ struct Runner {
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
     uint32_t nextLayerDrawOrder;
+    bool deferInstanceDepthChanges;
+    uint32_t* deferredInstanceDepthChanges;
     SavedRoomState* savedRoomStates; // array of size dataWin->room.count, for persistent room support
     int32_t viewCurrent; // index of the view currently being drawn (for view_current)
     bool viewsEnabled;   // runtime-mutable global view system toggle (view_enabled); seeded from room->flags & 1 on room enter
