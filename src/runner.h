@@ -755,6 +755,8 @@ struct Runner {
     bool (*getWindowPosition)(int32_t* outX, int32_t* outY);
     void (*setWindowPosition)(int32_t x, int32_t y);
     bool (*windowHasFocus)(void);
+    bool (*getWindowFullscreen)(void);
+    void (*setWindowFullscreen)(bool fullscreen);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
     int32_t cursorSprite;   // storages BUILTIN_VAR_CURSOR_SPRITE. Independent of currentCursor/setCursor

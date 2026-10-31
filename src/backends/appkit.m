@@ -609,7 +609,7 @@ NSMenu* createWindowMenu() {
 
 @end
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen) {
     // Create application
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -656,6 +656,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (!window)
         return false;
 
+    [window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
     [window setTitle:[NSString stringWithFormat:@"%s", title]];
     [window setAcceptsMouseMovedEvents:YES];
 
@@ -677,8 +678,14 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     [glContext setValues:&swap
             forParameter:NSOpenGLContextParameterSwapInterval];
 
-    if (!headless)
+    if (!headless) {
+        if (fullscreen) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [window toggleFullScreen:nil];
+            });
+        }
         [window makeKeyAndOrderFront:nil];
+    }
 
     [NSApp activateIgnoringOtherApps:YES];
 
