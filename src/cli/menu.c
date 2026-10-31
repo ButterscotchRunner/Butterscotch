@@ -153,24 +153,26 @@ static int readKey(void) {
         unsigned char sequence[2];
         FD_ZERO(&inputSet);
         FD_SET(STDIN_FILENO, &inputSet);
-        if (select(STDIN_FILENO + 1, &inputSet, NULL, NULL, &timeout) > 0 && read(STDIN_FILENO, &sequence[0], 1) == 1 && sequence[0] == '[') {
-            FD_ZERO(&inputSet);
-            FD_SET(STDIN_FILENO, &inputSet);
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 50000;
-            if (select(STDIN_FILENO + 1, &inputSet, NULL, NULL, &timeout) > 0 && read(STDIN_FILENO, &sequence[1], 1) == 1) {
-                switch (sequence[1]) {
-                    case 'A': key = 'k'; break;
-                    case 'B': key = 'j'; break;
-                    case 'C': key = 'l'; break;
-                    case 'D': key = 'h'; break;
-                    default: key = 0; break;
-                }
-            } else {
+        if (select(STDIN_FILENO + 1, &inputSet, NULL, NULL, &timeout) > 0 && read(STDIN_FILENO, &sequence[0], 1) == 1) {
+            if (sequence[0] != '[') {
                 key = 0;
+            } else {
+                FD_ZERO(&inputSet);
+                FD_SET(STDIN_FILENO, &inputSet);
+                timeout.tv_sec = 0;
+                timeout.tv_usec = 50000;
+                if (select(STDIN_FILENO + 1, &inputSet, NULL, NULL, &timeout) > 0 && read(STDIN_FILENO, &sequence[1], 1) == 1) {
+                    switch (sequence[1]) {
+                        case 'A': key = 'k'; break;
+                        case 'B': key = 'j'; break;
+                        case 'C': key = 'l'; break;
+                        case 'D': key = 'h'; break;
+                        default: key = 0; break;
+                    }
+                } else {
+                    key = 0;
+                }
             }
-        } else if (key == '\033') {
-            key = 0;
         }
     }
     if (key == '\r') key = '\n';
@@ -197,7 +199,7 @@ static void drawFrame(const char* title, const char* footer) {
     for (int i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine(title, width);
-    for (int i = 0; i < height - 5; i++) putchar('\n');
+    for (int i = 0; i < height - 6; i++) putchar('\n');
     for (int i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine(footer, width);
@@ -209,7 +211,7 @@ static void drawGameMenu(const LauncherGame* games, int gameCount, int selected,
     getTerminalSize(&width, &height);
     width = width > 1 ? width - 1 : 1;
     if (height < 8) height = 8;
-    int visible = height - 5;
+    int visible = height - 6;
     printf("\033[H\033[2J");
     drawLine("Butterscotch", width);
     for (int i = 0; i < width; i++) putchar('=');
@@ -239,12 +241,12 @@ static void drawOptionsMenu(int selected, int firstVisible, const bool* enabled,
     width = width > 1 ? width - 1 : 1;
     if (height < 8) height = 8;
     int optionCount = (int) (sizeof(launcherOptions) / sizeof(launcherOptions[0]));
-    int visible = height - 5;
+    int visible = height - 6;
     printf("\033[H\033[2J");
     drawLine("Butterscotch", width);
     for (int i = 0; i < width; i++) putchar('=');
     putchar('\n');
-    drawLine("Select launch flags. Space toggles a flag; Enter launches.", width);
+    drawLine("Select launch flags.", width);
     for (int row = 0; row < visible; row++) {
         int index = firstVisible + row;
         if (index < optionCount) {
@@ -437,7 +439,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
         }
         int width, height;
         getTerminalSize(&width, &height);
-        int visible = height > 5 ? height - 5 : 1;
+        int visible = height > 6 ? height - 6 : 1;
         if (selected < firstVisible) firstVisible = selected;
         if (selected >= firstVisible + visible) firstVisible = selected - visible + 1;
     }
@@ -545,7 +547,7 @@ bool runLauncherMenu(const char* executablePath, char*** arguments, int* argumen
         }
         int width, height;
         getTerminalSize(&width, &height);
-        int visible = height > 5 ? height - 5 : 1;
+        int visible = height > 6 ? height - 6 : 1;
         if (selected < firstVisible) firstVisible = selected;
         if (selected >= firstVisible + visible) firstVisible = selected - visible + 1;
     }
