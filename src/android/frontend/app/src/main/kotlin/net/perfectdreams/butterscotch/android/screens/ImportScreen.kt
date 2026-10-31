@@ -181,7 +181,7 @@ fun ImportScreen(
                 is ImportUIState.Configure -> ConfigurePane(
                     result = s.result,
                     layoutLibrary = layoutLibrary,
-                    onSave = { title, icon, portraitLayout, landscapeLayout, runnerOs, enablePhysicalControllers, enablePhysicalKeyboard, enableWidescreenHack, postProcessing ->
+                    onSave = { title, icon, portraitLayout, landscapeLayout, runnerOs, enablePhysicalControllers, enablePhysicalKeyboard, physicalControllerSideways, enableWidescreenHack, postProcessing ->
                         library.commit(
                             s.result.staged,
                             title,
@@ -195,6 +195,7 @@ fun ImportScreen(
                             runnerOs = runnerOs,
                             enablePhysicalControllers = enablePhysicalControllers,
                             enablePhysicalKeyboard = enablePhysicalKeyboard,
+                            physicalControllerSideways = physicalControllerSideways,
                             enableWidescreenHack = enableWidescreenHack,
                             postProcessing = postProcessing
                         )
@@ -320,7 +321,7 @@ private fun CopyingPane(currentFile: String?) {
 private fun ConfigurePane(
     result: GameImporter.Result.Success,
     layoutLibrary: LayoutLibrary,
-    onSave: (title: String, icon: Bitmap?, portraitLayout: UUID, landscapeLayout: UUID, runnerOs: GameEntry.RunnerOs, enablePhysicalControllers: Boolean, enablePhysicalKeyboard: Boolean, enableWidescreenHack: Boolean, postProcessing: GameEntry.PostProcessingSettings) -> Unit
+    onSave: (title: String, icon: Bitmap?, portraitLayout: UUID, landscapeLayout: UUID, runnerOs: GameEntry.RunnerOs, enablePhysicalControllers: Boolean, enablePhysicalKeyboard: Boolean, physicalControllerSideways: Boolean, enableWidescreenHack: Boolean, postProcessing: GameEntry.PostProcessingSettings) -> Unit
 ) {
     // suggestedTitle comes from GEN8 (may be null for pre-WAD10 games); fall back to the folder
     // name so the user never sees an empty field.
@@ -335,8 +336,9 @@ private fun ConfigurePane(
         landscapeLayout = LayoutLibrary.DEFAULT_LANDSCAPE_LAYOUT,
         runnerOs = GameEntry.RunnerOs.WINDOWS,
         enablePhysicalControllers = true,
+        physicalControllerSideways = false,
         enablePhysicalKeyboard = true,
-        enableWidescreenHack = false
+        enableWidescreenHack = false,
     )
 
     MetadataForm(
@@ -345,7 +347,7 @@ private fun ConfigurePane(
         loadCandidates = { result.iconCandidates },
         saveEnabled = state.title.isNotBlank(),
         saveLabel = "Import",
-        onSave = { onSave(state.title.ifBlank { initial }, state.selectedIcon, state.portraitLayout, state.landscapeLayout, state.runnerOs, state.enablePhysicalControllers, state.enablePhysicalKeyboard, state.enableWidescreenHack, state.postProcessing) },
+        onSave = { onSave(state.title.ifBlank { initial }, state.selectedIcon, state.portraitLayout, state.landscapeLayout, state.runnerOs, state.enablePhysicalControllers, state.enablePhysicalKeyboard, state.physicalControllerSideways, state.enableWidescreenHack, state.postProcessing) },
     )
 }
 
