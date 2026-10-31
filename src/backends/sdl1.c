@@ -317,23 +317,31 @@ void platformInitFunctions(Runner *runner) {
 
 static SDL_Surface* nextFb = NULL;
 
-void Runner_setNextFrame(uint32_t* framebuffer, int width, int height) {
+void platformSetNextFramebuffer(uint32_t* framebuffer, int width, int height, int bpp) {
     if (nextFb) {
         SDL_FreeSurface(nextFb);
         nextFb = NULL;
     }
 
-    nextFb = SDL_CreateRGBSurfaceFrom(
-        framebuffer,
-        width,
-        height,
-        32,
-        width * 4,
-        0x00ff0000, // Rmask
-        0x0000ff00, // Gmask
-        0x000000ff, // Bmask
-        0x00000000  // Amask
-    );
+    int rmask, gmask, bmask;
+    if (bpp == 32) {
+        rmask = 0x00ff0000;
+        gmask = 0x0000ff00;
+        bmask = 0x000000ff;
+    }
+    else if (bpp == 16) {
+        rmask = 0x7C00;
+        gmask = 0x03E0;
+        bmask = 0x001F;
+    }
+    else {
+        // 8bpp
+        rmask = 0x07;
+        gmask = 0x38;
+        bmask = 0xC0;
+    }
+
+    nextFb = SDL_CreateRGBSurfaceFrom(framebuffer, width, height, bpp, width * bpp / 8, rmask, gmask, bmask, 0);
 }
 
 #endif
@@ -378,10 +386,10 @@ static int32_t SDLKeyToGml(int sdlkey) {
         case SDLK_RCTRL:     return VK_CONTROL;
         case SDLK_LALT:
         case SDLK_RALT:      return VK_ALT;
-        case SDLK_UP:        return VK_UP;
-        case SDLK_DOWN:      return VK_DOWN;
-        case SDLK_LEFT:      return VK_LEFT;
-        case SDLK_RIGHT:     return VK_RIGHT;
+case SDLK_KP8:        case SDLK_UP:        return VK_UP;
+case SDLK_KP5:case SDLK_KP2:        case SDLK_DOWN:      return VK_DOWN;
+case SDLK_KP4:        case SDLK_LEFT:      return VK_LEFT;
+case SDLK_KP6:        case SDLK_RIGHT:     return VK_RIGHT;
         case SDLK_F1:        return VK_F1;
         case SDLK_F2:        return VK_F2;
         case SDLK_F3:        return VK_F3;
