@@ -10,6 +10,9 @@
 #include <conio.h>
 #include <io.h>
 #include <windows.h>
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 #define LAUNCHER_PATH_CAPACITY 4096
 #else
 #include <limits.h>
@@ -191,16 +194,17 @@ static void drawLine(const char* text, int width) {
 
 static void drawFrame(const char* title, const char* footer) {
     int width, height;
+    int i;
     getTerminalSize(&width, &height);
     width = width > 1 ? width - 1 : 1;
     if (height < 5) height = 5;
     printf("\033[H\033[2J");
     drawLine("Butterscotch", width);
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine(title, width);
-    for (int i = 0; i < height - 6; i++) putchar('\n');
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < height - 6; i++) putchar('\n');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine(footer, width);
     fflush(stdout);
@@ -208,16 +212,18 @@ static void drawFrame(const char* title, const char* footer) {
 
 static void drawGameMenu(const LauncherGame* games, int gameCount, int selected, int firstVisible) {
     int width, height;
+    int i;
+    int row;
     getTerminalSize(&width, &height);
     width = width > 1 ? width - 1 : 1;
     if (height < 8) height = 8;
     int visible = height - 6;
     printf("\033[H\033[2J");
     drawLine("Butterscotch", width);
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine("Select a game.", width);
-    for (int row = 0; row < visible; row++) {
+    for (row = 0; row < visible; row++) {
         int index = firstVisible + row;
         if (gameCount == 0 && row == 0) {
             drawLine("No games added. Press 1 to add a game.", width);
@@ -229,7 +235,7 @@ static void drawGameMenu(const LauncherGame* games, int gameCount, int selected,
             putchar('\n');
         }
     }
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine("Arrow Keys: Previous game, Next game  ||  1: Add a game  ||  2: Exit  ||  Enter: Run selected game", width);
     fflush(stdout);
@@ -237,6 +243,8 @@ static void drawGameMenu(const LauncherGame* games, int gameCount, int selected,
 
 static void drawOptionsMenu(int selected, int firstVisible, const bool* enabled, const char* const* values) {
     int width, height;
+    int i;
+    int row;
     getTerminalSize(&width, &height);
     width = width > 1 ? width - 1 : 1;
     if (height < 8) height = 8;
@@ -244,10 +252,10 @@ static void drawOptionsMenu(int selected, int firstVisible, const bool* enabled,
     int visible = height - 6;
     printf("\033[H\033[2J");
     drawLine("Butterscotch", width);
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine("Select launch flags.", width);
-    for (int row = 0; row < visible; row++) {
+    for (row = 0; row < visible; row++) {
         int index = firstVisible + row;
         if (index < optionCount) {
             char line[1024];
@@ -258,7 +266,7 @@ static void drawOptionsMenu(int selected, int firstVisible, const bool* enabled,
             putchar('\n');
         }
     }
-    for (int i = 0; i < width; i++) putchar('=');
+    for (i = 0; i < width; i++) putchar('=');
     putchar('\n');
     drawLine("Up/Down: Select  ||  Space: Toggle  ||  Enter: Run  ||  Esc: Back", width);
     fflush(stdout);
@@ -300,10 +308,11 @@ static bool makeConfigPath(const char* executablePath, char* configPath, size_t 
 }
 
 static bool saveGames(const char* configPath, const LauncherGame* games, int gameCount) {
+    int i;
     FILE* file = fopen(configPath, "w");
     if (file == NULL) return false;
     bool saved = true;
-    for (int i = 0; i < gameCount; i++) {
+    for (i = 0; i < gameCount; i++) {
         if (fprintf(file, "%s\t%s\n", games[i].name, games[i].path) < 0) saved = false;
     }
     if (fclose(file) != 0) saved = false;
@@ -346,7 +355,8 @@ static bool promptLine(const char* prompt, char* buffer, size_t capacity) {
 #ifdef ENABLE_SCREENSHOTS
 static int findOptionIndex(const char* flag) {
     int optionCount = (int) (sizeof(launcherOptions) / sizeof(launcherOptions[0]));
-    for (int i = 0; i < optionCount; i++) {
+    int i;
+    for (i = 0; i < optionCount; i++) {
         if (strcmp(launcherOptions[i].flag, flag) == 0) return i;
     }
     return -1;
@@ -386,28 +396,29 @@ static bool addGame(LauncherGame** games, int* gameCount, const char* configPath
 }
 
 static bool resolveDataWinPath(const char* path, char* resolved, size_t capacity) {
+    int i;
 #ifdef _WIN32
-    struct _stat64i32 info;
-    if (_stat(path, &info) != 0) return false;
-    if ((info.st_mode & _S_IFMT) != _S_IFDIR) {
+    DWORD attributes = GetFileAttributesA(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) return false;
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
 #else
     struct stat info;
     if (stat(path, &info) != 0) return false;
     if (!S_ISDIR(info.st_mode)) {
 #endif
-    size_t pathLength = strlen(path);
-    if (pathLength >= capacity) return false;
-    memcpy(resolved, path, pathLength + 1);
+        size_t pathLength = strlen(path);
+        if (pathLength >= capacity) return false;
+        memcpy(resolved, path, pathLength + 1);
         return true;
     }
     static const char* candidates[] = {"data.win", "assets/game.unx", "assets/game.droid", "../Resources/game.ios"};
-    for (int i = 0; i < (int) (sizeof(candidates) / sizeof(candidates[0])); i++) {
-    size_t pathLength = strlen(path);
-    size_t candidateLength = strlen(candidates[i]);
-    if (pathLength + candidateLength + 2 > capacity) continue;
-    memcpy(resolved, path, pathLength);
-    resolved[pathLength] = '/';
-    memcpy(resolved + pathLength + 1, candidates[i], candidateLength + 1);
+    for (i = 0; i < (int) (sizeof(candidates) / sizeof(candidates[0])); i++) {
+        size_t pathLength = strlen(path);
+        size_t candidateLength = strlen(candidates[i]);
+        if (pathLength + candidateLength + 2 > capacity) continue;
+        memcpy(resolved, path, pathLength);
+        resolved[pathLength] = '/';
+        memcpy(resolved + pathLength + 1, candidates[i], candidateLength + 1);
     #ifdef _WIN32
         if (_access(resolved, 0) == 0) return true;
     #else
@@ -419,6 +430,7 @@ static bool resolveDataWinPath(const char* path, char* resolved, size_t capacity
 
 static bool selectOptions(char*** arguments, int* argumentCount, const char* executablePath, const char* gamePath) {
     int optionCount = (int) (sizeof(launcherOptions) / sizeof(launcherOptions[0]));
+    int i;
     bool enabled[sizeof(launcherOptions) / sizeof(launcherOptions[0])] = {false};
     char* values[sizeof(launcherOptions) / sizeof(launcherOptions[0])] = {NULL};
     int selected = 0;
@@ -466,7 +478,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
 
     if (launch) {
         int count = 2;
-        for (int i = 0; i < optionCount; i++) {
+        for (i = 0; i < optionCount; i++) {
             if (!enabled[i]) continue;
             if (values[i] == NULL || strcmp(launcherOptions[i].flag, "--widescreen-hack") == 0) count++;
             else count += 2;
@@ -476,7 +488,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
             int index = 0;
             argv[index++] = (char*) executablePath;
             argv[index++] = duplicateString(gamePath);
-            for (int i = 0; i < optionCount; i++) {
+            for (i = 0; i < optionCount; i++) {
                 if (!enabled[i]) continue;
                 if (strcmp(launcherOptions[i].flag, "--widescreen-hack") == 0 && values[i] != NULL) {
                     size_t length = strlen(launcherOptions[i].flag) + strlen(values[i]) + 2;
@@ -489,7 +501,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
                 }
             }
             bool valid = true;
-            for (int i = 1; i < index; i++) if (argv[i] == NULL) valid = false;
+            for (i = 1; i < index; i++) if (argv[i] == NULL) valid = false;
             if (valid) {
                 *arguments = argv;
                 *argumentCount = index;
@@ -502,7 +514,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
         }
     }
 
-    for (int i = 0; i < optionCount; i++) free(values[i]);
+    for (i = 0; i < optionCount; i++) free(values[i]);
     return launch;
 }
 
