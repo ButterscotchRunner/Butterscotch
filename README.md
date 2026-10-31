@@ -263,7 +263,12 @@ Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 
 ### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
 
-Here's a video :3 https://youtu.be/uuN72Hv50d4
+Here are some videos :3 
+
+https://youtu.be/uuN72Hv50d4
+
+https://youtu.be/Qxt5oF2_lYY?si=Ix9WZY2sc9v4umR7
+
 
 ### DELTARUNE Chapter 3 (GLFW) [WAD Version 17]
 
@@ -274,6 +279,7 @@ Here's a video :3 https://youtu.be/uuN72Hv50d4
 ### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/c9r79sQABYg
+
 
 ### DELTARUNE Chapter Selector (GLFW) [WAD Version 17]
 
