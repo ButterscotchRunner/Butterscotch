@@ -2018,10 +2018,12 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     }
 
     runner->deferInstanceDepthChanges = false;
+    {
     repeat(arrlen(runner->deferredInstanceDepthChanges), i) {
         Instance* inst = hmget(runner->instancesById, runner->deferredInstanceDepthChanges[i]);
         if (inst == nullptr || inst->destroyed) continue;
         Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+    }
     }
     arrfree(runner->deferredInstanceDepthChanges);
 
