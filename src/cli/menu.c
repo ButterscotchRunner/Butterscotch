@@ -399,7 +399,7 @@ static bool resolveDataWinPath(const char* path, char* resolved, size_t capacity
     int i;
 #ifdef _WIN32
     DWORD attributes = GetFileAttributesA(path);
-    if (attributes == INVALID_FILE_ATTRIBUTES) return false;
+    if (attributes == (DWORD) -1) return false;
     if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
 #else
     struct stat info;
