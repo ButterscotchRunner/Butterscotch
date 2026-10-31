@@ -247,11 +247,7 @@ Having a transpiler also have other disadvantages:
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/e5c67781-0ffc-43c8-9c7d-333254eed704" />
 <img width="160" height="120" alt="Image" src="https://github.com/user-attachments/assets/93900e3c-79b5-4a05-bd6c-d68814e9e101" />
 
-### Undertale (PlayStation 2) [WAD Version 16]
 
-Here's a video :3 https://youtu.be/PuzBxe0VGtY
-
-Here's also another video, this time showing off the Asriel Dreemurr final battle https://youtu.be/vkQMqXr0MQE
 
 ### DELTARUNE Chapter 1 (GLFW) [WAD Version 17]
 <img width="160" height="120" alt="Screenshot_20261030_213335" src="https://github.com/user-attachments/assets/ee91954a-1bd2-4cbc-b018-98703f97b422" />
@@ -264,10 +260,6 @@ Here's also another video, this time showing off the Asriel Dreemurr final battl
 <img width="160" height="120" alt="Screenshot_20261030_214210" src="https://github.com/user-attachments/assets/c25c2b76-5914-4b62-829f-529b44448732" />
 <img width="160" height="120" alt="Screenshot_20261030_214253" src="https://github.com/user-attachments/assets/00728393-356d-40d4-bd96-5c8efe66d1a3" />
 
-### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [WAD Version 16]
-
-Here's a video :3 https://youtu.be/TLJtV2WnrmQ
-
 ### DELTARUNE Chapter 2 (GLFW) [WAD Version 17]
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d0df9858-ad2b-4642-9f32-a542d1d942e0" />
@@ -279,14 +271,6 @@ Here's a video :3 https://youtu.be/TLJtV2WnrmQ
 <img width="160" height="120" alt="Screenshot_20261030_212801" src="https://github.com/user-attachments/assets/0ee06dbd-bf85-4173-beda-43e940923fc0" />
 <img width="160" height="120" alt="Screenshot_20261030_212856" src="https://github.com/user-attachments/assets/88130378-89e5-416a-9f5f-994d7945ca17" />
 <img width="160" height="120" alt="Screenshot_20261030_213025" src="https://github.com/user-attachments/assets/cc18cdbd-542a-4fe3-b5a5-7e4284c12a33" />
-
-### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
-
-Here are some videos :3 
-
-https://youtu.be/uuN72Hv50d4
-
-https://youtu.be/Qxt5oF2_lYY?si=Ix9WZY2sc9v4umR7
 
 
 ### DELTARUNE Chapter 3 (GLFW) [WAD Version 17]
@@ -304,10 +288,6 @@ https://youtu.be/Qxt5oF2_lYY?si=Ix9WZY2sc9v4umR7
 <img width="160" height="120" alt="Screenshot_20261030_211208" src="https://github.com/user-attachments/assets/07974b6e-2625-449a-8896-340251c44046" />
 <img width="160" height="120" alt="Screenshot_20261030_211311" src="https://github.com/user-attachments/assets/e723d262-03dc-4518-af09-14b89b3dd681" />
 
-
-### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
-
-Here's a video :3 https://youtu.be/c9r79sQABYg
 
 ### DELTARUNE Chapter 4 (GLFW) [WAD Version 17]
 <img width="160" height="120" alt="Screenshot_20261030_205625" src="https://github.com/user-attachments/assets/34606e1a-c0aa-474a-aae1-8810a702403c" />
@@ -382,6 +362,35 @@ Here's a video :3 https://youtu.be/c9r79sQABYg
 
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/e8cd174c-5113-416b-9e3a-c4029e1e3176" />
 <img width="160" alt="image" src="https://github.com/user-attachments/assets/3702a261-01fe-4b04-9e6c-b69336c2ce46" />
+
+## PS2 Videos
+
+### Undertale (PlayStation 2) [WAD Version 16]
+
+
+https://youtu.be/PuzBxe0VGtY
+
+https://youtu.be/vkQMqXr0MQE
+
+### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [WAD Version 16]
+
+
+https://youtu.be/TLJtV2WnrmQ
+
+### DELTARUNE Chapter 2 (PlayStation 2) [WAD Version 17]
+
+
+
+https://youtu.be/uuN72Hv50d4
+
+https://youtu.be/Qxt5oF2_lYY?si=Ix9WZY2sc9v4umR7
+
+
+### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
+
+https://youtu.be/c9r79sQABYg
+
+
 
 ## Similar Projects
 
