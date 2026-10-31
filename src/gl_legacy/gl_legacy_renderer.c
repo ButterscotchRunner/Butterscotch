@@ -1694,6 +1694,7 @@ static uint32_t findOrAllocTexturePageSlot(GLRenderer* gl) {
     gl->textureWidths = (int32_t *)safeRealloc(gl->textureWidths, gl->textureCount * sizeof(int32_t));
     gl->textureHeights = (int32_t *)safeRealloc(gl->textureHeights, gl->textureCount * sizeof(int32_t));
     gl->textureLoaded = (bool *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(bool));
+    gl->textureLastUsed = (int *)safeRealloc(gl->textureLoaded, gl->textureCount * sizeof(int));
     gl->glTextures[newPageId] = 0;
     gl->textureWidths[newPageId] = 0;
     gl->textureHeights[newPageId] = 0;
@@ -1960,7 +1961,15 @@ static int32_t glLegacyCreateSurface(Renderer* renderer, int32_t width, int32_t 
     glGenFramebuffers(1, &gl->surfaces[surfaceIndex]);
     glGenTextures(1, &gl->surfaceTexture[surfaceIndex]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceIndex]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -2047,7 +2056,15 @@ static void glLegacySurfaceResize(Renderer* renderer, int32_t surfaceId, int32_t
 
     glGenTextures(1, &gl->surfaceTexture[surfaceId]);
     glBindTexture(GL_TEXTURE_2D, gl->surfaceTexture[surfaceId]);
+#ifdef __SYMBIAN32__
+    if (GLCommon_surfaceInternalFormat(gl) == GL_RGBA4) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GLCommon_surfaceInternalFormat(gl), texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
     GLCommon_applyTexFilter(renderer->texFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
