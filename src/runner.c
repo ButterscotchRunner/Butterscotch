@@ -336,9 +336,9 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
                 method->codeIndex,
                 targetInstance,
                 nullptr,
-                ctx->currentCallFrame->eventObjectIndex,
-                ctx->currentCallFrame->eventType,
-                ctx->currentCallFrame->eventSubtype,
+                CODE_NOT_RELATED_TO_EVENTS,
+                CODE_NOT_RELATED_TO_EVENTS,
+                CODE_NOT_RELATED_TO_EVENTS,
                 nullptr,
                 0
             );
@@ -377,9 +377,9 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             codeId,
             ctx->globalScopeInstance,
             nullptr,
-            ctx->currentCallFrame->eventObjectIndex,
-            ctx->currentCallFrame->eventType,
-            ctx->currentCallFrame->eventSubtype,
+            CODE_NOT_RELATED_TO_EVENTS,
+            CODE_NOT_RELATED_TO_EVENTS,
+            CODE_NOT_RELATED_TO_EVENTS,
             nullptr,
             0
         );
