@@ -253,6 +253,17 @@ Here's a video :3 https://youtu.be/PuzBxe0VGtY
 
 Here's also another video, this time showing off the Asriel Dreemurr final battle https://youtu.be/vkQMqXr0MQE
 
+### DELTARUNE Chapter 1 (GLFW) [WAD Version 17]
+<img width="160" height="120" alt="Screenshot_20261030_213335" src="https://github.com/user-attachments/assets/ee91954a-1bd2-4cbc-b018-98703f97b422" />
+<img width="160" height="120" alt="Screenshot_20261030_213407" src="https://github.com/user-attachments/assets/b9b9740a-f8db-47a5-bf7c-0ebfc0c10bfa" />
+<img width="160" height="120" alt="Screenshot_20261030_213502" src="https://github.com/user-attachments/assets/569ee6a8-bb76-4865-9e6d-3dd659a83a56" />
+<img width="160" height="120" alt="Screenshot_20261030_213533" src="https://github.com/user-attachments/assets/8fb90760-af04-49d2-a19a-d825b08ee3b1" />
+<img width="160" height="120" alt="Screenshot_20261030_213612" src="https://github.com/user-attachments/assets/075a84ed-89c0-4b45-b1db-9cca757db129" />
+<img width="160" height="120" alt="Screenshot_20261030_213623" src="https://github.com/user-attachments/assets/07e67894-7e8e-447b-aa8f-e104337b5b6c" />
+<img width="160" height="120" alt="Screenshot_20261030_214140" src="https://github.com/user-attachments/assets/636597b3-051e-4177-ac69-45d329fddf42" />
+<img width="160" height="120" alt="Screenshot_20261030_214210" src="https://github.com/user-attachments/assets/c25c2b76-5914-4b62-829f-529b44448732" />
+<img width="160" height="120" alt="Screenshot_20261030_214253" src="https://github.com/user-attachments/assets/00728393-356d-40d4-bd96-5c8efe66d1a3" />
+
 ### DELTARUNE (SURVEY_PROGRAM) (PlayStation 2) [WAD Version 16]
 
 Here's a video :3 https://youtu.be/TLJtV2WnrmQ
