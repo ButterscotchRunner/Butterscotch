@@ -274,12 +274,47 @@ https://youtu.be/Qxt5oF2_lYY?si=Ix9WZY2sc9v4umR7
 
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/7b49d434-e66f-4ee3-bfe8-c0b4f45ceeb7" />
 <img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/afbe62ad-4706-4882-a9c9-6c239ed57c69" />
-<img width="160" height="120" alt="image" src="https://github.com/user-attachments/assets/d83c9f8c-e9b9-410e-8d3d-3663ede23fab" />
+<img width="160" height="120" alt="Screenshot_20261030_211459" src="https://github.com/user-attachments/assets/66c7d979-cbd4-4b8d-bfde-53fd958fc62a" />
+<img width="160" height="120" alt="Screenshot_20261030_211511" src="https://github.com/user-attachments/assets/c7a61dc3-95c4-4d8c-a748-76f85a686b1f" />
+<img width="160" height="120" alt="Screenshot_20261030_211534" src="https://github.com/user-attachments/assets/84a63907-6887-4b18-a420-cdfc113fed71" />
+<img width="160" height="120" alt="Screenshot_20261030_211554" src="https://github.com/user-attachments/assets/e63ccce8-7c9b-4495-9b79-e1acc6cee611" />
+<img width="160" height="120" alt="Screenshot_20261030_211621" src="https://github.com/user-attachments/assets/00cff340-7120-4821-bf64-8c23b4deeeea" />
+<img width="160" height="120" alt="Screenshot_20261030_211053" src="https://github.com/user-attachments/assets/1ee883c4-435f-4177-ad7d-0c7cff396300" />
+<img width="160" height="120" alt="Screenshot_20261030_211122" src="https://github.com/user-attachments/assets/924ec8fc-edcc-4108-9cc7-e266a0883a4f" />
+<img width="160" height="120" alt="Screenshot_20261030_211151" src="https://github.com/user-attachments/assets/32685be1-bec5-4bfe-b76c-c6fe987a9ee2" />
+<img width="160" height="120" alt="Screenshot_20261030_211208" src="https://github.com/user-attachments/assets/07974b6e-2625-449a-8896-340251c44046" />
+<img width="160" height="120" alt="Screenshot_20261030_211311" src="https://github.com/user-attachments/assets/e723d262-03dc-4518-af09-14b89b3dd681" />
+
 
 ### DELTARUNE Chapter 3 (PlayStation 2) [WAD Version 17]
 
 Here's a video :3 https://youtu.be/c9r79sQABYg
 
+### DELTARUNE Chapter 4 (GLFW) [WAD Version 17]
+<img width="160" height="120" alt="Screenshot_20261030_205625" src="https://github.com/user-attachments/assets/34606e1a-c0aa-474a-aae1-8810a702403c" />
+<img width="160" height="120" alt="Screenshot_20261030_205651" src="https://github.com/user-attachments/assets/61fd05d7-a037-4550-be8b-456ed360af62" />
+<img width="160" height="120" alt="Screenshot_20261030_205720" src="https://github.com/user-attachments/assets/7a59c9a8-c856-488e-ab53-da3767a07d2e" />
+<img width="160" height="120" alt="Screenshot_20261030_205853" src="https://github.com/user-attachments/assets/5979612e-df4b-4d98-baaf-55d8912e208e" />
+<img width="160" height="120" alt="Screenshot_20261030_205954" src="https://github.com/user-attachments/assets/c006c99d-ceff-456f-91c8-7bb6d1d519b4" />
+<img width="160" height="120" alt="Screenshot_20261030_210008" src="https://github.com/user-attachments/assets/d760348c-05e7-4138-b5d8-fe283cf4e588" />
+<img width="160" height="120" alt="Screenshot_20261030_210310" src="https://github.com/user-attachments/assets/52d7d42a-2549-478a-b455-45ad6a254ab5" />
+<img width="160" height="120" alt="Screenshot_20261030_210333" src="https://github.com/user-attachments/assets/03e517fb-d005-4933-a945-0e4a6b1afab1" />
+<img width="160" height="120" alt="Screenshot_20261030_210628" src="https://github.com/user-attachments/assets/6383e7b9-c80e-4e51-a16a-f14065afb2ca" />
+<img width="160" height="120" alt="Screenshot_20261030_210903" src="https://github.com/user-attachments/assets/156453d7-95a4-4afe-8c0a-c515b5aa3b1c" />
+<img width="160" height="120" alt="Screenshot_20261030_214341" src="https://github.com/user-attachments/assets/57dad820-5816-4f0a-a40c-929adba65e93" />
+
+### DELTARUNE Chapter 5 (GLFW) [WAD Version 17]
+<img width="160" height="120" alt="Screenshot_20261030_211725" src="https://github.com/user-attachments/assets/f1e55ec5-64a3-448f-a991-c3b25f377dae" />
+<img width="160" height="120" alt="Screenshot_20261030_211741" src="https://github.com/user-attachments/assets/62a186b6-988c-4ce7-9e33-e7609c94edfe" />
+<img width="160" height="120" alt="Screenshot_20261030_211810" src="https://github.com/user-attachments/assets/1063ecda-d426-459b-9cf0-81835caaf2af" />
+<img width="160" height="120" alt="Screenshot_20261030_211821" src="https://github.com/user-attachments/assets/31a8440b-786b-484b-815b-e84dbc19a3e6" />
+<img width="160" height="120" alt="Screenshot_20261030_211841" src="https://github.com/user-attachments/assets/25455d66-04f7-4a45-809e-b48501605500" />
+<img width="160" height="120" alt="Screenshot_20261030_211932" src="https://github.com/user-attachments/assets/00f694f9-826e-4d97-adf1-3a59ad9adc05" />
+<img width="160" height="120" alt="Screenshot_20261030_212003" src="https://github.com/user-attachments/assets/e48ba892-b4a3-4656-a680-8ab33713fa2e" />
+<img width="160" height="120" alt="Screenshot_20261030_212015" src="https://github.com/user-attachments/assets/152afce6-5ad7-4609-bb55-d8170501f41e" />
+<img width="160" height="120" alt="Screenshot_20261030_212154" src="https://github.com/user-attachments/assets/faa6481c-0446-42cd-b476-7816253e8009" />
+<img width="160" height="120" alt="Screenshot_20261030_212250" src="https://github.com/user-attachments/assets/17c51dcf-e682-4be2-9023-7900c496ddad" />
+<img width="160" height="120" alt="Screenshot_20261030_212316" src="https://github.com/user-attachments/assets/fa272845-64ce-48ff-8e7a-f3a2a0bc695a" />
 
 ### DELTARUNE Chapter Selector (GLFW) [WAD Version 17]
 
