@@ -71,7 +71,7 @@ static bool launchMenuInTerminal(const char* executablePath) {
         arguments[0] = (char*) terminals[i].name;
         arguments[1] = (char*) terminals[i].executeOption;
         arguments[2] = executable;
-        arguments[3] = "--launcher-menu";
+        arguments[3] = (char*) "--launcher-menu";
         arguments[4] = NULL;
         pid_t process;
         if (posix_spawnp(&process, terminals[i].name, NULL, NULL, arguments, environ) == 0) return true;

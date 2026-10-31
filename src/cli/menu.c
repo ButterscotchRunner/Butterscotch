@@ -100,7 +100,7 @@ static const LauncherOption launcherOptions[] = {
 
 static char* duplicateString(const char* value) {
     size_t length = strlen(value) + 1;
-    char* copy = malloc(length);
+    char* copy = (char*) malloc(length);
     if (copy != NULL) memcpy(copy, value, length);
     return copy;
 }
@@ -264,7 +264,7 @@ static void drawOptionsMenu(int selected, int firstVisible, const bool* enabled,
     fflush(stdout);
 }
 
-static void makeConfigPath(const char* executablePath, char* configPath, size_t capacity) {
+static bool makeConfigPath(const char* executablePath, char* configPath, size_t capacity) {
     char executable[LAUNCHER_PATH_CAPACITY];
 #ifdef _WIN32
     DWORD length = GetModuleFileNameA(NULL, executable, sizeof(executable));
@@ -290,7 +290,13 @@ static void makeConfigPath(const char* executablePath, char* configPath, size_t 
 #endif
     if (slash != NULL) *slash = '\0';
     else snprintf(executable, sizeof(executable), ".");
-    snprintf(configPath, capacity, "%s/butterscotch-games.txt", executable);
+    const char* filename = "/butterscotch-games.txt";
+    size_t directoryLength = strlen(executable);
+    size_t filenameLength = strlen(filename);
+    if (directoryLength + filenameLength + 1 > capacity) return false;
+    memcpy(configPath, executable, directoryLength);
+    memcpy(configPath + directoryLength, filename, filenameLength + 1);
+    return true;
 }
 
 static bool saveGames(const char* configPath, const LauncherGame* games, int gameCount) {
@@ -317,7 +323,7 @@ static bool loadGames(const char* configPath, LauncherGame** games, int* gameCou
         LauncherGame game;
         snprintf(game.name, sizeof(game.name), "%.*s", (int) sizeof(game.name) - 1, line);
         snprintf(game.path, sizeof(game.path), "%s", separator);
-        LauncherGame* expanded = realloc(*games, (size_t) (*gameCount + 1) * sizeof(**games));
+        LauncherGame* expanded = (LauncherGame*) realloc(*games, (size_t) (*gameCount + 1) * sizeof(**games));
         if (expanded == NULL) {
             fclose(file);
             return false;
@@ -366,7 +372,7 @@ static bool addGame(LauncherGame** games, int* gameCount, const char* configPath
     if (!promptLine("Game name: ", game.name, sizeof(game.name)) || game.name[0] == '\0') return false;
     if (!promptLine("Path to data.win (or game folder): ", game.path, sizeof(game.path)) || game.path[0] == '\0') return false;
     if (strchr(game.name, '\t') != NULL || strchr(game.name, '\n') != NULL || strchr(game.path, '\t') != NULL) return false;
-    LauncherGame* expanded = realloc(*games, (size_t) (*gameCount + 1) * sizeof(**games));
+    LauncherGame* expanded = (LauncherGame*) realloc(*games, (size_t) (*gameCount + 1) * sizeof(**games));
     if (expanded == NULL) return false;
     *games = expanded;
     (*games)[(*gameCount)++] = game;
@@ -389,12 +395,19 @@ static bool resolveDataWinPath(const char* path, char* resolved, size_t capacity
     if (stat(path, &info) != 0) return false;
     if (!S_ISDIR(info.st_mode)) {
 #endif
-        snprintf(resolved, capacity, "%s", path);
+    size_t pathLength = strlen(path);
+    if (pathLength >= capacity) return false;
+    memcpy(resolved, path, pathLength + 1);
         return true;
     }
     static const char* candidates[] = {"data.win", "assets/game.unx", "assets/game.droid", "../Resources/game.ios"};
     for (int i = 0; i < (int) (sizeof(candidates) / sizeof(candidates[0])); i++) {
-        snprintf(resolved, capacity, "%s/%s", path, candidates[i]);
+    size_t pathLength = strlen(path);
+    size_t candidateLength = strlen(candidates[i]);
+    if (pathLength + candidateLength + 2 > capacity) continue;
+    memcpy(resolved, path, pathLength);
+    resolved[pathLength] = '/';
+    memcpy(resolved + pathLength + 1, candidates[i], candidateLength + 1);
     #ifdef _WIN32
         if (_access(resolved, 0) == 0) return true;
     #else
@@ -458,7 +471,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
             if (values[i] == NULL || strcmp(launcherOptions[i].flag, "--widescreen-hack") == 0) count++;
             else count += 2;
         }
-        char** argv = calloc((size_t) count + 1, sizeof(*argv));
+        char** argv = (char**) calloc((size_t) count + 1, sizeof(*argv));
         if (argv != NULL) {
             int index = 0;
             argv[index++] = (char*) executablePath;
@@ -467,7 +480,7 @@ static bool selectOptions(char*** arguments, int* argumentCount, const char* exe
                 if (!enabled[i]) continue;
                 if (strcmp(launcherOptions[i].flag, "--widescreen-hack") == 0 && values[i] != NULL) {
                     size_t length = strlen(launcherOptions[i].flag) + strlen(values[i]) + 2;
-                    argv[index] = malloc(length);
+                    argv[index] = (char*) malloc(length);
                     if (argv[index] != NULL) snprintf(argv[index], length, "%s=%s", launcherOptions[i].flag, values[i]);
                     index++;
                 } else {
@@ -506,7 +519,10 @@ bool runLauncherMenu(const char* executablePath, char*** arguments, int* argumen
     }
 #endif
     char configPath[LAUNCHER_PATH_CAPACITY];
-    makeConfigPath(executablePath, configPath, sizeof(configPath));
+    if (!makeConfigPath(executablePath, configPath, sizeof(configPath))) {
+        fprintf(stderr, "The launcher path is too long to save the game list.\n");
+        return false;
+    }
     LauncherGame* games = NULL;
     int gameCount = 0;
     if (!loadGames(configPath, &games, &gameCount)) {
