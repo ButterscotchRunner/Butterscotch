@@ -10,6 +10,24 @@
 <a href="https://discord.gg/2gQR7t3WJR"><img src="https://img.shields.io/discord/1406856655920168971?color=5865F2&logo=discord&logoColor=white&label=discord"></a>
 </p>
 
+## Table of Contents
+* [Game Compatibility](#game-compatibility)
+* [Supported Platforms](#supported-platforms)
+* [Download Butterscotch](#download-butterscotch)
+  * [Desktop](#desktop)
+  * [Consoles](#consoles)
+  * [Other](#other)
+* [Community Ports](#community-ports)
+* [Building Butterscotch](#building-butterscotch)
+* [CLI parameters](#cli-parameters)
+* [Debug Features](#debug-features)
+* [Performance](#performance)
+* [Then why not have a transpiler?](#then-why-not-have-a-transpiler)
+* [Screenshots](#screenshots)
+* [PS2 Videos](#ps2-videos)
+* [Similar Projects](#similar-projects)
+* [Disclaimer](#disclaimer)
+
 > [!IMPORTANT]
 > Butterscotch may have quirks that the original GameMaker: Studio runner may not have!
 
