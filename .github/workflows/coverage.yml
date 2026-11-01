@@ -20,10 +20,10 @@ jobs:
           path: Butterscotch
           token: ${{ secrets.LORITTA_PAT }}
 
-      - name: Checkout Butterscotch Wiki repo
+      - name: Checkout Butterscotch Coverage repo
         uses: actions/checkout@v7
         with:
-          repository: ButterscotchRunner/DataWin
+          repository: ButterscotchRunner/ButterscotchCoverage
           path: Butterscotch.wiki
           token: ${{ secrets.LORITTA_PAT }}
 

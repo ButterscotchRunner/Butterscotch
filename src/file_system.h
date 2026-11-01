@@ -34,6 +34,8 @@ typedef struct {
     bool (*readFileBinary)(FileSystem* fs, const char* relativePath, uint8_t** outData, int32_t* outSize);
     // Write binary data to a file (creates/overwrites), returns true on success
     bool (*writeFileBinary)(FileSystem* fs, const char* relativePath, const uint8_t* data, int32_t size);
+    // Rename a file, returns true on success
+    bool (*renameFile)(FileSystem* fs, const char* oldRelativePath, const char* newRelativePath);
 
     // Streaming binary access (for GML file_bin_*).
     // The implementation chooses what "handle" means, callers only ever pass it back through these vtable entries.

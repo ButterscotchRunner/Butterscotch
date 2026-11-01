@@ -236,10 +236,30 @@ static int nsKeyToGML(unsigned short keyCode)
     }
 }
 
-@interface GameView : NSOpenGLView
+@interface GameView : NSOpenGLView {
+    NSTrackingArea *trackingArea;
+    NSEventModifierFlags lastModifierFlags;
+}
 @end
 
 @implementation GameView
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        lastModifierFlags = 0;
+    }
+    return self;
+}
+
+- (void)dealloc {
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
+    }
+    [super dealloc];
+}
 
 - (BOOL)acceptsFirstResponder
 {
@@ -250,6 +270,12 @@ static int nsKeyToGML(unsigned short keyCode)
 {
     [super updateTrackingAreas];
 
+    if (trackingArea) {
+        [self removeTrackingArea:trackingArea];
+        [trackingArea release];
+        trackingArea = nil;
+    }
+
     NSTrackingArea *area = [[NSTrackingArea alloc]
         initWithRect:self.bounds
         options:NSTrackingMouseMoved |
@@ -258,14 +284,76 @@ static int nsKeyToGML(unsigned short keyCode)
         owner:self
         userInfo:nil];
 
-    [self addTrackingArea:area];
+    trackingArea = [area retain];
+    [area release];
+    [self addTrackingArea:trackingArea];
 }
 
 - (void)keyDown:(NSEvent *)event {
-    RunnerKeyboard_onKeyDown(g_runner->keyboard, nsKeyToGML(event.keyCode));
+    NSString *characters = event.characters;
+    if (characters.length == 1) {
+        unichar ch = [characters characterAtIndex:0];
+        if (ch >= 32 && ch <= 126) {
+            int32_t mappedChar = (int32_t)ch;
+            if (mappedChar >= 'a' && mappedChar <= 'z') {
+                mappedChar = mappedChar - 'a' + 'A';
+            }
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, mappedChar);
+            RunnerKeyboard_onCharacter(g_runner->keyboard, (unsigned int)ch);
+            return;
+        }
+    }
+
+    int32_t mappedKey = nsKeyToGML(event.keyCode);
+    if (mappedKey != 0) {
+        RunnerKeyboard_onKeyDown(g_runner->keyboard, mappedKey);
+    }
 }
 - (void)keyUp:(NSEvent *)event {
     RunnerKeyboard_onKeyUp(g_runner->keyboard, nsKeyToGML(event.keyCode));
+}
+
+- (void)flagsChanged:(NSEvent *)event {
+    NSEventModifierFlags flags = event.modifierFlags;
+    NSEventModifierFlags changed = lastModifierFlags ^ flags;
+
+    if (changed & NSEventModifierFlagShift) {
+        if (flags & NSEventModifierFlagShift) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_SHIFT);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_SHIFT);
+        }
+    }
+    if (changed & NSEventModifierFlagControl) {
+        if (flags & NSEventModifierFlagControl) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_CONTROL);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_CONTROL);
+        }
+    }
+    if (changed & NSEventModifierFlagOption) {
+        if (flags & NSEventModifierFlagOption) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, VK_ALT);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, VK_ALT);
+        }
+    }
+    if (changed & NSEventModifierFlagCommand) {
+        if (flags & NSEventModifierFlagCommand) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, 91);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, 91);
+        }
+    }
+    if (changed & NSEventModifierFlagCapsLock) {
+        if (flags & NSEventModifierFlagCapsLock) {
+            RunnerKeyboard_onKeyDown(g_runner->keyboard, 20);
+        } else {
+            RunnerKeyboard_onKeyUp(g_runner->keyboard, 20);
+        }
+    }
+
+    lastModifierFlags = flags;
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -331,6 +419,42 @@ void platformSetWindowSize(int32_t width, int32_t height) {
     newFrame.origin.y = NSMaxY(frame) - newFrame.size.height;
 
     [window setFrame:newFrame display:YES animate:NO];
+}
+
+static bool platformGetWindowFullscreen(void) {
+    return ([window styleMask] & NSWindowStyleMaskFullScreen) != 0;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    if (fullscreen == platformGetWindowFullscreen()) return;
+    [window toggleFullScreen:nil];
+}
+
+static bool platformGetWindowPosition(int32_t *outX, int32_t *outY) {
+    if (!outX || !outY) return false;
+    NSRect frame = [window frame];
+    CGFloat screenHeight = [NSScreen mainScreen].frame.size.height;
+    *outX = (int32_t)round(frame.origin.x);
+    *outY = (int32_t)round(screenHeight - (frame.origin.y + frame.size.height));
+    return true;
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    if (!window) return;
+    NSScreen *screen = [window screen];
+    if (!screen) {
+        screen = [NSScreen mainScreen];
+    }
+    
+    CGFloat screenHeight = [screen frame].size.height;
+    NSRect frame = [window frame];
+    CGFloat windowHeight = frame.size.height;
+    
+    CGFloat appKitX = (CGFloat)x;
+    CGFloat appKitY = screenHeight - (CGFloat)y - windowHeight;
+    
+    NSPoint newOrigin = NSMakePoint(appKitX, appKitY);
+    [window setFrameOrigin:newOrigin];
 }
 
 void platformGetMousePos(double *xPos, double *yPos) {
@@ -494,7 +618,7 @@ NSMenu* createWindowMenu() {
 
 @end
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen) {
     // Create application
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -541,6 +665,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     if (!window)
         return false;
 
+    [window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
     [window setTitle:[NSString stringWithFormat:@"%s", title]];
     [window setAcceptsMouseMovedEvents:YES];
 
@@ -562,8 +687,14 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
     [glContext setValues:&swap
             forParameter:NSOpenGLContextParameterSwapInterval];
 
-    if (!headless)
+    if (!headless) {
+        if (fullscreen) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [window toggleFullScreen:nil];
+            });
+        }
         [window makeKeyAndOrderFront:nil];
+    }
 
     [NSApp activateIgnoringOtherApps:YES];
 
@@ -574,8 +705,12 @@ void platformExit(void) {
     if (@available(macOS 10.15, *)) {
         [GCController stopWirelessControllerDiscovery];
     }
-    [glContext clearDrawable];
-    [window close];
+    if (glContext) {
+        [glContext clearDrawable];
+    }
+    if (window) {
+        [window close];
+    }
     glContext = nil;
     glView = nil;
     window = nil;
@@ -641,6 +776,10 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = windowIsFocused;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_ARROW;
 }
 
@@ -658,34 +797,36 @@ bool platformHandleEvents(void)
     if (![window isVisible])
         return true;
 
-    NSEvent *event;
-    while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                       untilDate:[NSDate distantPast]
-                                          inMode:NSDefaultRunLoopMode
-                                         dequeue:YES])) {
-        [NSApp sendEvent:event];
-    }
+    @autoreleasepool {
+        NSEvent *event;
+        while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                           untilDate:[NSDate distantPast]
+                                              inMode:NSDefaultRunLoopMode
+                                             dequeue:YES])) {
+            [NSApp sendEvent:event];
+        }
 
-    [NSApp updateWindows];
+        [NSApp updateWindows];
 
-    if (g_runner && g_runner->gamepads) {
-        NSArray<GCController *> *controllers = [GCController controllers];
-        NSUInteger count = MIN((NSUInteger)MAX_GAMEPADS, controllers.count);
-        g_runner->gamepads->connectedCount = 0;
+        if (g_runner && g_runner->gamepads) {
+            NSArray<GCController *> *controllers = [GCController controllers];
+            NSUInteger count = MIN((NSUInteger)MAX_GAMEPADS, controllers.count);
+            g_runner->gamepads->connectedCount = 0;
 
-        for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
-            GamepadSlot *slot = g_runner->gamepads->slots + slotIdx;
-            GCController *controller = (slotIdx < (int)count) ? controllers[slotIdx] : nil;
+            for (int slotIdx = 0; slotIdx < MAX_GAMEPADS; slotIdx++) {
+                GamepadSlot *slot = g_runner->gamepads->slots + slotIdx;
+                GCController *controller = (slotIdx < (int)count) ? controllers[slotIdx] : nil;
 
-            appkitMapControllerToSlot(controller, slot);
+                appkitMapControllerToSlot(controller, slot);
 
-            if (slot->connected) {
-                for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
-                    bool wasDown = slot->buttonDownPrev[btn];
-                    slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
-                    slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
+                if (slot->connected) {
+                    for (int btn = 0; GP_BUTTON_COUNT > btn; btn++) {
+                        bool wasDown = slot->buttonDownPrev[btn];
+                        slot->buttonPressed[btn] = (slot->buttonDown[btn] && !wasDown);
+                        slot->buttonReleased[btn] = (!slot->buttonDown[btn] && wasDown);
+                    }
+                    g_runner->gamepads->connectedCount++;
                 }
-                g_runner->gamepads->connectedCount++;
             }
         }
     }

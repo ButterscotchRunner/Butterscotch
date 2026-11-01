@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
     vglSetupGarbageCollector(127, 0x20000);
     vglUseTripleBuffering(GL_FALSE);
     vglSetCircularPoolSize(128 * 1024 * 1024);
-    vglSetupDisplayRenderTarget(2);
+    vglSetupRenderTargetScenesNum(2, 1);
     vglSetParamBufferSize(6 * 1024 * 1024);
     vglSetShaderCachePath("ux0:data/butterscotch/shader_cache");
     vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
     args.fastForwardSpeed = 0.0;
     args.osType = OS_WINDOWS;
     args.profilerFramesBetween = 0;
-    args.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
+    args.loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
     args.lazyRooms = true;
     args.lazyTextures = true;
     args.lazyAudio = true;

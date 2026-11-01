@@ -8,6 +8,7 @@
 #include "platformdefs.h"
 #include "gettime.h"
 #include <ctype.h>
+#include <stdbool.h>
 #include "runner_mouse.h"
 
 static Runner *g_runner;
@@ -134,6 +135,15 @@ void platformSetWindowSize(int32_t width, int32_t height) {
         scr = SDL_GetWindowSurface(window);
 }
 
+static bool platformGetWindowPosition(int32_t* outX, int32_t* outY) {
+    if (!outX || !outY) return false;
+    return SDL_GetWindowPosition(window, outX, outY);
+}
+
+static void platformSetWindowPosition(int32_t x, int32_t y) {
+    SDL_SetWindowPosition(window, x, y);
+}
+
 void platformGetMousePos(double *xPos, double *yPos) {
     if (!xPos || !yPos) return;
     float mx = 0, my = 0;
@@ -146,7 +156,15 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+static bool platformGetWindowFullscreen(void) {
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    SDL_SetWindowFullscreen(window, fullscreen);
+}
+
+bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
         logError("Failed to initialize SDL\n");
@@ -190,6 +208,8 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     } else
         scr = SDL_GetWindowSurface(window);
 
+    platformSetWindowFullscreen(fullscreen);
+
     return true;
 }
 
@@ -230,6 +250,10 @@ void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->windowHasFocus = platformGetWindowFocus;
     runner->setCursor = platformSetCursor;
+    runner->getWindowPosition = platformGetWindowPosition;
+    runner->setWindowPosition = platformSetWindowPosition;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 

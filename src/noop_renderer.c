@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "renderer.h"
+#include "vm_builtins.h"
 #include "runner.h"
 #include "data_win.h"
 #include "utils.h"
@@ -61,6 +62,7 @@ static void noopInit(Renderer *renderer, DataWin *dataWin) {
 }
 
 static void noopDestroy(Renderer *renderer) {
+    VMBuiltins_resetD3D(renderer);
     NoopRenderer *noop = (NoopRenderer *)renderer;
     free(noop->surfaceWidths);
     free(noop->surfaceHeights);
@@ -79,8 +81,8 @@ static void noopSetGuiProjection(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED i
 static void noopEndGUI(MAYBE_UNUSED Renderer *renderer) {}
 
 static void noopDrawSprite(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
-static void noopDrawSpritePart(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcOffX, MAYBE_UNUSED int32_t srcOffY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
-static void noopDrawSpritePartColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED int32_t srcOffX, MAYBE_UNUSED int32_t srcOffY, MAYBE_UNUSED int32_t srcW, MAYBE_UNUSED int32_t srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha) {}
+static void noopDrawSpritePart(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float srcOffX, MAYBE_UNUSED float srcOffY, MAYBE_UNUSED float srcW, MAYBE_UNUSED float srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void noopDrawSpritePartColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float srcOffX, MAYBE_UNUSED float srcOffY, MAYBE_UNUSED float srcW, MAYBE_UNUSED float srcH, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED float pivotX, MAYBE_UNUSED float pivotY, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha) {}
 static void noopDrawSpritePos(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED float x3, MAYBE_UNUSED float y3, MAYBE_UNUSED float x4, MAYBE_UNUSED float y4, MAYBE_UNUSED float alpha) {}
 static void noopDrawRectangle(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {}
 static void noopDrawRectangleColor(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x1, MAYBE_UNUSED float y1, MAYBE_UNUSED float x2, MAYBE_UNUSED float y2, MAYBE_UNUSED uint32_t color1, MAYBE_UNUSED uint32_t color2, MAYBE_UNUSED uint32_t color3, MAYBE_UNUSED uint32_t color4, MAYBE_UNUSED float alpha, MAYBE_UNUSED bool outline) {}
@@ -145,25 +147,22 @@ static void noopGpuGetColorWriteEnable(Renderer *renderer, bool *red, bool *gree
 static bool noopGpuGetBlendEnable(Renderer *renderer) {
     return ((NoopRenderer *)renderer)->blendEnable;
 }
-static void noopGpuSetFog(Renderer *renderer, bool enable, uint32_t color) {
+static void noopGpuSetFog(Renderer *renderer, bool enable, uint32_t color, float start, float end) {
+    (void)start;
+    (void)end;
     NoopRenderer *noop = (NoopRenderer *)renderer;
     noop->fogEnable = enable;
     noop->fogColor = color;
 }
 static void noopDrawTile(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED RoomTile *tile, MAYBE_UNUSED float offsetX, MAYBE_UNUSED float offsetY) {}
 static void noopDrawSpriteTiled(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED bool tileX, MAYBE_UNUSED bool tileY, MAYBE_UNUSED float roomW, MAYBE_UNUSED float roomH, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}
+static void noopPrimitiveBegin(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t kind) {}
+static void noopPrimitiveBeginTexture(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t kind, MAYBE_UNUSED int32_t texture) {}
+static void noopPrimitiveEnd(MAYBE_UNUSED Renderer *renderer) {}
+static void noopDrawVertex(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float z, MAYBE_UNUSED uint32_t colour, MAYBE_UNUSED float alpha, MAYBE_UNUSED float u, MAYBE_UNUSED float v) {}
 
 static int32_t noopCreateSurface(Renderer *renderer, int32_t width, int32_t height) {
     NoopRenderer *noop = (NoopRenderer *)renderer;
-    // Find free slot
-    for (uint32_t i = 0; i < noop->surfaceCount; i++) {
-        if (!noop->surfaceExistsFlag[i]) {
-            noop->surfaceWidths[i] = width;
-            noop->surfaceHeights[i] = height;
-            noop->surfaceExistsFlag[i] = true;
-            return (int32_t)i;
-        }
-    }
     uint32_t id = noop->surfaceCount;
     noopEnsureSurfaceCapacity(noop, id + 1);
     noop->surfaceWidths[id] = width;
@@ -258,6 +257,7 @@ static bool noopShadersSupported(void) {
 static void noopSetMatrix(Renderer *renderer, int32_t matrixType, Matrix4f matrix) {
     if (matrixType >= 0 && matrixType < MATRICES_MAX) renderer->gmlMatrices[matrixType] = matrix;
 }
+static void noopGpuSetTexFilter(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED bool enable) {}
 
 static RendererVtable noopVtable;
 
@@ -301,9 +301,14 @@ Renderer* NoopRenderer_create(void) {
     noopVtable.gpuSetColorWriteEnable = noopGpuSetColorWriteEnable;
     noopVtable.gpuGetColorWriteEnable = noopGpuGetColorWriteEnable;
     noopVtable.gpuGetBlendEnable = noopGpuGetBlendEnable;
+    noopVtable.gpuSetTexFilter = noopGpuSetTexFilter;
     noopVtable.gpuSetFog = noopGpuSetFog;
     noopVtable.drawTile = noopDrawTile;
     noopVtable.drawSpriteTiled = noopDrawSpriteTiled;
+    noopVtable.primitiveBegin = noopPrimitiveBegin;
+    noopVtable.primitiveBeginTexture = noopPrimitiveBeginTexture;
+    noopVtable.primitiveEnd = noopPrimitiveEnd;
+    noopVtable.drawVertex = noopDrawVertex;
     noopVtable.createSurface = noopCreateSurface;
     noopVtable.surfaceExists = noopSurfaceExists;
     noopVtable.setRenderTarget = noopSetRenderTarget;

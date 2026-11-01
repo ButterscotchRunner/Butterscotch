@@ -94,6 +94,10 @@ typedef struct {
     float fadeTimeRemaining;
     float fadeTotalTime;
     float sondVolume;     // SOND resource volume (fixed-point / 256)
+    bool spatial;
+    float spatialX, spatialY, spatialZ;
+    float velocityX, velocityY, velocityZ;
+    float falloffRef, falloffMax, falloffFactor;
 } Ps2SoundInstance;
 
 // ===[ Streaming Music Instance ]===
@@ -116,6 +120,10 @@ typedef struct {
     float sondVolume;
     float pitch;
     float sondPitch;
+    bool spatial;
+    float spatialX, spatialY, spatialZ;
+    float velocityX, velocityY, velocityZ;
+    float falloffRef, falloffMax, falloffFactor;
 
     // ADPCM file streaming state
     uint32_t fileOffset;      // current read position in SOUNDS.BIN

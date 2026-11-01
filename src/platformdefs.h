@@ -45,6 +45,17 @@ enum GraphicsAPI {
     NOOP
 };
 
+enum GlTextureFormat {
+    GL_TEXTURE_FORMAT_RGBA,
+    GL_TEXTURE_FORMAT_RGBA4,
+    GL_TEXTURE_FORMAT_COMPRESSED_RGBA,
+};
+
+enum GlSurfaceFormat {
+    GL_SURFACE_FORMAT_RGBA,
+    GL_SURFACE_FORMAT_RGBA4,
+};
+
 extern enum GraphicsAPI gfx;
 
 typedef struct {
@@ -121,9 +132,14 @@ typedef struct {
     bool opcodeProfiler;
 #endif
     bool disableLogColours;
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+    enum GlTextureFormat glTextureFormat;
+    enum GlSurfaceFormat glSurfaceFormat;
+#endif
+    bool fullscreen;
 } CommandLineArgs;
 
-bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless);
+bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen);
 void platformInitFunctions(Runner *);
 void platformExit(void);
 void platformSwapBuffers(void);
@@ -144,6 +160,7 @@ static const struct {
     bool gles;
 } GLCommon_versions[] = {
     /* Desktop GL */
+#ifndef DISABLE_DESKTOP_GL
     { 4, 6, false },
     { 4, 5, false },
     { 4, 4, false },
@@ -157,6 +174,7 @@ static const struct {
     { 3, 0, false },
     { 2, 1, false },
     { 2, 0, false },
+#endif
 #ifndef USE_GLFW2
     /* GLES */
     { 3, 2, true  },

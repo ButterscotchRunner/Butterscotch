@@ -33,64 +33,15 @@ object ButterscotchNative {
     const val BUTTERSCOTCH_DROID_CONTINUE = 0
     const val BUTTERSCOTCH_DROID_SHOULD_EXIT = 1
     const val BUTTERSCOTCH_DROID_CONTINUE_NO_SWAP = 2
-    val stdioListener = mutableListOf<(String) -> (Unit)>()
 
     init {
         System.loadLibrary("butterscotch")
-        redirectStdioToLogcat()
         init()
     }
 
     external fun init()
 
-    /**
-     * Registers a stdio listener
-     */
-    fun registerStdioListener(callback: (String) -> (Unit)): (String) -> Unit {
-        stdioListener.add(callback)
-        return callback
-    }
-
-    /**
-     * Unregister a stdio listener
-     */
-    fun unregisterStdioListener(callback: (String) -> (Unit)) {
-        stdioListener.remove(callback)
-    }
-
-    /**
-     * Points the native fds 1/2 (stdout/stderr) at a pipe and pumps it into logcat from a daemon thread.
-     *
-     * dup2 retargets the fds themselves, so this captures printf/fprintf output from the C runtime, not just JVM writes.
-     *
-     * The matching setvbuf calls live in the native [init], because stdio buffering is libc FILE* state that cannot be reached from the fd level.
-     *
-     * The pump thread must outlive every native writer: if it died, the next printf after the 64KB pipe buffer fills would block the render thread forever.
-     * The reader loop only exits on EOF, which never happens since the write end stays open for the life of the process.
-     */
-    private fun redirectStdioToLogcat() {
-        try {
-            val pipe = Os.pipe()
-            Os.dup2(pipe[1], OsConstants.STDOUT_FILENO)
-            Os.dup2(pipe[1], OsConstants.STDERR_FILENO)
-            Thread {
-                FileInputStream(pipe[0])
-                    .bufferedReader()
-                    .forEachLine {
-                        Log.i("Butterscotch", it)
-                        for (listener in stdioListener) {
-                            listener.invoke(it)
-                        }
-                    }
-            }.apply {
-                name = "ButterscotchLogPump"
-                isDaemon = true
-                start()
-            }
-        } catch (e: ErrnoException) {
-            Log.w("Butterscotch", "Could not redirect stdio to logcat", e)
-        }
-    }
+    external fun setActiveLogFile(path: String?)
 
     // ===[ DataWin handle API — safe to call from any thread, no EGL needed ]===
     //
@@ -240,22 +191,5 @@ object ButterscotchNative {
     @JvmStatic
     fun onGameSizeChanged(width: Int, height: Int) {
         currentGameSize = IntSize(width, height)
-    }
-
-    /**
-     * Flips true when the runner has exited (either the game requested quit, or [ButterscotchDroidRunner] tore
-     * it down on user request). The Activity observes this and calls finish().
-     */
-    var hasExited: Boolean by mutableStateOf(false)
-        private set
-
-    internal fun markExited() {
-        hasExited = true
-    }
-
-    /** Clear the exit latch — process-singleton state, so a previous session would otherwise
-     *  immediately finish a freshly-launched GameActivity. */
-    fun resetExitLatch() {
-        hasExited = false
     }
 }

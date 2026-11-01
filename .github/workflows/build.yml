@@ -9,6 +9,8 @@ on:
 jobs:
   Unix:
     uses: ./.github/workflows/build-desktop.yml
+    with:
+      full_matrix: ${{ github.event_name == 'push' }}
 
   Windows:
     uses: ./.github/workflows/build-windows.yml
@@ -18,6 +20,9 @@ jobs:
 
   Haiku:
     uses: ./.github/workflows/build-haiku.yml
+
+  Illumos:
+    uses: ./.github/workflows/build-illumos.yml
 
   Consoles:
     uses: ./.github/workflows/build-console.yml

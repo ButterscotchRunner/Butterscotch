@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "audio_system.h"
+#include <stdio.h>
 #ifdef __APPLE__
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
@@ -24,6 +25,8 @@ struct stb_vorbis;
 
 typedef struct {
     bool active;
+    bool pendingStart;
+    bool paused;
     int32_t soundIndex; // SOND resource that spawned this
     int32_t instanceId; // unique ID returned to GML
     ALuint alSource; // OpenAL source object
@@ -40,12 +43,17 @@ typedef struct {
     bool loop;
     bool streamEnded; // decoder produced no more samples; waiting for queue to drain
     struct stb_vorbis* vorbis;
+    FILE* wavFile;
+    int64_t wavDataStart;
+    uint32_t wavDataBytes;
+    uint32_t wavSampleBytesRemaining;
     ALuint streamBuffers[AL_STREAM_BUFFER_COUNT];
     int16_t* decodeScratch; // sized for AL_STREAM_BUFFER_SAMPLES * streamChannels shorts
     int streamChannels;
     int streamSampleRate;
     ALenum streamFormat;
     float streamLengthSeconds;
+    uint64_t streamLengthSamples;
     uint64_t playedSamples; // cumulative per-channel samples that have left the queue
 } SoundInstance;
 
@@ -54,6 +62,7 @@ typedef struct {
     char* filePath; // resolved file path (owned, freed on destroy)
     float initialGain;
     float initialPitch;
+    float lengthSeconds;
 } AudioStreamEntry;
 
 typedef struct {

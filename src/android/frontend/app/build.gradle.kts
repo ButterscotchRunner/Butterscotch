@@ -12,7 +12,10 @@ plugins {
 }
 
 // Signing settings
-val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystorePropertiesFile = (findProperty("butterscotch.keystoreProperties") as String?)
+    ?.let { file(it) }
+    ?: rootProject.file("keystore.properties")
+
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
 }
@@ -37,8 +40,8 @@ android {
         applicationId = "net.perfectdreams.butterscotch"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "2026.06.21-1"
+        versionCode = (findProperty("butterscotch.versionCode") as String?)?.toInt() ?: 32
+        versionName = (findProperty("butterscotch.versionName") as String?) ?: "dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -48,7 +51,8 @@ android {
                     "-DPLATFORM=android",
                     "-DENABLE_MODERN_GL=ON",
                     "-DENABLE_LEGACY_GL=OFF",
-                    "-DAUDIO_BACKEND=miniaudio"
+                    "-DAUDIO_BACKEND=miniaudio",
+                    "-DVIDEO_BACKEND=none"
                 )
                 if (ccachePath != null) {
                     arguments += listOf("-DCMAKE_C_COMPILER_LAUNCHER=${ccachePath.absolutePath}", "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccachePath.absolutePath}")

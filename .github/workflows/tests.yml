@@ -48,6 +48,17 @@ jobs:
       - name: Verify path regression bundle passes
         run: |
           set -euo pipefail
+          # Always publish the output to the step summary, even if the run or the checks below fail
+          write_summary() {
+            {
+              echo "## Path regression test output"
+              echo '```'
+              cat /tmp/path-test-output.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+          trap write_summary EXIT
+
           xvfb-run -a ./build/butterscotch --disable-log-colours tests/path-test/game.ios > /tmp/path-test-output.txt 2>&1
 
           grep -F "Game: Passed 267 tests out of 267" /tmp/path-test-output.txt
