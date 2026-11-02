@@ -15095,7 +15095,6 @@ static RValue builtin_date_second_span(VMContext* ctx, RValue* args, int32_t arg
     return RValue_makeReal(GMLReal_fabs(diff));
 }
 
-
 static RValue builtin_date_set_timezone(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("date_set_timezone", 1, RValue_makeUndefined());
     ctx->runner->dateTimeLocal = RValue_toInt32(args[0]) == 0;
