@@ -16254,21 +16254,26 @@ static RValue builtin_layer_create(VMContext* ctx, RValue* args, int32_t argCoun
 static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     int32_t id = resolveLayerIdArg(runner, args[0]);
+    RuntimeLayer* layer = Runner_findRuntimeLayerById(runner, id);
+    if (layer == nullptr) return RValue_makeUndefined();
+    int32_t* sequenceIds = nullptr;
+    int32_t* instanceIds = nullptr;
+    repeat(arrlenu(layer->elements), e) {
+        RuntimeLayerElement* el = &layer->elements[e];
+        if (el->type == RuntimeLayerElementType_Sequence) arrput(sequenceIds, (int32_t)el->id);
+        else if (el->type == RuntimeLayerElementType_Instance) arrput(instanceIds, el->instanceId);
+    }
+    repeat(arrlenu(sequenceIds), e) Sequence_destroy(runner, sequenceIds[e]);
+    repeat(arrlenu(instanceIds), e) {
+        Instance* inst = hmget(runner->instancesById, instanceIds[e]);
+        if (inst != nullptr && !inst->destroyed) Runner_destroyInstance(runner, inst, true);
+    }
+    arrfree(sequenceIds);
+    arrfree(instanceIds);
     size_t count = arrlenu(runner->runtimeLayers);
     repeat(count, i) {
         if ((int32_t) runner->runtimeLayers[i].id != id)
             continue;
-
-        // GameMaker allows destroying room-defined layers at runtime.
-        // When destroying an instance layer, destroy the instances bound to that layer.
-        size_t elementCount = arrlenu(runner->runtimeLayers[i].elements);
-        repeat(elementCount, j) {
-            RuntimeLayerElement* el = &runner->runtimeLayers[i].elements[j];
-            if (el->type != RuntimeLayerElementType_Instance) continue;
-            Instance* inst = hmget(runner->instancesById, el->instanceId);
-            if (inst == nullptr || inst->destroyed) continue;
-            Runner_destroyInstance(runner, inst, true);
-        }
 
         Runner_freeRuntimeLayer(&runner->runtimeLayers[i]);
         arrdel(runner->runtimeLayers, i);
@@ -16291,6 +16296,77 @@ static RValue builtin_layer_script_begin(VMContext* ctx, RValue* args, MAYBE_UNU
     runtimeLayer->beginScript = codeIndex;
 
     return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_sequence_create(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_create", 4, RValue_makeReal(-1));
+    int32_t layerId = resolveLayerIdArg(ctx->runner, args[0]);
+    int32_t id = Sequence_create(ctx->runner, layerId, RValue_toInt32(args[3]), (float)RValue_toReal(args[1]), (float)RValue_toReal(args[2]));
+    return RValue_makeReal(id);
+}
+
+static RValue builtin_layer_sequence_destroy(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_destroy", 1, RValue_makeUndefined());
+    Sequence_destroy(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_layer_sequence_play(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_play", 1, RValue_makeReal(-1));
+    Sequence_play(Sequence_find(ctx->runner, RValue_toInt32(args[0])));
+    return RValue_makeReal(-1);
+}
+
+static RValue builtin_layer_sequence_pause(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_pause", 1, RValue_makeReal(-1));
+    Sequence_setPaused(Sequence_find(ctx->runner, RValue_toInt32(args[0])), true);
+    return RValue_makeReal(-1);
+}
+
+static RValue builtin_layer_sequence_is_finished(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_is_finished", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return seq != nullptr ? RValue_makeBool(seq->finished) : RValue_makeReal(-1);
+}
+
+static RValue builtin_layer_sequence_is_paused(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_is_paused", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return seq != nullptr ? RValue_makeBool(seq->paused) : RValue_makeReal(-1);
+}
+
+static RValue builtin_layer_sequence_get_headpos(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_get_headpos", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeReal(seq != nullptr ? seq->headPosition : -1);
+}
+
+static RValue builtin_layer_sequence_get_length(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_get_length", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeReal(seq != nullptr ? seq->asset->length : -1);
+}
+
+static RValue builtin_layer_sequence_get_x(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_get_x", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeReal(seq != nullptr ? seq->x : -1);
+}
+
+static RValue builtin_layer_sequence_get_y(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_get_y", 1, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    return RValue_makeReal(seq != nullptr ? seq->y : -1);
+}
+
+static RValue builtin_layer_sequence_x(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("layer_sequence_x", 2, RValue_makeReal(-1));
+    RuntimeSequence* seq = Sequence_find(ctx->runner, RValue_toInt32(args[0]));
+    if (seq != nullptr) {
+        seq->x = (float)RValue_toReal(args[1]);
+        seq->transformDirty = true;
+    }
+    return RValue_makeReal(-1);
 }
 
 static RValue builtin_layer_script_end(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
@@ -18589,54 +18665,6 @@ static RValue builtin_animcurve_get_channel_index(VMContext* ctx, RValue* args, 
     return RValue_makeReal(-1.0);
 }
 
-// Catmull-Rom interpolation: 4 control points P0..P3, parameter t in [0,1] from P1 to P2.
-static float animcurveCatmullRom(float p0, float p1, float p2, float p3, float t) {
-    float t2 = t * t;
-    float t3 = t2 * t;
-    return 0.5f * ((2.0f * p1) +
-                   (-p0 + p2) * t +
-                   (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
-                   (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
-}
-
-static float animcurveChannelEvaluate(const AnimCurveChannel* ch, float x) {
-    if (ch == nullptr || ch->pointCount == 0) return 0.0f;
-    if (ch->pointCount == 1) return ch->points[0].value;
-
-    // Clamp to the channel's x range
-    float x0 = ch->points[0].x;
-    float xn = ch->points[ch->pointCount - 1].x;
-    if (x0 > x) return ch->points[0].value;
-    if (x > xn) return ch->points[ch->pointCount - 1].value;
-
-    // Binary search for the interval [i, i+1] containing x
-    uint32_t lo = 0;
-    uint32_t hi = ch->pointCount - 1;
-    while (hi - lo > 1) {
-        uint32_t mid = (lo + hi) / 2;
-        if (ch->points[mid].x <= x) lo = mid;
-        else hi = mid;
-    }
-
-    const AnimCurvePoint* a = &ch->points[lo];
-    const AnimCurvePoint* b = &ch->points[lo + 1];
-    float span = b->x - a->x;
-    if (0.0f >= span) return a->value;
-    float t = (x - a->x) / span;
-
-    if (ch->curveType == ANIMCURVE_TYPE_SMOOTH) {
-        // Catmull-Rom on the value channel, using neighbor points clamped at the ends
-        float p0 = (lo > 0) ? ch->points[lo - 1].value : a->value;
-        float p1 = a->value;
-        float p2 = b->value;
-        float p3 = (lo + 2 < ch->pointCount) ? ch->points[lo + 2].value : b->value;
-        return animcurveCatmullRom(p0, p1, p2, p3, t);
-    }
-
-    // Linear (also used as fallback for bezier; full bezier handle eval not yet implemented)
-    return a->value + (b->value - a->value) * t;
-}
-
 // animcurve_channel_evaluate(channel_handle, posx)
 static RValue builtin_animcurve_channel_evaluate(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("animcurve_channel_evaluate", 2, RValue_makeReal(0.0));
@@ -18646,7 +18674,7 @@ static RValue builtin_animcurve_channel_evaluate(VMContext* ctx, RValue* args, i
     if (0 > handle || (uint32_t) handle >= a->allChannelsCount) return RValue_makeReal(0.0);
     AnimCurveChannel* ch = a->allChannels[handle];
     float x = (float) RValue_toReal(args[1]);
-    return RValue_makeReal((GMLReal) animcurveChannelEvaluate(ch, x));
+    return RValue_makeReal((GMLReal)AnimCurveChannel_evaluate(ch, x));
 }
 
 // ===[ MP_GRID FUNCTIONS ]===
@@ -25451,6 +25479,17 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "layer_create", builtin_layer_create);
     VM_registerBuiltin(ctx, "layer_destroy", builtin_layer_destroy);
     VM_registerBuiltin(ctx, "layer_script_begin", builtin_layer_script_begin);
+    VM_registerBuiltin(ctx, "layer_sequence_create", builtin_layer_sequence_create);
+    VM_registerBuiltin(ctx, "layer_sequence_destroy", builtin_layer_sequence_destroy);
+    VM_registerBuiltin(ctx, "layer_sequence_play", builtin_layer_sequence_play);
+    VM_registerBuiltin(ctx, "layer_sequence_pause", builtin_layer_sequence_pause);
+    VM_registerBuiltin(ctx, "layer_sequence_is_finished", builtin_layer_sequence_is_finished);
+    VM_registerBuiltin(ctx, "layer_sequence_is_paused", builtin_layer_sequence_is_paused);
+    VM_registerBuiltin(ctx, "layer_sequence_get_headpos", builtin_layer_sequence_get_headpos);
+    VM_registerBuiltin(ctx, "layer_sequence_get_length", builtin_layer_sequence_get_length);
+    VM_registerBuiltin(ctx, "layer_sequence_get_x", builtin_layer_sequence_get_x);
+    VM_registerBuiltin(ctx, "layer_sequence_get_y", builtin_layer_sequence_get_y);
+    VM_registerBuiltin(ctx, "layer_sequence_x", builtin_layer_sequence_x);
     VM_registerBuiltin(ctx, "layer_script_end", builtin_layer_script_end);
     VM_registerBuiltin(ctx, "layer_background_create", builtin_layer_background_create);
     VM_registerBuiltin(ctx, "layer_background_exists", builtin_layer_background_exists);
