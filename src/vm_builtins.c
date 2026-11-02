@@ -15087,7 +15087,7 @@ static RValue builtin_date_get_second(VMContext* ctx, RValue* args, int32_t argC
 }
 
 static RValue builtin_date_second_span(VMContext* ctx, RValue* args, int32_t argCount) {
-    REQUIRE_ARGC_AT_LEAST("date_second_spam", 1, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_LEAST("date_second_span", 2, RValue_makeUndefined());
     struct tm parts1, parts2;
     if (!dateGetParts(ctx, args[0], &parts1)) return RValue_makeReal(NAN);
     if (!dateGetParts(ctx, args[1], &parts2)) return RValue_makeReal(NAN);
