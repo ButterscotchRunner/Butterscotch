@@ -15086,6 +15086,16 @@ static RValue builtin_date_get_second(VMContext* ctx, RValue* args, int32_t argC
     return RValue_makeReal(parts.tm_sec);
 }
 
+static RValue builtin_date_second_span(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("date_second_spam", 1, RValue_makeUndefined());
+    struct tm parts1, parts2;
+    if (!dateGetParts(ctx, args[0], &parts1)) return RValue_makeReal(NAN);
+    if (!dateGetParts(ctx, args[1], &parts2)) return RValue_makeReal(NAN);
+    GMLReal diff = (GMLReal)(parts2.tm_sec - parts1.tm_sec);
+    return RValue_makeReal(GMLReal_fabs(diff));
+}
+
+
 static RValue builtin_date_set_timezone(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("date_set_timezone", 1, RValue_makeUndefined());
     ctx->runner->dateTimeLocal = RValue_toInt32(args[0]) == 0;
@@ -25720,6 +25730,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "date_get_hour", builtin_date_get_hour);
     VM_registerBuiltin(ctx, "date_get_minute", builtin_date_get_minute);
     VM_registerBuiltin(ctx, "date_get_second", builtin_date_get_second);
+    VM_registerBuiltin(ctx, "date_second_span", builtin_date_second_span);
     VM_registerBuiltin(ctx, "date_set_timezone", builtin_date_set_timezone);
     VM_registerBuiltin(ctx, "date_get_timezone", builtin_date_get_timezone);
     VM_registerBuiltin(ctx, "date_date_string", builtin_date_date_string);
