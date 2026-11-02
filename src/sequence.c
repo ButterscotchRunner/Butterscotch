@@ -565,8 +565,8 @@ static void evaluateNodes(RuntimeSequence* seq, SequenceNode* nodes, uint32_t co
                     inst->sequenceControlled = true;
                     if (!active) continue;
                     Matrix4f_transformPoint(&node->matrix, node->values.originX, node->values.originY, &inst->x, &inst->y);
-                    inst->imageAngle = (float)(-atan2(node->matrix.m[1], node->matrix.m[0]) * (180.0 / M_PI));
-                    inst->imageXscale = (float)sqrt((double)node->matrix.m[0] * node->matrix.m[0] + (double)node->matrix.m[1] * node->matrix.m[1]);
+                    inst->imageAngle = -GMLReal_atan2(node->matrix.m[1], node->matrix.m[0]) * (180.0 / M_PI);
+                    inst->imageXscale = sqrtf(node->matrix.m[0] * node->matrix.m[0] + node->matrix.m[1] * node->matrix.m[1]);
                     float determinant = node->matrix.m[0]*node->matrix.m[5] - node->matrix.m[1]*node->matrix.m[4];
                     inst->imageYscale = inst->imageXscale != 0.0f ? determinant / inst->imageXscale : 0.0f;
                     inst->imageBlend = packedColor(node->values.color);
