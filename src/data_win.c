@@ -1106,6 +1106,219 @@ static void parseSCPT(BinaryReader* reader, DataWin* dw) {
     free(ptrs);
 }
 
+static void readAnimCurve(BinaryReader* reader, DataWin* dw, AnimCurve* curve, bool named) {
+    curve->present = true;
+    curve->name = named ? readStringPtr(reader, dw) : nullptr;
+    curve->graphType = BinaryReader_readUint32(reader);
+    curve->channelCount = BinaryReader_readUint32(reader);
+    curve->channels = (AnimCurveChannel*)safeCalloc(curve->channelCount, sizeof(AnimCurveChannel));
+    repeat(curve->channelCount, c) {
+        AnimCurveChannel* ch = &curve->channels[c];
+        ch->name = readStringPtr(reader, dw);
+        ch->curveType = (AnimCurveType)BinaryReader_readUint32(reader);
+        ch->iterations = BinaryReader_readUint32(reader);
+        ch->pointCount = BinaryReader_readUint32(reader);
+        ch->points = (AnimCurvePoint*)safeCalloc(ch->pointCount, sizeof(AnimCurvePoint));
+        repeat(ch->pointCount, p) {
+            AnimCurvePoint* pt = &ch->points[p];
+            pt->x = BinaryReader_readFloat32(reader);
+            pt->value = BinaryReader_readFloat32(reader);
+            if (DataWin_isVersionAtLeast(dw, 2, 3, 1, 0)) {
+                pt->bezierX0 = BinaryReader_readFloat32(reader);
+                pt->bezierY0 = BinaryReader_readFloat32(reader);
+                pt->bezierX1 = BinaryReader_readFloat32(reader);
+                pt->bezierY1 = BinaryReader_readFloat32(reader);
+            } else {
+                BinaryReader_skip(reader, 4);
+            }
+        }
+    }
+}
+
+static void freeAnimCurve(AnimCurve* curve) {
+    repeat(curve->channelCount, c) free(curve->channels[c].points);
+    free(curve->channels);
+}
+
+static void readSequenceKeys(BinaryReader* reader, DataWin* dw, SequenceTrackType type, uint32_t* count, SequenceKeyframe** keys) {
+    BinaryReader_seek(reader, (BinaryReader_getPosition(reader) + 3u) & ~(size_t)3u);
+    *count = BinaryReader_readUint32(reader);
+    *keys = (SequenceKeyframe*)safeCalloc(*count, sizeof(SequenceKeyframe));
+    repeat(*count, k) {
+        SequenceKeyframe* key = &(*keys)[k];
+        key->key = BinaryReader_readFloat32(reader);
+        key->length = BinaryReader_readFloat32(reader);
+        key->stretch = BinaryReader_readBool32(reader);
+        key->disabled = BinaryReader_readBool32(reader);
+        key->channelCount = BinaryReader_readUint32(reader);
+        key->channels = (SequenceChannel*)safeCalloc(key->channelCount, sizeof(SequenceChannel));
+        repeat(key->channelCount, c) {
+            SequenceChannel* channel = &key->channels[c];
+            channel->id = BinaryReader_readInt32(reader);
+            channel->curveIndex = -1;
+            switch (type) {
+                case SEQUENCE_TRACK_REAL:
+                case SEQUENCE_TRACK_COLOR: {
+                    if (type == SEQUENCE_TRACK_COLOR) channel->integer = BinaryReader_readInt32(reader);
+                    else channel->real = BinaryReader_readFloat32(reader);
+                    bool embedded = BinaryReader_readBool32(reader);
+                    channel->curveIndex = BinaryReader_readInt32(reader);
+                    if (embedded) {
+                        channel->embeddedCurve = (AnimCurve*)safeCalloc(1, sizeof(AnimCurve));
+                        readAnimCurve(reader, dw, channel->embeddedCurve, false);
+                    }
+                    break;
+                }
+                case SEQUENCE_TRACK_MESSAGE:
+                case SEQUENCE_TRACK_MOMENT: {
+                    channel->messageCount = BinaryReader_readUint32(reader);
+                    channel->messages = (const char**)safeCalloc(channel->messageCount, sizeof(const char*));
+                    repeat(channel->messageCount, m) channel->messages[m] = readStringPtr(reader, dw);
+                    break;
+                }
+                case SEQUENCE_TRACK_TEXT:
+                    channel->text = readStringPtr(reader, dw);
+                    channel->wrap = BinaryReader_readBool32(reader);
+                    channel->alignment = BinaryReader_readInt32(reader);
+                    channel->fontIndex = BinaryReader_readInt32(reader);
+                    if (DataWin_isVersionAtLeast(dw, 2024, 14, 0, 0)) BinaryReader_skip(reader, 8);
+                    break;
+                case SEQUENCE_TRACK_STRING:
+                    channel->text = readStringPtr(reader, dw);
+                    break;
+                default:
+                    channel->integer = BinaryReader_readInt32(reader);
+                    if (type == SEQUENCE_TRACK_AUDIO) {
+                        BinaryReader_skip(reader, 4);
+                        channel->audioMode = BinaryReader_readInt32(reader);
+                    }
+                    break;
+            }
+        }
+    }
+}
+
+static bool readSequenceTrack(BinaryReader* reader, DataWin* dw, SequenceTrack* track) {
+    const char* model = readStringPtr(reader, dw);
+    const char* models[] = {
+        "GMGroupTrack", "GMGraphicTrack", "GMInstanceTrack", "GMSequenceTrack",
+        "GMAudioTrack", "GMTextTrack", "GMRealTrack", "GMColourTrack",
+        "GMBoolTrack", "GMStringTrack", "GMSpriteFramesTrack"
+    };
+    bool found = false;
+    repeat(sizeof(models) / sizeof(models[0]), modelIndex) {
+        if (strcmp(model, models[modelIndex]) == 0) {
+            track->type = (SequenceTrackType)modelIndex;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        logWarn("Unsupported sequence track type: %s\n", model);
+        return false;
+    }
+    track->name = readStringPtr(reader, dw);
+    track->builtinName = BinaryReader_readUint32(reader);
+    track->traits = BinaryReader_readUint32(reader);
+    track->creationTrack = BinaryReader_readBool32(reader);
+    track->enabled = true;
+    track->visible = true;
+    uint32_t tagCount = BinaryReader_readUint32(reader);
+    track->curveCount = BinaryReader_readUint32(reader);
+    track->trackCount = BinaryReader_readUint32(reader);
+    repeat(tagCount, tagIndex) {
+        int32_t tag = BinaryReader_readInt32(reader);
+        if (tag == 1) track->visible = false;
+        else if (tag == 2) track->enabled = false;
+    }
+    track->curves = (AnimCurve*)safeCalloc(track->curveCount, sizeof(AnimCurve));
+    repeat(track->curveCount, c) {
+        const char* resourceType = readStringPtr(reader, dw);
+        requireMessageFormatted(__FILE__, __LINE__, strcmp(resourceType, "GMAnimCurve") == 0, "Unsupported sequence resource: %s", resourceType);
+        readAnimCurve(reader, dw, &track->curves[c], true);
+    }
+    track->tracks = (SequenceTrack*)safeCalloc(track->trackCount, sizeof(SequenceTrack));
+    repeat(track->trackCount, trackIndex) {
+        if (!readSequenceTrack(reader, dw, &track->tracks[trackIndex])) return false;
+    }
+    if (track->type == SEQUENCE_TRACK_GROUP) return true;
+    if (track->type == SEQUENCE_TRACK_REAL || track->type == SEQUENCE_TRACK_COLOR) {
+        BinaryReader_seek(reader, (BinaryReader_getPosition(reader) + 3u) & ~(size_t)3u);
+        track->interpolation = BinaryReader_readInt32(reader);
+    }
+    readSequenceKeys(reader, dw, track->type, &track->keyframeCount, &track->keyframes);
+    return true;
+}
+
+static void freeSequenceKeys(uint32_t count, SequenceKeyframe* keys) {
+    repeat(count, k) {
+        repeat(keys[k].channelCount, c) {
+            SequenceChannel* channel = &keys[k].channels[c];
+            if (channel->embeddedCurve != nullptr) {
+                freeAnimCurve(channel->embeddedCurve);
+                free(channel->embeddedCurve);
+            }
+            free(channel->messages);
+        }
+        free(keys[k].channels);
+    }
+    free(keys);
+}
+
+static void freeSequenceTrack(SequenceTrack* track) {
+    repeat(track->trackCount, t) freeSequenceTrack(&track->tracks[t]);
+    repeat(track->curveCount, c) freeAnimCurve(&track->curves[c]);
+    freeSequenceKeys(track->keyframeCount, track->keyframes);
+    free(track->curves);
+    free(track->tracks);
+}
+
+static void parseSEQN(BinaryReader* reader, DataWin* dw) {
+    BinaryReader_seek(reader, (BinaryReader_getPosition(reader) + 3u) & ~(size_t)3u);
+    uint32_t version = BinaryReader_readUint32(reader);
+    requireMessageFormatted(__FILE__, __LINE__, version == 1, "Unsupported SEQN version %u", version);
+    uint32_t* pointers = readPointerTable(reader, &dw->seqn.count);
+    dw->seqn.sequences = (Sequence*)safeCalloc(dw->seqn.count, sizeof(Sequence));
+    repeat(dw->seqn.count, s) {
+        if (pointers[s] == 0) continue;
+        BinaryReader_seek(reader, pointers[s]);
+        Sequence* seq = &dw->seqn.sequences[s];
+        seq->present = true;
+        seq->name = readStringPtr(reader, dw);
+        seq->playback = BinaryReader_readUint32(reader);
+        seq->playbackSpeed = BinaryReader_readFloat32(reader);
+        seq->playbackSpeedType = BinaryReader_readUint32(reader);
+        seq->length = BinaryReader_readFloat32(reader);
+        seq->originX = BinaryReader_readInt32(reader);
+        seq->originY = BinaryReader_readInt32(reader);
+        seq->volume = BinaryReader_readFloat32(reader);
+        if (DataWin_isVersionAtLeast(dw, 2024, 13, 0, 0)) BinaryReader_skip(reader, 8);
+        readSequenceKeys(reader, dw, SEQUENCE_TRACK_MESSAGE, &seq->messageCount, &seq->messages);
+        seq->trackCount = BinaryReader_readUint32(reader);
+        seq->tracks = (SequenceTrack*)safeCalloc(seq->trackCount, sizeof(SequenceTrack));
+        bool supported = true;
+        repeat(seq->trackCount, t) {
+            if (!readSequenceTrack(reader, dw, &seq->tracks[t])) {
+                supported = false;
+                break;
+            }
+        }
+        if (!supported) {
+            logWarn("Sequence %s cannot be played because it contains an unsupported track\n", seq->name);
+            seq->present = false;
+            continue;
+        }
+        seq->functionCount = BinaryReader_readUint32(reader);
+        seq->functions = (SequenceFunction*)safeCalloc(seq->functionCount, sizeof(SequenceFunction));
+        repeat(seq->functionCount, f) {
+            seq->functions[f].id = BinaryReader_readInt32(reader);
+            seq->functions[f].name = readStringPtr(reader, dw);
+        }
+        readSequenceKeys(reader, dw, SEQUENCE_TRACK_MOMENT, &seq->momentCount, &seq->moments);
+    }
+    free(pointers);
+}
+
 static void parseACRV(BinaryReader* reader, DataWin* dw) {
     Acrv* a = &dw->acrv;
 
@@ -1145,9 +1358,6 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
     a->count = count;
     if (count == 0) { free(ptrs); a->curves = nullptr; return; }
 
-    // Whether the per-point format includes the 4 trailing float bezier handles (24 bytes) instead of the 2.3.0 layout (12 bytes, just X/Value + 4 pad).
-    bool isV231Plus = DataWin_isVersionAtLeast(dw, 2, 3, 1, 0);
-
     a->curves = (AnimCurve *)safeCalloc(count, sizeof(AnimCurve));
 
     uint32_t globalChannelCount = 0;
@@ -1155,32 +1365,9 @@ static void parseACRV(BinaryReader* reader, DataWin* dw) {
         if (ptrs[i] == 0) continue;
         BinaryReader_seek(reader, ptrs[i]);
         AnimCurve* cur = &a->curves[i];
-        cur->present = true;
-        cur->name = readStringPtr(reader, dw);
-        cur->graphType = BinaryReader_readUint32(reader);
-        cur->channelCount = BinaryReader_readUint32(reader);
-        cur->channels = (cur->channelCount > 0) ? (AnimCurveChannel *)safeCalloc(cur->channelCount, sizeof(AnimCurveChannel)) : nullptr;
+        readAnimCurve(reader, dw, cur, true);
         repeat(cur->channelCount, c) {
             AnimCurveChannel* ch = &cur->channels[c];
-            ch->name = readStringPtr(reader, dw);
-            ch->curveType = (AnimCurveType) BinaryReader_readUint32(reader);
-            ch->iterations = BinaryReader_readUint32(reader);
-            ch->pointCount = BinaryReader_readUint32(reader);
-            ch->points = (ch->pointCount > 0) ? (AnimCurvePoint *)safeMalloc(ch->pointCount * sizeof(AnimCurvePoint)) : nullptr;
-            repeat(ch->pointCount, p) {
-                AnimCurvePoint* pt = &ch->points[p];
-                pt->x = BinaryReader_readFloat32(reader);
-                pt->value = BinaryReader_readFloat32(reader);
-                if (isV231Plus) {
-                    pt->bezierX0 = BinaryReader_readFloat32(reader);
-                    pt->bezierY0 = BinaryReader_readFloat32(reader);
-                    pt->bezierX1 = BinaryReader_readFloat32(reader);
-                    pt->bezierY1 = BinaryReader_readFloat32(reader);
-                } else {
-                    BinaryReader_readUint32(reader); // padding
-                    pt->bezierX0 = pt->bezierY0 = pt->bezierX1 = pt->bezierY1 = 0.0f;
-                }
-            }
             ch->globalId = (int32_t) globalChannelCount;
             globalChannelCount++;
         }
@@ -1800,6 +1987,9 @@ static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room) {
                 RoomLayerAssetsData* assets = (RoomLayerAssetsData *)safeMalloc(sizeof(RoomLayerAssetsData));
                 uint32_t legacyTilesPtr = BinaryReader_readUint32(reader);
                 uint32_t spritesPtr = BinaryReader_readUint32(reader);
+                uint32_t sequencesPtr = DataWin_isVersionAtLeast(dw, 2, 3, 0, 0) ? BinaryReader_readUint32(reader) : 0;
+                assets->sequenceCount = 0;
+                assets->sequences = nullptr;
 
                 BinaryReader_seek(reader, legacyTilesPtr);
                 uint32_t *innerTilePtrs = readPointerTable(reader, &assets->legacyTileCount);
@@ -1851,6 +2041,28 @@ static void readRoomLayers(BinaryReader* reader, DataWin* dw, Room* room) {
                     assets->sprites = nullptr;
                 }
                 free(spritePtrs);
+
+                if (sequencesPtr != 0) {
+                    BinaryReader_seek(reader, sequencesPtr);
+                    uint32_t* sequencePtrs = readPointerTable(reader, &assets->sequenceCount);
+                    assets->sequences = (SequenceInstance*)safeCalloc(assets->sequenceCount, sizeof(SequenceInstance));
+                    repeat(assets->sequenceCount, k) {
+                        BinaryReader_seek(reader, sequencePtrs[k]);
+                        SequenceInstance* seq = &assets->sequences[k];
+                        seq->name = readStringPtr(reader, dw);
+                        seq->sequenceIndex = BinaryReader_readInt32(reader);
+                        seq->x = BinaryReader_readInt32(reader);
+                        seq->y = BinaryReader_readInt32(reader);
+                        seq->scaleX = BinaryReader_readFloat32(reader);
+                        seq->scaleY = BinaryReader_readFloat32(reader);
+                        seq->color = BinaryReader_readUint32(reader);
+                        seq->animationSpeed = BinaryReader_readFloat32(reader);
+                        seq->animationSpeedType = BinaryReader_readUint32(reader);
+                        seq->frameIndex = BinaryReader_readFloat32(reader);
+                        seq->rotation = BinaryReader_readFloat32(reader);
+                    }
+                    free(sequencePtrs);
+                }
 
                 layer->assetsData = assets;
                 break;
@@ -3061,6 +3273,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (memcmp(chunkName, "SEQN", 4) == 0) {
             // Sequences chunk (GMS 2.3+)
             DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
+            parseSEQN(&reader, dw);
         } else if (memcmp(chunkName, "TAGS", 4) == 0) {
             // Tags chunk (GMS 2.3+)
             DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
@@ -3313,17 +3526,20 @@ void DataWin_free(DataWin* dw) {
     // ACRV
     if (dw->acrv.curves) {
         repeat(dw->acrv.count, i) {
-            AnimCurve* cur = &dw->acrv.curves[i];
-            if (cur->channels) {
-                repeat(cur->channelCount, c) {
-                    free(cur->channels[c].points);
-                }
-                free(cur->channels);
-            }
+            freeAnimCurve(&dw->acrv.curves[i]);
         }
         free(dw->acrv.curves);
     }
     free(dw->acrv.allChannels);
+    repeat(dw->seqn.count, s) {
+        Sequence* seq = &dw->seqn.sequences[s];
+        repeat(seq->trackCount, t) freeSequenceTrack(&seq->tracks[t]);
+        freeSequenceKeys(seq->messageCount, seq->messages);
+        freeSequenceKeys(seq->momentCount, seq->moments);
+        free(seq->functions);
+        free(seq->tracks);
+    }
+    free(dw->seqn.sequences);
 
     // ROOM
     if (dw->room.rooms) {
@@ -3410,6 +3626,7 @@ void DataWin_freeRoomPayload(Room* room) {
             if (layer->assetsData) {
                 free(layer->assetsData->legacyTiles);
                 free(layer->assetsData->sprites);
+                free(layer->assetsData->sequences);
                 free(layer->assetsData);
             }
             if (layer->backgroundData) free(layer->backgroundData);

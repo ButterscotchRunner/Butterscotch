@@ -39,6 +39,7 @@ struct Instance {
     // Used to track which alarms are set without looping through the entire alarm array
     uint16_t activeAlarmMask;
     bool cleanupEventFired;
+    bool sequenceControlled;
     int32_t maskIndex; // collision mask sprite override (-1 = use spriteIndex)
     int32_t* collisionCells; // Used to track where we are
     uint32_t lastCollisionQueryId;

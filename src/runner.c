@@ -51,6 +51,11 @@ void Runner_freeRuntimeLayer(RuntimeLayer* runtimeLayer) {
             free(el->spriteElement);
             el->spriteElement = nullptr;
         }
+        if (el->sequenceElement != nullptr) {
+            el->sequenceElement->destroyed = true;
+            Sequence_release(el->sequenceElement);
+            el->sequenceElement = nullptr;
+        }
         if (el->tileElement != nullptr && el->tileElementOwned) {
             free(el->tileElement);
             el->tileElement = nullptr;
@@ -912,7 +917,7 @@ static void rebuildDrawableCacheIfDirty(Runner* runner) {
     }
 }
 
-static void drawInstanceNormally(Runner* runner, Instance* inst) {
+void Runner_drawInstance(Runner* runner, Instance* inst) {
     if (runner->drawEnabled) {
         int32_t ownerObjectIndex = -1;
         int32_t codeId = findEventCodeIdAndOwner(runner, inst->objectIndex, EVENT_DRAW, DRAW_NORMAL, &ownerObjectIndex);
@@ -1029,10 +1034,10 @@ void Runner_draw(Runner* runner) {
             Instance* inst = d->instance;
             if (d->layerOrder != 0) continue;
             // Filter inactive/invisible instances at draw time so the cache doesn't need invalidation when those flags toggle.
-            if (!inst->active || !inst->visible) continue;
+            if (!inst->active || !inst->visible || inst->sequenceControlled) continue;
 
             int32_t previousShader = Runner_pushLayerShader(runner, inst->layer);
-            drawInstanceNormally(runner, inst);
+            Runner_drawInstance(runner, inst);
             Runner_popLayerShader(runner, previousShader);
         } else if (d->type == DRAWABLE_PARTICLE_SYSTEM) {
             // Filtered at draw time, like instance visibility: part_system_automatic_draw can be
@@ -1076,8 +1081,8 @@ void Runner_draw(Runner* runner) {
                 RuntimeLayerElement* el = &runtimeLayer->elements[j];
                 if (el->type != RuntimeLayerElementType_Instance) continue;
                 Instance* inst = hmget(runner->instancesById, el->instanceId);
-                if (inst == nullptr || !inst->active || !inst->visible || inst->destroyed) continue;
-                drawInstanceNormally(runner, inst);
+                if (inst == nullptr || !inst->active || !inst->visible || inst->destroyed || inst->sequenceControlled) continue;
+                Runner_drawInstance(runner, inst);
             }
             runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
             if (runtimeLayer == nullptr) {
@@ -1091,8 +1096,12 @@ void Runner_draw(Runner* runner) {
                 float roomH = (float) runner->currentRoom->height;
                 size_t elementCount = arrlenu(runtimeLayer->elements);
                 repeat(elementCount, j) {
+                    runtimeLayer = Runner_findRuntimeLayerById(runner, d->runtimeLayerId);
+                    if (runtimeLayer == nullptr || (size_t)j >= arrlenu(runtimeLayer->elements)) break;
                     RuntimeLayerElement* layerElement = &runtimeLayer->elements[j];
-                    if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
+                    if (layerElement->type == RuntimeLayerElementType_Sequence) {
+                        if (layerElement->visible) Sequence_draw(layerElement->sequenceElement);
+                    } else if (layerElement->type == RuntimeLayerElementType_Background && layerElement->backgroundElement != nullptr) {
                         renderBackgroundElement(runner, layerElement->backgroundElement, roomW, roomH, layerOffsetX, layerOffsetY);
                     } else if (layerElement->type == RuntimeLayerElementType_Tile && layerElement->tileElement != nullptr && layerElement->tileElementOwned) {
                         if (!layerElement->visible) continue;
@@ -1769,6 +1778,20 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (layerSource->type != RoomLayerType_Assets || layerSource->assetsData == nullptr) continue;
         RoomLayerAssetsData* assets = layerSource->assetsData;
         RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
+        repeat(assets->sequenceCount, sequenceIndex) {
+            SequenceInstance* src = &assets->sequences[sequenceIndex];
+            int32_t id = Sequence_create(runner, (int32_t)layerSource->id, src->sequenceIndex, (float)src->x, (float)src->y);
+            RuntimeSequence* seq = Sequence_find(runner, id);
+            if (seq != nullptr) {
+                seq->scaleX = src->scaleX;
+                seq->scaleY = src->scaleY;
+                seq->angle = src->rotation;
+                seq->headPosition = src->frameIndex;
+                seq->speedScale = src->animationSpeed;
+                seq->blend = src->color & 0xFFFFFFu;
+                seq->alpha = (float)BGR_A(src->color) / 255.0f;
+            }
+        }
         repeat(assets->spriteCount, j) {
             SpriteInstance* src = &assets->sprites[j];
             RuntimeSpriteElement* spriteElement = (RuntimeSpriteElement *)safeMalloc(sizeof(RuntimeSpriteElement));
@@ -2647,6 +2670,13 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     repeat(dataWin->room.count, i) {
         if (!dataWin->room.rooms[i].present) continue;
         shput(runner->assetsByName, dataWin->room.rooms[i].name, i);
+    }
+    }
+
+    {
+    repeat(dataWin->seqn.count, i) {
+        if (!dataWin->seqn.sequences[i].present) continue;
+        shput(runner->assetsByName, dataWin->seqn.sequences[i].name, i);
     }
     }
 
@@ -4349,34 +4379,41 @@ static void queueSpriteMessages(Runner* runner, PendingSpriteMessage** pending, 
     queueSpriteMessageRange(pending, sprite, elementId, start, end);
 }
 
+void Runner_broadcastMessage(Runner* runner, const char* type, const char* message, int32_t elementId) {
+    DsMapEntry* map = nullptr;
+    int32_t mapId = -1;
+    repeat(arrlenu(runner->dsMapPool), j) {
+        if (runner->dsMapPool[j] == nullptr) {
+            mapId = (int32_t)j;
+            break;
+        }
+    }
+    if (mapId < 0) {
+        arrput(runner->dsMapPool, map);
+        mapId = (int32_t)arrlen(runner->dsMapPool) - 1;
+    }
+    DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
+    shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup(type)));
+    shput(*mapPtr, safeStrdup("element_id"), RValue_makeReal((GMLReal)elementId));
+    shput(*mapPtr, safeStrdup("message"), RValue_makeOwnedString(safeStrdup(message)));
+    int32_t previousMapId = runner->eventDataMapId;
+    runner->eventDataMapId = mapId;
+    Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_BROADCAST_MESSAGE);
+    runner->eventDataMapId = previousMapId;
+    mapPtr = &runner->dsMapPool[mapId];
+    if (*mapPtr != nullptr) {
+        repeat(shlen(*mapPtr), j) {
+            free((*mapPtr)[j].key);
+            RValue_free(&(*mapPtr)[j].value);
+        }
+        shfree(*mapPtr);
+        *mapPtr = nullptr;
+    }
+}
+
 static void dispatchSpriteMessages(Runner* runner, PendingSpriteMessage* pending) {
     repeat(arrlenu(pending), i) {
-        DsMapEntry* map = nullptr;
-        int32_t mapId = -1;
-        repeat(arrlenu(runner->dsMapPool), j) {
-            if (runner->dsMapPool[j] == nullptr) { mapId = (int32_t) j; break; }
-        }
-        if (mapId < 0) {
-            arrput(runner->dsMapPool, map);
-            mapId = (int32_t) arrlen(runner->dsMapPool) - 1;
-        }
-        DsMapEntry** mapPtr = &runner->dsMapPool[mapId];
-        shput(*mapPtr, safeStrdup("event_type"), RValue_makeOwnedString(safeStrdup("sprite event")));
-        shput(*mapPtr, safeStrdup("element_id"), RValue_makeReal((GMLReal) pending[i].elementId));
-        shput(*mapPtr, safeStrdup("message"), RValue_makeOwnedString(safeStrdup(pending[i].message)));
-        int32_t previousMapId = runner->eventDataMapId;
-        runner->eventDataMapId = mapId;
-        Runner_executeEventForAll(runner, EVENT_OTHER, OTHER_BROADCAST_MESSAGE);
-        runner->eventDataMapId = previousMapId;
-        mapPtr = &runner->dsMapPool[mapId];
-        if (*mapPtr != nullptr) {
-            repeat(shlen(*mapPtr), j) {
-                free((*mapPtr)[j].key);
-                RValue_free(&(*mapPtr)[j].value);
-            }
-            shfree(*mapPtr);
-            *mapPtr = nullptr;
-        }
+        Runner_broadcastMessage(runner, "sprite event", pending[i].message, pending[i].elementId);
     }
 }
 
@@ -4601,6 +4638,8 @@ void Runner_step(Runner* runner) {
 
     dispatchMouseEvents(runner);
 
+    Sequence_stepRoom(runner);
+
     // Execute Normal Step for all instances
     Runner_executeEventForAll(runner, EVENT_STEP, STEP_NORMAL);
 
@@ -4613,6 +4652,7 @@ void Runner_step(Runner* runner) {
     repeat(motionCount, mi) {
         Instance* inst = runner->instances[mi];
         if (!inst->active) continue;
+        if (inst->sequenceControlled) continue;
         if (runner->physics) {
             if (inst->pathIndex >= 0 && (!inst->physicsBody || !PhysicsEngine_variable(inst->physicsBody, PHY_DYNAMIC, 0, 0, (float)Runner_getEffectiveGameSpeed(runner)))) {
                 if (adaptPath(runner, inst)) Runner_executeEvent(runner, inst, EVENT_OTHER, OTHER_END_OF_PATH);
@@ -5285,6 +5325,8 @@ void Runner_free(Runner* runner) {
     arrfree(runner->cachedDrawables);
     runner->cachedDrawables = nullptr;
     arrfree(runner->instanceSnapshots);
+    arrfree(runner->sequenceSnapshots);
+    arrfree(runner->sequenceEvents);
     runner->instanceSnapshots = nullptr;
     arrfree(runner->eventDispatchInstances);
     runner->eventDispatchInstances = nullptr;

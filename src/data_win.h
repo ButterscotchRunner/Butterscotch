@@ -632,10 +632,24 @@ typedef struct {
 } SpriteInstance;
 
 typedef struct {
+    const char* name;
+    int32_t sequenceIndex;
+    int32_t x, y;
+    float scaleX, scaleY;
+    uint32_t color;
+    float animationSpeed;
+    uint32_t animationSpeedType;
+    float frameIndex;
+    float rotation;
+} SequenceInstance;
+
+typedef struct {
     uint32_t legacyTileCount;
     RoomTile *legacyTiles;
     uint32_t spriteCount;
     SpriteInstance *sprites;
+    uint32_t sequenceCount;
+    SequenceInstance* sequences;
 } RoomLayerAssetsData;
 
 typedef struct {
@@ -781,6 +795,89 @@ typedef struct {
     uint32_t allChannelsCount;
     AnimCurveChannel** allChannels;
 } Acrv;
+
+typedef enum {
+    SEQUENCE_TRACK_GROUP,
+    SEQUENCE_TRACK_GRAPHIC,
+    SEQUENCE_TRACK_INSTANCE,
+    SEQUENCE_TRACK_SEQUENCE,
+    SEQUENCE_TRACK_AUDIO,
+    SEQUENCE_TRACK_TEXT,
+    SEQUENCE_TRACK_REAL,
+    SEQUENCE_TRACK_COLOR,
+    SEQUENCE_TRACK_BOOL,
+    SEQUENCE_TRACK_STRING,
+    SEQUENCE_TRACK_SPRITE_FRAMES,
+    SEQUENCE_TRACK_MESSAGE,
+    SEQUENCE_TRACK_MOMENT
+} SequenceTrackType;
+
+typedef struct {
+    int32_t id;
+    float real;
+    int32_t integer;
+    int32_t curveIndex;
+    AnimCurve* embeddedCurve;
+    const char* text;
+    uint32_t messageCount;
+    const char** messages;
+    bool wrap;
+    int32_t alignment;
+    int32_t fontIndex;
+    int32_t audioMode;
+} SequenceChannel;
+
+typedef struct {
+    float key, length;
+    bool stretch, disabled;
+    uint32_t channelCount;
+    SequenceChannel* channels;
+} SequenceKeyframe;
+
+typedef struct SequenceTrack {
+    const char* name;
+    SequenceTrackType type;
+    uint32_t builtinName;
+    uint32_t traits;
+    bool creationTrack;
+    bool enabled, visible;
+    uint32_t trackCount;
+    struct SequenceTrack* tracks;
+    uint32_t curveCount;
+    AnimCurve* curves;
+    int32_t interpolation;
+    uint32_t keyframeCount;
+    SequenceKeyframe* keyframes;
+} SequenceTrack;
+
+typedef struct {
+    int32_t id;
+    const char* name;
+} SequenceFunction;
+
+typedef struct {
+    bool present;
+    const char* name;
+    uint32_t playback;
+    float playbackSpeed;
+    uint32_t playbackSpeedType;
+    float length;
+    int32_t originX, originY;
+    float volume;
+    uint32_t trackCount;
+    SequenceTrack* tracks;
+    uint32_t messageCount;
+    SequenceKeyframe* messages;
+    uint32_t momentCount;
+    SequenceKeyframe* moments;
+    uint32_t functionCount;
+    SequenceFunction* functions;
+} Sequence;
+
+typedef struct {
+    uint32_t count;
+    Sequence* sequences;
+} Seqn;
 
 // ===[ TPAG - Texture Page Items ]===
 typedef struct {
@@ -943,6 +1040,7 @@ struct DataWin {
     // DAFL is empty, no field needed
     Tgin tgin;
     Acrv acrv;
+    Seqn seqn;
     Tpag tpag;
     Code code;
     Vari vari;

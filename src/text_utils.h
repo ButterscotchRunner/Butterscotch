@@ -366,7 +366,7 @@ static inline PreprocessedText TextUtils_wrapText(Font* font, const char* text, 
                 }
                 int32_t _end = end;
                 if (_end > start) {
-                    while (_end > 0 && pNew[_end - 1] == ' ') _end--;
+                    while (_end > start && pNew[_end - 1] == ' ') _end--;
                 }
                 //  else if (end == start) // if we're back to the START of the string... look for the next space - or string end.
                 //  {
