@@ -1778,8 +1778,8 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         if (layerSource->type != RoomLayerType_Assets || layerSource->assetsData == nullptr) continue;
         RoomLayerAssetsData* assets = layerSource->assetsData;
         RuntimeLayer* runtimeLayer = &runner->runtimeLayers[i];
-        repeat(assets->sequenceCount, j) {
-            SequenceInstance* src = &assets->sequences[j];
+        repeat(assets->sequenceCount, sequenceIndex) {
+            SequenceInstance* src = &assets->sequences[sequenceIndex];
             int32_t id = Sequence_create(runner, (int32_t)layerSource->id, src->sequenceIndex, (float)src->x, (float)src->y);
             RuntimeSequence* seq = Sequence_find(runner, id);
             if (seq != nullptr) {

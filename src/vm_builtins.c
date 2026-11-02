@@ -16258,14 +16258,14 @@ static RValue builtin_layer_destroy(VMContext* ctx, RValue* args, MAYBE_UNUSED i
     if (layer == nullptr) return RValue_makeUndefined();
     int32_t* sequenceIds = nullptr;
     int32_t* instanceIds = nullptr;
-    repeat(arrlenu(layer->elements), e) {
-        RuntimeLayerElement* el = &layer->elements[e];
+    repeat(arrlenu(layer->elements), elementIndex) {
+        RuntimeLayerElement* el = &layer->elements[elementIndex];
         if (el->type == RuntimeLayerElementType_Sequence) arrput(sequenceIds, (int32_t)el->id);
         else if (el->type == RuntimeLayerElementType_Instance) arrput(instanceIds, el->instanceId);
     }
-    repeat(arrlenu(sequenceIds), e) Sequence_destroy(runner, sequenceIds[e]);
-    repeat(arrlenu(instanceIds), e) {
-        Instance* inst = hmget(runner->instancesById, instanceIds[e]);
+    repeat(arrlenu(sequenceIds), sequenceIndex) Sequence_destroy(runner, sequenceIds[sequenceIndex]);
+    repeat(arrlenu(instanceIds), instanceIndex) {
+        Instance* inst = hmget(runner->instancesById, instanceIds[instanceIndex]);
         if (inst != nullptr && !inst->destroyed) Runner_destroyInstance(runner, inst, true);
     }
     arrfree(sequenceIds);

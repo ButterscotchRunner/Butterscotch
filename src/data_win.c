@@ -1170,11 +1170,12 @@ static void readSequenceKeys(BinaryReader* reader, DataWin* dw, SequenceTrackTyp
                     break;
                 }
                 case SEQUENCE_TRACK_MESSAGE:
-                case SEQUENCE_TRACK_MOMENT:
+                case SEQUENCE_TRACK_MOMENT: {
                     channel->messageCount = BinaryReader_readUint32(reader);
                     channel->messages = (const char**)safeCalloc(channel->messageCount, sizeof(const char*));
                     repeat(channel->messageCount, m) channel->messages[m] = readStringPtr(reader, dw);
                     break;
+                }
                 case SEQUENCE_TRACK_TEXT:
                     channel->text = readStringPtr(reader, dw);
                     channel->wrap = BinaryReader_readBool32(reader);
@@ -1205,9 +1206,9 @@ static bool readSequenceTrack(BinaryReader* reader, DataWin* dw, SequenceTrack* 
         "GMBoolTrack", "GMStringTrack", "GMSpriteFramesTrack"
     };
     bool found = false;
-    repeat(sizeof(models) / sizeof(models[0]), t) {
-        if (strcmp(model, models[t]) == 0) {
-            track->type = (SequenceTrackType)t;
+    repeat(sizeof(models) / sizeof(models[0]), modelIndex) {
+        if (strcmp(model, models[modelIndex]) == 0) {
+            track->type = (SequenceTrackType)modelIndex;
             found = true;
             break;
         }
@@ -1225,7 +1226,7 @@ static bool readSequenceTrack(BinaryReader* reader, DataWin* dw, SequenceTrack* 
     uint32_t tagCount = BinaryReader_readUint32(reader);
     track->curveCount = BinaryReader_readUint32(reader);
     track->trackCount = BinaryReader_readUint32(reader);
-    repeat(tagCount, t) {
+    repeat(tagCount, tagIndex) {
         int32_t tag = BinaryReader_readInt32(reader);
         if (tag == 1) track->visible = false;
         else if (tag == 2) track->enabled = false;
@@ -1237,8 +1238,8 @@ static bool readSequenceTrack(BinaryReader* reader, DataWin* dw, SequenceTrack* 
         readAnimCurve(reader, dw, &track->curves[c], true);
     }
     track->tracks = (SequenceTrack*)safeCalloc(track->trackCount, sizeof(SequenceTrack));
-    repeat(track->trackCount, t) {
-        if (!readSequenceTrack(reader, dw, &track->tracks[t])) return false;
+    repeat(track->trackCount, trackIndex) {
+        if (!readSequenceTrack(reader, dw, &track->tracks[trackIndex])) return false;
     }
     if (track->type == SEQUENCE_TRACK_GROUP) return true;
     if (track->type == SEQUENCE_TRACK_REAL || track->type == SEQUENCE_TRACK_COLOR) {

@@ -43,11 +43,11 @@ static void evaluateSequence(RuntimeSequence* seq, const Matrix4f* parent, const
 
 static float smoothCurveValue(const AnimCurveChannel* ch, uint32_t lo, float x) {
     float minimum = ch->points[0].value, maximum = minimum;
-    for (uint32_t i = 1; i < ch->pointCount; i++) {
-        minimum = fminf(minimum, ch->points[i].value);
-        maximum = fmaxf(maximum, ch->points[i].value);
+    for (uint32_t pointIndex = 1; pointIndex < ch->pointCount; pointIndex++) {
+        minimum = (float)GMLReal_fmin(minimum, ch->points[pointIndex].value);
+        maximum = (float)GMLReal_fmax(maximum, ch->points[pointIndex].value);
     }
-    float scale = fmaxf(1.0f, maximum - minimum);
+    float scale = (float)GMLReal_fmax(1.0f, maximum - minimum);
     uint32_t indices[4] = {lo > 0 ? lo - 1 : lo, lo, lo + 1,
         lo + 2 < ch->pointCount ? lo + 2 : lo + 1};
     float px[4], py[4], times[4] = {0};
@@ -62,21 +62,21 @@ static float smoothCurveValue(const AnimCurveChannel* ch, uint32_t lo, float x) 
     }
     uint32_t iterations = ch->iterations > 0 ? ch->iterations : 1;
     float lastX = px[1], lastY = py[1];
-    for (uint32_t i = 1; i <= iterations; i++) {
-        float t = times[1] + (times[2] - times[1]) * ((float)i / iterations);
+    for (uint32_t sampleIndex = 1; sampleIndex <= iterations; sampleIndex++) {
+        float t = times[1] + (times[2] - times[1]) * ((float)sampleIndex / iterations);
         float ax[3], ay[3], bx[2], by[2];
         repeat(3, j) {
             float f = (t - times[j]) / (times[j + 1] - times[j]);
             ax[j] = px[j] + (px[j + 1] - px[j]) * f;
             ay[j] = py[j] + (py[j + 1] - py[j]) * f;
         }
-        repeat(2, j) {
-            float f = (t - times[j]) / (times[j + 2] - times[j]);
-            bx[j] = ax[j] + (ax[j + 1] - ax[j]) * f;
-            by[j] = ay[j] + (ay[j + 1] - ay[j]) * f;
+        repeat(2, bIndex) {
+            float f = (t - times[bIndex]) / (times[bIndex + 2] - times[bIndex]);
+            bx[bIndex] = ax[bIndex] + (ax[bIndex + 1] - ax[bIndex]) * f;
+            by[bIndex] = ay[bIndex] + (ay[bIndex + 1] - ay[bIndex]) * f;
         }
         float f = (t - times[1]) / (times[2] - times[1]);
-        float cx = fminf(px[2], fmaxf(lastX, bx[0] + (bx[1] - bx[0]) * f));
+        float cx = (float)GMLReal_fmin(px[2], GMLReal_fmax(lastX, bx[0] + (bx[1] - bx[0]) * f));
         float cy = by[0] + (by[1] - by[0]) * f;
         if (cx >= x && cx > lastX) {
             return (lastY + (cy - lastY) * (x - lastX) / (cx - lastX)) * scale + minimum;
@@ -215,9 +215,10 @@ static SequenceValues evaluateValues(RuntimeSequence* seq, const SequenceTrack* 
             case 5: value.gain = x; break;
             case 6: value.pitch = x; break;
             case 8: value.rotation = x; break;
-            case 10:
+            case 10: {
                 repeat(4, c) value.color[c] = evaluateParameter(seq->runner, parameter, 0, c, at, seq->asset->length, 1.0f);
                 break;
+            }
             case 14: value.x = x; value.y = y; break;
             case 15: value.scaleX = x; value.scaleY = y; break;
             case 16: value.originX = x; value.originY = y; break;
@@ -352,7 +353,7 @@ void Sequence_play(RuntimeSequence* seq) {
     if (seq == nullptr) return;
     Sequence_setPaused(seq, false);
     if (seq->finished) {
-        seq->headPosition = seq->direction < 0.0f ? fmaxf(0.0f, seq->asset->length - 1.0f) : 0.0f;
+        seq->headPosition = seq->direction < 0.0f ? (float)GMLReal_fmax(0.0f, seq->asset->length - 1.0f) : 0.0f;
         seq->finished = false;
     }
 }
@@ -366,7 +367,7 @@ static SequenceNode* createNodes(RuntimeSequence* seq, const SequenceTrack* trac
         node->activeKey = -1;
         node->children = createNodes(seq, tracks[t].tracks, tracks[t].trackCount, depth + 1);
         if (isParameter(node->track)) continue;
-        for (uint32_t k = 0; k < tracks[t].keyframeCount; k++) node->stateCount += tracks[t].keyframes[k].channelCount;
+        for (uint32_t keyIndex = 0; keyIndex < tracks[t].keyframeCount; keyIndex++) node->stateCount += tracks[t].keyframes[keyIndex].channelCount;
         node->states = (SequenceChannelState*)safeCalloc(node->stateCount, sizeof(SequenceChannelState));
         uint32_t index = 0;
         for (uint32_t k = 0; k < tracks[t].keyframeCount; k++) {
@@ -476,7 +477,7 @@ static float imageSpeedDistance(RuntimeSequence* seq, const SequenceTrack* track
         distance += (next - position) * speed;
         position = next;
     }
-    return fmaxf(0.0f, distance);
+    return (float)GMLReal_fmax(0.0f, distance);
 }
 
 static float spriteFrame(RuntimeSequence* seq, const SequenceNode* node, int32_t spriteIndex, float elapsed) {
@@ -500,7 +501,7 @@ static float spriteFrame(RuntimeSequence* seq, const SequenceNode* node, int32_t
 
 static uint32_t packedColor(const float* color) {
     uint32_t result = 0;
-    repeat(3, c) result |= (uint32_t)(fminf(1.0f, fmaxf(0.0f, color[c])) * 255.0f) << (c * 8);
+    repeat(3, c) result |= (uint32_t)(GMLReal_fmin(1.0f, GMLReal_fmax(0.0f, color[c])) * 255.0f) << (c * 8);
     return result;
 }
 
@@ -564,8 +565,8 @@ static void evaluateNodes(RuntimeSequence* seq, SequenceNode* nodes, uint32_t co
                     inst->sequenceControlled = true;
                     if (!active) continue;
                     Matrix4f_transformPoint(&node->matrix, node->values.originX, node->values.originY, &inst->x, &inst->y);
-                    inst->imageAngle = -atan2f(node->matrix.m[1], node->matrix.m[0]) * (180.0f / (float)M_PI);
-                    inst->imageXscale = hypotf(node->matrix.m[0], node->matrix.m[1]);
+                    inst->imageAngle = (float)(-atan2(node->matrix.m[1], node->matrix.m[0]) * (180.0 / M_PI));
+                    inst->imageXscale = (float)sqrt((double)node->matrix.m[0] * node->matrix.m[0] + (double)node->matrix.m[1] * node->matrix.m[1]);
                     float determinant = node->matrix.m[0]*node->matrix.m[5] - node->matrix.m[1]*node->matrix.m[4];
                     inst->imageYscale = inst->imageXscale != 0.0f ? determinant / inst->imageXscale : 0.0f;
                     inst->imageBlend = packedColor(node->values.color);
@@ -717,7 +718,7 @@ void Sequence_stepRoom(Runner* runner) {
         }
         if (runner->pendingRoom >= 0) break;
     }
-    repeat(arrlenu(snapshot), s) Sequence_release(snapshot[s]);
+    repeat(arrlenu(snapshot), releaseIndex) Sequence_release(snapshot[releaseIndex]);
     arrsetlen(snapshot, 0);
     arrsetlen(events, 0);
     runner->sequenceSnapshots = snapshot;
@@ -735,7 +736,7 @@ static void drawSequenceText(Renderer* renderer, const SequenceChannel* channel,
     if (channel->wrap && values->frameWidth > 0.0f) wrapWidth = (int32_t)values->frameWidth;
     if (!state->textPrepared || state->wrapWidth != wrapWidth) {
         PreprocessedText_free(state->text);
-        state->text = (PreprocessedText){0};
+        ZERO_STRUCT(state->text);
         if (wrapWidth >= 0) state->text = TextUtils_wrapText(font, channel->text, wrapWidth);
         else state->text.text = channel->text;
         state->wrapWidth = wrapWidth;
@@ -770,7 +771,7 @@ static void drawSequenceText(Renderer* renderer, const SequenceChannel* channel,
         int32_t end = start;
         while (end < length && str[end] != '\r' && str[end] != '\n') end++;
         float width = TextUtils_measureLineWidth(font, str + start, end - start);
-        width += values->characterSpacing * fmaxf(0.0f, (float)TextUtils_utf8CodepointCount(str + start, end - start) - 1.0f);
+        width += values->characterSpacing * (float)GMLReal_fmax(0.0f, (float)TextUtils_utf8CodepointCount(str + start, end - start) - 1.0f);
         int32_t align = channel->alignment & 255;
         float x = align == 1 ? (values->frameWidth - width) * 0.5f : align == 2 ? values->frameWidth - width : 0.0f;
         int32_t pos = start;
