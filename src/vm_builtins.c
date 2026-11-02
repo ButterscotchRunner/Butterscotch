@@ -337,6 +337,7 @@ static const BuiltinVarEntry BUILTIN_VAR_TABLE[] = {
     { "fps", BUILTIN_VAR_FPS },
     { "fps_real", BUILTIN_VAR_FPS_REAL },
     { "friction", BUILTIN_VAR_FRICTION },
+    { "game_id", BUILTIN_VAR_GAME_ID },
     { "gp_axislh", BUILTIN_VAR_GP_AXIS_LH },
     { "gp_axislv", BUILTIN_VAR_GP_AXIS_LV },
     { "gp_axisrh", BUILTIN_VAR_GP_AXIS_RH },
@@ -1317,6 +1318,8 @@ RValue VMBuiltins_getVariable(VMContext* ctx, Instance* inst, int16_t builtinVar
             return RValue_makeReal(runner->lives);
         case BUILTIN_VAR_HEALTH:
             return RValue_makeReal(runner->health);
+        case BUILTIN_VAR_GAME_ID:
+            return RValue_makeReal((GMLReal) runner->dataWin->gen8.gameID);
         case BUILTIN_VAR_CURSOR_SPRITE:
             return RValue_makeInt32(runner->cursorSprite);
 
@@ -1856,6 +1859,7 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
         case BUILTIN_VAR_ROOM_FIRST:
         case BUILTIN_VAR_ROOM_LAST:
         case BUILTIN_VAR_PROGRAM_DIRECTORY:
+        case BUILTIN_VAR_GAME_ID:
             logWarn("VM: [%s] Attempted write to read-only built-in '%s'\n", VM_getCurrentCallFrameCodeName(ctx), name);
             return;
     }
