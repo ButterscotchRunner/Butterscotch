@@ -165,7 +165,7 @@ If you are using CLion, set the platform in `Settings` > `Build, Execution, Depl
 
 Windows, Linux, and macOS builds automatically include Discord Rich Presence when a C++14 compiler is available. Use `--no-discord-rpc` to disable presence at runtime, or `-DENABLE_DISCORD_RPC=OFF` to build without it.
 
-Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`.
+Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`. you can also run ./butterscotch with no arguments to get to the TUI where you can add games to access them easier.
 
 ## CLI parameters
 
