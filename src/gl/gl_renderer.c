@@ -1171,7 +1171,7 @@ static void glEndView(Renderer* renderer) {
 }
 
 static void glBeginGUI(Renderer* renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
-	GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
+    GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
 #if MODERN_DESKTOP_D3D
     // surface_reset_target rebinds the GUI target through this same callback.
     // Save world state only on entry, not again while already inside the pass.
@@ -1319,27 +1319,6 @@ static bool unloadOldestTexture(GLRenderer* gl, uint32_t currentPageId) {
     glFlush();
     return true;
 }
-
-#define UNLOAD_THRESHOLD 1000
-static void unloadUnusedTextures(GLRenderer* gl, uint32_t currentPageId) {
-    if (gl->base.runner->frameCount < UNLOAD_THRESHOLD) return;
-    GLModernRenderer* modernGl = (GLModernRenderer*) gl;
-    bool flushed = false;
-    int threshold = gl->base.runner->frameCount - UNLOAD_THRESHOLD;
-    
-    for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
-        if (i == currentPageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
-            continue;
-        if (gl->textureLastUsed[i] > threshold)
-            continue;
-        
-        if (!flushed) {
-            flushBatch(gl);
-            flushed = true;
-        }
-        GLRenderer_unloadTexture(gl, i);
-    }
-}
 #endif
 
 // Lazily decodes and uploads a TXTR page on first access.
@@ -1355,15 +1334,37 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 
     gl->textureLoaded[pageId] = true;
     gl->textureLastUsed[pageId] = gl->base.runner->frameCount;
+    
+#ifdef __SYMBIAN32__
+	#define UNLOAD_THRESHOLD 1000
+    if (gl->base.runner->frameCount > UNLOAD_THRESHOLD) {
+		GLModernRenderer* modernGl = (GLModernRenderer*) gl;
+		bool flushed = false;
+		int threshold = gl->base.runner->frameCount - UNLOAD_THRESHOLD;
+		
+		for (uint32_t i = 0; i < gl->textureCount && i < gl->originalTexturePageCount; ++i) {
+			if (i == pageId || !gl->textureLoaded[i] || gl->glTextures[i] == modernGl->currentTextureId)
+				continue;
+			if (gl->textureLastUsed[i] > threshold)
+				continue;
+			
+			if (!flushed) {
+				flushBatch(gl);
+				flushed = true;
+			}
+			GLRenderer_unloadTexture(gl, i);
+		}
+    }
+#endif
 
 #if defined(PLATFORM_VITA) || defined(__SYMBIAN32__)
-    // TODO: implement lru for compressed textures for symbian
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-        if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
+        if (!VitaTextures_LoadPage(gl, pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
             logError("GL: Failed to load Vita TXTR page %u", pageId);
             return false;
         }
+        // TODO: handle gl_out_of_memory case here?
         GLCommon_applyTexFilter(gl->base.texFilter);
         logInfo("GL: Loaded TXTR page %u (%dx%d)\n", pageId, gl->textureWidths[pageId], gl->textureHeights[pageId]);
         return true;
@@ -1402,19 +1403,17 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
     if (gl->glTextures[pageId] == 0) {
         glGenTextures(1, &gl->glTextures[pageId]);
     }
-    
+    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]); 
+
 #ifdef __SYMBIAN32__
-    unloadUnusedTextures(gl, pageId);
-    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-    
     if (gl->textureFormat == GL_RGBA4) {
         uint16_t* rgba4444 = (uint16_t*)pixels;
         int n = w * h;
         for (int i = 0; i < n; i++) {
-        	rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) |
-        	              (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) |
-        	              (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) |
-        	              ((uint16_t)pixels[i * 4 + 3] >> 4);
+            rgba4444[i] = (((uint16_t)pixels[i * 4] >> 4) << 12) |
+                          (((uint16_t)pixels[i * 4 + 1] >> 4) << 8) |
+                          (((uint16_t)pixels[i * 4 + 2] >> 4) << 4) |
+                          ((uint16_t)pixels[i * 4 + 3] >> 4);
         }
     }
     
@@ -1444,7 +1443,6 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     }
 #else
-    glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
     glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 #endif
 

@@ -2,14 +2,10 @@ TARGET Butterscotch.exe
 TARGETTYPE exe
 UID 0x100039CE 0xEC93FBDE
 
-SYSTEMINCLUDE /epoc32
-SYSTEMINCLUDE /epoc32/include
-SYSTEMINCLUDE /epoc32/include/mw
-SYSTEMINCLUDE /epoc32/include/app
-SYSTEMINCLUDE /epoc32/include/platform
-SYSTEMINCLUDE /epoc32/include/platform/mw
-SYSTEMINCLUDE /epoc32/include/platform/app
-SYSTEMINCLUDE /epoc32/include/stdapis
+CAPABILITY NetworkServices ReadUserData WriteUserData
+
+EPOCSTACKSIZE 0x14000
+EPOCHEAPSIZE 0x80000 0x4000000
 
 LIBRARY	euser.lib
 // ui
@@ -31,47 +27,6 @@ LIBRARY mediaclientaudiostream.lib
 LIBRARY remconinterfacebase.lib
 LIBRARY remconcoreapi.lib
 
-#ifdef ARMCC
-OPTION ARMCC -Otime
-OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296
-OPTION_REPLACE ARMCC --cpu 6
-OPTION_REPLACE ARMCC --fpu vfpv2 --fpmode fast
-OPTION_REPLACE ARMCC -O2 -O3
-
-ARMFPU vfpv2
-ALWAYS_BUILD_AS_ARM
-#endif
-
-OPTION GCCE -std=gnu99
-#if defined(GCCE_12) || defined(GCCE_15)
-OPTION GCCE -O3
-ARMFPU vfpv2
-ALWAYS_BUILD_AS_ARM
-#endif
-
-OPTION CW -lang c99 -undefine _WIN32 -relax_pointers
-
-CAPABILITY NetworkServices ReadUserData WriteUserData
-
-EPOCSTACKSIZE 0x14000
-EPOCHEAPSIZE 0x80000 0x4000000
-
-DEBUGGABLE_UDEBONLY
-#ifdef _DEBUG
-SRCDBG
-#endif
-
-SOURCEPATH .
-START RESOURCE butterscotch.rss
-HEADER
-TARGETPATH \resource\apps
-LANG SC
-END
-
-START RESOURCE butterscotch_reg.rss
-TARGETPATH \private\10003a3f\import\apps
-END
-
 MACRO SYMBIAN_OE_POSIX_SIGNALS
 MACRO ENABLE_MODERN_GL
 MACRO DISABLE_DESKTOP_GL
@@ -84,6 +39,15 @@ MACRO NO_LOG2
 MACRO USE_FLOAT_REALS
 MACRO MINIZ_NO_ARCHIVE_APIS
 MACRO MINIZ_NO_STDIO
+
+SYSTEMINCLUDE /epoc32
+SYSTEMINCLUDE /epoc32/include
+SYSTEMINCLUDE /epoc32/include/mw
+SYSTEMINCLUDE /epoc32/include/app
+SYSTEMINCLUDE /epoc32/include/platform
+SYSTEMINCLUDE /epoc32/include/platform/mw
+SYSTEMINCLUDE /epoc32/include/platform/app
+SYSTEMINCLUDE /epoc32/include/stdapis
 
 USERINCLUDE ../../src
 USERINCLUDE ../../src/debug_font
@@ -138,3 +102,38 @@ SOURCEPATH ../../src/physics
 SOURCE physics.c
 SOURCEPATH ../../src/vita
 SOURCE vita_textures.c
+
+SOURCEPATH .
+START RESOURCE butterscotch.rss
+HEADER
+TARGETPATH \resource\apps
+LANG SC
+END
+
+START RESOURCE butterscotch_reg.rss
+TARGETPATH \private\10003a3f\import\apps
+END
+
+#ifdef ARMCC
+OPTION ARMCC -Otime
+OPTION ARMCC --gnu --c99 --diag_suppress 1,61,66,68,111,174,381,1293,1296
+OPTION_REPLACE ARMCC --cpu 6
+OPTION_REPLACE ARMCC --fpu vfpv2 --fpmode fast
+OPTION_REPLACE ARMCC -O2 -O3
+ARMFPU vfpv2
+ALWAYS_BUILD_AS_ARM
+#endif
+
+OPTION GCCE -std=gnu99
+#if defined(GCCE_12) || defined(GCCE_15)
+OPTION GCCE -O3
+ARMFPU vfpv2
+ALWAYS_BUILD_AS_ARM
+#endif
+
+OPTION CW -lang c99 -undefine _WIN32 -relax_pointers
+
+DEBUGGABLE_UDEBONLY
+#ifdef _DEBUG
+SRCDBG
+#endif

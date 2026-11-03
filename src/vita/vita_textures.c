@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef __SYMBIAN32__
+#ifdef PLATFORM_VITA
+#include <psp2/kernel/clib.h>
+#else
 #define vglMalloc safeMalloc
 #define vglFree free
-#else
-#include <psp2/kernel/clib.h>
 #endif
 
 static FILE* vitaTexBinF = NULL;
@@ -29,8 +29,8 @@ bool isPNG(FILE *f) {
     return memcmp(header, PNG_SIGNATURE, 8) == 0;
 }
 
-bool VitaTextures_Active() { return vitaUsingTexBin; }
-uint32_t VitaTextures_GetPageCount() { return (uint32_t)pageCount; }
+bool VitaTextures_Active(void) { return vitaUsingTexBin; }
+uint32_t VitaTextures_GetPageCount(void) { return (uint32_t)pageCount; }
 
 bool VitaTextures_Init(FILE *binFile) {
     if (vitaUsingTexBin) return true;
@@ -57,7 +57,7 @@ fail:
     return false;
 }
 
-bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
+bool VitaTextures_LoadPage(GLRenderer* gl, int pageIdx, int* outWidth, int* outHeight) {
     if (!vitaTexBinF) return false;
 
     int width, height;
@@ -68,7 +68,28 @@ bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
        ext_data = (uint32_t*)stbi_load_from_file(vitaTexBinF, &width, &height, NULL, 4);
        if (!ext_data) return false;
        
-       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+#ifdef __SYMBIAN32__
+       if (gl->textureFormat == GL_RGBA4) {
+		   uint16_t* rgba4444 = (uint16_t*)ext_data;
+		   int n = width * height;
+		   for (int i = 0; i < n; i++) {
+			   rgba4444[i] = (((uint16_t)ext_data[i * 4] >> 4) << 12) |
+							 (((uint16_t)ext_data[i * 4 + 1] >> 4) << 8) |
+							 (((uint16_t)ext_data[i * 4 + 2] >> 4) << 4) |
+							 ((uint16_t)ext_data[i * 4 + 3] >> 4);
+		   }
+				  
+		   GLint previousUnpackAlignment = 4;
+		   glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+		   glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+		   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, ext_data);
+		   glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+       } else {
+		   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+	   }
+#else
+       glTexImage2D(GL_TEXTURE_2D, 0, gl->textureFormat, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ext_data);
+#endif
    } else {
         uint32_t size = pageSizes[pageIdx] - 0x34;
         uint32_t metadata_size;
@@ -86,7 +107,7 @@ bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
         fread(ext_data, 1, size, vitaTexBinF);
         
         switch (format) {
-#ifndef __SYMBIAN32__
+#ifdef GL_IMG_texture_compression_pvrtc
             case 0x00:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG, width, height, 0, size, ext_data);
                 break;
@@ -99,19 +120,33 @@ bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
             case 0x03:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG, width, height, 0, size, ext_data);
                 break;
+#endif
+#ifdef GL_IMG_texture_compression_pvrtc2
             case 0x04:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_2BPPV2_IMG, width, height, 0, size, ext_data);
                 break;
             case 0x05:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_PVRTC_4BPPV2_IMG, width, height, 0, size, ext_data);
                 break;
+#endif
+#ifdef GL_ETC1_RGB8_OES
+            case 0x06:
+                glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_ETC1_RGB8_OES, width, height, 0, size, ext_data);
+                break;
+#endif
+#ifdef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
             case 0x07:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, width, height, 0, size, ext_data);
                 break;
+#endif
+#ifdef GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
             case 0x09:
                 glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, width, height, 0, size, ext_data);
                 break;
+#endif
+#ifdef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
             case 0x0B:
+#ifdef PLATFORM_VITA
                 if (metadata_size == 4) { // Load DXT5 as pre-swizzled
                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
                     SceGxmTexture *gxm_tex = vglGetGxmTexture(GL_TEXTURE_2D);
@@ -121,21 +156,20 @@ bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
                     sceGxmTextureInitSwizzledArbitrary(gxm_tex, tex_data, SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR, width, height, 0);
                     vglOverloadTexDataPointer(GL_TEXTURE_2D, tex_data);
                 } else
+#endif
+                {
                     glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, width, height, 0, size, ext_data);
+                }
                 break;
-#else
-            case 0x8033: {
-            	GLint previousUnpackAlignment = 4;
-				glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
-				glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+#endif
+            case GL_UNSIGNED_SHORT_4_4_4_4: {
+                GLint previousUnpackAlignment = 4;
+                glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, ext_data);
                 glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
                 break;
             }
-#endif
-            case 0x06:
-                glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_ETC1_RGB8_OES, width, height, 0, size, ext_data);
-                break;
             default:
                 logError("Unsupported externalized texture format (0x%llX).\n", format);
                 *outWidth = 0;
@@ -160,7 +194,7 @@ bool VitaTextures_LoadPage(int pageIdx, int* outWidth, int* outHeight) {
     return true;
 }
 
-void VitaTextures_Free() {
+void VitaTextures_Free(void) {
     if (!VitaTextures_Active()) return;
     if (vitaTexBinF) fclose(vitaTexBinF);
     free(pageSizes);
