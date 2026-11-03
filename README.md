@@ -163,7 +163,9 @@ make
 
 If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
 
-Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`. You can also run ./butterscotch with no arguments to get to the TUI where you can add games to access them easier.
+Windows, Linux, and macOS builds automatically include Discord Rich Presence when a C++14 compiler is available. Use `--no-discord-rpc` to disable presence at runtime, or `-DENABLE_DISCORD_RPC=OFF` to build without it.
+
+Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`.
 
 ## CLI parameters
 
@@ -176,6 +178,7 @@ The desktop target has a lot of nifty CLI parameters that you can use to trace a
 --screenshot-surfaces <filename>       - Take a screenshot of all surfaces at the specified frame
 --screenshot-surfaces-at-frame <frame> - Specify the filename for surface screenshots
 --headless                             - Launch without a window
+--no-discord-rpc                       - Disable Discord Rich Presence (RPC-enabled builds)
 --print-rooms                          - Print all rooms in the game and exit
 --print-objects                        - Print all objects in the game and exit
 --print-shaders                        - Print all shaders in the game and exit
