@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  build-arm-windows:
+  build-modern-windows:
     name: Build (${{ matrix.arch }})
     runs-on: ubuntu-24.04
 
@@ -12,6 +12,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - arch: x86_64
+            target: x86_64-w64-windows-gnu
+            triplet: x86_64-w64-mingw32
           - arch: arm64
             target: aarch64-w64-windows-gnu
             triplet: aarch64-w64-mingw32
@@ -99,6 +102,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWERROR=ON \
+            -DENABLE_DISCORD_RPC=ON \
             -DBACKEND=sdl2 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
@@ -112,7 +116,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: butterscotch-sdl2-windows-${{ matrix.arch }}
-          path: build/butterscotch.exe
+          path: |
+            build/butterscotch.exe
+            build/discord-rpc.dll
+            build/discord-rpc-LICENSE
+            build/rapidjson-LICENSE
 
   build-windows:
     name: Build (${{ matrix.arch }})

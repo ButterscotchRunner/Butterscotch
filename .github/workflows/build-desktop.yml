@@ -66,6 +66,7 @@ jobs:
       SDL2_VERSION: release-2.32.10
       FFMPEG_VERSION: n9.0.2
       CC: zig cc
+      CXX: zig c++
       AR: ${{ format('{0}/artifacts/zig-ar', github.workspace) }}
       RANLIB: ${{ format('{0}/artifacts/zig-ranlib', github.workspace) }}
     steps:
@@ -250,6 +251,10 @@ jobs:
         run: |
           sudo apt-get install -y llvm
           VIDEO_BACKEND=none
+          DISCORD_RPC=OFF
+          if [ '${{ matrix.os_config.name }}' = 'Linux' ]; then
+            DISCORD_RPC=ON
+          fi
           if [ ${{ matrix.arch }} != 'mips'] && [ ${{ matrix.arch }} != 'mips64' ]; then
             VIDEO_BACKEND=ffmpeg
           fi
@@ -264,6 +269,9 @@ jobs:
             -DCMAKE_LINKER="${{ env.CC }}" \
             -DBACKEND=sdl2 \
             -DWERROR=ON \
+            -DENABLE_DISCORD_RPC="$DISCORD_RPC" \
+            -DCMAKE_CXX_COMPILER_TARGET="${{ env.TARGET_TRIPLE }}" \
+            -DCMAKE_CXX_FLAGS="${{ steps.arch-vars.outputs.extra_cflags }}" \
             -DVIDEO_BACKEND="$VIDEO_BACKEND" \
             -DCMAKE_PREFIX_PATH="$HOME/build-deps" \
             -DCMAKE_BUILD_TYPE=Release \
@@ -275,4 +283,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Butterscotch-${{ matrix.os_config.name }}-${{ matrix.arch }}
-          path: build/butterscotch${{ matrix.os_config.executable_suffix }}
+          path: |
+            build/butterscotch${{ matrix.os_config.executable_suffix }}
+            build/libdiscord-rpc.so
+            build/discord-rpc-LICENSE
+            build/rapidjson-LICENSE
