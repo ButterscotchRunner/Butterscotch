@@ -3439,6 +3439,49 @@ static RValue builtin_matrix_multiply(MAYBE_UNUSED VMContext *ctx, RValue *args,
     }
 }
 
+static RValue builtin_matrix_stack_push(VMContext *ctx, RValue *args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("matrix_stack_push", 1, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    if (!rvalueIsMatrix(args[0])) return RValue_makeUndefined();
+    Matrix4f dest;
+    matrixFromGml(&dest, args[0].array);
+    MatrixStack_push(&runner->matrixStack, &dest);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_matrix_stack_pop(VMContext *ctx, RValue *args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    MatrixStack_pop(&runner->matrixStack);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_matrix_stack_set(VMContext *ctx, RValue *args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("matrix_stack_set", 1, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    if (!rvalueIsMatrix(args[0])) return RValue_makeUndefined();
+    Matrix4f dest;
+    matrixFromGml(&dest, args[0].array);
+    MatrixStack_poke(&runner->matrixStack, &dest);
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_matrix_stack_top(VMContext *ctx, RValue *args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    Matrix4f* matrix = MatrixStack_peek(&runner->matrixStack);
+    return RValue_makeArray(matrixToGml(runner->dataWin, matrix));
+}
+
+static RValue builtin_matrix_stack_is_empty(VMContext *ctx, RValue *args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    return RValue_makeBool(runner->matrixStack.top == -1);
+}
+
+static RValue builtin_matrix_stack_clear(VMContext *ctx, RValue *args, int32_t argCount) {
+    Runner* runner = ctx->runner;
+    MatrixStack_clear(&runner->matrixStack);
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_matrix_build_projection_ortho(MAYBE_UNUSED VMContext *ctx, RValue *args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("matrix_build_projection_ortho", 4, RValue_makeUndefined());
     REQUIRE_ARGC_AT_MOST("matrix_build_projection_ortho", 5, RValue_makeUndefined());
@@ -24631,6 +24674,13 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "matrix_build_identity", builtin_matrix_build_identity);
     VM_registerBuiltin(ctx, "matrix_inverse", builtin_matrix_inverse);
     VM_registerBuiltin(ctx, "matrix_multiply", builtin_matrix_multiply);
+    VM_registerBuiltin(ctx, "matrix_stack_push", builtin_matrix_stack_push);
+    VM_registerBuiltin(ctx, "matrix_stack_pop", builtin_matrix_stack_pop);
+    VM_registerBuiltin(ctx, "matrix_stack_set", builtin_matrix_stack_set);
+    VM_registerBuiltin(ctx, "matrix_stack_top", builtin_matrix_stack_top);
+    VM_registerBuiltin(ctx, "matrix_stack_is_empty", builtin_matrix_stack_is_empty);
+    VM_registerBuiltin(ctx, "matrix_stack_clear", builtin_matrix_stack_clear);
+
     VM_registerBuiltin(ctx, "matrix_build_lookat", builtin_matrix_build_lookat);
     VM_registerBuiltin(ctx, "matrix_build_projection_ortho", builtin_matrix_build_projection_ortho);
     VM_registerBuiltin(ctx, "matrix_build_projection_perspective_fov", builtin_matrix_build_projection_perspective_fov);

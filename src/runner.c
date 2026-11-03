@@ -2242,6 +2242,7 @@ static void cleanupState(Runner* runner) {
         Ini_free(runner->currentIni);
         runner->currentIni = nullptr;
     }
+
     free(runner->currentIniPath);
     runner->currentIniPath = nullptr;
     if (runner->cachedIni != nullptr) {
@@ -2344,6 +2345,9 @@ void Runner_reset(Runner* runner) {
     if (runner->instancesByExactObject == nullptr) {
         runner->instancesByExactObject = (Instance ***)safeCalloc(runner->dataWin->objt.count, sizeof(Instance**));
     }
+
+    // Clear the matrix stack
+    runner->matrixStack.top = -1;
 
     // Reset builtin function state
     runner->mpPotMaxrot = 30.0;
@@ -2602,6 +2606,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->random = Random_create(randomSeed);
     runner->paused = false;
     runner->drawEnabled = true;
+    runner->matrixStack.top = -1;
 
     repeat(MAX_SURFACES, i) {
         runner->surfaceStack[i] = -1;
