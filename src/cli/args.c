@@ -1,5 +1,10 @@
 #include <loop.h>
 #include <getopt.h>
+
+#ifdef ENABLE_FILE_PICKER
+#include "../../vendor/tinyfd/tinyfiledialogs.h"
+#endif
+
 #ifdef _WIN32
 #include <io.h>
 #else
@@ -74,6 +79,7 @@ static void printUsage(const char *argv0) {
         "    --playback-inputs <file>               - Playback input from file\n"
         "    --renderer <renderer>                  - Set the rendering API\n"
         "    --lazy-rooms                           - Lazily load rooms, increases load times but reduces memory usage\n"
+        "    --fullscreen                           - Launch in fullscreen mode\n"
         "    --eager-room <rooms>                   - When --lazy-rooms is set, keep these rooms always in memory\n"
         "    --os-type <os>                         - Set the reported OS type\n"
         "    --window-size <dimentions>             - Set a custom window size\n"
@@ -147,6 +153,7 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"record-inputs", required_argument, nullptr, 'I'},
         {"playback-inputs", required_argument, nullptr, 'P'},
         {"renderer", required_argument, nullptr, 'g'},
+        {"fullscreen", no_argument, nullptr, 4101},
         {"lazy-rooms", no_argument, nullptr, 'z'},
         {"eager-room", required_argument, nullptr, 'G'},
         {"os-type", required_argument, nullptr, 'O'},
@@ -401,6 +408,9 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                     exit(1);
                 }
                 break;
+            case 4101:
+                args->fullscreen = true;
+                break;
             case 'z':
                 args->lazyRooms = true;
                 break;
@@ -534,6 +544,22 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
                 break;
             }
         }
+
+#ifdef ENABLE_FILE_PICKER
+        if (args->dataWinPath == nullptr) {
+            char const* filterPatterns[] = { "*.win", "*.ios", "*.unx", "*.droid", "*.psp" };
+
+            char* path = tinyfd_openFileDialog(
+                "Select GameMaker: Studio WAD File",
+                nullptr,
+                5,
+                filterPatterns,
+                nullptr,
+                false
+            );
+            args->dataWinPath = path;
+        }
+#endif
         if (args->dataWinPath == nullptr) {
             printUsage(argv[0]);
             exit(1);

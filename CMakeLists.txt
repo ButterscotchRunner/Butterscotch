@@ -62,9 +62,17 @@ else()
 endif()
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CheckLinkerFlag)
+
     if(MSVC)
         # equivalent to -fomit-frame-pointer
         add_compile_options(/Oy)
+
+        # equivalent to -Wl,--icf=all
+        check_linker_flag(C "/OPT:ICF" HAS_MSVC_ICF)
+        if(HAS_MSVC_ICF)
+            add_link_options("$<$<NOT:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>>:/OPT:ICF>")
+        endif()
     else()
         add_compile_options(-ffast-math -fno-finite-math-only)
 
@@ -73,6 +81,12 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         check_c_compiler_flag("-fomit-frame-pointer" HAS_FOMIT_FRAME_POINTER)
         if(HAS_FOMIT_FRAME_POINTER)
             add_compile_options(-fomit-frame-pointer)
+        endif()
+
+        # bfd sucks ass but this saves a couple kbs of binary size on linkers that do support this
+        check_linker_flag(C "-Wl,--icf=all" HAS_ICF_ALL)
+        if(HAS_ICF_ALL)
+            add_link_options("-Wl,--icf=all")
         endif()
     endif()
 endif()
@@ -187,6 +201,7 @@ if(ENABLE_FMOD)
 endif()
 
 file(GLOB SOURCES src/*.c)
+file(GLOB DEFAULT_FONT_SOURCES src/default_font/*.c)
 if(ENABLE_FMOD)
     list(APPEND SOURCES src/fmod/fmod.c src/fmod/fmod_bank.c src/fmod/fsb.c src/fmod/fmod_dsp.c)
 endif()
@@ -208,9 +223,9 @@ endif()
 file(GLOB PLATFORM_SOURCES src/${PLATFORM}/*.c)
 
 if(PLATFORM STREQUAL "android")
-    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+    add_library(butterscotch SHARED ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES} ${DEFAULT_FONT_SOURCES})
 else()
-    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES})
+    add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES} ${DEFAULT_FONT_SOURCES})
 endif()
 
 # Video playback backend
@@ -417,6 +432,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "vita")
         # Normally, __VITA__ should already be defined, but for some reason,
         # in my case, this didn't really work... so just in case, when we're
@@ -428,6 +444,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "switch")
         add_compile_definitions(PLATFORM_SWITCH)
 
@@ -435,6 +452,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "ps4")
         add_compile_definitions(PLATFORM_PS4 ENABLE_GLES)
 
@@ -442,6 +460,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_FILE_PICKER OFF)
     elseif(PLATFORM STREQUAL "web")
         add_compile_definitions(PLATFORM_WEB)
         target_sources(butterscotch PRIVATE src/cli/args.c)
@@ -450,6 +469,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT ON)
         set(VM_OPCODE_PROFILER_DEFAULT ON)
         set(VM_STUB_LOGS_DEFAULT ON)
+        set(ENABLE_FILE_PICKER ON)
     endif()
     # Matches the GitHub Actions container flags (FORTIFY requires building with optimizations enabled!)
     target_compile_options(butterscotch PRIVATE "$<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=2>")
@@ -472,10 +492,6 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
 
     if (MSVC)
         target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/compat/getopt)
@@ -507,8 +523,20 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         add_compile_definitions(ENABLE_VM_STUB_LOGS)
     endif()
 
+    # File Picker
+    option(ENABLE_FILE_PICKER "Enable file picker" ${VM_STUB_LOGS_DEFAULT})
+    if(ENABLE_FILE_PICKER)
+        add_compile_definitions(ENABLE_FILE_PICKER)
+    endif()
+
     # stb_image
     target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
+    if (ENABLE_FILE_PICKER)
+        # tinyfd
+        target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
+        target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
+    endif()
 
     set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "ps4")
@@ -785,7 +813,7 @@ elseif(PLATFORM STREQUAL "android")
     if (NOT ENABLE_MODERN_GL)
         message(FATAL_ERROR "Android requires modern gl!")
     endif()
-    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c src/debug_font/*.c)
+    file(GLOB GL_SOURCES src/gl/*.c src/gl_common/*.c src/image/*.c)
     target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
@@ -835,10 +863,6 @@ elseif(PLATFORM STREQUAL "android")
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
     target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${DEBUG_FONT_SOURCES})
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
-
     # The PS2 EE has a single-precision FPU only, so double is software-emulated
     add_compile_definitions(USE_FLOAT_REALS)
     # By disabling Int64 support, we can fit the entire RValue struct in 8 bytes, improving performance and memory usage
@@ -1020,11 +1044,9 @@ elseif(PLATFORM STREQUAL "ps3")
         message(FATAL_ERROR "PS3 requires legacy gl!")
     endif()
     file(GLOB GL_SOURCES src/gl_common/*.c src/gl_legacy/*.c src/image/*.c)
-    file(GLOB DEBUG_FONT_SOURCES src/debug_font/*.c)
-    target_sources(butterscotch PRIVATE ${GL_SOURCES} ${DEBUG_FONT_SOURCES})
+    target_sources(butterscotch PRIVATE ${GL_SOURCES})
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_legacy)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/image)
-    target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/debug_font)
     target_include_directories(butterscotch PRIVATE ${CMAKE_SOURCE_DIR}/src/gl_common)
 
     # ps3gl

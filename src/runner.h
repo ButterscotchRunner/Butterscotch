@@ -16,6 +16,7 @@
 #include "runner_mouse.h"
 #include "vm.h"
 #include "random.h"
+#include "sequence.h"
 
 // ===[ Event Type Constants ]===
 #define EVENT_ROOM_CREATION  -2
@@ -231,6 +232,7 @@ typedef enum {
     RuntimeLayerElementType_Sprite = 4,
     RuntimeLayerElementType_Tilemap = 5,
     RuntimeLayerElementType_Tile = 7,
+    RuntimeLayerElementType_Sequence = 8,
 } RuntimeLayerElementType;
 
 typedef struct {
@@ -241,6 +243,7 @@ typedef struct {
     uint32_t blend; // GameMaker-HTML5's m_imageBlend
     RuntimeBackgroundElement* backgroundElement; // owned; set for every background element
     RuntimeSpriteElement* spriteElement; // owned; nullptr if type != Sprite
+    RuntimeSequence* sequenceElement;
     RoomTile* tileElement; // borrowed (legacyTiles) or owned (layer_tile_create); nullptr if type != Tile
     bool tileElementOwned; // true if tileElement was heap-allocated and must be freed
     RoomLayerTilesData* tilemapData; // borrowed, points into the parsed RoomLayer; nullptr if type != Tilemap
@@ -713,6 +716,8 @@ struct Runner {
     // Any loop that might fire user code iterates a copy so that in-flight mutations (instance_change swap-remove, spawns, destroys) don't corrupt it.
     // Each call pushes its snapshot (append) and pops on normal loop exit; nesting is safe because pushes/pops are LIFO and outer ranges stay untouched under newer pushes.
     Instance** instanceSnapshots;
+    RuntimeSequence** sequenceSnapshots;
+    SequenceEvent* sequenceEvents;
     SpatialGrid* spatialGrid;
     uint32_t collisionQueryCounter;
     int32_t pendingRoom;  // -1 = none
@@ -755,6 +760,8 @@ struct Runner {
     bool (*getWindowPosition)(int32_t* outX, int32_t* outY);
     void (*setWindowPosition)(int32_t x, int32_t y);
     bool (*windowHasFocus)(void);
+    bool (*getWindowFullscreen)(void);
+    void (*setWindowFullscreen)(bool fullscreen);
     void (*setCursor)(int32_t cursorType);
     int32_t currentCursor;  // last value passed to window_set_cursor
     int32_t cursorSprite;   // storages BUILTIN_VAR_CURSOR_SPRITE. Independent of currentCursor/setCursor
@@ -763,6 +770,8 @@ struct Runner {
     RuntimeLayer* runtimeLayers; // stb_ds array, index-parallel to currentRoom->layers for parsed entries; dynamic entries appended
     uint32_t nextLayerId;        // counter for IDs of layers/elements created at runtime
     uint32_t nextLayerDrawOrder;
+    bool deferInstanceDepthChanges;
+    uint32_t* deferredInstanceDepthChanges;
     SavedRoomState* savedRoomStates; // array of size dataWin->room.count, for persistent room support
     int32_t viewCurrent; // index of the view currently being drawn (for view_current)
     bool viewsEnabled;   // runtime-mutable global view system toggle (view_enabled); seeded from room->flags & 1 on room enter
@@ -935,6 +944,8 @@ void Runner_setLives(Runner* runner, GMLReal value);
 // Used to fire events when the values are equal to or lesser than 0.
 void Runner_setHealth(Runner* runner, GMLReal value);
 void Runner_draw(Runner* runner);
+void Runner_drawInstance(Runner* runner, Instance* inst);
+void Runner_broadcastMessage(Runner* runner, const char* type, const char* message, int32_t elementId);
 // Ensures the application_surface exists at the right size, mirrors the renderer's ID into runner+renderer state, then
 // invokes renderer->vtable->beginFrame. Every platform main should call this instead of beginFrame directly.
 void Runner_beginFrame(Runner* runner, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH, int32_t framebufferW, int32_t framebufferH);
