@@ -3,6 +3,7 @@
 #include "stdio_compat.h"
 #include <stdlib.h>
 #include "string_compat.h"
+#include <bzlib.h>
 
 #include "log.h"
 #include "utils.h"
@@ -21,9 +22,6 @@
 #elif defined(USE_STB_IMGDEC)
 #include "stb_image.h"
 #endif
-
-// fall back on this if wuffs doesn't succeed
-#include <bzlib.h>
 
 #define QOI_HEADER_SIZE 12
 #define COMPRESSED_QOI_HEADER_SIZE_OLD 8
@@ -169,8 +167,8 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     if (0 >= width || 0 >= height) return nullptr;
 
     // Upper bound on decompressed QOI: header size + width*height*5 pixel data.
-    size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t)width * (size_t)height * 5;
-    uint8_t* uncompressed = (uint8_t*)malloc(uncompressedCapacity);
+    size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t) width * (size_t) height * 5;
+    uint8_t* uncompressed = (uint8_t*) malloc(uncompressedCapacity);
     if (!uncompressed) return nullptr;
 #ifdef USE_WUFFS_IMGDEC
     wuffs_bzip2__decoder dec;
