@@ -812,6 +812,9 @@ struct Runner {
     uint64_t fpsRealFrameStartNanos; // nowNanos() at start of frame work for fps_real (set in Runner_step, consumed in Runner_drawGUI)
     char* windowTitle;
 
+    // The matrix stack
+    MatrixStack matrixStack;
+
     // ===[ Builtin function state ]===
     DsMapEntry** dsMapPool; // stb_ds array of stb_ds hashmaps
     DsList* dsListPool; // stb_ds array of DsList
