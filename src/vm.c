@@ -83,10 +83,8 @@ static void stackPushTyped(VMContext* ctx, RValue val, uint8_t gmlStackType) {
     stackPush(ctx, val);
 }
 
-static RValue stackPop(VMContext* ctx) {
-    assert(ctx->stack.top > 0);
 #ifdef ENABLE_VM_TRACING
-    RValue val = ctx->stack.slots[--ctx->stack.top];
+static void logStackPopTrace(VMContext* ctx, RValue val) {
     if (shouldTraceStack(ctx)) {
         char* valStr = RValue_toStringTyped(val);
         char* stackBuf = formatStackContents(ctx);
@@ -94,6 +92,14 @@ static RValue stackPop(VMContext* ctx) {
         free(stackBuf);
         free(valStr);
     }
+}
+#endif
+
+static inline RValue stackPop(VMContext* ctx) {
+    assert(ctx->stack.top > 0);
+#ifdef ENABLE_VM_TRACING
+    RValue val = ctx->stack.slots[--ctx->stack.top];
+    logStackPopTrace(ctx, val);
     return val;
 #else
     return ctx->stack.slots[--ctx->stack.top];
@@ -102,9 +108,7 @@ static RValue stackPop(VMContext* ctx) {
 
 // Helper function that pops from the stack and casts the result to an int32_t
 static inline int32_t stackPopInt32(VMContext* ctx) {
-    assert(ctx->stack.top > 0);
-    RValue rvalue = ctx->stack.slots[--ctx->stack.top];
-    return RValue_toInt32(rvalue);
+    return RValue_toInt32(stackPop(ctx));
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -2243,11 +2247,13 @@ static void handlePushEnv(VMContext* ctx, OpWord opword, uint32_t instrAddr) {
     int32_t jumpOffset = OpWord_branchOffset(opword);
 
     // Pop target from stack
-    int32_t target = stackPopInt32(ctx);
+    RValue targetValue = stackPop(ctx);
+    int32_t target = RValue_toInt32(targetValue);
     // BC17: -9 (INSTANCE_STACKTOP) means "pop again for the real target"
     if (IS_WAD17_OR_HIGHER(ctx) && target == INSTANCE_STACKTOP) {
-        target = resolveInstanceStackTop(ctx);
+        target = stackPopInt32(ctx);
     }
+    if (targetValue.type == RVALUE_UNDEFINED) target = INSTANCE_NOONE;
 
     // Create env frame, save current context
     EnvFrame* frame = (EnvFrame *)safeMalloc(sizeof(EnvFrame));

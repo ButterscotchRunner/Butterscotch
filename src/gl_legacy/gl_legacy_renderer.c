@@ -14,6 +14,7 @@
 #define LEGACY_DESKTOP_D3D 0
 #endif
 
+#include "default_font/default_font.h"
 #ifdef PLATFORM_PS3
 #include "ps3gl.h"
 #include "rsxutil.h"
@@ -1224,6 +1225,18 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     state->texH = 0;
     state->spriteFontSprite = nullptr;
 
+    if (DefaultFont_isDefault(font)) {
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return false;
+
+        state->fontTpag = &gl->defaultUI.tpag;
+        state->fontTpagIndex = -1;
+        state->texId = gl->defaultUI.texture;
+        state->texW = DEFAULTFONT_ATLAS_W;
+        state->texH = DEFAULTFONT_ATLAS_H;
+        return true;
+    }
+
     if (!font->isSpriteFont) {
         int32_t fontTpagIndex = font->tpagIndex;
         if (0 > fontTpagIndex) return false;
@@ -1283,7 +1296,7 @@ static bool glResolveGlyph(GLRenderer* gl, DataWin* dw, GlFontState* state, Font
         *outV1 = (float) (state->fontTpag->sourceY + glyph->sourceY + glyph->sourceHeight) / (float) state->texH;
 
         *outLocalX0 = cursorX + glyph->offset;
-        *outLocalY0 = cursorY + GLCommon_debugUIFontYOffset(&gl->debugUI, font, glyph);
+        *outLocalY0 = cursorY + DefaultFont_glyphYOffset(font, glyph->character);
     }
     return true;
 }
@@ -1293,9 +1306,14 @@ static void glDrawText(Renderer* renderer, const char* text, float x, float y, f
     DataWin* dw = renderer->dataWin;
 
     int32_t fontIndex = renderer->drawFont;
-    if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex) return;
-
-    Font* font = &dw->font.fonts[fontIndex];
+    Font* font = nullptr;
+    if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+        font = &dw->font.fonts[fontIndex];
+    } else {
+        GLCommon_initDefaultUIFont(&gl->defaultUI);
+        if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
+        font = &gl->defaultUI.font;
+    }
 
     GlFontState fontState;
     if (!glResolveFontState(gl, dw, font, &fontState)) return;
@@ -1453,10 +1471,15 @@ static void drawTextColor(
 
     if (!font) {
         int32_t fontIndex = renderer->drawFont;
-        if (0 > fontIndex || dw->font.count <= (uint32_t) fontIndex)
-            return;
-
-        font = &dw->font.fonts[fontIndex];
+        if (dw != nullptr && 0 <= fontIndex && dw->font.count > (uint32_t) fontIndex) {
+            font = &dw->font.fonts[fontIndex];
+        } else {
+            int32_t defaultFontIndex = DefaultFont_ensureLoaded(dw);
+            if (defaultFontIndex >= 0 && dw != nullptr && dw->font.count > (uint32_t) defaultFontIndex) {
+                renderer->drawFont = defaultFontIndex;
+                font = &dw->font.fonts[defaultFontIndex];
+            }
+        }
     }
 
     GlFontState fontState;
@@ -1625,16 +1648,16 @@ static void glDrawTextUI(Renderer* renderer, const char* text, float x, float y,
     if (text == nullptr) return;
     GLRenderer* gl = (GLRenderer*) renderer;
 
-    GLCommon_initDebugUIFont(&gl->debugUI);
-    if (!GLCommon_ensureDebugFontTexture(gl, &gl->debugUI)) return;
+    GLCommon_initDefaultUIFont(&gl->defaultUI);
+    if (!GLCommon_ensureDefaultFontTexture(gl, &gl->defaultUI)) return;
 
     GlFontState fs;
-    fs.font = &gl->debugUI.font;
-    fs.fontTpag = &gl->debugUI.tpag;
+    fs.font = &gl->defaultUI.font;
+    fs.fontTpag = &gl->defaultUI.tpag;
     fs.fontTpagIndex = -1; // no game TPAG; PS3_PALETTED_BEGIN(-1) safely no-ops
-    fs.texId = gl->debugUI.texture;
-    fs.texW = DEBUGFONT_ATLAS_W;
-    fs.texH = DEBUGFONT_ATLAS_H;
+    fs.texId = gl->defaultUI.texture;
+    fs.texW = DEFAULTFONT_ATLAS_W;
+    fs.texH = DEFAULTFONT_ATLAS_H;
     fs.spriteFontSprite = nullptr;
 
     drawTextColor(

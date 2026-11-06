@@ -1,8 +1,11 @@
 #ifndef _BS_MATRIX_MATH_H_
 #define _BS_MATRIX_MATH_H_
 #include "common.h"
+#include "log.h"
 #include "math_compat.h"
 #include "string_compat.h"
+
+#define GML_MATRIX_STACK_MAX 50
 
 // ===[ Matrix4f Type ]===
 
@@ -15,6 +18,11 @@
 typedef struct {
     float m[16]; // m[col*4 + row]
 } Matrix4f;
+
+typedef struct {
+    Matrix4f stack[GML_MATRIX_STACK_MAX];
+    int32_t top;
+} MatrixStack;
 
 #define Matrix_getIndex(row,col) ((col)*4 + (row))
 
@@ -444,6 +452,49 @@ static inline bool Matrix4f_inverse(Matrix4f *inv, const Matrix4f *mat) {
 
     for (int i = 0; i < 16; i++) inv->m[i] *= invDet;
     return true;
+}
+
+static inline void MatrixStack_push(MatrixStack* stack, const Matrix4f* matrix) {
+    if (stack->top >= GML_MATRIX_STACK_MAX - 1) {
+        logError("Matrix stack overflow!\n");
+        abort();
+    }
+    if (stack->top == -1) {
+        stack->top = 0;
+        stack->stack[stack->top] = *matrix;
+        return;
+    }
+    Matrix4f dest;
+    Matrix4f_multiply(&dest, matrix, &stack->stack[stack->top]);
+    stack->stack[++stack->top] = dest;
+}
+
+static inline void MatrixStack_pop(MatrixStack* stack) {
+    if (stack->top < 1) {
+        logError("Matrix stack underflow!\n");
+        abort();
+    }
+    stack->top--;
+}
+
+static inline Matrix4f* MatrixStack_peek(MatrixStack* stack) {
+    if (stack->top < 0) {
+        logError("Attempted to get top of empty matrix stack!\n");
+        abort();
+    }
+    return &stack->stack[stack->top];
+}
+
+static inline void MatrixStack_poke(MatrixStack* stack, const Matrix4f* matrix) {
+    if (stack->top < 0) {
+        logError("Attempted to set top of empty matrix stack!\n");
+        abort();
+    }
+    stack->stack[stack->top] = *matrix;
+}
+
+static inline void MatrixStack_clear(MatrixStack* stack) {
+    stack->top = -1;
 }
 
 #endif /* _BS_MATRIX_MATH_H_ */
