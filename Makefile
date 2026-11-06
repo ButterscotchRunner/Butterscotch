@@ -48,7 +48,8 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
-		    $(INC)vendor/miniz
+		    $(INC)vendor/miniz \
+			$(INC)vendor/bzip2
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
 endif
@@ -61,7 +62,7 @@ SRCS += src/physics/disabled/physics_disabled.c
 endif
 
 HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/debug_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/miniz/*.c) $(vendor/bzip2/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
@@ -256,8 +257,6 @@ HEADERS += vendor/wuffs/wuffs-v0.4.c
 DEFINES += $(DEFINE)USE_WUFFS_IMGDEC
 else
 ifeq ($(IMAGE_DECODER),stb)
-INCLUDES += $(INC)vendor/bzip2
-SRCS += $(wildcard vendor/bzip2/*.c)
 DEFINES += $(DEFINE)USE_STB_IMGDEC
 endif
 endif

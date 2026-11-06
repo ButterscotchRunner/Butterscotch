@@ -341,19 +341,20 @@ if (IMAGE_DECODER STREQUAL "wuffs")
     target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
     add_compile_definitions(USE_WUFFS_IMGDEC)
 elseif(IMAGE_DECODER STREQUAL "stb")
-    # bzip2 for GMQOZ
-    add_library(bzip2 STATIC
-        vendor/bzip2/bz_internal_error.c
-        vendor/bzip2/bzlib.c
-        vendor/bzip2/crctable.c
-        vendor/bzip2/decompress.c
-        vendor/bzip2/huffman.c
-        vendor/bzip2/randtable.c
-    )
-    target_include_directories(bzip2 PUBLIC vendor/bzip2)
-    target_compile_options(bzip2 PRIVATE -w)
     add_compile_definitions(USE_STB_IMGDEC)
 endif()
+
+# bzip2 for GMQOZ (acts as fallback if wuffs is being used)
+add_library(bzip2 STATIC
+    vendor/bzip2/bz_internal_error.c
+    vendor/bzip2/bzlib.c
+    vendor/bzip2/crctable.c
+    vendor/bzip2/decompress.c
+    vendor/bzip2/huffman.c
+    vendor/bzip2/randtable.c
+)
+target_include_directories(bzip2 PUBLIC vendor/bzip2)
+target_compile_options(bzip2 PRIVATE -w)
 
 # stb_image (needed for write regardless)
 target_include_directories(butterscotch PUBLIC vendor/stb/image)
@@ -503,10 +504,7 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
     endif()
 
-    set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis)
-    if (IMAGE_DECODER STREQUAL "stb")
-        set(PLATFORM_LIBRARIES ${PLATFORM_LIBRARIES} bzip2)
-    endif()
+    set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis bzip2)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)

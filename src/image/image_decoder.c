@@ -19,10 +19,11 @@
 #define WUFFS_CONFIG__MODULE__BZIP2
 #include "wuffs-v0.4.c"
 #elif defined(USE_STB_IMGDEC)
-// fallbacks for older compilers
 #include "stb_image.h"
-#include <bzlib.h>
 #endif
+
+// fall back on this if wuffs doesn't succeed
+#include <bzlib.h>
 
 #define QOI_HEADER_SIZE 12
 #define COMPRESSED_QOI_HEADER_SIZE_OLD 8
@@ -198,23 +199,20 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     if (workbuf.ptr != nullptr) free(workbuf.ptr);
 
     if (!wuffs_base__status__is_ok(&status)) {
-        logWarn("ImageDecoder: BZ2 decompress failed\n");
-        free(uncompressed);
-        return nullptr;
+        logWarn("ImageDecoder: wuffs BZ2 decompress failed, trying libbzip2 fallback\n");
+        goto bzip2;
     }
 
-    size_t destLen = dstBuf.meta.wi;
-#elif defined(USE_STB_IMGDEC)
-    unsigned int destLen = (unsigned int) uncompressedCapacity;
-    int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, &destLen, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
-    if (rc != BZ_OK) {
-        logWarn("ImageDecoder: BZ2 decompress failed (rc=%d)\n", rc);
-        free(uncompressed);
-        return nullptr;
-    }
+bzip2:
 #endif
+    int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, (unsigned int*)&uncompressedCapacity, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
+    if (rc != BZ_OK) {
+        logWarn("ImageDecoder: libbzip2 decompress failed (rc=%d)\n", rc);
+        free(uncompressed);
+        return nullptr;
+    }
 
-    uint8_t* result = decodeQoi(uncompressed, destLen, outW, outH);
+    uint8_t* result = decodeQoi(uncompressed, uncompressedCapacity, outW, outH);
     free(uncompressed);
     return result;
 }
