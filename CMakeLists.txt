@@ -205,6 +205,106 @@ else()
     add_executable(butterscotch ${SOURCES} ${PLATFORM_SOURCES} ${AUDIO_SOURCES} ${DEFAULT_FONT_SOURCES})
 endif()
 
+set(DISCORD_RPC_DEFAULT OFF)
+if(PLATFORM STREQUAL "cli" AND NOT CMAKE_CROSSCOMPILING AND
+   (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    if(NOT DEFINED ENABLE_DISCORD_RPC OR ENABLE_DISCORD_RPC)
+        include(CheckLanguage)
+        check_language(CXX)
+        if(CMAKE_CXX_COMPILER)
+            enable_language(CXX)
+            if("cxx_std_14" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+                set(DISCORD_RPC_DEFAULT ON)
+            endif()
+        endif()
+    endif()
+endif()
+option(ENABLE_DISCORD_RPC "Build optional desktop Discord Rich Presence support" ${DISCORD_RPC_DEFAULT})
+if(ENABLE_DISCORD_RPC)
+    if(NOT PLATFORM STREQUAL "cli" OR NOT (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+        message(FATAL_ERROR "Discord RPC is supported by the Windows, Linux, and macOS desktop CLI builds")
+    endif()
+
+    enable_language(CXX)
+    set(DISCORD_RPC_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/discord-rpc")
+    set(DISCORD_RAPIDJSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/rapidjson")
+
+    set(DISCORD_RPC_SOURCES
+        ${DISCORD_RPC_SOURCE_DIR}/src/discord_rpc.cpp
+        ${DISCORD_RPC_SOURCE_DIR}/src/rpc_connection.cpp
+        ${DISCORD_RPC_SOURCE_DIR}/src/serialization.cpp
+    )
+    if(WIN32)
+        list(APPEND DISCORD_RPC_SOURCES
+            ${DISCORD_RPC_SOURCE_DIR}/src/connection_win.cpp
+            ${DISCORD_RPC_SOURCE_DIR}/src/discord_register_win.cpp
+            ${DISCORD_RPC_SOURCE_DIR}/src/dllmain.cpp
+        )
+    else()
+        list(APPEND DISCORD_RPC_SOURCES ${DISCORD_RPC_SOURCE_DIR}/src/connection_unix.cpp)
+        if(APPLE)
+            list(APPEND DISCORD_RPC_SOURCES ${DISCORD_RPC_SOURCE_DIR}/src/discord_register_osx.m)
+        else()
+            list(APPEND DISCORD_RPC_SOURCES ${DISCORD_RPC_SOURCE_DIR}/src/discord_register_linux.cpp)
+        endif()
+    endif()
+
+    add_library(discord-rpc SHARED ${DISCORD_RPC_SOURCES})
+    set_target_properties(discord-rpc PROPERTIES
+        CXX_STANDARD 14
+        CXX_STANDARD_REQUIRED ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/discord-rpc"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/discord-rpc"
+    )
+    target_compile_definitions(discord-rpc PRIVATE DISCORD_DYNAMIC_LIB DISCORD_BUILDING_SDK)
+    target_include_directories(discord-rpc PRIVATE
+        ${DISCORD_RPC_SOURCE_DIR}/include
+    )
+    target_include_directories(discord-rpc SYSTEM PRIVATE ${DISCORD_RAPIDJSON_SOURCE_DIR}/include)
+    if(NOT MSVC)
+        target_compile_options(discord-rpc PRIVATE -Wno-unknown-pragmas)
+    endif()
+    if(WIN32)
+        set_target_properties(discord-rpc PROPERTIES PREFIX "")
+        target_compile_definitions(discord-rpc PRIVATE DISCORD_WINDOWS)
+        target_link_libraries(discord-rpc PRIVATE psapi advapi32)
+        if(MINGW)
+            target_link_options(discord-rpc PRIVATE -static)
+        endif()
+    else()
+        find_package(Threads REQUIRED)
+        target_link_libraries(discord-rpc PRIVATE Threads::Threads)
+        if(APPLE)
+            target_compile_definitions(discord-rpc PRIVATE DISCORD_OSX)
+            target_compile_options(discord-rpc PRIVATE -Wno-deprecated-declarations)
+            find_library(DISCORD_APPKIT AppKit REQUIRED)
+            target_link_libraries(discord-rpc PRIVATE ${DISCORD_APPKIT})
+        else()
+            target_compile_definitions(discord-rpc PRIVATE DISCORD_LINUX)
+        endif()
+    endif()
+
+    target_compile_definitions(butterscotch PRIVATE ENABLE_DISCORD_RPC)
+    target_include_directories(butterscotch PRIVATE ${DISCORD_RPC_SOURCE_DIR}/include)
+    target_link_libraries(butterscotch PRIVATE ${CMAKE_DL_LIBS})
+    if(UNIX AND NOT APPLE)
+        set_property(TARGET butterscotch APPEND PROPERTY BUILD_RPATH "$ORIGIN")
+    endif()
+    add_dependencies(butterscotch discord-rpc)
+    add_custom_command(TARGET discord-rpc POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:butterscotch>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:discord-rpc> $<TARGET_FILE_DIR:butterscotch>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${DISCORD_RPC_SOURCE_DIR}/LICENSE $<TARGET_FILE_DIR:butterscotch>/discord-rpc-LICENSE
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${DISCORD_RAPIDJSON_SOURCE_DIR}/LICENSE $<TARGET_FILE_DIR:butterscotch>/rapidjson-LICENSE
+        VERBATIM
+    )
+endif()
+
 # Video playback backend
 set(VIDEO_BACKEND "ffmpeg" CACHE STRING "Video playback backend (ffmpeg or none)")
 set(BUTTERSCOTCH_FFMPEG_STATIC_LIBS "")

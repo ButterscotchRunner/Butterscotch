@@ -137,6 +137,9 @@ typedef struct {
     enum GlSurfaceFormat glSurfaceFormat;
 #endif
     bool fullscreen;
+#ifdef ENABLE_DISCORD_RPC
+    bool disableDiscordRpc;
+#endif
 } CommandLineArgs;
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless, bool fullscreen);
