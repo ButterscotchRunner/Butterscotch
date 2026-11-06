@@ -765,15 +765,12 @@ elseif(PLATFORM STREQUAL "android")
     # stb_vorbis (for miniaudio's OGG decoding)
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
     # bzip2
-    if (IMAGE_DECODER STREQUAL "stb")
-        target_link_libraries(butterscotch PRIVATE bzip2)
-    endif()
-
+    target_link_libraries(butterscotch PRIVATE bzip2)
     # Android NDK system libraries:
     # - log: __android_log_*
     # - GLESv3: OpenGL ES 3.0 functions
     # - OpenSLES: miniaudio's OpenSL ES backend (it dlopen's libaaudio.so at runtime when available, so no link-time aaudio dep)
-    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES stb_ds sha1 stb_vorbis)
+    target_link_libraries(butterscotch PRIVATE log GLESv3 OpenSLES bzip2 stb_ds sha1 stb_vorbis)
 elseif(PLATFORM STREQUAL "ps2")
     # The PS2 EE has a single-precision FPU only, so double is software-emulated
     add_compile_definitions(USE_FLOAT_REALS)
