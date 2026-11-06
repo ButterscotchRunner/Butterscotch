@@ -27,7 +27,7 @@ jobs:
             triple_suffix_base: openbsd.7.8
             lib_dir_name: lib
           - name: NetBSD
-            triple_suffix_base: netbsd.10.1
+            triple_suffix_base: netbsd.11.0
             lib_dir_name: lib
         arch: ${{ inputs.full_matrix && fromJSON('["amd64","i486","aarch64","arm","powerpc","powerpc64","powerpc64le","riscv","loongarch64","mips","mipsel","mips64","mips64el"]') || fromJSON('["amd64","i486"]') }}
         exclude:
@@ -39,8 +39,6 @@ jobs:
             arch: loongarch64
           - os_config: { name: NetBSD }
             arch: loongarch64
-          - os_config: { name: NetBSD }
-            arch: riscv
           - os_config: { name: NetBSD }
             arch: powerpc64
           - os_config: { name: NetBSD }
@@ -64,7 +62,7 @@ jobs:
           - os_config: { name: FreeBSD }
             arch: mips64el
     env:
-      ZIG_VERSION: 0.16.0
+      ZIG_VERSION: ${{ (startsWith(matrix.arch, 'powerpc') && matrix.os_config.name == 'Linux') && '0.16.0' || '0.17.0' }}
       SDL2_VERSION: release-2.32.10
       FFMPEG_VERSION: n9.0.2
       CC: zig cc

@@ -250,6 +250,7 @@ typedef enum {
     BUILTIN_VAR_SCORE,
     BUILTIN_VAR_LIVES,
     BUILTIN_VAR_HEALTH,
+    BUILTIN_VAR_GAME_ID,
 
     // Gamepad constants
     BUILTIN_VAR_GP_FACE1,
