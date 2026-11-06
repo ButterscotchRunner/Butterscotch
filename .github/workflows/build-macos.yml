@@ -33,7 +33,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           sudo bash llvm.sh 22
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-22 llvm-22
+          sudo apt-get install --no-install-recommends -y clang-22 llvm-22 nasm
 
       - name: install dependencies
         run: sudo apt-get install -y ${{ matrix.deps }} ccache
@@ -76,14 +76,61 @@ jobs:
           make -j$(nproc) install
           cd ..
 
+      - name: Checkout FFmpeg
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: n9.0.2
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg
+        working-directory: vendor/ffmpeg
+        run: |
+          patch -p1 < ../../artifacts/macos/ffmpeg-posix-memalign.patch
+          extraflags=""
+          [ "${{ matrix.arch }}" = "ppc" ] && ffmpeg_arch=powerpc || ffmpeg_arch=i386
+          [ "${{ matrix.arch }}" = "i386" ] && extraflags="$extraflags --enable-lto" # i'm told the ppc toolchain really doesn't play nice with LTO - keep it on i386
+          export PATH="${{ github.workspace }}/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
+          ./configure \
+            --prefix="$HOME/ffmpeg" \
+            --enable-cross-compile \
+            --target-os=darwin \
+            --arch=$ffmpeg_arch \
+            --cc="ccache ${{ matrix.triple }}-gcc" \
+            --ar="${{ matrix.ar }}" \
+            --ranlib="${{ matrix.ranlib }}" \
+            --extra-cflags="${{ matrix.cflags }} -std=gnu11 -Dstatic_assert=_Static_assert" \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv \
+            --disable-asm \
+            $extraflags
+            
+          make -j$(nproc)
+          make install
+
       - name: Configure
         run: |
+          export PKG_CONFIG_PATH="$HOME/sdl/lib/pkgconfig:$HOME/ffmpeg/lib/pkgconfig:$PKG_CONFIG_PATH"
           export PATH="$PWD/artifacts/macos/build/toolchain-${{ matrix.arch }}/bin:$PATH"
           cmake -B build -G Ninja \
             -DCMAKE_C_COMPILER=${{ matrix.triple }}-gcc \
             -DCMAKE_SYSTEM_NAME=Darwin \
-            -DCMAKE_C_FLAGS="-I$HOME/sdl/include -fno-stack-protector ${{ matrix.cflags }}" \
-            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl" \
+            -DCMAKE_C_FLAGS="-I$HOME/sdl/include -I$HOME/ffmpeg/include -fno-stack-protector ${{ matrix.cflags }}" \
+            -DCMAKE_FIND_ROOT_PATH="$HOME/sdl;$HOME/ffmpeg" \
             -DCMAKE_EXE_LINKER_FLAGS="-framework AudioUnit -framework AudioToolbox -framework Carbon -framework Cocoa -framework IOKit -framework OpenGL" \
             -DCMAKE_AR="$(command -v ${{ matrix.ar }})" \
             -DCMAKE_RANLIB="$(command -v ${{ matrix.ranlib }})" \
@@ -121,7 +168,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install dependencies
-        run: brew install ccache
+        run: brew install ccache nasm
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
@@ -131,6 +178,43 @@ jobs:
           path: ~/Library/Caches/ccache
           key: ccache-macos-${{ matrix.label }}-${{ github.sha }}
           restore-keys: ccache-macos-${{ matrix.label }}-
+
+      - name: Checkout FFmpeg
+        uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: n9.0.2
+          path: vendor/ffmpeg
+
+      - name: Build FFmpeg
+        working-directory: vendor/ffmpeg
+        run: |
+          [ "${{ matrix.label }}" = "arm64" ] && ffmpeg_arch=aarch64 || ffmpeg_arch=x86_64
+          ./configure \
+            --enable-cross-compile \
+            --target-os=darwin \
+            --arch=$ffmpeg_arch \
+            --cc="ccache clang" \
+            --enable-lto \
+            --enable-static \
+            --disable-shared \
+            --disable-programs \
+            --disable-doc \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swresample \
+            --enable-swscale \
+            --enable-decoder=h264,aac \
+            --enable-parser=h264,aac \
+            --enable-demuxer=mov,aac,h264 \
+            --enable-muxer=mp4,aac,m4v \
+            --enable-protocol=file \
+            --disable-autodetect \
+            --disable-iconv
+            
+          make -j2
+          sudo make install
 
       - name: Configure
         run: |

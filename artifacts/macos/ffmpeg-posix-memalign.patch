@@ -1,0 +1,12 @@
+Sourced from https://raw.githubusercontent.com/Un1q32/iphoneports/refs/heads/master/pkgs/ffmpeg/patches/posix_memalign.patch
+--- src/configure.orig
++++ src/configure
+@@ -6985,7 +6985,7 @@
+ 
+ check_func_headers malloc.h _aligned_malloc     && enable aligned_malloc
+ check_func  ${malloc_prefix}memalign            && enable memalign
+-check_func  ${malloc_prefix}posix_memalign      && enable posix_memalign
++enable posix_memalign
+ 
+ check_func  access
+ check_func_headers stdlib.h arc4random_buf
