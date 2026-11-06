@@ -43,13 +43,13 @@ INCLUDES += $(INC). \
 		    $(INC)src/image \
 		    $(INC)src/default_font \
 		    $(INC)vendor/stb/ds \
-			$(INC)vendor/stb/image \
+		    $(INC)vendor/stb/image \
 		    $(INC)vendor/stb/vorbis \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
-		    $(INC)vendor/miniz \
-			$(INC)vendor/bzip2
+		    $(INC)vendor/bzip2 \
+		    $(INC)vendor/miniz
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
 endif

@@ -371,9 +371,6 @@ add_library(bzip2 STATIC
 target_include_directories(bzip2 PUBLIC vendor/bzip2)
 target_compile_options(bzip2 PRIVATE -w)
 
-# stb_image (needed for write regardless)
-target_include_directories(butterscotch PUBLIC vendor/stb/image)
-
 # miniz 3.1.2 (https://github.com/richgel999/miniz, tag 3.1.2, commit 77d0dce86277).
 # All files vendored byte-for-byte from that tag except:
 #  - miniz_export.h, which upstream generates during its own CMake configure; this
@@ -509,13 +506,16 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         add_compile_definitions(ENABLE_FILE_PICKER)
     endif()
 
+    # stb_image
+    target_include_directories(butterscotch PUBLIC vendor/stb/image)
+
     if (ENABLE_FILE_PICKER)
         # tinyfd
         target_sources(butterscotch PRIVATE vendor/tinyfd/tinyfiledialogs.c)
         target_include_directories(butterscotch PUBLIC vendor/tinyfiledialogs)
     endif()
 
-    set(PLATFORM_LIBRARIES stb_ds sha1 stb_vorbis bzip2)
+    set(PLATFORM_LIBRARIES bzip2 stb_ds sha1 stb_vorbis)
     if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")
         # GLAD
         add_library(glad STATIC vendor/glad/src/glad.c)
@@ -766,6 +766,7 @@ elseif(PLATFORM STREQUAL "android")
     target_include_directories(butterscotch PUBLIC vendor/stb/vorbis)
     # bzip2
     target_link_libraries(butterscotch PRIVATE bzip2)
+
     # Android NDK system libraries:
     # - log: __android_log_*
     # - GLESv3: OpenGL ES 3.0 functions
