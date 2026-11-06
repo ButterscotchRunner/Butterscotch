@@ -204,7 +204,8 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     }
 
 bzip2:
-#endif
+#endif 
+    {
     int rc = BZ2_bzBuffToBuffDecompress((char*) uncompressed, (unsigned int*)&uncompressedCapacity, (char*)(blob + headerSize), (unsigned int)(blobSize - headerSize), 0, 0);
     if (rc != BZ_OK) {
         logWarn("ImageDecoder: libbzip2 decompress failed (rc=%d)\n", rc);
@@ -215,6 +216,7 @@ bzip2:
     uint8_t* result = decodeQoi(uncompressed, uncompressedCapacity, outW, outH);
     free(uncompressed);
     return result;
+    }
 }
 
 uint8_t* ImageDecoder_decodeToRgba(const uint8_t* blob, size_t blobSize, bool gm2022_5, int* outW, int* outH) {
