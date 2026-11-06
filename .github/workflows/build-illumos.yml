@@ -67,8 +67,7 @@ jobs:
             -DWERROR=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/vendor/SDL2/install" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-            -DENABLE_FILE_PICKER=OFF
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
           cmake --build build
           x86_64-pc-solaris2.11-strip -s build/butterscotch
 
