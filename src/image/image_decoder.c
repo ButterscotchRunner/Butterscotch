@@ -127,7 +127,8 @@ static uint8_t* decodeQoi(const uint8_t* restrict data, size_t dataSize, int* re
             if (b1 & 8) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } r = *pixelData++; }
             if (b1 & 4) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } g = *pixelData++; }
             if (b1 & 2) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } b = *pixelData++; }
-            if (b1 & 1) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } a = *pixelData++; }            packedCol = PACK_RGBA(r, g, b, a);
+            if (b1 & 1) { if (pixelData >= pixelDataEnd) { free((void*)rawStart); return nullptr; } a = *pixelData++; }            
+            packedCol = PACK_RGBA(r, g, b, a);
             index[(r ^ g ^ b ^ a) & 63] = packedCol;
             *raw++ = packedCol;
         }
