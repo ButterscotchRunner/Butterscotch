@@ -659,7 +659,7 @@ bool GLLegacyRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 #elif defined(PLATFORM_VITA)
     if (VitaTextures_Active()) {
         glBindTexture(GL_TEXTURE_2D, gl->glTextures[pageId]);
-        if (!VitaTextures_LoadPage(pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
+        if (!VitaTextures_LoadPage(gl, pageId, &gl->textureWidths[pageId], &gl->textureHeights[pageId])) {
             logError("GL: Failed to load Vita TXTR page %u", pageId);
             return false;
         }
