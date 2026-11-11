@@ -7459,6 +7459,30 @@ static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCoun
     return RValue_makeBool(true);
 }
 
+static RValue builtin_array_shuffle(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("array_shuffle", 1, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_MOST("array_shuffle", 3, RValue_makeUndefined());
+
+    GMLArray* arr = args[0].array;
+    if (arr == nullptr) return RValue_makeUndefined();
+    int32_t len = GMLArray_length1D(arr);
+    GMLArray* outArr = GMLArray_create(ctx->dataWin, len);
+    for (int32_t i = 0; i < len; i++) {
+        *GMLArray_slot(outArr, i) = RValue_makeIndependent(*GMLArray_slot(arr, i));
+    }
+    // every day i'm shuffling
+    // TODO: implement the optional args offset and length
+    {
+    for (int32_t i = len - 1; i > 0; i--) {
+        uint32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
+        RValue temp = *GMLArray_slot(outArr, i);
+        *GMLArray_slot(outArr, i) = *GMLArray_slot(outArr, j);
+        *GMLArray_slot(outArr, j) = temp;
+    }
+    }
+    return RValue_makeArray(outArr);
+}
+
 // ===[ COLLISION FUNCTIONS]===
 
 static RValue builtin_place_free(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -24933,6 +24957,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_copy", builtin_array_copy);
     VM_registerBuiltin(ctx, "array_sort", builtin_array_sort);
     VM_registerBuiltin(ctx, "array_equals", builtin_array_equals);
+    VM_registerBuiltin(ctx, "array_shuffle", builtin_array_shuffle);
 
     // Steam stubs
     VM_registerBuiltin(ctx, "steam_initialised", builtin_steam_initialised);
