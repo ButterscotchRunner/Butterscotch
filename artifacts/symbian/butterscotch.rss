@@ -1,0 +1,78 @@
+NAME	BTSC
+
+#include <eikon.rh>
+#include <avkon.rsg>
+#include <avkon.rh>
+#include <avkon.mbg>
+#include <appinfo.rh>
+
+RESOURCE RSS_SIGNATURE { }
+RESOURCE TBUF { buf="Butterscotch"; }
+
+RESOURCE EIK_APP_INFO { }
+
+rls_string STRING_app_caption_string "Butterscotch"
+rls_string STRING_app_short_caption_string "Butterscotch"
+
+RESOURCE LOCALISABLE_APP_INFO r_BUTTERSCOTCH_localisable_app_info
+{
+	short_caption = STRING_app_short_caption_string;
+	caption_and_icon = CAPTION_AND_ICON_INFO
+	{
+		caption = STRING_app_caption_string;
+		number_of_icons = 1;
+		icon_file = "\\resource\\apps\\butterscotch_icon.mif";
+	};
+}
+
+RESOURCE DIALOG r_query_dialog
+{
+	flags = EGeneralQueryFlags | EEikDialogFlagNoBorder | EEikDialogFlagNoShadow;
+	buttons = R_AVKON_SOFTKEYS_OK_EMPTY;
+	items =
+	{
+		DLG_LINE
+		{
+			type = EAknCtPopupHeadingPane;
+			id = EAknMessageQueryHeaderId;
+			itemflags = EEikDlgItemNonFocusing;
+			control = AVKON_HEADING
+			{
+			};
+		},
+		DLG_LINE
+		{
+			type = EAknCtMessageQuery;
+			id = EAknMessageQueryContentId;
+			control = AVKON_MESSAGE_QUERY
+			{
+			};
+		}
+	};
+}
+
+RESOURCE DIALOG r_text_query
+{
+	flags = EEikDialogFlagNoDrag | EEikDialogFlagNoTitleBar | EEikDialogFlagCbaButtons;
+	buttons = R_AVKON_SOFTKEYS_OK_CANCEL;
+	items =
+	{
+		DLG_LINE
+		{
+			type = EAknCtQuery;
+			id = EGeneralQuery;
+			control = AVKON_DATA_QUERY
+			{
+				layout = EDataLayout;
+				control = EDWIN
+				{
+					width = 128;
+					lines = 1;
+					maxlength = 510;
+					default_case = EAknEditorLowerCase;
+					allowed_case_modes = EAknEditorAllCaseModes;
+				};
+			};
+		}
+	};
+}
