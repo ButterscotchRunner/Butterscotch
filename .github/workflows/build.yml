@@ -15,6 +15,12 @@ jobs:
   Windows:
     uses: ./.github/workflows/build-windows.yml
 
+  UWP:
+    uses: ./.github/workflows/build-uwp.yml
+    secrets:
+      UWP_SIGNING_PFX_BASE64: ${{ secrets.UWP_SIGNING_PFX_BASE64 }}
+      UWP_SIGNING_PFX_PASSWORD: ${{ secrets.UWP_SIGNING_PFX_PASSWORD }}
+
   macOS:
     uses: ./.github/workflows/build-macos.yml
 

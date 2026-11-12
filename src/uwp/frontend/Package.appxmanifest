@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap7="http://schemas.microsoft.com/appx/manifest/uap/windows10/7" xmlns:uap8="http://schemas.microsoft.com/appx/manifest/uap/windows10/8" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap7 uap8 mp rescap">
+  <Identity Name="ButterscotchUWP" Publisher="CN=Grayforz2468" Version="1.0.0.0" ProcessorArchitecture="x64" />
+  <mp:PhoneIdentity PhoneProductId="4f1de67a-7b87-4f47-a2cc-d89b63fa1ed6" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+  <Properties>
+    <DisplayName>Butterscotch</DisplayName>
+    <PublisherDisplayName>Grayforz / MrPowerGamerBR</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+    <TargetDeviceFamily Name="Windows.Xbox" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources><Resource Language="en-us" /></Resources>
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Butterscotch.App">
+      <uap:VisualElements DisplayName="Butterscotch" Description="GameMaker runtime" BackgroundColor="#AD6B29" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" />
+      <uap7:Properties>
+        <uap8:ActiveCodePage>UTF-8</uap8:ActiveCodePage>
+      </uap7:Properties>
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="gamemaker">
+            <uap:DisplayName>GameMaker game data</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.win</uap:FileType>
+              <uap:FileType>.unx</uap:FileType>
+              <uap:FileType>.droid</uap:FileType>
+              <uap:FileType>.ios</uap:FileType>
+              <uap:FileType>.ogg</uap:FileType>
+              <uap:FileType>.wav</uap:FileType>
+              <uap:FileType>.mp3</uap:FileType>
+              <uap:FileType>.flac</uap:FileType>
+              <uap:FileType>.ini</uap:FileType>
+              <uap:FileType>.txt</uap:FileType>
+              <uap:FileType>.json</uap:FileType>
+              <uap:FileType>.xml</uap:FileType>
+              <uap:FileType>.csv</uap:FileType>
+              <uap:FileType>.dat</uap:FileType>
+              <uap:FileType>.bin</uap:FileType>
+              <uap:FileType>.png</uap:FileType>
+              <uap:FileType>.jpg</uap:FileType>
+              <uap:FileType>.jpeg</uap:FileType>
+              <uap:FileType>.gif</uap:FileType>
+              <uap:FileType>.bmp</uap:FileType>
+              <uap:FileType>.fnt</uap:FileType>
+              <uap:FileType>.bank</uap:FileType>
+              <uap:FileType>.fsb</uap:FileType>
+              <uap:FileType>.cfg</uap:FileType>
+              <uap:FileType>.sav</uap:FileType>
+              <uap:FileType>.glsl</uap:FileType>
+              <uap:FileType>.vert</uap:FileType>
+              <uap:FileType>.frag</uap:FileType>
+              <uap:FileType>.mp4</uap:FileType>
+              <uap:FileType>.webm</uap:FileType>
+              <uap:FileType>.zip</uap:FileType>
+              <uap:FileType>.pak</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="expandedResources" />
+    <DeviceCapability Name="removableStorage" />
+  </Capabilities>
+</Package>
+
