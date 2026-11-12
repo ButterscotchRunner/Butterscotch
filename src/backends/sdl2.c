@@ -138,7 +138,7 @@ bool platformGetScaledWindowSize(int32_t* outW, int32_t* outH) {
 static float platformGetWindowScale(void) {
     int32_t draw_w = 0, draw_h = 0;
     int logical_w, logical_h;
-    platformGetWindowSize(&draw_w, &draw_h);
+    if (!platformGetWindowSize(&draw_w, &draw_h)) return 1.0f;
     SDL_GetWindowSize(window, &logical_w, &logical_h);
     return (logical_h > 0) ? (float)draw_h / logical_h : 1.0f;
 }
@@ -187,7 +187,15 @@ static bool platformGetWindowFocus(void) {
     return SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS;
 }
 
-bool platformInit(int reqW, int reqH, const char *title, bool headless) {
+static bool platformGetWindowFullscreen(void) {
+    return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+}
+
+static void platformSetWindowFullscreen(bool fullscreen) {
+    SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+}
+
+bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_GAMECONTROLLER)) {
         logError("Failed to initialize SDL\n");
@@ -249,6 +257,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless) {
     } else {
         scr = SDL_GetWindowSurface(window);
     }
+
+    platformSetWindowFullscreen(fullscreen);
+
     // If we don't do this, the window will be larger than it should be on HiDPI displays.
     platformSetWindowSize(reqW, reqH);
 
@@ -313,6 +324,8 @@ void platformInitFunctions(Runner *runner) {
     runner->setCursor = platformSetCursor;
     runner->getWindowPosition = platformGetWindowPosition;
     runner->setWindowPosition = platformSetWindowPosition;
+    runner->getWindowFullscreen = platformGetWindowFullscreen;
+    runner->setWindowFullscreen = platformSetWindowFullscreen;
     runner->currentCursor = GML_CR_DEFAULT;
 }
 

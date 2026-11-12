@@ -87,10 +87,7 @@ static void dispatchContact(Runner* r, Instance* a, Instance* b) {
     for (uint32_t n = 0; target >= 0 && (uint32_t)target < r->dataWin->objt.count && n < r->dataWin->objt.count; ++n) {
         int slot = EventSlotMap_lookup(&r->eventSlotMap, EVENT_COLLISION, target);
         if (slot >= 0 && ResolvedEventTable_lookup(&r->eventTable, a->objectIndex, slot, nullptr) >= 0) {
-            Instance* previousOther = r->vmContext->currentCallFrame->other;
-            r->vmContext->currentCallFrame->other = b;
-            Runner_executeEvent(r, a, EVENT_COLLISION, target);
-            r->vmContext->currentCallFrame->other = previousOther;
+            Runner_executeEventFromObject(r, a, b, a->objectIndex, EVENT_COLLISION, target);
             return;
         }
         target = r->dataWin->objt.objects[target].parentId;

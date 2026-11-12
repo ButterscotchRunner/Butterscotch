@@ -321,8 +321,8 @@ static inline void Renderer_drawSpriteExt(Renderer* renderer, int32_t spriteInde
         float absY = fabsf(yscale);
         float w = (float) sprite->width * absX;
         float h = (float) sprite->height * absY;
-        float tlX = x - (float) sprite->originX * xscale; // signed: negative xscale shifts tlX right
-        float tlY = y - (float) sprite->originY * yscale;
+        float tlX = x - (float) sprite->originX * absX;
+        float tlY = y - (float) sprite->originY * absY;
         Renderer_drawSpriteNineSlice(renderer, spriteIndex, subimg, tlX, tlY, w, h, flipX, flipY, rot, x, y, color, alpha);
         return;
     }
@@ -478,11 +478,23 @@ static inline bool Renderer_nineSliceAdjustForTiledPart(DataWin* dw, int32_t spr
     return 0 < *aW && 0 < *aH;
 }
 
+static inline void Renderer_nineSliceDrawPart(Renderer* renderer, int32_t spriteIndex, int32_t subimg, float left, float top, float width, float height, float x, float y, float xscale, float yscale, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    if (flipX) {
+        x = 2.0f * pivotX - x;
+        xscale = -xscale;
+    }
+    if (flipY) {
+        y = 2.0f * pivotY - y;
+        yscale = -yscale;
+    }
+    Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, left, top, width, height, x, y, xscale, yscale, angleDeg, pivotX, pivotY, color, alpha);
+}
+
 // Tiles srcW x srcH pixels from (srcX, srcY) horizontally across dstW pixels starting at (dstX, dstY).
 // Mirror mode flips alternate tiles on the horizontal axis.
 // Keep partial tile sizes fractional; truncating a subpixel remainder to zero would stall the tiling loops.
-static inline void Renderer_nineSliceTileH(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, uint8_t mode, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
-    if (mode != NS_MIRROR && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
+static inline void Renderer_nineSliceTileH(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, uint8_t mode, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    if (mode != NS_MIRROR && !flipX && !flipY && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
         int32_t tpagIndex, aX = srcX, aY = srcY, aW = srcW, aH = srcH;
         float adX = dstX, adY = dstY, adW = dstW;
         if (!Renderer_nineSliceAdjustForTiledPart(renderer->dataWin, spriteIndex, subimg, &aX, &aY, &aW, &aH, &adX, &adY, &adW, nullptr, &tpagIndex) || 0.0f >= adW) return;
@@ -498,7 +510,7 @@ static inline void Renderer_nineSliceTileH(Renderer* renderer, int32_t spriteInd
         float srcLeft = flipped ? (srcX + srcW - drawW) : (float) srcX;
         float xs = flipped ? -1.0f : 1.0f;
         float drawX = flipped ? (cursor + drawW) : cursor;
-        Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcLeft, srcY, drawW, srcH, drawX, dstY, xs, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
+        Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcLeft, srcY, drawW, srcH, drawX, dstY, xs, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         cursor += drawW;
         remaining -= drawW;
         tileIndex++;
@@ -507,8 +519,8 @@ static inline void Renderer_nineSliceTileH(Renderer* renderer, int32_t spriteInd
 
 // Tiles srcW x srcH pixels from (srcX, srcY) vertically across dstH pixels starting at (dstX, dstY).
 // Mirror mode flips alternate tiles on the vertical axis.
-static inline void Renderer_nineSliceTileV(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstH, uint8_t mode, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
-    if (mode != NS_MIRROR && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
+static inline void Renderer_nineSliceTileV(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstH, uint8_t mode, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    if (mode != NS_MIRROR && !flipX && !flipY && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
         int32_t tpagIndex, aX = srcX, aY = srcY, aW = srcW, aH = srcH;
         float adX = dstX, adY = dstY, adH = dstH;
         if (!Renderer_nineSliceAdjustForTiledPart(renderer->dataWin, spriteIndex, subimg, &aX, &aY, &aW, &aH, &adX, &adY, nullptr, &adH, &tpagIndex) || 0.0f >= adH) return;
@@ -524,7 +536,7 @@ static inline void Renderer_nineSliceTileV(Renderer* renderer, int32_t spriteInd
         float srcTop = flipped ? (srcY + srcH - drawH) : (float) srcY;
         float ys = flipped ? -1.0f : 1.0f;
         float drawY = flipped ? (cursor + drawH) : cursor;
-        Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcX, srcTop, srcW, drawH, dstX, drawY, 1.0f, ys, angleDeg, pivotX, pivotY, color, alpha);
+        Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcX, srcTop, srcW, drawH, dstX, drawY, 1.0f, ys, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         cursor += drawH;
         remaining -= drawH;
         tileIndex++;
@@ -532,8 +544,8 @@ static inline void Renderer_nineSliceTileV(Renderer* renderer, int32_t spriteInd
 }
 
 // Tiles a 2D region across dstW x dstH. Mirror flips alternate tiles on each axis independently.
-static inline void Renderer_nineSliceTile2D(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint8_t mode, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
-    if (mode != NS_MIRROR && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
+static inline void Renderer_nineSliceTile2D(Renderer* renderer, int32_t spriteIndex, int32_t subimg, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, float dstX, float dstY, float dstW, float dstH, uint8_t mode, bool flipX, bool flipY, float angleDeg, float pivotX, float pivotY, uint32_t color, float alpha) {
+    if (mode != NS_MIRROR && !flipX && !flipY && angleDeg == 0.0f && renderer->vtable->drawTiledPart != nullptr) {
         int32_t tpagIndex, aX = srcX, aY = srcY, aW = srcW, aH = srcH;
         float adX = dstX, adY = dstY, adW = dstW, adH = dstH;
         if (!Renderer_nineSliceAdjustForTiledPart(renderer->dataWin, spriteIndex, subimg, &aX, &aY, &aW, &aH, &adX, &adY, &adW, &adH, &tpagIndex) || 0.0f >= adW || 0.0f >= adH) return;
@@ -544,22 +556,22 @@ static inline void Renderer_nineSliceTile2D(Renderer* renderer, int32_t spriteIn
     float remH = dstH;
     int32_t tileRow = 0;
     while (remH > 0.0f) {
-        bool flipY = (mode == NS_MIRROR) && (tileRow % 2 == 1);
+        bool mirrorY = (mode == NS_MIRROR) && (tileRow % 2 == 1);
         float drawH = ((float) srcH > remH) ? remH : (float) srcH;
-        float srcTop = flipY ? (srcY + srcH - drawH) : (float) srcY;
-        float ys = flipY ? -1.0f : 1.0f;
-        float drawY = flipY ? (cursorY + drawH) : cursorY;
+        float srcTop = mirrorY ? (srcY + srcH - drawH) : (float) srcY;
+        float ys = mirrorY ? -1.0f : 1.0f;
+        float drawY = mirrorY ? (cursorY + drawH) : cursorY;
 
         float cursorX = dstX;
         float remW = dstW;
         int32_t tileCol = 0;
         while (remW > 0.0f) {
-            bool flipX = (mode == NS_MIRROR) && (tileCol % 2 == 1);
+            bool mirrorX = (mode == NS_MIRROR) && (tileCol % 2 == 1);
             float drawW = (remW < (float) srcW) ? remW : (float) srcW;
-            float srcLeft = flipX ? (srcX + srcW - drawW) : (float) srcX;
-            float xs = flipX ? -1.0f : 1.0f;
-            float drawX = flipX ? (cursorX + drawW) : cursorX;
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcLeft, srcTop, drawW, drawH, drawX, drawY, xs, ys, angleDeg, pivotX, pivotY, color, alpha);
+            float srcLeft = mirrorX ? (srcX + srcW - drawW) : (float) srcX;
+            float xs = mirrorX ? -1.0f : 1.0f;
+            float drawX = mirrorX ? (cursorX + drawW) : cursorX;
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcLeft, srcTop, drawW, drawH, drawX, drawY, xs, ys, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
             cursorX += drawW;
             remW -= drawW;
             tileCol++;
@@ -590,7 +602,12 @@ static inline void Renderer_drawSpriteNineSlice(Renderer* renderer, int32_t spri
         int32_t tpagIndex = Renderer_resolveTPAGIndex(dw, spriteIndex, subimg);
         if (0 > tpagIndex) return;
         TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
-        renderer->vtable->drawSprite(renderer, tpagIndex, x, y, 0.0f, 0.0f, w / (float) tpag->boundingWidth, h / (float) tpag->boundingHeight, 0.0f, color, alpha);
+        float xscale = w / (float) tpag->boundingWidth;
+        float yscale = h / (float) tpag->boundingHeight;
+        if (xscale == 0.0f || yscale == 0.0f) return;
+        float originX = (pivotX - x) / xscale;
+        float originY = (pivotY - y) / yscale;
+        renderer->vtable->drawSprite(renderer, tpagIndex, pivotX, pivotY, originX, originY, flipX ? -xscale : xscale, flipY ? -yscale : yscale, angleDeg, color, alpha);
         return;
     }
 
@@ -600,17 +617,14 @@ static inline void Renderer_drawSpriteNineSlice(Renderer* renderer, int32_t spri
     uint8_t modeRight  = sprite->nsTileModes[2]; // right edge
     uint8_t modeCenter = sprite->nsTileModes[4]; // center
 
-    // Flip remaps which source corner/edge content appears at which destination position.
-    // flipX swaps left <-> right; flipY swaps top <-> bottom.
-    // dstL/dstR are the dest margin widths; srcXLeft/srcXRight are the source x-offsets.
-    int32_t dstL = flipX ? R : L;
-    int32_t dstR = flipX ? L : R;
-    int32_t dstT = flipY ? B : T;
-    int32_t dstB = flipY ? T : B;
-    int32_t srcXLeft  = flipX ? (sw - R) : 0;
-    int32_t srcXRight = flipX ? 0 : (sw - R);
-    int32_t srcYTop   = flipY ? (sh - B) : 0;
-    int32_t srcYBot   = flipY ? 0 : (sh - B);
+    int32_t dstL = L;
+    int32_t dstR = R;
+    int32_t dstT = T;
+    int32_t dstB = B;
+    int32_t srcXLeft  = 0;
+    int32_t srcXRight = sw - R;
+    int32_t srcYTop   = 0;
+    int32_t srcYBot   = sh - B;
 
     float dstCW = w - (float) (L + R);
     float dstCH = h - (float) (T + B);
@@ -618,47 +632,47 @@ static inline void Renderer_drawSpriteNineSlice(Renderer* renderer, int32_t spri
     float ysCenter = (dstCH > 0) ? dstCH / (float) srcCH : 0.0f;
 
     // Corners: always drawn at native pixel size regardless of tile mode.
-    Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXLeft,  srcYTop, dstL, dstT, x,           y,           1.0f, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
-    Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXRight, srcYTop, dstR, dstT, x + w - dstR, y,          1.0f, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
-    Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXLeft,  srcYBot, dstL, dstB, x,           y + h - dstB, 1.0f, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
-    Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXRight, srcYBot, dstR, dstB, x + w - dstR, y + h - dstB, 1.0f, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
+    Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXLeft,  srcYTop, dstL, dstT, x,           y,           1.0f, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
+    Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXRight, srcYTop, dstR, dstT, x + w - dstR, y,          1.0f, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
+    Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXLeft,  srcYBot, dstL, dstB, x,           y + h - dstB, 1.0f, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
+    Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXRight, srcYBot, dstR, dstB, x + w - dstR, y + h - dstB, 1.0f, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
 
     // Top and bottom edges (horizontal variable axis). Source x is always the center strip (L..sw-R).
     if (dstCW > 0) {
         if (modeTop == NS_STRETCH) {
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, L, srcYTop, srcCW, dstT, x + dstL, y,           xsCenter, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, L, srcYTop, srcCW, dstT, x + dstL, y,           xsCenter, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } else if (modeTop == NS_REPEAT || modeTop == NS_MIRROR || modeTop == NS_BLANKREPEAT) {
-            Renderer_nineSliceTileH(renderer, spriteIndex, subimg, L, srcYTop, srcCW, dstT, x + dstL, y,           dstCW, modeTop, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceTileH(renderer, spriteIndex, subimg, L, srcYTop, srcCW, dstT, x + dstL, y,           dstCW, modeTop, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } // NS_HIDE: draw nothing
 
         if (modeBottom == NS_STRETCH) {
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, L, srcYBot, srcCW, dstB, x + dstL, y + h - dstB, xsCenter, 1.0f, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, L, srcYBot, srcCW, dstB, x + dstL, y + h - dstB, xsCenter, 1.0f, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } else if (modeBottom == NS_REPEAT || modeBottom == NS_MIRROR || modeBottom == NS_BLANKREPEAT) {
-            Renderer_nineSliceTileH(renderer, spriteIndex, subimg, L, srcYBot, srcCW, dstB, x + dstL, y + h - dstB, dstCW, modeBottom, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceTileH(renderer, spriteIndex, subimg, L, srcYBot, srcCW, dstB, x + dstL, y + h - dstB, dstCW, modeBottom, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } // NS_HIDE: draw nothing
     }
 
     // Left and right edges (vertical variable axis). Source y is always the center strip (T..sh-B).
     if (dstCH > 0) {
         if (modeLeft == NS_STRETCH) {
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXLeft,  T, dstL, srcCH, x,           y + dstT, 1.0f, ysCenter, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXLeft,  T, dstL, srcCH, x,           y + dstT, 1.0f, ysCenter, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } else if (modeLeft == NS_REPEAT || modeLeft == NS_MIRROR || modeLeft == NS_BLANKREPEAT) {
-            Renderer_nineSliceTileV(renderer, spriteIndex, subimg, srcXLeft,  T, dstL, srcCH, x,           y + dstT, dstCH, modeLeft, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceTileV(renderer, spriteIndex, subimg, srcXLeft,  T, dstL, srcCH, x,           y + dstT, dstCH, modeLeft, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } // NS_HIDE: draw nothing
 
         if (modeRight == NS_STRETCH) {
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, srcXRight, T, dstR, srcCH, x + w - dstR, y + dstT, 1.0f, ysCenter, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, srcXRight, T, dstR, srcCH, x + w - dstR, y + dstT, 1.0f, ysCenter, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } else if (modeRight == NS_REPEAT || modeRight == NS_MIRROR || modeRight == NS_BLANKREPEAT) {
-            Renderer_nineSliceTileV(renderer, spriteIndex, subimg, srcXRight, T, dstR, srcCH, x + w - dstR, y + dstT, dstCH, modeRight, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceTileV(renderer, spriteIndex, subimg, srcXRight, T, dstR, srcCH, x + w - dstR, y + dstT, dstCH, modeRight, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } // NS_HIDE: draw nothing
     }
 
     // Center.
     if (dstCW > 0 && dstCH > 0) {
         if (modeCenter == NS_STRETCH) {
-            Renderer_drawSpritePartExt(renderer, spriteIndex, subimg, L, T, srcCW, srcCH, x + dstL, y + dstT, xsCenter, ysCenter, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceDrawPart(renderer, spriteIndex, subimg, L, T, srcCW, srcCH, x + dstL, y + dstT, xsCenter, ysCenter, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } else if (modeCenter == NS_REPEAT || modeCenter == NS_MIRROR) {
-            Renderer_nineSliceTile2D(renderer, spriteIndex, subimg, L, T, srcCW, srcCH, x + dstL, y + dstT, dstCW, dstCH, modeCenter, angleDeg, pivotX, pivotY, color, alpha);
+            Renderer_nineSliceTile2D(renderer, spriteIndex, subimg, L, T, srcCW, srcCH, x + dstL, y + dstT, dstCW, dstCH, modeCenter, flipX, flipY, angleDeg, pivotX, pivotY, color, alpha);
         } // NS_BLANKREPEAT and NS_HIDE: draw nothing
     }
 }

@@ -36,7 +36,7 @@
 #include "runner.h"
 #include "input_recording.h"
 #include "debug_overlay.h"
-#include "debug_font/debug_font.h"
+#include "default_font/default_font.h"
 #if (defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || ((defined(USE_GLFW3) || defined(USE_GLFW2)) && defined(ENABLE_SW_RENDERER))) && \
     !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !defined(PLATFORM_PS3) && !defined(PLATFORM_VITA) && !defined(__SWITCH__)
 #define USE_GLAD
@@ -560,6 +560,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         options.parseTmln = true;
         options.parseObjt = true;
         options.parseRoom = true;
+        options.parseTgin = true;
         options.parseTpag = true;
         options.parseCode = true;
         options.parseVari = true;
@@ -590,6 +591,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                 break;
             }
             options.parseTxtr = false;
+            options.parseTgin = false;
         } while(0);
 #endif
 #if defined(USE_MINIAUDIO) || defined(USE_OPENAL)
@@ -865,7 +867,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
         if (!platformInitialized) {
-            if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
+            if (!platformInit(windowW, windowH, windowTitle, args.headless, args.fullscreen)) {
                 DataWin_free(dataWin);
                 PreProcessedStuff_free();
                 return 1;
@@ -1408,7 +1410,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                         char memText[96];
                         snprintf(memText, sizeof(memText), "Memory: %zu bytes (%.1f MB)", overlayCachedMemBytes, overlayCachedMemBytes / 1024.0f / 1024.0f);
 
-                        text_height += (float)DEBUGFONT_LINE_HEIGHT * 0.5f;
+                        text_height += DEFAULT_FONT_UI_LINE_HEIGHT * 0.5f;
                         renderer->vtable->drawTextUI(renderer, memText, 10.0f, text_height, 0.5f, 0.5f, 0.0f, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1.0f, -1.0f);
                     }
 
