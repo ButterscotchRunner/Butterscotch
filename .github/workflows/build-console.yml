@@ -356,8 +356,7 @@ jobs:
           DEVKITPRO: /opt/devkitpro
         run: |
           set -eux
-          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
-          source "$DEVKITPRO/switch2vars.sh"
+          . "${DEVKITPRO:-/opt/devkitpro}/switch2vars.sh"
           aarch64-none-elf-cmake -B build -G Ninja \
             -DWERROR=ON \
             -DPLATFORM=switch \
