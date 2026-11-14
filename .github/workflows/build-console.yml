@@ -346,6 +346,10 @@ jobs:
           git clone --depth=1 https://github.com/ouncebrew/ounce-devkit.git /tmp/ounce-devkit
           sh /tmp/ounce-devkit/install.sh
 
+      - name: Install Switch runtime packages
+        run: |
+          dkp-pacman -S --needed --noconfirm switch-sdl2 switch-openal-soft
+
       - name: Configure and build
         env:
           DEVKITPRO: /opt/devkitpro
@@ -354,6 +358,7 @@ jobs:
           aarch64-none-elf-cmake -B build -G Ninja \
             -DWERROR=ON \
             -DPLATFORM=switch \
+            -DBACKEND=sdl2 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
