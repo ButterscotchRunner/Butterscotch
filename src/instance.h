@@ -15,6 +15,11 @@
 // Forward decl for Instance_structDecRef
 struct Runner;
 
+typedef struct {
+    GMLReal left, right, top, bottom;
+    bool valid;
+} InstanceBBox;
+
 struct Instance {
     uint32_t instanceId;
     int32_t objectIndex;
@@ -43,6 +48,14 @@ struct Instance {
     int32_t maskIndex; // collision mask sprite override (-1 = use spriteIndex)
     int32_t* collisionCells; // Used to track where we are
     uint32_t lastCollisionQueryId;
+    struct {
+        InstanceBBox bbox;
+        float x, y, xscale, yscale;
+        GMLReal angle;
+        GMLReal marginLeft, marginRight, marginTop, marginBottom;
+        GMLReal originX, originY;
+        bool compatibilityMode;
+    } bboxCache;
 
     // Per-instance self variable storage (sparse open-addressed hashmap, keyed by varID).
     IntRValueHashMap selfVars;

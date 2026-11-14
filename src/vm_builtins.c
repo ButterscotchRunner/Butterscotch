@@ -14211,22 +14211,36 @@ static RValue builtin_collision_rectangle(VMContext* ctx, RValue* args, int32_t 
 
     Instance* self = ctx->currentCallFrame->self;
 
+    Instance* singleInstance = nullptr;
+    Instance** candidates = nullptr;
+    int32_t candidateCount = 0;
+    if (targetObjIndex >= 0 && 100000 > targetObjIndex) {
+        if ((uint32_t) targetObjIndex < runner->dataWin->objt.count) {
+            candidates = runner->instancesByObject[targetObjIndex];
+            candidateCount = (int32_t) arrlen(candidates);
+        }
+    } else if (targetObjIndex == INSTANCE_ALL) {
+        candidates = runner->instances;
+        candidateCount = (int32_t) arrlen(candidates);
+    } else if (targetObjIndex >= INSTANCE_ID_BASE) {
+        singleInstance = hmget(runner->instancesById, targetObjIndex);
+        candidates = &singleInstance;
+        candidateCount = singleInstance != nullptr ? 1 : 0;
+    }
+
     int32_t resultId = INSTANCE_NOONE;
-    int32_t snapBase = Runner_pushInstancesForTarget(runner, targetObjIndex);
-    int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
-    for (int32_t snapIdx = snapBase; snapEnd > snapIdx; snapIdx++) {
-        Instance* inst = runner->instanceSnapshots[snapIdx];
+    for (int32_t i = 0; candidateCount > i; i++) {
+        Instance* inst = candidates[i];
         if (!inst->active) continue;
         if (notme && inst == self) continue;
 
         if (!Collision_rectOverlapsInstance(ctx->runner, inst, x1, y1, x2, y2)) continue;
 
-        InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
-
         // Precise check if requested and sprite has precise masks
         if (prec != 0) {
             Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
             if (Collision_hasFrameMasks(spr)) {
+                InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
                 // Check if any pixel in the overlap region hits the mask
                 GMLReal iLeft   = GMLReal_fmax(x1, bbox.left);
                 GMLReal iRight  = GMLReal_fmin(x2, bbox.right);
@@ -14253,7 +14267,6 @@ static RValue builtin_collision_rectangle(VMContext* ctx, RValue* args, int32_t 
         resultId = inst->instanceId;
         break;
     }
-    Runner_popInstanceSnapshot(runner, snapBase);
 
     return RValue_makeReal((GMLReal) resultId);
 }
