@@ -351,10 +351,13 @@ jobs:
           dkp-pacman -S --needed --noconfirm switch-sdl2 switch-openal-soft
 
       - name: Configure and build
+        shell: bash
         env:
           DEVKITPRO: /opt/devkitpro
         run: |
-          source /opt/devkitpro/switch2vars.sh
+          set -eux
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          source "$DEVKITPRO/switch2vars.sh"
           aarch64-none-elf-cmake -B build -G Ninja \
             -DWERROR=ON \
             -DPLATFORM=switch \
