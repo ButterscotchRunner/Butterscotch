@@ -319,3 +319,50 @@ jobs:
         with:
           name: butterscotch-switch
           path: build/butterscotch.nro
+
+  build-switch2:
+    name: Build (Nintendo Switch 2)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkita64:latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: switch2-ccache-${{ github.sha }}
+          restore-keys: |
+            switch2-ccache-
+
+      - name: Install build dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends ccache git curl
+
+      - name: Install ounce-devkit
+        run: |
+          git clone --depth=1 https://github.com/ouncebrew/ounce-devkit.git /tmp/ounce-devkit
+          sh /tmp/ounce-devkit/install.sh
+
+      - name: Configure and build
+        env:
+          DEVKITPRO: /opt/devkitpro
+        run: |
+          source /opt/devkitpro/switch2vars.sh
+          aarch64-none-elf-cmake -B build -G Ninja \
+            -DWERROR=ON \
+            -DPLATFORM=switch \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+          cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-switch2
+          path: build/butterscotch.nro
