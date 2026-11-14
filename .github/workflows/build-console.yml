@@ -346,10 +346,6 @@ jobs:
           git clone --depth=1 https://github.com/ouncebrew/ounce-devkit.git /tmp/ounce-devkit
           sh /tmp/ounce-devkit/install.sh
 
-      - name: Install Switch runtime packages
-        run: |
-          dkp-pacman -S --needed --noconfirm switch-sdl2 switch-openal-soft
-
       - name: Configure and build
         shell: bash
         env:
