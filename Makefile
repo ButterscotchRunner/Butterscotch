@@ -163,11 +163,7 @@ INCLUDES += $(INC)vendor/bzip2
 SRCS += $(wildcard vendor/bzip2/*.c)
 endif
 
-ifeq ($(BACKEND),noop)
-VIDEO_BACKEND := none
-else
 VIDEO_BACKEND := ffmpeg
-endif
 ifeq ($(VIDEO_BACKEND),ffmpeg)
 FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
 FFMPEG_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
