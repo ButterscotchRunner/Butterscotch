@@ -148,16 +148,16 @@ DEFINES += $(DEFINE)USE_NOOP
 endif
 
 ifndef DISABLE_SYSTEM_LIBBZ2
-BZIP2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags bzip2)
-BZIP2_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs bzip2)
-ifneq ($(strip $(BZIP2_CFLAGS)$(BZIP2_LIBS)),)
+LIBBZ2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags bzip2)
+LIBBZ2_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs bzip2)
+ifneq ($(strip $(LIBBZ2_CFLAGS)$(LIBBZ2_LIBS)),)
 ENABLE_SYSTEM_LIBBZ2 := 1
 endif
 endif
 
 ifdef ENABLE_SYSTEM_LIBBZ2
-SYSCFLAGS += $(BZIP2_CFLAGS)
-LIBS += $(BZIP2_LIBS)
+SYSCFLAGS += $(LIBBZ2_CFLAGS)
+LIBS += $(LIBBZ2_LIBS)
 else
 INCLUDES += $(INC)vendor/bzip2
 SRCS += $(wildcard vendor/bzip2/*.c)
