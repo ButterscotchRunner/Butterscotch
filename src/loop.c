@@ -44,6 +44,8 @@
 #ifdef ENABLE_LEGACY_GL
 #include "gl_legacy_renderer.h"
 #endif
+#endif
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL) || defined(USE_GLAD)
 #include "gl_common.h"
 #endif
 #ifdef ENABLE_SW_RENDERER
