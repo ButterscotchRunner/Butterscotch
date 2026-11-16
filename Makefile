@@ -48,7 +48,6 @@ INCLUDES += $(INC). \
 		    $(INC)vendor/md5 \
 		    $(INC)vendor/sha1 \
 		    $(INC)vendor/base64 \
-		    $(INC)vendor/bzip2 \
 		    $(INC)vendor/miniz
 ifeq ($(CC_IS_CXX),1)
 DISABLE_PHYSICS := 1
@@ -62,7 +61,7 @@ SRCS += src/physics/disabled/physics_disabled.c
 endif
 
 HEADERS += $(wildcard src/physics/*.h) $(wildcard src/*.h) $(wildcard src/default_font/*.h) $(shell find vendor -name '*.h')
-SRCS += $(wildcard src/*.c) $(wildcard src/default_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/bzip2/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
+SRCS += $(wildcard src/*.c) $(wildcard src/default_font/*.c) $(wildcard src/image/*.c) $(wildcard vendor/miniz/*.c) src/physics/physics.c vendor/md5/md5.c vendor/sha1/sha1.c vendor/base64/base64.c
 
 PLATFORM := cli
 BACKEND := glfw3
@@ -148,23 +147,43 @@ DISABLE_MODERN_GL := 1
 DEFINES += $(DEFINE)USE_NOOP
 endif
 
-VIDEO_BACKEND := ffmpeg
+ifndef DISABLE_SYSTEM_LIBBZ2
+BZIP2_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags bzip2)
+BZIP2_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs bzip2)
+ifneq ($(strip $(BZIP2_CFLAGS)$(BZIP2_LIBS)),)
+ENABLE_SYSTEM_LIBBZ2 := 1
+endif
+endif
 
+ifdef ENABLE_SYSTEM_LIBBZ2
+SYSCFLAGS += $(BZIP2_CFLAGS)
+LIBS += $(BZIP2_LIBS)
+else
+INCLUDES += $(INC)vendor/bzip2
+SRCS += $(wildcard vendor/bzip2/*.c)
+endif
+
+ifeq ($(BACKEND),noop)
+VIDEO_BACKEND := none
+else
+VIDEO_BACKEND := ffmpeg
+endif
 ifeq ($(VIDEO_BACKEND),ffmpeg)
 FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
 FFMPEG_LIBS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --libs libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
-ifneq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
+ifeq ($(strip $(FFMPEG_CFLAGS)$(FFMPEG_LIBS)),)
+VIDEO_BACKEND := none
+endif
+endif
+
+ifeq ($(VIDEO_BACKEND),ffmpeg)
 SYSCFLAGS += $(FFMPEG_CFLAGS)
 LIBS += $(FFMPEG_LIBS)
 DEFINES += $(DEFINE)BUTTERSCOTCH_FFMPEG
 SRCS += src/video/ffmpeg/ffmpeg.c
 INCLUDES += $(INC)src/video
 HEADERS += $(wildcard src/video/*.h)
-else
-VIDEO_BACKEND := none
 endif
-endif
-
 ifeq ($(VIDEO_BACKEND),none)
 DEFINES += $(DEFINE)BUTTERSCOTCH_VIDEO_NULL
 SRCS += src/video/null_video.c
