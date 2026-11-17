@@ -18,12 +18,12 @@
 #include <malloc.h>
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(PLATFORM_DOS)
 #include <unistd.h>
 #if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
 #include <sys/mman.h>
 #endif
-#else
+#elif defined(_WIN32)
 #include <windows.h>
 typedef DWORD (WINAPI *DiscardVirtualMemory_t)(PVOID, size_t);
 #endif
@@ -198,30 +198,35 @@ static inline void bsGetDirname(char* path) {
     }
     
     char* lastSlash = strrchr(path, '/');
-#ifdef _WIN32
+#if defined(_WIN32) || defined(PLATFORM_DOS)
     char* lastBackslash = strrchr(path, '\\');
 #endif
     char* target = nullptr;
     if (lastSlash != nullptr && (target == nullptr || lastSlash > target))
         target = lastSlash;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(PLATFORM_DOS)
     if (lastBackslash != nullptr && (target == nullptr || lastBackslash > target))
         target = lastBackslash;
 #endif
 
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(PLATFORM_DOS)
     if (target == nullptr)
         target = strrchr(path, ':');
 #endif
 
     if (target) {
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#ifdef PLATFORM_DOS
+        if (path[1] == ':' && target == path + 2 && (target[0] == '/' || target[0] == '\\')) {
+            target[1] = '\0';
+        } else
+#endif
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(PLATFORM_DOS)
         if (target[0] == ':') {
             target[1] = '\0';
         } else
 #endif
         if (target == path
-#if defined(_WIN32) || defined(PLATFORM_VITA)
+#if defined(_WIN32) || defined(PLATFORM_VITA) || defined(PLATFORM_DOS)
             || target[0] == ':'
 #endif
             ) {
@@ -258,7 +263,7 @@ static inline void dropMappedRange(uint8_t *base, size_t off, size_t len) {
         checked = 1;
     }
     if (pDiscardVirtualMemory != nullptr) pDiscardVirtualMemory((PVOID)(base + off), (size_t)len);
-#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
+#elif !defined(PLATFORM_DOS) && defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0 && defined(MADV_DONTNEED)
     static long ps = 0;
     if (!ps) ps = sysconf(_SC_PAGESIZE); // needs <unistd.h>, already included
     if (ps <= 0) return;

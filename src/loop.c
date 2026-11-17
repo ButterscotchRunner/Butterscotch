@@ -76,10 +76,12 @@ enum GraphicsAPI gfx;
 const GLuint *hostFramebuffer;
 #endif
 
-#ifndef _WIN32
+#if defined(__linux__)
 #include <fcntl.h>
 #include <unistd.h>
-#else
+#elif !defined(_WIN32) && !defined(PLATFORM_DOS)
+#include <unistd.h>
+#elif defined(_WIN32)
 /* we define this ourselves because psapi.h isn't available in msvc 4.0 */
 typedef struct {
     DWORD cb;

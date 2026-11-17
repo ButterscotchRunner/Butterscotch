@@ -2,6 +2,20 @@
   "version": 2,
   "configurePresets": [
     {
+      "name": "dos",
+      "displayName": "DJGPP DOS (SDL3)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-dos",
+      "toolchainFile": "${sourceDir}/cmake/djgpp.cmake",
+      "cacheVariables": {
+        "PLATFORM": "dos",
+        "BACKEND": "sdl3",
+        "AUDIO_BACKEND": "none",
+        "VIDEO_BACKEND": "none",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "base",
       "hidden": true,
       "generator": "Ninja",

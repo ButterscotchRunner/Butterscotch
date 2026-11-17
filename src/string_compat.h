@@ -2,7 +2,7 @@
 #define _BS_STRING_COMPAT_H_
 
 #include <string.h>
-#ifndef NO_STRINGS_H
+#if !defined(NO_STRINGS_H) && !defined(NO_STRCASECMP)
 #include <strings.h>
 #endif
 
@@ -10,7 +10,7 @@
 
 #include <ctype.h>
 
-static int strcasecmp(const char *_s1, const char *_s2) {
+static inline int bsStrcasecmp(const char *_s1, const char *_s2) {
 #ifdef _WIN32
     return _stricmp(_s1, _s2);
 #else
@@ -26,6 +26,7 @@ static int strcasecmp(const char *_s1, const char *_s2) {
     return tolower(*s1) - tolower(*s2);
 #endif
 }
+#define strcasecmp(s1, s2) bsStrcasecmp((s1), (s2))
 
 #endif
 

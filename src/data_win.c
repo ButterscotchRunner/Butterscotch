@@ -13,13 +13,14 @@
 #ifdef _WIN32
     #include <windows.h>
     #include <io.h>
-#else
+#elif !defined(PLATFORM_DOS)
     #include <unistd.h>
     #if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES > 0)
         #include <sys/mman.h>
     #endif
 #endif
 
+#ifndef PLATFORM_DOS
 static uint8_t *mapFile(FILE *file, size_t size) {
     if (!file || size == 0) return NULL;
 
@@ -47,7 +48,7 @@ static uint8_t *mapFile(FILE *file, size_t size) {
 
     if (!ptr) return NULL;
     return (uint8_t *)ptr;
-#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
+#elif !defined(PLATFORM_DOS) && defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
     int fd = fileno(file);
     if (fd == -1) return NULL;
 
@@ -59,6 +60,7 @@ static uint8_t *mapFile(FILE *file, size_t size) {
     return NULL;
 #endif
 }
+#endif /* !PLATFORM_DOS */
 
 static void unmapFile(uint8_t *ptr, size_t size) {
     if (!ptr) return;
@@ -66,7 +68,7 @@ static void unmapFile(uint8_t *ptr, size_t size) {
 #ifdef _WIN32
     (void)size;
     UnmapViewOfFile((LPCVOID)ptr);
-#elif defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
+#elif !defined(PLATFORM_DOS) && defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
     munmap((void*)ptr, size);
 #else
     (void)size;
@@ -3090,6 +3092,15 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         safeFread(wholeFileData, fileSize, file, filePath);
         BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
     } else if (options.loadType == DATAWINLOADTYPE_MAP_FILE) {
+#ifdef PLATFORM_DOS
+        // DJGPP does not provide the virtual-memory mapping APIs used on desktop
+        // targets. Keep the map-file option usable by reading the WAD into RAM.
+        options.loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME;
+        wholeFileData = (uint8_t *)safeMalloc((size_t) fileSize);
+        fseek(file, 0, SEEK_SET);
+        safeFread(wholeFileData, fileSize, file, filePath);
+        BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
+#else
         wholeFileData = mapFile(file, fileSize);
         if (!wholeFileData) {
             logError("Failed to map file\n");
@@ -3098,6 +3109,7 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         }
         BinaryReader_setBuffer(&reader, wholeFileData, 0, (size_t) fileSize);
         dw->mappedFile = wholeFileData;
+#endif
     }
 
     // Validate FORM header
