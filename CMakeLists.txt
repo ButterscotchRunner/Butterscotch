@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
 
+# The source tree also contains a hand-written Makefile; in-source CMake
+# generation would overwrite it and make subsequent `make PLATFORM=...` builds
+# invoke CMake's generated build rules instead.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR "In-source CMake builds are unsupported. Use `cmake -S . -B build` or a configure preset.")
+endif()
+
 if(PLATFORM STREQUAL "ps3")
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/ppu.cmake)
 endif()
@@ -95,6 +102,13 @@ set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
 set(IMAGE_DECODER "wuffs" CACHE STRING "Image decoder")
 
+if(PLATFORM STREQUAL "dos")
+    # DOS uses SDL3 and has no supported desktop audio/video stack. Force these
+    # settings even when reconfiguring a build directory previously used for CLI.
+    set(BACKEND "sdl3" CACHE STRING "Desktop platform backend" FORCE)
+    set(AUDIO_BACKEND "none" CACHE STRING "Audio backend" FORCE)
+endif()
+
 if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
     message(FATAL_ERROR "You need to set a BACKEND!")
 endif()
@@ -153,7 +167,13 @@ else()
     set(ENABLE_MODERN_GL_DEFAULT ON)
 endif()
 option(ENABLE_MODERN_GL "Enable the modern OpenGL renderer" ${ENABLE_MODERN_GL_DEFAULT})
+if(PLATFORM STREQUAL "dos")
+    set(ENABLE_MODERN_GL OFF CACHE BOOL "Enable the modern OpenGL renderer" FORCE)
+endif()
 option(ENABLE_NOOP_RENDERER "Enable the no-op renderer (headless stub, no drawing)" OFF)
+if(PLATFORM STREQUAL "dos")
+    set(ENABLE_NOOP_RENDERER OFF CACHE BOOL "Enable the no-op renderer (headless stub, no drawing)" FORCE)
+endif()
 option(ENABLE_PHYSICS "Enable Box2D physics support" ON)
 option(ENABLE_FMOD "Enable standalone FMOD bank/event compatibility" ON)
 # Noop renderer is exclusive to the noop desktop backend (no window, no GL).
@@ -229,6 +249,9 @@ else()
     set(VIDEO_BACKEND_DEFAULT "ffmpeg")
 endif()
 set(VIDEO_BACKEND "${VIDEO_BACKEND_DEFAULT}" CACHE STRING "Video playback backend (ffmpeg or none)")
+if(PLATFORM STREQUAL "dos")
+    set(VIDEO_BACKEND "none" CACHE STRING "Video playback backend (ffmpeg or none)" FORCE)
+endif()
 set(BUTTERSCOTCH_FFMPEG_STATIC_LIBS "")
 
 if(NOT VIDEO_BACKEND STREQUAL "ffmpeg" AND NOT VIDEO_BACKEND STREQUAL "none")
@@ -442,6 +465,10 @@ if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "swi
         set(VM_TRACING_DEFAULT OFF)
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
+        set(ENABLE_VM_GML_PROFILER OFF CACHE BOOL "Enable Butterscotch VM/interpreter profiler" FORCE)
+        set(ENABLE_VM_TRACING OFF CACHE BOOL "Enable Butterscotch VM/interpreter tracing checks" FORCE)
+        set(ENABLE_VM_OPCODE_PROFILER OFF CACHE BOOL "Enable Butterscotch VM opcode count profiler" FORCE)
+        set(ENABLE_VM_STUB_LOGS OFF CACHE BOOL "Enable VM unknown/stubbed function logs" FORCE)
         set(ENABLE_FILE_PICKER OFF CACHE BOOL "Enable file picker" FORCE)
     elseif(PLATFORM STREQUAL "webos")
         set(VM_GML_PROFILER_DEFAULT OFF)

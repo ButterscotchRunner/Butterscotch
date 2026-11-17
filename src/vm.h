@@ -388,9 +388,9 @@ static inline void VM_checkIfVariableShouldBeTracedAndLog(VMContext* ctx, const 
     const char* verb = isWrite ? "WRITE" : "READ";
     const char* arrow = isWrite ? "=" : "->";
     char indexBuf[16] = "";
-    if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%d]", arrayIndex);
+    if (arrayIndex >= 0) snprintf(indexBuf, sizeof(indexBuf), "[%ld]", (long)arrayIndex);
     char instanceIdBuf[28] = "";
-    if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%d)", instanceId);
+    if (instanceId >= 0) snprintf(instanceIdBuf, sizeof(instanceIdBuf), " (instanceId=%ld)", (long)instanceId);
     logInfo("VM: [%s] %s %s.%s%s %s %s%s%s\n", VM_getCurrentCallFrameCodeName(ctx), verb, scopeName, name, indexBuf, arrow, rvalueAsString, instanceIdBuf, additional);
     free(rvalueAsString);
 }

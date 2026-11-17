@@ -1,7 +1,9 @@
 # Cross-compilation toolchain for DJGPP (32-bit DOS).
 #
 # Select a compiler explicitly with -DDJGPP_CC=/path/to/i586-pc-msdosdjgpp-gcc,
-# or put i586-pc-msdosdjgpp-gcc on PATH.
+# or put i586-pc-msdosdjgpp-gcc on PATH. This toolchain always selects DOS.
+set(PLATFORM "dos" CACHE STRING "Platform backend" FORCE)
+
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR i386)
 set(CMAKE_EXECUTABLE_SUFFIX ".exe")

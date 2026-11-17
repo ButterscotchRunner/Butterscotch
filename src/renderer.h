@@ -878,8 +878,8 @@ static inline void Renderer_drawRoundRectColor(Renderer* renderer, float x1, flo
     int32_t quarterSeg = Renderer_normalizeCirclePrecision(renderer->circlePrecision) / 4;
     if (1 > quarterSeg) quarterSeg = 1;
 
-    const float PI = 3.14159265358979323846f;
-    const float halfPi = PI * 0.5f;
+    const float pi = 3.14159265358979323846f;
+    const float halfPi = pi * 0.5f;
 
     float px = x1;
     float py = y1 + yrad;
@@ -887,7 +887,7 @@ static inline void Renderer_drawRoundRectColor(Renderer* renderer, float x1, flo
     {
         float step = halfPi / (float) quarterSeg;
         for (int32_t i = 1; quarterSeg >= i; i++) {
-            float ang = PI + step * (float) i;
+            float ang = pi + step * (float) i;
             float curX = ccxTL + xrad * cosf(ang);
             float curY = ccyTL + yrad * sinf(ang);
             BS_RR_EMIT(px, py, curX, curY);

@@ -177,7 +177,15 @@ PKG_CONFIG_LIBDIR=/path/to/djgpp-sdl/lib/pkgconfig cmake --preset dos
 cmake --build build-dos
 ```
 
-The preset searches for `i586-pc-msdosdjgpp-gcc` (or `djgpp-gcc`); use `-DDJGPP_CC=/path/to/compiler` to select another compiler. The Makefile target is also available:
+The preset searches for `i586-pc-msdosdjgpp-gcc` (or `djgpp-gcc`); use `-DDJGPP_CC=/path/to/compiler` to select another compiler. Selecting the DJGPP toolchain also defaults `PLATFORM` to `dos`. For a manual configure, use an out-of-source build directory:
+
+```sh
+PKG_CONFIG_LIBDIR=/path/to/djgpp-sdl/lib/pkgconfig cmake -S . -B build-dos \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/djgpp.cmake -DBACKEND=sdl3
+cmake --build build-dos
+```
+
+The Makefile target is also available:
 
 ```sh
 make PLATFORM=dos CC=i586-pc-msdosdjgpp-gcc
