@@ -1,6 +1,8 @@
 #include "gettime.h"
 
-#if defined(PLATFORM_PS2)
+#if defined(PLATFORM_DOS)
+#include <SDL3/SDL.h>
+#elif defined(PLATFORM_PS2)
 #include <timer.h>
 #elif defined(PLATFORM_PS3)
 #include <sys/systime.h>
@@ -16,7 +18,9 @@
 #endif
 
 uint64_t nowNanos(void) {
-#if defined(PLATFORM_PS2)
+#if defined(PLATFORM_DOS)
+    return SDL_GetTicksNS();
+#elif defined(PLATFORM_PS2)
     // kBUSCLK is bus clock ticks per second (~147 MHz).
     // Split to avoid u64 overflow in ticks * 1e9.
     uint64_t t = (uint64_t) GetTimerSystemTime();

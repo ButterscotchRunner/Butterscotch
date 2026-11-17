@@ -72,6 +72,7 @@ Some games may also have issues if they use an *external extension* for stuff li
 
 * Windows
 * macOS
+* DJGPP / DOS (SDL3-based build target)
 * Web
 * PlayStation 2
 * PlayStation 3
@@ -164,6 +165,25 @@ make
 If you are using CLion, set the platform in `Settings` > `Build, Execution, Deployment` > `CMake` and add `-DBACKEND=glfw3`
 
 Then run Butterscotch with `./butterscotch` - it will automatically search for `data.win`, `assets/game.unx`, `assets/game.droid` or `../Resources/game.ios` relative to the binary, otherwise you can specify a path with `./butterscotch /path/to/data.win`. You can also run ./butterscotch with no arguments to get to the TUI where you can add games to access them easier.
+
+### DJGPP / DOS
+
+The DOS target uses the DJGPP compiler and SDL3's DOS port. It defaults to the legacy GL renderer (the runtime currently has no SDL_Renderer-based drawing implementation), so the SDL3 build must provide its OpenGL 1.x context/procedure APIs. Audio, FFmpeg video decoding, the desktop file picker, gamepad initialization, and modern GL are omitted; file mapping requests fall back to loading the WAD into RAM.
+
+Install SDL3 headers and libraries built for DJGPP, and make their `sdl3.pc` visible to the host `pkg-config`. Then cross-build from a host with:
+
+```sh
+PKG_CONFIG_LIBDIR=/path/to/djgpp-sdl/lib/pkgconfig cmake --preset dos
+cmake --build build-dos
+```
+
+The preset searches for `i586-pc-msdosdjgpp-gcc` (or `djgpp-gcc`); use `-DDJGPP_CC=/path/to/compiler` to select another compiler. The Makefile target is also available:
+
+```sh
+make PLATFORM=dos CC=i586-pc-msdosdjgpp-gcc
+```
+
+Both routes produce `butterscotch.exe`. Pass a WAD path as the first argument when launching it.
 
 ## CLI parameters
 

@@ -69,6 +69,16 @@ BACKEND := glfw3
 AUDIO_BACKEND := miniaudio
 IMAGE_DECODER := wuffs
 
+ifeq ($(PLATFORM),dos)
+BACKEND := sdl3
+AUDIO_BACKEND := none
+PKG_CONFIG_FLAGS := --static
+DISABLE_MODERN_GL := 1
+DEFINES += $(DEFINE)PLATFORM_DOS $(DEFINE)NO_STRCASECMP
+INCLUDES += $(INC)compat/getopt
+SRCS += src/cli/args.c src/cli/stb_impl.c
+endif
+
 ifdef BUTTERSCOTCH_COMMIT_DATE
 DEFINES += $(DEFINE)BUTTERSCOTCH_COMMIT_DATE=\"$(BUTTERSCOTCH_COMMIT_DATE)\"
 else
@@ -149,6 +159,9 @@ DEFINES += $(DEFINE)USE_NOOP
 endif
 
 VIDEO_BACKEND := ffmpeg
+ifeq ($(PLATFORM),dos)
+VIDEO_BACKEND := none
+endif
 
 ifeq ($(VIDEO_BACKEND),ffmpeg)
 FFMPEG_CFLAGS := $(shell $(PKG_CONFIG) $(PKG_CONFIG_FLAGS) --cflags libavformat libavcodec libavutil libswscale libswresample 2>/dev/null)
@@ -290,7 +303,13 @@ endif
 OBJS := $(addprefix build/,$(SRCS))
 OBJS := $(OBJS:%=%.$(OBJ_EXT))
 
-all: build/butterscotch
+ifeq ($(PLATFORM),dos)
+BUTTERSCOTCH_EXE := build/butterscotch.exe
+else
+BUTTERSCOTCH_EXE := build/butterscotch
+endif
+
+all: $(BUTTERSCOTCH_EXE)
 
 -include $(OBJS:.$(OBJ_EXT)=.d)
 
@@ -301,7 +320,7 @@ compat/config.mk: compat/configure.sh compat/tmp/cc
 
 endif
 
-build/butterscotch: $(OBJS)
+$(BUTTERSCOTCH_EXE): $(OBJS)
 	@{ [ -z "$(NO_COLOR)" ] && [ -t 1 ]; } && printf " \033[1;34mLD\033[0m butterscotch\n" || printf " LD butterscotch\n"
 	$(V)MSYS2_ARG_CONV_EXCL='*' $(_CC) $(LDFLAGS) $(OBJS) $(LIBS) $(EXTRALIBS) $(OUTPUT_EXE)$@
 	@[ -f $@.exe ] && chmod +x $@.exe || true

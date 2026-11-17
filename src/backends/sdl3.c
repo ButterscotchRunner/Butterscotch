@@ -166,7 +166,12 @@ static void platformSetWindowFullscreen(bool fullscreen) {
 
 bool platformInit(int reqW, int reqH, const char *title, bool headless, bool fullscreen) {
     // Init SDL
+#ifdef PLATFORM_DOS
+    // The DOS port does not expose SDL gamepad services.
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+#else
     if (!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMEPAD)) {
+#endif
         logError("Failed to initialize SDL\n");
         return false;
     }
@@ -175,7 +180,11 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
         openControllers[i] = NULL;
     }
 
+#ifdef PLATFORM_DOS
+    Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : 0);
+#else
     Uint32 flags = (gfx == SOFTWARE ? 0 : SDL_WINDOW_OPENGL) | (headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_RESIZABLE);
+#endif
     fbWidth = reqW;
     fbHeight = reqH;
 
@@ -218,6 +227,11 @@ void platformExit(void) {
 }
 
 static void platformSetCursor(int32_t cursorType) {
+#ifdef PLATFORM_DOS
+    // The DOS video driver has no system cursor support.
+    (void)cursorType;
+    return;
+#else
     if (cursorType == GML_CR_NONE) {
         SDL_HideCursor();
         return;
@@ -244,6 +258,7 @@ static void platformSetCursor(int32_t cursorType) {
     if (cursor) {
         SDL_SetCursor(cursor);
     }
+#endif
 }
 
 void platformInitFunctions(Runner *runner) {

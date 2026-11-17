@@ -50,6 +50,7 @@ static inline int getopt_long(int argc, char *const argv_const[],
                               const char *optstring,
                               const struct option *longopts, int *longindex) {
     (void)optstring;
+    if (optind == 0) optind = 1; /* glibc-style reset used by the CLI parser */
     char **argv = (char **)argv_const; /* permutation requires reordering */
 
     /*

@@ -39,7 +39,14 @@ static inline char* normalizePath(const char* path) {
 }
 
 static bool isAbsolute(const char* path) {
-    return path != nullptr && path[0] == '/';
+    if (path == nullptr) return false;
+#ifdef PLATFORM_DOS
+    // DJGPP accepts both slash spellings, and paths such as C:/GAMES/... are
+    // absolute even though they do not begin with a slash.
+    return path[0] == '/' || (path[0] != '\0' && path[1] == ':' && path[2] == '/');
+#else
+    return path[0] == '/';
+#endif
 }
 
 // Joins basePath (assumed to end with '/') with a relative path. Absolute inputs pass through as-is.
