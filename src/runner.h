@@ -748,6 +748,9 @@ struct Runner {
     int32_t oldApplicationHeight;
     int32_t widescreenExtraWidth;
     int32_t widescreenExtraHeight;
+    // Camera of the on-screen view being drawn while the widescreen hack/free camera is active (nullptr otherwise); its projection gets drawViewClipAdjustment
+    GMLCamera* drawViewCamera;
+    Matrix4f drawViewClipAdjustment;
     float displayScaleX;
     float displayScaleY;
     float freeCamPanX, freeCamPanY, freeCamZoom; // Visual-only free camera.
@@ -985,6 +988,8 @@ void Runner_clearAllObjectLists(Runner* runner);
 
 // Update The Camera For Basic Views!
 void Runner_updateCameraViewSimple(GMLCamera* camera);
+// Every place that applies a camera's matrices must go through here, otherwise the widescreen hack/free camera is lost for the rest of the view
+void Runner_applyCameraProjection(Runner* runner, GMLCamera* camera);
 
 // Push a snapshot of instancesByObject[targetObjIndex] onto runner->instanceSnapshots. Returns the base offset where this snapshot begins.
 // The length is arrlen(runner->instanceSnapshots) - base.

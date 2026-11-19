@@ -1113,7 +1113,7 @@ static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UN
     modernGl->batchCount = 0;
     modernGl->currentTextureId = 0;
 
-    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1, glApplyProjection);
+    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE1);
     VMBuiltins_applyD3DDefaultView(renderer, viewX, viewY, viewW, viewH, viewAngle);
     glClearDepthBuffer(renderer, 1.0f);
 
@@ -2748,7 +2748,7 @@ static bool glSetRenderTarget(Renderer* renderer, int32_t surfaceId, bool implic
         glEnable(GL_SCISSOR_TEST);
         glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
 
-        glApplyProjection(renderer,&camera->viewMatrix,&camera->projectionMatrix);
+        Runner_applyCameraProjection(renderer->runner, camera);
 
         return true;
     }
