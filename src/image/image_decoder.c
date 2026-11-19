@@ -170,8 +170,17 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
 
     // Upper bound on decompressed QOI: header size + width*height*5 pixel data.
     size_t uncompressedCapacity = QOI_HEADER_SIZE + (size_t) width * (size_t) height * 5;
-    uint8_t* uncompressed = (uint8_t*) malloc(uncompressedCapacity);
-    if (!uncompressed) return nullptr;
+    
+    // reusable buffer instead of allocating once per page
+    static uint8_t* uncompressed = nullptr;
+    static size_t uncompressedCap = 0;
+
+    if (uncompressedCapacity > uncompressedCap) {
+        uint8_t* grown = (uint8_t*) realloc(uncompressed, uncompressedCapacity);
+        if (!grown) return nullptr;
+        uncompressed = grown;
+        uncompressedCap = uncompressedCapacity;
+    }
 #ifdef USE_WUFFS_IMGDEC
     // The bzip2 decoder struct is ~4 MB (it embeds the whole 900k block buffer), so it MUST live on the heap:
     // on threads with small stacks (Android's ~1 MB GL executor thread) a stack-allocated decoder overflows.
@@ -179,19 +188,13 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     size_t decSize = sizeof__wuffs_bzip2__decoder();
     if (dec == nullptr) { 
         dec = (wuffs_bzip2__decoder*)malloc(decSize);
-        if (!dec) {
-            free(uncompressed);
-            return nullptr;
-        }
+        if (!dec) return nullptr;
     }
     wuffs_base__status status = wuffs_bzip2__decoder__initialize(
         dec, decSize, WUFFS_VERSION,
         WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED
     );
-    if (!wuffs_base__status__is_ok(&status)) {
-        free(uncompressed);
-        return nullptr;
-    }
+    if (!wuffs_base__status__is_ok(&status)) return nullptr;
 
     wuffs_bzip2__decoder__set_quirk(dec, WUFFS_BASE__QUIRK_IGNORE_CHECKSUM, 1);
 
@@ -200,11 +203,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
 
     status = wuffs_bzip2__decoder__transform_io(dec, &dstBuf, &srcBuf, wuffs_base__empty_slice_u8());
 
-    if (wuffs_base__status__is_ok(&status)) {
-        uint8_t* result = decodeQoi(uncompressed, dstBuf.meta.wi, outW, outH);
-        free(uncompressed);
-        return result;
-    }
+    if (wuffs_base__status__is_ok(&status)) return decodeQoi(uncompressed, dstBuf.meta.wi, outW, outH);
 
     logWarn("ImageDecoder: wuffs BZ2 decompress failed (%s), trying libbzip2 fallback\n", status.repr ? status.repr : "unknown");
 #endif 
