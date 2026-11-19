@@ -178,7 +178,7 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     static wuffs_bzip2__decoder* dec = nullptr;
     size_t decSize = sizeof__wuffs_bzip2__decoder();
     if (dec == nullptr) { 
-        dec = malloc(decSize);
+        dec = (wuffs_bzip2__decoder*)malloc(decSize);
         if (!dec) {
             free(uncompressed);
             return nullptr;
