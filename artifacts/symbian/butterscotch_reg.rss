@@ -1,0 +1,17 @@
+#include <appinfo.rh>
+#include <Butterscotch.rsg>
+
+UID2 KUidAppRegistrationResourceFile
+UID3 0xEC93FBDE
+
+RESOURCE APP_REGISTRATION_INFO
+{
+	app_file="Butterscotch";
+
+	localisable_resource_file="\\resource\\apps\\butterscotch";
+	localisable_resource_id=R_BUTTERSCOTCH_LOCALISABLE_APP_INFO;
+
+	embeddability=KAppNotEmbeddable;
+	newfile=KAppDoesNotSupportNewFile;
+}
+
