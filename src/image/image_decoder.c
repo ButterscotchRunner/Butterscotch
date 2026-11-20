@@ -175,18 +175,20 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
 #ifdef USE_WUFFS_IMGDEC
     // The bzip2 decoder struct is ~4 MB (it embeds the whole 900k block buffer), so it MUST live on the heap:
     // on threads with small stacks (Android's ~1 MB GL executor thread) a stack-allocated decoder overflows.
+    static wuffs_bzip2__decoder* dec = nullptr;
     size_t decSize = sizeof__wuffs_bzip2__decoder();
-    wuffs_bzip2__decoder* dec = (wuffs_bzip2__decoder*) malloc(decSize);
-    if (!dec) {
-        free(uncompressed);
-        return nullptr;
+    if (dec == nullptr) { 
+        dec = (wuffs_bzip2__decoder*)malloc(decSize);
+        if (!dec) {
+            free(uncompressed);
+            return nullptr;
+        }
     }
     wuffs_base__status status = wuffs_bzip2__decoder__initialize(
         dec, decSize, WUFFS_VERSION,
         WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED
     );
     if (!wuffs_base__status__is_ok(&status)) {
-        free(dec);
         free(uncompressed);
         return nullptr;
     }
@@ -197,7 +199,6 @@ static uint8_t* decodeBz2Qoi(const uint8_t* blob, size_t blobSize, bool gm2022_5
     wuffs_base__io_buffer srcBuf = wuffs_base__ptr_u8__reader((uint8_t*)(blob + headerSize), blobSize - headerSize, true);
 
     status = wuffs_bzip2__decoder__transform_io(dec, &dstBuf, &srcBuf, wuffs_base__empty_slice_u8());
-    free(dec);
 
     if (wuffs_base__status__is_ok(&status)) {
         uint8_t* result = decodeQoi(uncompressed, dstBuf.meta.wi, outW, outH);
