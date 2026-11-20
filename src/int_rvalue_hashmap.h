@@ -32,7 +32,19 @@ typedef struct {
 void IntRValueHashMap_freeAllValues(IntRValueHashMap* map);
 
 // Returns a pointer to the value slot for key, or nullptr if absent. The pointer is valid until the next mutation of the map.
-RValue* IntRValueHashMap_findSlot(IntRValueHashMap* map, int32_t key);
+// Inline: this is the instance/global variable read path of the interpreter.
+static inline RValue* IntRValueHashMap_findSlot(IntRValueHashMap* map, int32_t key) {
+    if (map->capacity == 0) return nullptr;
+    IntRValueEntry* entries = map->entries;
+    uint32_t mask = map->mask;
+    uint32_t idx = ((uint32_t) key * 0x9E3779B9u) & mask;
+    while (true) {
+        int32_t slotKey = entries[idx].key;
+        if (slotKey == key) return &entries[idx].value;
+        if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) return nullptr;
+        idx = (idx + 1) & mask;
+    }
+}
 
 // Returns a pointer to the existing value slot for key. If the key is absent, inserts an RVALUE_UNDEFINED entry first and returns that slot.
 // Replaces the hmgeti + hmput(UNDEFINED) + hmgeti pattern with a single lookup.

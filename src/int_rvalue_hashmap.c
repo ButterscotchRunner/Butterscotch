@@ -56,17 +56,6 @@ void IntRValueHashMap_freeAllValues(IntRValueHashMap* map) {
     map->count = 0;
 }
 
-RValue* IntRValueHashMap_findSlot(IntRValueHashMap* map, int32_t key) {
-    if (map->capacity == 0) return nullptr;
-    uint32_t idx = ((uint32_t) key * 0x9E3779B9u) & map->mask;
-    while (true) {
-        int32_t slotKey = map->entries[idx].key;
-        if (slotKey == key) return &map->entries[idx].value;
-        if (slotKey == INT_RVALUE_HASHMAP_EMPTY_KEY) return nullptr;
-        idx = (idx + 1) & map->mask;
-    }
-}
-
 RValue* IntRValueHashMap_getOrInsertUndefined(IntRValueHashMap* map, int32_t key) {
     requireMessage(key != INT_RVALUE_HASHMAP_EMPTY_KEY, "IntRValueHashMap_getOrInsertUndefined: key -1 collides with the empty-slot sentinel");
 
