@@ -370,6 +370,12 @@ static void listSingleDir(FileSystemDirEntry** list, const char* fullDir) {
     struct dirent* ent;
     while ((ent = readdir(dir)) != nullptr) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+#ifdef PLATFORM_VITA
+        // Vita readdir (sceIoDread) already returns each entry's SceIoStat; a separate
+        // stat() per entry costs ~11 ms on ux0:, which dominates listings of large folders.
+        dirListPush(list, ent->d_name, SCE_S_ISDIR(ent->d_stat.st_mode));
+        continue;
+#endif
         // d_type may be DT_UNKNOWN on some filesystems, so stat to be sure.
         bool isDir = false;
         size_t dirLen = strlen(fullDir);
