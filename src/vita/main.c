@@ -18,7 +18,10 @@ int main(int argc, char* argv[]) {
 
     vglSetSemanticBindingMode(VGL_MODE_POSTPONED);
     vglSetupGarbageCollector(127, 0x20000);
-    vglUseTripleBuffering(GL_FALSE);
+    // With double buffering the display queue holds one pending frame, so every swap blocks
+    // until the previous frame has been shown (up to two vblanks when a frame misses one).
+    // Triple buffering costs one more 960x544 framebuffer (~2 MiB).
+    vglUseTripleBuffering(GL_TRUE);
     vglSetCircularPoolSize(128 * 1024 * 1024);
     vglSetupRenderTargetScenesNum(2, 1);
     vglSetParamBufferSize(6 * 1024 * 1024);
