@@ -633,7 +633,7 @@ static void drawGMS1Backgrounds(Runner* runner, bool foreground) {
 // ===[ Draw ]===
 
 typedef struct {
-    int32_t depth;
+    double depth;
     int32_t type;
     int32_t order;
     uint32_t layerOrder;
@@ -2026,7 +2026,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
         repeat(arrlen(runner->instances), i) {
             Instance* inst = runner->instances[i];
             if (inst->layer == -1)
-                Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+                Runner_moveInstanceToDepthLayer(runner, inst, (int32_t) inst->depth);
         }
     }
 
@@ -2102,7 +2102,7 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
     repeat(arrlen(runner->deferredInstanceDepthChanges), i) {
         Instance* inst = hmget(runner->instancesById, runner->deferredInstanceDepthChanges[i]);
         if (inst == nullptr || inst->destroyed) continue;
-        Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+        Runner_moveInstanceToDepthLayer(runner, inst, (int32_t) inst->depth);
     }
     }
     arrfree(runner->deferredInstanceDepthChanges);
@@ -2783,7 +2783,7 @@ Instance* Runner_createStruct(Runner* runner) {
 Instance* Runner_createInstance(Runner* runner, GMLReal x, GMLReal y, int32_t objectIndex) {
     if (isObjectDisabled(runner, objectIndex)) return nullptr;
     Instance* inst = createAndInitInstance(runner, runner->nextInstanceId++, objectIndex, x, y);
-    Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+    Runner_moveInstanceToDepthLayer(runner, inst, (int32_t) inst->depth);
     dispatchInstanceCreationEvents(runner, inst);
     return inst;
 }
@@ -2828,7 +2828,7 @@ Instance* Runner_copyInstance(Runner* runner, Instance* source, bool performEven
             Runner_addInstanceLayerElement(runner, source->layer, inst->instanceId);
         else {
             inst->layer = -1;
-            Runner_moveInstanceToDepthLayer(runner, inst, inst->depth);
+            Runner_moveInstanceToDepthLayer(runner, inst, (int32_t) inst->depth);
         }
     }
     inst->createEventFired = true;
@@ -5026,7 +5026,7 @@ void Runner_dumpState(Runner* runner) {
 
         logInfo("\n--- Instance #%d (%s, objectIndex=%d) ---\n", inst->instanceId, objName, inst->objectIndex);
         logInfo("  Position: (%g, %g)\n", (double) inst->x, (double) inst->y);
-        logInfo("  Depth: %d\n", inst->depth);
+        logInfo("  Depth: %g\n", inst->depth);
         logInfo("  Sprite: %s (index %d), imageIndex=%g, imageSpeed=%g\n", spriteName, inst->spriteIndex, (double) inst->imageIndex, (double) inst->imageSpeed);
         logInfo("  Scale: (%g, %g), Angle: %g, Alpha: %g, Blend: 0x%06X\n", (double) inst->imageXscale, (double) inst->imageYscale, (double) inst->imageAngle, (double) inst->imageAlpha, inst->imageBlend);
         logInfo("  Visible: %s, Active: %s, Solid: %s, Persistent: %s\n", inst->visible ? "true" : "false", inst->active ? "true" : "false", inst->solid ? "true" : "false", inst->persistent ? "true" : "false");
@@ -5218,7 +5218,7 @@ char* Runner_dumpStateJson(Runner* runner) {
 
         JsonWriter_propertyDouble(&w, "x", inst->x);
         JsonWriter_propertyDouble(&w, "y", inst->y);
-        JsonWriter_propertyInt(&w, "depth", inst->depth);
+        JsonWriter_propertyDouble(&w, "depth", inst->depth);
 
         // Sprite
         JsonWriter_key(&w, "sprite");

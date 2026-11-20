@@ -67,7 +67,9 @@ struct Instance {
     float imageXscale, imageYscale, imageAlpha;
     GMLReal imageAngle;
     uint32_t imageBlend;
-    int32_t depth;
+    // A real number, as in GameMaker: games may sort with fractional depths (e.g. depth = -y / room_height),
+    // which an integer would truncate to the same value.
+    double depth;
     int32_t layer;
 
     // Motion properties

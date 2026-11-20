@@ -1425,12 +1425,12 @@ void VMBuiltins_setVariable(VMContext* ctx, Instance* inst, int16_t builtinVarId
             return;
         case BUILTIN_VAR_DEPTH: {
             if (inst == nullptr) break;
-            int32_t newDepth = RValue_toInt32(val);
+            double newDepth = (double) RValue_toReal(val); // keep fractional depths
             if (newDepth != inst->depth) {
                 if (runner->deferInstanceDepthChanges)
                     arrput(runner->deferredInstanceDepthChanges, inst->instanceId);
                 else
-                    Runner_moveInstanceToDepthLayer(runner, inst, newDepth);
+                    Runner_moveInstanceToDepthLayer(runner, inst, (int32_t) newDepth);
                 inst->depth = newDepth;
                 ctx->runner->drawableListSortDirty = true;
             }

@@ -281,7 +281,7 @@ typedef enum { DRAWABLE_TILE, DRAWABLE_INSTANCE, DRAWABLE_LAYER, DRAWABLE_PARTIC
 
 typedef struct {
     DrawableType type;
-    int32_t depth;
+    double depth; // instance depths can be fractional
     uint32_t layerOrder;
     int32_t elementOrder;
     union {
