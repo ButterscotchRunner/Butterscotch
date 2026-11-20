@@ -520,6 +520,47 @@ static inline bool tryFastVarRead(VMContext* ctx, int32_t instanceType, Variable
     return false;
 }
 
+// Direct reads of the most common built-in instance variables and script arguments for
+// "self"/"other" (VARTYPE_NORMAL), skipping handlePush/handlePushBuiltin -> resolveVariableRead
+// -> VMBuiltins_getVariable. Same values and same target selection as that path (other falls
+// back to self; structs and anything else use the full path). Reads only.
+static inline bool tryFastBuiltinRead(VMContext* ctx, int32_t instanceType, int16_t id, RValue* out) {
+    CallFrame* frame = ctx->currentCallFrame;
+    Instance* inst;
+    if (instanceType == INSTANCE_SELF) inst = (Instance*) frame->self;
+    else if (instanceType == INSTANCE_OTHER) inst = frame->other != nullptr ? (Instance*) frame->other : (Instance*) frame->self;
+    else return false;
+    if (inst == nullptr || inst->objectIndex == STRUCT_OBJECT_INDEX) return false;
+    switch (id) {
+        case BUILTIN_VAR_X: *out = RValue_makeReal(inst->x); return true;
+        case BUILTIN_VAR_Y: *out = RValue_makeReal(inst->y); return true;
+        case BUILTIN_VAR_IMAGE_ANGLE: *out = RValue_makeReal(inst->imageAngle); return true;
+        case BUILTIN_VAR_IMAGE_ALPHA: *out = RValue_makeReal(inst->imageAlpha); return true;
+        case BUILTIN_VAR_IMAGE_XSCALE: *out = RValue_makeReal(inst->imageXscale); return true;
+        case BUILTIN_VAR_IMAGE_YSCALE: *out = RValue_makeReal(inst->imageYscale); return true;
+        case BUILTIN_VAR_IMAGE_INDEX: *out = RValue_makeReal(inst->imageIndex); return true;
+        case BUILTIN_VAR_IMAGE_BLEND: *out = RValue_makeReal((GMLReal) inst->imageBlend); return true;
+        case BUILTIN_VAR_SPRITE_INDEX: *out = RValue_makeReal((GMLReal) inst->spriteIndex); return true;
+        case BUILTIN_VAR_DEPTH: *out = RValue_makeReal((GMLReal) inst->depth); return true;
+        case BUILTIN_VAR_VISIBLE: *out = RValue_makeBool(inst->visible); return true;
+        case BUILTIN_VAR_ID: *out = RValue_makeReal((GMLReal) inst->instanceId); return true;
+        case BUILTIN_VAR_OBJECT_INDEX: *out = RValue_makeReal((GMLReal) inst->objectIndex); return true;
+        case BUILTIN_VAR_ARGUMENT_COUNT: *out = RValue_makeReal((GMLReal) frame->scriptArgsCount); return true;
+        default: break;
+    }
+    if (id >= BUILTIN_VAR_ARGUMENT0 && id <= BUILTIN_VAR_ARGUMENT15) {
+        int32_t argNumber = id - BUILTIN_VAR_ARGUMENT0;
+        if (frame->scriptArgs != nullptr && frame->scriptArgsCount > argNumber) {
+            *out = frame->scriptArgs[argNumber];
+            out->ownsReference = false;
+        } else {
+            *out = RValue_makeUndefined();
+        }
+        return true;
+    }
+    return false;
+}
+
 #if IS_WAD17_OR_HIGHER_ENABLED
 // Static variables: Each code index has its own "struct" for static variables.
 // Lazily create a struct for each codeIndex that needs a static variable.
@@ -2968,6 +3009,16 @@ static RValue executeBytecodeInstructions(VMContext* ctx, CodeEntry* code) {
                                 break;
                             }
                         }
+#ifndef ENABLE_VM_TRACING
+                        else if (varDef->varID == VARIABLE_BUILTIN) {
+                            // Common built-in reads without the generic resolver.
+                            RValue val;
+                            if (tryFastBuiltinRead(ctx, (int32_t) OpWord_extra(opword), varDef->builtinVarId, &val)) {
+                                stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+                                break;
+                            }
+                        }
+#endif
                     }
                 }
                 handlePush(ctx, opword, extraData, type1);
@@ -3023,6 +3074,20 @@ static RValue executeBytecodeInstructions(VMContext* ctx, CodeEntry* code) {
                 break;
             }
             case OP_PUSH_BUILTIN:
+#ifndef ENABLE_VM_TRACING
+                {
+                    // Common built-in reads without the generic resolver.
+                    uint32_t varRef = resolveVarOperand(extraData);
+                    if (((varRef >> 24) & 0xF8) == VARTYPE_NORMAL) {
+                        Variable* varDef = resolveVarDef(ctx, varRef);
+                        RValue val;
+                        if (varDef->varID == VARIABLE_BUILTIN && tryFastBuiltinRead(ctx, (int32_t) OpWord_extra(opword), varDef->builtinVarId, &val)) {
+                            stackPushTyped(ctx, val, GML_TYPE_VARIABLE);
+                            break;
+                        }
+                    }
+                }
+#endif
                 handlePushBuiltin(ctx, opword, extraData);
                 break;
             case OP_PUSH_IMMEDIATE:
