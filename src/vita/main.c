@@ -20,7 +20,11 @@ int main(int argc, char* argv[]) {
     vglSetupGarbageCollector(127, 0x20000);
     vglUseTripleBuffering(GL_FALSE);
     vglSetCircularPoolSize(128 * 1024 * 1024);
-    vglSetupRenderTargetScenesNum(2, 1);
+    // Games draw into the same surface in several scenes per frame (surface_set_target /
+    // surface_reset_target). With one scene per frame per FBO render target, the swap has to
+    // wait for the GPU to finish this frame's earlier scenes on those targets, so CPU and GPU
+    // run in series. Four scenes per FBO removes that wait at negligible memory cost.
+    vglSetupRenderTargetScenesNum(2, 4);
     vglSetParamBufferSize(6 * 1024 * 1024);
     vglSetShaderCachePath("ux0:data/butterscotch/shader_cache");
     vglInitWithCustomThreshold(0, 960, 544, 8 * 1024 * 1024, 0, 0, 0, SCE_GXM_MULTISAMPLE_NONE);
