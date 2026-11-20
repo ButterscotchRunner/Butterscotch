@@ -5,7 +5,9 @@
 #include "gl_common.h"
 #include "renderer.h"
 #include "runner.h"
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
+#if defined(PLATFORM_PS4)
+#include "ps4/gl.h"
+#elif defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(__SWITCH__)
 #include <GLES3/gl3.h>
 #elif PLATFORM_VITA
 #include <vitaGL.h>
