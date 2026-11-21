@@ -1,0 +1,74 @@
+name: UWP builds
+
+on:
+  workflow_call:
+    secrets:
+      UWP_SIGNING_PFX_BASE64:
+        required: false
+      UWP_SIGNING_PFX_PASSWORD:
+        required: false
+
+jobs:
+  build-uwp:
+    name: Build (Xbox UWP x64)
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache FFmpeg build
+        uses: actions/cache@v6
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: uwp-ffmpeg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/uwp.cmake') }}
+
+      - name: Import signing certificate
+        if: github.event_name == 'push'
+        shell: powershell
+        env:
+          UWP_SIGNING_PFX_BASE64: ${{ secrets.UWP_SIGNING_PFX_BASE64 }}
+          UWP_SIGNING_PFX_PASSWORD: ${{ secrets.UWP_SIGNING_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!$env:UWP_SIGNING_PFX_BASE64 -or !$env:UWP_SIGNING_PFX_PASSWORD) {
+            throw 'Set UWP_SIGNING_PFX_BASE64 and UWP_SIGNING_PFX_PASSWORD repository secrets for signed UWP builds.'
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'butterscotch-signing.pfx'
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:UWP_SIGNING_PFX_BASE64))
+            $password = ConvertTo-SecureString $env:UWP_SIGNING_PFX_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:/CurrentUser/My -Password $password | Where-Object HasPrivateKey
+            [xml]$manifest = Get-Content src/uwp/frontend/Package.appxmanifest
+            if (!$cert -or $cert.Subject -ne $manifest.Package.Identity.Publisher -or $cert.NotAfter -le (Get-Date)) {
+              throw 'The signing certificate needs a valid private key and a subject matching the package publisher.'
+            }
+            "UWP_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          } finally {
+            if (Test-Path $pfx) { Remove-Item -LiteralPath $pfx -Force }
+          }
+
+      - name: Get commit info
+        id: commit-info
+        shell: bash
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(git log -1 --format=%cd --date=short)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DPLATFORM=uwp -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON "-DBUTTERSCOTCH_COMMIT_HASH=${{ steps.commit-info.outputs.hash }}" "-DBUTTERSCOTCH_COMMIT_DATE=${{ steps.commit-info.outputs.date }}"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Remove signing certificate
+        if: always() && env.UWP_CERTIFICATE_THUMBPRINT != ''
+        shell: powershell
+        run: |
+          Remove-Item -LiteralPath "Cert:/CurrentUser/My/$env:UWP_CERTIFICATE_THUMBPRINT" -DeleteKey -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: butterscotch-uwp-x64${{ github.event_name == 'pull_request' && '-unsigned' || '' }}
+          path: build/AppPackages/butterscotch/
+          if-no-files-found: error

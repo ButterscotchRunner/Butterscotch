@@ -1,5 +1,19 @@
 {
   "dependencies": [
-    "glfw3"
+    {
+      "name": "glfw3",
+      "platform": "!uwp"
+    },
+    {
+      "name": "ffmpeg",
+      "platform": "uwp",
+      "default-features": false,
+      "features": [
+        "avcodec",
+        "avformat",
+        "swresample",
+        "swscale"
+      ]
+    }
   ]
 }
