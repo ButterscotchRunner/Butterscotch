@@ -2057,17 +2057,16 @@ static RValue builtin_string_join(VMContext* ctx, RValue* args, int32_t argCount
     size_t delimLen = strlen(delim);
     char* firstStr = RValue_toString(args[1], ctx->runner->dataWin);
     size_t len = strlen(firstStr);
-    char* strbuf = (char*)safeMalloc(len + delimLen + 1);
+    char* strbuf = (char*)safeMalloc(len + 1);
     strcpy(strbuf, firstStr);
     free(firstStr);
     for (int32_t i = 2; i < argCount; i++) {
         char* str = RValue_toString(args[i], ctx->runner->dataWin);
-        size_t alen = strlen(str);
-        size_t addLen = alen + delimLen;
-        strbuf = (char*)safeRealloc(strbuf, len + addLen + 1);
+        size_t alen = strlen(str) + delimLen;
+        strbuf = (char*)safeRealloc(strbuf, len + alen + 1);
         strcpy(strbuf + len, delim);
         strcpy(strbuf + len + delimLen, str);
-        len += addLen;
+        len += alen;
         free(str);
     }
     free(delim);
