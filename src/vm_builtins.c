@@ -2056,6 +2056,11 @@ static RValue builtin_real(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t ar
     return RValue_makeReal(RValue_toReal(args[0]));
 }
 
+static RValue builtin_int64(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("int64", 1, RValue_makeInt64(0.0));
+    return RValue_makeInt64(RValue_toInt64(args[0]));
+}
+
 // Value equality shared by ds_priority and array_contains, mirroring the HTML5 runner:
 // - When both values are numbers (any GML numeric type; they are all plain JS numbers there),
 //   they match when |a - b| <= GML_MATH_EPSILON.
@@ -24650,6 +24655,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Type functions
     VM_registerBuiltin(ctx, "real", builtin_real);
+    VM_registerBuiltin(ctx, "int64", builtin_int64);
     VM_registerBuiltin(ctx, "typeof", builtin_typeof);
     VM_registerBuiltin(ctx, "is_string", builtin_is_string);
     VM_registerBuiltin(ctx, "is_real", builtin_is_real);
