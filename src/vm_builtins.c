@@ -10471,6 +10471,34 @@ static RValue builtin_action_create_object(VMContext* ctx, RValue* args, int32_t
     return RValue_makeUndefined();
 }
 
+static RValue builtin_action_create_object_motion(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("action_create_object_motion", 5, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t objectIndex = RValue_toInt32(args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    GMLReal speed = RValue_toReal(args[3]);
+    GMLReal dir = RValue_toReal(args[4]);
+    if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
+        logWarn("VM: action_create_object: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeUndefined();
+    }
+    Instance* callerInst = ctx->currentCallFrame->self;
+    if (ctx->actionRelativeFlag && callerInst != nullptr) {
+        x += callerInst->x;
+        y += callerInst->y;
+    }
+    Instance* inst = Runner_createInstance(runner, x, y, objectIndex);
+    if (inst != nullptr) {
+        inst->speed = speed;
+        inst->direction = dir;
+        if (callerInst != nullptr && ctx->creatorVarID >= 0) {
+            Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
+        }
+    }
+    return RValue_makeUndefined();
+}
+
 static RValue builtin_action_set_relative(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     ctx->actionRelativeFlag = RValue_toInt32(args[0]) != 0;
     return RValue_makeUndefined();
@@ -25190,6 +25218,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_kill_object", builtin_action_kill_object);
         VM_registerBuiltin(ctx, "action_create_object", builtin_action_create_object);
+        VM_registerBuiltin(ctx, "action_create_object_motion", builtin_action_create_object_motion);
         VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
         VM_registerBuiltin(ctx, "action_move", builtin_action_move);
         VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);
