@@ -2051,9 +2051,36 @@ static RValue builtin_string_concat(VMContext* ctx, RValue* args, int32_t argCou
     return RValue_makeOwnedString(strbuf);
 }
 
+static RValue builtin_string_join(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("string_join", 2, RValue_makeOwnedString(safeStrdup("")));
+    char* delim = RValue_toString(args[0], ctx->runner->dataWin);
+    size_t delimLen = strlen(delim);
+    char* firstStr = RValue_toString(args[1], ctx->runner->dataWin);
+    size_t len = strlen(firstStr);
+    char* strbuf = (char*)safeMalloc(len + 1);
+    strcpy(strbuf, firstStr);
+    free(firstStr);
+    for (int32_t i = 2; i < argCount; i++) {
+        char* str = RValue_toString(args[i], ctx->runner->dataWin);
+        size_t alen = strlen(str) + delimLen;
+        strbuf = (char*)safeRealloc(strbuf, len + alen + 1);
+        strcpy(strbuf + len, delim);
+        strcpy(strbuf + len + delimLen, str);
+        len += alen;
+        free(str);
+    }
+    free(delim);
+    return RValue_makeOwnedString(strbuf);
+}
+
 static RValue builtin_real(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("real", 1, RValue_makeReal(0.0));
     return RValue_makeReal(RValue_toReal(args[0]));
+}
+
+static RValue builtin_int64(MAYBE_UNUSED VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("int64", 1, RValue_makeInt64(0.0));
+    return RValue_makeInt64(RValue_toInt64(args[0]));
 }
 
 // Value equality shared by ds_priority and array_contains, mirroring the HTML5 runner:
@@ -4362,7 +4389,7 @@ static RValue builtin_camera_apply(VMContext* ctx, RValue* args, int32_t argCoun
     Runner* runner = ctx->runner;
     GMLCamera* camera = Runner_getCameraById(runner, RValue_toInt32(args[0]));
     if (camera != nullptr) {
-        runner->renderer->vtable->applyProjection(runner->renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        Runner_applyCameraProjection(runner, camera);
         runner->renderer->cameraCurrent = RValue_toInt32(args[0]);
     }
     return RValue_makeUndefined();
@@ -7459,6 +7486,30 @@ static RValue builtin_array_equals(VMContext* ctx, RValue* args, int32_t argCoun
     return RValue_makeBool(true);
 }
 
+static RValue builtin_array_shuffle(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("array_shuffle", 1, RValue_makeUndefined());
+    REQUIRE_ARGC_AT_MOST("array_shuffle", 3, RValue_makeUndefined());
+
+    GMLArray* arr = args[0].array;
+    if (arr == nullptr) return RValue_makeUndefined();
+    int32_t len = GMLArray_length1D(arr);
+    GMLArray* outArr = GMLArray_create(ctx->dataWin, len);
+    for (int32_t i = 0; i < len; i++) {
+        *GMLArray_slot(outArr, i) = RValue_makeIndependent(*GMLArray_slot(arr, i));
+    }
+    // every day i'm shuffling
+    // TODO: implement the optional args offset and length
+    {
+    for (int32_t i = len - 1; i > 0; i--) {
+        uint32_t j = Random_nextUInt32(&ctx->runner->random) % (i + 1);
+        RValue temp = *GMLArray_slot(outArr, i);
+        *GMLArray_slot(outArr, i) = *GMLArray_slot(outArr, j);
+        *GMLArray_slot(outArr, j) = temp;
+    }
+    }
+    return RValue_makeArray(outArr);
+}
+
 // ===[ COLLISION FUNCTIONS]===
 
 static RValue builtin_place_free(VMContext* ctx, RValue* args, int32_t argCount) {
@@ -10443,6 +10494,34 @@ static RValue builtin_action_create_object(VMContext* ctx, RValue* args, int32_t
     Instance* inst = Runner_createInstance(runner, x, y, objectIndex);
     if (callerInst != nullptr && ctx->creatorVarID >= 0) {
         Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
+    }
+    return RValue_makeUndefined();
+}
+
+static RValue builtin_action_create_object_motion(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("action_create_object_motion", 5, RValue_makeUndefined());
+    Runner* runner = ctx->runner;
+    int32_t objectIndex = RValue_toInt32(args[0]);
+    GMLReal x = RValue_toReal(args[1]);
+    GMLReal y = RValue_toReal(args[2]);
+    GMLReal speed = RValue_toReal(args[3]);
+    GMLReal dir = RValue_toReal(args[4]);
+    if (0 > objectIndex || runner->dataWin->objt.count <= (uint32_t) objectIndex) {
+        logWarn("VM: action_create_object: objectIndex %d out of range\n", objectIndex);
+        return RValue_makeUndefined();
+    }
+    Instance* callerInst = ctx->currentCallFrame->self;
+    if (ctx->actionRelativeFlag && callerInst != nullptr) {
+        x += callerInst->x;
+        y += callerInst->y;
+    }
+    Instance* inst = Runner_createInstance(runner, x, y, objectIndex);
+    if (inst != nullptr) {
+        inst->speed = speed;
+        inst->direction = dir;
+        if (callerInst != nullptr && ctx->creatorVarID >= 0) {
+            Instance_setSelfVar(inst, ctx->creatorVarID, RValue_makeReal((GMLReal) callerInst->instanceId));
+        }
     }
     return RValue_makeUndefined();
 }
@@ -14187,22 +14266,36 @@ static RValue builtin_collision_rectangle(VMContext* ctx, RValue* args, int32_t 
 
     Instance* self = ctx->currentCallFrame->self;
 
+    Instance* singleInstance = nullptr;
+    Instance** candidates = nullptr;
+    int32_t candidateCount = 0;
+    if (targetObjIndex >= 0 && 100000 > targetObjIndex) {
+        if ((uint32_t) targetObjIndex < runner->dataWin->objt.count) {
+            candidates = runner->instancesByObject[targetObjIndex];
+            candidateCount = (int32_t) arrlen(candidates);
+        }
+    } else if (targetObjIndex == INSTANCE_ALL) {
+        candidates = runner->instances;
+        candidateCount = (int32_t) arrlen(candidates);
+    } else if (targetObjIndex >= INSTANCE_ID_BASE) {
+        singleInstance = hmget(runner->instancesById, targetObjIndex);
+        candidates = &singleInstance;
+        candidateCount = singleInstance != nullptr ? 1 : 0;
+    }
+
     int32_t resultId = INSTANCE_NOONE;
-    int32_t snapBase = Runner_pushInstancesForTarget(runner, targetObjIndex);
-    int32_t snapEnd  = (int32_t) arrlen(runner->instanceSnapshots);
-    for (int32_t snapIdx = snapBase; snapEnd > snapIdx; snapIdx++) {
-        Instance* inst = runner->instanceSnapshots[snapIdx];
+    for (int32_t i = 0; candidateCount > i; i++) {
+        Instance* inst = candidates[i];
         if (!inst->active) continue;
         if (notme && inst == self) continue;
 
         if (!Collision_rectOverlapsInstance(ctx->runner, inst, x1, y1, x2, y2)) continue;
 
-        InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
-
         // Precise check if requested and sprite has precise masks
         if (prec != 0) {
             Sprite* spr = Collision_getSprite(ctx->dataWin, inst);
             if (Collision_hasFrameMasks(spr)) {
+                InstanceBBox bbox = Collision_computeBBox(ctx->runner, inst);
                 // Check if any pixel in the overlap region hits the mask
                 GMLReal iLeft   = GMLReal_fmax(x1, bbox.left);
                 GMLReal iRight  = GMLReal_fmin(x2, bbox.right);
@@ -14229,7 +14322,6 @@ static RValue builtin_collision_rectangle(VMContext* ctx, RValue* args, int32_t 
         resultId = inst->instanceId;
         break;
     }
-    Runner_popInstanceSnapshot(runner, snapBase);
 
     return RValue_makeReal((GMLReal) resultId);
 }
@@ -23575,7 +23667,8 @@ static RValue builtin_d3d_end(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_U
     d3dIdentity(renderer);
     d3dApplyState(renderer);
     GMLCamera* camera = Runner_getCameraById(ctx->runner, renderer->cameraCurrent);
-    if (camera && renderer->vtable->applyProjection) renderer->vtable->applyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+    if (camera && renderer->vtable->applyProjection)
+        Runner_applyCameraProjection(ctx->runner, camera);
     return RValue_makeBool(true);
 }
 
@@ -24556,6 +24649,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "string_lettersdigits", builtin_string_lettersdigits);
     VM_registerBuiltin(ctx, "string_byte_length", builtin_string_byte_length);
     VM_registerBuiltin(ctx, "string_concat", builtin_string_concat);
+    VM_registerBuiltin(ctx, "string_join", builtin_string_join);
     VM_registerBuiltin(ctx, "string", builtin_string);
     VM_registerBuiltin(ctx, "array_contains", builtin_array_contains);
     VM_registerBuiltin(ctx, "@@array_get@@", builtin_internal_array_get);
@@ -24584,6 +24678,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Type functions
     VM_registerBuiltin(ctx, "real", builtin_real);
+    VM_registerBuiltin(ctx, "int64", builtin_int64);
     VM_registerBuiltin(ctx, "typeof", builtin_typeof);
     VM_registerBuiltin(ctx, "is_string", builtin_is_string);
     VM_registerBuiltin(ctx, "is_real", builtin_is_real);
@@ -24933,6 +25028,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "array_copy", builtin_array_copy);
     VM_registerBuiltin(ctx, "array_sort", builtin_array_sort);
     VM_registerBuiltin(ctx, "array_equals", builtin_array_equals);
+    VM_registerBuiltin(ctx, "array_shuffle", builtin_array_shuffle);
 
     // Steam stubs
     VM_registerBuiltin(ctx, "steam_initialised", builtin_steam_initialised);
@@ -25151,6 +25247,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     if (!isGMS2) {
         VM_registerBuiltin(ctx, "action_kill_object", builtin_action_kill_object);
         VM_registerBuiltin(ctx, "action_create_object", builtin_action_create_object);
+        VM_registerBuiltin(ctx, "action_create_object_motion", builtin_action_create_object_motion);
         VM_registerBuiltin(ctx, "action_set_relative", builtin_action_set_relative);
         VM_registerBuiltin(ctx, "action_move", builtin_action_move);
         VM_registerBuiltin(ctx, "action_move_to", builtin_action_move_to);

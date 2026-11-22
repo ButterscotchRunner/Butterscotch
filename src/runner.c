@@ -1325,6 +1325,58 @@ static void expandViewAxis(int32_t pos, int32_t size, int32_t surfaceSize, int32
     *outPos = center - *outSize / 2;
 }
 
+// The widescreen hack/free camera are applied in clip space, AFTER the camera's own matrices, so custom view/projection matrices (perspective, rotation) keep working
+// Widening a view symmetrically about its center is a clip-space scale of base/surface, the free camera zoom is a scale and its pan a translation in screen terms
+// viewportW/H is the view's REAL pixel size on the render target, used to keep world pixels on pixel boundaries
+static void beginDrawViewClipAdjustment(Runner* runner, GMLCamera* camera, int32_t gameW, int32_t gameH, int32_t widescreenBaseW, int32_t widescreenBaseH, int32_t viewportW, int32_t viewportH) {
+    runner->drawViewCamera = nullptr;
+    if (camera == nullptr)
+        return;
+
+    float widescreenScaleX = (gameW > widescreenBaseW && widescreenBaseW > 0) ? (float) widescreenBaseW / (float) gameW : 1.0f;
+    float widescreenScaleY = (gameH > widescreenBaseH && widescreenBaseH > 0) ? (float) widescreenBaseH / (float) gameH : 1.0f;
+    float zoom = runner->freeCamZoom > 0.0f ? runner->freeCamZoom : 1.0f;
+    float panX = runner->freeCamPanX;
+    float panY = runner->freeCamPanY;
+
+    bool isClipAdjustmentNeeded = widescreenScaleX != 1.0f || widescreenScaleY != 1.0f || zoom != 1.0f || panX != 0.0f || panY != 0.0f;
+    if (!isClipAdjustmentNeeded)
+        return;
+
+    // Scaling about the center by an odd amount of pixels (640 -> 853) puts world pixel edges on half pixels, and nearest sampling then doubles/drops columns
+    // Shift by the half pixel the widening introduced so they land on pixel boundaries again
+    float alignPixelsX = 0.0f;
+    float alignPixelsY = 0.0f;
+    if (viewportW > 0) {
+        int32_t baseViewportW = (int32_t) ((float) viewportW * widescreenScaleX + 0.5f);
+        alignPixelsX = (float) ((viewportW - baseViewportW) & 1) * 0.5f;
+    }
+    if (viewportH > 0) {
+        int32_t baseViewportH = (int32_t) ((float) viewportH * widescreenScaleY + 0.5f);
+        alignPixelsY = (float) ((viewportH - baseViewportH) & 1) * 0.5f;
+    }
+
+    // Clip Y points up while the room's Y points down, so panning/aligning down moves the picture UP in clip space
+    Matrix4f_identity(&runner->drawViewClipAdjustment);
+    Matrix4f_scale(&runner->drawViewClipAdjustment, zoom, zoom, 1.0f);
+    Matrix4f_translate(&runner->drawViewClipAdjustment, -2.0f * panX, 2.0f * panY, 0.0f);
+    Matrix4f_translate(&runner->drawViewClipAdjustment, viewportW > 0 ? -2.0f * alignPixelsX / (float) viewportW : 0.0f, viewportH > 0 ? 2.0f * alignPixelsY / (float) viewportH : 0.0f, 0.0f);
+    Matrix4f_scale(&runner->drawViewClipAdjustment, widescreenScaleX, widescreenScaleY, 1.0f);
+    runner->drawViewCamera = camera;
+}
+
+void Runner_applyCameraProjection(Runner* runner, GMLCamera* camera) {
+    Renderer* renderer = runner->renderer;
+    if (runner->drawViewCamera == nullptr || camera != runner->drawViewCamera) {
+        renderer->vtable->applyProjection(renderer, &camera->viewMatrix, &camera->projectionMatrix);
+        return;
+    }
+
+    Matrix4f adjustedProjectionMatrix;
+    Matrix4f_multiply(&adjustedProjectionMatrix, &runner->drawViewClipAdjustment, &camera->projectionMatrix);
+    renderer->vtable->applyProjection(renderer, &camera->viewMatrix, &adjustedProjectionMatrix);
+}
+
 // Applies the visual-only free camera (pan + zoom) on top of a view rectangle, in place.
 static void applyFreeCamera(Runner* runner, int32_t* viewX, int32_t* viewY, int32_t* viewW, int32_t* viewH) {
     float zoom = runner->freeCamZoom;
@@ -1402,6 +1454,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
 
             runner->viewCurrent = (int32_t) vi;
             runner->renderer->cameraCurrent = runner->views[runner->viewCurrent].cameraId;
+            beginDrawViewClipAdjustment(runner, camera, gameW, gameH, widescreenBaseW, widescreenBaseH, portW, portH);
             renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, portX, portY, portW, portH, viewAngle);
 
             Runner_draw(runner);
@@ -1409,6 +1462,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
 
             renderer->vtable->endView(renderer);
+            runner->drawViewCamera = nullptr;
 
             anyViewRendered = true;
         }
@@ -1434,6 +1488,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
             Runner_updateCameraViewSimple(camera);
         }
 
+        beginDrawViewClipAdjustment(runner, camera, gameW, gameH, widescreenBaseW, widescreenBaseH, gameW, gameH);
         renderer->vtable->beginView(renderer, viewX, viewY, viewW, viewH, 0, 0, gameW, gameH, 0);
 
         Runner_draw(runner);
@@ -1441,6 +1496,7 @@ void Runner_drawViews(Runner* runner, int32_t gameW, int32_t gameH, bool debugSh
         if (debugShowCollisionMasks) DebugOverlay_drawCollisionMasks(runner);
 
         renderer->vtable->endView(renderer);
+        runner->drawViewCamera = nullptr;
 
     }
 
@@ -2596,6 +2652,7 @@ Runner* Runner_create(DataWin* dataWin, VMContext* vm, Renderer* renderer, FileS
     runner->oldApplicationHeight = runner->applicationHeight;
     runner->widescreenExtraWidth = 0;
     runner->widescreenExtraHeight = 0;
+    runner->drawViewCamera = nullptr;
     runner->freeCamPanX = 0.0f;
     runner->freeCamPanY = 0.0f;
     runner->freeCamZoom = 1.0f;

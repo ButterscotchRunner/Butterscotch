@@ -282,11 +282,22 @@ jobs:
           path: build/Butterscotch.vpk
 
   build-switch:
-    name: Build (Nintendo Switch)
+    name: Build (${{ matrix.label }})
     runs-on: ubuntu-24.04
     container:
       image: devkitpro/devkita64:latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Nintendo Switch
+            artifact: switch
+            configure_command: cmake
+            setup_command: ""
+          - label: Nintendo Switch 2
+            artifact: switch2
+            configure_command: aarch64-none-elf-cmake
+            setup_command: '. "${DEVKITPRO:-/opt/devkitpro}/switch2vars.sh"'
     steps:
       - uses: actions/checkout@v7
 
@@ -294,28 +305,38 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/ccache
-          key: switch-ccache-${{ github.sha }}
+          key: ${{ matrix.artifact }}-ccache-${{ github.sha }}
           restore-keys: |
-            switch-ccache-
+            ${{ matrix.artifact }}-ccache-
 
-      - name: Install ccache
+      - name: Install build dependencies
         run: |
-          apt-get update && apt-get install -y --no-install-recommends ccache
+          apt-get update && apt-get install -y --no-install-recommends ccache git curl
+
+      - name: Install ounce-devkit
+        if: matrix.artifact == 'switch2'
+        run: |
+          git clone --depth=1 https://github.com/ouncebrew/ounce-devkit.git /tmp/ounce-devkit
+          sh /tmp/ounce-devkit/install.sh
 
       - name: Configure and build
+        shell: bash
+        env:
+          DEVKITPRO: /opt/devkitpro
         run: |
-          cmake -B build -G Ninja \
+          ${{ matrix.setup_command }}
+          ${{ matrix.configure_command }} -B build -G Ninja \
             -DWERROR=ON \
             -DPLATFORM=switch \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            
+
           cmake --build build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-switch
+          name: butterscotch-${{ matrix.artifact }}
           path: build/butterscotch.nro

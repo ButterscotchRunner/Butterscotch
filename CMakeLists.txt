@@ -85,6 +85,7 @@ endif()
 set(PLATFORM "cli" CACHE STRING "Platform backend")
 set(BACKEND "" CACHE STRING "Desktop platform backend")
 set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+set(IMAGE_DECODER "wuffs" CACHE STRING "Image decoder")
 
 if(PLATFORM STREQUAL "cli" AND BACKEND STREQUAL "")
     message(FATAL_ERROR "You need to set a BACKEND!")
@@ -348,7 +349,17 @@ target_compile_options(sha1 PRIVATE -w)
 target_sources(butterscotch PRIVATE vendor/base64/base64.c)
 target_include_directories(butterscotch PUBLIC vendor/base64)
 
-# bzip2
+# Image decoding deps
+if (IMAGE_DECODER STREQUAL "wuffs")
+    # wuffs
+    target_sources(butterscotch PRIVATE vendor/wuffs/wuffs-v0.4.c)
+    target_include_directories(butterscotch SYSTEM PUBLIC vendor/wuffs)
+    add_compile_definitions(USE_WUFFS_IMGDEC)
+elseif(IMAGE_DECODER STREQUAL "stb")
+    add_compile_definitions(USE_STB_IMGDEC)
+endif()
+
+# bzip2 for GMQOZ (acts as fallback if wuffs is being used)
 add_library(bzip2 STATIC
     vendor/bzip2/bz_internal_error.c
     vendor/bzip2/bzlib.c
