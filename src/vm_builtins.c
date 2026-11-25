@@ -25512,7 +25512,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Devices
     VM_registerBuiltin(ctx, "device_mouse_check_button", builtinDeviceMouseCheckButton);
-    VM_registerBuiltin(ctx, "device_mouse_check_button", builtinDeviceMouseCheckButtonPressed);
+    VM_registerBuiltin(ctx, "device_mouse_check_button_pressed", builtinDeviceMouseCheckButtonPressed);
     VM_registerBuiltin(ctx, "device_mouse_x", builtinDeviceMouseX);
     VM_registerBuiltin(ctx, "device_mouse_y", builtinDeviceMouseY);
     VM_registerBuiltin(ctx, "device_mouse_x_to_gui", builtinDeviceMouseXToGui);
