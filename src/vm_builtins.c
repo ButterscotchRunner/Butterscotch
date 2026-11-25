@@ -9669,6 +9669,18 @@ static RValue builtinDeviceMouseCheckButton(VMContext* ctx, RValue* args, int32_
     return RValue_makeBool(RunnerMouse_checkButton(runner->mouse, button));
 }
 
+static RValue builtinDeviceMouseCheckButtonPressed(VMContext* ctx, RValue* args, int32_t argCount) {
+    REQUIRE_ARGC_AT_LEAST("device_mouse_check_button_pressed", 2, RValue_makeBool(false));
+    Runner* runner = (Runner*) ctx->runner;
+    
+    // We only support mouse 0 for now (device 0)
+    int32_t device = RValue_toInt32(args[0]);
+    if (device != 0) return RValue_makeBool(false);
+    
+    int32_t button = RValue_toInt32(args[1]);
+    return RValue_makeBool(RunnerMouse_checkButtonPressed(runner->mouse, button));
+}
+
 static RValue builtinMouseCheckButton(VMContext* ctx, RValue* args, int32_t argCount) {
     REQUIRE_ARGC_AT_LEAST("mouse_check_button", 1, RValue_makeBool(false));
     Runner* runner = (Runner*) ctx->runner;
@@ -25500,6 +25512,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
 
     // Devices
     VM_registerBuiltin(ctx, "device_mouse_check_button", builtinDeviceMouseCheckButton);
+    VM_registerBuiltin(ctx, "device_mouse_check_button", builtinDeviceMouseCheckButtonPressed);
     VM_registerBuiltin(ctx, "device_mouse_x", builtinDeviceMouseX);
     VM_registerBuiltin(ctx, "device_mouse_y", builtinDeviceMouseY);
     VM_registerBuiltin(ctx, "device_mouse_x_to_gui", builtinDeviceMouseXToGui);
