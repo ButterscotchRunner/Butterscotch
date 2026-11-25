@@ -1,6 +1,5 @@
 #include "vm_builtins.h"
 #include "physics/physics.h"
-#include "runner_mouse.h"
 #include "video.h"
 #include "binary_utils.h"
 #include "gml_array.h"
