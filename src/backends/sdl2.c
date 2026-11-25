@@ -7,6 +7,9 @@
 #include "input_recording.h"
 #include "platformdefs.h"
 #include "gettime.h"
+#ifdef PLATFORM_UWP
+#include "uwp/frontend/ui.h"
+#endif
 #include "runner_mouse.h"
 #ifdef PLATFORM_SWITCH
 #include <switch.h>
@@ -214,7 +217,11 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
     flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
-    window = tryOpenWindow(reqW, reqH, title, flags);
+#ifdef PLATFORM_UWP
+    window = SDL_GL_GetCurrentWindow();
+    if (!window)
+#endif
+        window = tryOpenWindow(reqW, reqH, title, flags);
 
     if (!window && gfx != SOFTWARE) {
         logError("Fatal: Could not open window: %s\n", SDL_GetError());
@@ -242,7 +249,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
         return false;
     }
     if (gfx != SOFTWARE) {
-#ifndef PLATFORM_VITA
+#ifdef PLATFORM_UWP
+        if (SDL_GL_SetSwapInterval(1) < 0) logWarn("Could not enable VSync: %s\n", SDL_GetError());
+#elif !defined(PLATFORM_VITA)
         SDL_GL_SetSwapInterval(0); // disable vsync
 #endif
     } else {
@@ -268,6 +277,9 @@ bool platformInit(int reqW, int reqH, const char *title, bool headless, bool ful
 }
 
 void platformExit(void) {
+#ifdef PLATFORM_UWP
+    uwpUiShutdown();
+#endif
     for (int i = 0; i < MAX_GAMEPADS; i++) {
         if (openControllers[i]) {
             SDL_GameControllerClose(openControllers[i]);
