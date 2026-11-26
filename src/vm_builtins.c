@@ -4902,7 +4902,7 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     }
 
     // Pass remaining args (skip the script index)
-    RValue* scriptArgs = (argCount > 1) ? &args[1] : nullptr;
+    RValue* scriptArgs = &args[1];
     int32_t scriptArgCount = argCount - 1;
 
     // If the method has a bound instance, temporarily swap currentInstance
@@ -17920,7 +17920,7 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
     // Remember the constructor so member reads can fallback to its shared static struct.
     structInst->constructorCodeIndex = codeIndex;
 
-    RValue* ctorArgs = (argCount > 1) ? &args[1] : nullptr;
+    RValue* ctorArgs = &args[1];
     int32_t ctorArgCount = argCount - 1;
     RValue result = VM_executeCode(
         ctx,

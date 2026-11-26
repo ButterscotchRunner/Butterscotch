@@ -622,11 +622,14 @@ static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
 
     if (ctx->currentCallFrame->scriptArgsCount > 0) {
         memcpy(newScriptArgs, ctx->currentCallFrame->scriptArgs, ctx->currentCallFrame->scriptArgsCount * sizeof(RValue));
-        free(ctx->currentCallFrame->scriptArgs);
+        if (ctx->currentCallFrame->ownsScriptArgs) {
+            free(ctx->currentCallFrame->scriptArgs);
+        }
     }
 
     ctx->currentCallFrame->scriptArgs = newScriptArgs;
     ctx->currentCallFrame->scriptArgsCount = writeIndex + 1;
+    ctx->currentCallFrame->ownsScriptArgs = true;
     return true;
 }
 
@@ -1964,16 +1967,19 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     uint32_t funcIndex = resolveFuncOperand(extraData);
     require(ctx->dataWin->func.functionCount > funcIndex);
 
-    // Pop arguments from stack (args pushed right-to-left, so first arg is on top)
-    RValue* args = nullptr;
-	RValue stackArgs[VM_MAX_STACK_ARGS] = {0};
-	bool useStackArgs = argCount <= VM_MAX_STACK_ARGS;
-    if (argCount > 0) {
-        args = useStackArgs ? stackArgs : (RValue *)safeCalloc(argCount, sizeof(RValue));
-        repeat(argCount, i) {
-            args[i] = stackPop(ctx);
-        }
+    // Reverse argument order on the stack.
+    // Do this in-place, to save an allocation per function call.
+    // This is safe to do, these values would've just been popped otherwise.
+    RValue* args = &ctx->stack.slots[ctx->stack.top - argCount];
+    repeat (argCount >> 1, i) {
+        size_t reverseIndex = argCount - (i + 1);
+
+        RValue temp = args[i];
+        args[i] = args[reverseIndex];
+        args[reverseIndex] = temp;
     }
+
+    RValue result;
 
 #ifdef ENABLE_VM_TRACING
     const char* funcName = ctx->dataWin->func.functions[funcIndex].name;
@@ -2007,15 +2013,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     // Fast path: cached builtin function pointer
     if (cache->builtin != nullptr) {
         BuiltinFunc builtin = (BuiltinFunc) cache->builtin;
-        RValue result = builtin(ctx, args, argCount);
-        // Free arguments
-        if (args != nullptr) {
-            repeat(argCount, i) {
-                RValue_free(&args[i]);
-            }
-            if (!useStackArgs) free(args);
-        }
-
+        result = builtin(ctx, args, argCount);
 #ifdef ENABLE_VM_TRACING
         if (functionIsBeingTraced) {
             char* returnValueAsString = RValue_toStringFancy(result, ctx->runner->dataWin);
@@ -2024,14 +2022,11 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
             free(functionArgumentList);
         }
 #endif
-
-        stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
-        return;
     }
 
     // Fast path: cached script code index
-    if (cache->scriptCodeIndex >= 0) {
-        RValue result = VM_executeCode(
+    else if (cache->scriptCodeIndex >= 0) {
+        result = VM_executeCode(
             ctx,
             cache->scriptCodeIndex,
             ctx->currentCallFrame->self,
@@ -2051,41 +2046,27 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
             free(functionArgumentList);
         }
 #endif
-
-        // Free arguments (VM_executeCode copies what it needs)
-        if (args != nullptr) {
-            repeat(argCount, i) {
-                RValue_free(&args[i]);
-            }
-            if (!useStackArgs) free(args);
-        }
-
-        stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
-        return;
-    }
-
+    } 
+    
     // Slow path: unknown function (not cached as builtin or script)
+    else {
+        result = RValue_makeUndefined();
+
 #ifdef ENABLE_VM_STUB_LOGS
-    const char* unknownFuncName = ctx->dataWin->func.functions[funcIndex].name;
+        const char* unknownFuncName = ctx->dataWin->func.functions[funcIndex].name;
 
-    // Log once per (callingCode, funcName) pair
-    const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
-    char* dedupKey = VM_createDedupKey(callerName, unknownFuncName);
+        // Log once per (callingCode, funcName) pair
+        const char* callerName = VM_getCurrentCallFrameCodeName(ctx);
+        char* dedupKey = VM_createDedupKey(callerName, unknownFuncName);
 
-    if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
-        shput(ctx->loggedUnknownFuncs, dedupKey, true);
-        logWarn("VM: [%s] Unknown function \"%s\"!\n", callerName, unknownFuncName);
-    } else {
-        free(dedupKey);
-    }
-#endif
-
-    // Free arguments and push undefined
-    if (args != nullptr) {
-        repeat(argCount, i) {
-            RValue_free(&args[i]);
+        if (ctx->alwaysLogUnknownFunctions || 0 > shgeti(ctx->loggedUnknownFuncs, dedupKey)) {
+            shput(ctx->loggedUnknownFuncs, dedupKey, true);
+            logWarn("VM: [%s] Unknown function \"%s\"!\n", callerName, unknownFuncName);
+        } else {
+            free(dedupKey);
         }
-        if (!useStackArgs) free(args);
+
+#endif
     }
 
 #ifdef ENABLE_VM_TRACING
@@ -2094,7 +2075,15 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     }
 #endif
 
-    stackPush(ctx, RValue_makeUndefined());
+    // Free arguments and push result
+    {
+        repeat(argCount, i) {
+            RValue_free(&args[i]);
+        }
+    }
+    ctx->stack.top -= argCount;
+
+    stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
 }
 
 #if IS_WAD17_OR_HIGHER_ENABLED
@@ -2107,14 +2096,16 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
     RValue function = stackPop(ctx);
     RValue instance = stackPop(ctx);
 
-    RValue* args = nullptr;
-	RValue stackArgs[VM_MAX_STACK_ARGS] = {0};
-	bool useStackArgs = argCount <= VM_MAX_STACK_ARGS;
-    if (argCount > 0) {
-        args = useStackArgs ? stackArgs : (RValue *)safeCalloc(argCount, sizeof(RValue));
-        repeat(argCount, i) {
-            args[i] = stackPop(ctx);
-        }
+    // Reverse argument order on the stack.
+    // Do this in-place, to save an allocation per function call.
+    // This is safe to do, these values would've just been popped otherwise.
+    RValue* args = &ctx->stack.slots[ctx->stack.top - argCount];
+    repeat (argCount >> 1, i) {
+        size_t reverseIndex = argCount - (i + 1);
+
+        RValue temp = args[i];
+        args[i] = args[reverseIndex];
+        args[reverseIndex] = temp;
     }
 
     int32_t codeIndex = -1;
@@ -2193,12 +2184,12 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue_free(&function);
     RValue_free(&instance);
-    if (args != nullptr) {
+    {
         repeat(argCount, i) {
             RValue_free(&args[i]);
         }
-        if (!useStackArgs) free(args);
     }
+    ctx->stack.top -= argCount;
 
     stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
 }
@@ -3702,15 +3693,13 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     // Store arguments in scriptArgs (mirrors GMS 1.4's global argument stack).
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
     // the caller's original args remain valid and owner-tracked by the caller.
-    RValue* scriptArgs = nullptr;
-    if (argCount > 0 && args != nullptr) {
-        scriptArgs = (RValue *)safeCalloc(argCount, sizeof(RValue));
-        repeat(argCount, argIdx) {
-            RValue argCopy = RValue_makeIndependent(args[argIdx]);
-            scriptArgs[argIdx] = argCopy;
-        }
+    repeat(argCount, argIdx) {
+        // Redundant for scalar types... oh well
+        RValue argCopy = RValue_makeIndependent(args[argIdx]);
+        RValue_free(&args[argIdx]);
+        args[argIdx] = argCopy;
     }
-    callFrame.scriptArgs = scriptArgs;
+    callFrame.scriptArgs = args;
     callFrame.scriptArgsCount = argCount;
 
     // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
@@ -3752,8 +3741,9 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
             RValue_free(&callFrame.scriptArgs[i]);
         }
     }
-
-    free(callFrame.scriptArgs);
+    if (callFrame.ownsScriptArgs) {
+        free(callFrame.scriptArgs);
+    }
 
     ctx->currentCallFrame = callFrame.parent;
 
