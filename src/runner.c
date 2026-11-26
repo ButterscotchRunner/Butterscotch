@@ -2385,6 +2385,7 @@ void Runner_reset(Runner* runner) {
     runner->cursorSprite = -1;
     runner->cursorSpriteSubimage = 0;
     runner->gameStartFired = false;
+    runner->gamepadDiscoveryPending = true;
     runner->gameSpeedOverride = 0.0;
     runner->currentRoomIndex = -1;
     runner->currentRoomOrderPosition = -1;
@@ -4768,7 +4769,8 @@ void Runner_step(Runner* runner) {
     {
     for (int i = 0; MAX_GAMEPADS > i; i++) {
         GamepadSlot* slot = &runner->gamepads->slots[i];
-        if (slot->connected != slot->connectedPrev) {
+        if (slot->connected != slot->connectedPrev ||
+            (runner->gamepadDiscoveryPending && slot->connected)) {
             DsMapEntry* map = nullptr;
             arrput(runner->dsMapPool, map);
             int32_t mapId = arrlen(runner->dsMapPool) - 1;
@@ -4793,6 +4795,7 @@ void Runner_step(Runner* runner) {
             runner->asyncLoadMapId = -1;
         }
     }
+    runner->gamepadDiscoveryPending = false;
     }
 
     // Resolve a pending Xbox One account-picker request

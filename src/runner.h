@@ -732,6 +732,7 @@ struct Runner {
     GMLCamera surfaceCamera;
     GMLCamera guiCamera;
     RunnerGamepadState* gamepads;
+    bool gamepadDiscoveryPending;
     RuntimeBackground backgrounds[8];
     uint32_t backgroundColor;      // runtime-mutable (BGR format)
     bool drawBackgroundColor;
