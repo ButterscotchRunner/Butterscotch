@@ -29,7 +29,7 @@ void GLCommon_setTexFilter(Renderer* renderer, bool enable);
 void GLCommon_applyTexFilter(bool enable);
 void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_t portW, int32_t portH);
 typedef void (*GLApplyProjectionFunc)(Renderer* renderer, const Matrix4f* viewMatrix, const Matrix4f* projectionMatrix);
-void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection);
+void GLCommon_beginView(Renderer* renderer, int32_t portX, int32_t portY, int32_t portW, int32_t portH, GLuint activeTexture);
 void GLCommon_endView();
 void GLCommon_beginGUI(
     Renderer* renderer, int32_t targetSurfaceId, GLuint hostFramebuffer, GLuint activeTexture, GLApplyProjectionFunc glApplyProjection,

@@ -268,7 +268,7 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {
     glBindTexture(GL_TEXTURE_2D, 0);
-    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE0, glApplyProjection);
+    GLCommon_beginView(renderer, portX, portY, portW, portH, GL_TEXTURE0);
     VMBuiltins_applyD3DDefaultView(renderer, viewX, viewY, viewW, viewH, viewAngle);
     glClearDepthBuffer(renderer, 1);
 }
@@ -2113,7 +2113,8 @@ static bool glLegacySetRenderTarget(Renderer* renderer, int32_t surfaceId, bool 
         glViewport(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
         glEnable(GL_SCISSOR_TEST);
         glScissor(gl->base.CPortX, gl->base.CPortY, gl->base.CPortW, gl->base.CPortH);
-        glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+
+        Runner_applyCameraProjection(renderer->runner, camera);
         return true;
     }
 

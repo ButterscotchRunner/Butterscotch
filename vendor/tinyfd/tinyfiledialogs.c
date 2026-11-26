@@ -69,7 +69,7 @@ misrepresented as being the original software.
     #define _XOPEN_SOURCE 600 /* https://pubs.opengroup.org/onlinepubs/007904875/functions/xsh_chap02_02.html */
   #elif defined(__FreeBSD__)
     #define _POSIX_C_SOURCE 199506L /* 199506L is enough for freebsd for realpath() */
-  #elif defined(__illumos__) || defined(__solaris__)
+  #elif defined(__illumos__) || defined(__solaris__) || defined(__sun)
     #define _POSIX_C_SOURCE 200112L /* illumos/solaris needs 200112L for realpath() */
   #elif defined(__clang__) && (__clang_major__ >= 21)
     #define _POSIX_C_SOURCE 199506L /* to define strtok_r */

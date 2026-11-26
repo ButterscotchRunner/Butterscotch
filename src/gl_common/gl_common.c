@@ -183,7 +183,7 @@ void GLCommon_applyViewport(GLRenderer* gl, int32_t portX, int32_t portY, int32_
 void GLCommon_beginView(
     Renderer* renderer,
     int32_t portX, int32_t portY, int32_t portW, int32_t portH,
-    GLuint activeTexture, GLApplyProjectionFunc glApplyProjection
+    GLuint activeTexture
 ) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLCommon_applyViewport(gl, portX, portY, portW, portH);
@@ -194,7 +194,7 @@ void GLCommon_beginView(
     RuntimeView* view = &gl->base.runner->views[viewCurrent];
     gl->base.cameraCurrent = view->cameraId;
     GMLCamera* camera = Runner_getCameraById(gl->base.runner, gl->base.cameraCurrent);
-    glApplyProjection(renderer, &camera->viewMatrix,&camera->projectionMatrix);
+    Runner_applyCameraProjection(gl->base.runner, camera);
     glActiveTexture(activeTexture);
 }
 
