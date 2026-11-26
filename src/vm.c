@@ -618,19 +618,7 @@ static inline bool VM_ensureScriptArg(VMContext* ctx, int32_t writeIndex) {
     if (writeIndex < 0) return false;
     if (writeIndex < ctx->currentCallFrame->scriptArgsCount) return true;
 
-    RValue* newScriptArgs = (RValue *)safeCalloc(writeIndex + 1, sizeof(RValue));
-
-    if (ctx->currentCallFrame->scriptArgsCount > 0) {
-        memcpy(newScriptArgs, ctx->currentCallFrame->scriptArgs, ctx->currentCallFrame->scriptArgsCount * sizeof(RValue));
-        if (ctx->currentCallFrame->ownsScriptArgs) {
-            free(ctx->currentCallFrame->scriptArgs);
-        }
-    }
-
-    ctx->currentCallFrame->scriptArgs = newScriptArgs;
-    ctx->currentCallFrame->scriptArgsCount = writeIndex + 1;
-    ctx->currentCallFrame->ownsScriptArgs = true;
-    return true;
+    return false;
 }
 
 void VM_writeToScriptArgs(VMContext* ctx, int32_t writeIndex, RValue val) {
@@ -1963,7 +1951,7 @@ static void handleDup(VMContext* ctx, OpWord opword) {
 // ===[ Function Call Handler ]===
 
 static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) {
-    int32_t argCount = OpWord_extra(opword);
+    int16_t argCount = OpWord_extra(opword);
     uint32_t funcIndex = resolveFuncOperand(extraData);
     require(ctx->dataWin->func.functionCount > funcIndex);
 
@@ -2026,9 +2014,18 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
     // Fast path: cached script code index
     else if (cache->scriptCodeIndex >= 0) {
+        int32_t codeIndex = cache->scriptCodeIndex;
+
+        // If function has more arguments than were passed, pass in a bunch of additional undefineds
+        require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
+        int16_t funcArgCount = ctx->dataWin->code.entries[cache->scriptCodeIndex].argumentsCount;
+        for (; argCount < funcArgCount; argCount++) {
+            stackPush(ctx, RValue_makeUndefined());
+        }
+
         result = VM_executeCode(
             ctx,
-            cache->scriptCodeIndex,
+            codeIndex,
             ctx->currentCallFrame->self,
             ctx->currentCallFrame->other,
             ctx->currentCallFrame->eventObjectIndex,
@@ -2091,7 +2088,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 // Stack layout (top -> bottom): function, instance, arg[N-1], ..., arg[0]
 // argCount is in the low 16 bits of the instruction.
 static void handleCallV(VMContext* ctx, OpWord opword) {
-    int32_t argCount = OpWord_extra(opword);
+    int16_t argCount = OpWord_extra(opword);
 
     RValue function = stackPop(ctx);
     RValue instance = stackPop(ctx);
@@ -2145,6 +2142,12 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
+        // If function has more arguments than were passed, pass in a bunch of additional undefineds
+        int16_t funcArgCount = ctx->dataWin->code.entries[codeIndex].argumentsCount;
+        for (; argCount < funcArgCount; argCount++) {
+            stackPush(ctx, RValue_makeUndefined());
+        }
+
         result = VM_executeCode(
             ctx,
             codeIndex,
@@ -3740,9 +3743,6 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
         repeat(callFrame.scriptArgsCount, i) {
             RValue_free(&callFrame.scriptArgs[i]);
         }
-    }
-    if (callFrame.ownsScriptArgs) {
-        free(callFrame.scriptArgs);
     }
 
     ctx->currentCallFrame = callFrame.parent;
