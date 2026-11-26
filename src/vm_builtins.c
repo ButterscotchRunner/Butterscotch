@@ -3710,9 +3710,9 @@ static RValue builtin_game_get_speed(VMContext* ctx, MAYBE_UNUSED RValue* args, 
 
 static RValue builtin_game_set_speed(VMContext* ctx, MAYBE_UNUSED RValue* args, MAYBE_UNUSED int32_t argCount) {
     if (2 > argCount) return RValue_makeUndefined();
-
-    int32_t type = RValue_toInt32(args[0]);
-    GMLReal speedValue = RValue_toReal(args[1]);
+//correct arg order based off of the gm manual.
+    GMLReal speedValue = RValue_toReal(args[0]);
+    int32_t type = RValue_toInt32(args[1]);  
     GMLReal fps = (type == 0) ? speedValue : (speedValue > 0.0 ? (GMLReal) (1000000.0 / speedValue) : 0.0);
 
     ctx->runner->gameSpeedOverride = fps;
