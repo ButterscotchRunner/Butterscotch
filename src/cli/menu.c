@@ -44,6 +44,9 @@ static const LauncherOption launcherOptions[] = {
 #ifndef USE_GLFW2
     {"--headless", "Launch without a window", NULL},
 #endif
+#ifdef ENABLE_DISCORD_RPC
+    {"--no-discord-rpc", "Disable Discord Rich Presence", NULL},
+#endif
     {"--print-rooms", "Print all rooms and exit", NULL},
     {"--print-objects", "Print all objects and exit", NULL},
     {"--print-shaders", "Print all shaders and exit", NULL},

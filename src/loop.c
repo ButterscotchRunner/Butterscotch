@@ -65,6 +65,9 @@
 #include "utils.h"
 #include "profiler.h"
 #include "gettime.h"
+#ifdef ENABLE_DISCORD_RPC
+#include "discord_presence.h"
+#endif
 
 #ifdef PLATFORM_VITA
 #include "vita_textures.h"
@@ -1050,6 +1053,14 @@ int loop(CommandLineArgs args, const char *argv0) {
         // Initialize the first room and fire Game Start / Room Start events
         Runner_initFirstRoom(runner);
 
+#ifdef ENABLE_DISCORD_RPC
+        if (!args.headless && !args.disableDiscordRpc) {
+            const char* gameName = gen8->displayName;
+            if (gameName == nullptr || gameName[0] == '\0') gameName = gen8->name;
+            DiscordPresence_start(gameName);
+        }
+#endif
+
         // Main loop
         bool debugShowCollisionMasks = false;
         size_t overlayCachedMemBytes = 0;
@@ -1072,6 +1083,9 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             uint64_t frameStartNow = nowNanos();
+#ifdef ENABLE_DISCORD_RPC
+            DiscordPresence_update();
+#endif
             runner->deltaTime = (int64_t)(frameStartNow - lastFrameStartTime) / 1000.0;
             lastFrameStartTime = frameStartNow;
 
@@ -1510,6 +1524,9 @@ int loop(CommandLineArgs args, const char *argv0) {
         runner->pendingLaunchParameters = nullptr;
 
         // Cleanup
+#ifdef ENABLE_DISCORD_RPC
+        DiscordPresence_stop();
+#endif
         runner->audioSystem->vtable->destroy(runner->audioSystem);
         runner->audioSystem = nullptr;
         renderer->vtable->destroy(renderer);

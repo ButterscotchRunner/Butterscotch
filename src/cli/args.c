@@ -40,6 +40,9 @@ static void printUsage(const char *argv0) {
 #ifndef USE_GLFW2
         "    --headless                             - Launch without a window\n"
 #endif
+#ifdef ENABLE_DISCORD_RPC
+        "    --no-discord-rpc                       - Disable Discord Rich Presence\n"
+#endif
         "    --print-rooms                          - Print all rooms in the game and exit\n"
         "    --print-objects                        - Print all objects in the game and exit\n"
         "    --print-shaders                        - Print all shaders in the game and exit\n"
@@ -115,6 +118,9 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"screenshot-surfaces-at-frame", required_argument, nullptr, 'V'},
 #endif
         {"headless",            no_argument,       nullptr, 'h'},
+#ifdef ENABLE_DISCORD_RPC
+        {"no-discord-rpc", no_argument, nullptr, 4102},
+#endif
         {"print-rooms", no_argument,               nullptr, 'r'},
         {"print-objects", no_argument,             nullptr, 'b'},
         {"print-shaders", no_argument,               nullptr, 998},
@@ -458,6 +464,11 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
             case 'B':
                 args->saveFolder = optarg;
                 break;
+#ifdef ENABLE_DISCORD_RPC
+            case 4102:
+                args->disableDiscordRpc = true;
+                break;
+#endif
             case 'N': {
                 repeat(arrlen(args->gameArgs), i) {
                     free(args->gameArgs[i]);
