@@ -712,7 +712,7 @@ void Sequence_stepRoom(Runner* runner) {
             VMContext* ctx = runner->vmContext;
             ptrdiff_t index = shgeti(ctx->codeIndexByName, event->message);
             if (index >= 0) {
-                RValue result = VM_executeCode(ctx, ctx->codeIndexByName[index].value, ctx->globalScopeInstance, nullptr, CODE_NOT_RELATED_TO_EVENTS, EVENT_OTHER, OTHER_BROADCAST_MESSAGE, nullptr, 0);
+                RValue result = VM_executeCode(ctx, ctx->codeIndexByName[index].value, ctx->globalScopeInstance, nullptr, CODE_NOT_RELATED_TO_EVENTS, EVENT_OTHER, OTHER_BROADCAST_MESSAGE, 0);
                 RValue_free(&result);
             }
         }

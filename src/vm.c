@@ -120,6 +120,14 @@ static RValue* stackPeek(VMContext* ctx) {
 
 #endif
 
+// Unwinds and frees the VMStack down to the newStackTop
+static void unwindVMStack(VMContext* ctx, int32_t newStackTop) {
+    repeat(ctx->stack.top - newStackTop, i) {
+        RValue_free(&ctx->stack.slots[i + newStackTop]);
+    }
+    ctx->stack.top = newStackTop;
+}
+
 // ===[ Reference Chain Resolution ]===
 
 // Walks reference chains from the bytecode buffer and builds hash maps
@@ -1958,7 +1966,8 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     // Reverse argument order on the stack.
     // Do this in-place, to save an allocation per function call.
     // This is safe to do, these values would've just been popped otherwise.
-    RValue* args = &ctx->stack.slots[ctx->stack.top - argCount];
+    int stackTopOnCall = ctx->stack.top - argCount;
+    RValue* args = &ctx->stack.slots[stackTopOnCall];
     repeat (argCount >> 1, i) {
         size_t reverseIndex = argCount - (i + 1);
 
@@ -1966,8 +1975,6 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
         args[i] = args[reverseIndex];
         args[reverseIndex] = temp;
     }
-
-    RValue result;
 
 #ifdef ENABLE_VM_TRACING
     const char* funcName = ctx->dataWin->func.functions[funcIndex].name;
@@ -1997,6 +2004,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 
     // Use cached function resolution to avoid per-call string hash lookups
     FuncCallCache* cache = &ctx->funcCallCache[funcIndex];
+    RValue result;
 
     // Fast path: cached builtin function pointer
     if (cache->builtin != nullptr) {
@@ -2016,13 +2024,6 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
     else if (cache->scriptCodeIndex >= 0) {
         int32_t codeIndex = cache->scriptCodeIndex;
 
-        // If function has more arguments than were passed, pass in a bunch of additional undefineds
-        require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
-        int16_t funcArgCount = ctx->dataWin->code.entries[cache->scriptCodeIndex].argumentsCount;
-        for (; argCount < funcArgCount; argCount++) {
-            stackPush(ctx, RValue_makeUndefined());
-        }
-
         result = VM_executeCode(
             ctx,
             codeIndex,
@@ -2031,7 +2032,6 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
             ctx->currentCallFrame->eventObjectIndex,
             ctx->currentCallFrame->eventType,
             ctx->currentCallFrame->eventSubtype,
-            args,
             argCount
         );
 
@@ -2073,13 +2073,7 @@ static void handleCall(VMContext* ctx, OpWord opword, const uint8_t* extraData) 
 #endif
 
     // Free arguments and push result
-    {
-        repeat(argCount, i) {
-            RValue_free(&args[i]);
-        }
-    }
-    ctx->stack.top -= argCount;
-
+    unwindVMStack(ctx, stackTopOnCall);
     stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
 }
 
@@ -2096,7 +2090,8 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
     // Reverse argument order on the stack.
     // Do this in-place, to save an allocation per function call.
     // This is safe to do, these values would've just been popped otherwise.
-    RValue* args = &ctx->stack.slots[ctx->stack.top - argCount];
+    int stackTopOnCall = ctx->stack.top - argCount;
+    RValue* args = &ctx->stack.slots[stackTopOnCall];
     repeat (argCount >> 1, i) {
         size_t reverseIndex = argCount - (i + 1);
 
@@ -2142,12 +2137,6 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue result;
     if (codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex) {
-        // If function has more arguments than were passed, pass in a bunch of additional undefineds
-        int16_t funcArgCount = ctx->dataWin->code.entries[codeIndex].argumentsCount;
-        for (; argCount < funcArgCount; argCount++) {
-            stackPush(ctx, RValue_makeUndefined());
-        }
-
         result = VM_executeCode(
             ctx,
             codeIndex,
@@ -2156,7 +2145,6 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
             ctx->currentCallFrame->eventObjectIndex,
             ctx->currentCallFrame->eventType,
             ctx->currentCallFrame->eventSubtype,
-            args,
             argCount
         );
     } else if (builtin != nullptr) {
@@ -2187,12 +2175,7 @@ static void handleCallV(VMContext* ctx, OpWord opword) {
 
     RValue_free(&function);
     RValue_free(&instance);
-    {
-        repeat(argCount, i) {
-            RValue_free(&args[i]);
-        }
-    }
-    ctx->stack.top -= argCount;
+    unwindVMStack(ctx, stackTopOnCall);
 
     stackPushTyped(ctx, result, GML_TYPE_VARIABLE);
 }
@@ -2779,14 +2762,6 @@ static inline RValue scriptFallthroughReturnValue(VMContext* ctx) {
         return RValue_makeUndefined();
     }
     return RValue_makeReal(0.0);
-}
-
-// Unwinds and frees the VMStack down to the newStackTop
-static void unwindVMStack(VMContext* ctx, int32_t newStackTop) {
-    repeat(ctx->stack.top - newStackTop, i) {
-        RValue_free(&ctx->stack.slots[i + newStackTop]);
-    }
-    ctx->stack.top = newStackTop;
 }
 
 static RValue executeBytecodeInstructions(VMContext* ctx, CodeEntry* code) {
@@ -3666,9 +3641,14 @@ static CodeLocals* resolveCodeLocals(VMContext* ctx, const char* codeName) {
     return shget(ctx->codeLocalsMap, (char*) codeName);
 }
 
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, int32_t argCount) {
     require(codeIndex >= 0 && ctx->dataWin->code.count > (uint32_t) codeIndex);
     CodeEntry* code = &ctx->dataWin->code.entries[codeIndex];
+
+    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
+    // The instruction pointer before this CallFrame was created
+    uint32_t instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
+    uint32_t stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
 
     // Create a CallFrame for this script
     CallFrame callFrame = {0};
@@ -3696,19 +3676,19 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     // Store arguments in scriptArgs (mirrors GMS 1.4's global argument stack).
     // Callee takes an INDEPENDENT reference for strings (strdup) and arrays (incRef) so
     // the caller's original args remain valid and owner-tracked by the caller.
+    RValue* args = &ctx->stack.slots[ctx->stack.top - argCount];
     repeat(argCount, argIdx) {
-        // Redundant for scalar types... oh well
         RValue argCopy = RValue_makeIndependent(args[argIdx]);
         RValue_free(&args[argIdx]);
         args[argIdx] = argCopy;
     }
     callFrame.scriptArgs = args;
-    callFrame.scriptArgsCount = argCount;
 
-    // Store some informations so that we can restore the CallFrame state after the newly created CallFrame is popped
-    // The instruction pointer before this CallFrame was created
-    uint32_t instructionPointerWhenTheCallFrameWasCreated = ctx->ip;
-    uint32_t stackTopWhenTheCallFrameWasCreated = ctx->stack.top;
+    // If function has more arguments than were passed, pass in a bunch of additional undefineds
+    for (; argCount < code->argumentsCount; argCount++) {
+        stackPush(ctx, RValue_makeUndefined());
+    }
+    callFrame.scriptArgsCount = argCount;
 
     ctx->savearefBalance = 0;
 
@@ -3737,13 +3717,6 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
     }
 
     free(callFrame.localVars);
-
-    // Free callee script args
-    {
-        repeat(callFrame.scriptArgsCount, i) {
-            RValue_free(&callFrame.scriptArgs[i]);
-        }
-    }
 
     ctx->currentCallFrame = callFrame.parent;
 

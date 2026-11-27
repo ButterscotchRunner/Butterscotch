@@ -19,6 +19,7 @@
 #include <float.h>
 #include "string_compat.h"
 #include "math_compat.h"
+#include "vm.h"
 #include <ctype.h>
 #include <time.h>
 #include <stdio.h>
@@ -4902,7 +4903,6 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
     }
 
     // Pass remaining args (skip the script index)
-    RValue* scriptArgs = &args[1];
     int32_t scriptArgCount = argCount - 1;
 
     // If the method has a bound instance, temporarily swap currentInstance
@@ -4923,7 +4923,6 @@ static RValue builtin_script_execute(VMContext* ctx, RValue* args, int32_t argCo
         ctx->currentCallFrame->eventObjectIndex,
         ctx->currentCallFrame->eventType,
         ctx->currentCallFrame->eventSubtype,
-        scriptArgs,
         scriptArgCount
     );
     return result;
@@ -7366,9 +7365,12 @@ static bool resolveFunctionRef(VMContext* ctx, RValue funcRef, int32_t* outCodeI
 static BuiltinFunc g_arraySortBuiltin;
 
 static int arraySortCompareCustom(const void* a, const void* b) {
-    RValue callArgs[2];
-    callArgs[0] = RValue_makeIndependent(*(const RValue*) a);
-    callArgs[1] = RValue_makeIndependent(*(const RValue*) b);
+    assert(g_arraySortCtx->stack.top + 2 <= VM_STACK_SIZE);
+    RValue* callArgs = &g_arraySortCtx->stack.slots[g_arraySortCtx->stack.top];
+    g_arraySortCtx->stack.top += 2;
+    callArgs[0] = *(const RValue*) a;
+    callArgs[1] = *(const RValue*) b;
+
     RValue result;
     if (g_arraySortCodeIndex >= 0) {
         result = VM_executeCode(
@@ -7379,14 +7381,13 @@ static int arraySortCompareCustom(const void* a, const void* b) {
             g_arraySortCtx->currentCallFrame->eventObjectIndex,
             g_arraySortCtx->currentCallFrame->eventType,
             g_arraySortCtx->currentCallFrame->eventSubtype,
-            callArgs,
             2
         );
     } else {
         result = g_arraySortBuiltin(g_arraySortCtx, callArgs, 2);
     }
-    RValue_free(&callArgs[0]);
-    RValue_free(&callArgs[1]);
+
+    g_arraySortCtx->stack.top -= 2;
     int32_t cmp = RValue_toInt32(result);
     RValue_free(&result);
     return cmp;
@@ -17920,7 +17921,6 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
     // Remember the constructor so member reads can fallback to its shared static struct.
     structInst->constructorCodeIndex = codeIndex;
 
-    RValue* ctorArgs = &args[1];
     int32_t ctorArgCount = argCount - 1;
     RValue result = VM_executeCode(
         ctx,
@@ -17930,7 +17930,6 @@ static RValue builtin_NewGMLObject(VMContext* ctx, RValue* args, int32_t argCoun
         ctx->currentCallFrame->eventObjectIndex,
         ctx->currentCallFrame->eventType,
         ctx->currentCallFrame->eventSubtype,
-        ctorArgs,
         ctorArgCount
     );
     RValue_free(&result);
@@ -19536,9 +19535,12 @@ typedef struct {
 } JsonReviver;
 
 static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue value) {
-    RValue callArgs[2];
+    assert(reviver->ctx->stack.top + 2 <= VM_STACK_SIZE);
+    RValue* callArgs = &reviver->ctx->stack.slots[reviver->ctx->stack.top];
+    reviver->ctx->stack.top += 2;
     callArgs[0] = RValue_makeOwnedString(safeStrdup(key != nullptr ? key : ""));
     callArgs[1] = RValue_makeIndependent(value);
+
     Instance* savedInstance = reviver->ctx->currentCallFrame->self;
     if (reviver->boundInstance != nullptr) savedInstance = reviver->boundInstance;
     RValue result;
@@ -19551,12 +19553,12 @@ static RValue jsonReviverCall(JsonReviver* reviver, const char* key, RValue valu
             reviver->ctx->currentCallFrame->eventObjectIndex,
             reviver->ctx->currentCallFrame->eventType,
             reviver->ctx->currentCallFrame->eventSubtype,
-            callArgs,
             2
         );
     } else {
         result = reviver->builtin(reviver->ctx, callArgs, 2);
     }
+    reviver->ctx->stack.top -= 2;
     RValue_free(&callArgs[0]);
     RValue_free(&callArgs[1]);
     return result;

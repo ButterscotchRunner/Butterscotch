@@ -344,7 +344,6 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
                 CODE_NOT_RELATED_TO_EVENTS,
                 CODE_NOT_RELATED_TO_EVENTS,
                 CODE_NOT_RELATED_TO_EVENTS,
-                nullptr,
                 0
             );
         } else if (method->builtin != nullptr) {
@@ -385,7 +384,6 @@ static void Runner_executeCallLaterCallback(VMContext* ctx, RValue callback) {
             CODE_NOT_RELATED_TO_EVENTS,
             CODE_NOT_RELATED_TO_EVENTS,
             CODE_NOT_RELATED_TO_EVENTS,
-            nullptr,
             0
         );
     } else if (builtin != nullptr) {
@@ -447,7 +445,6 @@ static void Runner_executeResolvedEvent(Runner* runner, Instance* instance, Inst
         ownerObjectIndex,
         eventType,
         eventSubtype,
-        nullptr,
         0
     );
 
@@ -1061,7 +1058,6 @@ void Runner_draw(Runner* runner) {
                     CODE_NOT_RELATED_TO_EVENTS,
                     EVENT_DRAW,
                     DRAW_NORMAL,
-                    nullptr,
                     0
                 );
             }
@@ -1204,7 +1200,6 @@ void Runner_draw(Runner* runner) {
                     CODE_NOT_RELATED_TO_EVENTS,
                     EVENT_DRAW,
                     DRAW_NORMAL,
-                    nullptr,
                     0
                 );
             }
@@ -2058,7 +2053,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 roomObj->objectDefinition,
                 EVENT_PRECREATE,
                 0,
-                nullptr,
                 0
             );
             if (inst->destroyed) continue;
@@ -2072,7 +2066,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
                 roomObj->objectDefinition,
                 EVENT_CREATE, // TODO: Is this really EVENT_CREATE?
                 0,
-                nullptr,
                 0
             );
         }
@@ -2090,7 +2083,6 @@ static void initRoom(Runner* runner, int32_t roomIndex) {
             dummy->objectIndex,
             EVENT_ROOM_CREATION,
             0,
-            nullptr,
             0
         );
         RValue_free(&result);
@@ -3223,12 +3215,12 @@ void Runner_initFirstRoom(Runner* runner) {
                 CODE_NOT_RELATED_TO_EVENTS,
                 CODE_NOT_RELATED_TO_EVENTS,
                 CODE_NOT_RELATED_TO_EVENTS,
-                nullptr,
                 0
             );
             RValue_free(&result);
         }
     }
+    logInfo("done with init scripts!\n");
 
     // Run extension init scripts
     repeat(dataWin->extn.count, e) {
@@ -3252,7 +3244,6 @@ void Runner_initFirstRoom(Runner* runner) {
                     CODE_NOT_RELATED_TO_EVENTS,
                     CODE_NOT_RELATED_TO_EVENTS,
                     CODE_NOT_RELATED_TO_EVENTS,
-                    nullptr,
                     0
                 );
                 RValue_free(&result);
@@ -3358,7 +3349,6 @@ static void executeCollisionEvent(Runner* runner, Instance* self, Instance* othe
         ownerObjectIndex,
         EVENT_COLLISION,
         targetObjectIndex,
-        nullptr,
         0
     );
 }
@@ -4351,7 +4341,6 @@ static void tickTimelines(Runner* runner) {
                         inst->objectIndex,
                         CODE_NOT_RELATED_TO_EVENTS,
                         CODE_NOT_RELATED_TO_EVENTS,
-                        nullptr,
                         0
                     );
                 }
@@ -4377,7 +4366,6 @@ static void tickTimelines(Runner* runner) {
                         inst->objectIndex,
                         CODE_NOT_RELATED_TO_EVENTS,
                         CODE_NOT_RELATED_TO_EVENTS,
-                        nullptr,
                         0
                     );
                 }
