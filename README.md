@@ -231,7 +231,7 @@ When running Butterscotch with `--debug`, the following hotkeys are enabled:
 
 * `Page Up`: Moves forward one room
 * `Page Down`: Moves backwards one room
-* `P`: Pauses the game
+* `F8`: Pauses the game
 * `O`: While paused, advances the game loop by one frame
 * `F12`: Dumps the current runner state to the console
 * `F11`: Dumps the current runner state to the console (JSON format), or dumps it to a file if `--dump-frame-json-file` is set.
