@@ -1113,7 +1113,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             // Go to next room
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEUP)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEUP)) {
                 DataWin* dw = runner->dataWin;
                 if ((int32_t) dw->gen8.roomOrderCount > runner->currentRoomOrderPosition + 1) {
                     int32_t nextIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition + 1];
@@ -1124,7 +1124,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             // Go to previous room
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEDOWN)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_PAGEDOWN)) {
                 DataWin* dw = runner->dataWin;
                 if (runner->currentRoomOrderPosition > 0) {
                     int32_t prevIdx = dw->gen8.roomOrder[runner->currentRoomOrderPosition - 1];
@@ -1135,12 +1135,12 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             // Dump runner state to console
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F12)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F12)) {
                 logDebug("Dumping runner state at frame %d\n", runner->frameCount);
                 Runner_dumpState(runner);
             }
 
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F11)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F11)) {
                 logDebug("Dumping runner state at frame %d\n", runner->frameCount);
                 char* json = Runner_dumpStateJson(runner);
 
@@ -1172,21 +1172,21 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             // Toggle the debug overlay
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F1)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F1)) {
                 showDebugOverlay = !showDebugOverlay;
                 shouldRender = true;
                 logDebug("Debug overlay %s!\n", showDebugOverlay ? "enabled" : "disabled");
             }
 
             // Toggle the collision mask debug overlay
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F2)) {
                 debugShowCollisionMasks = !debugShowCollisionMasks;
                 shouldRender = true;
                 logDebug("Collision mask overlay %s!\n", debugShowCollisionMasks ? "enabled" : "disabled");
             }
 
             // Enable free cam
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F3)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F3)) {
                 runner->freeCamPanX = 0.0f;
                 runner->freeCamPanY = 0.0f;
                 runner->freeCamZoom = 1.0f;
@@ -1215,7 +1215,7 @@ int loop(CommandLineArgs args, const char *argv0) {
             }
 
             // Reset global interact state because I HATE when I get stuck while moving through rooms
-            if (RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
+            if (runner->debugMode && RunnerKeyboard_checkPressed(runner->keyboard, VK_F10)) {
                 int32_t interactVarId = shget(runner->vmContext->varNameMap, "interact");
 
                 Instance_setSelfVar(runner->vmContext->globalScopeInstance, interactVarId, RValue_makeInt32(0));
