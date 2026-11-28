@@ -906,7 +906,7 @@ typedef struct {
     const char* name;
     uint32_t length;
     uint16_t localsCount;
-    uint16_t argumentsCount;
+    int16_t argumentsCount;
     uint32_t bytecodeAbsoluteOffset;
     uint32_t offset;
 } CodeEntry;

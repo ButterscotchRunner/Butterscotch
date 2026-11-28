@@ -2627,7 +2627,7 @@ static void parseCODE(BinaryReader* reader, DataWin* dw, uint32_t chunkLength, s
             BinaryReader_skip(reader, entry->length);
         } else {
             entry->localsCount = BinaryReader_readUint16(reader);
-            entry->argumentsCount = BinaryReader_readUint16(reader);
+            entry->argumentsCount = BinaryReader_readInt16(reader);
 
             // bytecodeRelAddr is relative to the position of this field
             size_t relAddrFieldPos = BinaryReader_getPosition(reader);

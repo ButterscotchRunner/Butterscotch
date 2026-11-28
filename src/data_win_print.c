@@ -186,7 +186,7 @@ void DataWin_printDebugSummary(DataWin* dataWin) {
     if (dataWin->code.count > 0) {
         uint32_t show = dataWin->code.count < 3 ? dataWin->code.count : 3;
         forEachIndexed(CodeEntry, entry, idx, dataWin->code.entries, show) {
-            logInfo("    [%u] %s (%u bytes, %u locals, %u args)\n", (unsigned int)idx, entry->name ? entry->name : "?", entry->length, entry->localsCount, entry->argumentsCount);
+            logInfo("    [%u] %s (%u bytes, %u locals, %d args)\n", (unsigned int)idx, entry->name ? entry->name : "?", entry->length, entry->localsCount, entry->argumentsCount);
         }
         if (dataWin->code.count > 3) logInfo("    ... and %u more\n", dataWin->code.count - 3);
     }

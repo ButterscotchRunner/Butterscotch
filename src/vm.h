@@ -69,9 +69,6 @@
 #define BREAK_ISNULLISH    (-10) // Pop value, push bool: is the value nullish (undefined / pointer_null)?
 #define BREAK_PUSHREF      (-11) // Push an asset reference (or a script/function reference) encoded in the 32-bit operand
 
-// Max amount of args a function call can have until the args are heap-alloced.
-#define VM_MAX_STACK_ARGS 16
-
 // ===[ Variable Types for V17 Array Access ]===
 #define VARTYPE_ARRAYPUSHAF 0x10  // Push array reference (read context)
 #define VARTYPE_ARRAYPOPAF  0x90  // Push array reference (write context)
@@ -246,11 +243,10 @@ void VM_reset(VMContext* ctx);
  * @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
- * @param args the arguments that will be passed to the executed code, can be nullptr
- * @param argCount the argument count
+ * @param argCount the number of arguments passed on the stack
  * @return the return value of the executed script
  */
-RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount);
+RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, int32_t argCount);
 
 /**
  * Same thing as VM_executeCode, but returns if the codeIndex is not a valid codeIndex
@@ -262,15 +258,14 @@ RValue VM_executeCode(VMContext* ctx, int32_t codeIndex, Instance* selfInstance,
  * @param eventObjectIndex the event object index related to this code, used for "event_inherited", can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param eventType the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
  * @param eventSubtype the event type related to this code, can be CODE_NOT_RELATED_TO_EVENTS when the execution is not related to an event (example: for initialization scripts)
- * @param args the arguments that will be passed to the executed code, can be nullptr
- * @param argCount the argument count
+ * @param argCount the number of arguments passed on the stack
  */
-static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, RValue* args, int32_t argCount) {
+static inline void VM_executeCodeIgnoreInvalidCodeIndices(VMContext* ctx, int32_t codeIndex, Instance* selfInstance, Instance* otherInstance, int32_t eventObjectIndex, int32_t eventType, int32_t eventSubtype, int32_t argCount) {
     // GameMaker does use codeIds less than 0, we'll just pretend we didn't hear them...
     if (0 > codeIndex)
         return;
 
-    RValue rvalue = VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, eventObjectIndex, eventType, eventSubtype, args, argCount);
+    RValue rvalue = VM_executeCode(ctx, codeIndex, selfInstance, otherInstance, eventObjectIndex, eventType, eventSubtype, argCount);
     RValue_free(&rvalue);
 }
 
